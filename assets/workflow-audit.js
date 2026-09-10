@@ -39,6 +39,9 @@
           : '';
         throw new Error(errors || 'We couldn’t confirm your submission. Please try again or email ryan.galen@uselai.com.');
       }
+      // Only an acknowledged Formspree response reaches this branch.
+      // Keep measurement failures separate from form success and navigation.
+      try { window.laiAnalytics?.auditSubmitted(); } catch { /* Optional tracking. */ }
       // This marker is navigation context only, never proof for conversion tracking.
       window.location.assign('/workflow-audit-thanks.html?ref=fs');
     } catch (error) {

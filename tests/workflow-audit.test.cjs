@@ -5,7 +5,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 const code = fs.readFileSync(path.join(__dirname, '../assets/workflow-audit.js'), 'utf8');
 
-function harness(fetch) {
+function harness(fetch, analytics) {
   const listeners = {};
   const button = {};
   const status = { focus() { this.focused = true; } };
@@ -23,7 +23,7 @@ function harness(fetch) {
   const destinations = [];
   vm.runInNewContext(code, {
     document: { getElementById: id => elements[id] },
-    window: { addEventListener() {}, location: { assign: url => destinations.push(url) } },
+    window: { laiAnalytics: analytics, addEventListener() {}, location: { assign: url => destinations.push(url) } },
     fetch, FormData: class {}, AbortController, setTimeout, clearTimeout, TypeError
   });
   return { button, status, other, details, input, destinations, submit: () => listeners.submit({ preventDefault() {} }) };
@@ -68,4 +68,43 @@ test('Other details are enabled only while Other is selected', () => {
   h.other.change();
   assert.equal(h.details.hidden, false);
   assert.equal(h.input.disabled, false);
+});
+
+test('Lead waits for HTTP success and ok:true, and repeated submit emits once', async () => {
+  let resolve;
+  let leads = 0;
+  const h = harness(() => new Promise(r => { resolve = r; }), { auditSubmitted() { leads++; } });
+  assert.equal(leads, 0);
+  const submission = h.submit();
+  await h.submit();
+  assert.equal(leads, 0);
+  resolve({ ok: true, json: async () => ({ ok: true }) });
+  await submission;
+  assert.equal(leads, 1);
+  assert.equal(h.destinations.length, 1);
+});
+
+test('failed, malformed and unacknowledged responses never emit Lead', async () => {
+  const responses = [
+    async () => ({ ok: false, json: async () => ({ ok: true }) }),
+    async () => ({ ok: true, json: async () => ({ ok: false }) }),
+    async () => ({ ok: true, json: async () => ({}) }),
+    async () => ({ ok: true, json: async () => { throw new SyntaxError(); } }),
+    async () => { throw new TypeError('offline'); }
+  ];
+  for (const fetch of responses) {
+    let leads = 0;
+    const h = harness(fetch, { auditSubmitted() { leads++; } });
+    await h.submit();
+    assert.equal(leads, 0);
+    assert.equal(h.destinations.length, 0);
+  }
+});
+
+test('missing or broken tracking cannot break successful form navigation', async () => {
+  for (const analytics of [undefined, { auditSubmitted() { throw new Error('blocked'); } }]) {
+    const h = harness(async () => ({ ok: true, json: async () => ({ ok: true }) }), analytics);
+    await h.submit();
+    assert.deepEqual(h.destinations, ['/workflow-audit-thanks.html?ref=fs']);
+  }
 });

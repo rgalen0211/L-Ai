@@ -4,7 +4,7 @@ AI workflow automation and practical implementation for small businesses.
 
 Website: https://uselai.com
 
-## Workflow Audit funnel — Pass 1
+## Workflow Audit funnel
 
 Static landing page: `/workflow-audit/` (directory index; `/workflow-audit` resolves with a trailing slash on directory-serving hosts).
 Dedicated confirmation/scheduling page: `/workflow-audit-thanks.html`.
@@ -20,7 +20,8 @@ With JavaScript, the form requests JSON and navigates to
 and Formspree returns `ok: true`. Errors retain the entered values and restore
 the submit button. A 30-second timeout reports uncertain delivery without
 automatically retrying. The query marker is navigation context, not proof of
-submission. No Meta or GA4 tracking is implemented in Pass 1.
+submission. Pass 2 adds optional Meta integration, disabled until configured.
+GA4 remains absent.
 
 Without JavaScript, the native form still posts to Formspree. The observed
 endpoint ignores `_redirect`; the noscript note explains returning after
@@ -70,3 +71,62 @@ URL: https://calendar.app.google/SrHAqNaF4DMTgo4EA
 - Before campaign traffic: confirm delivery, complete the later approved passes,
   and repeat the form/navigation checks on the deployed origin. Branch push does
   not publish these pages to the main-based site.
+
+### Pass 2 — optional Meta measurement
+
+`assets/analytics-config.js` contains an empty `metaPixelId`. With this empty
+value, the integration loads no Meta SDK, sends no events, and queues nothing.
+Numeric format validation is not account validation: Ryan must supply the actual
+L'Ai Pixel ID from Meta Events Manager. No production ID has been invented.
+
+Deferred scripts load configuration, then `assets/analytics.js`, then the audit
+form handler. The homepage and both audit pages load this integration. The
+general-contact `thank-you.html` remains untouched under the original scope rule;
+it has no PageView wiring. Add the shared scripts to future pages as appropriate.
+
+| Event | Trigger when configured |
+| --- | --- |
+| PageView | Once per document load on pages loading the integration. |
+| ViewContent | Only the workflow-audit landing route (including its directory/index aliases). |
+| Lead | Direct call from the AJAX handler after both `response.ok` and parsed `result.ok === true`; before navigating. |
+| ScheduleClicked | Custom event bound only to `#audit-booking` on the dedicated thank-you page, with the exact approved Calendar URL. |
+
+Lead is never inferred from a URL, referrer, page load, submit click, storage
+marker, or email notification. The existing in-flight submission guard prevents
+duplicate clicks from producing duplicate requests/events. There is no persisted
+Lead replay on the thank-you page. Reloading or directly navigating there with
+`?ref=fs` does not emit Lead. Separate successful submissions remain separate
+leads; this is not person-level deduplication or server-authenticated tracking.
+
+Only event names are explicitly passed to Meta; no form values or advanced
+matching data are supplied. Pixel automatic configuration is disabled in code.
+The SDK can still perform its normal browser measurement when enabled. All
+tracking calls are isolated from form/navigation errors. Delivery is best effort:
+ad blockers, a slow SDK, or navigation can lose events. We neither delay the
+visitor nor claim Meta receipt from a queued call. No Conversions API is included.
+
+External activation checklist for Ryan:
+
+1. In Meta Events Manager, select/create the L'Ai web Pixel and supply its Pixel
+   ID (not an ad account ID or access token). Populate `metaPixelId` only after
+   the planned privacy/launch review.
+2. Check that automatic/event-setup rules do not separately classify form clicks
+   or thank-you URLs as Lead; those would create weak or duplicate signals.
+3. After deployment, use Test Events to verify PageView, ViewContent, one Lead
+   after a real successful submission, no Lead on failures/direct thank-you
+   navigation, and ScheduleClicked on the booking CTA. Confirm actual receipt
+   before using Lead as the campaign conversion event.
+4. GA4 is optional: provide a web-stream Measurement ID if desired. No GA4
+   configuration was found on the second inspection and no GA4 script was added.
+
+Pass 2 validation: `node --test tests/analytics.test.cjs tests/workflow-audit.test.cjs`
+passes all 12 tests. Pixel calls are mocked; the test ID is isolated and never
+sent to Meta. Browser regression test `20260910-D` used the real Formspree endpoint
+with only required fields and empty Pixel configuration. It reached the dedicated
+`?ref=fs` page successfully; no Meta SDK element was loaded on either audit page.
+Form fields, copy, styling, endpoint, and Calendar URL are unchanged.
+
+Open launch item: inbox notification delivery for A/B/C remains unverified,
+independently confirmed by Ryan's mailbox search. D establishes HTTP acceptance
+only, not inbox delivery. Inspect the Formspree dashboard submission/spam records
+and notification settings separately. This does not block the Pass 2 code review.
