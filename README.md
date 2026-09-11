@@ -67,7 +67,7 @@ URL: https://calendar.app.google/SrHAqNaF4DMTgo4EA
   `node --test tests/workflow-audit.test.cjs`.
 - Static site; no build step. The new pages share only their own CSS/JS assets.
 - No pricing, new palette colors, tracking, CRM work, or unrelated site changes.
-- Privacy policy and policy links remain for the explicitly scheduled Pass 3.
+- Privacy policy and policy links were added in Pass 3.
 - Before campaign traffic: confirm delivery, complete the later approved passes,
   and repeat the form/navigation checks on the deployed origin. Branch push does
   not publish these pages to the main-based site.
@@ -130,3 +130,44 @@ Open launch item: inbox notification delivery for A/B/C remains unverified,
 independently confirmed by Ryan's mailbox search. D establishes HTTP acceptance
 only, not inbox delivery. Inspect the Formspree dashboard submission/spam records
 and notification settings separately. This does not block the Pass 2 code review.
+
+### Pass 3 — privacy and final regression
+
+Added `/privacy-policy.html` with voluntary form information, inquiry/audit uses,
+Formspree handling, Google Calendar scheduling, Google Fonts requests, conditional
+Meta measurement, optional future GA4, and the L'Ai contact address for questions
+and data requests. No security/compliance guarantees or unverified retention
+promises are made. Meta remains inactive and GA4 absent. When measurement is
+activated, update the policy's current-status wording and review any consent
+requirements for the actual campaign audience before enabling it.
+
+The audit submit area now links the Privacy Policy in a short disclosure, without
+adding a checkbox. Footers link it on the homepage, audit landing, audit thanks,
+and policy page. The original general-contact `thank-you.html` is unchanged.
+
+Final QA on September 10, 2026:
+
+- Homepage, audit landing, audit thanks, and privacy page fit 320px, 390px, and
+  1280px viewports without horizontal overflow. Desktop/mobile visual reviews
+  confirmed readable content, form controls, disclosure, and footer links.
+- Only name/email/task remain required; all visible controls have associated
+  labels. Native required validation, keyboard navigation, visible focus,
+  select choices, textarea entry, and keyboard toggling of Other were checked.
+- Real local-preview test `20260910-E` was accepted by Formspree and reached
+  `/workflow-audit-thanks.html?ref=fs`. The scheduling CTA opened the correct
+  “L'Ai 15-Minute Intro” Google Calendar page. No appointment booked.
+- All 12 dependency-free tests passed, covering failed/malformed submissions,
+  pending duplicate submissions, verified-success-only Lead, no direct-page
+  Lead, CTA-only ScheduleClicked, and safe missing/broken analytics behavior.
+  Enabled Pixel behavior is mocked; no real Pixel ID or Meta receipt is claimed.
+- Browser checks found no Meta SDK loaded on any checked page. The form and
+  tracking JavaScript, endpoint, seven fields, and booking URL were not changed.
+- No new colors or public service prices. The homepage's existing dollar amounts
+  are explicitly illustrative labor-capacity figures, not service fees.
+- Original general-contact thank-you and standalone CRM remain untouched.
+
+Remaining external launch items: confirm Formspree dashboard/notification
+delivery for the labeled tests; supply a real Meta Pixel ID and verify Test
+Events after activation; repeat checks on the deployed domain after an approved
+merge/deployment. GA4 is optional. This checkpoint is pushed for review only;
+main has not been changed or merged.
