@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Free 15-Minute Workflow Audit | L'Ai</title>
+<meta name="description" content="Bring one repetitive computer task. Get a straight answer on whether AI or automation is worth pursuing in a free 15-minute workflow audit.">
+<link rel="canonical" href="https://uselai.com/workflow-audit/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/workflow-audit.css">
+</head>
+<body>
+<a class="skip-link" href="#audit-form">Skip to the audit form</a>
+<header><div class="container nav"><a class="brand" href="/" aria-label="L'Ai home"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">AI workflow automation<br>for small business</span></a><span class="header-note">One task. A straight answer.</span></div></header>
+<main class="container audit-layout">
+  <div class="audit-copy">
+    <div class="eyebrow">Free 15-minute workflow audit</div>
+    <h1>Bring one repetitive task. We’ll tell you honestly whether it’s worth fixing.</h1>
+    <p class="hero-copy">Show us one repetitive computer task and roughly how much work it creates. We’ll assess whether AI or automation could realistically help.</p>
+    <p class="reassurance">No obligation. You’ll get a straight answer—even if it isn’t worth automating.</p>
+  </div>
+  <form id="audit-form" class="contact-form" action="https://formspree.io/f/xyklqewj" method="POST" aria-labelledby="form-title">
+    <h2 id="form-title">Tell us about your task</h2>
+    <p class="form-intro">Only name, email, and your task are required.</p>
+    <input type="hidden" name="_subject" value="L'Ai Workflow Audit Request">
+    <input type="hidden" name="brand" value="L'Ai">
+    <input type="hidden" name="source" value="uselai.com/workflow-audit">
+    <input type="hidden" name="submission_type" value="workflow_audit">
+    <input type="hidden" name="_redirect" value="https://uselai.com/workflow-audit-thanks.html?ref=fs">
+    <div class="form-row">
+      <div><label for="name">Name <span>(required)</span></label><input id="name" name="name" type="text" autocomplete="name" required></div>
+      <div><label for="email">Email <span>(required)</span></label><input id="email" name="email" type="email" autocomplete="email" required></div>
+    </div>
+    <label for="task">What repetitive task would you like to improve? <span>(required)</span></label>
+    <textarea id="task" name="task" required placeholder="A sentence or two is enough."></textarea>
+    <label for="company">Company <span>(optional)</span></label>
+    <input id="company" name="company" type="text" autocomplete="organization">
+    <div class="form-row">
+      <div><label for="people">People who touch this task <span>(optional)</span></label><select id="people" name="people"><option value="">Choose one</option><option>1</option><option>2–5</option><option>6–20</option><option>20+</option></select></div>
+      <div><label for="hours">Approximate hours per week <span>(optional)</span></label><select id="hours" name="hours_per_week"><option value="">Choose one</option><option>Under 5</option><option>5–10</option><option>10–20</option><option>20+</option></select></div>
+    </div>
+    <fieldset><legend>Systems/software involved <span>(optional)</span></legend><div class="checkbox-grid">
+      <label><input type="checkbox" name="systems" value="Google Workspace">Google Workspace</label>
+      <label><input type="checkbox" name="systems" value="Microsoft 365">Microsoft 365</label>
+      <label><input type="checkbox" name="systems" value="Salesforce">Salesforce</label>
+      <label><input type="checkbox" name="systems" value="HubSpot">HubSpot</label>
+      <label><input type="checkbox" name="systems" value="Sheets / Excel">Sheets / Excel</label>
+      <label><input id="systems-other" type="checkbox" name="systems" value="Other" aria-controls="other-details">Other</label>
+    </div><div id="other-details"><label for="other-software">Other software <span>(optional)</span></label><input id="other-software" name="other_software" type="text"></div></fieldset>
+    <button class="button primary" type="submit">Send My Task</button>
+    <p class="form-note">By submitting, you agree to our <a href="/privacy-policy.html">Privacy Policy</a>.</p>
+    <p id="form-status" class="form-note" role="status" tabindex="-1" hidden></p>
+    <noscript><p class="form-note">After Formspree confirms your submission, return here to <a href="/workflow-audit-thanks.html">continue to scheduling</a>.</p></noscript>
+    <p class="form-note">We’ll use these details to respond to your audit request. Please leave out passwords and sensitive customer information.</p>
+  </form>
+  <section class="next-steps" aria-labelledby="next-title"><div class="section-head"><h2 id="next-title">What happens next</h2></div><ol><li><strong>Send your task.</strong> Give us a little context about the work that repeats.</li><li><strong>Choose a time.</strong> After sending, schedule your free 15-minute conversation.</li><li><strong>Get an honest assessment.</strong> We’ll discuss whether it’s worth fixing. If appropriate, a separate scope and fixed quote can follow.</li></ol><p class="form-note">The free audit is an assessment. Implementation is not included.</p></section>
+</main>
+<footer><div class="container footer-row"><span>L'Ai — operated by Ry's Seasonings LLC.</span><a href="mailto:ryan.galen@uselai.com">ryan.galen@uselai.com</a><a href="/privacy-policy.html">Privacy Policy</a></div></footer>
+<script src="/assets/analytics-config.js" defer></script>
+<script src="/assets/analytics.js" defer></script>
+<script src="/assets/workflow-audit.js" defer></script>
+</body>
+</html>
