@@ -7,6 +7,8 @@ const code = fs.readFileSync(path.join(__dirname, '../assets/workflow-audit.js')
 
 function harness(fetch, analytics) {
   const listeners = {};
+  const pageListeners = [];
+  const attributes = {};
   const button = {};
   const status = { focus() { this.focused = true; } };
   const other = { checked: false, addEventListener(type, fn) { this.change = fn; } };
@@ -17,16 +19,19 @@ function harness(fetch, analytics) {
     reportValidity: () => true,
     querySelector: () => button,
     addEventListener(type, fn) { listeners[type] = fn; },
-    setAttribute() {}, removeAttribute() {}
+    setAttribute(name, value) { attributes[name] = value; },
+    removeAttribute(name) { delete attributes[name]; }
   };
   const elements = { 'audit-form': form, 'form-status': status, 'systems-other': other, 'other-details': details, 'other-software': input };
   const destinations = [];
   vm.runInNewContext(code, {
     document: { getElementById: id => elements[id] },
-    window: { laiAnalytics: analytics, addEventListener() {}, location: { assign: url => destinations.push(url) } },
+    window: { laiAnalytics: analytics, addEventListener(type, fn) { if (type === 'pageshow') pageListeners.push(fn); }, location: { assign: url => destinations.push(url) } },
     fetch, FormData: class {}, AbortController, setTimeout, clearTimeout, TypeError
   });
-  return { button, status, other, details, input, destinations, submit: () => listeners.submit({ preventDefault() {} }) };
+  return { button, status, other, details, input, destinations, attributes,
+    pageshow: persisted => pageListeners.forEach(fn => fn({ persisted })),
+    submit: () => listeners.submit({ preventDefault() {} }) };
 }
 
 test('only an acknowledged success redirects to scheduling', async () => {
@@ -107,4 +112,43 @@ test('missing or broken tracking cannot break successful form navigation', async
     await h.submit();
     assert.deepEqual(h.destinations, ['/workflow-audit-thanks.html?ref=fs']);
   }
+});
+
+test('bfcache restore resets submission UI without requests, events, or navigation', async () => {
+  let requests = 0, leads = 0;
+  const h = harness(async () => {
+    requests++;
+    return { ok: true, json: async () => ({ ok: true }) };
+  }, { auditSubmitted() { leads++; } });
+  await h.submit();
+  assert.equal(h.button.disabled, true);
+  assert.equal(h.button.textContent, 'Sending…');
+  h.attributes['aria-busy'] = 'true';
+  h.pageshow(true);
+  assert.equal(h.button.disabled, false);
+  assert.equal(h.button.textContent, 'Send My Task');
+  assert.equal(h.status.hidden, true);
+  assert.equal(h.status.textContent, '');
+  assert.equal(h.attributes['aria-busy'], undefined);
+  assert.equal(requests, 1);
+  assert.equal(leads, 1);
+  assert.equal(h.destinations.length, 1);
+  // Only a new explicit submission may send again after returning.
+  await h.submit();
+  assert.equal(requests, 2);
+  assert.equal(leads, 2);
+});
+
+test('ordinary pageshow does not reset an in-flight submission or permit duplicates', async () => {
+  let resolve, requests = 0;
+  const h = harness(() => { requests++; return new Promise(r => { resolve = r; }); });
+  const pending = h.submit();
+  h.pageshow(false);
+  assert.equal(h.button.disabled, true);
+  assert.equal(h.button.textContent, 'Sending…');
+  assert.equal(h.attributes['aria-busy'], 'true');
+  await h.submit();
+  assert.equal(requests, 1);
+  resolve({ ok: true, json: async () => ({ ok: true }) });
+  await pending;
 });

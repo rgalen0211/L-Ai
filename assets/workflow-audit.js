@@ -14,6 +14,15 @@
   const button = form.querySelector('button[type="submit"]');
   const status = document.getElementById('form-status');
   let sending = false;
+  window.addEventListener('pageshow', (event) => {
+    if (event.persisted !== true) return;
+    sending = false;
+    button.disabled = false;
+    button.textContent = 'Send My Task';
+    status.hidden = true;
+    status.textContent = '';
+    form.removeAttribute('aria-busy');
+  });
   form.addEventListener('submit', async (event) => {
     event.preventDefault();
     if (sending || !form.reportValidity()) return;
