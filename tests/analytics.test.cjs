@@ -56,3 +56,10 @@ test('blocked Pixel fails safely, and a missing SDK queues without form data', (
   assert.equal(h.scripts[0].src, 'https://connect.facebook.net/en_US/fbevents.js');
   assert.deepEqual(Array.from(h.window.fbq.queue.at(-1)), ['track', 'Lead']);
 });
+test('the main contact form also emits a Lead event, independent of the audit form', () => {
+  const h = setup({ pathname: '/' });
+  h.window.laiAnalytics.contactSubmitted();
+  assert.deepEqual(h.events.at(-1), ['track', 'Lead']);
+  const broken = setup({ broken: true });
+  assert.doesNotThrow(() => broken.window.laiAnalytics.contactSubmitted());
+});

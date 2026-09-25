@@ -6,8 +6,9 @@
     try { window.fbq(method, event); } catch { /* Measurement must never block the funnel. */ }
   }
   window.laiAnalytics = Object.freeze({
-    // Called only inside the form's acknowledged-success branch. No form data is sent.
-    auditSubmitted() { track('track', 'Lead'); }
+    // Called only inside each form's acknowledged-success branch. No form data is sent.
+    auditSubmitted() { track('track', 'Lead'); },
+    contactSubmitted() { track('track', 'Lead'); }
   });
   const pixelId = window.laiAnalyticsConfig?.metaPixelId;
   if (typeof pixelId !== 'string' || !/^[1-9]\d+$/.test(pixelId)) return;
