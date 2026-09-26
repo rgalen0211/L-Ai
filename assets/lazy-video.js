@@ -1,5 +1,5 @@
 (() => {
-  // Autoplay preview videos (3D CRM room, Ryagram) are heavy on a first
+  // Autoplay preview videos (e.g. the 3D CRM room) are heavy on a first
   // mobile load, so their <source> is held back via data-src until the
   // section is actually about to be scrolled into view, and they never
   // autoplay at all for visitors who've asked for reduced motion -
