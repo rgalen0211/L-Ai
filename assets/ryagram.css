@@ -1,0 +1,32 @@
+/* Ryagram page. Loads after workflow-audit.css and reuses its tokens, header, form and footer styles. */
+.page-nav{display:flex;align-items:center;gap:22px}
+.page-nav a:not(.button){color:var(--ink);text-decoration:none;font-weight:700;font-size:.92rem}
+.page-nav a:not(.button):hover{color:var(--brand)}
+.rg-hero{display:grid;grid-template-columns:.95fr 1.05fr;gap:48px;align-items:center;padding-top:64px;padding-bottom:72px}
+.rg-hero h1{font-size:clamp(2.5rem,5vw,4.4rem);line-height:1}
+.rg-hero .reassurance{margin-bottom:28px}
+.rg-reel{border-radius:24px;overflow:hidden;border-top:4px solid var(--wheat);box-shadow:0 22px 70px rgba(31,45,49,.16);background:var(--dark)}
+.rg-reel video{display:block;width:100%;height:auto}
+.rg-reel figcaption{padding:12px 18px;font-size:.8rem;color:var(--muted);background:var(--paper)}
+.rg-section{padding:72px 0;border-top:1px solid var(--line)}
+.rg-section .section-head{max-width:720px;margin-bottom:32px}
+.rg-section .section-head h2{font-size:clamp(1.9rem,3.6vw,3rem);line-height:1.05;letter-spacing:-.04em}
+.rg-section .section-head p{color:var(--muted);font-size:1.04rem}
+.film-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
+.film-slot{min-width:0}
+.film-slot h3{font-size:1rem;margin-top:12px}
+.film-frame{aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:var(--soft);border:1px dashed var(--line);display:flex;align-items:center;justify-content:center}
+.film-frame span{color:var(--muted);font-size:.85rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+.film-slot.is-live .film-frame{border:0;background:var(--dark)}
+.film-frame iframe{width:100%;height:100%;border:0;display:block}
+.check-list{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.check-list li{margin:0;padding:22px;border:1px solid var(--line);border-radius:18px;background:var(--paper);box-shadow:inset 3px 0 0 var(--wheat-soft);font-size:.96rem}
+.check-list strong{display:block;margin-bottom:4px}
+.rg-waitlist{display:grid;grid-template-columns:.9fr 1.1fr;gap:48px;align-items:start}
+.rg-waitlist .section-head{margin-bottom:0}
+.ryagram-page .contact-form{grid-column:auto;grid-row:auto}
+.hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
+.waitlist-status{font-size:.95rem;color:var(--ink)}
+@media(max-width:860px){.rg-hero,.rg-waitlist{grid-template-columns:1fr;gap:32px}.film-grid{grid-template-columns:1fr;max-width:640px}.check-list{grid-template-columns:1fr}.page-nav a:not(.button){display:none}}
+@media(max-width:520px){.rg-hero{padding-top:36px;padding-bottom:48px}.rg-section{padding:52px 0}.page-nav .button{min-height:44px;padding:8px 16px;font-size:.9rem}}
+@media(max-width:400px){.brand-copy{display:none}}
