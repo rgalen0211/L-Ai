@@ -22,6 +22,7 @@
 .check-list{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
 .check-list li{margin:0;padding:22px;border:1px solid var(--line);border-radius:18px;background:var(--paper);box-shadow:inset 3px 0 0 var(--wheat-soft);font-size:.96rem}
 .check-list strong{display:block;margin-bottom:4px}
+.check-note{margin-top:18px;font-size:.92rem;color:var(--muted)}.check-note strong{color:var(--ink)}
 .rg-waitlist{display:grid;grid-template-columns:.9fr 1.1fr;gap:48px;align-items:start}
 .rg-waitlist .section-head{margin-bottom:0}
 .ryagram-page .contact-form{grid-column:auto;grid-row:auto}
