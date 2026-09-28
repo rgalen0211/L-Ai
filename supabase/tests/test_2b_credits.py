@@ -221,7 +221,7 @@ class Ledger(unittest.TestCase):
             _, job = self.final(*views)
             self.assertEqual(self.admin("select price_code, credits_quoted from jobs where id = %s", job), (code, credits))
             self.settle(job, "complete")
-        for views, code in ((("split",), "final_map"), (("globe", "line"), "final_map"), (("river",), "final_map")):
+        for views, code in ((("split",), "final_map"), (("globe", "line"), "final_paired"), (("river",), "final_map")):
             _, job = self.final(*views)
             self.assertEqual(self.admin("select price_code from jobs where id = %s", job), code)
             self.settle(job, "complete")

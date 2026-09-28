@@ -64,8 +64,9 @@ insert into public.credit_prices (price_version, code, credits, price_cents, mon
 
 -- Which film price each engine view belongs to. Names confirmed by CC1 from Session.frame_for
 -- (2026-09-28): map, bars, line, paired, panel, split, globe; plus "river", which the engine
--- rewrites to map. split is measured map-tier (Ryan's test). globe measured 1.41x map (paired 1.80x),
--- so under Ryan's test it is his call: its row stays at 8 until he rules.
+-- rewrites to map. Measured on a quiet machine (CC1, draw ms/frame vs map): split 1.03x -> 8;
+-- paired 1.74x; globe 1.95x -> 10 (Ryan's ruling, relayed by CC1 2026-09-28). panel stays at 10
+-- because prices follow the film type, not render cost.
 -- Every view needs its own row: an unlisted view is refused, never priced at a default.
 create table public.credit_view_prices (
   view text primary key check (view ~ '^[a-z_]{1,40}$'),
@@ -74,8 +75,9 @@ create table public.credit_view_prices (
 );
 insert into public.credit_view_prices values
   ('line', 'final_line', 1),
-  ('map', 'final_map', 2), ('river', 'final_map', 2), ('split', 'final_map', 2), ('globe', 'final_map', 2),
-  ('paired', 'final_paired', 3), ('bars', 'final_paired', 3), ('panel', 'final_paired', 3);
+  ('map', 'final_map', 2), ('river', 'final_map', 2), ('split', 'final_map', 2),
+  ('paired', 'final_paired', 3), ('bars', 'final_paired', 3), ('panel', 'final_paired', 3),
+  ('globe', 'final_paired', 3);
 
 -- The shape of each catalog dataset. The engine checks shape BEFORE the view name
 -- (Session.frame_for): a path- or flows-shaped dataset renders path_frame / river_frame whatever
