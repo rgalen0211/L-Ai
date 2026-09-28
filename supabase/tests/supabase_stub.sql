@@ -29,7 +29,11 @@ grant select, insert, update, delete on storage.objects to anon, authenticated;
 
 create publication supabase_realtime;
 
--- Supabase's defaults for the public schema.
-grant usage on schema public to anon, authenticated;
-alter default privileges in schema public grant all on tables to anon, authenticated;
-alter default privileges in schema public grant all on functions to anon, authenticated;
+-- Ryan's project has "Automatically expose new tables" OFF: no default grants.
+-- Model the strictest reading of that, so a migration that forgets a grant
+-- fails here instead of in Supabase: no USAGE on public for the API roles, and
+-- no EXECUTE for PUBLIC on new functions.
+revoke usage on schema public from anon, authenticated;
+revoke all on schema public from public;
+alter default privileges revoke execute on functions from public;
+alter default privileges in schema public revoke execute on functions from public;

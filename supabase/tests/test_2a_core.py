@@ -63,7 +63,7 @@ class Db:
         return self.c.execute(sql, args).fetchall()
 
 
-class Core(unittest.TestCase):
+class Base(unittest.TestCase):
     def setUp(self):
         global _count
         _count += 1
@@ -75,10 +75,33 @@ class Core(unittest.TestCase):
     def tearDown(self):
         self.db.c.close()
 
-    # -- helpers
     def denied(self, who, sql, *args):
         with self.assertRaises(psycopg.Error):
             self.db.as_(who).one(sql, *args)
+
+
+# The Phase 1 waitlist (from WORKER's grants check): insert-only for visitors.
+class Waitlist(Base):
+    def test_anon_can_join(self):
+        self.db.as_("anon").c.execute(
+            "insert into public.ryagram_waitlist (email, use_case, source) values (%s, %s, %s)",
+            ("a@b.co", "films", "uselai.com/ryagram"))
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.ryagram_waitlist"), 1)
+
+    def test_signed_in_can_join(self):
+        self.db.as_(RYAN).c.execute("insert into public.ryagram_waitlist (email) values (%s)", ("r@b.co",))
+
+    def test_anon_cannot_read_change_or_set_hidden_columns(self):
+        self.db.as_(None).c.execute("insert into public.ryagram_waitlist (email) values ('x@y.co')")
+        self.denied("anon", "select * from public.ryagram_waitlist")
+        self.denied("anon", "update public.ryagram_waitlist set email = 'z@y.co'")
+        self.denied("anon", "delete from public.ryagram_waitlist")
+        self.denied("anon", "insert into public.ryagram_waitlist (email, user_id) values ('q@y.co', %s)", RYAN)
+        self.denied("anon", "insert into public.ryagram_waitlist (email, invited_at) values ('q@y.co', now())")
+
+
+class Core(Base):
+    # -- helpers
 
     def project_with_version(self, who=RYAN, story=STORY):
         d = self.db.as_(who)

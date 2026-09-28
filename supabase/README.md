@@ -50,6 +50,13 @@ Table Editor → `control` (one row):
 
 No website redeploy needed.
 
+## Grants
+
+The project has "Automatically expose new tables" **off**, so no role gets
+anything by default, `service_role` included. Every grant the app needs is in
+the SQL files, schema USAGE too. Anything new (a table, a function, an Edge
+Function using `service_role`) must grant its own access explicitly.
+
 ## What the website may hold
 
 Only the Project URL and the publishable key (`assets/ryagram-config.js`). The
@@ -59,8 +66,9 @@ worker password or an Anthropic key in this repo; the repo is public.
 ## Tests
 
 The schema is tested against a local Postgres with Supabase stand-ins
-(`tests/supabase_stub.sql`); see `tests/test_2a_core.py` for setup. The tests cover
-privacy between users, anonymous access, r1/r2 independence, parameter
+(`tests/supabase_stub.sql`, which models this project's no-default-grants
+setting); see `tests/test_2a_core.py` for setup. The tests cover the waitlist's
+insert-only access, privacy between users, anonymous access, r1/r2 independence, parameter
 allow-lists, the contact sheet → preview → final ladder, worker confinement,
 upload size/type checks, sequential exactly-once claiming, lost-worker retry,
 retry_job vs final failures, metering for handed-back attempts, finished
