@@ -3,7 +3,8 @@
 -- change jobs and artifacts.
 --
 -- Design: Ryagram-logs\proposals\WEB-2A-SCHEMA.md, approved 2026-09-27 with the
--- five WORKER deltas (Ryagram-logs\status\WORKER.md section 3).
+-- WORKER deltas (Ryagram-logs\status\WORKER.md section 3), including retry_job.
+-- Worker transitions match WORKER's FakeQueue (Ryagram branch worker, c53c6ab).
 --
 -- Run after supabase/ryagram-waitlist.sql, in the same project:
 -- SQL Editor -> New query -> paste this file -> Run. It is one transaction.
@@ -14,7 +15,7 @@
 --     through submit_job / cancel_job.
 --   * The render worker is a normal Auth user listed in public.workers. It owns
 --     no rows and can only call claim_next_job, heartbeat, report_state,
---     register_artifact and write_metering, and upload to the one storage path
+--     retry_job, register_artifact and write_metering, and upload to the one storage path
 --     register_artifact gave it. It never holds the service_role key.
 --   * Ryan's kill switch is the single row in public.control (Table Editor).
 
@@ -160,6 +161,8 @@ create index artifacts_owner_idx on public.artifacts (owner_id);
 create index artifacts_version_idx on public.artifacts (version_id);
 
 -- One row per attempt (2A-7 plus WORKER delta 5). NULL means unknown, never 0.
+-- claim_next_job creates the row, so the worker that ran an attempt can still
+-- write its metering after handing the job back: wasted compute is compute.
 create table public.job_metering (
   job_id uuid not null references public.jobs (id) on delete cascade,
   attempt int not null check (attempt between 1 and 3),
@@ -167,6 +170,7 @@ create table public.job_metering (
   project_id uuid not null references public.projects (id) on delete cascade,
   version_id uuid not null references public.versions (id) on delete cascade,
   job_type public.job_type not null,
+  worker_user_id uuid references auth.users (id) on delete set null,
   recorded_at timestamptz not null default now(),
   queue_wait_s numeric check (queue_wait_s >= 0),
   wall_s numeric check (wall_s >= 0),
@@ -175,9 +179,12 @@ create table public.job_metering (
   encode_s numeric check (encode_s >= 0),
   cpu_user_s numeric check (cpu_user_s >= 0),
   cpu_kernel_s numeric check (cpu_kernel_s >= 0),
-  peak_job_memory_bytes bigint check (peak_job_memory_bytes >= 0),
+  peak_job_memory_bytes bigint check (peak_job_memory_bytes >= 0),   -- committed memory of the whole job, not RSS
   frame_cache_peak_bytes bigint check (frame_cache_peak_bytes >= 0),
   bytes_written bigint check (bytes_written >= 0),
+  io_write_bytes bigint check (io_write_bytes >= 0),
+  processes_total int check (processes_total >= 0),
+  work_peak_bytes_sampled bigint check (work_peak_bytes_sampled >= 0),
   media_source_minutes numeric check (media_source_minutes >= 0),
   retry_count int check (retry_count >= 0),
   exit_status int,
@@ -186,6 +193,7 @@ create table public.job_metering (
   engine_commit text check (engine_commit ~ '^[0-9a-f]{7,40}$'),
   engine_dirty boolean,
   receipt_sha256 text check (receipt_sha256 ~ '^[0-9a-f]{64}$'),
+  notes jsonb check (jsonb_typeof(notes) = 'object' and pg_column_size(notes) <= 16384),
   primary key (job_id, attempt)
 );
 create index job_metering_owner_idx on public.job_metering (owner_id);
@@ -278,9 +286,11 @@ end $$;
 create function ryagram_private.error_class_for(code text) returns public.error_class
 language sql immutable set search_path = '' as $$
   select case
-    when code in ('schema_rejected', 'dataset_not_allowed', 'ladder_missing') then 'invalid_input'
+    when code in ('schema_rejected', 'engine_unsupported', 'engine_refused', 'dataset_not_allowed',
+                  'ladder_missing') then 'invalid_input'
     when code = 'gate_failed' then 'gate'
-    when code in ('crash', 'worker_lost', 'upload_failed') then 'infrastructure'
+    when code in ('crash', 'start_failed', 'worker_lost', 'worker_error', 'upload_failed',
+                  'no_receipt', 'no_commit') then 'infrastructure'
     when code = 'timeout' then 'timeout'
     when code = 'limit_exceeded' then 'limit'
     when code = 'cancelled' then 'cancelled'
@@ -288,10 +298,12 @@ language sql immutable set search_path = '' as $$
   end::public.error_class
 $$;
 
--- Infrastructure failures are retried, at most 3 attempts in all (2B-4).
+-- Transient infrastructure failures may be retried, at most 3 attempts in all
+-- (2B-4). Not timeouts: a story that times out once will again. Not no_receipt
+-- or no_commit: those are the worker's own setup and won't fix themselves.
 create function ryagram_private.is_retryable(code text) returns boolean
 language sql immutable set search_path = '' as $$
-  select code in ('crash', 'timeout', 'worker_lost', 'upload_failed')
+  select coalesce(code in ('crash', 'start_failed', 'worker_lost', 'worker_error', 'upload_failed'), false)
 $$;
 
 -- A final render may run only if its contact sheet and preview both completed
@@ -371,10 +383,13 @@ begin
       raise exception 'This version is locked (%). Make a new version to change it.', old.state
         using errcode = '42501';
     end if;
-    if new.state is distinct from old.state and (
-         new.state not in ('draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render', 'archived')
-         or old.state in ('queued', 'rendering', 'validating', 'uploading')) then
-      raise exception 'Cannot move a version from % to % by hand.', old.state, new.state
+    -- A finished version never becomes editable again; change it by making
+    -- r(n+1) with create_version. The one move allowed by hand is complete -> archived.
+    if new.state is distinct from old.state and not (
+         (old.state = 'complete' and new.state = 'archived')
+         or (old.state in ('draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render')
+             and new.state in ('draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render', 'archived'))) then
+      raise exception 'Cannot move a version from % to % by hand. Make a new version instead.', old.state, new.state
         using errcode = '42501';
     end if;
     if new.dataset_id is not null and new.dataset_id is distinct from old.dataset_id
@@ -499,17 +514,31 @@ begin
   if bad_key is not null then
     raise exception 'Unknown parameter "%" for %.', bad_key, p_job_type using errcode = '22023';
   end if;
-  if p_params ? 'window_s' and not (
-       jsonb_typeof(p_params->'window_s') = 'number'
-       and (p_params->>'window_s')::numeric > 0 and (p_params->>'window_s')::numeric <= 10) then
-    raise exception 'window_s must be a number above 0 and at most 10.' using errcode = '22023';
+  -- Nested IFs, not AND chains: SQL does not promise to stop at the first false.
+  if p_params ? 'window_s' then          -- preview seconds [a, b], at most 10 s long
+    if jsonb_typeof(p_params->'window_s') <> 'array' then
+      raise exception 'window_s must be [start, end] in seconds.' using errcode = '22023';
+    end if;
+    if jsonb_array_length(p_params->'window_s') <> 2
+       or jsonb_typeof(p_params->'window_s'->0) <> 'number'
+       or jsonb_typeof(p_params->'window_s'->1) <> 'number' then
+      raise exception 'window_s must be [start, end] in seconds.' using errcode = '22023';
+    end if;
+    if not ((p_params->'window_s'->>0)::numeric >= 0
+            and (p_params->'window_s'->>1)::numeric > (p_params->'window_s'->>0)::numeric
+            and (p_params->'window_s'->>1)::numeric - (p_params->'window_s'->>0)::numeric <= 10) then
+      raise exception 'window_s must start at 0 or later and span at most 10 seconds.' using errcode = '22023';
+    end if;
   end if;
-  if p_params ? 'periods' and not (
-       jsonb_typeof(p_params->'periods') = 'array'
-       and jsonb_array_length(p_params->'periods') between 3 and 5
-       and not exists (select 1 from jsonb_array_elements(p_params->'periods') e
-                       where jsonb_typeof(e) <> 'string' or e #>> '{}' !~ '^\d{4}(-\d{2})?$')) then
-    raise exception 'periods must be 3 to 5 values like "2016" or "2016-03".' using errcode = '22023';
+  if p_params ? 'periods' then           -- contact sheet: 3 to 5 years
+    if jsonb_typeof(p_params->'periods') <> 'array' then
+      raise exception 'periods must be 3 to 5 years like "2016".' using errcode = '22023';
+    end if;
+    if jsonb_array_length(p_params->'periods') not between 3 and 5
+       or exists (select 1 from jsonb_array_elements(p_params->'periods') e
+                  where jsonb_typeof(e) <> 'string' or e #>> '{}' !~ '^\d{4}$') then
+      raise exception 'periods must be 3 to 5 years like "2016".' using errcode = '22023';
+    end if;
   end if;
 
   if v.dataset_id is not null and not exists (
@@ -588,6 +617,7 @@ end $$;
 -- ---------------------------------------------------------------- worker functions
 
 -- Returns zero or one job. Also puts back jobs whose worker stopped heartbeating.
+-- The worker's identity is its login; there is no worker_id argument to trust.
 create function public.claim_next_job()
 returns setof public.jobs
 language plpgsql security definer set search_path = '' as $$
@@ -613,10 +643,8 @@ begin
         attempt = case when not lost.cancel_requested and lost.attempt < 3 then lost.attempt + 1 else lost.attempt end,
         error_code = case when lost.cancel_requested then 'cancelled' else 'worker_lost' end,
         error_class = case when lost.cancel_requested then 'cancelled'::public.error_class
-                           when lost.attempt < 3 then null
                            else 'infrastructure'::public.error_class end,
-        error_detail = case when not lost.cancel_requested and lost.attempt >= 3
-                            then 'The worker stopped responding on the last attempt.' end,
+        error_detail = case when not lost.cancel_requested then 'The worker stopped responding.' end,
         ended_at = case when lost.cancel_requested or lost.attempt >= 3 then now() end,
         claimed_at = null, started_at = null, lease_expires_at = null, heartbeat_at = null,
         worker_id = null, worker_user_id = null, progress = null, progress_note = null
@@ -653,10 +681,13 @@ begin
 
   update public.jobs set state = 'claimed', claimed_at = now(), heartbeat_at = now(),
       lease_expires_at = now() + interval '2 minutes',
-      worker_id = w.name, worker_user_id = w.user_id,
-      error_code = null, error_class = null, error_detail = null
+      worker_id = w.name, worker_user_id = w.user_id
     where id = j.id
     returning * into j;
+  -- The metering row for this attempt, owned by this worker from now on.
+  insert into public.job_metering (job_id, attempt, owner_id, project_id, version_id, job_type, worker_user_id)
+    values (j.id, j.attempt, j.owner_id, j.project_id, j.version_id, j.job_type, w.user_id)
+    on conflict (job_id, attempt) do update set worker_user_id = excluded.worker_user_id;
   return next j;
 end $$;
 
@@ -669,7 +700,7 @@ declare
   wants_cancel boolean;
 begin
   update public.jobs set heartbeat_at = now(), lease_expires_at = now() + interval '2 minutes',
-      progress = coalesce(p_progress, progress), progress_note = coalesce(p_note, progress_note)
+      progress = coalesce(p_progress, progress), progress_note = coalesce(left(p_note, 200), progress_note)
     where id = p_job_id and worker_user_id = w.user_id
       and state in ('claimed', 'running', 'validating', 'uploading')
     returning cancel_requested into wants_cancel;
@@ -679,7 +710,13 @@ begin
   return wants_cancel;
 end $$;
 
--- Moves a held job forward, or ends it. Write metering before ending a job.
+-- Moves a held job forward, or ends it. Only these moves are legal (the same
+-- table as WORKER's FakeQueue):
+--   claimed    -> running | failed | cancelled
+--   running    -> validating | failed | editorial_action_required | cancelled
+--   validating -> uploading | failed | editorial_action_required
+--   uploading  -> complete | failed
+-- failed is final. To retry a transient failure, call retry_job instead.
 create function public.report_state(
   p_job_id uuid,
   p_state public.job_state,
@@ -701,18 +738,26 @@ begin
   if not found then
     raise exception 'This worker does not hold job %.', p_job_id using errcode = '42501';
   end if;
+  if not (j.state::text, p_state::text) in (
+       ('claimed', 'running'), ('claimed', 'failed'), ('claimed', 'cancelled'),
+       ('running', 'validating'), ('running', 'failed'), ('running', 'editorial_action_required'), ('running', 'cancelled'),
+       ('validating', 'uploading'), ('validating', 'failed'), ('validating', 'editorial_action_required'),
+       ('uploading', 'complete'), ('uploading', 'failed')) then
+    raise exception 'Cannot move a job from % to %.', j.state, p_state using errcode = '22023';
+  end if;
 
   if p_engine_commit is not null then
     update public.jobs set engine_commit = p_engine_commit, engine_dirty = p_engine_dirty
       where id = j.id returning * into j;
   end if;
 
-  if (j.state, p_state) in (('claimed', 'running'), ('running', 'validating'), ('validating', 'uploading')) then
-    update public.jobs set state = p_state,
+  if p_state in ('running', 'validating', 'uploading') then
+    update public.jobs set state = p_state, heartbeat_at = now(),
+        lease_expires_at = now() + interval '2 minutes',
         started_at = case when p_state = 'running' then now() else started_at end
       where id = j.id returning * into j;
 
-  elsif j.state = 'uploading' and p_state = 'complete' then
+  elsif p_state = 'complete' then
     if j.engine_commit is null then
       raise exception 'Record engine_commit before completing.' using errcode = '22023';
     end if;
@@ -745,31 +790,56 @@ begin
         error_code = 'cancelled', error_class = 'cancelled'
       where id = j.id returning * into j;
 
-  elsif p_state in ('failed', 'editorial_action_required') then
+  else  -- failed, editorial_action_required: final
     p_error_code := coalesce(p_error_code, case when p_state = 'editorial_action_required' then 'gate_failed' end);
     if p_error_code is null then
       raise exception 'A failure needs an error_code.' using errcode = '22023';
     end if;
-    if p_state = 'failed' and ryagram_private.is_retryable(p_error_code) and j.attempt < 3 then
-      update public.jobs set state = 'queued', attempt = j.attempt + 1,
-          error_code = null, error_class = null, error_detail = null,
-          claimed_at = null, started_at = null, lease_expires_at = null, heartbeat_at = null,
-          worker_id = null, worker_user_id = null, progress = null, progress_note = null
-        where id = j.id returning * into j;
-    else
-      update public.jobs set state = p_state, ended_at = now(), lease_expires_at = null,
-          error_code = p_error_code, error_class = ryagram_private.error_class_for(p_error_code),
-          error_detail = left(p_error_detail, 2000)
-        where id = j.id returning * into j;
-    end if;
-
-  else
-    raise exception 'Cannot move a job from % to %.', j.state, p_state using errcode = '22023';
+    update public.jobs set state = p_state, ended_at = now(), lease_expires_at = null,
+        error_code = p_error_code, error_class = ryagram_private.error_class_for(p_error_code),
+        error_detail = left(p_error_detail, 2000)
+      where id = j.id returning * into j;
   end if;
   return j;
 end $$;
 
+-- Hands a held job back after a transient failure: queued again with the
+-- attempt counted, or failed if that was attempt 3. Returns 'queued' or 'failed'.
+-- Refuses codes that are not retryable (gate failures, timeouts, bad input):
+-- those end with report_state(..., 'failed' or 'editorial_action_required').
+create function public.retry_job(p_job_id uuid, p_error_code text, p_error_detail text default null)
+returns text
+language plpgsql security definer set search_path = '' as $$
+declare
+  w public.workers := ryagram_private.require_worker();
+  j public.jobs;
+begin
+  select * into j from public.jobs
+    where id = p_job_id and worker_user_id = w.user_id
+      and state in ('claimed', 'running', 'validating', 'uploading')
+    for update;
+  if not found then
+    raise exception 'This worker does not hold job %.', p_job_id using errcode = '42501';
+  end if;
+  if not ryagram_private.is_retryable(p_error_code) then
+    raise exception '% is not retryable; report the job failed instead.', p_error_code using errcode = '22023';
+  end if;
+  update public.job_metering set error_code = coalesce(error_code, p_error_code)
+    where job_id = j.id and attempt = j.attempt;
+  update public.jobs set
+      state = case when j.attempt < 3 then 'queued'::public.job_state else 'failed'::public.job_state end,
+      attempt = least(j.attempt + 1, 3),
+      error_code = p_error_code, error_class = ryagram_private.error_class_for(p_error_code),
+      error_detail = left(p_error_detail, 2000),
+      ended_at = case when j.attempt >= 3 then now() end,
+      claimed_at = null, started_at = null, lease_expires_at = null, heartbeat_at = null,
+      worker_id = null, worker_user_id = null, progress = null, progress_note = null
+    where id = j.id returning * into j;
+  return j.state::text;
+end $$;
+
 -- Reserves the one storage path the worker may upload this artifact to.
+-- Upload it with the Content-Type for its kind (see artifact_file).
 create function public.register_artifact(
   p_job_id uuid,
   p_kind public.artifact_kind,
@@ -787,10 +857,9 @@ declare
   object_path text;
 begin
   select * into j from public.jobs
-    where id = p_job_id and worker_user_id = w.user_id
-      and state in ('running', 'validating', 'uploading');
+    where id = p_job_id and worker_user_id = w.user_id and state = 'uploading';
   if not found then
-    raise exception 'This worker does not hold job % in a state that uploads.', p_job_id using errcode = '42501';
+    raise exception 'This worker does not hold job % in the uploading state.', p_job_id using errcode = '42501';
   end if;
   if not ryagram_private.kind_allowed(j.job_type, p_kind) then
     raise exception 'A % job does not produce %.', j.job_type, p_kind using errcode = '22023';
@@ -810,57 +879,48 @@ begin
   return object_path;
 end $$;
 
--- One row per attempt; keys must be metering columns. Unknown values: omit or null.
+-- Fills in the metering row for one attempt this worker ran, including an
+-- attempt it already handed back or ended. Keys must be metering columns;
+-- keys left out keep their value. Unknown values: leave them out.
 create function public.write_metering(p_job_id uuid, p_attempt int, p_metrics jsonb)
 returns void
 language plpgsql security definer set search_path = '' as $$
 declare
   w public.workers := ryagram_private.require_worker();
-  j public.jobs;
-  bad_key text;
   m public.job_metering;
+  bad_key text;
 begin
-  select * into j from public.jobs
-    where id = p_job_id and worker_user_id = w.user_id
-      and state in ('claimed', 'running', 'validating', 'uploading');
+  select * into m from public.job_metering
+    where job_id = p_job_id and attempt = p_attempt and worker_user_id = w.user_id
+    for update;
   if not found then
-    raise exception 'This worker does not hold job %.', p_job_id using errcode = '42501';
+    raise exception 'This worker did not run attempt % of job %.', p_attempt, p_job_id using errcode = '42501';
   end if;
-  if p_attempt is distinct from j.attempt then
-    raise exception 'Job % is on attempt %, not %.', p_job_id, j.attempt, p_attempt using errcode = '22023';
-  end if;
-  if jsonb_typeof(p_metrics) <> 'object' then
+  if jsonb_typeof(p_metrics) is distinct from 'object' then
     raise exception 'Metrics must be an object.' using errcode = '22023';
   end if;
   select k into bad_key from jsonb_object_keys(p_metrics) k
     where k <> all (array['queue_wait_s', 'wall_s', 'session_build_s', 'drawing_s', 'encode_s',
                           'cpu_user_s', 'cpu_kernel_s', 'peak_job_memory_bytes', 'frame_cache_peak_bytes',
-                          'bytes_written', 'media_source_minutes', 'retry_count', 'exit_status',
-                          'error_code', 'gate_result', 'engine_commit', 'engine_dirty', 'receipt_sha256'])
+                          'bytes_written', 'io_write_bytes', 'processes_total', 'work_peak_bytes_sampled',
+                          'media_source_minutes', 'retry_count', 'exit_status', 'error_code', 'gate_result',
+                          'engine_commit', 'engine_dirty', 'receipt_sha256', 'notes'])
     limit 1;
   if bad_key is not null then
     raise exception 'Unknown metering field "%".', bad_key using errcode = '22023';
   end if;
-  m := jsonb_populate_record(null::public.job_metering, p_metrics);
-  insert into public.job_metering (job_id, attempt, owner_id, project_id, version_id, job_type,
-      queue_wait_s, wall_s, session_build_s, drawing_s, encode_s, cpu_user_s, cpu_kernel_s,
-      peak_job_memory_bytes, frame_cache_peak_bytes, bytes_written, media_source_minutes,
-      retry_count, exit_status, error_code, gate_result, engine_commit, engine_dirty, receipt_sha256)
-    values (j.id, j.attempt, j.owner_id, j.project_id, j.version_id, j.job_type,
-      m.queue_wait_s, m.wall_s, m.session_build_s, m.drawing_s, m.encode_s, m.cpu_user_s, m.cpu_kernel_s,
-      m.peak_job_memory_bytes, m.frame_cache_peak_bytes, m.bytes_written, m.media_source_minutes,
-      m.retry_count, m.exit_status, m.error_code, m.gate_result, m.engine_commit, m.engine_dirty, m.receipt_sha256)
-    on conflict (job_id, attempt) do update set
+  m := jsonb_populate_record(m, p_metrics);
+  update public.job_metering set
       recorded_at = now(),
-      queue_wait_s = excluded.queue_wait_s, wall_s = excluded.wall_s,
-      session_build_s = excluded.session_build_s, drawing_s = excluded.drawing_s,
-      encode_s = excluded.encode_s, cpu_user_s = excluded.cpu_user_s, cpu_kernel_s = excluded.cpu_kernel_s,
-      peak_job_memory_bytes = excluded.peak_job_memory_bytes,
-      frame_cache_peak_bytes = excluded.frame_cache_peak_bytes, bytes_written = excluded.bytes_written,
-      media_source_minutes = excluded.media_source_minutes, retry_count = excluded.retry_count,
-      exit_status = excluded.exit_status, error_code = excluded.error_code,
-      gate_result = excluded.gate_result, engine_commit = excluded.engine_commit,
-      engine_dirty = excluded.engine_dirty, receipt_sha256 = excluded.receipt_sha256;
+      queue_wait_s = m.queue_wait_s, wall_s = m.wall_s, session_build_s = m.session_build_s,
+      drawing_s = m.drawing_s, encode_s = m.encode_s, cpu_user_s = m.cpu_user_s, cpu_kernel_s = m.cpu_kernel_s,
+      peak_job_memory_bytes = m.peak_job_memory_bytes, frame_cache_peak_bytes = m.frame_cache_peak_bytes,
+      bytes_written = m.bytes_written, io_write_bytes = m.io_write_bytes, processes_total = m.processes_total,
+      work_peak_bytes_sampled = m.work_peak_bytes_sampled, media_source_minutes = m.media_source_minutes,
+      retry_count = m.retry_count, exit_status = m.exit_status, error_code = m.error_code,
+      gate_result = m.gate_result, engine_commit = m.engine_commit, engine_dirty = m.engine_dirty,
+      receipt_sha256 = m.receipt_sha256, notes = m.notes
+    where job_id = p_job_id and attempt = p_attempt;
 end $$;
 
 -- Function access. Postgres lets PUBLIC execute new functions and Supabase adds
@@ -875,6 +935,7 @@ revoke execute on function
   public.claim_next_job(),
   public.heartbeat(uuid, numeric, text),
   public.report_state(uuid, public.job_state, text, text, text, boolean),
+  public.retry_job(uuid, text, text),
   public.register_artifact(uuid, public.artifact_kind, bigint, text, numeric, int, int),
   public.write_metering(uuid, int, jsonb)
   from public, anon;
@@ -886,6 +947,7 @@ grant execute on function
   public.claim_next_job(),
   public.heartbeat(uuid, numeric, text),
   public.report_state(uuid, public.job_state, text, text, text, boolean),
+  public.retry_job(uuid, text, text),
   public.register_artifact(uuid, public.artifact_kind, bigint, text, numeric, int, int),
   public.write_metering(uuid, int, jsonb)
   to authenticated;

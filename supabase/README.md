@@ -63,4 +63,5 @@ The schema is tested against a local Postgres with Supabase stand-ins
 privacy between users, anonymous access, r1/r2 independence, parameter
 allow-lists, the contact sheet → preview → final ladder, worker confinement,
 upload size/type checks, sequential exactly-once claiming, lost-worker retry,
-crash vs gate failure, the kill switch and cancel.
+retry_job vs final failures, metering for handed-back attempts, finished
+versions staying locked, the kill switch and cancel.

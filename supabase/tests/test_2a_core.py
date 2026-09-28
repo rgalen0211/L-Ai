@@ -135,11 +135,13 @@ class Core(unittest.TestCase):
         _, vid = self.project_with_version(story='{"schema": 1}')
         self.denied(RYAN, "select submit_job(%s, 'preview')", vid)
         _, vid = self.project_with_version()
-        for params in ('{"window_s": 11}', '{"window_s": "5"}', '{"cmd": "rm -rf"}', '{"periods": ["2016", "../x", "2018"]}'):
+        for params in ('{"window_s": 5}', '{"window_s": [2, 13]}', '{"window_s": [5, 1]}', '{"window_s": ["0", "5"]}',
+                       '{"cmd": "rm -rf"}', '{"periods": ["2016", "../x", "2018"]}', '{"periods": ["2016-03", "2017", "2018"]}',
+                       '{"periods": ["2016", "2017"]}'):
             kind = "contact_sheet" if "periods" in params else "preview"
             self.denied(RYAN, "select submit_job(%s, %s, %s::jsonb)", vid, kind, params)
         self.denied(RYAN, "select submit_job(%s, 'final_render', '{\"window_s\": 1}')", vid)
-        self.assertEqual(self.db.as_(RYAN).one("select state from submit_job(%s, 'preview', '{\"window_s\": 10}')", vid), "queued")
+        self.assertEqual(self.db.as_(RYAN).one("select state from submit_job(%s, 'preview', '{\"window_s\": [4, 14]}')", vid), "queued")
         self.denied(RYAN, "select submit_job(%s, 'preview')", vid)  # one in flight per type
 
     # -- the render ladder
@@ -193,6 +195,9 @@ class Core(unittest.TestCase):
         self.denied(WORKER2, "select heartbeat(%s)", job)           # not its job
         self.denied(WORKER, "select report_state(%s, 'complete')", job)  # illegal jump
         w.one("select report_state(%s, 'running')", job)
+        self.denied(WORKER, "select register_artifact(%s, 'preview', 1, %s)", job, "a" * 64)  # not uploading yet
+        w.one("select report_state(%s, 'validating')", job)
+        w.one("select report_state(%s, 'uploading')", job)
         self.denied(WORKER, "select register_artifact(%s, 'final_video', 1, %s)", job, "a" * 64)  # wrong kind
         self.denied(WORKER, "select register_artifact(%s, 'preview', 60000001, %s)", job, "a" * 64)  # too big
         self.denied(WORKER, "insert into storage.objects (bucket_id, name) values ('ryagram-artifacts', %s)",
@@ -200,7 +205,8 @@ class Core(unittest.TestCase):
         path = w.one("select register_artifact(%s, 'preview', 10, %s)", job, "b" * 64)
         self.assertTrue(path.endswith(f"/{job}/preview.mp4") and path.startswith(RYAN))
         self.denied(WORKER, "select write_metering(%s, 1, '{\"cmd\": 1}')", job)
-        self.denied(WORKER, "select write_metering(%s, 2, '{}')", job)
+        self.denied(WORKER, "select write_metering(%s, 2, '{}')", job)   # no such attempt
+        self.denied(WORKER2, "select write_metering(%s, 1, '{}')", job)  # not its attempt
         self.db.as_(None).one("update workers set enabled = false where user_id = %s returning 1", WORKER)
         self.denied(WORKER, "select heartbeat(%s)", job)            # revoked immediately
 
@@ -253,17 +259,52 @@ class Core(unittest.TestCase):
                          ("failed", 3, "infrastructure"))
         self.assertEqual(self.db.as_(None).one("select count(*) from job_metering where job_id = %s and error_code = 'worker_lost'", job), 3)
 
-    def test_crash_is_retried_but_gate_failure_is_not(self):
+    def test_crash_is_retried_but_gate_failure_and_timeout_are_not(self):
         _, vid = self.project_with_version()
         job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
         self.claim()
         w = self.db.as_(WORKER)
         w.one("select report_state(%s, 'running')", job)
-        self.assertEqual(w.one("select state, attempt from report_state(%s, 'failed', 'crash')", job), ("queued", 2))
+        self.denied(WORKER, "select retry_job(%s, 'timeout')", job)
+        self.denied(WORKER, "select retry_job(%s, 'gate_failed')", job)
+        self.assertEqual(w.one("select retry_job(%s, 'crash', 'segfault')", job), "queued")
+        self.assertEqual(self.db.as_(None).one("select attempt, error_class from jobs where id = %s", job),
+                         (2, "infrastructure"))
+        # The handed-back attempt still gets its metering.
+        self.db.as_(WORKER).one("select write_metering(%s, 1, '{\"wall_s\": 3, \"notes\": {\"why\": \"crash\"}}')", job)
+        self.assertEqual(self.db.as_(None).one("select wall_s, error_code from job_metering where job_id = %s and attempt = 1", job),
+                         (3, "crash"))
         self.claim()
+        w = self.db.as_(WORKER)
         w.one("select report_state(%s, 'running')", job)
         self.assertEqual(w.one("select state, error_class from report_state(%s, 'editorial_action_required')", job),
                          ("editorial_action_required", "gate"))
+
+    def test_failed_is_final_and_timeouts_fail(self):
+        _, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        self.claim()
+        w = self.db.as_(WORKER)
+        self.denied(WORKER, "select report_state(%s, 'editorial_action_required')", job)  # not from claimed
+        w.one("select report_state(%s, 'running')", job)
+        self.assertEqual(w.one("select state, attempt, error_class from report_state(%s, 'failed', 'timeout')", job),
+                         ("failed", 1, "timeout"))
+        self.assertIsNone(self.claim())
+
+    def test_finished_versions_stay_finished(self):
+        _, vid, sheet, prev = self.ladder()
+        final = self.db.as_(RYAN).one("select id from submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.claim()
+        self.run_job(final, ["final_video", "thumbnail", "receipt"])
+        d = self.db.as_(RYAN)
+        self.assertEqual(d.one("select state from versions where id = %s", vid), "complete")
+        self.denied(RYAN, "update versions set state = 'draft' where id = %s returning id", vid)
+        self.denied(RYAN, "update versions set story_spec = '{}' where id = %s returning id", vid)
+        self.assertEqual(self.db.as_(RYAN).one("update versions set state = 'archived' where id = %s returning state", vid), "archived")
+        for state in ("complete", "draft"):
+            self.denied(RYAN, "update versions set state = %s where id = %s returning id", state, vid)
+        self.db.as_(None).one("update versions set state = 'failed' where id = %s returning 1", vid)
+        self.denied(RYAN, "update versions set state = 'draft' where id = %s returning id", vid)
 
     def test_kill_switch_and_cancel(self):
         _, vid = self.project_with_version()
