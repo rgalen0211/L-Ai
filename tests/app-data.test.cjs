@@ -70,5 +70,5 @@ test('files open through short-lived signed links from the private bucket', asyn
   assert.match(url, /ryagram-artifacts\/u\/p\/v\/j\/film\.mp4/);
   const signed = client.log.find(e => e.signed);
   assert.equal(signed.bucket, 'ryagram-artifacts');
-  assert.equal(signed.seconds, 3600);
+  assert.equal(signed.seconds, 900);
 });

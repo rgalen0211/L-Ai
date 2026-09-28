@@ -10,7 +10,8 @@ function el(extra = {}) {
   return { hidden: true, textContent: '', disabled: false, focus() { this.focused = true; }, ...extra };
 }
 
-function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'sb_publishable_x' }, signIn, library = true } = {}) {
+function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'sb_publishable_x' }, signIn, library = true,
+                  location = { hostname: 'uselai.com', search: '' } } = {}) {
   const listeners = {};
   const button = el();
   const form = {
@@ -20,6 +21,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     addEventListener(type, fn) { listeners.submit = fn; }
   };
   const signOut = el({ addEventListener(type, fn) { listeners.signOut = fn; } });
+  const appended = [];
   const els = {
     'app-status': el(), 'sign-in': el(), library: el(), account: el(), 'sign-in-form': form,
     'sign-in-error': el(), 'account-email': el(), 'sign-out': signOut
@@ -39,9 +41,9 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     ryagramLibrary: { mount(root, data) { calls.mounts++; calls.mountedWith = { root, data }; return () => { calls.unmounts++; }; } }
   };
   if (library) window.supabase = { createClient: (url, key, opts) => { calls.created = { url, key, opts }; return client; } };
-  vm.runInNewContext(code, { document: { getElementById: id => els[id] }, window, location: { hostname: 'uselai.com', search: '' }, setTimeout: fn => fn() });
+  vm.runInNewContext(code, { document: { getElementById: id => els[id], createElement: () => ({}), body: { append: x => appended.push(x) } }, window, location, URLSearchParams, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
-  return { els, button, calls, window, emit: async s => { authListener('X', s); await flush(); },
+  return { els, button, calls, window, appended, emit: async s => { authListener('X', s); await flush(); },
            submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut() };
 }
 
@@ -108,4 +110,13 @@ test('sign out calls Supabase', async () => {
   const h = harness();
   await h.signOut();
   assert.equal(h.calls.signOut, 1);
+});
+
+test('mock mode loads only on this computer, never on the public site', () => {
+  const live = harness({ location: { hostname: 'uselai.com', search: '?mock' } });
+  assert.equal(live.appended.length, 0);
+  assert.equal(live.calls.created.url, 'https://p.supabase.co');      // the real client, as normal
+  const local = harness({ location: { hostname: '127.0.0.1', search: '?mock' } });
+  assert.equal(local.appended[0].src, '/tests/fake-supabase.js');
+  assert.equal(local.calls.created, null);
 });

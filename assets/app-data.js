@@ -3,6 +3,8 @@
 // readable Error. The database enforces the rules; this layer just asks.
 (() => {
   const ARTIFACT_BUCKET = 'ryagram-artifacts';
+  // Links to private files expire after 15 minutes; the page signs fresh ones each time it draws.
+  const SIGNED_URL_SECONDS = 900;
   const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, '
     + 'cancel_requested, error_class, error_code, error_detail, progress, progress_note, created_at, started_at, ended_at';
 
@@ -133,7 +135,7 @@
       },
 
       async fileUrl(path) {
-        const data = await run(client.storage.from(ARTIFACT_BUCKET).createSignedUrl(path, 3600),
+        const data = await run(client.storage.from(ARTIFACT_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS),
           'Couldn’t open the file.');
         return data.signedUrl;
       }
