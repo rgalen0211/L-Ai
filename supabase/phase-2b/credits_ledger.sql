@@ -64,7 +64,8 @@ insert into public.credit_prices (price_version, code, credits, price_cents, mon
 
 -- Which film price each engine view belongs to. Names confirmed by CC1 from Session.frame_for
 -- (2026-09-28): map, bars, line, paired, panel, split, globe; plus "river", which the engine
--- rewrites to map. split and globe at the map price is CC1's judgement, awaiting Ryan's ruling.
+-- rewrites to map. split is measured map-tier (Ryan's test). globe measured 1.41x map (paired 1.80x),
+-- so under Ryan's test it is his call: its row stays at 8 until he rules.
 -- Every view needs its own row: an unlisted view is refused, never priced at a default.
 create table public.credit_view_prices (
   view text primary key check (view ~ '^[a-z_]{1,40}$'),
@@ -84,10 +85,36 @@ insert into public.credit_view_prices values
 -- rather than assumed standard, so a new path dataset can't slip through at a view's price.
 create table public.credit_dataset_shapes (
   dataset text primary key check (dataset ~ '^[a-z0-9_]{1,80}$'),
-  shape text not null check (shape in ('standard', 'path', 'flows')),
+  shape text not null check (shape in ('standard', 'path', 'flows', 'excluded')),
   noted_by text not null,
   noted_at timestamptz not null default now()
 );
+-- The catalog as of 2026-09-28: CC1 read DatasetSpec.shape for every dataset in
+-- datasets.discover(), the same field the engine's is_path ("lines") and is_flows ("flows") test.
+-- 'excluded' = test fixtures and private data, which the worker never renders into films anyway.
+insert into public.credit_dataset_shapes (dataset, shape, noted_by) values
+  ('bls_state_unemployment', 'standard', 'CC1 2026-09-28'),
+  ('bps_county_permits', 'standard', 'CC1 2026-09-28'),
+  ('cbp_county_establishments', 'standard', 'CC1 2026-09-28'),
+  ('cbp_county_grocery', 'standard', 'CC1 2026-09-28'),
+  ('cbp_suppression', 'standard', 'CC1 2026-09-28'),
+  ('cdc_state_obesity', 'standard', 'CC1 2026-09-28'),
+  ('county_population_1990s', 'standard', 'CC1 2026-09-28'),
+  ('county_population_2000s', 'standard', 'CC1 2026-09-28'),
+  ('county_population_2010s', 'standard', 'CC1 2026-09-28'),
+  ('county_population_2020s', 'standard', 'CC1 2026-09-28'),
+  ('fdic_branches', 'standard', 'CC1 2026-09-28'),
+  ('fdic_zero_branch_counties', 'standard', 'CC1 2026-09-28'),
+  ('redistricting_2026', 'standard', 'CC1 2026-09-28'),
+  ('state_obesity_fastfood', 'standard', 'CC1 2026-09-28'),
+  ('tx_county_income', 'standard', 'CC1 2026-09-28'),
+  ('tx_county_income_real', 'standard', 'CC1 2026-09-28'),
+  ('lewis_clark_expedition', 'path', 'CC1 2026-09-28'),
+  ('ryan_spending_flows', 'excluded', 'CC1 2026-09-28: flows-shaped; private data'),
+  ('example_corp_costs', 'excluded', 'CC1 2026-09-28: flows-shaped; test fixture'),
+  ('example_corp_products', 'excluded', 'CC1 2026-09-28: test fixture'),
+  ('example_corp_states', 'excluded', 'CC1 2026-09-28: test fixture'),
+  ('status_fixture', 'excluded', 'CC1 2026-09-28: test fixture');
 
 -- Free-preview allowance, tunable without code.
 create table public.credit_rules (
@@ -208,6 +235,14 @@ begin
   if found then
     raise exception 'Can''t price a final film from the dataset "%": its shape isn''t recorded yet.',
       coalesce(unknown, '(none)') using errcode = '22023';
+  end if;
+  select d.dataset into unknown
+    from jsonb_array_elements(p_story #> '{sequence,clips}') c
+    join public.credit_dataset_shapes d on d.dataset = c->>'dataset'
+    where c->>'kind' = 'render' and d.shape = 'excluded'
+    limit 1;
+  if found then
+    raise exception 'The dataset "%" isn''t available for films.', unknown using errcode = '22023';
   end if;
   select d.dataset || ' (' || d.shape || ')' into unknown
     from jsonb_array_elements(p_story #> '{sequence,clips}') c

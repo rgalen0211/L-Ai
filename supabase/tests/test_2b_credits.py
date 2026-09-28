@@ -248,6 +248,18 @@ class Ledger(unittest.TestCase):
         with self.assertRaises(psycopg.Error):                               # the quote says the same
             self.db.as_(RYAN).one("select * from credit_quote(%s, 'final_render')", vid)
 
+    def test_catalog_shapes_from_cc1(self):
+        self.grant(100)
+        self.assertEqual(self.admin("select count(*) from credit_dataset_shapes where noted_by like 'CC1%%'"), 22)
+        _, job = self.final("map", dataset="state_obesity_fastfood")
+        self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", job), 8)
+        for dataset, message in (("lewis_clark_expedition", "aren't available yet"),
+                                 ("ryan_spending_flows", "isn't available for films"),
+                                 ("example_corp_states", "isn't available for films")):
+            with self.assertRaises(psycopg.Error) as err:
+                self.final("map", dataset=dataset)
+            self.assertIn(message, str(err.exception), dataset)
+
     # -- Test 9: a gate failure releases the hold and returns the version to its editorial step
     def test_gate_failure_releases(self):
         vid, job = self.final("paired", grant=10)
