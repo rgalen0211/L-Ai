@@ -32,19 +32,19 @@
   });
   window.ryagramApp = { client };
 
-  async function showLibrary(user) {
+  let unmount = null;
+
+  function showLibrary(user) {
     signIn.hidden = true;
     library.hidden = false;
     account.hidden = false;
     $('account-email').textContent = user.email || '';
-    const summary = $('library-summary');
-    const { count, error: queryError } = await client.from('projects').select('id', { count: 'exact', head: true });
-    summary.textContent = queryError
-      ? 'Couldn’t load your projects. Reload to try again.'
-      : `${count} project${count === 1 ? '' : 's'}. The project library arrives in the next step.`;
+    // Mount once per sign-in; token refreshes fire this again and must not reset the page.
+    if (!unmount) unmount = window.ryagramLibrary.mount(library, window.ryagramData(client));
   }
 
   function showSignIn() {
+    if (unmount) { unmount(); unmount = null; }
     library.hidden = true;
     account.hidden = true;
     signIn.hidden = false;

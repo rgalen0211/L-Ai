@@ -10,7 +10,7 @@ function el(extra = {}) {
   return { hidden: true, textContent: '', disabled: false, focus() { this.focused = true; }, ...extra };
 }
 
-function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'sb_publishable_x' }, signIn, count = 0, library = true } = {}) {
+function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'sb_publishable_x' }, signIn, library = true } = {}) {
   const listeners = {};
   const button = el();
   const form = {
@@ -22,21 +22,22 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
   const signOut = el({ addEventListener(type, fn) { listeners.signOut = fn; } });
   const els = {
     'app-status': el(), 'sign-in': el(), library: el(), account: el(), 'sign-in-form': form,
-    'sign-in-error': el(), 'account-email': el(), 'library-summary': el(), 'sign-out': signOut
+    'sign-in-error': el(), 'account-email': el(), 'sign-out': signOut
   };
-  const calls = { created: null, signIn: [], signOut: 0, queries: [] };
+  const calls = { created: null, signIn: [], signOut: 0, mounts: 0, unmounts: 0 };
   let authListener;
   const client = {
     auth: {
       onAuthStateChange(fn) { authListener = fn; },
       signInWithPassword: async creds => { calls.signIn.push(creds); return signIn ? signIn(creds) : { error: null }; },
       signOut: async () => { calls.signOut++; }
-    },
-    from(table) {
-      return { select: async (cols, opts) => { calls.queries.push({ table, cols, opts }); return { count, error: null }; } };
     }
   };
-  const window = { ryagramConfig: config };
+  const window = {
+    ryagramConfig: config,
+    ryagramData: c => ({ client: c }),
+    ryagramLibrary: { mount(root, data) { calls.mounts++; calls.mountedWith = { root, data }; return () => { calls.unmounts++; }; } }
+  };
   if (library) window.supabase = { createClient: (url, key, opts) => { calls.created = { url, key, opts }; return client; } };
   vm.runInNewContext(code, { document: { getElementById: id => els[id] }, window, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
@@ -55,18 +56,21 @@ test('the page only ever uses the public URL and publishable key', () => {
   assert.match(html, /noindex/);
 });
 
-test('no session shows sign-in; a session shows the library and the account', async () => {
-  const h = harness({ count: 1 });
+test('no session shows sign-in; a session mounts the library once', async () => {
+  const h = harness();
   await h.emit(null);
   assert.equal(h.els['sign-in'].hidden, false);
   assert.equal(h.els.library.hidden, true);
+  assert.equal(h.calls.mounts, 0);
   await h.emit({ user: { email: 'ryan@example.com' } });
   assert.equal(h.els['sign-in'].hidden, true);
   assert.equal(h.els.library.hidden, false);
   assert.equal(h.els['account-email'].textContent, 'ryan@example.com');
-  assert.equal(h.calls.queries[0].table, 'projects');
-  assert.match(h.els['library-summary'].textContent, /^1 project\./);
+  assert.equal(h.calls.mountedWith.root, h.els.library);
+  await h.emit({ user: { email: 'ryan@example.com' } });   // token refresh
+  assert.equal(h.calls.mounts, 1);
   await h.emit(null);
+  assert.equal(h.calls.unmounts, 1);
   assert.equal(h.els.library.hidden, true);
   assert.equal(h.els.account.hidden, true);
 });
