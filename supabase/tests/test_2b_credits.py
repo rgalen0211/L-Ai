@@ -27,9 +27,9 @@ _server = None
 _count = 0
 
 
-def story(*views):
+def story(*views, dataset="test_standard"):
     return json.dumps({"schema": 1, "engine": "sequence", "name": "t",
-                       "sequence": {"clips": [{"kind": "render", "view": v} for v in views]}})
+                       "sequence": {"clips": [{"kind": "render", "view": v, "dataset": dataset} for v in views]}})
 
 
 def setUpModule():
@@ -45,6 +45,8 @@ def setUpModule():
         c.execute("insert into auth.users (id, email) values (%s,'ryan@x'),(%s,'other@x'),(%s,'worker@x'),(%s,'worker2@x')",
                   (RYAN, OTHER, WORKER, WORKER2))
         c.execute("insert into public.workers (user_id, name) values (%s, 'ryan-pc'), (%s, 'spare')", (WORKER, WORKER2))
+        c.execute("insert into public.credit_dataset_shapes (dataset, shape, noted_by) values "
+                  "('test_standard', 'standard', 'test'), ('test_path', 'path', 'test'), ('test_flows', 'flows', 'test')")
 
 
 class Ledger(unittest.TestCase):
@@ -76,12 +78,12 @@ class Ledger(unittest.TestCase):
         sql = "select coalesce(sum(amount), 0) from credit_ledger where owner_id = %s" + (" and pool = %s" if pool else "")
         return self.admin(sql, *([who, pool] if pool else [who]))
 
-    def version(self, *views, who=RYAN, title_only=False):
+    def version(self, *views, who=RYAN, title_only=False, dataset="test_standard"):
         views = () if title_only else (views or ("map",))
         d = self.db.as_(who)
         pid = d.one("insert into projects (title) values ('p') returning id")
         vid = d.one("select id from create_version(%s)", pid)
-        d.one("update versions set story_spec = %s::jsonb where id = %s returning id", story(*views), vid)
+        d.one("update versions set story_spec = %s::jsonb where id = %s returning id", story(*views, dataset=dataset), vid)
         return vid
 
     def submit(self, vid, kind, *ladder, who=RYAN):
@@ -93,11 +95,11 @@ class Ledger(unittest.TestCase):
         self.admin("update jobs set state = %s, error_class = %s, ended_at = now() where id = %s returning 1",
                    state, error_class, job)
 
-    def final(self, *views, grant=None, title_only=False):
+    def final(self, *views, grant=None, title_only=False, dataset="test_standard"):
         """A version with a completed sheet and preview, and its final render submitted."""
         if grant:
             self.grant(grant)
-        vid = self.version(*views, title_only=title_only)
+        vid = self.version(*views, title_only=title_only, dataset=dataset)
         sheet = self.submit(vid, "contact_sheet"); self.settle(sheet, "complete")
         prev = self.submit(vid, "preview"); self.settle(prev, "complete")
         return vid, self.submit(vid, "final_render", sheet, prev)
@@ -229,6 +231,22 @@ class Ledger(unittest.TestCase):
         with self.assertRaises(psycopg.Error) as err:                        # title cards only: never 0
             self.final(title_only=True)
         self.assertIn("at least one data view", str(err.exception))
+
+    # -- Ryan's ruling: path/flows datasets can't have final renders until measured
+    def test_path_and_flows_datasets_are_refused_for_final_renders(self):
+        self.grant(100)
+        for dataset, message in (("test_path", "aren't available yet"), ("test_flows", "aren't available yet"),
+                                 ("not_in_the_table", "isn't recorded yet")):
+            with self.assertRaises(psycopg.Error) as err:
+                self.final("line", dataset=dataset)                          # the view name doesn't matter
+            self.assertIn(message, str(err.exception), dataset)
+            vid = self.version("line", dataset=dataset)                      # sheets and previews still work
+            self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", self.submit(vid, "preview")), 0)
+        self.assertEqual(self.available(), 100)                              # nothing was held
+        self.assertEqual(self.admin("select count(*) from jobs where job_type = 'final_render'"), 0)
+        vid = self.version("line", dataset="test_path")
+        with self.assertRaises(psycopg.Error):                               # the quote says the same
+            self.db.as_(RYAN).one("select * from credit_quote(%s, 'final_render')", vid)
 
     # -- Test 9: a gate failure releases the hold and returns the version to its editorial step
     def test_gate_failure_releases(self):

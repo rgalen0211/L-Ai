@@ -6,7 +6,10 @@
 --     CC1 to confirm the engine's view names);
 --   * free previews: 6 per project AND 15 per account per rolling 24 hours; beyond either, 1 credit;
 --   * pools are spent subscription, then granted, then purchased (purchased never expire);
---   * a negative balance (only possible through a cash refund) is allowed and blocks new holds.
+--   * a negative balance (only possible through a cash refund) is allowed and blocks new holds;
+--   * path- and flows-shaped datasets are refused for final renders until their cost is measured
+--     (the engine renders those by shape, whatever view the clip names), 2026-09-28;
+--   * panel stays at 10: prices follow the film type, not render cost.
 --
 -- The ledger is append-only for everyone. A balance is never stored; it is the sum of rows.
 -- Holds, captures and releases happen in triggers on public.jobs, inside the same transaction
@@ -72,6 +75,19 @@ insert into public.credit_view_prices values
   ('line', 'final_line', 1),
   ('map', 'final_map', 2), ('river', 'final_map', 2), ('split', 'final_map', 2), ('globe', 'final_map', 2),
   ('paired', 'final_paired', 3), ('bars', 'final_paired', 3), ('panel', 'final_paired', 3);
+
+-- The shape of each catalog dataset. The engine checks shape BEFORE the view name
+-- (Session.frame_for): a path- or flows-shaped dataset renders path_frame / river_frame whatever
+-- the clip's view says, so its price can't come from the view. Ryan's ruling: final renders of
+-- those shapes are refused until their render cost is measured. Every dataset a final render uses
+-- needs a row here (CC1 supplies the catalog before 2B is applied); an unlisted dataset is refused
+-- rather than assumed standard, so a new path dataset can't slip through at a view's price.
+create table public.credit_dataset_shapes (
+  dataset text primary key check (dataset ~ '^[a-z0-9_]{1,80}$'),
+  shape text not null check (shape in ('standard', 'path', 'flows')),
+  noted_by text not null,
+  noted_at timestamptz not null default now()
+);
 
 -- Free-preview allowance, tunable without code.
 create table public.credit_rules (
@@ -182,6 +198,25 @@ begin
     order by p.rank desc limit 1;
   if code is null then
     raise exception 'A final film needs at least one data view to be priced.' using errcode = '22023';
+  end if;
+  -- Datasets: every render clip's dataset must be known, and of standard shape.
+  select c->>'dataset' into unknown
+    from jsonb_array_elements(p_story #> '{sequence,clips}') c
+    left join public.credit_dataset_shapes d on d.dataset = c->>'dataset'
+    where c->>'kind' = 'render' and d.dataset is null
+    limit 1;
+  if found then
+    raise exception 'Can''t price a final film from the dataset "%": its shape isn''t recorded yet.',
+      coalesce(unknown, '(none)') using errcode = '22023';
+  end if;
+  select d.dataset || ' (' || d.shape || ')' into unknown
+    from jsonb_array_elements(p_story #> '{sequence,clips}') c
+    join public.credit_dataset_shapes d on d.dataset = c->>'dataset'
+    where c->>'kind' = 'render' and d.shape <> 'standard'
+    limit 1;
+  if found then
+    raise exception 'Final films from % datasets aren''t available yet: their cost hasn''t been measured.',
+      unknown using errcode = '22023';
   end if;
   return code;
 end $$;
@@ -494,8 +529,9 @@ alter table public.credit_ledger enable row level security;
 alter table public.credit_prices enable row level security;
 alter table public.credit_view_prices enable row level security;
 alter table public.credit_rules enable row level security;
+alter table public.credit_dataset_shapes enable row level security;
 revoke all on public.credit_ledger, public.credit_prices, public.credit_view_prices, public.credit_rules,
-  public.credit_balances, public.job_accounting from anon, authenticated, service_role;
+  public.credit_balances, public.job_accounting, public.credit_dataset_shapes from anon, authenticated, service_role;
 grant select on public.credit_ledger, public.credit_prices, public.credit_view_prices,
   public.credit_balances, public.job_accounting to authenticated;
 create policy "Owners read their ledger" on public.credit_ledger for select to authenticated
