@@ -14,6 +14,9 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    no new jobs; replaces `submit_job` only)
 4. `migrations/20260928000300_2a_worker_is_not_a_person.sql` (the worker login
    can't create projects, versions or jobs of its own)
+5. `migrations/20260928000400_2a_worker_test_fixes.sql` (fixes from WORKER's tests:
+   `no_output` code, cancel while validating/uploading, per-attempt `queued_at`,
+   partial uploads hidden at once and purged after 24 hours)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -43,6 +46,16 @@ service_role key.
 
 To cut the worker off at once: Table Editor → `workers` → set `enabled` to false.
 Changing its password or deleting the user also works.
+
+## Partial-upload cleanup (Edge Function)
+
+`functions/purge-partial-uploads` deletes files left by jobs that failed or were
+cancelled mid-upload, 24 hours after the job ended. People never see those files in
+the meantime; the database hides them. Deploy it once (CLI:
+`supabase functions deploy purge-partial-uploads`, or Dashboard → Edge Functions),
+then schedule it hourly: Dashboard → Integrations → Cron → new job → Supabase Edge
+Function `purge-partial-uploads`, with the header `Authorization: Bearer <service
+role key>`. It refuses any other caller and touches only what the database lists.
 
 ## Kill switch
 

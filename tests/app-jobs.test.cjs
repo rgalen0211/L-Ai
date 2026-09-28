@@ -100,6 +100,18 @@ test('a final render locks the version, and its outcome becomes the version stat
   assert.equal(client.db.versions[0].state, 'editorial_action_required');
 });
 
+test('files from a job that did not complete are never listed', async () => {
+  const { client, data, version, until } = await setup();
+  const done = await data.submitJob(version.id, 'preview', {});
+  await until(done.id, finished);
+  const stuck = await data.submitJob(version.id, 'contact_sheet', {});
+  client.db.artifacts.push({ id: 'partial', job_id: stuck.id, version_id: version.id, kind: 'contact_sheet',
+                             storage_path: 'x/sheet.png', deleted_at: null, created_at: client.now() });
+  Object.assign(client.db.jobs.find(j => j.id === stuck.id), { state: 'cancelled' });
+  const { artifacts } = await data.getVersion(version.id);
+  assert.deepEqual(artifacts.map(a => a.kind).sort(), ['preview', 'thumbnail']);
+});
+
 test('a complete version takes no new jobs; a failed one may retry', async () => {
   assert.equal(J.versionTakesJobs('complete'), false);
   assert.equal(J.versionTakesJobs('failed'), true);

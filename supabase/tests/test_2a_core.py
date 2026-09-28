@@ -46,11 +46,13 @@ class Db:
         self.c = psycopg.connect(uri, autocommit=True)
 
     def as_(self, who):
-        """who: a user id, 'anon', or None for the database owner (dashboard)."""
+        """who: a user id, 'anon', 'service' (service_role), or None for the database owner (dashboard)."""
         self.c.execute("reset role")
-        self.c.execute("select set_config('request.jwt.claim.sub', %s, false)", (who if who not in (None, "anon") else "",))
+        self.c.execute("select set_config('request.jwt.claim.sub', %s, false)", (who if who not in (None, "anon", "service") else "",))
         if who == "anon":
             self.c.execute("set role anon")
+        elif who == "service":
+            self.c.execute("set role service_role")
         elif who is not None:
             self.c.execute("set role authenticated")
         return self
@@ -350,6 +352,94 @@ class Core(Base):
         self.db.as_(RYAN).one("select cancel_requested from cancel_job(%s)", job)
         self.assertTrue(self.db.as_(WORKER).one("select heartbeat(%s)", job))
         self.assertEqual(self.db.as_(WORKER).one("select state from report_state(%s, 'cancelled')", job), "cancelled")
+
+    # -- fixes from WORKER's real-SQL tests (migration 0400)
+    def test_no_output_is_infrastructure_and_not_retried(self):
+        _, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        self.claim()
+        w = self.db.as_(WORKER)
+        w.one("select report_state(%s, 'running')", job)
+        self.denied(WORKER, "select retry_job(%s, 'no_output')", job)
+        self.assertEqual(w.one("select state, error_class from report_state(%s, 'failed', 'no_output')", job),
+                         ("failed", "infrastructure"))
+
+    def test_cancel_is_honoured_while_validating_or_uploading(self):
+        for stop_at in ("validating", "uploading"):
+            _, vid = self.project_with_version()
+            job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+            self.claim()
+            w = self.db.as_(WORKER)
+            w.one("select report_state(%s, 'running')", job)
+            w.one("select report_state(%s, 'validating')", job)
+            if stop_at == "uploading":
+                w.one("select report_state(%s, 'uploading')", job)
+            self.denied(WORKER, "select report_state(%s, 'cancelled')", job)      # nobody asked
+            self.db.as_(RYAN).one("select cancel_requested from cancel_job(%s)", job)
+            self.assertEqual(self.db.as_(WORKER).one("select state from report_state(%s, 'cancelled')", job), "cancelled")
+            self.assertIsNone(self.claim())                                        # worker is free at once
+
+    def test_queue_wait_is_per_attempt(self):
+        _, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        admin = lambda sql, *a: self.db.as_(None).one(sql, *a)
+        admin("update jobs set created_at = now() - interval '1 hour', queued_at = now() - interval '1 hour' where id = %s returning 1", job)
+        self.claim()
+        self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job)
+        created, queued = admin("select created_at, queued_at from jobs where id = %s", job)
+        self.assertGreater(queued, created)                                      # reset on hand-back
+        self.assertEqual(self.claim(), job)
+        self.assertLess(admin("select extract(epoch from claimed_at - queued_at) from jobs where id = %s", job), 5)
+        admin("update jobs set lease_expires_at = now() - interval '1 second' where id = %s returning 1", job)
+        before = admin("select queued_at from jobs where id = %s", job)
+        self.assertEqual(self.claim(WORKER2), job)                               # reclaimed and re-claimed as attempt 3
+        self.assertGreaterEqual(admin("select queued_at from jobs where id = %s", job), before)
+        self.assertEqual(admin("select state, attempt from jobs where id = %s", job), ("claimed", 3))
+
+    def partial_upload(self):
+        """A preview cancelled mid-upload, leaving one registered, uploaded file."""
+        _, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        self.claim()
+        w = self.db.as_(WORKER)
+        for state in ("running", "validating", "uploading"):
+            w.one("select report_state(%s, %s)", job, state)
+        path = w.one("select register_artifact(%s, 'preview', 10, %s)", job, "d" * 64)
+        w.one("insert into storage.objects (bucket_id, name, metadata) values ('ryagram-artifacts', %s, "
+              "'{\"size\": 10, \"mimetype\": \"video/mp4\"}') returning 1", path)
+        self.db.as_(RYAN).one("select cancel_requested from cancel_job(%s)", job)
+        self.db.as_(WORKER).one("select report_state(%s, 'cancelled')", job)
+        return job, path
+
+    def test_partial_uploads_are_hidden_at_once(self):
+        job, path = self.partial_upload()
+        d = self.db.as_(RYAN)
+        self.assertEqual(d.one("select count(*) from artifacts where job_id = %s", job), 0)
+        self.assertEqual(d.one("select count(*) from storage.objects where name = %s", path), 0)
+        self.assertEqual(self.db.as_(None).one("select count(*) from artifacts where job_id = %s", job), 1)  # still there
+
+    def test_partial_uploads_are_purged_after_24_hours(self):
+        job, path = self.partial_upload()
+        svc = self.db.as_("service")
+        self.assertEqual(svc.all("select * from partial_uploads_due()"), [])        # not yet 24 h
+        self.db.as_(None).one("update jobs set ended_at = now() - interval '25 hours' where id = %s returning 1", job)
+        due = self.db.as_("service").all("select artifact_id, storage_path from partial_uploads_due()")
+        self.assertEqual([r[1] for r in due], [path])
+        ids = [due[0][0]]
+        self.assertEqual(self.db.as_("service").one("select mark_uploads_deleted(%s::uuid[])", ids), 0)  # file still there
+        self.db.as_(None).one("delete from storage.objects where name = %s returning 1", path)          # Storage API removes it
+        self.assertEqual(self.db.as_("service").one("select mark_uploads_deleted(%s::uuid[])", ids), 1)
+        self.assertEqual(self.db.as_("service").all("select * from partial_uploads_due()"), [])
+        for who in (RYAN, WORKER, "anon"):
+            self.denied(who, "select * from partial_uploads_due()")
+            self.denied(who, "select mark_uploads_deleted(array[]::uuid[])")
+
+    def test_purge_never_touches_a_finished_job(self):
+        _, vid, sheet, _ = self.ladder()
+        self.db.as_(None).one("update jobs set ended_at = now() - interval '48 hours' where id = %s returning 1", sheet)
+        self.assertEqual(self.db.as_("service").all("select * from partial_uploads_due()"), [])
+        ids = [r[0] for r in self.db.as_(None).all("select id from artifacts where job_id = %s", sheet)]
+        self.assertEqual(self.db.as_("service").one("select mark_uploads_deleted(%s::uuid[])", ids), 0)
 
     def test_owner_reads_own_files_only(self):
         _, vid, _, _ = self.ladder()

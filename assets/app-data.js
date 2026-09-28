@@ -88,7 +88,10 @@
               'Couldn’t load the files.'),
           api.listJobs(id)
         ]);
-        return { version, project, parent, artifacts, jobs };
+        // The database already hides files of jobs that didn't complete (partial uploads);
+        // filtering here too keeps the page right against older data or the mock.
+        const complete = new Set(jobs.filter(j => j.state === 'complete').map(j => j.id));
+        return { version, project, parent, artifacts: artifacts.filter(a => complete.has(a.job_id)), jobs };
       },
 
       saveStory(id, story) {
