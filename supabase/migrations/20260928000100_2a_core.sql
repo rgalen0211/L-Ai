@@ -228,8 +228,12 @@ alter table public.job_metering enable row level security;
 alter table public.workers enable row level security;
 alter table public.control enable row level security;
 
--- Supabase grants everything on new tables to anon/authenticated by default.
--- Start from nothing and add back only what the app needs.
+-- Nothing here relies on Supabase's default grants. This project has
+-- "Automatically expose new tables" OFF (no default grants at all); a project
+-- with it ON grants everything. Either way: start from nothing, and grant
+-- explicitly everything the app needs -- schema USAGE included, without which
+-- every table below is invisible to the Data API.
+grant usage on schema public to anon, authenticated;
 revoke all on public.projects, public.datasets, public.versions, public.jobs,
   public.artifacts, public.job_metering, public.workers, public.control
   from anon, authenticated;

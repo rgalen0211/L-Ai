@@ -27,6 +27,11 @@ create unique index if not exists ryagram_waitlist_email_key
 
 alter table public.ryagram_waitlist enable row level security;
 
+-- Nothing here relies on Supabase's default grants: the project has
+-- "Automatically expose new tables" OFF, so every privilege is granted below,
+-- including USAGE on the schema, without which the table is invisible.
+grant usage on schema public to anon, authenticated;
+
 -- Insert-only, and only the three columns the form sends.
 revoke all on table public.ryagram_waitlist from anon, authenticated;
 grant insert (email, use_case, source) on table public.ryagram_waitlist to anon, authenticated;
