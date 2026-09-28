@@ -12,6 +12,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    metering, workers, kill switch, storage bucket `ryagram-artifacts`)
 3. `migrations/20260928000200_2a_complete_is_final.sql` (a complete version takes
    no new jobs; replaces `submit_job` only)
+4. `migrations/20260928000300_2a_worker_is_not_a_person.sql` (the worker login
+   can't create projects, versions or jobs of its own)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -64,6 +66,24 @@ Function using `service_role`) must grant its own access explicitly.
 Only the Project URL and the publishable key (`assets/ryagram-config.js`). The
 database decides everything else. Never put the secret/service_role key, the
 worker password or an Anthropic key in this repo; the repo is public.
+
+## Acceptance test (2A-1), once the project is live
+
+Make a second test person (Authentication → Users → Add user, Auto Confirm) in
+addition to your own account and the worker's. Before the render worker is
+started, from the repo root:
+
+```
+node supabase/acceptance/2a1-acceptance.mjs
+```
+
+It asks for the Project URL, the publishable key and the three logins (passwords
+typed hidden; or set the environment variables named at the top of the file).
+It checks that you can sign in, that anonymous visitors get nothing, that the
+second person sees none of your rows or files, and that the worker login can use
+only its own functions, by running one tiny job the way the worker would.
+`--dry-run` lists the checks without sending anything. It leaves one archived
+project named `acceptance-<time>` and one 16-byte file.
 
 ## Tests
 

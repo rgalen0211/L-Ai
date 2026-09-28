@@ -210,6 +210,11 @@ class Core(Base):
         _, vid = self.project_with_version()
         job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
         self.denied(RYAN, "select claim_next_job()")               # not a worker
+        # The worker login can't act as a person: no projects, versions or jobs of its own.
+        self.denied(WORKER, "insert into projects (title) values ('mine') returning id")
+        self.denied(WORKER, "select create_version(%s)", self.db.as_(None).one("select project_id from versions where id = %s", vid))
+        self.denied(WORKER, "select submit_job(%s, 'preview')", vid)
+        self.denied(WORKER, "select queue_position(%s)", job)
         w = self.db.as_(WORKER)
         self.assertEqual(w.one("select count(*) from jobs"), 0)     # owns nothing
         self.denied(WORKER, "update jobs set state = 'complete'")
