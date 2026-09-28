@@ -20,6 +20,9 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
+**Not in the 2A set:** `phase-2b/credits_ledger.sql` is the 2B credits ledger. Don't
+run it until Phase 2B is approved; it goes after the five files above.
+
 ## Auth settings (2A-1)
 
 - **Authentication → Sign In / Providers → Email:** enabled. Turn **off**
