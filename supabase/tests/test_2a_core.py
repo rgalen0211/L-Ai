@@ -321,6 +321,9 @@ class Core(Base):
         self.run_job(final, ["final_video", "thumbnail", "receipt"])
         d = self.db.as_(RYAN)
         self.assertEqual(d.one("select state from versions where id = %s", vid), "complete")
+        for kind in ("preview", "contact_sheet"):                    # finished: no new jobs either
+            self.denied(RYAN, "select submit_job(%s, %s)", vid, kind)
+        self.denied(RYAN, "select submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
         self.denied(RYAN, "update versions set state = 'draft' where id = %s returning id", vid)
         self.denied(RYAN, "update versions set story_spec = '{}' where id = %s returning id", vid)
         self.assertEqual(self.db.as_(RYAN).one("update versions set state = 'archived' where id = %s returning state", vid), "archived")

@@ -1,22 +1,50 @@
 // An in-memory stand-in for the parts of supabase-js the app uses, with the
-// database rules the views depend on (version numbering and copying, locked
-// versions). Used by the Node tests and for driving the app in a browser
-// before the real project exists. Not loaded by any page.
+// database rules the views depend on: version numbering and copying, locked
+// versions, submit_job's checks (parameters, one job in flight per type, the
+// contact sheet -> preview -> final ladder on the exact story), cancel_job,
+// queue_position, final-render state mirrored onto the version, and Realtime
+// change events. Used by the Node tests and by mock mode (/app/?mock on
+// localhost only). Not loaded by any page on the public site.
 (function (root) {
   const EDITABLE = ['draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render'];
+  const ACTIVE = ['queued', 'claimed', 'running', 'validating', 'uploading'];
+  const VERSION_FROM_FINAL = {
+    queued: 'queued', claimed: 'rendering', running: 'rendering', validating: 'validating', uploading: 'uploading',
+    complete: 'complete', failed: 'failed', editorial_action_required: 'editorial_action_required', cancelled: 'ready_to_render'
+  };
+  const PLACEHOLDER = label => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#354247"/>` +
+    `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
-  function createFakeClient(seed = {}) {
+  function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ...structuredClone(seed) };
     const log = [];
+    const channels = new Set();
     let n = 0;
     const id = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`;
-    const now = () => new Date(Date.UTC(2026, 8, 28, 12, 0, n)).toISOString();
+    const now = () => new Date(Date.UTC(2026, 8, 28, 12, 0, 0) + (++n) * 1000).toISOString();
+    const fail = message => ({ data: null, error: { message } });
+
+    // Realtime: tell subscribers about a changed job row.
+    function emit(table, row) {
+      for (const ch of channels) {
+        if (ch.table === table && (!ch.versionId || ch.versionId === row.version_id)) ch.callback({ new: structuredClone(row) });
+      }
+    }
+    // What the jobs trigger does: a final render's state shows on its version.
+    function jobChanged(job) {
+      if (job.job_type === 'final_render') {
+        const v = db.versions.find(x => x.id === job.version_id);
+        if (v) { v.state = VERSION_FROM_FINAL[job.state]; v.updated_at = now(); emit('versions', v); }
+      }
+      emit('jobs', job);
+    }
 
     function query(table) {
       const filters = [];
       let op = 'select', payload = null, single = false, order = null;
       const q = {
-        select() { if (op === 'select') op = 'select'; return q; },
+        select() { return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
         update(row) { op = 'update'; payload = row; return q; },
         eq(col, val) { filters.push(r => r[col] === val); return q; },
@@ -32,21 +60,19 @@
         let result;
         if (op === 'insert') {
           const row = { id: id(), created_at: now(), updated_at: now(), archived_at: null, ...payload };
-          if (table === 'projects' && !(row.title && row.title.length <= 200)) {
-            return { data: null, error: { message: 'new row violates check constraint' } };
-          }
+          if (table === 'projects' && !(row.title && row.title.length <= 200)) return fail('new row violates check constraint');
           rows.push(row);
           result = [row];
         } else if (op === 'update') {
           result = rows.filter(r => filters.every(f => f(r)));
           for (const r of result) {
             if (table === 'versions') {
-              if ('story_spec' in payload && !EDITABLE.includes(r.state)) {
-                return { data: null, error: { message: `This version is locked (${r.state}). Make a new version to change it.` } };
+              if (('story_spec' in payload || 'dataset_id' in payload) && !EDITABLE.includes(r.state)) {
+                return fail(`This version is locked (${r.state}). Make a new version to change it.`);
               }
-              if ('state' in payload && !((r.state === 'complete' && payload.state === 'archived')
+              if ('state' in payload && payload.state !== r.state && !((r.state === 'complete' && payload.state === 'archived')
                   || (EDITABLE.includes(r.state) && [...EDITABLE, 'archived'].includes(payload.state)))) {
-                return { data: null, error: { message: `Cannot move a version from ${r.state} to ${payload.state} by hand. Make a new version instead.` } };
+                return fail(`Cannot move a version from ${r.state} to ${payload.state} by hand. Make a new version instead.`);
               }
             }
             Object.assign(r, payload, { updated_at: now() });
@@ -61,42 +87,132 @@
         result = structuredClone(result);
         if (single) {
           return result.length === 1 ? { data: result[0], error: null }
-                                     : { data: null, error: { message: 'JSON object requested, multiple (or no) rows returned' } };
+                                     : fail('JSON object requested, multiple (or no) rows returned');
         }
         return { data: result, error: null };
       }
       return q;
     }
 
-    const client = {
-      db, log,
-      from: query,
-      async rpc(name, args) {
-        log.push({ rpc: name, args });
-        if (name !== 'create_version') return { data: null, error: { message: `no fake for ${name}` } };
+    const rpcs = {
+      create_version(args) {
         const project = db.projects.find(p => p.id === args.p_project_id && !p.archived_at);
-        if (!project) return { data: null, error: { message: 'Project not found.' } };
+        if (!project) return fail('Project not found.');
         const src = args.p_from_version_id ? db.versions.find(v => v.id === args.p_from_version_id && v.project_id === project.id) : null;
-        if (args.p_from_version_id && !src) return { data: null, error: { message: 'Version not found.' } };
+        if (args.p_from_version_id && !src) return fail('Version not found.');
         const number = Math.max(0, ...db.versions.filter(v => v.project_id === project.id).map(v => v.number)) + 1;
         const version = {
           id: id(), project_id: project.id, number, parent_version_id: src ? src.id : null, state: 'draft',
-          story_spec: src ? structuredClone(src.story_spec) : {}, story_sha256: `sha-${n}`, dataset_id: null,
-          restorability: 'unknown', note: null, created_at: now(), updated_at: now()
+          story_spec: src ? structuredClone(src.story_spec) : {}, story_sha256: src ? src.story_sha256 : `sha-${n}`,
+          dataset_id: null, restorability: 'unknown', note: null, created_at: now(), updated_at: now()
         };
         db.versions.push(version);
         project.updated_at = now();
         return { data: structuredClone(version), error: null };
       },
+
+      submit_job(args) {
+        const v = db.versions.find(x => x.id === args.p_version_id);
+        if (!v) return fail('Version not found.');
+        if (['queued', 'rendering', 'validating', 'uploading', 'complete', 'archived', 'non_restorable'].includes(v.state)) {
+          return fail(`This version is ${v.state} and cannot take new jobs.`);
+        }
+        if (!(String(v.story_spec?.schema) === '1' && v.story_spec?.engine === 'sequence')) {
+          return fail('The story is not a schema-1 sequence yet.');
+        }
+        const type = args.p_job_type;
+        const params = args.p_params || {};
+        const allowed = { contact_sheet: ['periods'], preview: ['window_s'], final_render: [] }[type];
+        const bad = Object.keys(params).find(k => !allowed.includes(k));
+        if (bad) return fail(`Unknown parameter "${bad}" for ${type}.`);
+        if (db.jobs.some(j => j.version_id === v.id && j.job_type === type && ACTIVE.includes(j.state))) {
+          return fail(`A ${type} job for this version is already in progress.`);
+        }
+        const done = (jobId, jobType) => db.jobs.find(j => j.id === jobId && j.job_type === jobType && j.state === 'complete'
+                                                         && j.version_id === v.id && j.story_sha256 === v.story_sha256);
+        if (type === 'final_render' && !(done(args.p_sheet_job_id, 'contact_sheet') && done(args.p_preview_job_id, 'preview'))) {
+          return fail('The contact sheet and preview must both be complete for this exact story.');
+        }
+        const job = {
+          id: id(), version_id: v.id, project_id: v.project_id, owner_id: user.id, job_type: type, state: 'queued',
+          attempt: 1, params, story_sha256: v.story_sha256,
+          sheet_job_id: type === 'final_render' ? args.p_sheet_job_id : null,
+          preview_job_id: type === 'final_render' ? args.p_preview_job_id : null,
+          cancel_requested: false, error_class: null, error_code: null, error_detail: null,
+          progress: null, progress_note: null, created_at: now(), started_at: null, ended_at: null
+        };
+        db.jobs.push(job);
+        jobChanged(job);
+        return { data: structuredClone(job), error: null };
+      },
+
+      cancel_job(args) {
+        const j = db.jobs.find(x => x.id === args.p_job_id);
+        if (!j) return fail('Job not found.');
+        if (j.state === 'queued') Object.assign(j, { state: 'cancelled', ended_at: now(), error_class: 'cancelled', error_code: 'cancelled' });
+        else if (ACTIVE.includes(j.state)) j.cancel_requested = true;
+        else return fail(`This job has already finished (${j.state}).`);
+        jobChanged(j);
+        return { data: structuredClone(j), error: null };
+      },
+
+      queue_position(args) {
+        const j = db.jobs.find(x => x.id === args.p_job_id);
+        if (!j || j.state !== 'queued') return { data: null, error: null };
+        const ahead = db.jobs.filter(q => q.state === 'queued' && (q.created_at < j.created_at || (q.created_at === j.created_at && q.id < j.id)));
+        return { data: ahead.length + 1, error: null };
+      }
+    };
+
+    let session = user ? { user } : null;
+    const authListeners = new Set();
+    const client = {
+      db, log, jobChanged, now, newId: id,
+      from: query,
+      async rpc(name, args) {
+        log.push({ rpc: name, args });
+        return rpcs[name] ? rpcs[name](args) : fail(`no fake for ${name}`);
+      },
+      channel(name) {
+        const ch = { name, table: null, versionId: null, callback: null };
+        return {
+          on(kind, spec, callback) {
+            ch.table = spec.table;
+            ch.versionId = (spec.filter || '').replace(/^version_id=eq\./, '') || null;
+            ch.callback = callback;
+            return this;
+          },
+          subscribe(status) { channels.add(ch); setTimeout(() => status && status('SUBSCRIBED'), 0); ch.handle = this; return this; },
+          _ch: ch
+        };
+      },
+      removeChannel(handle) { channels.delete(handle._ch); },
       storage: {
         from(bucket) {
           return {
             async createSignedUrl(path, seconds) {
               log.push({ signed: path, bucket, seconds });
-              return { data: { signedUrl: `https://fake.supabase.co/storage/v1/object/sign/${bucket}/${path}?token=t` }, error: null };
+              const url = /\.(png|jpg)$/.test(path)
+                ? PLACEHOLDER(path.endsWith('sheet.png') ? 'Contact sheet (mock)' : 'Thumbnail (mock)')
+                : `https://fake.supabase.co/storage/v1/object/sign/${bucket}/${path}?token=t`;
+              return { data: { signedUrl: url }, error: null };
             }
           };
         }
+      },
+      auth: {
+        async getSession() { return { data: { session } }; },
+        onAuthStateChange(cb) {
+          authListeners.add(cb);
+          setTimeout(() => cb('INITIAL_SESSION', session), 0);
+          return { data: { subscription: { unsubscribe: () => authListeners.delete(cb) } } };
+        },
+        async signInWithPassword({ email }) {
+          session = { user: { id: 'u-ryan', email } };
+          for (const cb of authListeners) cb('SIGNED_IN', session);
+          return { error: null };
+        },
+        async signOut() { session = null; for (const cb of authListeners) cb('SIGNED_OUT', null); return { error: null }; }
       }
     };
     return client;

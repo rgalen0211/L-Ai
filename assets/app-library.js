@@ -1,5 +1,6 @@
 // Ryagram library views (2A-2): projects -> versions (r1, r2, ...) -> one version.
-// Routes: #/ (projects), #/p/<id> (a project), #/v/<id> (a version).
+// Routes: #/ (projects), #/p/<id> (a project), #/v/<id> (a version, with its
+// render panel: 2A-3).
 // Everything from the database goes in as text nodes, never as HTML.
 (() => {
   const EDITABLE = ['draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render'];
@@ -8,11 +9,6 @@
     editorial_action_required: 'Needs a decision', ready_to_render: 'Ready to render',
     queued: 'Queued', rendering: 'Rendering', validating: 'Checking', uploading: 'Uploading',
     complete: 'Complete', failed: 'Failed', archived: 'Archived', non_restorable: 'Can’t be rebuilt'
-  };
-  const JOB_LABELS = { contact_sheet: 'Contact sheet', preview: 'Preview', final_render: 'Final render' };
-  const JOB_STATE_LABELS = {
-    queued: 'Queued', claimed: 'Starting', running: 'Rendering', validating: 'Checking', uploading: 'Uploading',
-    complete: 'Complete', failed: 'Failed', editorial_action_required: 'Needs a decision', cancelled: 'Cancelled'
   };
   const KIND_LABELS = {
     final_video: 'Final film', preview: 'Preview', contact_sheet: 'Contact sheet', thumbnail: 'Thumbnail',
@@ -47,23 +43,28 @@
 
   function mount(root, data) {
     let token = 0;
+    let stopView = () => {};                      // timers and subscriptions of the page on screen
 
     async function route() {
       const mine = ++token;
       const hash = location.hash;
-      root.replaceChildren(h('p', { class: 'form-intro' }, 'Loading…'));
+      const stops = [];
+      const onStop = fn => stops.push(fn);
+      if (!root.childElementCount) root.replaceChildren(h('p', { class: 'form-intro' }, 'Loading…'));
       let view;
       try {
         let m;
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
-        else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1]);
+        else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
         view = [h('h1', { tabindex: '-1' }, 'Something went wrong'),
                 h('p', { class: 'app-error', role: 'alert' }, err.message),
                 h('a', { href: '#/' }, 'Back to your projects')];
       }
-      if (mine !== token) return;                 // a newer page load won
+      if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
+      stopView();
+      stopView = () => stops.forEach(fn => fn());
       root.replaceChildren(...view);
       root.querySelector('h1')?.focus();
     }
@@ -165,8 +166,8 @@
     }
 
     // --- #/v/<id>  one version
-    async function versionView(id) {
-      const { version: v, project, parent, artifacts, jobs } = await data.getVersion(id);
+    async function versionView(id, onStop) {
+      const { version: v, project, parent, artifacts } = await data.getVersion(id);
       const locked = !EDITABLE.includes(v.state);
       const error = errorLine();
       const saved = h('p', { class: 'form-note', role: 'status' });
@@ -177,6 +178,13 @@
           catch (err) { showError(error, err); }
         });
       };
+
+      const files = filesSection(v, artifacts);
+      const jobs = jobsPanel(v, {
+        settled: () => files.refresh(),
+        versionChanged: () => route()
+      });
+      onStop(jobs.stop);
 
       const story = h('textarea', { id: 'story', class: 'story', spellcheck: 'false', readonly: locked,
                                     'aria-describedby': 'story-help', value: JSON.stringify(v.story_spec, null, 2) });
@@ -195,8 +203,11 @@
           return;
         }
         await busy(save, 'Saving…', async () => {
-          try { await data.saveStory(v.id, parsed); saved.textContent = 'Saved.'; }
-          catch (err) { showError(error, err); }
+          try {
+            const result = await data.saveStory(v.id, parsed);
+            saved.textContent = 'Saved. Earlier sheets and previews were of the old story, so the final render needs new ones.';
+            jobs.storyChanged(result.story_sha256);
+          } catch (err) { showError(error, err); }
         });
       } },
         h('label', { for: 'story' }, 'Story'),
@@ -204,32 +215,6 @@
           ? `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()} and can’t change. Make a new version from it to keep working.`
           : 'The story file this version renders from. The render worker checks it in full before drawing anything.'),
         story, locked ? null : save, saved, error);
-
-      const files = artifacts.length
-        ? h('ul', { class: 'file-list' }, await Promise.all(artifacts.map(async a => {
-            let url = null;
-            try { url = await data.fileUrl(a.storage_path); } catch { /* shown as unavailable */ }
-            const label = [KIND_LABELS[a.kind] || a.kind, bytes(a.bytes) && ` · ${bytes(a.bytes)}`];
-            let preview = null;
-            if (url && (a.kind === 'final_video' || a.kind === 'preview')) {
-              preview = h('video', { controls: true, preload: 'metadata', src: url });
-            } else if (url && (a.kind === 'thumbnail' || a.kind === 'contact_sheet')) {
-              preview = h('img', { src: url, alt: KIND_LABELS[a.kind], loading: 'lazy' });
-            }
-            return h('li', {}, preview,
-              h('span', {}, label),
-              url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, 'Open') : h('span', { class: 'meta' }, 'unavailable'));
-          })))
-        : h('p', { class: 'form-intro' }, 'Nothing rendered for this version yet.');
-
-      const jobList = jobs.length
-        ? h('ul', { class: 'job-list' }, jobs.map(j => h('li', {},
-            h('strong', {}, JOB_LABELS[j.job_type] || j.job_type),
-            h('span', { class: `state job-${j.state}` }, JOB_STATE_LABELS[j.state] || j.state),
-            j.attempt > 1 ? h('span', { class: 'meta' }, `attempt ${j.attempt}`) : null,
-            h('span', { class: 'meta' }, date(j.created_at)),
-            j.error_detail ? h('p', { class: 'form-note' }, j.error_detail) : null)))
-        : h('p', { class: 'form-intro' }, 'No jobs yet.');
 
       return [
         h('a', { href: `#/p/${project.id}`, class: 'back' }, `← ${project.title}`),
@@ -246,14 +231,209 @@
               } }, 'Archive this version')
             : null),
         storyForm,
-        h('h2', {}, 'Files'), files,
-        h('h2', {}, 'Jobs'), jobList
+        jobs.el,
+        files.el
       ];
+    }
+
+    // Files for a version, refreshed on its own when a job finishes so the
+    // story editor above is never reset.
+    function filesSection(v, initial) {
+      const list = h('div');
+      const el = h('section', { 'aria-labelledby': 'files-title' }, h('h2', { id: 'files-title' }, 'Files'), list);
+      async function draw(artifacts) {
+        list.replaceChildren(artifacts.length
+          ? h('ul', { class: 'file-list' }, await Promise.all(artifacts.map(async a => {
+              let url = null;
+              try { url = await data.fileUrl(a.storage_path); } catch { /* shown as unavailable */ }
+              const label = [KIND_LABELS[a.kind] || a.kind, bytes(a.bytes) && ` · ${bytes(a.bytes)}`];
+              let preview = null;
+              if (url && (a.kind === 'final_video' || a.kind === 'preview')) {
+                preview = h('video', { controls: true, preload: 'metadata', src: url });
+              } else if (url && (a.kind === 'thumbnail' || a.kind === 'contact_sheet')) {
+                preview = h('img', { src: url, alt: KIND_LABELS[a.kind], loading: 'lazy' });
+              }
+              return h('li', {}, preview,
+                h('span', {}, label),
+                url ? h('a', { href: url, target: '_blank', rel: 'noopener noreferrer' }, 'Open') : h('span', { class: 'meta' }, 'unavailable'));
+            })))
+          : h('p', { class: 'form-intro' }, 'Nothing rendered for this version yet.'));
+      }
+      draw(initial);
+      return {
+        el,
+        async refresh() {
+          try { draw((await data.getVersion(v.id)).artifacts); } catch { /* keep what is shown */ }
+        }
+      };
+    }
+
+    // 2A-3: submit sheet / preview / final, queue position, live state.
+    // Realtime pushes changes; every 10 s it also re-reads while anything is
+    // in flight (queue positions move with other people's jobs) or whenever
+    // Realtime is not connected.
+    function jobsPanel(v, { settled, versionChanged }) {
+      const J = window.ryagramJobs;
+      let jobs = [];
+      let positions = {};
+      let storySha = v.story_sha256;
+      let stopped = false;
+      let seen;                                    // job id -> state at the last read
+      const error = errorLine();
+      const liveNote = h('span', { class: 'meta live-note' }, 'Connecting…');
+      const listEl = h('div', { 'aria-live': 'polite' }, h('p', { class: 'form-intro' }, 'Loading jobs…'));
+
+      const periods = h('input', { id: 'run-periods', inputmode: 'numeric', placeholder: '2016, 2018, 2020', autocomplete: 'off' });
+      const winStart = h('input', { id: 'run-start', type: 'number', min: '0', step: '0.5', placeholder: 'start', 'aria-label': 'Preview start, seconds' });
+      const winEnd = h('input', { id: 'run-end', type: 'number', min: '0', step: '0.5', placeholder: 'end', 'aria-label': 'Preview end, seconds' });
+      const sheetButton = h('button', { class: 'button secondary', type: 'button' }, 'Make contact sheet');
+      const previewButton = h('button', { class: 'button secondary', type: 'button' }, 'Make preview');
+      const finalButton = h('button', { class: 'button primary', type: 'button' }, 'Render final film');
+      const finalNote = h('p', { class: 'form-note' });
+      const lockedNote = h('p', { class: 'form-note', hidden: true });
+      const controls = h('div', { class: 'run-controls' },
+        h('div', { class: 'run-step' },
+          h('label', { for: 'run-periods' }, '1. Contact sheet ', h('span', {}, '(years, optional)')),
+          h('div', { class: 'inline-row' }, periods, sheetButton)),
+        h('div', { class: 'run-step' },
+          h('label', { for: 'run-start' }, '2. Preview ', h('span', {}, '(seconds, optional, 10 s at most)')),
+          h('div', { class: 'inline-row' }, winStart, winEnd, previewButton)),
+        h('div', { class: 'run-step' },
+          h('span', { class: 'step-label' }, '3. Final film'),
+          finalNote, finalButton));
+
+      async function submit(button, type, params, ladder) {
+        error.hidden = true;
+        await busy(button, 'Submitting…', async () => {
+          try {
+            await data.submitJob(v.id, type, params, ladder);
+            if (type === 'final_render') { versionChanged(); return; }
+            await refresh();
+          } catch (err) { showError(error, err); }
+        });
+      }
+
+      sheetButton.addEventListener('click', () => {
+        const p = J.parsePeriods(periods.value);
+        if (p.error) return showError(error, new Error(p.error));
+        submit(sheetButton, 'contact_sheet', p.value ? { periods: p.value } : {});
+      });
+      previewButton.addEventListener('click', () => {
+        const w = J.parseWindow(winStart.value, winEnd.value);
+        if (w.error) return showError(error, new Error(w.error));
+        submit(previewButton, 'preview', w.value ? { window_s: w.value } : {});
+      });
+      finalButton.addEventListener('click', () => {
+        const ladder = J.ladder(jobs, storySha);
+        if (!ladder.ready) return showError(error, new Error(ladder.missing));
+        if (!confirm(`Render the final film of r${v.number}? Its story locks while it renders; later changes need a new version.`)) return;
+        submit(finalButton, 'final_render', {}, { sheetJobId: ladder.sheet.id, previewJobId: ladder.preview.id });
+      });
+
+      function syncControls() {
+        const takes = J.versionTakesJobs(v.state);
+        controls.hidden = !takes;
+        lockedNote.hidden = takes;
+        lockedNote.textContent = `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()}, so it can’t take new jobs.`;
+        const busyType = type => jobs.some(j => j.job_type === type && J.isActive(j));
+        sheetButton.disabled = busyType('contact_sheet');
+        previewButton.disabled = busyType('preview');
+        const ladder = J.ladder(jobs, storySha);
+        finalButton.disabled = !ladder.ready || busyType('final_render');
+        finalNote.textContent = ladder.ready
+          ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. Clicking is your approval.`
+          : ladder.missing;
+      }
+
+      function jobItem(j) {
+        const active = J.isActive(j);
+        const failed = ['failed', 'editorial_action_required', 'cancelled'].includes(j.state);
+        const note = active ? J.progressNote(j, positions[j.id]) : failed ? J.problem(j) : '';
+        return h('li', { class: `job job-row-${j.state}` },
+          h('strong', {}, J.TYPE_LABELS[j.job_type] || j.job_type),
+          h('span', { class: `state job-${j.state}` }, J.STATE_LABELS[j.state] || j.state),
+          h('span', { class: 'meta' }, date(j.created_at)),
+          j.state === 'running' && j.progress != null
+            ? h('progress', { max: '1', value: String(j.progress), 'aria-label': `${J.TYPE_LABELS[j.job_type]} progress` }) : null,
+          note ? h('p', { class: failed && j.state !== 'cancelled' ? 'form-note job-problem' : 'form-note' }, note) : null,
+          active && !j.cancel_requested
+            ? h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
+                await busy(event.currentTarget, 'Cancelling…', async () => {
+                  try { await data.cancelJob(j.id); await refresh(); } catch (err) { showError(error, err); }
+                });
+              } }, 'Cancel') : null,
+          J.canRetry(j, v.state, jobs)
+            ? h('button', { class: 'button secondary small', type: 'button', onclick: event =>
+                submit(event.currentTarget, j.job_type, j.params || {},
+                       j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
+              }, 'Try again') : null);
+      }
+
+      function draw() {
+        syncControls();
+        listEl.replaceChildren(jobs.length
+          ? h('ul', { class: 'job-list' }, jobs.map(jobItem))
+          : h('p', { class: 'form-intro' }, 'No jobs yet. Start with a contact sheet.'));
+        liveNote.textContent = watch.live() ? '● Live' : 'Updating every 10 seconds';
+      }
+
+      let running = null;
+      let again = false;
+      async function refresh() {
+        if (stopped) return;
+        if (running) { again = true; return running; }
+        running = (async () => {
+          do {
+            again = false;
+            try {
+              const fresh = await data.listJobs(v.id);
+              const pos = {};
+              await Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
+                try { pos[j.id] = await data.queuePosition(j.id); } catch { /* position unknown */ }
+              }));
+              if (stopped) return;
+              const before = seen;
+              seen = new Map(fresh.map(j => [j.id, j.state]));
+              jobs = fresh;
+              positions = pos;
+              error.hidden = true;
+              if (before) {
+                const changed = fresh.filter(j => before.get(j.id) !== j.state);
+                // A final render's state is the version's state: redraw the whole page.
+                if (changed.some(j => j.job_type === 'final_render')) { versionChanged(); return; }
+                if (changed.some(j => j.state === 'complete')) settled();
+              }
+            } catch (err) {
+              if (!stopped) showError(error, err);
+            }
+            if (!stopped) draw();
+          } while (again && !stopped);
+        })();
+        try { await running; } finally { running = null; }
+      }
+
+      const watch = data.watchJobs(v.id, () => refresh());
+      const timer = setInterval(() => {
+        if (!watch.live() || jobs.some(J.isActive)) refresh();
+        else liveNote.textContent = '● Live';
+      }, 10000);
+      refresh();
+
+      const el = h('section', { class: 'jobs-panel', 'aria-labelledby': 'jobs-title' },
+        h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
+        h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
+        controls, lockedNote, error, listEl);
+
+      return {
+        el,
+        storyChanged(sha) { storySha = sha; v.story_sha256 = sha; syncControls(); },
+        stop() { stopped = true; clearInterval(timer); watch.stop(); }
+      };
     }
 
     window.addEventListener('hashchange', route);
     route();
-    return () => { token++; window.removeEventListener('hashchange', route); root.replaceChildren(); };
+    return () => { token++; stopView(); window.removeEventListener('hashchange', route); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };

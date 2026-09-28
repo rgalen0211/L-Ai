@@ -42,3 +42,22 @@ h1 .state{font-size:.8rem;vertical-align:middle}
 .file-list video,.file-list img{display:block;width:100%;max-width:640px;border-radius:12px;background:var(--dark);flex-basis:100%}
 .job-list p{flex-basis:100%;margin:0}
 @media(max-width:520px){.inline-row{flex-direction:column}.version-list .button{margin-left:0}}
+/* Render panel (2A-3) */
+.jobs-panel{margin-top:36px}
+.jobs-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.jobs-head h2{margin:0}
+.live-note{font-size:.8rem}
+.run-controls{display:grid;gap:16px;margin:16px 0 20px;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--paper)}
+.run-step label,.step-label{display:block;font-weight:700;font-size:.88rem;margin-bottom:6px}
+.run-step label span{font-weight:400;color:var(--muted)}
+.run-step input{margin:0}
+.run-step input[type=number]{max-width:110px}
+.run-step .form-note{margin:0 0 8px}
+.run-step .button{width:auto}
+.job-list progress{flex-basis:100%;width:100%;max-width:420px;height:8px;accent-color:var(--brand)}
+.job-problem{color:#8a2f25}
+.job-row-editorial_action_required .job-problem{color:#6d5427}
+.mock-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 16px;background:#fff7e6;border-top:2px solid var(--wheat);font-size:.85rem}
+.mock-bar select{width:auto;min-height:36px;margin:0;padding:4px 8px}
+body:has(.mock-bar) .app-main{padding-bottom:120px}
+@media(max-width:520px){.run-step .inline-row{flex-direction:row;flex-wrap:wrap}.run-step input[type=number]{max-width:none;flex:1}#run-periods{flex-basis:100%}}

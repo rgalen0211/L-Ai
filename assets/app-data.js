@@ -3,6 +3,8 @@
 // readable Error. The database enforces the rules; this layer just asks.
 (() => {
   const ARTIFACT_BUCKET = 'ryagram-artifacts';
+  const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, '
+    + 'cancel_requested, error_class, error_code, error_detail, progress, progress_note, created_at, started_at, ended_at';
 
   function ryagramData(client) {
     async function run(promise, fallback) {
@@ -11,7 +13,7 @@
       return data;
     }
 
-    return {
+    const api = {
       async listProjects() {
         const projects = await run(
           client.from('projects').select('id, title, created_at, updated_at')
@@ -82,9 +84,7 @@
           run(client.from('artifacts').select('id, job_id, kind, storage_path, mime, bytes, duration_s, width, height, created_at')
                 .eq('version_id', id).is('deleted_at', null).order('created_at', { ascending: false }),
               'Couldn’t load the files.'),
-          run(client.from('jobs').select('id, job_type, state, attempt, error_class, error_code, error_detail, created_at, ended_at, progress, progress_note')
-                .eq('version_id', id).order('created_at', { ascending: false }),
-              'Couldn’t load the jobs.')
+          api.listJobs(id)
         ]);
         return { version, project, parent, artifacts, jobs };
       },
@@ -99,12 +99,46 @@
           'Couldn’t change the version.');
       },
 
+      listJobs(versionId) {
+        return run(client.from('jobs').select(JOB_COLUMNS).eq('version_id', versionId)
+          .order('created_at', { ascending: false }), 'Couldn’t load the jobs.');
+      },
+
+      // The database checks everything again: parameters, the ladder, the kill switch.
+      submitJob(versionId, jobType, params, ladder) {
+        return run(client.rpc('submit_job', {
+          p_version_id: versionId, p_job_type: jobType, p_params: params || {},
+          p_sheet_job_id: ladder?.sheetJobId ?? null, p_preview_job_id: ladder?.previewJobId ?? null
+        }), 'Couldn’t submit the job.');
+      },
+
+      cancelJob(jobId) {
+        return run(client.rpc('cancel_job', { p_job_id: jobId }), 'Couldn’t cancel the job.');
+      },
+
+      queuePosition(jobId) {
+        return run(client.rpc('queue_position', { p_job_id: jobId }), 'Couldn’t read the queue.');
+      },
+
+      // Calls onChange whenever one of this version's jobs changes. live() is
+      // false until Realtime confirms the subscription, so the caller polls.
+      watchJobs(versionId, onChange) {
+        let live = false;
+        if (typeof client.channel !== 'function') return { live: () => false, stop() {} };
+        const channel = client.channel(`jobs:${versionId}`)
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'jobs', filter: `version_id=eq.${versionId}` },
+              () => onChange())
+          .subscribe(status => { live = status === 'SUBSCRIBED'; });
+        return { live: () => live, stop: () => { live = false; client.removeChannel(channel); } };
+      },
+
       async fileUrl(path) {
         const data = await run(client.storage.from(ARTIFACT_BUCKET).createSignedUrl(path, 3600),
           'Couldn’t open the file.');
         return data.signedUrl;
       }
     };
+    return api;
   }
 
   window.ryagramData = ryagramData;

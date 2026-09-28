@@ -10,6 +10,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 1. `ryagram-waitlist.sql` (Phase 1 waitlist)
 2. `migrations/20260928000100_2a_core.sql` (projects, versions, jobs, artifacts,
    metering, workers, kill switch, storage bucket `ryagram-artifacts`)
+3. `migrations/20260928000200_2a_complete_is_final.sql` (a complete version takes
+   no new jobs; replaces `submit_job` only)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 

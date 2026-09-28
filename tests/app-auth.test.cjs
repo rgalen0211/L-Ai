@@ -39,7 +39,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     ryagramLibrary: { mount(root, data) { calls.mounts++; calls.mountedWith = { root, data }; return () => { calls.unmounts++; }; } }
   };
   if (library) window.supabase = { createClient: (url, key, opts) => { calls.created = { url, key, opts }; return client; } };
-  vm.runInNewContext(code, { document: { getElementById: id => els[id] }, window, setTimeout: fn => fn() });
+  vm.runInNewContext(code, { document: { getElementById: id => els[id] }, window, location: { hostname: 'uselai.com', search: '' }, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
   return { els, button, calls, window, emit: async s => { authListener('X', s); await flush(); },
            submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut() };
