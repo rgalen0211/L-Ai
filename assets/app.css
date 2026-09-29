@@ -1,0 +1,63 @@
+/* Ryagram app. Loads after workflow-audit.css and reuses its tokens, header, form and button styles. */
+.button.secondary{background:transparent;color:var(--ink);border-color:var(--line)}
+.button.secondary:hover{border-color:var(--brand-deep)}
+.app-account{display:flex;align-items:center;gap:14px;font-size:.88rem;color:var(--muted);min-width:0}
+.app-account span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.app-account .button{min-height:40px;padding:6px 16px;font-size:.9rem}
+.app-main{padding-top:48px;padding-bottom:72px;min-height:calc(100vh - 160px)}
+.app-panel{max-width:480px}
+.app-panel h1{font-size:clamp(2rem,4vw,2.8rem);margin-bottom:8px}
+#library{max-width:none}
+.app-status{margin-bottom:24px;padding:14px 18px;border:1px solid var(--line);border-left:3px solid var(--wheat);border-radius:12px;background:var(--paper)}
+.app-error{color:#8a2f25}
+.ryagram-app .contact-form .button{width:100%}
+@media(max-width:520px){.app-main{padding-top:28px}.app-account span{display:none}}
+/* Library (2A-2) */
+#library h1{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+#library h1:focus{outline:none}
+#library h2{margin-top:36px}
+.back{display:inline-block;margin-bottom:14px;font-size:.9rem;text-decoration:none}
+.meta{color:var(--muted);font-size:.85rem}
+.inline-form{margin:18px 0 28px;max-width:560px}
+.inline-form label{display:block;font-weight:700;font-size:.88rem;margin-bottom:6px}
+.inline-row{display:flex;gap:10px}
+.inline-row input{margin:0;flex:1;min-width:0}
+.inline-row .button{flex-shrink:0}
+.actions-row{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
+.button.small{min-height:36px;padding:4px 14px;font-size:.85rem}
+.project-list,.version-list,.file-list,.job-list{list-style:none;padding:0;margin:0;border-top:1px solid var(--line)}
+.project-list li,.version-list li,.file-list li,.job-list li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:14px 0;margin:0;border-bottom:1px solid var(--line);font-size:.95rem;color:var(--ink)}
+.project-list a{font-weight:700;font-size:1.05rem;text-decoration:none;margin-right:auto}
+.version-link{font-weight:800;font-size:1.05rem;text-decoration:none;min-width:36px}
+.version-list .button{margin-left:auto}
+.state{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:700;letter-spacing:.02em;background:var(--soft);color:var(--ink);white-space:nowrap}
+.state-complete,.job-complete{background:#dcefe9;color:var(--brand-deep)}
+.state-failed,.job-failed{background:#f6e0dc;color:#8a2f25}
+.state-editorial_action_required,.job-editorial_action_required{background:var(--wheat-soft);color:#6d5427}
+.state-queued,.state-rendering,.state-validating,.state-uploading,.job-queued,.job-claimed,.job-running,.job-validating,.job-uploading{background:#e4ecf5;color:#28496b}
+h1 .state{font-size:.8rem;vertical-align:middle}
+.story{min-height:320px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:.85rem;line-height:1.5;white-space:pre;tab-size:2}
+.story[readonly]{background:var(--soft);color:var(--muted)}
+#library form .button[type=submit]{width:auto}
+.file-list video,.file-list img{display:block;width:100%;max-width:640px;border-radius:12px;background:var(--dark);flex-basis:100%}
+.job-list p{flex-basis:100%;margin:0}
+@media(max-width:520px){.inline-row{flex-direction:column}.version-list .button{margin-left:0}}
+/* Render panel (2A-3) */
+.jobs-panel{margin-top:36px}
+.jobs-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.jobs-head h2{margin:0}
+.live-note{font-size:.8rem}
+.run-controls{display:grid;gap:16px;margin:16px 0 20px;padding:18px;border:1px solid var(--line);border-radius:16px;background:var(--paper)}
+.run-step label,.step-label{display:block;font-weight:700;font-size:.88rem;margin-bottom:6px}
+.run-step label span{font-weight:400;color:var(--muted)}
+.run-step input{margin:0}
+.run-step input[type=number]{max-width:110px}
+.run-step .form-note{margin:0 0 8px}
+.run-step .button{width:auto}
+.job-list progress{flex-basis:100%;width:100%;max-width:420px;height:8px;accent-color:var(--brand)}
+.job-problem{color:#8a2f25}
+.job-row-editorial_action_required .job-problem{color:#6d5427}
+.mock-bar{position:fixed;left:0;right:0;bottom:0;z-index:30;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px;padding:10px 16px;background:#fff7e6;border-top:2px solid var(--wheat);font-size:.85rem}
+.mock-bar select{width:auto;min-height:36px;margin:0;padding:4px 8px}
+body:has(.mock-bar) .app-main{padding-bottom:120px}
+@media(max-width:520px){.run-step .inline-row{flex-direction:row;flex-wrap:wrap}.run-step input[type=number]{max-width:none;flex:1}#run-periods{flex-basis:100%}}
