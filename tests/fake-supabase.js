@@ -18,6 +18,23 @@
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], ...structuredClone(seed) };
+    // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
+    const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
+    const VIEW_PRICE = { line: ['final_line', 6, 1], map: ['final_map', 8, 2], river: ['final_map', 8, 2], split: ['final_map', 8, 2],
+                         globe: ['final_paired', 10, 3], bars: ['final_paired', 10, 3], paired: ['final_paired', 10, 3], panel: ['final_paired', 10, 3] };
+    function quote(v, type) {
+      if (type === 'contact_sheet') return { price_code: 'contact_sheet', credits: 0, free_preview: false };
+      if (type === 'preview') {
+        const mine = db.jobs.filter(j => j.job_type === 'preview' && j.free_preview && !(j.state === 'failed' && j.error_class === 'infrastructure'));
+        const free = mine.filter(j => j.project_id === v.project_id).length < 6 && mine.length < 15;
+        return free ? { price_code: 'preview_free', credits: 0, free_preview: true } : { price_code: 'preview_extra', credits: 1, free_preview: false };
+      }
+      const renders = (v.story_spec?.sequence?.clips || []).filter(c => c.kind === 'render');
+      if (!renders.length) throw new Error('A final film needs at least one data view to be priced.');
+      const best = renders.map(c => VIEW_PRICE[c.view]).reduce((a, b) => (!b ? a : !a || b[2] > a[2] ? b : a), null);
+      if (!best) throw new Error(`Can't price a film with the view "${renders[0].view}".`);
+      return { price_code: best[0], credits: best[1], free_preview: false };
+    }
     let engineCommit = 'e0a1b2c';                   // what the pretend worker runs
     const log = [];
     const channels = new Set();
@@ -32,8 +49,15 @@
         if (ch.table === table && (!ch.versionId || ch.versionId === row.version_id)) ch.callback({ new: structuredClone(row) });
       }
     }
-    // What the jobs trigger does: a final render's state shows on its version.
+    // What the jobs trigger does: a final render's state shows on its version; in 2B the
+    // ledger triggers capture or release the job's hold.
     function jobChanged(job) {
+      if (ledger && job.held && !job.captured && !job.released) {
+        if (job.state === 'complete') { job.captured = job.held; ledger.held -= job.held; }
+        else if (['failed', 'cancelled', 'editorial_action_required'].includes(job.state)) {
+          job.released = job.held; ledger.held -= job.held; ledger.available += job.held;
+        }
+      }
       if (job.job_type === 'final_render') {
         const v = db.versions.find(x => x.id === job.version_id);
         if (v) { v.state = VERSION_FROM_FINAL[job.state]; v.updated_at = now(); emit('versions', v); }
@@ -42,6 +66,18 @@
     }
 
     function query(table) {
+      if (table === 'credit_balances' || table === 'job_accounting') {
+        if (!ledger) return { select: () => ({ then: r => r({ data: null, error: { message: `relation ${table} does not exist` } }) }) };
+        const rows = () => table === 'credit_balances'
+          ? [{ pool: 'granted', available: ledger.available, held: ledger.held }]
+          : db.jobs.filter(j => 'credits_quoted' in j).map(j => ({ job_id: j.id, version_id: j.version_id, price_code: j.price_code,
+              credits_quoted: j.credits_quoted, free_preview: j.free_preview, held: j.held, captured: j.captured,
+              released: j.released, refunded: j.refunded }));
+        const filters = [];
+        const q = { select: () => q, eq: (c, v) => { filters.push(r => r[c] === v); return q; },
+                    then: (res, rej) => Promise.resolve({ data: structuredClone(rows().filter(r => filters.every(f => f(r)))), error: null }).then(res, rej) };
+        return q;
+      }
       const filters = [];
       let op = 'select', payload = null, single = false, order = null;
       const q = {
@@ -139,7 +175,18 @@
         if (type === 'final_render' && !(sheet && preview && sheet.engine_commit === preview.engine_commit)) {
           return fail('The contact sheet and preview must both be complete, for this exact story, from the same engine version.');
         }
+        let price = null;
+        if (ledger) {
+          try { price = quote(v, type); } catch (e) { return fail(e.message); }
+          if (price.credits > 0 && ledger.available < price.credits) {
+            return fail(`Not enough credits: this needs ${price.credits}, and ${Math.max(0, ledger.available)} are available.`);
+          }
+          ledger.available -= price.credits;
+          ledger.held += price.credits;
+        }
         const job = {
+          ...(price ? { price_code: price.price_code, credits_quoted: price.credits, free_preview: price.free_preview,
+                        held: price.credits, captured: 0, released: 0, refunded: 0 } : {}),
           id: id(), version_id: v.id, project_id: v.project_id, owner_id: user.id, job_type: type, state: 'queued',
           attempt: 1, params, story_sha256: v.story_sha256,
           engine_commit: null, ladder_engine_commit: type === 'final_render' ? preview.engine_commit : null,
@@ -161,6 +208,14 @@
         else return fail(`This job has already finished (${j.state}).`);
         jobChanged(j);
         return { data: structuredClone(j), error: null };
+      },
+
+      credit_quote(args) {
+        if (!ledger) return fail('function credit_quote does not exist');
+        const v = db.versions.find(x => x.id === args.p_version_id);
+        if (!v) return fail('Version not found.');
+        try { return { data: [{ ...quote(v, args.p_job_type), available: ledger.available }], error: null }; }
+        catch (e) { return fail(e.message); }
       },
 
       current_engine_commit() {

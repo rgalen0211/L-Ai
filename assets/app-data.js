@@ -146,6 +146,21 @@
         return { live: () => live, stop: () => { live = false; client.removeChannel(channel); } };
       },
 
+      // Credits (2B ledger). All derived by the database; nothing here stores a balance.
+      creditBalances() {
+        return run(client.from('credit_balances').select('pool, available, held'), 'Couldn’t load your credits.');
+      },
+      async creditQuote(versionId, jobType) {
+        const rows = await run(client.rpc('credit_quote', { p_version_id: versionId, p_job_type: jobType }), 'Couldn’t price this.');
+        return Array.isArray(rows) ? rows[0] || null : rows;
+      },
+      async jobAccounting(versionId) {
+        const rows = await run(client.from('job_accounting')
+          .select('job_id, price_code, credits_quoted, free_preview, held, captured, released, refunded')
+          .eq('version_id', versionId), 'Couldn’t load job credits.');
+        return Object.fromEntries(rows.map(r => [r.job_id, r]));
+      },
+
       // The AI editor (an Edge Function; the Anthropic key never reaches the browser).
       async askEditor(versionId, message) {
         const { data, error } = await client.functions.invoke('ai-editor', { body: { version_id: versionId, message } });

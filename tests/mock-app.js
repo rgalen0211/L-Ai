@@ -4,14 +4,18 @@
 // positions). Loaded only by app-auth.js on localhost; never on uselai.com.
 (function () {
   window.createMockApp = function createMockApp() {
-    const client = window.createFakeClient({}, { user: { id: 'mock-user', email: 'mock@localhost' } });
+    // Mock mode starts with 30 beta credits so the credit screens can be tried.
+    const client = window.createFakeClient({ credits: 30 }, { user: { id: 'mock-user', email: 'mock@localhost' } });
     const db = client.db;
     const project = { id: client.newId(), owner_id: 'mock-user', title: 'Obesity and fast food (mock)',
                       created_at: client.now(), updated_at: client.now(), archived_at: null };
     db.projects.push(project);
     db.versions.push({
       id: client.newId(), project_id: project.id, number: 1, parent_version_id: null, state: 'draft',
-      story_spec: { schema: 1, engine: 'sequence', name: 'obesity-fast-food', sequence: { fps: 30, clips: [] } },
+      story_spec: { schema: 1, engine: 'sequence', name: 'obesity-fast-food',
+                    sequence: { canvas: [1920, 1080], fps: 30, theme: 'dark', hold_seconds: 0.5, clips: [
+                      { kind: 'title', id: 'open', seconds: 3, fade: 0.4, headline: 'Obesity and fast food, 2011-2023' },
+                      { kind: 'render', id: 'main', dataset: 'state_obesity_fastfood', view: 'paired', start: '2011', end: '2023' }] } },
       story_sha256: 'sha-mock-1', dataset_id: null, restorability: 'unknown', note: null,
       created_at: client.now(), updated_at: client.now()
     });

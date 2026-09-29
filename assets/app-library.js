@@ -41,6 +41,9 @@
     return `${i ? n.toFixed(1) : n} ${units[i]}`;
   }
 
+  // Credits show once the 2B ledger is live (credits: true in ryagram-config.js), or in mock mode.
+  const creditsOn = () => window.ryagramConfig?.credits === true || !!window.ryagramMock;
+
   function mount(root, data) {
     let token = 0;
     let stopView = () => {};                      // timers and subscriptions of the page on screen
@@ -109,7 +112,10 @@
               p.latest ? [`r${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
                        : `No versions · updated ${date(p.updated_at)}`))))
         : h('p', { class: 'form-intro' }, 'No projects yet. Name one above and it starts as r1.');
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), form, list];
+      const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
+      if (credits) data.creditBalances().then(rows => { credits.textContent = window.ryagramCredits.balanceLine(rows); })
+        .catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, form, list];
     }
 
     // --- #/p/<id>  one project and its versions
@@ -384,6 +390,11 @@
       let jobs = [];
       let positions = {};
       let engine = null;                           // the worker's current engine version, if known
+      let quotes = {};                             // job type -> credit_quote, when credits are on
+      let accounting = {};                         // job id -> job_accounting row
+      let balance = null;
+      const C = window.ryagramCredits;
+      const balanceNote = h('p', { class: 'form-note credit-balance', hidden: !creditsOn() });
       let storySha = v.story_sha256;
       let stopped = false;
       let seen;                                    // job id -> state at the last read
@@ -429,12 +440,18 @@
       previewButton.addEventListener('click', () => {
         const w = J.parseWindow(winStart.value, winEnd.value);
         if (w.error) return showError(error, new Error(w.error));
+        const q = quotes.preview;
+        if (creditsOn() && q && !q.error && q.credits > 0
+            && !confirm(`Your free previews are used up for now, so this one costs ${C.plural(q.credits)}. Go ahead?`)) return;
         submit(previewButton, 'preview', { window_s: w.value || [0, 10] });   // the worker requires a window
       });
       finalButton.addEventListener('click', () => {
         const ladder = J.ladder(jobs, storySha, engine);
         if (!ladder.ready) return showError(error, new Error(ladder.missing));
-        if (!confirm(`Render the final film of r${v.number}? Its story locks while it renders; later changes need a new version.`)) return;
+        const q = quotes.final_render;
+        const cost = creditsOn() && q && !q.error && q.credits
+          ? ` It uses ${C.plural(q.credits)}, held now and returned if the render fails.` : '';
+        if (!confirm(`Render the final film of r${v.number}? Its story locks while it renders; later changes need a new version.${cost}`)) return;
         submit(finalButton, 'final_render', {}, { sheetJobId: ladder.sheet.id, previewJobId: ladder.preview.id });
       });
 
@@ -451,6 +468,21 @@
         finalNote.textContent = ladder.ready
           ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. Clicking is your approval.`
           : ladder.missing;
+        if (creditsOn()) {
+          const label = (button, base, type) => {
+            const q = quotes[type];
+            button.textContent = q && !q.error ? `${base} · ${C.priceLabel(q)}` : base;
+            const can = q && !q.error ? C.affordable(q) : { ok: true };
+            if (!can.ok) button.disabled = true;
+            return q?.error ? q.error : can.ok ? '' : can.reason;
+          };
+          const sheetWhy = label(sheetButton, 'Make contact sheet', 'contact_sheet');
+          const previewWhy = label(previewButton, 'Make preview', 'preview');
+          const finalWhy = label(finalButton, 'Render final film', 'final_render');
+          if (quotes.final_render?.error) finalButton.disabled = true;
+          if (finalWhy && ladder.ready) finalNote.textContent = finalWhy;
+          balanceNote.textContent = [balance ? `Credits: ${C.balanceLine(balance)}.` : '', sheetWhy, previewWhy].filter(Boolean).join(' ');
+        }
       }
 
       function jobItem(j) {
@@ -461,6 +493,7 @@
           h('strong', {}, J.TYPE_LABELS[j.job_type] || j.job_type),
           h('span', { class: `state job-${j.state}` }, J.STATE_LABELS[j.state] || j.state),
           h('span', { class: 'meta' }, date(j.created_at)),
+          creditsOn() && accounting[j.id] ? h('span', { class: 'meta credit-line' }, C.jobCredits(accounting[j.id])) : null,
           j.state === 'running' && j.progress != null
             ? h('progress', { max: '1', value: String(j.progress), 'aria-label': `${J.TYPE_LABELS[j.job_type]} progress` }) : null,
           note ? h('p', { class: failed && j.state !== 'cancelled' ? 'form-note job-problem' : 'form-note' }, note) : null,
@@ -496,6 +529,17 @@
             try {
               const [fresh, currentEngine] = await Promise.all([data.listJobs(v.id), data.currentEngine()]);
               engine = currentEngine;
+              if (creditsOn()) {
+                const types = ['contact_sheet', 'preview', 'final_render'];
+                const [q, acct, bal] = await Promise.all([
+                  Promise.all(types.map(t => data.creditQuote(v.id, t).catch(err => ({ error: err.message })))),
+                  data.jobAccounting(v.id).catch(() => ({})),
+                  data.creditBalances().catch(() => null)
+                ]);
+                quotes = Object.fromEntries(types.map((t, i) => [t, q[i]]));
+                accounting = acct;
+                balance = bal;
+              }
               const pos = {};
               await Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
                 try { pos[j.id] = await data.queuePosition(j.id); } catch { /* position unknown */ }
@@ -531,7 +575,7 @@
       const el = h('section', { class: 'jobs-panel', 'aria-labelledby': 'jobs-title' },
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
-        controls, lockedNote, error, listEl);
+        controls, balanceNote, lockedNote, error, listEl);
 
       return {
         el,

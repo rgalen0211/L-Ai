@@ -9,5 +9,7 @@ window.ryagramConfig = Object.freeze({
   supabaseKey: 'sb_publishable_6bjao-hnRZ0t2WAMwcJD9g_3zJ7paR0',
   // Show the AI editor panel in /app/. Turn on only after the ai-editor function is deployed
   // and control.ai_enabled is true (supabase/README.md, "AI editor").
-  aiEditor: false
+  aiEditor: false,
+  // Show credits (balance, prices, holds) in /app/. Turn on only once the 2B ledger is applied.
+  credits: false
 });

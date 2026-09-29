@@ -89,3 +89,6 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .chat-form .app-error{grid-column:1/-1}
 .visually-hidden{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
 @media(max-width:520px){.chat-form{grid-template-columns:1fr}}
+/* Credits */
+.credit-balance{margin:4px 0 16px;color:var(--muted);font-size:.92rem}
+.credit-line{font-weight:700;color:var(--brand-deep)}
