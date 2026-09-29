@@ -92,7 +92,7 @@ test('the Edge Function builds exactly the templates the app builds', () => {
   const app = window.ryagramTemplates;
   let count = 0;
   for (const t of app.TEMPLATES) for (const d of t.datasets) {
-    for (const h of ['Obesity & fast food', '', 'Evil‮ x\u0007 ' + 'y'.repeat(300), 'Ünïcödé café']) {
+    for (const h of ['Obesity & fast food', '', 'Evil\u202e x\u0007 ' + 'y'.repeat(300), 'Ünïcödé café']) {
       assert.deepEqual(plain(shared.build(t.id, d, h)), plain(app.build(t.id, d, h)), `${t.id}/${d}/${h.slice(0, 10)}`);
       count++;
     }
