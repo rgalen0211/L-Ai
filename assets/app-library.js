@@ -626,7 +626,11 @@
           h('div', { class: 'inline-row' }, winStart, winEnd, previewButton)),
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
-          finalNote, finalButton));
+          finalNote, finalButton),
+        // Measured by WORKER (2026-09-29): a sheet or preview takes from about 10 seconds for a state
+        // line chart to about 20 minutes for county-level bars, mostly building and checking the data.
+        h('p', { class: 'form-note run-timing' },
+          'Sheets and previews take from under a minute to about 20 minutes for county-level data. You can leave this page; the jobs keep running.'));
 
       async function submit(button, type, params, ladder) {
         error.hidden = true;
