@@ -36,7 +36,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     'app-status': el(), 'sign-in': el(), library: el(), account: el(), 'sign-in-form': form,
     'sign-in-error': el(), 'account-email': el(), 'sign-out': signOut,
     forgot, 'reset-form': resetForm, 'reset-note': el(), 'set-password': el(), 'set-password-form': setForm,
-    'set-password-error': el(), 'set-password-title': el()
+    'set-password-error': el(), 'set-password-title': el(), 'forgot-row': el()
   };
   const calls = { created: null, signIn: [], signOut: 0, mounts: 0, unmounts: 0, verify: [], update: [], reset: [], replaced: [] };
   let authListener;
@@ -140,6 +140,11 @@ test('mock mode loads only on this computer, never on the public site', () => {
   const local = harness({ location: { hostname: '127.0.0.1', search: '?mock' } });
   assert.equal(local.appended[0].src, '/tests/fake-supabase.js');
   assert.equal(local.calls.created, null);
+});
+
+test('forgot password: hidden until the reset email is set up', () => {
+  assert.equal(harness().els['forgot-row'].hidden, true);
+  assert.equal(harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', passwordReset: true } }).els['forgot-row'].hidden, false);
 });
 
 test('forgot password: one answer whether or not the account exists, back to /app/', async () => {

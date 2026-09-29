@@ -153,7 +153,9 @@
       }
     });
 
-    // Forgot your password: the same answer whether or not the email has an account.
+    // Forgot your password: the same answer whether or not the email has an account. Shown once
+    // the reset email is set up (passwordReset: true), or in mock mode.
+    if ($('forgot-row')) $('forgot-row').hidden = !(window.ryagramConfig?.passwordReset === true || window.ryagramMock);
     const forgot = $('forgot');
     const resetForm = $('reset-form');
     const resetNote = $('reset-note');

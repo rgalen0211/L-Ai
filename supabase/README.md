@@ -208,7 +208,7 @@ show the generic Ryagram card), and the owner's choice to show uploaded data.
 
 ## Account basics (branch account): switching them on
 
-**Password reset** (works as soon as it's merged, after these settings):
+**Password reset** (hidden until step 5):
 
 1. **Authentication → URL Configuration:** Site URL `https://uselai.com`; add
    `https://uselai.com/app/` to Redirect URLs.
@@ -222,6 +222,8 @@ show the generic Ryagram card), and the owner's choice to show uploaded data.
 4. **Emails to anyone but you need your own SMTP** (Authentication → Emails → SMTP settings).
    Supabase's built-in sender only delivers to the project's team members, a few per hour. Until
    then, reset links reach only your own address.
+5. **Then turn on the button:** `passwordReset: true` in `assets/ryagram-config.js` (a merge, with
+   your OK). Until then "Forgot your password?" stays hidden, so no one gets a link that can't work.
 
 People can also change their password on the new **Account** page (the email in the header links
 to it), without email.

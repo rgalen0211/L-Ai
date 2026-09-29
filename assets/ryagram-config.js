@@ -23,5 +23,8 @@ window.ryagramConfig = Object.freeze({
   // Show the data choice and "Delete your account" on the account page. Turn on only once SQL
   // 0900 is applied and delete-account is deployed (supabase/README.md, "Account basics").
   // Changing a password works without it.
-  accountTools: false
+  accountTools: false,
+  // Show "Forgot your password?" on sign-in. Turn on only after the reset-password email template
+  // points at /app/?reset={{ .TokenHash }} and custom SMTP is set (supabase/README.md, "Account basics").
+  passwordReset: false
 });
