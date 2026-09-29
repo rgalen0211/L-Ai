@@ -17,7 +17,7 @@
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], ...structuredClone(seed) };
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -143,6 +143,12 @@
     }
 
     const rpcs = {
+      film_unpublish({ p_version }) {
+        const page = db.film_pages.find(p => p.version_id === p_version);
+        if (!page) return fail('No public page for that film.');
+        page.published = false;
+        return { data: null, error: null };
+      },
       create_version(args) {
         const project = db.projects.find(p => p.id === args.p_project_id && !p.archived_at);
         if (!project) return fail('Project not found.');
@@ -274,6 +280,20 @@
       functions: {
         async invoke(name, { body }) {
           log.push({ fn: name, body });
+          if (name === 'film-page') {
+            // Mock publish: the summary comes from the sample page; the link opens /film/?mock.
+            const v = db.versions.find(x => x.id === body.version_id);
+            const err = text => ({ data: null, error: { message: 'x', context: { json: async () => ({ error: text }) } } });
+            if (!v) return err('Version not found.');
+            if (v.state !== 'complete') return err('Only a finished film can have a public page.');
+            let page = db.film_pages.find(p => p.version_id === v.id);
+            if (!page) {
+              page = { version_id: v.id, slug: `Mock${id().replace(/-/g, '')}`.slice(0, 22), published_at: now() };
+              db.film_pages.push(page);
+            }
+            Object.assign(page, { title: body.title || 'Obesity and fast food (mock)', published: true });
+            return { data: { slug: page.slug, url: `/film/?mock&s=${page.slug}` }, error: null };
+          }
           if (name === 'stripe-checkout' && ledger) {
             // Mock Stripe: no checkout page. The "webhook" grants the credits a moment later.
             if (body.action === 'portal') {

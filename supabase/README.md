@@ -27,6 +27,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 9. `migrations/20260929000700_preview_needs_window.sql` (a preview without
    `window_s` is refused at submit; the worker would reject it anyway. Independent of
    the AI editor's 0600 file, so it can run with or without it)
+10. `migrations/20260929000800_film_pages.sql` (public film pages; nothing is public until an
+   owner publishes, and the page needs the film-page function; see "Public film pages")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -169,6 +171,38 @@ tagged with their user id; the browser only ever goes to `checkout.stripe.com` o
 ledger's `grant_credits` and `reverse_purchase`: packs on `checkout.session.completed` (paid),
 plan months on `invoice.paid` (first month and each renewal, once per billing period, with the
 2× rollover cap), and a full pack refund on `charge.refunded`.
+
+## Public film pages (branch film-page): switching them on
+
+"Made with Ryagram · View sources" pages, per the marketing strategy. **Opt-in per film, off by
+default**: a finished film gets a *Public page* panel in /app/, and nothing is public until its
+owner presses *Publish a public page*. *Stop sharing* turns it off; publishing again brings back
+the same link. The page lives at `https://uselai.com/film/?s=<22-character slug>`.
+
+What a page shows: the film, its title and subhead, and for each dataset the source names,
+https links, licence notes, method, how derived figures were worked out, known breaks in the
+series, the measures drawn, and a short public receipt (period, area, length, drawn date, engine
+commit). It is built by the `film-page` function from the film's receipt, by allowlist: the
+receipt itself (machine paths, cache fingerprints, reproduce commands) is never served, and a
+film made from uploaded data names only "the maker’s own data". Video and poster links are
+signed for an hour; the page data is cached for 5 minutes, so *Stop sharing* takes effect within
+minutes.
+
+1. **SQL Editor:** `migrations/20260929000800_film_pages.sql` (after 0700; independent of the
+   2B and Stripe files).
+2. **Deploy** (visitors aren't signed in; owners' tokens are checked inside):
+
+   ```
+   npx supabase functions deploy film-page --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+   No secrets to add.
+3. **Merge with `filmPages: true`** in `assets/ryagram-config.js` (with your OK).
+4. **Check:** publish a finished film, open its link in a private window, then *Stop sharing* and
+   reload after 5 minutes: "No film here".
+
+Not built yet: the "Made with Ryagram" mark on exported films (an engine option for CC1/RENDERER),
+link previews with the film's own title and poster (the page is a static file, so shared links
+show the generic Ryagram card), and the owner's choice to show uploaded data.
 
 ## Kill switch
 

@@ -195,6 +195,26 @@
       startCheckout(priceCode) { return invokeUrl('stripe-checkout', { price_code: priceCode }, 'Couldn’t start the checkout.'); },
       openBillingPortal() { return invokeUrl('stripe-checkout', { action: 'portal' }, 'Couldn’t open plan settings.'); },
 
+      // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
+      // which builds the page's sources from the receipt; stopping is a plain RPC.
+      async filmPage(versionId) {
+        const rows = await run(client.from('film_pages').select('version_id, slug, title, published, published_at')
+          .eq('version_id', versionId), 'Couldn’t load the public page.');
+        return rows[0] || null;
+      },
+      async publishFilm(versionId, title) {
+        const { data, error } = await client.functions.invoke('film-page', { body: { version_id: versionId, title } });
+        if (error) {
+          let text = 'Couldn’t publish just now.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
+      unpublishFilm(versionId) {
+        return run(client.rpc('film_unpublish', { p_version: versionId }), 'Couldn’t stop sharing.');
+      },
+
       // The AI editor (an Edge Function; the Anthropic key never reaches the browser).
       async askEditor(versionId, message) {
         const { data, error } = await client.functions.invoke('ai-editor', { body: { version_id: versionId, message } });

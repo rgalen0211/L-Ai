@@ -99,3 +99,5 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .plan-now{display:flex;flex-wrap:wrap;align-items:center;gap:8px 16px;margin:8px 0 16px}
 .plan-now p{margin:0}
 .credit-thanks{color:var(--brand-deep);font-weight:700}
+.share-link{overflow-wrap:anywhere;font-weight:700}
+.share-panel label{display:block;margin-top:12px}

@@ -1,0 +1,25 @@
+/* Public film page (/film/). Builds on workflow-audit.css (tokens, header, buttons). */
+.film-main{max-width:960px;padding-top:32px;padding-bottom:64px}
+.film-main h1{margin:0 0 8px;font-size:clamp(1.8rem,4vw,2.6rem);line-height:1.15}
+.film-main h1:focus{outline:none}
+.film-subhead{margin:0 0 20px;color:var(--muted);font-size:1.1rem}
+.film-player{margin:0 0 20px}
+.film-player video{display:block;width:100%;height:auto;border-radius:12px;background:#000}
+.film-player figcaption{margin-top:10px;font-size:.92rem;color:var(--muted)}
+.film-gone{padding:48px 20px;border:1px dashed var(--line);border-radius:12px;text-align:center;color:var(--muted)}
+.film-cta{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:12px 20px;margin:0 0 40px;padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+.film-cta p{margin:0;font-weight:700}
+.film-section{margin:0 0 40px}
+.film-section h2{margin:0 0 16px;font-size:1.5rem}
+.film-section h3{margin:24px 0 8px;font-size:1.1rem}
+.film-section h4{margin:16px 0 6px;font-size:.95rem}
+.film-section p,.film-section li{line-height:1.55;overflow-wrap:anywhere}
+.film-sources{padding-left:1.1em}
+.film-sources li{margin-bottom:10px}
+.film-license{display:block;font-size:.88rem;color:var(--muted)}
+.film-meta,.film-unit{color:var(--muted);font-size:.92rem}
+.film-receipt dl{display:grid;grid-template-columns:max-content 1fr;gap:8px 20px;margin:0}
+.film-receipt dt{color:var(--muted)}
+.film-receipt dd{margin:0;overflow-wrap:anywhere}
+.film-loading{color:var(--muted)}
+@media (max-width:560px){.film-receipt dl{grid-template-columns:1fr}.film-receipt dd{margin-bottom:8px}.film-page .page-nav{display:none}}

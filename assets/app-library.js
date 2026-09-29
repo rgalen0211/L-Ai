@@ -44,6 +44,8 @@
   // Credits show once the 2B ledger is live (credits: true in ryagram-config.js), or in mock mode.
   const creditsOn = () => window.ryagramConfig?.credits === true || !!window.ryagramMock;
   // Buying credits (Stripe) shows once checkout and the webhook are deployed (payments: true), or in mock mode.
+  // Public film pages show once the film-page function is deployed (filmPages: true), or in mock mode.
+  const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
@@ -331,12 +333,59 @@
                 });
               } }, 'Archive this version')
             : null),
+        v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
         picker,
         chat,
         storyForm,
         jobs.el,
         files.el
       ];
+    }
+
+    // A finished film's public page: off until the owner publishes it; they can stop at any time.
+    function sharePanel(v, project) {
+      const heading = h('h2', { id: 'share-title' }, 'Public page');
+      const el = h('section', { class: 'app-panel share-panel', 'aria-labelledby': 'share-title' },
+        heading, h('p', { class: 'form-note' }, 'Loading…'));
+      const error = errorLine();
+      const pageUrl = slug => (window.ryagramMock ? `/film/?mock&s=${slug}` : `${location.origin}/film/?s=${slug}`);
+
+      async function draw() {
+        let page;
+        try { page = await data.filmPage(v.id); } catch (err) { el.replaceChildren(heading, error); showError(error, err); return; }
+        if (page?.published) {
+          const url = pageUrl(page.slug);
+          const copy = h('button', { class: 'button secondary small', type: 'button', onclick: async () => {
+            try { await navigator.clipboard.writeText(url); copy.textContent = 'Copied'; } catch { copy.textContent = 'Select the link to copy it'; }
+          } }, 'Copy link');
+          const stop = h('button', { class: 'button secondary small', type: 'button', onclick: async () => {
+            if (!confirm('Stop sharing? The link stops working (visitors may still see it for a few minutes). Publishing again later brings back the same link.')) return;
+            await busy(stop, 'Stopping…', async () => {
+              try { await data.unpublishFilm(v.id); await draw(); } catch (err) { showError(error, err); }
+            });
+          } }, 'Stop sharing');
+          el.replaceChildren(heading,
+            h('p', {}, `On since ${date(page.published_at)}. Anyone with the link can watch this film and read its sources.`),
+            h('p', { class: 'share-link' }, h('a', { href: url, target: '_blank', rel: 'noopener' }, url)),
+            h('div', { class: 'actions-row' }, copy, stop), error);
+          return;
+        }
+        const title = h('input', { id: 'share-title-input', maxlength: '120', value: page?.title || project.title, autocomplete: 'off' });
+        const go = h('button', { class: 'button primary', type: 'button', onclick: async () => {
+          if (!confirm('Publish a public page for this film? Anyone with the link can watch it and read its sources and method. Uploaded data is never shown.')) return;
+          error.hidden = true;
+          await busy(go, 'Publishing…', async () => {
+            try { await data.publishFilm(v.id, title.value); await draw(); } catch (err) { showError(error, err); }
+          });
+        } }, 'Publish a public page');
+        el.replaceChildren(heading,
+          h('p', { class: 'form-note' }, page ? 'Off. You stopped sharing this film; publishing again brings back the same link.'
+            : 'Off. A public page shows this film, where its data came from and how it was drawn, marked “Made with Ryagram”. Nothing is public until you publish.'),
+          h('label', { for: 'share-title-input' }, 'Page title'),
+          h('div', { class: 'inline-row' }, title, go), error);
+      }
+      draw();
+      return el;
     }
 
     // The AI editor, as a panel on the version page. Replies are text nodes only.

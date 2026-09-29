@@ -16,5 +16,8 @@ window.ryagramConfig = Object.freeze({
   // stripe-checkout and stripe-webhook functions are deployed (supabase/README.md, "Stripe").
   payments: false,
   // While Stripe runs with test keys, the Credits page says so and names the test card.
-  stripeTestMode: true
+  stripeTestMode: true,
+  // Show "Public page" on finished films in /app/. Turn on only once the film-page function is
+  // deployed and its SQL applied (supabase/README.md, "Public film pages").
+  filmPages: false
 });
