@@ -4,4 +4,7 @@
 // Both are meant to be public; the database only lets this key add rows.
 // Never put a secret or service_role key here.
 // Empty means not connected: the form sends nothing and points people to email.
-window.ryagramConfig = Object.freeze({ supabaseUrl: '', supabaseKey: '' });
+window.ryagramConfig = Object.freeze({
+  supabaseUrl: 'https://jxtkfishqfxuptwjzczz.supabase.co',
+  supabaseKey: 'sb_publishable_6bjao-hnRZ0t2WAMwcJD9g_3zJ7paR0'
+});
