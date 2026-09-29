@@ -441,6 +441,18 @@ class Core(Base):
         ids = [r[0] for r in self.db.as_(None).all("select id from artifacts where job_id = %s", sheet)]
         self.assertEqual(self.db.as_("service").one("select mark_uploads_deleted(%s::uuid[])", ids), 0)
 
+    def test_not_found_is_http_404(self):
+        # PostgREST turns SQLSTATE PTxxx into HTTP xxx; P0002 used to surface as 500.
+        pid, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        for sql, args in (("select create_version(%s)", (pid,)), ("select submit_job(%s, 'contact_sheet')", (vid,)),
+                          ("select cancel_job(%s)", (job,)),
+                          ("update versions set dataset_id = gen_random_uuid() where id = %s returning 1", (vid,))):
+            who = RYAN if sql.startswith("update") else OTHER
+            with self.assertRaises(psycopg.Error) as err:
+                self.db.as_(who).one(sql, *args)
+            self.assertEqual(err.exception.sqlstate, "PT404", sql)
+
     def test_owner_reads_own_files_only(self):
         _, vid, _, _ = self.ladder()
         self.assertEqual(self.db.as_(RYAN).one("select count(*) from storage.objects"), 2)

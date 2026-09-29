@@ -17,6 +17,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 5. `migrations/20260928000400_2a_worker_test_fixes.sql` (fixes from WORKER's tests:
    `no_output` code, cancel while validating/uploading, per-attempt `queued_at`,
    partial uploads hidden at once and purged after 24 hours)
+6. `migrations/20260929000100_2a_not_found_is_404.sql` (a request for something that
+   isn't yours answers 404 instead of 500; nothing else changes)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 

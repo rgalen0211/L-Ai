@@ -442,7 +442,7 @@ declare
 begin
   select owner_id into owner from public.jobs where id = p_job_id;
   if owner is null then
-    raise exception 'Job not found.' using errcode = 'P0002';
+    raise exception 'Job not found.' using errcode = 'PT404';
   end if;
   perform ryagram_private.lock_owner(owner);
   with refunded as (
@@ -470,7 +470,7 @@ declare
 begin
   select * into p from public.credit_ledger where stripe_event_id = p_purchase_event_id and entry = 'purchase';
   if not found then
-    raise exception 'No purchase for that payment.' using errcode = 'P0002';
+    raise exception 'No purchase for that payment.' using errcode = 'PT404';
   end if;
   perform ryagram_private.lock_owner(p.owner_id);
   if exists (select 1 from public.credit_ledger where stripe_event_id = p_refund_event_id) then
@@ -515,7 +515,7 @@ declare
 begin
   select * into v from public.versions where id = p_version_id and owner_id = me;
   if not found then
-    raise exception 'Version not found.' using errcode = 'P0002';
+    raise exception 'Version not found.' using errcode = 'PT404';
   end if;
   select * into rules from public.credit_rules where id;
   if p_job_type = 'contact_sheet' then code := 'contact_sheet';
