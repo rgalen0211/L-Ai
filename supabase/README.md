@@ -67,6 +67,33 @@ then schedule it hourly: Dashboard → Integrations → Cron → new job → Sup
 Function `purge-partial-uploads`, with the header `Authorization: Bearer <service
 role key>`. It refuses any other caller and touches only what the database lists.
 
+## AI editor (branch ai-editor): switching it on
+
+Built and tested end to end against a scripted Claude; it has never called the real API.
+Every step is yours except where WEB is named, and nothing costs money until step 6.
+
+1. **Anthropic account.** At console.anthropic.com create an API account (separate from your
+   Claude subscription), add billing, and set a **monthly spend limit** (e.g. $20 while testing)
+   with email alerts. Create one API key named `ryagram-ai-editor`.
+2. **Key into Supabase, by you:** Edge Functions → Secrets → `ANTHROPIC_API_KEY`. Never paste it
+   in chat, the repo or the website.
+3. **SQL Editor**, in order: `migrations/20260929000500_current_engine_commit.sql` (if not run
+   yet), then `migrations/20260929000600_ai_editor.sql`. Harmless: the editor stays off.
+4. **Deploy:** `npx supabase functions deploy ai-editor --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`
+   (it checks the sign-in itself). If the function logs that it has no public key, also add the
+   secret `RYAGRAM_PUBLISHABLE_KEY` = the publishable key.
+5. **Merge `ai-editor` to main** (with your OK). The panel stays hidden (`aiEditor: false`).
+6. **Switch on:** Table Editor → `control` → `ai_enabled` = true. Then WEB sets `aiEditor: true`
+   in `assets/ryagram-config.js` and, with your OK, merges it; WEB checks the live function
+   (anonymous call refused, one real turn, usage rows priced, cache reads on the second turn).
+
+Caps, all on the `control` row: `ai_turns_per_day` (100, rolling 24 h), `ai_exec_calls_per_hour`
+(30 sheets/previews started by the editor), `ai_tool_calls_per_turn` (12), `ai_project_alert_usd`
+(3.00, flags `ai_turns.spend_alert`; not a limit). **Kill switch:** `ai_enabled` = false stops
+every request at once. Models: `claude-haiku-4-5` by default (4k output), `claude-sonnet-5` for
+new stories, failed checks and explicit escalation (8k output, medium effort). Usage per call is
+in `ai_usage` with its cost at the `ai_prices` version.
+
 ## Kill switch
 
 Table Editor → `control` (one row):

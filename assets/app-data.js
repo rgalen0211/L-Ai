@@ -146,6 +146,24 @@
         return { live: () => live, stop: () => { live = false; client.removeChannel(channel); } };
       },
 
+      // The AI editor (an Edge Function; the Anthropic key never reaches the browser).
+      async askEditor(versionId, message) {
+        const { data, error } = await client.functions.invoke('ai-editor', { body: { version_id: versionId, message } });
+        if (error) {
+          let text = 'The editor couldn’t answer just now.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
+
+      async editorHistory(versionId) {
+        const sessions = await run(client.from('ai_sessions').select('id').eq('version_id', versionId), 'Couldn’t load the conversation.');
+        if (!sessions.length) return [];
+        return run(client.from('ai_messages').select('role, content, created_at').eq('session_id', sessions[0].id)
+          .order('created_at', { ascending: true }), 'Couldn’t load the conversation.');
+      },
+
       async fileUrl(path) {
         const data = await run(client.storage.from(ARTIFACT_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS),
           'Couldn’t open the file.');

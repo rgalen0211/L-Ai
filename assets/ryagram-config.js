@@ -6,5 +6,8 @@
 // Empty means not connected: the form sends nothing and points people to email.
 window.ryagramConfig = Object.freeze({
   supabaseUrl: 'https://jxtkfishqfxuptwjzczz.supabase.co',
-  supabaseKey: 'sb_publishable_6bjao-hnRZ0t2WAMwcJD9g_3zJ7paR0'
+  supabaseKey: 'sb_publishable_6bjao-hnRZ0t2WAMwcJD9g_3zJ7paR0',
+  // Show the AI editor panel in /app/. Turn on only after the ai-editor function is deployed
+  // and control.ai_enabled is true (supabase/README.md, "AI editor").
+  aiEditor: false
 });

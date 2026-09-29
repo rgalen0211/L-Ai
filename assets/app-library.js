@@ -227,6 +227,12 @@
         return true;
       });
 
+      const editorOn = window.ryagramConfig?.aiEditor === true || !!window.ryagramMock;
+      const chat = editorOn && !locked ? editorPanel(v, {
+        storyChanged: () => route(),
+        refreshJobs: () => jobs.refresh()
+      }) : null;
+
       return [
         h('a', { href: `#/p/${project.id}`, class: 'back' }, `← ${project.title}`),
         h('h1', { tabindex: '-1' }, `r${v.number} `, badge(v.state)),
@@ -242,10 +248,49 @@
               } }, 'Archive this version')
             : null),
         picker,
+        chat,
         storyForm,
         jobs.el,
         files.el
       ];
+    }
+
+    // The AI editor, as a panel on the version page. Replies are text nodes only.
+    function editorPanel(v, { storyChanged, refreshJobs }) {
+      const log = h('div', { class: 'chat-log', 'aria-live': 'polite' });
+      const error = errorLine();
+      const input = h('textarea', { id: 'chat-input', rows: '2', maxlength: '4000', placeholder: 'Ask the editor: “make it a map of 2016 to 2022”, “why did the check stop this?”' });
+      const send = h('button', { class: 'button primary', type: 'submit' }, 'Send');
+      const line = (role, text) => log.append(h('div', { class: `chat-msg chat-${role}` },
+        h('span', { class: 'chat-who' }, role === 'user' ? 'You' : 'Editor'), h('p', {}, text)));
+
+      data.editorHistory(v.id).then(rows => rows.forEach(r => line(r.role, r.content))).catch(() => {});
+
+      const form = h('form', { class: 'chat-form', onsubmit: async event => {
+        event.preventDefault();
+        const message = input.value.trim();
+        if (!message) return;
+        error.hidden = true;
+        line('user', message);
+        input.value = '';
+        await busy(send, 'Thinking…', async () => {
+          try {
+            const res = await data.askEditor(v.id, message);
+            line('assistant', res.reply);
+            for (const a of res.actions || []) {
+              if (a.type === 'needs_approval') line('assistant', 'Ready when you are: press “Render final film” in the Render panel below. That click is your approval.');
+              if (a.type === 'version_created') log.append(h('p', { class: 'form-note' }, h('a', { href: `#/v/${a.version_id}` }, `Open r${a.number}`)));
+              if (a.type === 'job_submitted') refreshJobs();
+            }
+            if ((res.actions || []).some(a => a.type === 'story_changed')) storyChanged();
+          } catch (err) { showError(error, err); }
+        });
+      } }, h('label', { for: 'chat-input', class: 'visually-hidden' }, 'Message to the editor'), input, send, error);
+
+      return h('section', { class: 'chat-panel', 'aria-labelledby': 'chat-title' },
+        h('h2', { id: 'chat-title' }, 'Editor'),
+        h('p', { class: 'form-note' }, 'Describe the film you want or ask about a check. It edits this version’s story and can start sheets and previews; only you can start the final film.'),
+        log, form);
     }
 
     // "Start from a template": a view, a dataset, a headline -> a valid story.
@@ -490,6 +535,7 @@
 
       return {
         el,
+        refresh,
         storyChanged(sha) { storySha = sha; v.story_sha256 = sha; syncControls(); },
         stop() { stopped = true; clearInterval(timer); watch.stop(); }
       };

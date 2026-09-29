@@ -17,7 +17,7 @@
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ...structuredClone(seed) };
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], ...structuredClone(seed) };
     let engineCommit = 'e0a1b2c';                   // what the pretend worker runs
     const log = [];
     const channels = new Set();
@@ -201,6 +201,20 @@
         };
       },
       removeChannel(handle) { channels.delete(handle._ch); },
+      // Mock AI editor: answers in plain text and records the conversation, no model involved.
+      functions: {
+        async invoke(name, { body }) {
+          log.push({ fn: name, body });
+          if (name !== 'ai-editor') return { data: null, error: { message: 'no such function', context: { json: async () => ({}) } } };
+          let session = db.ai_sessions.find(s => s.version_id === body.version_id);
+          if (!session) { session = { id: id(), version_id: body.version_id }; db.ai_sessions.push(session); }
+          const reply = `(mock editor) You said: ${body.message}. In the real editor, Claude would edit the story or start a sheet here.`;
+          for (const [role, content] of [['user', body.message], ['assistant', reply]]) {
+            db.ai_messages.push({ id: id(), session_id: session.id, role, content, created_at: now() });
+          }
+          return { data: { reply, actions: [], escalated: false, tool_calls: 0 }, error: null };
+        }
+      },
       storage: {
         from(bucket) {
           return {
