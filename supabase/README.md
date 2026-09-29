@@ -62,6 +62,27 @@ then schedule it hourly: Dashboard → Integrations → Cron → new job → Sup
 Function `purge-partial-uploads`, with the header `Authorization: Bearer <service
 role key>`. It refuses any other caller and touches only what the database lists.
 
+## Waitlist behind Cloudflare Turnstile (branch waitlist-turnstile)
+
+Stops bots from filling the waitlist. The form shows a Cloudflare check; the
+`waitlist-join` Edge Function asks Cloudflare whether it was passed on uselai.com
+for this form, then adds the address through `waitlist_join` (service_role only).
+Part B then removes the public key's direct insert, so the check can't be skipped.
+Until a site key is configured the page keeps inserting directly, so each step is safe.
+
+In order:
+1. Cloudflare → Turnstile → Add widget: name "Ryagram waitlist", hostname
+   `uselai.com` (and `www.uselai.com`), mode **Managed**, pre-clearance **No**.
+   Keep the **site key** (public) and the **secret key** (private).
+2. Supabase → Edge Functions → Secrets: add `TURNSTILE_SECRET_KEY` = the secret key.
+3. SQL Editor: run `migrations/20260929000200_waitlist_turnstile_a.sql`.
+4. Deploy: `npx supabase login`, then
+   `npx supabase functions deploy waitlist-join --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
+5. Put the site key in `assets/ryagram-config.js` (`turnstileSiteKey`) and merge
+   the branch; the live form then goes through the check.
+6. After a real signup through the new form works: run
+   `migrations/20260929000300_waitlist_turnstile_b.sql`.
+
 ## Kill switch
 
 Table Editor → `control` (one row):

@@ -82,24 +82,25 @@ class Base(unittest.TestCase):
             self.db.as_(who).one(sql, *args)
 
 
-# The Phase 1 waitlist (from WORKER's grants check): insert-only for visitors.
+# The Phase 1 waitlist, after the Turnstile change: visitors can no longer insert directly;
+# the only way in is waitlist_join, which only service_role (the Edge Function) may call.
 class Waitlist(Base):
-    def test_anon_can_join(self):
-        self.db.as_("anon").c.execute(
-            "insert into public.ryagram_waitlist (email, use_case, source) values (%s, %s, %s)",
-            ("a@b.co", "films", "uselai.com/ryagram"))
-        self.assertEqual(self.db.as_(None).one("select count(*) from public.ryagram_waitlist"), 1)
+    def test_only_the_edge_function_can_add(self):
+        svc = self.db.as_("service")
+        svc.one("select waitlist_join('a@b.co', ' films ', 'uselai.com/ryagram')")
+        svc.one("select waitlist_join('A@B.CO', null, null)")                    # already listed: no error
+        rows = self.db.as_(None).all("select email, use_case, source from public.ryagram_waitlist")
+        self.assertEqual(rows, [("a@b.co", "films", "uselai.com/ryagram")])
+        for who in ("anon", RYAN, WORKER):
+            self.denied(who, "select waitlist_join('x@y.co', null, null)")
+            self.denied(who, "insert into public.ryagram_waitlist (email) values ('x@y.co') returning id")
 
-    def test_signed_in_can_join(self):
-        self.db.as_(RYAN).c.execute("insert into public.ryagram_waitlist (email) values (%s)", ("r@b.co",))
-
-    def test_anon_cannot_read_change_or_set_hidden_columns(self):
+    def test_nobody_outside_can_read_or_change_it(self):
         self.db.as_(None).c.execute("insert into public.ryagram_waitlist (email) values ('x@y.co')")
-        self.denied("anon", "select * from public.ryagram_waitlist")
-        self.denied("anon", "update public.ryagram_waitlist set email = 'z@y.co'")
-        self.denied("anon", "delete from public.ryagram_waitlist")
-        self.denied("anon", "insert into public.ryagram_waitlist (email, user_id) values ('q@y.co', %s)", RYAN)
-        self.denied("anon", "insert into public.ryagram_waitlist (email, invited_at) values ('q@y.co', now())")
+        for who in ("anon", RYAN):
+            self.denied(who, "select * from public.ryagram_waitlist")
+            self.denied(who, "update public.ryagram_waitlist set email = 'z@y.co' returning id")
+            self.denied(who, "delete from public.ryagram_waitlist returning id")
 
 
 class Core(Base):

@@ -4,8 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <!-- GitHub Pages cannot send headers, so the policy is a meta tag. Facebook entries are for the
-     optional Meta Pixel (off until configured); the style hash is the noscript rule below. -->
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://connect.facebook.net; style-src 'self' https://fonts.googleapis.com 'sha256-X9M4C5GZAxfxJNAK0liPui7LKk9rxjbMMSyDBMYdT6Y='; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.facebook.com; media-src 'self'; frame-src https://www.youtube-nocookie.com; connect-src https://jxtkfishqfxuptwjzczz.supabase.co https://www.facebook.com; base-uri 'none'; form-action 'none'; object-src 'none'">
+     optional Meta Pixel (off until configured); challenges.cloudflare.com is the Turnstile check on
+     the waitlist; the style hash is the noscript rule below. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://connect.facebook.net https://challenges.cloudflare.com; style-src 'self' https://fonts.googleapis.com 'sha256-X9M4C5GZAxfxJNAK0liPui7LKk9rxjbMMSyDBMYdT6Y='; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.facebook.com; media-src 'self'; frame-src https://www.youtube-nocookie.com https://challenges.cloudflare.com; connect-src https://jxtkfishqfxuptwjzczz.supabase.co https://www.facebook.com; base-uri 'none'; form-action 'none'; object-src 'none'">
 <title>Ryagram — Data films that show what the data say | L'Ai</title>
 <meta name="description" content="Ryagram makes short animated data films that show what the data actually say, with correctness checks built in. Join the waitlist.">
 <link rel="canonical" href="https://uselai.com/ryagram/">
@@ -69,6 +70,7 @@
           <label for="wl-use">What would you make with it? <span>(optional)</span></label>
           <textarea id="wl-use" name="use_case" maxlength="2000" placeholder="The data you have, and what you’d want people to see in it."></textarea>
           <div class="hp" aria-hidden="true"><label for="wl-website">Website</label><input id="wl-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+          <div class="turnstile-box" hidden></div>
           <button class="button primary" type="submit">Join the waitlist</button>
           <p class="form-note">We’ll only use this to contact you about Ryagram. See our <a href="/privacy-policy.html">Privacy Policy</a>.</p>
         </div>

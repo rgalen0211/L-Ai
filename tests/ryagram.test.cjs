@@ -14,26 +14,36 @@ function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { s
   const listeners = {};
   const button = {};
   const fields = {};
+  const box = { hidden: true };
   const status = { focus() { this.focused = true; } };
   const form = {
     elements: { email: { value: ' person@example.com ' }, use_case: { value: useCase }, website: { value: website } },
     reportValidity: () => true,
-    querySelector: selector => (selector === '.waitlist-fields' ? fields : button),
+    querySelector: selector => ({ '.waitlist-fields': fields, '.turnstile-box': box })[selector] || button,
     addEventListener(type, fn) { listeners[type] = fn; },
     setAttribute() {}, removeAttribute() {}
   };
   const requests = [];
+  const scripts = [];
+  const resets = [];
+  const window = { ryagramConfig: config };
+  window.turnstile = {
+    render(el, opts) { window.turnstileOptions = opts; return 'w1'; },
+    reset(id) { resets.push(id); }
+  };
   vm.runInNewContext(code, {
     document: {
       getElementById: id => ({ 'waitlist-form': form, 'waitlist-status': status })[id],
       querySelectorAll: () => slots,
-      createElement: () => ({})
+      createElement: () => ({}),
+      head: { append: el => scripts.push(el) }
     },
-    window: { ryagramConfig: config },
+    window,
     fetch: (url, options) => { requests.push({ url, options }); return fetch(url, options); },
     URL, AbortController, setTimeout, clearTimeout
   });
-  return { button, fields, status, requests, submit: () => listeners.submit({ preventDefault() {} }) };
+  return { button, fields, status, requests, box, scripts, resets, window,
+           submit: () => listeners.submit({ preventDefault() {} }) };
 }
 
 test('film slots accept YouTube links or IDs and ignore anything else', () => {
@@ -117,4 +127,54 @@ test('repeated submits while waiting create only one request', async () => {
   resolve({ ok: true, status: 201 });
   await first;
   assert.equal(h.button.disabled, false);
+});
+
+const TURNSTILE = { supabaseUrl: 'https://proj.supabase.co', supabaseKey: 'sb_publishable_test', turnstileSiteKey: '0x4AAA' };
+
+test('without a site key nothing is loaded from Cloudflare', () => {
+  const h = harness();
+  assert.equal(h.scripts.length, 0);
+  assert.equal(h.box.hidden, true);
+});
+
+test('with a site key the form waits for the check, then goes through the Edge Function', async () => {
+  const h = harness({ config: TURNSTILE, fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true }) }) });
+  assert.equal(h.box.hidden, false);
+  assert.match(h.scripts[0].src, /^https:\/\/challenges\.cloudflare\.com\/turnstile\/v0\/api\.js\?render=explicit/);
+  await h.submit();                                               // not solved yet
+  assert.equal(h.requests.length, 0);
+  assert.match(h.status.textContent, /complete the check/);
+  h.window.ryagramTurnstileReady();                               // Cloudflare's script loaded
+  assert.equal(h.window.turnstileOptions.sitekey, '0x4AAA');
+  assert.equal(h.window.turnstileOptions.action, 'waitlist');
+  h.window.turnstileOptions.callback('tok-1');                    // person solved it
+  await h.submit();
+  assert.equal(h.requests[0].url, 'https://proj.supabase.co/functions/v1/waitlist-join');
+  assert.equal(JSON.stringify(JSON.parse(h.requests[0].options.body)),
+               JSON.stringify({ email: 'person@example.com', use_case: null, token: 'tok-1' }));
+  assert.equal(h.fields.hidden, true);
+  assert.deepEqual([...h.resets], ['w1']);                        // tokens work once
+});
+
+test('a failed check or server error keeps the form, and needs a fresh check', async () => {
+  for (const [status, error, pattern] of [[400, 'check', /didn’t go through/], [500, 'save', /couldn’t add you/]]) {
+    const h = harness({ config: TURNSTILE, fetch: async () => ({ ok: false, status, json: async () => ({ error }) }) });
+    h.window.ryagramTurnstileReady();
+    h.window.turnstileOptions.callback('tok');
+    await h.submit();
+    assert.notEqual(h.fields.hidden, true);
+    assert.match(h.status.textContent, pattern);
+    await h.submit();                                             // token was spent
+    assert.equal(h.requests.length, 1);
+    assert.match(h.status.textContent, /complete the check/);
+  }
+});
+
+test('an expired check has to be done again', async () => {
+  const h = harness({ config: TURNSTILE });
+  h.window.ryagramTurnstileReady();
+  h.window.turnstileOptions.callback('tok');
+  h.window.turnstileOptions['expired-callback']();
+  await h.submit();
+  assert.equal(h.requests.length, 0);
 });
