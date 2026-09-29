@@ -171,3 +171,31 @@ delivery for the labeled tests; supply a real Meta Pixel ID and verify Test
 Events after activation; repeat checks on the deployed domain after an approved
 merge/deployment. GA4 is optional. This checkpoint is pushed for review only;
 main has not been changed or merged.
+
+## Ryagram page (`/ryagram/`)
+
+`ryagram/index.html`, styled by `assets/workflow-audit.css` plus `assets/ryagram.css`,
+with behaviour in `assets/ryagram.js`. The homepage nav links to it, and a short
+`#ryagram` teaser sits after the 3D CRM section. The reel and poster were taken from
+the `ryagram-showcase` branch (PR #3), which is otherwise untouched.
+
+**Films.** Each `.film-slot` has an empty `data-youtube`. Put a YouTube link or
+11-character video ID there (and name the film in `data-title` and the `h3`) and it
+becomes a `youtube-nocookie.com` embed. Empty or non-YouTube values stay as
+"Coming soon" placeholders.
+
+**Waitlist.** Stored in Supabase table `ryagram_waitlist`, created by
+`supabase/ryagram-waitlist.sql`. The browser key can only insert `email`, `use_case`
+and `source`; it cannot read, update or delete. Duplicate emails are rejected by a
+case-insensitive unique index and shown to the visitor as success, so the form
+can't reveal who has signed up. A hidden honeypot field drops simple bots without
+a request. Until `assets/ryagram-config.js` has a Project URL and publishable key,
+the form sends nothing and asks people to email instead. Read signups in the
+Supabase Table Editor. There is no rate limiting beyond the honeypot; add Turnstile
+or an Edge Function if spam appears.
+
+Phase 2 accounts will use Supabase Auth in the same project; `user_id` and
+`invited_at` exist so beta invites can be matched to waitlist rows.
+
+Tests: `node --test tests/analytics.test.cjs tests/workflow-audit.test.cjs tests/ryagram.test.cjs`
+(19 tests).
