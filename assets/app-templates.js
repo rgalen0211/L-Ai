@@ -29,7 +29,7 @@
 
   // Story "name": ^[A-Za-z0-9][A-Za-z0-9-]{0,63}$
   function slug(text) {
-    const s = String(text || '').normalize('NFKD').replace(/[̀-ͯ]/g, '')
+    const s = String(text || '').normalize('NFKD').replace(/[\u0300-\u036f]/g, '')
       .replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64).replace(/-+$/, '');
     return s || 'ryagram-story';
   }
