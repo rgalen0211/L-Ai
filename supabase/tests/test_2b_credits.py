@@ -92,8 +92,10 @@ class Ledger(unittest.TestCase):
         return self.db.as_(who).one(sql, *args)
 
     def settle(self, job, state, error_class=None):
-        self.admin("update jobs set state = %s, error_class = %s, ended_at = now() where id = %s returning 1",
-                   state, error_class, job)
+        # A completed job records the engine commit it ran on, as the worker does.
+        self.admin("update jobs set state = %s, error_class = %s, ended_at = now(), "
+                   "engine_commit = case when %s = 'complete' then coalesce(engine_commit, 'abc1234') else engine_commit end "
+                   "where id = %s returning 1", state, error_class, state, job)
 
     def final(self, *views, grant=None, title_only=False, dataset="test_standard"):
         """A version with a completed sheet and preview, and its final render submitted."""

@@ -19,6 +19,9 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    partial uploads hidden at once and purged after 24 hours)
 6. `migrations/20260929000100_2a_not_found_is_404.sql` (a request for something that
    isn't yours answers 404 instead of 500; nothing else changes)
+7. `migrations/20260929000400_2a_ladder_engine_commit.sql` (a final render carries
+   the engine commit its preview was drawn with, so the engine can refuse the
+   final if the worker was updated in between)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 

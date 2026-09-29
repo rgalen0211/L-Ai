@@ -453,6 +453,30 @@ class Core(Base):
                 self.db.as_(who).one(sql, *args)
             self.assertEqual(err.exception.sqlstate, "PT404", sql)
 
+    # -- the final carries its preview's engine commit (WORKER's ladder evidence)
+    def test_final_carries_the_preview_engine_commit(self):
+        _, vid, sheet, prev = self.ladder()                       # both ran on engine abc1234
+        final = self.db.as_(RYAN).one("select id from submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.assertEqual(self.db.as_(None).one("select ladder_engine_commit from jobs where id = %s", final), "abc1234")
+        claimed = self.db.as_(WORKER).one("select ladder_engine_commit from claim_next_job()")
+        self.assertEqual(claimed, "abc1234")                     # the worker receives it
+
+    def test_sheet_and_preview_from_different_engines_are_not_one_ladder(self):
+        _, vid, sheet, prev = self.ladder()
+        self.db.as_(None).one("update jobs set engine_commit = 'def5678' where id = %s returning 1", sheet)
+        self.denied(RYAN, "select submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.db.as_(None).one("update jobs set engine_commit = null where id = %s returning 1", prev)
+        with self.assertRaises(psycopg.Error) as err:
+            self.db.as_(RYAN).one("select submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.assertIn("no engine version recorded", str(err.exception))
+
+    def test_claim_rechecks_the_engine_commit(self):
+        _, vid, sheet, prev = self.ladder()
+        final = self.db.as_(RYAN).one("select id from submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.db.as_(None).one("update jobs set ladder_engine_commit = 'fffffff' where id = %s returning 1", final)
+        self.assertIsNone(self.claim())
+        self.assertEqual(self.db.as_(None).one("select error_code from jobs where id = %s", final), "ladder_missing")
+
     def test_owner_reads_own_files_only(self):
         _, vid, _, _ = self.ladder()
         self.assertEqual(self.db.as_(RYAN).one("select count(*) from storage.objects"), 2)
