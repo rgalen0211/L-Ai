@@ -68,7 +68,7 @@
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
       stopView();
       stopView = () => stops.forEach(fn => fn());
-      root.replaceChildren(...view);
+      root.replaceChildren(...[view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
       root.querySelector('h1')?.focus();
     }
 
