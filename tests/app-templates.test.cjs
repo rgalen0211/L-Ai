@@ -1,0 +1,70 @@
+const { test } = require('node:test');
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const path = require('node:path');
+
+const window = {};
+vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../assets/app-templates.js'), 'utf8'), { window });
+const T = window.ryagramTemplates;
+const plain = v => JSON.parse(JSON.stringify(v));
+
+// The parts of the worker's story schema v1 a template can get wrong.
+function assertSchemaShape(s) {
+  assert.deepEqual(Object.keys(s).sort(), ['engine', 'name', 'notes', 'schema', 'sequence']);
+  assert.equal(s.schema, 1);
+  assert.equal(s.engine, 'sequence');
+  assert.match(s.name, /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/);
+  assert.deepEqual(plain(s.sequence.canvas), [1920, 1080]);
+  assert.ok([24, 25, 30].includes(s.sequence.fps));
+  assert.ok(['light', 'dark'].includes(s.sequence.theme));
+  const [title, render] = s.sequence.clips;
+  assert.equal(title.kind, 'title');
+  assert.ok(title.seconds >= 0.5 && title.seconds <= 6);
+  assert.ok(title.headline.length <= 160 && title.subhead.length <= 160);
+  assert.doesNotMatch(title.headline, /[\u0000-\u001f\u007f-\u009f​-‏‪-‮]/);
+  assert.equal(render.kind, 'render');
+  assert.ok(['map', 'bars', 'line', 'paired', 'panel'].includes(render.view));
+  assert.ok(render.start <= render.end);
+  assert.ok(['cut', 'crossfade', 'fade'].includes(render.transition.kind));
+}
+
+test('every template on every offered dataset builds a story in the worker schema', () => {
+  const views = new Set();
+  for (const t of T.TEMPLATES) {
+    for (const d of t.datasets) {
+      const s = T.build(t.id, d, 'Obesity and fast food, 2011–2023');
+      assertSchemaShape(s);
+      assert.equal(s.sequence.clips[1].dataset, d);
+      views.add(s.sequence.clips[1].view);
+    }
+  }
+  assert.deepEqual([...views].sort(), ['bars', 'line', 'map', 'paired']);
+});
+
+test('headlines are cleaned: control and direction-override characters removed, length capped', () => {
+  const s = T.build('map', 'state_obesity_fastfood', 'Evil‮headline\u0007 ' + 'x'.repeat(300));
+  assertSchemaShape(s);
+  assert.ok(s.sequence.clips[0].headline.startsWith('Evil headline'));
+  assert.equal(s.sequence.clips[0].headline.length, 160);
+  const empty = T.build('paired', 'state_obesity_fastfood', '   ');
+  assert.equal(empty.sequence.clips[0].headline, T.DATASETS.state_obesity_fastfood.label);   // falls back
+});
+
+test('story names are safe slugs, whatever the title', () => {
+  assert.equal(T.slug('Obesity & fast food — 2011/2023!'), 'Obesity-fast-food-2011-2023');
+  assert.equal(T.slug('Ünïcödé café'), 'Unicode-cafe');
+  assert.equal(T.slug('!!!'), 'ryagram-story');
+  assert.match(T.slug('a'.repeat(80) + ' b'), /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/);
+});
+
+test('only offered template/dataset pairs build', () => {
+  assert.throws(() => T.build('globe', 'state_obesity_fastfood', 'x'), /Unknown template/);
+  assert.throws(() => T.build('paired', 'bls_state_unemployment', 'x'), /isn’t offered/);
+});
+
+test('blank means nothing to lose', () => {
+  assert.equal(T.isBlank({}), true);
+  assert.equal(T.isBlank(null), true);
+  assert.equal(T.isBlank({ schema: 1 }), false);
+});

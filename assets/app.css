@@ -61,3 +61,18 @@ h1 .state{font-size:.8rem;vertical-align:middle}
 .mock-bar select{width:auto;min-height:36px;margin:0;padding:4px 8px}
 body:has(.mock-bar) .app-main{padding-bottom:120px}
 @media(max-width:520px){.run-step .inline-row{flex-direction:row;flex-wrap:wrap}.run-step input[type=number]{max-width:none;flex:1}#run-periods{flex-basis:100%}}
+/* Templates */
+.template-picker{margin:18px 0 24px;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--wheat);border-radius:14px;background:var(--paper)}
+.template-picker summary{cursor:pointer;font-weight:700}
+.template-picker[open] summary{margin-bottom:8px}
+.template-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:12px 0}
+.template-card{position:relative;display:flex;flex-direction:column;gap:4px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;cursor:pointer;font-size:.88rem;color:var(--muted)}
+.template-card strong{color:var(--ink);font-size:1rem}
+.template-card input{position:absolute;opacity:0;width:1px;height:1px}
+.template-card.is-chosen{border-color:var(--brand-deep);box-shadow:inset 0 0 0 1px var(--brand-deep);background:#f4faf8}
+.template-card:focus-within{outline:3px solid var(--brand);outline-offset:2px}
+.template-fields{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.template-fields label{display:block;font-weight:700;font-size:.88rem;margin-bottom:6px}
+.template-form .button[type=submit]{width:auto;margin-top:6px}
+@media(max-width:860px){.template-grid{grid-template-columns:repeat(2,1fr)}}
+@media(max-width:520px){.template-fields{grid-template-columns:1fr}}

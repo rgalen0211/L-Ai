@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<!-- Asset links carry ?v=<release>: bump it on every release so browsers never mix old and new files. -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="robots" content="noindex, nofollow">
@@ -10,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/workflow-audit.css">
-<link rel="stylesheet" href="/assets/app.css">
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20260929a">
+<link rel="stylesheet" href="/assets/app.css?v=20260929a">
 </head>
 <body class="ryagram-app">
 <header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a><div class="app-account" id="account" hidden><span id="account-email"></span><button class="button secondary" id="sign-out" type="button">Sign out</button></div></div></header>
@@ -33,11 +34,12 @@
 
   <section id="library" class="app-panel" hidden></section>
 </main>
-<script src="/assets/ryagram-config.js"></script>
+<script src="/assets/ryagram-config.js?v=20260929a"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
-<script src="/assets/app-data.js"></script>
-<script src="/assets/app-jobs.js"></script>
-<script src="/assets/app-library.js"></script>
-<script src="/assets/app-auth.js"></script>
+<script src="/assets/app-data.js?v=20260929a"></script>
+<script src="/assets/app-jobs.js?v=20260929a"></script>
+<script src="/assets/app-templates.js?v=20260929a"></script>
+<script src="/assets/app-library.js?v=20260929a"></script>
+<script src="/assets/app-auth.js?v=20260929a"></script>
 </body>
 </html>

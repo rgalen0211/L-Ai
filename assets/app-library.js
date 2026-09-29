@@ -216,6 +216,17 @@
           : 'The story file this version renders from. The render worker checks it in full before drawing anything.'),
         story, locked ? null : save, saved, error);
 
+      const picker = locked ? null : templatePicker(project, v, async built => {
+        const blank = window.ryagramTemplates.isBlank(v.story_spec);
+        if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
+        const result = await data.saveStory(v.id, built);
+        v.story_spec = built;
+        story.value = JSON.stringify(built, null, 2);
+        saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.';
+        jobs.storyChanged(result.story_sha256);
+        return true;
+      });
+
       return [
         h('a', { href: `#/p/${project.id}`, class: 'back' }, `← ${project.title}`),
         h('h1', { tabindex: '-1' }, `r${v.number} `, badge(v.state)),
@@ -230,10 +241,61 @@
                 });
               } }, 'Archive this version')
             : null),
+        picker,
         storyForm,
         jobs.el,
         files.el
       ];
+    }
+
+    // "Start from a template": a view, a dataset, a headline -> a valid story.
+    function templatePicker(project, v, apply) {
+      const T = window.ryagramTemplates;
+      const blank = T.isBlank(v.story_spec);
+      const error = errorLine();
+      let chosen = T.TEMPLATES.find(t => t.id === 'map') || T.TEMPLATES[0];
+
+      const datasetSelect = h('select', { id: 'tpl-dataset' });
+      const headline = h('input', { id: 'tpl-headline', maxlength: '160', value: project.title, autocomplete: 'off' });
+      const note = h('p', { class: 'form-note' });
+      const cards = h('div', { class: 'template-grid', role: 'radiogroup', 'aria-label': 'Template' });
+
+      function fillDatasets() {
+        datasetSelect.replaceChildren(...chosen.datasets.map(id => h('option', { value: id }, T.DATASETS[id].label)));
+        note.textContent = chosen.confirmed
+          ? ''
+          : 'This view hasn’t been rendered on this dataset before, so check the contact sheet closely.';
+      }
+      function drawCards() {
+        cards.replaceChildren(...T.TEMPLATES.map(t => h('label', { class: `template-card${t === chosen ? ' is-chosen' : ''}` },
+          h('input', { type: 'radio', name: 'tpl', value: t.id, checked: t === chosen,
+                       onchange: () => { chosen = t; drawCards(); fillDatasets(); } }),
+          h('strong', {}, t.label), h('span', {}, t.blurb))));
+      }
+      drawCards();
+      fillDatasets();
+
+      const use = h('button', { class: 'button primary', type: 'submit' }, 'Use this template');
+      const form = h('form', { class: 'template-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        await busy(use, 'Applying…', async () => {
+          try {
+            if (await apply(T.build(chosen.id, datasetSelect.value, headline.value))) details.open = false;
+          } catch (err) { showError(error, err); }
+        });
+      } },
+        cards,
+        h('div', { class: 'template-fields' },
+          h('div', {}, h('label', { for: 'tpl-dataset' }, 'Data'), datasetSelect),
+          h('div', {}, h('label', { for: 'tpl-headline' }, 'Headline'), headline)),
+        note, use, error);
+
+      const details = h('details', { class: 'template-picker', open: blank },
+        h('summary', {}, blank ? 'Start from a template' : 'Start again from a template'),
+        h('p', { class: 'form-note' }, 'Pick a kind of film and the data. You get a complete story you can then adjust.'),
+        form);
+      return details;
     }
 
     // Files for a version, refreshed on its own when a job finishes so the
@@ -285,8 +347,8 @@
       const listEl = h('div', { 'aria-live': 'polite' }, h('p', { class: 'form-intro' }, 'Loading jobs…'));
 
       const periods = h('input', { id: 'run-periods', inputmode: 'numeric', placeholder: '2016, 2018, 2020', autocomplete: 'off' });
-      const winStart = h('input', { id: 'run-start', type: 'number', min: '0', step: '0.5', placeholder: 'start', 'aria-label': 'Preview start, seconds' });
-      const winEnd = h('input', { id: 'run-end', type: 'number', min: '0', step: '0.5', placeholder: 'end', 'aria-label': 'Preview end, seconds' });
+      const winStart = h('input', { id: 'run-start', type: 'number', min: '0', step: '0.5', placeholder: '0', 'aria-label': 'Preview start, seconds' });
+      const winEnd = h('input', { id: 'run-end', type: 'number', min: '0', step: '0.5', placeholder: '10', 'aria-label': 'Preview end, seconds' });
       const sheetButton = h('button', { class: 'button secondary', type: 'button' }, 'Make contact sheet');
       const previewButton = h('button', { class: 'button secondary', type: 'button' }, 'Make preview');
       const finalButton = h('button', { class: 'button primary', type: 'button' }, 'Render final film');
@@ -297,7 +359,7 @@
           h('label', { for: 'run-periods' }, '1. Contact sheet ', h('span', {}, '(years, optional)')),
           h('div', { class: 'inline-row' }, periods, sheetButton)),
         h('div', { class: 'run-step' },
-          h('label', { for: 'run-start' }, '2. Preview ', h('span', {}, '(seconds, optional, 10 s at most)')),
+          h('label', { for: 'run-start' }, '2. Preview ', h('span', {}, '(seconds; 10 s at most; blank = the first 10 s)')),
           h('div', { class: 'inline-row' }, winStart, winEnd, previewButton)),
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
@@ -322,7 +384,7 @@
       previewButton.addEventListener('click', () => {
         const w = J.parseWindow(winStart.value, winEnd.value);
         if (w.error) return showError(error, new Error(w.error));
-        submit(previewButton, 'preview', w.value ? { window_s: w.value } : {});
+        submit(previewButton, 'preview', { window_s: w.value || [0, 10] });   // the worker requires a window
       });
       finalButton.addEventListener('click', () => {
         const ladder = J.ladder(jobs, storySha, engine);
