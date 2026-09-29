@@ -146,7 +146,7 @@ class Core(Base):
             self.assertEqual(o.one(f"select count(*) from {table}"), 0, table)
         self.assertIsNone(o.one("update versions set note = 'x' where id = %s returning id", vid))
         self.denied(OTHER, "select create_version(%s)", pid)
-        self.denied(OTHER, "select submit_job(%s, 'preview')", vid)
+        self.denied(OTHER, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         for sql in ("select count(*) from projects", "select create_version(gen_random_uuid())",
                     "select claim_next_job()", "select count(*) from control"):
             self.denied("anon", sql)
@@ -158,7 +158,7 @@ class Core(Base):
     # -- submit_job input rules
     def test_submit_rejects_bad_params_and_unready_stories(self):
         _, vid = self.project_with_version(story='{"schema": 1}')
-        self.denied(RYAN, "select submit_job(%s, 'preview')", vid)
+        self.denied(RYAN, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         _, vid = self.project_with_version()
         for params in ('{"window_s": 5}', '{"window_s": [2, 13]}', '{"window_s": [5, 1]}', '{"window_s": ["0", "5"]}',
                        '{"cmd": "rm -rf"}', '{"periods": ["2016", "../x", "2018"]}', '{"periods": ["2016-03", "2017", "2018"]}',
@@ -166,15 +166,24 @@ class Core(Base):
             kind = "contact_sheet" if "periods" in params else "preview"
             self.denied(RYAN, "select submit_job(%s, %s, %s::jsonb)", vid, kind, params)
         self.denied(RYAN, "select submit_job(%s, 'final_render', '{\"window_s\": 1}')", vid)
+        # The worker rejects a preview without a window, so it is refused at submit (WORKER, 2026-09-29).
+        for params in ("{}", '{"periods": ["2016", "2017", "2018"]}'):
+            self.denied(RYAN, "select submit_job(%s, 'preview', %s::jsonb)", vid, params)
+        self.denied(RYAN, "select submit_job(%s, 'preview')", vid)
+        self.denied(RYAN, "insert into jobs (owner_id, project_id, version_id, job_type, story, story_sha256) "
+                          "select owner_id, project_id, id, 'preview', story_spec, story_sha256 from versions where id = %s", vid)
+        with self.assertRaisesRegex(psycopg.Error, "A preview needs window_s"):
+            self.db.as_(None).one("insert into jobs (owner_id, project_id, version_id, job_type, story, story_sha256) "
+                                  "select owner_id, project_id, id, 'preview', story_spec, story_sha256 from versions where id = %s returning id", vid)
         self.assertEqual(self.db.as_(RYAN).one("select state from submit_job(%s, 'preview', '{\"window_s\": [4, 14]}')", vid), "queued")
-        self.denied(RYAN, "select submit_job(%s, 'preview')", vid)  # one in flight per type
+        self.denied(RYAN, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)  # one in flight per type
 
     # -- the render ladder
     def ladder(self):
         pid, vid = self.project_with_version()
         d = self.db.as_(RYAN)
         sheet = d.one("select id from submit_job(%s, 'contact_sheet', '{\"periods\": [\"2016\", \"2018\", \"2020\"]}')", vid)
-        prev = d.one("select id from submit_job(%s, 'preview')", vid)
+        prev = d.one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.denied(RYAN, "select submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)  # not complete yet
         self.assertEqual(self.claim(), sheet)
         self.assertEqual(self.run_job(sheet, ["contact_sheet"]), "complete")
@@ -210,12 +219,12 @@ class Core(Base):
     # -- worker boundary
     def test_worker_is_confined(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.denied(RYAN, "select claim_next_job()")               # not a worker
         # The worker login can't act as a person: no projects, versions or jobs of its own.
         self.denied(WORKER, "insert into projects (title) values ('mine') returning id")
         self.denied(WORKER, "select create_version(%s)", self.db.as_(None).one("select project_id from versions where id = %s", vid))
-        self.denied(WORKER, "select submit_job(%s, 'preview')", vid)
+        self.denied(WORKER, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.denied(WORKER, "select queue_position(%s)", job)
         w = self.db.as_(WORKER)
         self.assertEqual(w.one("select count(*) from jobs"), 0)     # owns nothing
@@ -242,7 +251,7 @@ class Core(Base):
 
     def test_uploaded_file_must_match_registration(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.claim()
         w = self.db.as_(WORKER)
         for s in ("running", "validating", "uploading"):
@@ -259,7 +268,7 @@ class Core(Base):
         ids = []
         for _ in range(3):
             _, vid = self.project_with_version()
-            ids.append(self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid))
+            ids.append(self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid))
         d = self.db.as_(RYAN)
         self.assertEqual([d.one("select queue_position(%s)", j) for j in ids], [1, 2, 3])
         done = []
@@ -272,7 +281,7 @@ class Core(Base):
     def test_two_workers_never_share_a_job(self):
         for _ in range(2):
             _, vid = self.project_with_version()
-            self.db.as_(RYAN).one("select submit_job(%s, 'preview')", vid)
+            self.db.as_(RYAN).one("select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         a, b = self.claim(WORKER), self.claim(WORKER2)
         self.assertIsNotNone(a)
         self.assertIsNotNone(b)
@@ -280,7 +289,7 @@ class Core(Base):
 
     def test_lost_worker_retries_then_fails(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         for attempt in (1, 2, 3):
             self.assertEqual(self.claim(), job)
             self.db.as_(None).one("update jobs set lease_expires_at = now() - interval '1 second' where id = %s returning 1", job)
@@ -291,7 +300,7 @@ class Core(Base):
 
     def test_crash_is_retried_but_gate_failure_and_timeout_are_not(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.claim()
         w = self.db.as_(WORKER)
         w.one("select report_state(%s, 'running')", job)
@@ -312,7 +321,7 @@ class Core(Base):
 
     def test_failed_is_final_and_timeouts_fail(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.claim()
         w = self.db.as_(WORKER)
         self.denied(WORKER, "select report_state(%s, 'editorial_action_required')", job)  # not from claimed
@@ -341,7 +350,7 @@ class Core(Base):
 
     def test_kill_switch_and_cancel(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.db.as_(None).one("update control set claims_enabled = false returning 1")
         self.assertIsNone(self.claim())
         self.db.as_(None).one("update control set claims_enabled = true, disabled_job_types = '{preview}' returning 1")
@@ -356,7 +365,7 @@ class Core(Base):
     # -- fixes from WORKER's real-SQL tests (migration 0400)
     def test_no_output_is_infrastructure_and_not_retried(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.claim()
         w = self.db.as_(WORKER)
         w.one("select report_state(%s, 'running')", job)
@@ -367,7 +376,7 @@ class Core(Base):
     def test_cancel_is_honoured_while_validating_or_uploading(self):
         for stop_at in ("validating", "uploading"):
             _, vid = self.project_with_version()
-            job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+            job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
             self.claim()
             w = self.db.as_(WORKER)
             w.one("select report_state(%s, 'running')", job)
@@ -381,7 +390,7 @@ class Core(Base):
 
     def test_queue_wait_is_per_attempt(self):
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         admin = lambda sql, *a: self.db.as_(None).one(sql, *a)
         admin("update jobs set created_at = now() - interval '1 hour', queued_at = now() - interval '1 hour' where id = %s returning 1", job)
         self.claim()
@@ -399,7 +408,7 @@ class Core(Base):
     def partial_upload(self):
         """A preview cancelled mid-upload, leaving one registered, uploaded file."""
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.claim()
         w = self.db.as_(WORKER)
         for state in ("running", "validating", "uploading"):
@@ -444,7 +453,7 @@ class Core(Base):
     def test_not_found_is_http_404(self):
         # PostgREST turns SQLSTATE PTxxx into HTTP xxx; P0002 used to surface as 500.
         pid, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         for sql, args in (("select create_version(%s)", (pid,)), ("select submit_job(%s, 'contact_sheet')", (vid,)),
                           ("select cancel_job(%s)", (job,)),
                           ("update versions set dataset_id = gen_random_uuid() where id = %s returning 1", (vid,))):
@@ -480,7 +489,7 @@ class Core(Base):
     def test_current_engine_commit(self):
         self.assertIsNone(self.db.as_(RYAN).one("select current_engine_commit()"))       # nothing has run
         _, vid = self.project_with_version()
-        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
         self.claim()
         self.db.as_(WORKER).one("select report_state(%s, 'running', p_engine_commit => 'c0ffee1')", job)
         self.assertEqual(self.db.as_(OTHER).one("select current_engine_commit()"), "c0ffee1")  # a hash, nothing else

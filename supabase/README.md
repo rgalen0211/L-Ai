@@ -24,11 +24,14 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    final if the worker was updated in between)
 8. `migrations/20260929000500_current_engine_commit.sql` (read-only: tells the app
    which engine version the worker runs, so it can explain a disabled final render)
+9. `migrations/20260929000700_preview_needs_window.sql` (a preview without
+   `window_s` is refused at submit; the worker would reject it anyway. Independent of
+   the AI editor's 0600 file, so it can run with or without it)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
 **Not in the 2A set:** `phase-2b/credits_ledger.sql` is the 2B credits ledger. Don't
-run it until Phase 2B is approved; it goes after the five files above.
+run it until Phase 2B is approved; it goes after the files above.
 
 ## Auth settings (2A-1)
 

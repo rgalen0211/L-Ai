@@ -71,7 +71,7 @@ test('the final render unlocks only after a sheet and preview of the current sto
 
   const sheet = await data.submitJob(version.id, 'contact_sheet', { periods: ['2016', '2018', '2020'] });
   await until(sheet.id, finished);
-  const preview = await data.submitJob(version.id, 'preview', {});
+  const preview = await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   await until(preview.id, finished);
   const { version: v } = await data.getVersion(version.id);
   jobs = await data.listJobs(version.id);
@@ -90,7 +90,7 @@ test('a final render locks the version, and its outcome becomes the version stat
   const { client, data, version, worker, until } = await setup();
   const sheet = await data.submitJob(version.id, 'contact_sheet', {});
   await until(sheet.id, finished);
-  const preview = await data.submitJob(version.id, 'preview', {});
+  const preview = await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   await until(preview.id, finished);
   worker.setOutcome('gate');
   const final = await data.submitJob(version.id, 'final_render', {}, { sheetJobId: sheet.id, previewJobId: preview.id });
@@ -102,7 +102,7 @@ test('a final render locks the version, and its outcome becomes the version stat
 
 test('files from a job that did not complete are never listed', async () => {
   const { client, data, version, until } = await setup();
-  const done = await data.submitJob(version.id, 'preview', {});
+  const done = await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   await until(done.id, finished);
   const stuck = await data.submitJob(version.id, 'contact_sheet', {});
   client.db.artifacts.push({ id: 'partial', job_id: stuck.id, version_id: version.id, kind: 'contact_sheet',
@@ -117,17 +117,17 @@ test('a complete version takes no new jobs; a failed one may retry', async () =>
   assert.equal(J.versionTakesJobs('failed'), true);
   const { client, data, version } = await setup();
   client.db.versions[0].state = 'complete';
-  await assert.rejects(data.submitJob(version.id, 'preview', {}), /complete and cannot take new jobs/);
+  await assert.rejects(data.submitJob(version.id, 'preview', { window_s: [0, 10] }), /complete and cannot take new jobs/);
 });
 
 test('cancel stops a queued job at once and a running one at its next step', async () => {
   const { data, version, worker, until } = await setup();
   worker.pause();
-  const queued = await data.submitJob(version.id, 'preview', {});
+  const queued = await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   assert.equal(await data.queuePosition(queued.id), 1);
   assert.equal((await data.cancelJob(queued.id)).state, 'cancelled');
   worker.resume();
-  const running = await data.submitJob(version.id, 'preview', {});
+  const running = await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   await until(running.id, j => j.state === 'running');
   assert.equal((await data.cancelJob(running.id)).cancel_requested, true);
   assert.equal((await until(running.id, finished)).state, 'cancelled');
@@ -140,9 +140,10 @@ test('queue positions count everyone ahead; submit refuses a second job of the s
   const { data, version, worker } = await setup();
   worker.pause();
   const a = await data.submitJob(version.id, 'contact_sheet', {});
-  const b = await data.submitJob(version.id, 'preview', {});
+  await assert.rejects(data.submitJob(version.id, 'preview', {}), /A preview needs window_s/);   // the worker would reject it
+  const b = await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   assert.deepEqual([await data.queuePosition(a.id), await data.queuePosition(b.id)], [1, 2]);
-  await assert.rejects(data.submitJob(version.id, 'preview', {}), /already in progress/);
+  await assert.rejects(data.submitJob(version.id, 'preview', { window_s: [0, 10] }), /already in progress/);
   await assert.rejects(data.submitJob(version.id, 'preview', { cmd: 'x' }), /Unknown parameter/);
   assert.equal(J.progressNote({ state: 'queued', attempt: 1 }, 2), 'Number 2 in line.');
   assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. Retrying .*attempt 2 of 3/);
@@ -155,7 +156,7 @@ test('Realtime tells the page about changes, and says when it is live', async ()
   assert.equal(watch.live(), false);
   await new Promise(r => setTimeout(r, 5));
   assert.equal(watch.live(), true);
-  await data.submitJob(version.id, 'preview', {});
+  await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   assert.equal(calls, 1);
   watch.stop();
   await data.submitJob(version.id, 'contact_sheet', {});
@@ -191,7 +192,7 @@ test('the final render waits for one engine version across sheet, preview and wo
   const sheet = await data.submitJob(version.id, 'contact_sheet', {});
   await until(sheet.id, finished);
   client.engineCommit = 'f00dfee';                               // Ryan updates the worker
-  const preview = await data.submitJob(version.id, 'preview', {});
+  const preview = await data.submitJob(version.id, 'preview', { window_s: [0, 10] });
   await until(preview.id, finished);
   const { version: v } = await data.getVersion(version.id);
   let jobs = await data.listJobs(version.id);

@@ -87,8 +87,9 @@ class Ledger(unittest.TestCase):
         return vid
 
     def submit(self, vid, kind, *ladder, who=RYAN):
-        args = (vid, kind, "{}", *ladder) if ladder else (vid, kind)
-        sql = "select id from submit_job(%s, %s, %s, %s, %s)" if ladder else "select id from submit_job(%s, %s)"
+        params = '{"window_s": [0, 10]}' if kind == "preview" else "{}"
+        args = (vid, kind, params, *ladder) if ladder else (vid, kind, params)
+        sql = "select id from submit_job(%s, %s, %s, %s, %s)" if ladder else "select id from submit_job(%s, %s, %s)"
         return self.db.as_(who).one(sql, *args)
 
     def settle(self, job, state, error_class=None):
@@ -177,7 +178,7 @@ class Ledger(unittest.TestCase):
         jobs = []
         for _ in range(6):
             job = self.submit(vid, "preview"); self.settle(job, "complete"); jobs.append(job)
-        self.denied(RYAN, "select submit_job(%s, 'preview')", vid)          # 7th: no credits to hold
+        self.denied(RYAN, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)          # 7th: no credits to hold
         self.settle(jobs[0], "failed", "infrastructure")                    # render machine's fault
         job = self.submit(vid, "preview")                                   # so one free preview comes back
         self.assertTrue(self.admin("select free_preview from jobs where id = %s", job))
@@ -189,7 +190,7 @@ class Ledger(unittest.TestCase):
         self.assertEqual(self.admin("select count(*) from jobs where free_preview and job_type = 'preview' "
                                     "and not (state = 'failed' and error_class = 'infrastructure')"), 15)
         v3 = self.version()
-        self.denied(RYAN, "select submit_job(%s, 'preview')", v3)           # 16th in 24 h: not free
+        self.denied(RYAN, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", v3)           # 16th in 24 h: not free
         self.admin("update jobs set created_at = now() - interval '25 hours' returning 1")
         self.assertTrue(self.admin("select free_preview from jobs where id = %s", self.submit(v3, "preview")))
 

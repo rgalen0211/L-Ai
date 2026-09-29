@@ -162,6 +162,9 @@
         const allowed = { contact_sheet: ['periods'], preview: ['window_s'], final_render: [] }[type];
         const bad = Object.keys(params).find(k => !allowed.includes(k));
         if (bad) return fail(`Unknown parameter "${bad}" for ${type}.`);
+        if (type === 'preview' && !params.window_s) {
+          return fail('A preview needs window_s: [start, end] in seconds, at most 10 seconds long.');
+        }
         if (db.jobs.some(j => j.version_id === v.id && j.job_type === type && ACTIVE.includes(j.state))) {
           return fail(`A ${type} job for this version is already in progress.`);
         }

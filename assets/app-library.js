@@ -505,7 +505,8 @@
               } }, 'Cancel') : null,
           J.canRetry(j, v.state, jobs)
             ? h('button', { class: 'button secondary small', type: 'button', onclick: event =>
-                submit(event.currentTarget, j.job_type, j.params || {},
+                submit(event.currentTarget, j.job_type,
+                       j.job_type === 'preview' && !j.params?.window_s ? { ...j.params, window_s: [0, 10] } : j.params || {},
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
               }, 'Try again') : null);
       }
