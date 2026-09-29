@@ -1,6 +1,7 @@
 // Story templates: a new version starts from a valid story instead of a blank {}.
 // Each template is one view over catalog datasets with a period window that has been
-// rendered before (map and paired come from real Ryagram stories). The output follows
+// rendered before (map and paired from real Ryagram stories; line and bars rendered by CC1 on
+// the engine's main, 2026-09-29, both passing the_film_actually_moves). The output follows
 // the worker's story schema v1 (Ryagram branch worker, ryagram/worker/schema.py): closed
 // keys, canvas/fps/theme from its lists, render views map | bars | line | paired | panel.
 // The engine draws each dataset's source credit on every frame, so templates add none.
@@ -13,11 +14,11 @@
 
   const TEMPLATES = [
     { id: 'line', view: 'line', label: 'Line', blurb: 'How a handful of places move over time.',
-      datasets: ['bls_state_unemployment'], settings: { line_top_n: 6 }, confirmed: false },
+      datasets: ['bls_state_unemployment'], settings: { line_top_n: 6 }, confirmed: true },
     { id: 'map', view: 'map', label: 'Map', blurb: 'Where it is high and low, and how that shifts.',
       datasets: ['state_obesity_fastfood', 'bps_county_permits'], confirmed: true },
     { id: 'bars', view: 'bars', label: 'Bars', blurb: 'A ranked bar race: who leads, year by year.',
-      datasets: ['bls_state_unemployment'], settings: { top_n: 10, axis: 'fixed' }, confirmed: false },
+      datasets: ['bls_state_unemployment'], settings: { top_n: 10, axis: 'fixed' }, confirmed: true },
     { id: 'paired', view: 'paired', label: 'Paired', blurb: 'A map and a bar race side by side, one timeline.',
       datasets: ['state_obesity_fastfood'], confirmed: true }
   ];
