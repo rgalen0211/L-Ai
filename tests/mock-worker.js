@@ -66,7 +66,8 @@
       switch (job.state) {
         case 'claimed':
           if (plan === 'invalid') return finish(job, 'failed', ERRORS.invalid);
-          return update(job, { state: 'running', started_at: client.now(), progress: 0, progress_note: 'Drawing frames.' });
+          return update(job, { state: 'running', started_at: client.now(), progress: 0, progress_note: 'Drawing frames.',
+                               engine_commit: client.engineCommit });
         case 'running': {
           if ((plan === 'crash_once' && job.attempt === 1) || plan === 'crash_always') return crash(job);
           if (plan === 'timeout') return finish(job, 'failed', ERRORS.timeout);

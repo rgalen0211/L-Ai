@@ -62,18 +62,29 @@
                            && (isActive(j) || j.created_at > job.created_at));
   }
 
-  // The final render needs a finished contact sheet and preview of the story
-  // exactly as it is now (same story hash); approval is the person's click.
-  function ladder(jobs, storySha) {
-    const newest = type => jobs
+  // The final render needs a finished contact sheet and preview of the story exactly as
+  // it is now (same story hash), drawn by one engine version, and that version must still
+  // be the one the worker runs: an approval is of a picture, and the picture changes when
+  // the engine does. The database and the engine refuse otherwise; this only says why first.
+  // currentEngine is null when unknown (then only sheet vs preview is checked).
+  function ladder(jobs, storySha, currentEngine = null) {
+    const done = type => jobs
       .filter(j => j.job_type === type && j.state === 'complete' && j.story_sha256 === storySha)
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0] || null;
-    const sheet = newest('contact_sheet');
-    const preview = newest('preview');
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    const sheets = done('contact_sheet');
+    const preview = done('preview')[0] || null;
+    const sheet = preview
+      ? sheets.find(s => s.engine_commit && s.engine_commit === preview.engine_commit) || null
+      : sheets[0] || null;
     let missing = null;
-    if (!sheet && !preview) missing = 'Make a contact sheet and a preview of this story first.';
-    else if (!sheet) missing = 'Make a contact sheet of this story first.';
+    if (!sheets.length && !preview) missing = 'Make a contact sheet and a preview of this story first.';
     else if (!preview) missing = 'Make a preview of this story first.';
+    else if (!preview.engine_commit) missing = 'This preview has no engine version recorded. Make a new preview.';
+    else if (!sheets.length) missing = 'Make a contact sheet of this story first.';
+    else if (!sheet) missing = 'The contact sheet and the preview were drawn by different versions of the engine. Make a new contact sheet so both match.';
+    else if (currentEngine && currentEngine !== preview.engine_commit) {
+      missing = 'Ryagram’s engine has been updated since this preview. Make a new contact sheet and preview, so you approve what the current engine draws.';
+    }
     return { sheet, preview, ready: !missing, missing };
   }
 

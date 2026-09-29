@@ -83,7 +83,7 @@ test('the final render unlocks only after a sheet and preview of the current sto
   const saved = await data.saveStory(version.id, { schema: 1, engine: 'sequence', name: 'edited' });
   assert.equal(J.ladder(jobs, saved.story_sha256).ready, false);
   await assert.rejects(data.submitJob(version.id, 'final_render', {}, { sheetJobId: sheet.id, previewJobId: preview.id }),
-                       /must both be complete for this exact story/);
+                       /must both be complete, for this exact story/);
 });
 
 test('a final render locks the version, and its outcome becomes the version state', async () => {
@@ -184,4 +184,46 @@ test('run inputs are checked before anything is sent', () => {
   assert.deepEqual(J.parseWindow('', '').value, null);
   assert.deepEqual(JSON.parse(JSON.stringify(J.parseWindow('2', '12').value)), [2, 12]);
   for (const [a, b] of [['2', '13'], ['5', '5'], ['-1', '3'], ['1', ''], ['x', '3']]) assert.ok(J.parseWindow(a, b).error, `${a}-${b}`);
+});
+
+test('the final render waits for one engine version across sheet, preview and worker', async () => {
+  const { client, data, version, until } = await setup();
+  const sheet = await data.submitJob(version.id, 'contact_sheet', {});
+  await until(sheet.id, finished);
+  client.engineCommit = 'f00dfee';                               // Ryan updates the worker
+  const preview = await data.submitJob(version.id, 'preview', {});
+  await until(preview.id, finished);
+  const { version: v } = await data.getVersion(version.id);
+  let jobs = await data.listJobs(version.id);
+  let ladder = J.ladder(jobs, v.story_sha256, await data.currentEngine());
+  assert.equal(ladder.ready, false);
+  assert.match(ladder.missing, /different versions of the engine/);
+  await assert.rejects(data.submitJob(version.id, 'final_render', {}, { sheetJobId: sheet.id, previewJobId: preview.id }),
+                       /from the same engine version/);
+
+  const sheet2 = await data.submitJob(version.id, 'contact_sheet', {});
+  await until(sheet2.id, finished);
+  jobs = await data.listJobs(version.id);
+  ladder = J.ladder(jobs, v.story_sha256, await data.currentEngine());
+  assert.equal(ladder.ready, true);
+  assert.equal(ladder.sheet.id, sheet2.id);
+
+  client.engineCommit = 'beefcafe0';                             // updated again after the preview
+  const other = await data.submitJob(version.id, 'contact_sheet', {});   // any job reveals the new engine
+  await until(other.id, finished);
+  jobs = await data.listJobs(version.id);
+  ladder = J.ladder(jobs, v.story_sha256, await data.currentEngine());
+  assert.equal(ladder.ready, false);
+  assert.match(ladder.missing, /engine has been updated since this preview/);
+});
+
+test('engine checks: unknown current engine only compares sheet and preview; a preview without one is refused', () => {
+  const job = (type, commit, at) => ({ id: type + at, job_type: type, state: 'complete', story_sha256: 's', engine_commit: commit,
+                                     created_at: `2026-09-29T0${at}:00:00Z` });
+  assert.equal(J.ladder([job('contact_sheet', 'aaa1111', 1), job('preview', 'aaa1111', 2)], 's', null).ready, true);
+  assert.match(J.ladder([job('contact_sheet', 'aaa1111', 1), job('preview', null, 2)], 's').missing, /no engine version recorded/);
+  // An older sheet from the preview's engine still counts; the newest sheet needn't be it.
+  const l = J.ladder([job('contact_sheet', 'aaa1111', 1), job('contact_sheet', 'bbb2222', 3), job('preview', 'aaa1111', 2)], 's', 'aaa1111');
+  assert.equal(l.ready, true);
+  assert.equal(l.sheet.id, 'contact_sheet1');
 });

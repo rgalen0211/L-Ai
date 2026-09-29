@@ -5,7 +5,7 @@
   const ARTIFACT_BUCKET = 'ryagram-artifacts';
   // Links to private files expire after 15 minutes; the page signs fresh ones each time it draws.
   const SIGNED_URL_SECONDS = 900;
-  const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, '
+  const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, engine_commit, '
     + 'cancel_requested, error_class, error_code, error_detail, progress, progress_note, created_at, started_at, ended_at';
 
   function ryagramData(client) {
@@ -119,6 +119,15 @@
 
       cancelJob(jobId) {
         return run(client.rpc('cancel_job', { p_job_id: jobId }), 'Couldn’t cancel the job.');
+      },
+
+      // The engine version the render worker runs now, or null when unknown (no job has run
+      // yet, or the database predates current_engine_commit). Never an error for the page.
+      async currentEngine() {
+        try {
+          const { data, error } = await client.rpc('current_engine_commit');
+          return error ? null : data || null;
+        } catch { return null; }
       },
 
       queuePosition(jobId) {

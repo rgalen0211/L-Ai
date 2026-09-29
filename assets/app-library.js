@@ -276,6 +276,7 @@
       const J = window.ryagramJobs;
       let jobs = [];
       let positions = {};
+      let engine = null;                           // the worker's current engine version, if known
       let storySha = v.story_sha256;
       let stopped = false;
       let seen;                                    // job id -> state at the last read
@@ -324,7 +325,7 @@
         submit(previewButton, 'preview', w.value ? { window_s: w.value } : {});
       });
       finalButton.addEventListener('click', () => {
-        const ladder = J.ladder(jobs, storySha);
+        const ladder = J.ladder(jobs, storySha, engine);
         if (!ladder.ready) return showError(error, new Error(ladder.missing));
         if (!confirm(`Render the final film of r${v.number}? Its story locks while it renders; later changes need a new version.`)) return;
         submit(finalButton, 'final_render', {}, { sheetJobId: ladder.sheet.id, previewJobId: ladder.preview.id });
@@ -338,7 +339,7 @@
         const busyType = type => jobs.some(j => j.job_type === type && J.isActive(j));
         sheetButton.disabled = busyType('contact_sheet');
         previewButton.disabled = busyType('preview');
-        const ladder = J.ladder(jobs, storySha);
+        const ladder = J.ladder(jobs, storySha, engine);
         finalButton.disabled = !ladder.ready || busyType('final_render');
         finalNote.textContent = ladder.ready
           ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. Clicking is your approval.`
@@ -386,7 +387,8 @@
           do {
             again = false;
             try {
-              const fresh = await data.listJobs(v.id);
+              const [fresh, currentEngine] = await Promise.all([data.listJobs(v.id), data.currentEngine()]);
+              engine = currentEngine;
               const pos = {};
               await Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
                 try { pos[j.id] = await data.queuePosition(j.id); } catch { /* position unknown */ }

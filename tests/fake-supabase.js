@@ -18,6 +18,7 @@
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ...structuredClone(seed) };
+    let engineCommit = 'e0a1b2c';                   // what the pretend worker runs
     const log = [];
     const channels = new Set();
     let n = 0;
@@ -130,12 +131,18 @@
         }
         const done = (jobId, jobType) => db.jobs.find(j => j.id === jobId && j.job_type === jobType && j.state === 'complete'
                                                          && j.version_id === v.id && j.story_sha256 === v.story_sha256);
-        if (type === 'final_render' && !(done(args.p_sheet_job_id, 'contact_sheet') && done(args.p_preview_job_id, 'preview'))) {
-          return fail('The contact sheet and preview must both be complete for this exact story.');
+        const sheet = type === 'final_render' && done(args.p_sheet_job_id, 'contact_sheet');
+        const preview = type === 'final_render' && done(args.p_preview_job_id, 'preview');
+        if (type === 'final_render' && preview && !preview.engine_commit) {
+          return fail('The preview has no engine version recorded. Make a new preview first.');
+        }
+        if (type === 'final_render' && !(sheet && preview && sheet.engine_commit === preview.engine_commit)) {
+          return fail('The contact sheet and preview must both be complete, for this exact story, from the same engine version.');
         }
         const job = {
           id: id(), version_id: v.id, project_id: v.project_id, owner_id: user.id, job_type: type, state: 'queued',
           attempt: 1, params, story_sha256: v.story_sha256,
+          engine_commit: null, ladder_engine_commit: type === 'final_render' ? preview.engine_commit : null,
           sheet_job_id: type === 'final_render' ? args.p_sheet_job_id : null,
           preview_job_id: type === 'final_render' ? args.p_preview_job_id : null,
           cancel_requested: false, error_class: null, error_code: null, error_detail: null,
@@ -156,6 +163,11 @@
         return { data: structuredClone(j), error: null };
       },
 
+      current_engine_commit() {
+        const ran = db.jobs.filter(j => j.engine_commit && j.started_at).sort((a, b) => (a.started_at < b.started_at ? 1 : -1));
+        return { data: ran[0] ? ran[0].engine_commit : null, error: null };
+      },
+
       queue_position(args) {
         const j = db.jobs.find(x => x.id === args.p_job_id);
         if (!j || j.state !== 'queued') return { data: null, error: null };
@@ -168,6 +180,8 @@
     const authListeners = new Set();
     const client = {
       db, log, jobChanged, now, newId: id,
+      get engineCommit() { return engineCommit; },
+      set engineCommit(c) { engineCommit = c; },
       from: query,
       async rpc(name, args) {
         log.push({ rpc: name, args });

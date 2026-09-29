@@ -477,6 +477,17 @@ class Core(Base):
         self.assertIsNone(self.claim())
         self.assertEqual(self.db.as_(None).one("select error_code from jobs where id = %s", final), "ladder_missing")
 
+    def test_current_engine_commit(self):
+        self.assertIsNone(self.db.as_(RYAN).one("select current_engine_commit()"))       # nothing has run
+        _, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview')", vid)
+        self.claim()
+        self.db.as_(WORKER).one("select report_state(%s, 'running', p_engine_commit => 'c0ffee1')", job)
+        self.assertEqual(self.db.as_(OTHER).one("select current_engine_commit()"), "c0ffee1")  # a hash, nothing else
+        self.denied("anon", "select current_engine_commit()")
+        self.db.as_(None).one("update workers set enabled = false returning 1")
+        self.assertIsNone(self.db.as_(RYAN).one("select current_engine_commit()"))       # disabled workers don't count
+
     def test_owner_reads_own_files_only(self):
         _, vid, _, _ = self.ladder()
         self.assertEqual(self.db.as_(RYAN).one("select count(*) from storage.objects"), 2)

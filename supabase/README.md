@@ -22,6 +22,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 7. `migrations/20260929000400_2a_ladder_engine_commit.sql` (a final render carries
    the engine commit its preview was drawn with, so the engine can refuse the
    final if the worker was updated in between)
+8. `migrations/20260929000500_current_engine_commit.sql` (read-only: tells the app
+   which engine version the worker runs, so it can explain a disabled final render)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 

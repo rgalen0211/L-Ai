@@ -31,6 +31,15 @@
       if (worker.paused) worker.resume(); else worker.pause();
       pause.textContent = worker.paused ? 'Resume worker' : 'Pause worker';
     });
+    // Simulate Ryan updating the worker: jobs after this run on a new engine version.
+    const upgrade = document.createElement('button');
+    upgrade.type = 'button';
+    upgrade.className = 'button secondary small';
+    upgrade.textContent = 'Update the engine';
+    upgrade.addEventListener('click', () => {
+      client.engineCommit = Math.random().toString(16).slice(2, 9).padEnd(7, '0');
+      upgrade.textContent = `Engine ${client.engineCommit}`;
+    });
     const label = document.createElement('label');
     label.htmlFor = 'mock-outcome';
     label.textContent = 'Next job:';
@@ -38,7 +47,7 @@
     tag.textContent = 'Mock mode, fake data';
     const bar = document.createElement('div');
     bar.className = 'mock-bar';
-    bar.append(tag, label, select, pause);
+    bar.append(tag, label, select, pause, upgrade);
     document.body.append(bar);
 
     window.ryagramMock = { client, worker };
