@@ -145,3 +145,14 @@ test('the /film/?mock sample is what summarize() makes of the fixture receipt', 
   const story = { sequence: { clips: [{ kind: 'title', headline: 'Fast food and obesity', subhead: 'Same states? 48 states and DC, 2012-2023.' }] } };
   assert.deepEqual(sample.summary, JSON.parse(JSON.stringify(summarize(RECEIPT, story, { uploaded: false }))));
 });
+
+test('the summary reads exactly the fields in receipt-fields.json: none unlisted, none unused', async () => {
+  const { USED } = await import('../supabase/functions/film-page/summary.ts');
+  const fields = JSON.parse(fs.readFileSync(new URL('../supabase/functions/film-page/receipt-fields.json', import.meta.url), 'utf8'));
+  USED.clear();
+  summarize(RECEIPT, { sequence: { clips: [] } }, { uploaded: false });    // no story title: read the receipt's
+  const listed = [...fields.top.map(f => `top:${f}`), ...fields.clip.map(f => `clip:${f}`)].sort();
+  assert.deepEqual([...USED].sort(), listed);
+  const d = summarize(RECEIPT, STORY, { uploaded: false }).datasets[0];
+  assert.match(d.credit, /CDC|Census/);                                     // the film's own source line
+});

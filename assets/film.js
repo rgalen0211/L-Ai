@@ -37,6 +37,7 @@
   function sourcesSection(s) {
     const datasets = (s.datasets || []).map(d => h('div', { class: 'film-dataset' },
       h('h3', {}, d.label || 'Data'),
+      d.credit ? h('p', { class: 'film-meta' }, `Credited in the film as: ${d.credit}`) : null,
       d.sources?.length ? h('ul', { class: 'film-sources' }, d.sources.map(src => {
         const url = safeUrl(src.url);
         return h('li', {},

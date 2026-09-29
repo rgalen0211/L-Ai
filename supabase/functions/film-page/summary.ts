@@ -4,6 +4,27 @@
 // A film made from the owner's own upload names only "the maker's own data": no labels,
 // links, notes or measures from the upload (marketing strategy: never uploaded data unless
 // the owner chooses; that choice is not built yet).
+//
+// The receipt is read ONLY through pick(), against receipt-fields.json: an unlisted path throws,
+// and a test fails if a listed path goes unused, so the list and the code can't drift apart.
+import FIELDS from "./receipt-fields.json" with { type: "json" };
+
+const ALLOWED = { top: new Set<string>(FIELDS.top), clip: new Set<string>(FIELDS.clip) };
+export const USED = new Set<string>();             // "top:path" / "clip:path", for the coverage test
+
+// A listed field of `obj`. For an array item, pass the item and the listed path: only the part
+// after the last "[]." is walked.
+function pick(scope: "top" | "clip", obj: any, path: string): any {
+  if (!ALLOWED[scope].has(path)) throw new Error(`receipt field not on the allowlist: ${scope}:${path}`);
+  USED.add(`${scope}:${path}`);
+  const rel = path.includes("[].") ? path.slice(path.lastIndexOf("[].") + 3) : path;
+  let cur = obj;
+  for (const k of rel.split(".")) {
+    if (cur == null || typeof cur !== "object") return undefined;
+    cur = cur[k];
+  }
+  return cur;
+}
 
 const MAX_TEXT = 1200;
 const MAX_ITEMS = 20;
@@ -38,7 +59,7 @@ export interface Summary {
   headline: string; subhead: string;
   window: { start: string; end: string } | null;
   area: string;
-  datasets: { label: string; sources: { name: string; url: string; license: string }[]; method: string;
+  datasets: { label: string; credit: string; sources: { name: string; url: string; license: string }[]; method: string;
               retrieved: string; values_are: string;
               derivations: { measure: string; method: string }[];
               breaks: { period: string; what: string }[] }[];
@@ -49,67 +70,81 @@ export interface Summary {
 }
 
 export function summarize(receipt: any, story: any, opts: { uploaded: boolean }): Summary {
-  const clips: any[] = Array.isArray(receipt?.clips) ? receipt.clips : [];
+  const C = (clip: any, path: string) => pick("clip", clip, path);
+  const clipsRaw = pick("top", receipt, "clips");
+  const clips: any[] = Array.isArray(clipsRaw) ? clipsRaw : [];
   const storyClips: any[] = Array.isArray(story?.sequence?.clips) ? story.sequence.clips : [];
-  const title = storyClips.find((c) => c?.kind === "title") ?? clips.find((c) => c?.kind === "title")?.text ?? {};
-  const pvs = clips.map((c) => c?.provenance).filter((p) => p && typeof p === "object");
-  const first = pvs[0] ?? {};
+  const storyTitle = storyClips.find((c) => c?.kind === "title");
+  const receiptTitle = clips.find((c) => C(c, "kind") === "title");
+  const headline = storyTitle ? storyTitle.headline : C(receiptTitle, "text.headline");
+  const subhead = storyTitle ? storyTitle.subhead : C(receiptTitle, "text.subhead");
+  // Only render clips carry provenance; titles and the outro have none (CC1, 2026-09-29).
+  const withPv = clips.filter((c) => { const pv = C(c, "provenance"); return pv && typeof pv === "object"; });
+  const first = withPv[0];
 
   const byId = new Map<string, Summary["datasets"][number]>();
   if (!opts.uploaded) {
-    for (const pv of pvs) {
-      const ds = pv.dataset ?? {};
-      const key = text(ds.id, 200) || text(ds.label, 200);
+    for (const c of withPv) {
+      const key = text(C(c, "provenance.dataset.id"), 200) || text(C(c, "provenance.dataset.label"), 200);
       if (!key || byId.has(key)) continue;
-      let sources = list(ds.sources, (s) => {
-        const name = text(s?.name, 300);
-        return name ? { name, url: httpsUrl(s?.url), license: text(s?.license, 600) } : null;
+      const dsLicense = text(C(c, "provenance.dataset.license"), 600);   // for sources that don't carry their own
+      let sources = list(C(c, "provenance.dataset.sources"), (s) => {
+        const name = text(C(s, "provenance.dataset.sources[].name"), 300);
+        return name ? { name, url: httpsUrl(C(s, "provenance.dataset.sources[].url")),
+                        license: text(C(s, "provenance.dataset.sources[].license"), 600) || dsLicense } : null;
       });
-      if (!sources.length && (ds.source || ds.url)) {
-        sources = [{ name: text(ds.source, 300) || "Source", url: httpsUrl(ds.url), license: text(ds.license, 600) }];
+      const source = C(c, "provenance.dataset.source"), url = C(c, "provenance.dataset.url");
+      if (!sources.length && (source || url)) {
+        sources = [{ name: text(source, 300) || "Source", url: httpsUrl(url), license: dsLicense }];
       }
       byId.set(key, {
-        label: text(ds.label, 300),
+        label: text(C(c, "provenance.dataset.label"), 300),
+        credit: text(C(c, "provenance.dataset.source_line"), 400),   // the credit the film itself draws
         sources,
-        method: publicText(ds.notes),
-        retrieved: text(pv.data?.retrieved, 40),
-        values_are: publicText(pv.data?.values_are, 300),
-        derivations: list(pv.data?.derivations, (d) => {
-          const measure = text(d?.measure, 300), method = publicText(d?.method, 600);
+        method: publicText(C(c, "provenance.dataset.notes")),
+        retrieved: text(C(c, "provenance.data.retrieved"), 40),
+        values_are: publicText(C(c, "provenance.data.values_are"), 300),
+        derivations: list(C(c, "provenance.data.derivations"), (d) => {
+          const measure = text(C(d, "provenance.data.derivations[].measure"), 300);
+          const method = publicText(C(d, "provenance.data.derivations[].method"), 600);
           return measure && method ? { measure, method } : null;
         }),
-        breaks: list(pv.methodology_breaks, (b) => {
-          const what = publicText(b?.what, 600);
-          return what ? { period: text(b?.period, 40), what } : null;
+        breaks: list(C(c, "provenance.methodology_breaks"), (b) => {
+          const what = publicText(C(b, "provenance.methodology_breaks[].what"), 600);
+          return what ? { period: text(C(b, "provenance.methodology_breaks[].period"), 40), what } : null;
         }),
       });
     }
   }
 
   const seen = new Set<string>();
-  const measures = opts.uploaded ? [] : list(pvs.flatMap((pv) => (Array.isArray(pv.measures) ? pv.measures : [])), (m) => {
-    const label = text(m?.label_in_full, 300) || text(m?.label, 300);
+  const allMeasures = withPv.flatMap((c) => { const m = C(c, "provenance.measures"); return Array.isArray(m) ? m : []; });
+  const measures = opts.uploaded ? [] : list(allMeasures, (m) => {
+    const label = text(C(m, "provenance.measures[].label_in_full"), 300) || text(C(m, "provenance.measures[].label"), 300);
     if (!label || seen.has(label)) return null;
     seen.add(label);
-    return { label, unit: text(m?.unit, 60) };
+    return { label, unit: text(C(m, "provenance.measures[].unit"), 60) };
   });
 
   const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
-  const out = receipt?.output ?? {};
-  const commit = text(receipt?.inputs?.code?.commit, 40);
-  const geo = first.geography ?? {};
+  const canvas = pick("top", receipt, "output.canvas");
+  const commit = text(pick("top", receipt, "inputs.code.commit"), 40);
+  const start = first ? C(first, "provenance.window.start") : undefined;
+  const end = first ? C(first, "provenance.window.end") : undefined;
   return {
-    headline: text(title.headline, 200),
-    subhead: text(title.subhead, 300),
-    window: first.window?.start != null && first.window?.end != null
-      ? { start: text(first.window.start, 20), end: text(first.window.end, 20) } : null,
-    area: opts.uploaded ? "" : [text(geo.level, 120), text(geo.region, 120)].filter(Boolean).join(", "),
+    headline: text(headline, 200),
+    subhead: text(subhead, 300),
+    window: start != null && end != null ? { start: text(start, 20), end: text(end, 20) } : null,
+    area: opts.uploaded || !first ? ""
+      : [text(C(first, "provenance.geography.level"), 120), text(C(first, "provenance.geography.region"), 120)].filter(Boolean).join(", "),
     datasets: opts.uploaded
-      ? [{ label: "The maker\u2019s own data", sources: [], method: "", retrieved: "", values_are: "", derivations: [], breaks: [] }]
+      ? [{ label: "The maker’s own data", credit: "", sources: [], method: "", retrieved: "", values_are: "", derivations: [], breaks: [] }]
       : [...byId.values()],
     measures,
     uploaded_data: opts.uploaded,
-    film: { seconds: num(out.seconds), width: num(out.canvas?.[0]), height: num(out.canvas?.[1]), fps: num(out.fps) },
-    engine: { commit: /^[0-9a-f]{7,40}$/.test(commit) ? commit.slice(0, 12) : "", drawn_at: text(receipt?.drawn_at, 40) },
+    film: { seconds: num(pick("top", receipt, "output.seconds")),
+            width: num(Array.isArray(canvas) ? canvas[0] : null), height: num(Array.isArray(canvas) ? canvas[1] : null),
+            fps: num(pick("top", receipt, "output.fps")) },
+    engine: { commit: /^[0-9a-f]{7,40}$/.test(commit) ? commit.slice(0, 12) : "", drawn_at: text(pick("top", receipt, "drawn_at"), 40) },
   };
 }

@@ -15,6 +15,7 @@
   "datasets": [
    {
     "label": "Obesity and fast food by state (CDC + Census, annual)",
+    "credit": "Sources: CDC BRFSS (obesity); U.S. Census Bureau, County Business Patterns (restaurants)",
     "sources": [
      {
       "name": "CDC, Behavioral Risk Factor Surveillance System (BRFSS)",
