@@ -29,6 +29,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    the AI editor's 0600 file, so it can run with or without it)
 10. `migrations/20260929000800_film_pages.sql` (public film pages; nothing is public until an
    owner publishes, and the page needs the film-page function; see "Public film pages")
+11. `migrations/20260929000900_account_basics.sql` (the upload data choice and account deletion;
+   see "Account basics")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -203,6 +205,50 @@ minutes.
 Not built yet: the "Made with Ryagram" mark on exported films (an engine option for CC1/RENDERER),
 link previews with the film's own title and poster (the page is a static file, so shared links
 show the generic Ryagram card), and the owner's choice to show uploaded data.
+
+## Account basics (branch account): switching them on
+
+**Password reset** (works as soon as it's merged, after these settings):
+
+1. **Authentication → URL Configuration:** Site URL `https://uselai.com`; add
+   `https://uselai.com/app/` to Redirect URLs.
+2. **Authentication → Emails → Reset password:** replace the link in the template with
+   `<a href="{{ .SiteURL }}/app/?reset={{ .TokenHash }}">Choose a new password</a>`. The app checks
+   that token itself (`verifyOtp`), so the link works in any browser, and it removes the token from
+   the address bar at once. Supabase's default link would put tokens in the `#`, where /app/'s own
+   page addresses live.
+3. **Authentication → Policies/Providers → Email:** set the minimum password length to 10 (the
+   app asks for 10).
+4. **Emails to anyone but you need your own SMTP** (Authentication → Emails → SMTP settings).
+   Supabase's built-in sender only delivers to the project's team members, a few per hour. Until
+   then, reset links reach only your own address.
+
+People can also change their password on the new **Account** page (the email in the header links
+to it), without email.
+
+**The data choice and deleting an account:**
+
+1. **SQL Editor:** `migrations/20260929000900_account_basics.sql`.
+2. **Deploy** (no secrets; the person's token is checked inside):
+
+   ```
+   npx supabase functions deploy delete-account --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+3. **Merge with `accountTools: true`** in `assets/ryagram-config.js` (with your OK).
+
+What they do:
+- *Data you upload*: the person's default, *Store my data* unless they change it (spec 2B-6
+  wording). Uploads don't exist yet, so today it only records the default. From now on, the
+  database makes every version drawn from a *don't keep* dataset non-restorable at once, and a
+  dataset that wasn't kept can never be marked kept again.
+- *Delete your account*: typed-email confirmation. It is refused while a render is running.
+  Without credit history, it deletes the person's stored files (everything under their folder,
+  partial uploads included) and then their login, which removes every row they own. With credit
+  history, the ledger is an append-only financial record and restricts deletion, so the request
+  is recorded in `account_deletion_requests` for you to close by hand (QUESTIONS.md Q6). The
+  waitlist table is separate: an address there stays until you remove it.
+
+**Watch:** `select * from account_deletion_requests`.
 
 ## Kill switch
 

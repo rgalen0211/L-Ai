@@ -101,3 +101,13 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .credit-thanks{color:var(--brand-deep);font-weight:700}
 .share-link{overflow-wrap:anywhere;font-weight:700}
 .share-panel label{display:block;margin-top:12px}
+.app-account a{color:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.link-button{padding:0;border:0;background:none;color:var(--brand-deep);font:inherit;text-decoration:underline;cursor:pointer}
+.account-section{margin:28px 0;padding-top:20px;border-top:1px solid var(--line)}
+.account-section h2{margin:0 0 10px;font-size:1.2rem}
+.choices{margin:12px 0;padding:0;border:0}
+.choice{display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;cursor:pointer}
+.choice input{margin-top:4px}
+.choice-text{display:block;color:var(--muted);font-size:.92rem}
+.button.danger{background:#9b2c2c;border-color:#9b2c2c;color:#fff}
+.account-danger p{max-width:60ch}

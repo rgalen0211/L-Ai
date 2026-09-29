@@ -195,6 +195,30 @@
       startCheckout(priceCode) { return invokeUrl('stripe-checkout', { price_code: priceCode }, 'Couldn’t start the checkout.'); },
       openBillingPortal() { return invokeUrl('stripe-checkout', { action: 'portal' }, 'Couldn’t open plan settings.'); },
 
+      // Account (queue item 7). The password is Supabase Auth's; the rest is the database's.
+      async changePassword(password) {
+        const { error } = await client.auth.updateUser({ password });
+        if (error) throw new Error(error.message || 'Couldn’t change the password.');
+      },
+      async uploadRetention() {
+        const rows = await run(client.from('account_settings').select('upload_retention'), 'Couldn’t load your settings.');
+        return rows[0]?.upload_retention || 'keep';
+      },
+      setUploadRetention(value) {
+        return run(client.from('account_settings').upsert({ upload_retention: value }, { onConflict: 'owner_id' }).select('upload_retention'),
+                   'Couldn’t save your choice.');
+      },
+      async deleteAccount(confirmEmail) {
+        const { data, error } = await client.functions.invoke('delete-account', { body: { confirm_email: confirmEmail } });
+        if (error) {
+          let text = 'Couldn’t delete the account just now.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
+      signOut() { return client.auth.signOut(); },
+
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
       // which builds the page's sources from the receipt; stopping is a plain RPC.
       async filmPage(versionId) {

@@ -46,6 +46,8 @@
   // Buying credits (Stripe) shows once checkout and the webhook are deployed (payments: true), or in mock mode.
   // Public film pages show once the film-page function is deployed (filmPages: true), or in mock mode.
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
+  // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
+  const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
@@ -63,6 +65,7 @@
         let m;
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
+        else if (hash === '#/account') view = await accountView();
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -123,6 +126,83 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, form, list];
+    }
+
+    // --- #/account  password, the data choice, deleting the account
+    async function accountView() {
+      const email = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
+
+      // Change password
+      const pwError = errorLine();
+      const pwDone = h('p', { class: 'form-note', role: 'status' });
+      const pw = h('input', { id: 'acct-password', type: 'password', autocomplete: 'new-password', minlength: '10', required: true });
+      const pw2 = h('input', { id: 'acct-password2', type: 'password', autocomplete: 'new-password', minlength: '10', required: true });
+      const pwSave = h('button', { class: 'button secondary', type: 'submit' }, 'Change password');
+      const pwForm = h('form', { class: 'contact-form', onsubmit: async event => {
+        event.preventDefault();
+        pwError.hidden = true; pwDone.textContent = '';
+        if (!pwForm.reportValidity()) return;
+        if (pw.value !== pw2.value) { showError(pwError, new Error('The two passwords don’t match.')); return; }
+        await busy(pwSave, 'Saving…', async () => {
+          try { await data.changePassword(pw.value); pw.value = pw2.value = ''; pwDone.textContent = 'Password changed.'; }
+          catch (err) { showError(pwError, err); }
+        });
+      } },
+        h('label', { for: 'acct-password' }, 'New password (at least 10 characters)'), pw,
+        h('label', { for: 'acct-password2' }, 'The same again'), pw2, pwSave, pwDone, pwError);
+
+      const sections = [
+        h('a', { href: '#/', class: 'back' }, '← All projects'),
+        h('h1', { tabindex: '-1' }, 'Your account'),
+        email ? h('p', { class: 'meta' }, `Signed in as ${email}`) : null,
+        h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm)
+      ];
+      if (!accountToolsOn()) return sections;
+
+      // The store / don't-keep choice (spec 2B-6), as the default for uploads.
+      const choiceNote = h('p', { class: 'form-note', role: 'status' });
+      const choiceError = errorLine();
+      let current = 'keep';
+      try { current = await data.uploadRetention(); } catch (err) { showError(choiceError, err); }
+      const option = (value, title, text) => h('label', { class: 'choice' },
+        h('input', { type: 'radio', name: 'retention', value, checked: current === value, onchange: async () => {
+          choiceError.hidden = true; choiceNote.textContent = '';
+          try { await data.setUploadRetention(value); choiceNote.textContent = 'Saved.'; }
+          catch (err) { showError(choiceError, err); }
+        } }),
+        h('span', {}, h('strong', {}, title), h('span', { class: 'choice-text' }, text)));
+      sections.push(h('section', { class: 'account-section', 'aria-labelledby': 'acct-data' },
+        h('h2', { id: 'acct-data' }, 'Data you upload'),
+        h('p', { class: 'form-note' }, 'Your default for data you upload. You can choose again for each upload. (Uploading opens later; films from Ryagram’s catalogue aren’t affected.)'),
+        h('fieldset', { class: 'choices', 'aria-labelledby': 'acct-data' },
+          option('keep', 'Store my data (default)', 'Ryagram privately keeps this dataset because it’s needed to rebuild the film later.'),
+          option('dont_keep', 'Don’t keep my data', 'Ryagram deletes the input data after processing. The film can’t be rebuilt after its rendered copy is archived.')),
+        choiceNote, choiceError));
+
+      // Delete account
+      const delError = errorLine();
+      const delNote = h('p', { class: 'form-note', role: 'status' });
+      const typed = h('input', { id: 'acct-delete-email', type: 'email', autocomplete: 'off', required: true });
+      const del = h('button', { class: 'button danger', type: 'submit' }, 'Delete my account');
+      const delForm = h('form', { class: 'contact-form', onsubmit: async event => {
+        event.preventDefault();
+        delError.hidden = true;
+        if (!delForm.reportValidity()) return;
+        if (!confirm('Delete your account, every project, film and file? This can’t be undone.')) return;
+        await busy(del, 'Deleting…', async () => {
+          try {
+            const result = await data.deleteAccount(typed.value);
+            if (result?.status === 'deleted') { await data.signOut(); return; }
+            delNote.textContent = result?.message || 'Your request is recorded.';
+          } catch (err) { showError(delError, err); }
+        });
+      } },
+        h('label', { for: 'acct-delete-email' }, 'Type your email to confirm'), typed, del, delNote, delError);
+      sections.push(h('section', { class: 'account-section account-danger', 'aria-labelledby': 'acct-delete' },
+        h('h2', { id: 'acct-delete' }, 'Delete your account'),
+        h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
+        delForm));
+      return sections;
     }
 
     // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)

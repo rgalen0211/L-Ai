@@ -17,7 +17,8 @@
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], ...structuredClone(seed) };
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [],
+                 account_settings: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -94,6 +95,7 @@
       const q = {
         select() { return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
+        upsert(row) { op = 'upsert'; payload = row; return q; },         // one row per person (account_settings)
         update(row) { op = 'update'; payload = row; return q; },
         eq(col, val) { filters.push(r => r[col] === val); return q; },
         in(col, vals) { filters.push(r => vals.includes(r[col])); return q; },
@@ -106,7 +108,11 @@
         log.push({ table, op, payload });
         const rows = db[table];
         let result;
-        if (op === 'insert') {
+        if (op === 'upsert') {
+          if (!rows.length) rows.push({ owner_id: 'u-ryan' });
+          Object.assign(rows[0], payload, { updated_at: now() });
+          result = [rows[0]];
+        } else if (op === 'insert') {
           const row = { id: id(), created_at: now(), updated_at: now(), archived_at: null, ...payload };
           if (table === 'projects' && !(row.title && row.title.length <= 200)) return fail('new row violates check constraint');
           rows.push(row);
@@ -280,6 +286,19 @@
       functions: {
         async invoke(name, { body }) {
           log.push({ fn: name, body });
+          if (name === 'delete-account') {
+            if ((body.confirm_email || '').trim().toLowerCase() !== (session?.user?.email || '').toLowerCase()) {
+              return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Type your account’s email address exactly to confirm.' }) } } };
+            }
+            if (db.jobs.some(j => ACTIVE.includes(j.state))) {
+              return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'A render is still running. Cancel it or let it finish, then try again.' }) } } };
+            }
+            if (ledger && db.jobs.some(j => j.credits_quoted > 0)) {
+              return { data: { status: 'requested', message: 'Your account has credit history, which is kept as a financial record. Your request is recorded, and your account and files will be deleted by hand within 30 days.' }, error: null };
+            }
+            for (const t of ['projects', 'versions', 'artifacts', 'jobs', 'film_pages', 'account_settings', 'ai_sessions', 'ai_messages']) db[t].length = 0;
+            return { data: { status: 'deleted', files_removed: 0 }, error: null };
+          }
           if (name === 'film-page') {
             // Mock publish: the summary comes from the sample page; the link opens /film/?mock.
             const v = db.versions.find(x => x.id === body.version_id);
@@ -314,11 +333,11 @@
             return { data: { url: `#/credits?paid=${offer.code}` }, error: null };
           }
           if (name !== 'ai-editor') return { data: null, error: { message: 'no such function', context: { json: async () => ({}) } } };
-          let session = db.ai_sessions.find(s => s.version_id === body.version_id);
-          if (!session) { session = { id: id(), version_id: body.version_id }; db.ai_sessions.push(session); }
+          let aiSession = db.ai_sessions.find(s => s.version_id === body.version_id);
+          if (!aiSession) { aiSession = { id: id(), version_id: body.version_id }; db.ai_sessions.push(aiSession); }
           const reply = `(mock editor) You said: ${body.message}. In the real editor, Claude would edit the story or start a sheet here.`;
           for (const [role, content] of [['user', body.message], ['assistant', reply]]) {
-            db.ai_messages.push({ id: id(), session_id: session.id, role, content, created_at: now() });
+            db.ai_messages.push({ id: id(), session_id: aiSession.id, role, content, created_at: now() });
           }
           return { data: { reply, actions: [], escalated: false, tool_calls: 0 }, error: null };
         }
@@ -347,6 +366,19 @@
           session = { user: { id: 'u-ryan', email } };
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { error: null };
+        },
+        async resetPasswordForEmail(email, options) { log.push({ reset: email, options }); return { data: {}, error: null }; },
+        async verifyOtp({ token_hash, type }) {
+          if (type !== 'recovery' || token_hash !== 'mock-reset-token') return { error: { message: 'Token has expired or is invalid' } };
+          session = { user: { id: 'u-ryan', email: 'ryan@example.com' } };
+          for (const cb of authListeners) cb('SIGNED_IN', session);
+          return { data: { session }, error: null };
+        },
+        async updateUser({ password }) {
+          if (!session) return { error: { message: 'Auth session missing!' } };
+          if (!password || password.length < 10) return { error: { message: 'Password should be at least 10 characters.' } };
+          log.push({ passwordChanged: true });
+          return { data: { user: session.user }, error: null };
         },
         async signOut() { session = null; for (const cb of authListeners) cb('SIGNED_OUT', null); return { error: null }; }
       }

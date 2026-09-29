@@ -19,5 +19,9 @@ window.ryagramConfig = Object.freeze({
   stripeTestMode: true,
   // Show "Public page" on finished films in /app/. Turn on only once the film-page function is
   // deployed and its SQL applied (supabase/README.md, "Public film pages").
-  filmPages: false
+  filmPages: false,
+  // Show the data choice and "Delete your account" on the account page. Turn on only once SQL
+  // 0900 is applied and delete-account is deployed (supabase/README.md, "Account basics").
+  // Changing a password works without it.
+  accountTools: false
 });

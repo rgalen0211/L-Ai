@@ -11,11 +11,11 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/workflow-audit.css?v=20260929d">
-<link rel="stylesheet" href="/assets/app.css?v=20260929d">
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20260929e">
+<link rel="stylesheet" href="/assets/app.css?v=20260929e">
 </head>
 <body class="ryagram-app">
-<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a><div class="app-account" id="account" hidden><span id="account-email"></span><button class="button secondary" id="sign-out" type="button">Sign out</button></div></div></header>
+<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a><div class="app-account" id="account" hidden><a id="account-email" href="#/account" title="Your account"></a><button class="button secondary" id="sign-out" type="button">Sign out</button></div></div></header>
 <main class="container app-main">
   <p id="app-status" class="app-status" role="status" tabindex="-1" hidden></p>
 
@@ -30,17 +30,36 @@
       <button class="button primary" type="submit">Sign in</button>
       <p id="sign-in-error" class="form-note app-error" role="alert" hidden></p>
     </form>
+    <p><button class="link-button" id="forgot" type="button" aria-expanded="false" aria-controls="reset-form">Forgot your password?</button></p>
+    <form id="reset-form" class="contact-form" hidden>
+      <label for="rs-email">Email for the reset link</label>
+      <input id="rs-email" name="email" type="email" autocomplete="username" required>
+      <button class="button secondary" type="submit">Send a reset link</button>
+      <p id="reset-note" class="form-note" role="status"></p>
+    </form>
+  </section>
+
+  <section id="set-password" class="app-panel" hidden aria-labelledby="set-password-title">
+    <h1 id="set-password-title" tabindex="-1">Choose a new password</h1>
+    <form id="set-password-form" class="contact-form">
+      <label for="np-password">New password (at least 10 characters)</label>
+      <input id="np-password" name="password" type="password" autocomplete="new-password" minlength="10" required>
+      <label for="np-again">The same again</label>
+      <input id="np-again" name="again" type="password" autocomplete="new-password" minlength="10" required>
+      <button class="button primary" type="submit">Save the new password</button>
+      <p id="set-password-error" class="form-note app-error" role="alert" hidden></p>
+    </form>
   </section>
 
   <section id="library" class="app-panel" hidden></section>
 </main>
-<script src="/assets/ryagram-config.js?v=20260929d"></script>
+<script src="/assets/ryagram-config.js?v=20260929e"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
-<script src="/assets/app-data.js?v=20260929d"></script>
-<script src="/assets/app-jobs.js?v=20260929d"></script>
-<script src="/assets/app-templates.js?v=20260929d"></script>
-<script src="/assets/app-credits.js?v=20260929d"></script>
-<script src="/assets/app-library.js?v=20260929d"></script>
-<script src="/assets/app-auth.js?v=20260929d"></script>
+<script src="/assets/app-data.js?v=20260929e"></script>
+<script src="/assets/app-jobs.js?v=20260929e"></script>
+<script src="/assets/app-templates.js?v=20260929e"></script>
+<script src="/assets/app-credits.js?v=20260929e"></script>
+<script src="/assets/app-library.js?v=20260929e"></script>
+<script src="/assets/app-auth.js?v=20260929e"></script>
 </body>
 </html>
