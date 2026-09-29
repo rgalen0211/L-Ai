@@ -1,0 +1,156 @@
+[
+ {
+  "name": "plan created",
+  "expect": "applied",
+  "id": "evt_Sub1",
+  "type": "customer.subscription.created",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {
+   "subscription": "sub_A",
+   "customer": "cus_Ryan",
+   "status": "active",
+   "price_id": "price_Creator1",
+   "current_period_end": 1793491200,
+   "cancel_at_period_end": false
+  }
+ },
+ {
+  "name": "plan checkout",
+  "expect": "applied",
+  "id": "evt_Chk1",
+  "type": "checkout.session.completed",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {
+   "session_id": "cs_test_Plan",
+   "mode": "subscription",
+   "payment_status": "paid",
+   "owner_id": "00000000-0000-0000-0000-000000000001",
+   "customer": "cus_Ryan",
+   "price_code": "sub_creator",
+   "amount_total": 2400,
+   "currency": "usd",
+   "payment_intent": null,
+   "subscription": "sub_A"
+  }
+ },
+ {
+  "name": "first month (current invoice layout)",
+  "expect": "applied",
+  "id": "evt_Inv1",
+  "type": "invoice.paid",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {
+   "invoice_id": "in_1",
+   "customer": "cus_Ryan",
+   "subscription": "sub_A",
+   "price_id": "price_Creator1",
+   "billing_reason": "subscription_create",
+   "amount_paid": 2400,
+   "currency": "usd",
+   "period_start": 1790812800
+  }
+ },
+ {
+  "name": "first month again (Stripe retry)",
+  "expect": "replay",
+  "id": "evt_Inv1",
+  "type": "invoice.paid",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {
+   "invoice_id": "in_1",
+   "customer": "cus_Ryan",
+   "subscription": "sub_A",
+   "price_id": "price_Creator1",
+   "billing_reason": "subscription_create",
+   "amount_paid": 2400,
+   "currency": "usd",
+   "period_start": 1790812800
+  }
+ },
+ {
+  "name": "second month (older invoice layout)",
+  "expect": "applied",
+  "id": "evt_Inv2",
+  "type": "invoice.paid",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {
+   "invoice_id": "in_2",
+   "customer": "cus_Ryan",
+   "subscription": "sub_A",
+   "price_id": "price_Creator1",
+   "billing_reason": "subscription_cycle",
+   "amount_paid": 2400,
+   "currency": "usd",
+   "period_start": 1793491200
+  }
+ },
+ {
+  "name": "pack bought",
+  "expect": "applied",
+  "id": "evt_Pack1",
+  "type": "checkout.session.completed",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {
+   "session_id": "cs_test_Pack",
+   "mode": "payment",
+   "payment_status": "paid",
+   "owner_id": "00000000-0000-0000-0000-000000000001",
+   "customer": "cus_Ryan",
+   "price_code": "pack_starter",
+   "amount_total": 1200,
+   "currency": "usd",
+   "payment_intent": "pi_Pack1",
+   "subscription": null
+  }
+ },
+ {
+  "name": "pack refunded in full",
+  "expect": "applied",
+  "id": "evt_Ref1",
+  "type": "charge.refunded",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {
+   "charge": "ch_Pack1",
+   "payment_intent": "pi_Pack1",
+   "amount": 1200,
+   "amount_refunded": 1200,
+   "currency": "usd"
+  }
+ },
+ {
+  "name": "a live-mode event",
+  "expect": "refused_live",
+  "id": "evt_Live1",
+  "type": "checkout.session.completed",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": true,
+  "data": {
+   "session_id": "cs_live_X",
+   "mode": "payment",
+   "payment_status": "paid",
+   "owner_id": "00000000-0000-0000-0000-000000000001",
+   "customer": "cus_Ryan",
+   "price_code": "pack_starter",
+   "amount_total": 1200,
+   "currency": "usd",
+   "payment_intent": "pi_Live1",
+   "subscription": null
+  }
+ },
+ {
+  "name": "an event type not used",
+  "expect": "ignored",
+  "id": "evt_Other1",
+  "type": "payment_intent.succeeded",
+  "created": "2026-10-01T00:00:00.000Z",
+  "livemode": false,
+  "data": {}
+ }
+]

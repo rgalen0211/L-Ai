@@ -43,6 +43,8 @@
 
   // Credits show once the 2B ledger is live (credits: true in ryagram-config.js), or in mock mode.
   const creditsOn = () => window.ryagramConfig?.credits === true || !!window.ryagramMock;
+  // Buying credits (Stripe) shows once checkout and the webhook are deployed (payments: true), or in mock mode.
+  const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
     let token = 0;
@@ -59,6 +61,7 @@
         let m;
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
+        else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
         view = [h('h1', { tabindex: '-1' }, 'Something went wrong'),
@@ -68,7 +71,7 @@
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
       stopView();
       stopView = () => stops.forEach(fn => fn());
-      root.replaceChildren(...view);
+      root.replaceChildren(...[view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
       root.querySelector('h1')?.focus();
     }
 
@@ -113,9 +116,84 @@
                        : `No versions · updated ${date(p.updated_at)}`))))
         : h('p', { class: 'form-intro' }, 'No projects yet. Name one above and it starts as r1.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
-      if (credits) data.creditBalances().then(rows => { credits.textContent = window.ryagramCredits.balanceLine(rows); })
-        .catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
+      if (credits) data.creditBalances().then(rows => {
+        credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
+                                ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
+      }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, form, list];
+    }
+
+    // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)
+    async function creditsView(paidCode, onStop) {
+      const C = window.ryagramCredits;
+      const [offers, plan] = await Promise.all([data.shopOffers(), data.myPlan()]);
+      const error = errorLine();
+      const balance = h('p', { class: 'credit-balance' }, 'Loading credits…');
+      let before = null;
+      async function loadBalance() {
+        try {
+          const rows = await data.creditBalances();
+          const total = rows.reduce((n, r) => n + r.available, 0);
+          balance.textContent = C.balanceLine(rows);
+          return total;
+        } catch { balance.textContent = 'Couldn’t load your credits.'; return null; }
+      }
+      loadBalance().then(total => { before = total; });
+
+      // Back from Stripe: the webhook grants the credits, usually within seconds. Look a few times.
+      let thanks = null;
+      if (paidCode) {
+        thanks = h('p', { class: 'form-note credit-thanks', role: 'status' },
+          `Thanks. Stripe has your payment for ${C.offerName(paidCode)}; the credits appear here once Stripe confirms it, usually within a minute.`);
+        let tries = 0;
+        const timer = setInterval(async () => {
+          const total = await loadBalance();
+          if (++tries >= 20 || (before != null && total != null && total > before)) {
+            clearInterval(timer);
+            if (total > before) thanks.textContent = 'Your credits have arrived.';
+          }
+        }, 3000);
+        onStop(() => clearInterval(timer));
+      }
+
+      const go = async (button, label, work) => {
+        error.hidden = true;
+        await busy(button, label, async () => {
+          try { location.assign(await work()); } catch (err) { showError(error, err); }
+        });
+      };
+      const current = C.planLine(plan);
+      const offerItem = p => {
+        const blocked = p.monthly && C.hasPlan(plan);
+        return h('li', { class: 'offer' },
+          h('strong', {}, C.offerName(p.code)), h('span', { class: 'meta' }, C.offerLine(p)),
+          h('button', { class: 'button secondary small', type: 'button', disabled: blocked,
+                        title: blocked ? 'You already have a plan. Use Manage plan to change it.' : null,
+                        onclick: event => go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(p.code)) },
+            p.monthly ? 'Subscribe' : 'Buy'));
+      };
+      const packs = offers.filter(p => !p.monthly), plans = offers.filter(p => p.monthly);
+      const testMode = window.ryagramMock
+        ? 'Mock mode: nothing goes to Stripe, and buying adds the credits at once.'
+        : window.ryagramConfig?.stripeTestMode !== false
+          ? 'Test mode: no real money moves. Use the card 4242 4242 4242 4242 with any future date and any CVC.' : null;
+      return [
+        h('a', { href: '#/', class: 'back' }, '← All projects'),
+        h('h1', { tabindex: '-1' }, 'Credits'),
+        balance, thanks,
+        testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
+        current || plan ? h('div', { class: 'plan-now' },
+          current ? h('p', {}, current) : null,
+          h('button', { class: 'button secondary small', type: 'button',
+                        onclick: event => go(event.currentTarget, 'Opening…', () => data.openBillingPortal()) }, 'Manage plan')) : null,
+        packs.length ? [h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)),
+                        h('p', { class: 'form-note' }, 'Pack credits never expire.')] : null,
+        plans.length ? [h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)),
+                        h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null,
+        offers.length ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
+        error,
+        h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.')
+      ];
     }
 
     // --- #/p/<id>  one project and its versions

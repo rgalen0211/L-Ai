@@ -103,3 +103,43 @@ test('without the ledger, the credit calls fail quietly and nothing is charged',
   await assert.rejects(data.creditBalances());
   await assert.rejects(data.creditQuote(version.id, 'preview'));
 });
+
+test('packs and plans read plainly', () => {
+  assert.equal(C.offerLine({ credits: 10, price_cents: 1200, monthly: false }), '10 credits for $12');
+  assert.equal(C.offerLine({ credits: 30, price_cents: 2400, monthly: true }), '30 credits a month, $24 a month');
+  assert.equal(C.money(1250), '$12.50');
+  const when = () => 'Nov 1, 2026';
+  const plan = { price_code: 'sub_creator', status: 'active', current_period_end: '2026-11-01T00:00:00Z', cancel_at_period_end: false };
+  assert.equal(C.planLine(plan, when), 'Your plan: Creator. It renews on Nov 1, 2026.');
+  assert.equal(C.planLine({ ...plan, cancel_at_period_end: true }, when), 'Your plan: Creator. It ends on Nov 1, 2026. Credits you already have stay.');
+  assert.match(C.planLine({ ...plan, status: 'past_due' }, when), /Update your card/);
+  assert.equal(C.planLine({ ...plan, status: 'canceled' }, when), null);
+  assert.equal(C.hasPlan({ status: 'past_due' }), true);
+  assert.equal(C.hasPlan({ status: 'canceled' }), false);
+});
+
+test('shop: current prices that Stripe sells; checkout URLs only go to Stripe', async () => {
+  const client = createFakeClient({ credits: 0, webhookDelayMs: 0 });
+  client.db.credit_prices.push({ price_version: '2099-01', code: 'pack_starter', credits: 99, price_cents: 1, monthly: false,
+                                 effective_from: '2099-01-01T00:00:00Z' });            // not in effect yet
+  client.db.stripe_prices.find(p => p.price_code === 'pack_studio').active = false;
+  const data = ryagramData(client);
+  const offers = await data.shopOffers();
+  assert.deepEqual(offers.map(o => o.code), ['pack_starter', 'sub_creator', 'pack_maker', 'sub_pro']);
+  assert.equal(offers[0].credits, 10);
+
+  assert.equal(await data.startCheckout('pack_starter'), '#/credits?paid=pack_starter');
+  await new Promise(r => setTimeout(r, 5));
+  assert.equal((await data.creditBalances())[0].available, 10);
+  await data.startCheckout('sub_creator');
+  assert.equal((await data.myPlan()).price_code, 'sub_creator');
+  await assert.rejects(data.startCheckout('sub_pro'), /already have a plan/);
+  await assert.rejects(data.startCheckout('final_map'), /isn’t on sale/);
+
+  const answering = url => ({ ...client, functions: { invoke: async () => ({ data: { url }, error: null }) } });
+  assert.match(await ryagramData(answering('https://checkout.stripe.com/c/pay/cs_test_1')).startCheckout('pack_starter'), /^https:\/\/checkout/);
+  assert.match(await ryagramData(answering('https://billing.stripe.com/p/session/x')).openBillingPortal(), /^https:\/\/billing/);
+  for (const bad of ['https://evil.example/', 'javascript:alert(1)', 'https://checkout.stripe.com.evil.example/', '', null]) {
+    await assert.rejects(ryagramData(answering(bad)).startCheckout('pack_starter'), /Couldn’t start the checkout/);
+  }
+});

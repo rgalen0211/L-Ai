@@ -14,6 +14,18 @@
       if (error) throw new Error(error.message || fallback);
       return data;
     }
+    // An Edge Function that answers { url }: only Stripe's own pages (or the mock's in-app page) are followed.
+    async function invokeUrl(name, body, fallback) {
+      const { data, error } = await client.functions.invoke(name, { body });
+      if (error) {
+        let text = fallback;
+        try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+        throw new Error(text);
+      }
+      const url = String(data?.url || '');
+      if (!/^https:\/\/(checkout|billing)\.stripe\.com\//.test(url) && !/^#\/credits(\?|$)/.test(url)) throw new Error(fallback);
+      return url;
+    }
 
     const api = {
       async listProjects() {
@@ -160,6 +172,28 @@
           .eq('version_id', versionId), 'Couldn’t load job credits.');
         return Object.fromEntries(rows.map(r => [r.job_id, r]));
       },
+
+      // Packs and plans on sale: the current price version's codes that stripe_prices sells.
+      async shopOffers() {
+        const [prices, onSale] = await Promise.all([
+          run(client.from('credit_prices').select('price_version, code, credits, price_cents, monthly, effective_from'), 'Couldn’t load prices.'),
+          run(client.from('stripe_prices').select('price_code, mode, active'), 'Couldn’t load prices.')]);
+        const now = new Date().toISOString();
+        const inEffect = prices.filter(p => p.effective_from <= now);
+        const current = inEffect.reduce((a, p) => (!a || p.effective_from > a.effective_from ? p : a), null)?.price_version;
+        const sale = new Set(onSale.filter(s => s.active).map(s => s.price_code));
+        return inEffect.filter(p => p.price_version === current && sale.has(p.code) && p.price_cents != null)
+          .sort((a, b) => a.price_cents - b.price_cents);
+      },
+      async myPlan() {
+        const rows = await run(client.from('stripe_subscriptions')
+          .select('subscription_id, price_code, status, current_period_end, cancel_at_period_end'), 'Couldn’t load your plan.');
+        const order = ['active', 'trialing', 'past_due', 'unpaid', 'incomplete'];
+        return rows.filter(r => order.includes(r.status)).sort((a, b) => order.indexOf(a.status) - order.indexOf(b.status))[0] || null;
+      },
+      // Both return a Stripe URL to go to; card details are entered only on Stripe's pages.
+      startCheckout(priceCode) { return invokeUrl('stripe-checkout', { price_code: priceCode }, 'Couldn’t start the checkout.'); },
+      openBillingPortal() { return invokeUrl('stripe-checkout', { action: 'portal' }, 'Couldn’t open plan settings.'); },
 
       // The AI editor (an Edge Function; the Anthropic key never reaches the browser).
       async askEditor(versionId, message) {

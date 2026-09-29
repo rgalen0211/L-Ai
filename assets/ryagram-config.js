@@ -11,5 +11,10 @@ window.ryagramConfig = Object.freeze({
   // and control.ai_enabled is true (supabase/README.md, "AI editor").
   aiEditor: false,
   // Show credits (balance, prices, holds) in /app/. Turn on only once the 2B ledger is applied.
-  credits: false
+  credits: false,
+  // Show the Credits page (packs and plans through Stripe Checkout). Turn on only once the
+  // stripe-checkout and stripe-webhook functions are deployed (supabase/README.md, "Stripe").
+  payments: false,
+  // While Stripe runs with test keys, the Credits page says so and names the test card.
+  stripeTestMode: true
 });

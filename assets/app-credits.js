@@ -37,5 +37,32 @@
     return `${plural(available)} available${held ? `, ${held} held by jobs in progress` : ''}`;
   }
 
-  window.ryagramCredits = { priceLabel, affordable, jobCredits, balanceLine, plural };
+  // Packs and plans (Stripe). Prices come from credit_prices; these only word them.
+  const NAMES = { pack_starter: 'Starter', pack_maker: 'Maker', pack_studio: 'Studio', sub_creator: 'Creator', sub_pro: 'Pro' };
+  const offerName = code => NAMES[code] || code;
+  const money = cents => `$${(cents / 100).toFixed(cents % 100 ? 2 : 0)}`;
+  const offerLine = p => (p.monthly ? `${plural(p.credits)} a month, ${money(p.price_cents)} a month`
+                                    : `${plural(p.credits)} for ${money(p.price_cents)}`);
+
+  // A person's plan, from stripe_subscriptions; null when there's nothing to show.
+  function planLine(plan, when = iso => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) {
+    if (!plan) return null;
+    const name = `Your plan: ${offerName(plan.price_code)}.`;
+    switch (plan.status) {
+      case 'active':
+      case 'trialing':
+        if (plan.cancel_at_period_end && plan.current_period_end) return `${name} It ends on ${when(plan.current_period_end)}. Credits you already have stay.`;
+        return plan.current_period_end ? `${name} It renews on ${when(plan.current_period_end)}.` : name;
+      case 'past_due':
+      case 'unpaid':
+        return `${name} The last payment didn’t go through. Update your card in Manage plan.`;
+      case 'incomplete':
+        return `${name} It’s being set up; this can take a minute.`;
+      default:
+        return null;                                   // canceled, incomplete_expired, paused
+    }
+  }
+  const hasPlan = plan => !!plan && ['incomplete', 'trialing', 'active', 'past_due', 'unpaid'].includes(plan.status);
+
+  window.ryagramCredits = { priceLabel, affordable, jobCredits, balanceLine, plural, offerName, money, offerLine, planLine, hasPlan };
 })();

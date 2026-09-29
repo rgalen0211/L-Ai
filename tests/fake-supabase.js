@@ -20,6 +20,17 @@
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
+    // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
+    if (ledger) {
+      const at = '2026-09-01T00:00:00Z';
+      db.credit_prices = db.credit_prices || [['pack_starter', 10, 1200, false], ['pack_maker', 28, 3000, false], ['pack_studio', 60, 6000, false],
+        ['sub_creator', 30, 2400, true], ['sub_pro', 100, 6900, true], ['final_map', 8, null, false]]
+        .map(([code, credits, price_cents, monthly]) => ({ price_version: '2026-09', code, credits, price_cents, monthly, effective_from: at }));
+      db.stripe_prices = db.stripe_prices || ['pack_starter', 'pack_maker', 'pack_studio', 'sub_creator', 'sub_pro']
+        .map(price_code => ({ price_code, mode: price_code.startsWith('sub_') ? 'subscription' : 'payment', active: true }));
+      db.stripe_subscriptions = db.stripe_subscriptions || [];
+    }
+    const WEBHOOK_DELAY_MS = seed.webhookDelayMs ?? 2000;
     const VIEW_PRICE = { line: ['final_line', 6, 1], map: ['final_map', 8, 2], river: ['final_map', 8, 2], split: ['final_map', 8, 2],
                          globe: ['final_paired', 10, 3], bars: ['final_paired', 10, 3], paired: ['final_paired', 10, 3], panel: ['final_paired', 10, 3] };
     function quote(v, type) {
@@ -263,6 +274,25 @@
       functions: {
         async invoke(name, { body }) {
           log.push({ fn: name, body });
+          if (name === 'stripe-checkout' && ledger) {
+            // Mock Stripe: no checkout page. The "webhook" grants the credits a moment later.
+            if (body.action === 'portal') {
+              if (!db.stripe_subscriptions.length) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'There’s no plan or purchase to manage yet.' }) } } };
+              for (const sub of db.stripe_subscriptions) sub.cancel_at_period_end = !sub.cancel_at_period_end;
+              return { data: { url: '#/credits' }, error: null };
+            }
+            const offer = db.credit_prices.find(p => p.code === body.price_code && p.price_cents != null);
+            if (!offer) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'That isn’t on sale.' }) } } };
+            if (offer.monthly) {
+              if (db.stripe_subscriptions.some(x => x.status === 'active')) {
+                return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'You already have a plan. Use Manage plan to change or cancel it.' }) } } };
+              }
+              db.stripe_subscriptions.push({ subscription_id: `sub_${id()}`, price_code: offer.code, status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 864e5).toISOString(), cancel_at_period_end: false });
+            }
+            setTimeout(() => { ledger.available += offer.credits; }, WEBHOOK_DELAY_MS);
+            return { data: { url: `#/credits?paid=${offer.code}` }, error: null };
+          }
           if (name !== 'ai-editor') return { data: null, error: { message: 'no such function', context: { json: async () => ({}) } } };
           let session = db.ai_sessions.find(s => s.version_id === body.version_id);
           if (!session) { session = { id: id(), version_id: body.version_id }; db.ai_sessions.push(session); }

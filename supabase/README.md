@@ -97,6 +97,79 @@ every request at once. Models: `claude-haiku-4-5` by default (4k output), `claud
 new stories, failed checks and explicit escalation (8k output, medium effort). Usage per call is
 in `ai_usage` with its cost at the `ai_prices` version.
 
+## Stripe in test mode (branch stripe): what Ryan creates
+
+Built and tested without a Stripe account: Stripe's own fixture objects, a scripted Stripe
+API, and the SQL on a local Postgres. Nothing has called Stripe yet. Everything below stays in
+**test mode**; no real money moves. A live key is refused by `stripe-checkout`, and live events
+are refused by the database, until `stripe_settings.live_ok` is set (a later, separate decision).
+
+1. **Stripe account → test mode** (the "Test mode" / sandbox switch in the Dashboard).
+2. **Product catalogue → add five products**, each with one price in USD:
+
+   | Product | Price | Type | Code |
+   |---|---|---|---|
+   | Ryagram Starter pack | $12 | One-off | `pack_starter` |
+   | Ryagram Maker pack | $30 | One-off | `pack_maker` |
+   | Ryagram Studio pack | $60 | One-off | `pack_studio` |
+   | Ryagram Creator plan | $24 / month | Recurring, monthly | `sub_creator` |
+   | Ryagram Pro plan | $69 / month | Recurring, monthly | `sub_pro` |
+
+   Copy each price's id (`price_...`). The amounts must match `credit_prices` exactly: an
+   amount that differs gets no credits and is held for review.
+3. **Settings → Billing → Customer portal** (test mode): allow *cancel at end of period*,
+   *update payment method* and *invoice history*. Turn **off** switching plans and changing
+   quantities (plan changes would need a pricing decision first). Save.
+4. **Developers → API keys**: create a **restricted key** (`rk_test_...`) with *Write* on
+   Customers, Checkout Sessions and Customer portal, and nothing else. Or use the test secret
+   key (`sk_test_...`). You paste it into Supabase yourself (step 6), never into chat or the repo.
+5. **Developers → Webhooks → Add endpoint**:
+   - URL: `https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/stripe-webhook`
+   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+     `invoice.paid`, `customer.subscription.created`, `customer.subscription.updated`,
+     `customer.subscription.deleted`, `charge.refunded`
+   - Copy the endpoint's **signing secret** (`whsec_...`).
+6. **Supabase → Edge Functions → Secrets**: add `STRIPE_SECRET_KEY` (step 4) and
+   `STRIPE_WEBHOOK_SECRET` (step 5).
+7. **SQL Editor**, in order: `phase-2b/credits_ledger.sql` (if not run yet), then
+   `phase-2b/stripe_test_mode.sql`. Then tell the database which Stripe price sells which code,
+   with your ids from step 2:
+
+   ```sql
+   insert into public.stripe_prices (price_code, stripe_price_id, mode) values
+     ('pack_starter', 'price_...', 'payment'),
+     ('pack_maker',   'price_...', 'payment'),
+     ('pack_studio',  'price_...', 'payment'),
+     ('sub_creator',  'price_...', 'subscription'),
+     ('sub_pro',      'price_...', 'subscription');
+   ```
+8. **Deploy both functions** (the checkout checks the person's sign-in itself; the webhook
+   checks Stripe's signature):
+
+   ```
+   npx supabase functions deploy stripe-checkout --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   npx supabase functions deploy stripe-webhook --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+9. **Turn on the page** (a merge to main, with your OK): `credits: true` and `payments: true`
+   in `assets/ryagram-config.js`. The Credits page says it's test mode and names Stripe's test
+   card, 4242 4242 4242 4242 (any future date, any CVC).
+10. **Check**: buy Starter with the test card. Within a minute the balance goes up by 10, and
+    `select * from stripe_events order by received_at desc` shows `applied`. Refund it from the
+    Stripe Dashboard: the 10 credits are removed (`charge.refunded`).
+
+**Watch:** `select * from stripe_events where outcome = 'needs_review'`. These are payments
+that didn't add up (wrong amount, unknown price, partial refund, a refund of a plan invoice).
+Nothing changed for them; `detail` says what happened, and you settle each by hand with
+`grant_credits` or `adjust_credits`. Stripe's own retries are safe: a repeated event returns
+`replay` and changes nothing.
+
+**How it fits:** `stripe-checkout` makes one Stripe customer per person and a Checkout Session
+tagged with their user id; the browser only ever goes to `checkout.stripe.com` or
+`billing.stripe.com`. Credits are granted only by `stripe-webhook` → `stripe_apply`, through the
+ledger's `grant_credits` and `reverse_purchase`: packs on `checkout.session.completed` (paid),
+plan months on `invoice.paid` (first month and each renewal, once per billing period, with the
+2× rollover cap), and a full pack refund on `charge.refunded`.
+
 ## Kill switch
 
 Table Editor → `control` (one row):
@@ -118,7 +191,7 @@ Function using `service_role`) must grant its own access explicitly.
 
 Only the Project URL and the publishable key (`assets/ryagram-config.js`). The
 database decides everything else. Never put the secret/service_role key, the
-worker password or an Anthropic key in this repo; the repo is public.
+worker password, an Anthropic key or a Stripe key or signing secret in this repo; the repo is public.
 
 ## Acceptance test (2A-1), once the project is live
 
