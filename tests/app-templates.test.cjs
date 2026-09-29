@@ -22,7 +22,7 @@ function assertSchemaShape(s) {
   assert.equal(title.kind, 'title');
   assert.ok(title.seconds >= 0.5 && title.seconds <= 6);
   assert.ok(title.headline.length <= 160 && title.subhead.length <= 160);
-  assert.doesNotMatch(title.headline, /[\u0000-\u001f\u007f-\u009f​-‏‪-‮]/);
+  assert.doesNotMatch(title.headline, /[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e]/);
   assert.equal(render.kind, 'render');
   assert.ok(['map', 'bars', 'line', 'paired', 'panel'].includes(render.view));
   assert.ok(render.start <= render.end);
@@ -43,7 +43,7 @@ test('every template on every offered dataset builds a story in the worker schem
 });
 
 test('headlines are cleaned: control and direction-override characters removed, length capped', () => {
-  const s = T.build('map', 'state_obesity_fastfood', 'Evil‮headline\u0007 ' + 'x'.repeat(300));
+  const s = T.build('map', 'state_obesity_fastfood', 'Evil\u202eheadline\u0007 ' + 'x'.repeat(300));
   assertSchemaShape(s);
   assert.ok(s.sequence.clips[0].headline.startsWith('Evil headline'));
   assert.equal(s.sequence.clips[0].headline.length, 160);

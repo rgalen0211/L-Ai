@@ -24,7 +24,7 @@
   ];
 
   // What the schema allows in text drawn on a frame: no control or invisible characters.
-  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f­​-‏‪-‮⁠-⁯﻿￹-￻]/g;
+  const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u200b-\u200f\u202a-\u202e\u2060-\u206f\ufeff\ufff9-\ufffb]/g;
   const cleanText = (text, max) => String(text || '').replace(INVISIBLE, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 
   // Story "name": ^[A-Za-z0-9][A-Za-z0-9-]{0,63}$
