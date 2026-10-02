@@ -179,10 +179,14 @@ with behaviour in `assets/ryagram.js`. The homepage nav links to it, and a short
 `#ryagram` teaser sits after the 3D CRM section. The reel and poster were taken from
 the `ryagram-showcase` branch (PR #3), which is otherwise untouched.
 
-**Films.** Each `.film-slot` has an empty `data-youtube`. Put a YouTube link or
-11-character video ID there (and name the film in `data-title` and the `h3`) and it
-becomes a `youtube-nocookie.com` embed. Empty or non-YouTube values stay as
-"Coming soon" placeholders.
+**Films.** Each `.film-slot` has a `data-youtube`. Put a YouTube link or
+11-character video ID there (and name the film in `data-title` and the `h3`) and the
+slot shows YouTube's own thumbnail (`maxresdefault`, falling back to `hqdefault`)
+behind a play button. Nothing from the player loads until it is pressed; then the
+button is replaced by the real `youtube-nocookie.com` iframe, which starts playing
+with sound (the click is the visitor's request to play). The CSP allows the
+thumbnail host `i.ytimg.com` and the frame host `www.youtube-nocookie.com`. Empty
+or non-YouTube values stay as "Coming soon" placeholders (film 3 is still empty).
 
 **Waitlist.** Stored in Supabase table `ryagram_waitlist`, created by
 `supabase/ryagram-waitlist.sql`. The browser key can only insert `email`, `use_case`
