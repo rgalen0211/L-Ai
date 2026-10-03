@@ -1,0 +1,82 @@
+{
+ "_note": "Mock data for /film/?mock (localhost only): summarize() of tests/fixtures/film/receipt-obesity.json. Regenerate if summary.ts changes.",
+ "title": "Fast food and obesity",
+ "published_at": "2026-10-01T12:00:00Z",
+ "video_url": "/assets/ryagram-reel.webm",
+ "poster_url": "/assets/ryagram-reel-poster.png",
+ "summary": {
+  "headline": "Fast food and obesity",
+  "subhead": "Same states? 48 states and DC, 2012-2023.",
+  "window": {
+   "start": "2012",
+   "end": "2023"
+  },
+  "area": "US state (plus DC), Contiguous U.S.",
+  "datasets": [
+   {
+    "label": "Obesity and fast food by state (CDC + Census, annual)",
+    "credit": "Sources: CDC BRFSS (obesity); U.S. Census Bureau, County Business Patterns (restaurants)",
+    "sources": [
+     {
+      "name": "CDC, Behavioral Risk Factor Surveillance System (BRFSS)",
+      "url": "https://data.cdc.gov/d/hn4x-zwk7",
+      "license": "U.S. Government work, public domain (17 USC 105). CDC asks that BRFSS be cited and notes the values are self-reported survey estimates."
+     },
+     {
+      "name": "U.S. Census Bureau, County Business Patterns (CBP)",
+      "url": "https://www.census.gov/programs-surveys/cbp.html",
+      "license": "U.S. Government work, public domain (17 USC 105). The Census Bureau asks that CBP be cited; small cells are withheld for disclosure avoidance."
+     }
+    ],
+    "method": "Obesity from the CDC DNPAO BRFSS extract (question: percent of adults 18+ with obesity, Total stratification). Restaurants from CBP NAICS 722513, queried at state level so disclosure suppression -- which removes hundreds of counties a year with no flag -- does not silently undercount. 722211 became 722513 in 2012 and is bridged as a code change, not a break.",
+    "retrieved": "2026-09-23",
+    "values_are": "partly derived",
+    "derivations": [
+     {
+      "measure": "fast_food (net new limited-service restaurants)",
+      "method": "this year's establishment count minus 2011's, floored at zero"
+     },
+     {
+      "measure": "restaurants_per_100k",
+      "method": "establishment count divided by resident population, times 100,000"
+     }
+    ],
+    "breaks": [
+     {
+      "period": "2011",
+      "what": "BRFSS added cell-phone households and changed its weighting; CDC states that estimates from 2011 forward cannot be compared with earlier ones."
+     },
+     {
+      "period": "1998",
+      "what": "County Business Patterns moved from SIC to NAICS. SIC 5812 'Eating Places' covers full-service and fast food together; the limited-service class (722513) does not exist before NAICS."
+     }
+    ]
+   }
+  ],
+  "measures": [
+   {
+    "label": "Adult obesity prevalence",
+    "unit": "%"
+   },
+   {
+    "label": "Net new limited-service restaurants since 2011",
+    "unit": "establishments"
+   },
+   {
+    "label": "Limited-service restaurants per 100,000 residents",
+    "unit": "per 100k"
+   }
+  ],
+  "uploaded_data": false,
+  "film": {
+   "seconds": 52,
+   "width": 1920,
+   "height": 1080,
+   "fps": 30
+  },
+  "engine": {
+   "commit": "09446f20c754",
+   "drawn_at": "2026-09-27"
+  }
+ }
+}

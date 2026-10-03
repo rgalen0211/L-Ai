@@ -17,11 +17,25 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 5. `migrations/20260928000400_2a_worker_test_fixes.sql` (fixes from WORKER's tests:
    `no_output` code, cancel while validating/uploading, per-attempt `queued_at`,
    partial uploads hidden at once and purged after 24 hours)
+6. `migrations/20260929000100_2a_not_found_is_404.sql` (a request for something that
+   isn't yours answers 404 instead of 500; nothing else changes)
+7. `migrations/20260929000400_2a_ladder_engine_commit.sql` (a final render carries
+   the engine commit its preview was drawn with, so the engine can refuse the
+   final if the worker was updated in between)
+8. `migrations/20260929000500_current_engine_commit.sql` (read-only: tells the app
+   which engine version the worker runs, so it can explain a disabled final render)
+9. `migrations/20260929000700_preview_needs_window.sql` (a preview without
+   `window_s` is refused at submit; the worker would reject it anyway. Independent of
+   the AI editor's 0600 file, so it can run with or without it)
+10. `migrations/20260929000800_film_pages.sql` (public film pages; nothing is public until an
+   owner publishes, and the page needs the film-page function; see "Public film pages")
+11. `migrations/20260929000900_account_basics.sql` (the upload data choice and account deletion;
+   see "Account basics")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
 **Not in the 2A set:** `phase-2b/credits_ledger.sql` is the 2B credits ledger. Don't
-run it until Phase 2B is approved; it goes after the five files above.
+run it until Phase 2B is approved; it goes after the files above.
 
 ## Auth settings (2A-1)
 
@@ -60,6 +74,184 @@ then schedule it hourly: Dashboard → Integrations → Cron → new job → Sup
 Function `purge-partial-uploads`, with the header `Authorization: Bearer <service
 role key>`. It refuses any other caller and touches only what the database lists.
 
+## AI editor (branch ai-editor): switching it on
+
+Built and tested end to end against a scripted Claude; it has never called the real API.
+Every step is yours except where WEB is named, and nothing costs money until step 6.
+
+1. **Anthropic account.** At console.anthropic.com create an API account (separate from your
+   Claude subscription), add billing, and set a **monthly spend limit** (e.g. $20 while testing)
+   with email alerts. Create one API key named `ryagram-ai-editor`.
+2. **Key into Supabase, by you:** Edge Functions → Secrets → `ANTHROPIC_API_KEY`. Never paste it
+   in chat, the repo or the website.
+3. **SQL Editor**, in order: `migrations/20260929000500_current_engine_commit.sql` (if not run
+   yet), then `migrations/20260929000600_ai_editor.sql`. Harmless: the editor stays off.
+4. **Deploy:** `npx supabase functions deploy ai-editor --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`
+   (it checks the sign-in itself). If the function logs that it has no public key, also add the
+   secret `RYAGRAM_PUBLISHABLE_KEY` = the publishable key.
+5. **Merge `ai-editor` to main** (with your OK). The panel stays hidden (`aiEditor: false`).
+6. **Switch on:** Table Editor → `control` → `ai_enabled` = true. Then WEB sets `aiEditor: true`
+   in `assets/ryagram-config.js` and, with your OK, merges it; WEB checks the live function
+   (anonymous call refused, one real turn, usage rows priced, cache reads on the second turn).
+
+Caps, all on the `control` row: `ai_turns_per_day` (100, rolling 24 h), `ai_exec_calls_per_hour`
+(30 sheets/previews started by the editor), `ai_tool_calls_per_turn` (12), `ai_project_alert_usd`
+(3.00, flags `ai_turns.spend_alert`; not a limit). **Kill switch:** `ai_enabled` = false stops
+every request at once. Models: `claude-haiku-4-5` by default (4k output), `claude-sonnet-5` for
+new stories, failed checks and explicit escalation (8k output, medium effort). Usage per call is
+in `ai_usage` with its cost at the `ai_prices` version.
+
+## Stripe in test mode (branch stripe): what Ryan creates
+
+Built and tested without a Stripe account: Stripe's own fixture objects, a scripted Stripe
+API, and the SQL on a local Postgres. Nothing has called Stripe yet. Everything below stays in
+**test mode**; no real money moves. A live key is refused by `stripe-checkout`, and live events
+are refused by the database, until `stripe_settings.live_ok` is set (a later, separate decision).
+
+1. **Stripe account → test mode** (the "Test mode" / sandbox switch in the Dashboard).
+2. **Product catalogue → add five products**, each with one price in USD:
+
+   | Product | Price | Type | Code |
+   |---|---|---|---|
+   | Ryagram Starter pack | $12 | One-off | `pack_starter` |
+   | Ryagram Maker pack | $30 | One-off | `pack_maker` |
+   | Ryagram Studio pack | $60 | One-off | `pack_studio` |
+   | Ryagram Creator plan | $24 / month | Recurring, monthly | `sub_creator` |
+   | Ryagram Pro plan | $69 / month | Recurring, monthly | `sub_pro` |
+
+   Copy each price's id (`price_...`). The amounts must match `credit_prices` exactly: an
+   amount that differs gets no credits and is held for review.
+3. **Settings → Billing → Customer portal** (test mode): allow *cancel at end of period*,
+   *update payment method* and *invoice history*. Turn **off** switching plans and changing
+   quantities (plan changes would need a pricing decision first). Save.
+4. **Developers → API keys**: create a **restricted key** (`rk_test_...`) with *Write* on
+   Customers, Checkout Sessions and Customer portal, and nothing else. Or use the test secret
+   key (`sk_test_...`). You paste it into Supabase yourself (step 6), never into chat or the repo.
+5. **Developers → Webhooks → Add endpoint**:
+   - URL: `https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/stripe-webhook`
+   - Events: `checkout.session.completed`, `checkout.session.async_payment_succeeded`,
+     `invoice.paid`, `customer.subscription.created`, `customer.subscription.updated`,
+     `customer.subscription.deleted`, `charge.refunded`
+   - Copy the endpoint's **signing secret** (`whsec_...`).
+6. **Supabase → Edge Functions → Secrets**: add `STRIPE_SECRET_KEY` (step 4) and
+   `STRIPE_WEBHOOK_SECRET` (step 5).
+7. **SQL Editor**, in order: `phase-2b/credits_ledger.sql` (if not run yet), then
+   `phase-2b/stripe_test_mode.sql`. Then tell the database which Stripe price sells which code,
+   with your ids from step 2:
+
+   ```sql
+   insert into public.stripe_prices (price_code, stripe_price_id, mode) values
+     ('pack_starter', 'price_...', 'payment'),
+     ('pack_maker',   'price_...', 'payment'),
+     ('pack_studio',  'price_...', 'payment'),
+     ('sub_creator',  'price_...', 'subscription'),
+     ('sub_pro',      'price_...', 'subscription');
+   ```
+8. **Deploy both functions** (the checkout checks the person's sign-in itself; the webhook
+   checks Stripe's signature):
+
+   ```
+   npx supabase functions deploy stripe-checkout --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   npx supabase functions deploy stripe-webhook --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+9. **Turn on the page** (a merge to main, with your OK): `credits: true` and `payments: true`
+   in `assets/ryagram-config.js`. The Credits page says it's test mode and names Stripe's test
+   card, 4242 4242 4242 4242 (any future date, any CVC).
+10. **Check**: buy Starter with the test card. Within a minute the balance goes up by 10, and
+    `select * from stripe_events order by received_at desc` shows `applied`. Refund it from the
+    Stripe Dashboard: the 10 credits are removed (`charge.refunded`).
+
+**Watch:** `select * from stripe_events where outcome = 'needs_review'`. These are payments
+that didn't add up (wrong amount, unknown price, partial refund, a refund of a plan invoice).
+Nothing changed for them; `detail` says what happened, and you settle each by hand with
+`grant_credits` or `adjust_credits`. Stripe's own retries are safe: a repeated event returns
+`replay` and changes nothing.
+
+**How it fits:** `stripe-checkout` makes one Stripe customer per person and a Checkout Session
+tagged with their user id; the browser only ever goes to `checkout.stripe.com` or
+`billing.stripe.com`. Credits are granted only by `stripe-webhook` → `stripe_apply`, through the
+ledger's `grant_credits` and `reverse_purchase`: packs on `checkout.session.completed` (paid),
+plan months on `invoice.paid` (first month and each renewal, once per billing period, with the
+2× rollover cap), and a full pack refund on `charge.refunded`.
+
+## Public film pages (branch film-page): switching them on
+
+"Made with Ryagram · View sources" pages, per the marketing strategy. **Opt-in per film, off by
+default**: a finished film gets a *Public page* panel in /app/, and nothing is public until its
+owner presses *Publish a public page*. *Stop sharing* turns it off; publishing again brings back
+the same link. The page lives at `https://uselai.com/film/?s=<22-character slug>`.
+
+What a page shows: the film, its title and subhead, and for each dataset the source names,
+https links, licence notes, method, how derived figures were worked out, known breaks in the
+series, the measures drawn, and a short public receipt (period, area, length, drawn date, engine
+commit). It is built by the `film-page` function from the film's receipt, by allowlist: the
+receipt itself (machine paths, cache fingerprints, reproduce commands) is never served, and a
+film made from uploaded data names only "the maker’s own data". Video and poster links are
+signed for an hour; the page data is cached for 5 minutes, so *Stop sharing* takes effect within
+minutes.
+
+1. **SQL Editor:** `migrations/20260929000800_film_pages.sql` (after 0700; independent of the
+   2B and Stripe files).
+2. **Deploy** (visitors aren't signed in; owners' tokens are checked inside):
+
+   ```
+   npx supabase functions deploy film-page --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+   No secrets to add.
+3. **Merge with `filmPages: true`** in `assets/ryagram-config.js` (with your OK).
+4. **Check:** publish a finished film, open its link in a private window, then *Stop sharing* and
+   reload after 5 minutes: "No film here".
+
+Not built yet: the "Made with Ryagram" mark on exported films (an engine option for CC1/RENDERER),
+link previews with the film's own title and poster (the page is a static file, so shared links
+show the generic Ryagram card), and the owner's choice to show uploaded data.
+
+## Account basics (branch account): switching them on
+
+**Password reset** (hidden until step 5):
+
+1. **Authentication → URL Configuration:** Site URL `https://uselai.com`; add
+   `https://uselai.com/app/` to Redirect URLs.
+2. **Authentication → Emails → Reset password:** replace the link in the template with
+   `<a href="{{ .SiteURL }}/app/?reset={{ .TokenHash }}">Choose a new password</a>`. The app checks
+   that token itself (`verifyOtp`), so the link works in any browser, and it removes the token from
+   the address bar at once. Supabase's default link would put tokens in the `#`, where /app/'s own
+   page addresses live.
+3. **Authentication → Policies/Providers → Email:** set the minimum password length to 10 (the
+   app asks for 10).
+4. **Emails to anyone but you need your own SMTP** (Authentication → Emails → SMTP settings).
+   Supabase's built-in sender only delivers to the project's team members, a few per hour. Until
+   then, reset links reach only your own address.
+5. **Then turn on the button:** `passwordReset: true` in `assets/ryagram-config.js` (a merge, with
+   your OK). Until then "Forgot your password?" stays hidden, so no one gets a link that can't work.
+
+People can also change their password on the new **Account** page (the email in the header links
+to it), without email.
+
+**The data choice and deleting an account:**
+
+1. **SQL Editor:** `migrations/20260929000900_account_basics.sql`.
+2. **Deploy** (no secrets; the person's token is checked inside):
+
+   ```
+   npx supabase functions deploy delete-account --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+3. **Merge with `accountTools: true`** in `assets/ryagram-config.js` (with your OK).
+
+What they do:
+- *Data you upload*: the person's default, *Store my data* unless they change it (spec 2B-6
+  wording). Uploads don't exist yet, so today it only records the default. From now on, the
+  database makes every version drawn from a *don't keep* dataset non-restorable at once, and a
+  dataset that wasn't kept can never be marked kept again.
+- *Delete your account*: typed-email confirmation. It is refused while a render is running.
+  Without credit history, it deletes the person's stored files (everything under their folder,
+  partial uploads included) and then their login, which removes every row they own. With credit
+  history, the ledger is an append-only financial record and restricts deletion, so the request
+  is recorded in `account_deletion_requests` for you to close by hand (QUESTIONS.md Q6). The
+  waitlist table is separate: an address there stays until you remove it.
+
+**Watch:** `select * from account_deletion_requests`.
+
 ## Kill switch
 
 Table Editor → `control` (one row):
@@ -81,7 +273,7 @@ Function using `service_role`) must grant its own access explicitly.
 
 Only the Project URL and the publishable key (`assets/ryagram-config.js`). The
 database decides everything else. Never put the secret/service_role key, the
-worker password or an Anthropic key in this repo; the repo is public.
+worker password, an Anthropic key or a Stripe key or signing secret in this repo; the repo is public.
 
 ## Acceptance test (2A-1), once the project is live
 

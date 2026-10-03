@@ -50,6 +50,58 @@
     return '';
   }
 
+  // Live progress from the worker's heartbeat (jobs.progress_detail, agreed with WORKER in the
+  // mailbox, 2026-10-03): the engine's stage, that stage's count, and its ETA. Every number is the
+  // STAGE's own -- drawing counts frames, checks count clips, encoding and the data build count
+  // nothing -- so the bar is per stage and says which stage it is. An estimated ETA reads "~".
+  const STAGES = {
+    starting: 'Building the data', drawing: 'Drawing frames', encoding: 'Encoding the film',
+    checks: 'Checking the film against its data', uploading: 'Uploading the files', done: 'Finishing'
+  };
+  const STAGE_ORDER = ['starting', 'drawing', 'encoding', 'checks', 'uploading'];
+
+  function duration(seconds) {
+    if (!(seconds >= 0)) return '';
+    if (seconds < 60) return 'under a minute';
+    const m = Math.round(seconds / 60);
+    if (m < 60) return `${m} min`;
+    const hrs = Math.floor(m / 60), rest = m % 60;
+    return rest ? `${hrs} h ${rest} min` : `${hrs} h`;
+  }
+
+  // { label, fraction (0..1, or null for a stage that counts nothing), detail, eta, elapsed, step }
+  function progressView(job, nowMs = Date.now()) {
+    if (!job || !['claimed', 'running', 'validating', 'uploading'].includes(job.state) || job.cancel_requested) return null;
+    const d = job.progress_detail && typeof job.progress_detail === 'object' ? job.progress_detail : null;
+    const started = job.started_at ? Date.parse(job.started_at) : NaN;
+    // Hidden past 12 h: no job runs that long (the worker stops them at 1.5 h), so it would be a clock problem.
+    const secs = (nowMs - started) / 1000;
+    const elapsed = Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? `${duration(secs)} so far` : '';
+    let stage = d && STAGES[d.stage] ? d.stage
+      : job.state === 'validating' ? 'checks' : job.state === 'uploading' ? 'uploading' : job.state === 'running' ? 'drawing' : 'starting';
+    const view = { stage, label: STAGES[stage], fraction: null, detail: '', eta: '', elapsed,
+                   step: STAGE_ORDER.includes(stage) ? `Step ${STAGE_ORDER.indexOf(stage) + 1} of ${STAGE_ORDER.length}` : '' };
+    if (d) {
+      const total = Number(d.total), done = Number(d.done);
+      if (d.total != null && total > 0 && done >= 0) {
+        view.fraction = Math.min(1, done / total);
+        const unit = (d.unit === 'clips' ? 'clip' : 'frame') + (total === 1 ? '' : 's');
+        view.detail = `${done.toLocaleString('en-US')} of ${total.toLocaleString('en-US')} ${unit}${d.total_is_provisional ? ' so far' : ''} (${Math.floor(view.fraction * 100)}%)`;
+      } else {
+        view.detail = 'No count for this step';
+      }
+      if (d.eta_s != null && Number(d.eta_s) >= 0 && view.fraction != null) {
+        const guess = d.eta_is_a_guess !== false;
+        // An estimate never claims "under a minute": it reads ~1 min at the least.
+        view.eta = guess ? `~${duration(Math.max(60, Number(d.eta_s)))} left in this step` : `${duration(Number(d.eta_s))} left in this step`;
+      }
+    } else if (stage === 'drawing' && job.progress != null) {
+      view.fraction = Math.min(1, Math.max(0, Number(job.progress)));       // older workers: drawing only
+      view.detail = `${Math.floor(view.fraction * 100)}% of frames drawn`;
+    }
+    return view;
+  }
+
   // Try again = submit a new job of the same kind. Offered only where a
   // repeat can help; gate, bad input, limit and timeout need a change first.
   function canRetry(job, versionState, jobs) {
@@ -62,18 +114,29 @@
                            && (isActive(j) || j.created_at > job.created_at));
   }
 
-  // The final render needs a finished contact sheet and preview of the story
-  // exactly as it is now (same story hash); approval is the person's click.
-  function ladder(jobs, storySha) {
-    const newest = type => jobs
+  // The final render needs a finished contact sheet and preview of the story exactly as
+  // it is now (same story hash), drawn by one engine version, and that version must still
+  // be the one the worker runs: an approval is of a picture, and the picture changes when
+  // the engine does. The database and the engine refuse otherwise; this only says why first.
+  // currentEngine is null when unknown (then only sheet vs preview is checked).
+  function ladder(jobs, storySha, currentEngine = null) {
+    const done = type => jobs
       .filter(j => j.job_type === type && j.state === 'complete' && j.story_sha256 === storySha)
-      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))[0] || null;
-    const sheet = newest('contact_sheet');
-    const preview = newest('preview');
+      .sort((a, b) => (a.created_at < b.created_at ? 1 : -1));
+    const sheets = done('contact_sheet');
+    const preview = done('preview')[0] || null;
+    const sheet = preview
+      ? sheets.find(s => s.engine_commit && s.engine_commit === preview.engine_commit) || null
+      : sheets[0] || null;
     let missing = null;
-    if (!sheet && !preview) missing = 'Make a contact sheet and a preview of this story first.';
-    else if (!sheet) missing = 'Make a contact sheet of this story first.';
+    if (!sheets.length && !preview) missing = 'Make a contact sheet and a preview of this story first.';
     else if (!preview) missing = 'Make a preview of this story first.';
+    else if (!preview.engine_commit) missing = 'This preview has no engine version recorded. Make a new preview.';
+    else if (!sheets.length) missing = 'Make a contact sheet of this story first.';
+    else if (!sheet) missing = 'The contact sheet and the preview were drawn by different versions of the engine. Make a new contact sheet so both match.';
+    else if (currentEngine && currentEngine !== preview.engine_commit) {
+      missing = 'Ryagram’s engine has been updated since this preview. Make a new contact sheet and preview, so you approve what the current engine draws.';
+    }
     return { sheet, preview, ready: !missing, missing };
   }
 
@@ -100,6 +163,6 @@
   }
 
   window.ryagramJobs = {
-    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, progressNote, canRetry, ladder, parsePeriods, parseWindow
+    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, progressNote, progressView, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();

@@ -17,7 +17,37 @@
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ...structuredClone(seed) };
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [],
+                 account_settings: [], ...structuredClone(seed) };
+    // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
+    const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
+    // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
+    if (ledger) {
+      const at = '2026-09-01T00:00:00Z';
+      db.credit_prices = db.credit_prices || [['pack_starter', 10, 1200, false], ['pack_maker', 28, 3000, false], ['pack_studio', 60, 6000, false],
+        ['sub_creator', 30, 2400, true], ['sub_pro', 100, 6900, true], ['final_map', 8, null, false]]
+        .map(([code, credits, price_cents, monthly]) => ({ price_version: '2026-09', code, credits, price_cents, monthly, effective_from: at }));
+      db.stripe_prices = db.stripe_prices || ['pack_starter', 'pack_maker', 'pack_studio', 'sub_creator', 'sub_pro']
+        .map(price_code => ({ price_code, mode: price_code.startsWith('sub_') ? 'subscription' : 'payment', active: true }));
+      db.stripe_subscriptions = db.stripe_subscriptions || [];
+    }
+    const WEBHOOK_DELAY_MS = seed.webhookDelayMs ?? 2000;
+    const VIEW_PRICE = { line: ['final_line', 6, 1], map: ['final_map', 8, 2], river: ['final_map', 8, 2], split: ['final_map', 8, 2],
+                         globe: ['final_paired', 10, 3], bars: ['final_paired', 10, 3], paired: ['final_paired', 10, 3], panel: ['final_paired', 10, 3] };
+    function quote(v, type) {
+      if (type === 'contact_sheet') return { price_code: 'contact_sheet', credits: 0, free_preview: false };
+      if (type === 'preview') {
+        const mine = db.jobs.filter(j => j.job_type === 'preview' && j.free_preview && !(j.state === 'failed' && j.error_class === 'infrastructure'));
+        const free = mine.filter(j => j.project_id === v.project_id).length < 6 && mine.length < 15;
+        return free ? { price_code: 'preview_free', credits: 0, free_preview: true } : { price_code: 'preview_extra', credits: 1, free_preview: false };
+      }
+      const renders = (v.story_spec?.sequence?.clips || []).filter(c => c.kind === 'render');
+      if (!renders.length) throw new Error('A final film needs at least one data view to be priced.');
+      const best = renders.map(c => VIEW_PRICE[c.view]).reduce((a, b) => (!b ? a : !a || b[2] > a[2] ? b : a), null);
+      if (!best) throw new Error(`Can't price a film with the view "${renders[0].view}".`);
+      return { price_code: best[0], credits: best[1], free_preview: false };
+    }
+    let engineCommit = 'e0a1b2c';                   // what the pretend worker runs
     const log = [];
     const channels = new Set();
     let n = 0;
@@ -31,8 +61,15 @@
         if (ch.table === table && (!ch.versionId || ch.versionId === row.version_id)) ch.callback({ new: structuredClone(row) });
       }
     }
-    // What the jobs trigger does: a final render's state shows on its version.
+    // What the jobs trigger does: a final render's state shows on its version; in 2B the
+    // ledger triggers capture or release the job's hold.
     function jobChanged(job) {
+      if (ledger && job.held && !job.captured && !job.released) {
+        if (job.state === 'complete') { job.captured = job.held; ledger.held -= job.held; }
+        else if (['failed', 'cancelled', 'editorial_action_required'].includes(job.state)) {
+          job.released = job.held; ledger.held -= job.held; ledger.available += job.held;
+        }
+      }
       if (job.job_type === 'final_render') {
         const v = db.versions.find(x => x.id === job.version_id);
         if (v) { v.state = VERSION_FROM_FINAL[job.state]; v.updated_at = now(); emit('versions', v); }
@@ -41,11 +78,24 @@
     }
 
     function query(table) {
+      if (table === 'credit_balances' || table === 'job_accounting') {
+        if (!ledger) return { select: () => ({ then: r => r({ data: null, error: { message: `relation ${table} does not exist` } }) }) };
+        const rows = () => table === 'credit_balances'
+          ? [{ pool: 'granted', available: ledger.available, held: ledger.held }]
+          : db.jobs.filter(j => 'credits_quoted' in j).map(j => ({ job_id: j.id, version_id: j.version_id, price_code: j.price_code,
+              credits_quoted: j.credits_quoted, free_preview: j.free_preview, held: j.held, captured: j.captured,
+              released: j.released, refunded: j.refunded }));
+        const filters = [];
+        const q = { select: () => q, eq: (c, v) => { filters.push(r => r[c] === v); return q; },
+                    then: (res, rej) => Promise.resolve({ data: structuredClone(rows().filter(r => filters.every(f => f(r)))), error: null }).then(res, rej) };
+        return q;
+      }
       const filters = [];
       let op = 'select', payload = null, single = false, order = null;
       const q = {
         select() { return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
+        upsert(row) { op = 'upsert'; payload = row; return q; },         // one row per person (account_settings)
         update(row) { op = 'update'; payload = row; return q; },
         eq(col, val) { filters.push(r => r[col] === val); return q; },
         in(col, vals) { filters.push(r => vals.includes(r[col])); return q; },
@@ -58,7 +108,11 @@
         log.push({ table, op, payload });
         const rows = db[table];
         let result;
-        if (op === 'insert') {
+        if (op === 'upsert') {
+          if (!rows.length) rows.push({ owner_id: 'u-ryan' });
+          Object.assign(rows[0], payload, { updated_at: now() });
+          result = [rows[0]];
+        } else if (op === 'insert') {
           const row = { id: id(), created_at: now(), updated_at: now(), archived_at: null, ...payload };
           if (table === 'projects' && !(row.title && row.title.length <= 200)) return fail('new row violates check constraint');
           rows.push(row);
@@ -95,6 +149,12 @@
     }
 
     const rpcs = {
+      film_unpublish({ p_version }) {
+        const page = db.film_pages.find(p => p.version_id === p_version);
+        if (!page) return fail('No public page for that film.');
+        page.published = false;
+        return { data: null, error: null };
+      },
       create_version(args) {
         const project = db.projects.find(p => p.id === args.p_project_id && !p.archived_at);
         if (!project) return fail('Project not found.');
@@ -125,17 +185,37 @@
         const allowed = { contact_sheet: ['periods'], preview: ['window_s'], final_render: [] }[type];
         const bad = Object.keys(params).find(k => !allowed.includes(k));
         if (bad) return fail(`Unknown parameter "${bad}" for ${type}.`);
+        if (type === 'preview' && !params.window_s) {
+          return fail('A preview needs window_s: [start, end] in seconds, at most 10 seconds long.');
+        }
         if (db.jobs.some(j => j.version_id === v.id && j.job_type === type && ACTIVE.includes(j.state))) {
           return fail(`A ${type} job for this version is already in progress.`);
         }
         const done = (jobId, jobType) => db.jobs.find(j => j.id === jobId && j.job_type === jobType && j.state === 'complete'
                                                          && j.version_id === v.id && j.story_sha256 === v.story_sha256);
-        if (type === 'final_render' && !(done(args.p_sheet_job_id, 'contact_sheet') && done(args.p_preview_job_id, 'preview'))) {
-          return fail('The contact sheet and preview must both be complete for this exact story.');
+        const sheet = type === 'final_render' && done(args.p_sheet_job_id, 'contact_sheet');
+        const preview = type === 'final_render' && done(args.p_preview_job_id, 'preview');
+        if (type === 'final_render' && preview && !preview.engine_commit) {
+          return fail('The preview has no engine version recorded. Make a new preview first.');
+        }
+        if (type === 'final_render' && !(sheet && preview && sheet.engine_commit === preview.engine_commit)) {
+          return fail('The contact sheet and preview must both be complete, for this exact story, from the same engine version.');
+        }
+        let price = null;
+        if (ledger) {
+          try { price = quote(v, type); } catch (e) { return fail(e.message); }
+          if (price.credits > 0 && ledger.available < price.credits) {
+            return fail(`Not enough credits: this needs ${price.credits}, and ${Math.max(0, ledger.available)} are available.`);
+          }
+          ledger.available -= price.credits;
+          ledger.held += price.credits;
         }
         const job = {
+          ...(price ? { price_code: price.price_code, credits_quoted: price.credits, free_preview: price.free_preview,
+                        held: price.credits, captured: 0, released: 0, refunded: 0 } : {}),
           id: id(), version_id: v.id, project_id: v.project_id, owner_id: user.id, job_type: type, state: 'queued',
           attempt: 1, params, story_sha256: v.story_sha256,
+          engine_commit: null, ladder_engine_commit: type === 'final_render' ? preview.engine_commit : null,
           sheet_job_id: type === 'final_render' ? args.p_sheet_job_id : null,
           preview_job_id: type === 'final_render' ? args.p_preview_job_id : null,
           cancel_requested: false, error_class: null, error_code: null, error_detail: null,
@@ -156,6 +236,19 @@
         return { data: structuredClone(j), error: null };
       },
 
+      credit_quote(args) {
+        if (!ledger) return fail('function credit_quote does not exist');
+        const v = db.versions.find(x => x.id === args.p_version_id);
+        if (!v) return fail('Version not found.');
+        try { return { data: [{ ...quote(v, args.p_job_type), available: ledger.available }], error: null }; }
+        catch (e) { return fail(e.message); }
+      },
+
+      current_engine_commit() {
+        const ran = db.jobs.filter(j => j.engine_commit && j.started_at).sort((a, b) => (a.started_at < b.started_at ? 1 : -1));
+        return { data: ran[0] ? ran[0].engine_commit : null, error: null };
+      },
+
       queue_position(args) {
         const j = db.jobs.find(x => x.id === args.p_job_id);
         if (!j || j.state !== 'queued') return { data: null, error: null };
@@ -168,6 +261,8 @@
     const authListeners = new Set();
     const client = {
       db, log, jobChanged, now, newId: id,
+      get engineCommit() { return engineCommit; },
+      set engineCommit(c) { engineCommit = c; },
       from: query,
       async rpc(name, args) {
         log.push({ rpc: name, args });
@@ -187,6 +282,66 @@
         };
       },
       removeChannel(handle) { channels.delete(handle._ch); },
+      // Mock AI editor: answers in plain text and records the conversation, no model involved.
+      functions: {
+        async invoke(name, { body }) {
+          log.push({ fn: name, body });
+          if (name === 'delete-account') {
+            if ((body.confirm_email || '').trim().toLowerCase() !== (session?.user?.email || '').toLowerCase()) {
+              return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Type your account’s email address exactly to confirm.' }) } } };
+            }
+            if (db.jobs.some(j => ACTIVE.includes(j.state))) {
+              return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'A render is still running. Cancel it or let it finish, then try again.' }) } } };
+            }
+            if (ledger && db.jobs.some(j => j.credits_quoted > 0)) {
+              return { data: { status: 'requested', message: 'Your account has credit history, which is kept as a financial record. Your request is recorded, and your account and files will be deleted by hand within 30 days.' }, error: null };
+            }
+            for (const t of ['projects', 'versions', 'artifacts', 'jobs', 'film_pages', 'account_settings', 'ai_sessions', 'ai_messages']) db[t].length = 0;
+            return { data: { status: 'deleted', files_removed: 0 }, error: null };
+          }
+          if (name === 'film-page') {
+            // Mock publish: the summary comes from the sample page; the link opens /film/?mock.
+            const v = db.versions.find(x => x.id === body.version_id);
+            const err = text => ({ data: null, error: { message: 'x', context: { json: async () => ({ error: text }) } } });
+            if (!v) return err('Version not found.');
+            if (v.state !== 'complete') return err('Only a finished film can have a public page.');
+            let page = db.film_pages.find(p => p.version_id === v.id);
+            if (!page) {
+              page = { version_id: v.id, slug: `Mock${id().replace(/-/g, '')}`.slice(0, 22), published_at: now() };
+              db.film_pages.push(page);
+            }
+            Object.assign(page, { title: body.title || 'Obesity and fast food (mock)', published: true });
+            return { data: { slug: page.slug, url: `/film/?mock&s=${page.slug}` }, error: null };
+          }
+          if (name === 'stripe-checkout' && ledger) {
+            // Mock Stripe: no checkout page. The "webhook" grants the credits a moment later.
+            if (body.action === 'portal') {
+              if (!db.stripe_subscriptions.length) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'There’s no plan or purchase to manage yet.' }) } } };
+              for (const sub of db.stripe_subscriptions) sub.cancel_at_period_end = !sub.cancel_at_period_end;
+              return { data: { url: '#/credits' }, error: null };
+            }
+            const offer = db.credit_prices.find(p => p.code === body.price_code && p.price_cents != null);
+            if (!offer) return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'That isn’t on sale.' }) } } };
+            if (offer.monthly) {
+              if (db.stripe_subscriptions.some(x => x.status === 'active')) {
+                return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'You already have a plan. Use Manage plan to change or cancel it.' }) } } };
+              }
+              db.stripe_subscriptions.push({ subscription_id: `sub_${id()}`, price_code: offer.code, status: 'active',
+                current_period_end: new Date(Date.now() + 30 * 864e5).toISOString(), cancel_at_period_end: false });
+            }
+            setTimeout(() => { ledger.available += offer.credits; }, WEBHOOK_DELAY_MS);
+            return { data: { url: `#/credits?paid=${offer.code}` }, error: null };
+          }
+          if (name !== 'ai-editor') return { data: null, error: { message: 'no such function', context: { json: async () => ({}) } } };
+          let aiSession = db.ai_sessions.find(s => s.version_id === body.version_id);
+          if (!aiSession) { aiSession = { id: id(), version_id: body.version_id }; db.ai_sessions.push(aiSession); }
+          const reply = `(mock editor) You said: ${body.message}. In the real editor, Claude would edit the story or start a sheet here.`;
+          for (const [role, content] of [['user', body.message], ['assistant', reply]]) {
+            db.ai_messages.push({ id: id(), session_id: aiSession.id, role, content, created_at: now() });
+          }
+          return { data: { reply, actions: [], escalated: false, tool_calls: 0 }, error: null };
+        }
+      },
       storage: {
         from(bucket) {
           return {
@@ -211,6 +366,19 @@
           session = { user: { id: 'u-ryan', email } };
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { error: null };
+        },
+        async resetPasswordForEmail(email, options) { log.push({ reset: email, options }); return { data: {}, error: null }; },
+        async verifyOtp({ token_hash, type }) {
+          if (type !== 'recovery' || token_hash !== 'mock-reset-token') return { error: { message: 'Token has expired or is invalid' } };
+          session = { user: { id: 'u-ryan', email: 'ryan@example.com' } };
+          for (const cb of authListeners) cb('SIGNED_IN', session);
+          return { data: { session }, error: null };
+        },
+        async updateUser({ password }) {
+          if (!session) return { error: { message: 'Auth session missing!' } };
+          if (!password || password.length < 10) return { error: { message: 'Password should be at least 10 characters.' } };
+          log.push({ passwordChanged: true });
+          return { data: { user: session.user }, error: null };
         },
         async signOut() { session = null; for (const cb of authListeners) cb('SIGNED_OUT', null); return { error: null }; }
       }

@@ -87,13 +87,16 @@ class Ledger(unittest.TestCase):
         return vid
 
     def submit(self, vid, kind, *ladder, who=RYAN):
-        args = (vid, kind, "{}", *ladder) if ladder else (vid, kind)
-        sql = "select id from submit_job(%s, %s, %s, %s, %s)" if ladder else "select id from submit_job(%s, %s)"
+        params = '{"window_s": [0, 10]}' if kind == "preview" else "{}"
+        args = (vid, kind, params, *ladder) if ladder else (vid, kind, params)
+        sql = "select id from submit_job(%s, %s, %s, %s, %s)" if ladder else "select id from submit_job(%s, %s, %s)"
         return self.db.as_(who).one(sql, *args)
 
     def settle(self, job, state, error_class=None):
-        self.admin("update jobs set state = %s, error_class = %s, ended_at = now() where id = %s returning 1",
-                   state, error_class, job)
+        # A completed job records the engine commit it ran on, as the worker does.
+        self.admin("update jobs set state = %s, error_class = %s, ended_at = now(), "
+                   "engine_commit = case when %s = 'complete' then coalesce(engine_commit, 'abc1234') else engine_commit end "
+                   "where id = %s returning 1", state, error_class, state, job)
 
     def final(self, *views, grant=None, title_only=False, dataset="test_standard"):
         """A version with a completed sheet and preview, and its final render submitted."""
@@ -175,7 +178,7 @@ class Ledger(unittest.TestCase):
         jobs = []
         for _ in range(6):
             job = self.submit(vid, "preview"); self.settle(job, "complete"); jobs.append(job)
-        self.denied(RYAN, "select submit_job(%s, 'preview')", vid)          # 7th: no credits to hold
+        self.denied(RYAN, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)          # 7th: no credits to hold
         self.settle(jobs[0], "failed", "infrastructure")                    # render machine's fault
         job = self.submit(vid, "preview")                                   # so one free preview comes back
         self.assertTrue(self.admin("select free_preview from jobs where id = %s", job))
@@ -187,7 +190,7 @@ class Ledger(unittest.TestCase):
         self.assertEqual(self.admin("select count(*) from jobs where free_preview and job_type = 'preview' "
                                     "and not (state = 'failed' and error_class = 'infrastructure')"), 15)
         v3 = self.version()
-        self.denied(RYAN, "select submit_job(%s, 'preview')", v3)           # 16th in 24 h: not free
+        self.denied(RYAN, "select submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", v3)           # 16th in 24 h: not free
         self.admin("update jobs set created_at = now() - interval '25 hours' returning 1")
         self.assertTrue(self.admin("select free_preview from jobs where id = %s", self.submit(v3, "preview")))
 
@@ -259,6 +262,16 @@ class Ledger(unittest.TestCase):
             with self.assertRaises(psycopg.Error) as err:
                 self.final("map", dataset=dataset)
             self.assertIn(message, str(err.exception), dataset)
+
+    def test_cbp_sector_datasets_are_standard_and_priced_by_view(self):
+        self.assertEqual(self.admin("select count(*) from credit_dataset_shapes where dataset like 'cbp\_%%' "
+                                    "and noted_by like 'Ryan 2026-10-03%%' and shape = 'standard'"), 72)
+        for name in ("cbp_manufacturing_share_state", "cbp_manufacturing_share", "cbp_retail_employment",
+                     "cbp_accommodation_food_establishments", "cbp_other_services_share_state"):
+            self.assertEqual(self.admin("select shape from credit_dataset_shapes where dataset = %s", name), "standard", name)
+        self.grant(100)
+        _, job = self.final("bars", dataset="cbp_manufacturing_share_state")    # the state share bar race
+        self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", job), 10)
 
     # -- Test 9: a gate failure releases the hold and returns the version to its editorial step
     def test_gate_failure_releases(self):

@@ -11,7 +11,8 @@ function el(extra = {}) {
 }
 
 function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'sb_publishable_x' }, signIn, library = true,
-                  location = { hostname: 'uselai.com', search: '' } } = {}) {
+                  location = { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/', origin: 'https://uselai.com' },
+                  verifyOtp, updateUser, resetPassword } = {}) {
   const listeners = {};
   const button = el();
   const form = {
@@ -21,30 +22,50 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     addEventListener(type, fn) { listeners.submit = fn; }
   };
   const signOut = el({ addEventListener(type, fn) { listeners.signOut = fn; } });
+  // "Forgot your password?" and the reset-link forms.
+  const miniForm = (name, fields) => {
+    const b = el();
+    return { hidden: true, elements: fields, reportValidity: () => true, querySelector: () => b, button: b,
+             addEventListener(type, fn) { listeners[name] = fn; } };
+  };
+  const resetForm = miniForm('reset', { email: { value: '', focus() {} } });
+  const setForm = miniForm('setPassword', { password: { value: '' }, again: { value: '' } });
+  const forgot = el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(type, fn) { listeners.forgot = fn; } });
   const appended = [];
   const els = {
     'app-status': el(), 'sign-in': el(), library: el(), account: el(), 'sign-in-form': form,
-    'sign-in-error': el(), 'account-email': el(), 'sign-out': signOut
+    'sign-in-error': el(), 'account-email': el(), 'sign-out': signOut,
+    forgot, 'reset-form': resetForm, 'reset-note': el(), 'set-password': el(), 'set-password-form': setForm,
+    'set-password-error': el(), 'set-password-title': el(), 'forgot-row': el()
   };
-  const calls = { created: null, signIn: [], signOut: 0, mounts: 0, unmounts: 0 };
+  const calls = { created: null, signIn: [], signOut: 0, mounts: 0, unmounts: 0, verify: [], update: [], reset: [], replaced: [] };
   let authListener;
   const client = {
     auth: {
       onAuthStateChange(fn) { authListener = fn; },
       signInWithPassword: async creds => { calls.signIn.push(creds); return signIn ? signIn(creds) : { error: null }; },
-      signOut: async () => { calls.signOut++; }
+      signOut: async () => { calls.signOut++; },
+      verifyOtp: async args => { calls.verify.push(args); return verifyOtp ? verifyOtp(args) : { error: null }; },
+      updateUser: async args => { calls.update.push(args); return updateUser ? updateUser(args) : { error: null }; },
+      resetPasswordForEmail: async (email, opts) => { calls.reset.push({ email, opts }); return resetPassword ? resetPassword() : { error: null }; },
+      getSession: async () => ({ data: { session: { user: { email: 'ryan@example.com' } } } })
     }
   };
+  const history = { replaceState: (a, b, url) => { calls.replaced.push(url); } };
   const window = {
     ryagramConfig: config,
     ryagramData: c => ({ client: c }),
     ryagramLibrary: { mount(root, data) { calls.mounts++; calls.mountedWith = { root, data }; return () => { calls.unmounts++; }; } }
   };
   if (library) window.supabase = { createClient: (url, key, opts) => { calls.created = { url, key, opts }; return client; } };
-  vm.runInNewContext(code, { document: { getElementById: id => els[id], createElement: () => ({}), body: { append: x => appended.push(x) } }, window, location, URLSearchParams, setTimeout: fn => fn() });
+  vm.runInNewContext(code, { document: { getElementById: id => els[id], createElement: () => ({}), body: { append: x => appended.push(x) } }, window,
+                            location: { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location }, history, URLSearchParams, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
   return { els, button, calls, window, appended, emit: async s => { authListener('X', s); await flush(); },
-           submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut() };
+           submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut(),
+           forgot: () => listeners.forgot(), resetForm, setForm,
+           requestReset: () => listeners.reset({ preventDefault() {} }), savePassword: () => listeners.setPassword({ preventDefault() {} }),
+           flush };
 }
 
 test('the page only ever uses the public URL and publishable key', () => {
@@ -119,4 +140,52 @@ test('mock mode loads only on this computer, never on the public site', () => {
   const local = harness({ location: { hostname: '127.0.0.1', search: '?mock' } });
   assert.equal(local.appended[0].src, '/tests/fake-supabase.js');
   assert.equal(local.calls.created, null);
+});
+
+test('forgot password: hidden until the reset email is set up', () => {
+  assert.equal(harness().els['forgot-row'].hidden, true);
+  assert.equal(harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', passwordReset: true } }).els['forgot-row'].hidden, false);
+});
+
+test('forgot password: one answer whether or not the account exists, back to /app/', async () => {
+  const h = harness();
+  h.forgot();
+  assert.equal(h.resetForm.hidden, false);
+  h.resetForm.elements.email.value = ' someone@example.com ';
+  await h.requestReset();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.reset)), [{ email: 'someone@example.com', opts: { redirectTo: 'https://uselai.com/app/' } }]);
+  assert.match(h.els['reset-note'].textContent, /If that email has a Ryagram account/);
+  const limited = harness({ resetPassword: () => ({ error: { status: 429 } }) });
+  await limited.requestReset();
+  assert.match(limited.els['reset-note'].textContent, /Too many/);
+});
+
+test('a reset link: token leaves the address bar, is checked once, and a new password comes before the library', async () => {
+  const h = harness({ location: { hostname: 'uselai.com', search: '?reset=abcDEF123_-xyz', hash: '#/' } });
+  assert.deepEqual(h.calls.replaced, ['/app/#/']);                                  // token gone from the URL at once
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.verify)), [{ token_hash: 'abcDEF123_-xyz', type: 'recovery' }]);
+  await h.emit({ user: { email: 'ryan@example.com' } });                            // signed in by the link
+  assert.equal(h.els['set-password'].hidden, false);
+  assert.equal(h.els.library.hidden, true);
+  assert.equal(h.calls.mounts, 0);
+  h.setForm.elements.password.value = 'a-long-new-password';
+  h.setForm.elements.again.value = 'something-else';
+  await h.savePassword();
+  assert.match(h.els['set-password-error'].textContent, /don’t match/);
+  assert.equal(h.calls.update.length, 0);
+  h.setForm.elements.again.value = 'a-long-new-password';
+  await h.savePassword();
+  await h.flush();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.update)), [{ password: 'a-long-new-password' }]);
+  assert.equal(h.els['set-password'].hidden, true);
+  assert.equal(h.els.library.hidden, false);
+  assert.match(h.els['app-status'].textContent, /new password is saved/);
+  assert.equal(h.setForm.elements.password.value, '');
+
+  const stale = harness({ location: { hostname: 'uselai.com', search: '?reset=expiredtoken123' }, verifyOtp: () => ({ error: { message: 'expired' } }) });
+  await stale.flush();
+  assert.match(stale.els['app-status'].textContent, /expired or was already used/);
+  const junk = harness({ location: { hostname: 'uselai.com', search: '?reset=<script>' } });
+  assert.equal(junk.calls.verify.length, 0);                                         // not a token: ignored, still removed
+  assert.equal(junk.calls.replaced.length, 1);
 });
