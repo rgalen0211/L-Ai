@@ -90,6 +90,15 @@ class Waitlist(Base):
             ("a@b.co", "films", "uselai.com/ryagram"))
         self.assertEqual(self.db.as_(None).one("select count(*) from public.ryagram_waitlist"), 1)
 
+    def test_film_link_sources_fit_the_column(self):
+        # What assets/ryagram.js sends from a film's link: the utm tags, at most 100 characters.
+        for i, source in enumerate(("uselai.com/ryagram?utm_source=youtube&utm_campaign=r002-industry-story",
+                                    "uselai.com/ryagram?utm_source=" + "a" * 40 + "&utm_medium=" + "b" * 40)[:2]):
+            source = source[:100]
+            self.db.as_("anon").c.execute("insert into public.ryagram_waitlist (email, source) values (%s, %s)",
+                                          (f"s{i}@b.co", source))
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.ryagram_waitlist where source like '%%utm_source%%'"), 2)
+
     def test_signed_in_can_join(self):
         self.db.as_(RYAN).c.execute("insert into public.ryagram_waitlist (email) values (%s)", ("r@b.co",))
 
