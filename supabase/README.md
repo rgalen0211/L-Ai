@@ -34,6 +34,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 12. `migrations/20261003000100_job_progress_detail.sql` (live render progress; the worker's
    4-argument heartbeat needs it)
 13. `migrations/20261003000200_invite_codes.sql` (beta invite codes; see "Beta invites")
+14. `migrations/20261003000300_admin_waitlist_by_film.sql` (your "Waitlist by film" counts; see
+   "Waitlist by film")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -316,6 +318,23 @@ the answer never says whether an email already has an account.
    select email, status, created_at from public.invite_redemptions order by created_at desc;  -- who joined
    ```
    A person can type the code with or without `RYA-`, in any case, with spaces.
+
+## Waitlist by film (branch admin-waitlist): admin-only counts
+
+A signed-in page for you only, `#/admin/waitlist` (a "Waitlist by film" link appears on your
+projects page): signups per film link (`utm_campaign`), by day in New York time, for the last 30
+days, 90 days or year. **Counts only**: the page never receives an email address.
+
+The waitlist itself stays insert-only for everyone. The one new read path is
+`waitlist_by_film(days, tz)`, which returns only (day, campaign, utm_source, signups) and only to an
+account in `app_admins`; anyone else gets "permission denied". `app_admins` is seeded with the
+account whose email is ryan.galen@uselai.com when the SQL runs; nobody can add themselves, and no
+role can read or change it over the API.
+
+1. **SQL Editor:** `migrations/20261003000300_admin_waitlist_by_film.sql`. If you haven't signed in
+   to /app/ with ryan.galen@uselai.com yet, the seed finds no account and adds nobody; then run
+   the `insert into public.app_admins ...` line from the file's header after signing up.
+2. Merge (with your OK). No function to deploy and no secrets.
 
 ## Kill switch
 

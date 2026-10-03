@@ -227,6 +227,16 @@
       },
       signOut() { return client.auth.signOut(); },
 
+      // Ryan's admin view: is this account an admin (false if the SQL isn't applied), and the
+      // waitlist COUNTS per film link per day (the function refuses everyone else).
+      async isAppAdmin() {
+        const { data, error } = await client.rpc('is_app_admin');
+        return !error && data === true;
+      },
+      waitlistByFilm(days) {
+        return run(client.rpc('waitlist_by_film', { p_days: days }), 'Couldn\u2019t load the waitlist counts.');
+      },
+
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
       // which builds the page's sources from the receipt; stopping is a plain RPC.
       async filmPage(versionId) {

@@ -149,6 +149,17 @@
     }
 
     const rpcs = {
+      // Mock: the mock user is an admin; three films' worth of made-up signup counts.
+      is_app_admin() { return { data: true, error: null }; },
+      waitlist_by_film({ p_days }) {
+        const rows = [
+          ['2026-10-03', 'r002-industry-story', 'youtube', 3], ['2026-10-03', null, null, 1],
+          ['2026-10-02', 'housing-supply-story', 'youtube', 2], ['2026-10-02', 'r002-industry-story', 'youtube', 1],
+          ['2026-09-20', 'obesity-fastfood-story', 'youtube', 4], ['2026-07-01', 'housing-supply-story', 'youtube', 5]];
+        const since = Date.parse('2026-10-03T00:00:00Z') - p_days * 864e5;
+        return { data: rows.filter(r => Date.parse(r[0]) > since)
+                   .map(([day, campaign, utm_source, signups]) => ({ day, campaign, utm_source, signups })), error: null };
+      },
       film_unpublish({ p_version }) {
         const page = db.film_pages.find(p => p.version_id === p_version);
         if (!page) return fail('No public page for that film.');
