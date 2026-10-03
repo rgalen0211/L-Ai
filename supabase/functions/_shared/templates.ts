@@ -47,6 +47,9 @@ export const TEMPLATES = [
     datasets: ["bls_state_unemployment"], settings: { top_n: 10, axis: "fixed" }, confirmed: true },
   { id: "paired", view: "paired", label: "Paired", blurb: "A map and a bar race side by side, one timeline.",
     datasets: ["state_obesity_fastfood"], settings: undefined, confirmed: true },
+  { id: "highest", view: "line", label: "Highest", blurb: "The six states with the highest values, year by year.",
+    headline: "The states with the highest adult obesity",
+    datasets: ["state_obesity_fastfood"], settings: { line_top_n: 6 }, confirmed: true },
   { id: "sector", view: "bars", label: "Industry", blurb: "Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.",
     datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10 }, confirmed: false },
 ];
@@ -78,7 +81,8 @@ export function build(templateId: string, datasetId: string, headline: unknown) 
   if (!t) throw new Error("Unknown template.");
   if (!t.datasets.includes(datasetId)) throw new Error("That dataset isn’t offered for this template.");
   const d = DATASETS[datasetId];
-  const title = cleanText(headline, 160) || cleanText(d.headline, 160) || cleanText(d.label, 160);
+  const title = cleanText(headline, 160) || cleanText((t as { headline?: string }).headline, 160) || cleanText(d.headline, 160)
+    || cleanText(d.label, 160);
   const render: Record<string, unknown> = { kind: "render", id: "main", dataset: datasetId, view: t.view, start: d.start, end: d.end,
                                             transition: { kind: "crossfade", seconds: 0.6 } };
   if (t.settings) render.settings = { ...t.settings };
