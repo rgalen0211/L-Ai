@@ -5,9 +5,32 @@ const vm = require('node:vm');
 const path = require('node:path');
 const code = fs.readFileSync(path.join(__dirname, '../assets/ryagram.js'), 'utf8');
 
-function slot(youtube) {
-  const frame = { replaceChildren(child) { this.child = child; } };
-  return { dataset: { youtube, title: 'Test film' }, classList: { add(name) { this.added = name; } }, querySelector: () => frame, frame };
+// A minimal stand-in for a DOM element: enough to build the film facade and click it.
+function element(tag) {
+  return {
+    tag, children: [], attrs: {}, listeners: {},
+    setAttribute(name, value) { this.attrs[name] = value; },
+    addEventListener(type, fn, options) { (this.listeners[type] = this.listeners[type] || []).push({ fn, once: Boolean(options && options.once) }); },
+    append(...nodes) { this.children.push(...nodes); },
+    replaceChildren(...nodes) { this.children = nodes; },
+    focus() { this.focused = true; },
+    // Like a browser: handlers added with { once: true } are removed after they run.
+    fire(type) {
+      const handlers = this.listeners[type] || [];
+      this.listeners[type] = handlers.filter(handler => !handler.once);
+      handlers.forEach(handler => handler.fn({ target: this }));
+    }
+  };
+}
+
+function slot(youtube, title = 'Test film') {
+  const frame = element('div');
+  return { dataset: { youtube, title }, classList: { add(name) { this.added = name; } }, querySelector: () => frame, frame };
+}
+
+function walk(node, visit) {
+  visit(node);
+  (node.children || []).forEach(child => walk(child, visit));
 }
 
 function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test' }, slots = [], website = '', useCase = '  ' } = {}) {
@@ -23,18 +46,24 @@ function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { s
     setAttribute() {}, removeAttribute() {}
   };
   const requests = [];
+  const created = [];
   vm.runInNewContext(code, {
     document: {
       getElementById: id => ({ 'waitlist-form': form, 'waitlist-status': status })[id],
       querySelectorAll: () => slots,
-      createElement: () => ({})
+      createElement: tag => { const node = element(tag); created.push(node); return node; }
     },
     window: { ryagramConfig: config },
     fetch: (url, options) => { requests.push({ url, options }); return fetch(url, options); },
     URL, AbortController, setTimeout, clearTimeout
   });
-  return { button, fields, status, requests, submit: () => listeners.submit({ preventDefault() {} }) };
+  return { button, fields, status, requests, created, submit: () => listeners.submit({ preventDefault() {} }) };
 }
+
+// The film slots exactly as shipped in ryagram/index.html, so these tests cover the real page.
+const pageHtml = fs.readFileSync(path.join(__dirname, '../ryagram/index.html'), 'utf8');
+const shippedSlots = [...pageHtml.matchAll(/<article class="film-slot" data-youtube="([^"]*)" data-title="([^"]*)"/g)]
+  .map(([, youtube, title]) => ({ youtube, title }));
 
 test('film slots accept YouTube links or IDs and ignore anything else', () => {
   const cases = [
@@ -48,12 +77,116 @@ test('film slots accept YouTube links or IDs and ignore anything else', () => {
   const slots = cases.map(([value]) => slot(value));
   harness({ slots });
   cases.forEach(([, id], i) => {
-    const child = slots[i].frame.child;
+    const holder = slots[i].frame;
     if (id) {
-      assert.equal(child.src, `https://www.youtube-nocookie.com/embed/${id}`);
+      // A valid slot becomes a facade (button + thumbnail), never an iframe, until clicked.
+      assert.equal(holder.children.length, 1);
+      assert.equal(holder.children[0].tag, 'button');
+      assert.match(holder.children[0].children[0].src, new RegExp(`^https://i\\.ytimg\\.com/vi/${id}/`));
       assert.equal(slots[i].classList.added, 'is-live');
-    } else assert.equal(child, undefined);
+    } else assert.equal(holder.children.length, 0);
   });
+});
+
+test('the shipped page has films 1 and 2 filled and film 3 still coming soon', () => {
+  assert.equal(shippedSlots.length, 3);
+  assert.equal(shippedSlots[0].youtube, 'https://youtu.be/6Vgfp4WzHh4');
+  assert.equal(shippedSlots[1].youtube, 'https://youtu.be/h32_9Gd8cOg');
+  assert.equal(shippedSlots[2].youtube, '');
+  assert.match(pageHtml, /<article class="film-slot" data-youtube="" data-title="Ryagram film 3"><div class="film-frame"><span>Coming soon<\/span><\/div><h3>Film 3<\/h3><\/article>/);
+});
+
+test('before a click there is no YouTube iframe or script, in the markup or in the DOM the script builds', () => {
+  // Static markup: nothing but our own scripts, and no iframe at all.
+  assert.doesNotMatch(pageHtml, /<iframe/i);
+  const scripts = [...pageHtml.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map(m => m[1]);
+  for (const src of scripts) assert.doesNotMatch(src, /youtube|ytimg|google/i);
+  assert.doesNotMatch(pageHtml, /iframe_api|youtube\.com\/embed/i);
+
+  // After ryagram.js has run over the real slots: facades only.
+  const slots = shippedSlots.map(s => slot(s.youtube, s.title));
+  const h = harness({ slots });
+  assert.ok(!h.created.some(node => node.tag === 'iframe' || node.tag === 'script'));
+  slots.forEach(s => walk(s.frame, node => assert.ok(node.tag !== 'iframe' && node.tag !== 'script')));
+  assert.equal(slots[0].frame.children[0].tag, 'button');
+  assert.equal(slots[1].frame.children[0].tag, 'button');
+  assert.equal(slots[2].frame.children.length, 0);
+});
+
+test('the play control is a real button with an accessible name and a decorative thumbnail', () => {
+  const slots = [slot('https://youtu.be/6Vgfp4WzHh4', 'America Never Started Building Again')];
+  harness({ slots });
+  const button = slots[0].frame.children[0];
+  assert.equal(button.tag, 'button');
+  assert.equal(button.type, 'button');
+  assert.equal(button.attrs['aria-label'], 'Play video: America Never Started Building Again');
+  const [poster, icon] = button.children;
+  assert.equal(poster.tag, 'img');
+  assert.equal(poster.alt, '');
+  assert.equal(icon.attrs['aria-hidden'], 'true');
+});
+
+test('a click loads the right video in a youtube-nocookie iframe, with sound left on', () => {
+  for (const [link, id] of [['https://youtu.be/6Vgfp4WzHh4', '6Vgfp4WzHh4'], ['https://youtu.be/h32_9Gd8cOg', 'h32_9Gd8cOg']]) {
+    const s = slot(link, 'A film');
+    const h = harness({ slots: [s] });
+    assert.ok(!h.created.some(node => node.tag === 'iframe'));
+    s.frame.children[0].fire('click');
+    const frames = h.created.filter(node => node.tag === 'iframe');
+    assert.equal(frames.length, 1);
+    const [frame] = frames;
+    assert.equal(frame.src, `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1`);
+    assert.doesNotMatch(frame.src, /mute/);
+    assert.equal(frame.title, 'A film');
+    assert.match(frame.allow, /autoplay/);
+    assert.equal(frame.allowFullscreen, true);
+    assert.deepEqual(s.frame.children, [frame]);
+    assert.equal(frame.focused, true);
+  }
+});
+
+test('clicking twice never creates a second iframe', () => {
+  const s = slot('https://youtu.be/6Vgfp4WzHh4');
+  const h = harness({ slots: [s] });
+  const button = s.frame.children[0];
+  button.fire('click');
+  button.fire('click');
+  assert.equal(h.created.filter(node => node.tag === 'iframe').length, 1);
+});
+
+test('the thumbnail is YouTube’s maxres image and falls back to hqdefault once', () => {
+  const s = slot('https://youtu.be/h32_9Gd8cOg');
+  harness({ slots: [s] });
+  const poster = s.frame.children[0].children[0];
+  assert.equal(poster.src, 'https://i.ytimg.com/vi/h32_9Gd8cOg/maxresdefault.jpg');
+  poster.fire('error');
+  assert.equal(poster.src, 'https://i.ytimg.com/vi/h32_9Gd8cOg/hqdefault.jpg');
+  poster.src = 'sentinel';
+  poster.fire('error');
+  assert.equal(poster.src, 'sentinel');
+
+  // A missing maxres can also arrive as a tiny placeholder image that loads "successfully".
+  const t = slot('https://youtu.be/h32_9Gd8cOg');
+  harness({ slots: [t] });
+  const tiny = t.frame.children[0].children[0];
+  tiny.naturalWidth = 120;
+  tiny.fire('load');
+  assert.equal(tiny.src, 'https://i.ytimg.com/vi/h32_9Gd8cOg/hqdefault.jpg');
+  const good = slot('https://youtu.be/h32_9Gd8cOg');
+  harness({ slots: [good] });
+  const real = good.frame.children[0].children[0];
+  real.naturalWidth = 1280;
+  real.fire('load');
+  assert.equal(real.src, 'https://i.ytimg.com/vi/h32_9Gd8cOg/maxresdefault.jpg');
+});
+
+test('the page policy lets YouTube thumbnails and the nocookie frame through, and no YouTube script', () => {
+  const csp = Object.fromEntries(pageHtml.match(/Content-Security-Policy" content="([^"]+)"/)[1]
+    .split(';').map(part => part.trim().split(/\s+/)).filter(parts => parts[0]).map(([name, ...sources]) => [name, sources]));
+  assert.ok(csp['img-src'].includes('https://i.ytimg.com'));
+  assert.deepEqual(csp['frame-src'], ['https://www.youtube-nocookie.com']);
+  assert.deepEqual(csp['script-src'], ["'self'", 'https://connect.facebook.net']);
+  assert.ok(!csp['connect-src'].some(source => /youtube|ytimg/.test(source)));
 });
 
 test('a signup posts insert-only JSON to the waitlist table and shows success', async () => {
