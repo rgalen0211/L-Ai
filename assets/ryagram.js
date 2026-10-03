@@ -67,6 +67,22 @@
     slot.classList.add('is-live');
   }
 
+  // Where a signup came from: the films' links carry utm_source / utm_medium / utm_campaign
+  // (e.g. ?utm_source=youtube&utm_campaign=r002-industry-story), kept in the existing `source`
+  // column so the list shows which film brought someone. Only letters, digits, . _ - survive,
+  // and the whole fits the column's 100 characters.
+  function waitlistSource(search) {
+    const base = 'uselai.com/ryagram';
+    let params;
+    try { params = new URLSearchParams(search || ''); } catch { return base; }
+    const tags = ['utm_source', 'utm_medium', 'utm_campaign']
+      .map(k => [k, String(params.get(k) || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 40)])
+      .filter(([, v]) => v);
+    if (!tags.length) return base;
+    return `${base}?${tags.map(([k, v]) => `${k}=${v}`).join('&')}`.slice(0, 100);
+  }
+  const landedFrom = waitlistSource(typeof location !== 'undefined' ? location.search : '');
+
   const form = document.getElementById('waitlist-form');
   if (!form) return;
   const button = form.querySelector('button[type="submit"]');
@@ -110,7 +126,7 @@
       const response = await fetch(`${baseUrl}/rest/v1/ryagram_waitlist`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ email: form.elements.email.value.trim(), use_case: useCase || null, source: 'uselai.com/ryagram' }),
+        body: JSON.stringify({ email: form.elements.email.value.trim(), use_case: useCase || null, source: landedFrom }),
         signal: controller.signal
       });
       // 409 is the unique-email rule: already on the list, which is the outcome they wanted.

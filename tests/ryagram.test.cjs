@@ -33,7 +33,7 @@ function walk(node, visit) {
   (node.children || []).forEach(child => walk(child, visit));
 }
 
-function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test' }, slots = [], website = '', useCase = '  ' } = {}) {
+function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test' }, slots = [], website = '', useCase = '  ', search } = {}) {
   const listeners = {};
   const button = {};
   const fields = {};
@@ -55,7 +55,8 @@ function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { s
     },
     window: { ryagramConfig: config },
     fetch: (url, options) => { requests.push({ url, options }); return fetch(url, options); },
-    URL, AbortController, setTimeout, clearTimeout
+    URL, URLSearchParams, AbortController, setTimeout, clearTimeout,
+    ...(search === undefined ? {} : { location: { search } })
   });
   return { button, fields, status, requests, created, submit: () => listeners.submit({ preventDefault() {} }) };
 }
@@ -202,6 +203,19 @@ test('a signup posts insert-only JSON to the waitlist table and shows success', 
   assert.deepEqual(JSON.parse(options.body), { email: 'person@example.com', use_case: null, source: 'uselai.com/ryagram' });
   assert.equal(h.fields.hidden, true);
   assert.match(h.status.textContent, /on the list/);
+});
+
+test('a signup records which film link brought the visitor (utm tags), cleaned and within 100 characters', async () => {
+  const sourceFor = async search => { const h = harness({ search }); await h.submit(); return JSON.parse(h.requests[0].options.body).source; };
+  assert.equal(await sourceFor('?utm_source=youtube&utm_campaign=r002-industry-story'),
+               'uselai.com/ryagram?utm_source=youtube&utm_campaign=r002-industry-story');
+  assert.equal(await sourceFor('?utm_source=film_page&utm_medium=referral&utm_campaign=AbCdEfGhIjKlMnOpQrStUv'),
+               'uselai.com/ryagram?utm_source=film_page&utm_medium=referral&utm_campaign=AbCdEfGhIjKlMnOpQrStUv');
+  assert.equal(await sourceFor(''), 'uselai.com/ryagram');
+  assert.equal(await sourceFor('?fbclid=abc&gclid=x'), 'uselai.com/ryagram');                 // other tracking ignored
+  assert.equal(await sourceFor('?utm_source=<script>alert(1)</script>'), 'uselai.com/ryagram?utm_source=scriptalert1script');
+  const long = await sourceFor(`?utm_source=${'a'.repeat(80)}&utm_medium=${'b'.repeat(80)}&utm_campaign=${'c'.repeat(80)}`);
+  assert.ok(long.length <= 100);
 });
 
 test('a legacy anon JWT key is also sent as a bearer token', async () => {
