@@ -42,6 +42,11 @@ test('every template on every offered dataset builds a story in the worker schem
   assert.deepEqual([...views].sort(), ['bars', 'line', 'map', 'paired']);
 });
 
+test('county permits draw in solid colour (too small to hatch); state maps keep hatching', () => {
+  assert.deepEqual(plain(T.build('map', 'bps_county_permits', '').sequence.style_overrides), { choropleth: { mode: 'solid' } });
+  assert.equal(T.build('map', 'state_obesity_fastfood', '').sequence.style_overrides, undefined);
+});
+
 test('industry template: 18 state sector-share races, 1998-2023, headline from the sector', () => {
   const t = T.TEMPLATES.find(x => x.id === 'sector');
   assert.equal(t.datasets.length, 18);

@@ -3,9 +3,12 @@
 // Character ranges are built from code points here, never written as escapes, so this
 // source stays plain ASCII (see tests/source-hygiene.test.cjs).
 
-export const DATASETS: Record<string, { label: string; start: string; end: string; headline?: string }> = {
+export const DATASETS: Record<string, { label: string; start: string; end: string; headline?: string;
+                                         style?: Record<string, unknown> }> = {
   state_obesity_fastfood: { label: "Obesity and fast food by state (CDC + Census, annual)", start: "2011", end: "2023" },
-  bps_county_permits: { label: "Residential building permits per 1,000 residents, by county", start: "1990", end: "2024" },
+  // Solid colour: county shapes are too small to carry a hatch pattern (engine texture check).
+  bps_county_permits: { label: "Residential building permits per 1,000 residents, by county", start: "1990", end: "2024",
+                        style: { choropleth: { mode: "solid" } } },
   bls_state_unemployment: { label: "State unemployment rate (BLS LAUS, monthly)", start: "2019-01", end: "2022-12" },
 };
 
@@ -89,6 +92,7 @@ export function build(templateId: string, datasetId: string, headline: unknown) 
       fps: 30,
       theme: "dark",
       hold_seconds: 0.5,
+      ...(d.style ? { style_overrides: JSON.parse(JSON.stringify(d.style)) } : {}),
       clips: [
         { kind: "title", id: "open", seconds: 3, fade: 0.4, headline: title, subhead: cleanText(d.label, 160) },
         render,
