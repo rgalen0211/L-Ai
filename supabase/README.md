@@ -222,9 +222,9 @@ show the generic Ryagram card), and the owner's choice to show uploaded data.
    page addresses live.
 3. **Authentication → Policies/Providers → Email:** set the minimum password length to 10 (the
    app asks for 10).
-4. **Emails to anyone but you need your own SMTP** (Authentication → Emails → SMTP settings).
-   Supabase's built-in sender only delivers to the project's team members, a few per hour. Until
-   then, reset links reach only your own address.
+4. **Emails to anyone but you need your own email sender:** see "Email sender" below. Supabase's
+   built-in sender only delivers to the project's team members, a few per hour. Until then, reset
+   links reach only your own address.
 5. **Then turn on the button:** `passwordReset: true` in `assets/ryagram-config.js` (a merge, with
    your OK). Until then "Forgot your password?" stays hidden, so no one gets a link that can't work.
 
@@ -255,7 +255,39 @@ What they do:
 
 **Watch:** `select * from account_deletion_requests`.
 
-## Beta invites (branch invites): switching them on
+## Email sender: Google Workspace (ryan.galen@uselai.com) via Supabase custom SMTP
+
+Password-reset and invite emails need this; nothing else changes. Checked against Google's and
+Supabase's docs on 2026-10-03. Gmail's SMTP server takes a Workspace address plus an **app
+password** ("less secure apps" ended 1 May 2025). Google's SMTP relay needs fixed sending IPs, which
+Supabase doesn't have, so it isn't used here. The app password goes into Supabase only, never into
+chat or this repo.
+
+- [ ] **2-Step Verification on** for ryan.galen@uselai.com (myaccount.google.com → Security). If the
+      next step says app passwords aren't available, check Admin console → Security →
+      Authentication → 2-Step Verification allows it for your account.
+- [ ] **Create an app password** at myaccount.google.com/apppasswords, named "Supabase Ryagram".
+      Copy the 16 characters. Changing your Google password revokes it, and then emails stop until
+      you make a new one and paste it in.
+- [ ] **DNS for uselai.com: already in place** (looked up 2026-10-03; DNS at GoDaddy): SPF
+      `v=spf1 include:_spf.google.com ~all`, a `google._domainkey` DKIM key, and DMARC `p=quarantine`.
+      Only confirm Admin console → Apps → Google Workspace → Gmail → Authenticate email says
+      *Authenticating email* for uselai.com; if not, press *Start authentication*. Change no records.
+- [ ] **Supabase → Authentication → Emails → SMTP Settings → enable custom SMTP:**
+  - Host `smtp.gmail.com`, port `465`
+  - Username `ryan.galen@uselai.com`, password: the app password
+  - Sender email `ryan.galen@uselai.com` (Gmail sends as the signed-in address; any other From
+    would need a "Send mail as" alias first), sender name `Ryagram`
+- [ ] **Supabase → Authentication → Rate Limits:** custom SMTP starts at 30 emails an hour. Keep
+      it for the beta; Gmail's own cap is 2,000 a day.
+- [ ] **Test to an address outside uselai.com:** Authentication → Users → your test user →
+      *Send password recovery*. In Gmail's "Show original", check SPF, DKIM and DMARC all say PASS,
+      and that it didn't land in spam.
+- [ ] **Then** the template edits and switches: password reset ("Account basics" above, steps 2
+      and 5) and beta invites (below, steps 2 to 5). Auth emails also show in your Sent folder,
+      and replies come to your inbox.
+
+## Beta invites: switching them on
 
 Sign-up stays closed to the public: **Authentication → Providers → Email → "Allow new users to
 sign up" stays OFF.** You hand out codes; a person enters a code and their email on the sign-in
@@ -263,8 +295,8 @@ page, Supabase emails them an invite, and they choose a password from its link. 
 only as hashes; a wrong code is throttled (10 an hour from one address, 300 an hour overall), and
 the answer never says whether an email already has an account.
 
-1. **Email sender first:** custom SMTP (Authentication → Emails → SMTP settings). Supabase's
-   built-in sender only reaches the project's team members, so invites wouldn't arrive.
+1. **Email sender first:** the checklist above. Supabase's built-in sender only reaches the
+   project's team members, so invites wouldn't arrive.
 2. **Authentication → Emails → Invite user:** replace the link in the template with
    `<a href="{{ .SiteURL }}/app/?invite={{ .TokenHash }}">Join Ryagram</a>` (Site URL
    `https://uselai.com`, as for password reset). The app checks that token itself.
@@ -306,7 +338,7 @@ Function using `service_role`) must grant its own access explicitly.
 
 Only the Project URL and the publishable key (`assets/ryagram-config.js`). The
 database decides everything else. Never put the secret/service_role key, the
-worker password, an Anthropic key or a Stripe key or signing secret in this repo; the repo is public.
+worker password, an Anthropic key, a Stripe key or signing secret, or the email app password in this repo; the repo is public.
 
 ## Acceptance test (2A-1), once the project is live
 
