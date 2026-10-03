@@ -29,5 +29,9 @@ window.ryagramConfig = Object.freeze({
   passwordReset: false,
   // Offer the "Industry" template (CBP sector-share bar races, 1998-2023). Turn on only once the
   // worker's dataset allowlist includes the cbp_*_share_state datasets (WORKER-SETUP.ps1).
-  industryTemplate: false
+  industryTemplate: false,
+  // Show "Have an invite code?" on sign-in. Turn on only once custom SMTP is set, the invite email
+  // template points at /app/?invite={{ .TokenHash }}, and redeem-invite is deployed
+  // (supabase/README.md, "Beta invites").
+  inviteSignup: false
 });

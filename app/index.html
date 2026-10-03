@@ -11,8 +11,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/workflow-audit.css?v=20261003a">
-<link rel="stylesheet" href="/assets/app.css?v=20261003a">
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20261003b">
+<link rel="stylesheet" href="/assets/app.css?v=20261003b">
 </head>
 <body class="ryagram-app">
 <header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a><div class="app-account" id="account" hidden><a id="account-email" href="#/account" title="Your account"></a><button class="button secondary" id="sign-out" type="button">Sign out</button></div></div></header>
@@ -22,6 +22,15 @@
   <section id="sign-in" class="app-panel" hidden aria-labelledby="sign-in-title">
     <h1 id="sign-in-title">Sign in</h1>
     <p class="form-intro">Ryagram is invite-only for now.</p>
+    <p id="invite-row" hidden><button class="link-button" id="have-invite" type="button" aria-expanded="false" aria-controls="invite-form">Have an invite code?</button></p>
+    <form id="invite-form" class="contact-form" hidden>
+      <label for="iv-code">Invite code</label>
+      <input id="iv-code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="RYA-XXXX-XXXX" required>
+      <label for="iv-email">Your email</label>
+      <input id="iv-email" name="email" type="email" autocomplete="email" required>
+      <button class="button primary" type="submit">Join</button>
+      <p id="invite-note" class="form-note" role="status"></p>
+    </form>
     <form id="sign-in-form" class="contact-form">
       <label for="si-email">Email</label>
       <input id="si-email" name="email" type="email" autocomplete="username" required>
@@ -53,13 +62,13 @@
 
   <section id="library" class="app-panel" hidden></section>
 </main>
-<script src="/assets/ryagram-config.js?v=20261003a"></script>
+<script src="/assets/ryagram-config.js?v=20261003b"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
-<script src="/assets/app-data.js?v=20261003a"></script>
-<script src="/assets/app-jobs.js?v=20261003a"></script>
-<script src="/assets/app-templates.js?v=20261003a"></script>
-<script src="/assets/app-credits.js?v=20261003a"></script>
-<script src="/assets/app-library.js?v=20261003a"></script>
-<script src="/assets/app-auth.js?v=20261003a"></script>
+<script src="/assets/app-data.js?v=20261003b"></script>
+<script src="/assets/app-jobs.js?v=20261003b"></script>
+<script src="/assets/app-templates.js?v=20261003b"></script>
+<script src="/assets/app-credits.js?v=20261003b"></script>
+<script src="/assets/app-library.js?v=20261003b"></script>
+<script src="/assets/app-auth.js?v=20261003b"></script>
 </body>
 </html>

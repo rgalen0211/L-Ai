@@ -19,12 +19,17 @@
   const button = form.querySelector('button[type="submit"]');
   const setPassword = $('set-password');
 
-  // A password-reset link lands here as /app/?reset=<token hash> (the Supabase email template in
-  // supabase/README.md). Take it out of the address bar at once, before anything else runs.
+  // A password-reset link lands here as /app/?reset=<token hash>, and a beta invite as
+  // /app/?invite=<token hash> (the Supabase email templates in supabase/README.md). Take the token
+  // out of the address bar at once, before anything else runs.
   const query = new URLSearchParams(location.search);
-  const resetToken = /^[A-Za-z0-9_-]{10,200}$/.test(query.get('reset') || '') ? query.get('reset') : null;
-  if (query.has('reset')) {
+  const TOKEN = /^[A-Za-z0-9_-]{10,200}$/;
+  const linkType = query.has('invite') ? 'invite' : query.has('reset') ? 'recovery' : null;
+  const linkToken = linkType && TOKEN.test(query.get(linkType === 'invite' ? 'invite' : 'reset') || '')
+    ? query.get(linkType === 'invite' ? 'invite' : 'reset') : null;
+  if (query.has('reset') || query.has('invite')) {
     query.delete('reset');
+    query.delete('invite');
     history.replaceState(null, '', location.pathname + (query.toString() ? `?${query}` : '') + location.hash);
   }
 
@@ -102,14 +107,19 @@
       else showSignIn();
     }
 
-    if (resetToken) {
+    if (linkToken) {
       recovering = true;
-      client.auth.verifyOtp({ token_hash: resetToken, type: 'recovery' }).then(async ({ error: otpError }) => {
+      if (linkType === 'invite') {
+        $('set-password-title').textContent = 'Welcome to Ryagram. Choose your password';
+      }
+      client.auth.verifyOtp({ token_hash: linkToken, type: linkType }).then(async ({ error: otpError }) => {
         if (otpError) {
           recovering = false;
           const { data } = await client.auth.getSession();
           render(data.session);
-          say('That reset link has expired or was already used. Ask for a new one from the sign-in page.');
+          say(linkType === 'invite'
+            ? 'That invite link has expired or was already used. If you set a password, sign in; if not, ask for a new invite.'
+            : 'That reset link has expired or was already used. Ask for a new one from the sign-in page.');
         }
       });
     }
@@ -210,7 +220,7 @@
         recovering = false;
         const { data } = await client.auth.getSession();
         render(data.session);
-        say('Your new password is saved.');
+        say(linkType === 'invite' ? 'Welcome. Your password is saved.' : 'Your new password is saved.');
       } catch {
         setError.textContent = 'Couldn’t reach the server. Check your connection and try again.';
         setError.hidden = false;
@@ -218,6 +228,44 @@
         save.disabled = false;
       }
     });
+
+    // Beta invite codes: shown once the invite email is set up (inviteSignup: true), or in mock mode.
+    // The same answer whether or not the email already has an account.
+    if ($('invite-row')) {
+      $('invite-row').hidden = !(window.ryagramConfig?.inviteSignup === true || window.ryagramMock);
+      const haveInvite = $('have-invite');
+      const inviteForm = $('invite-form');
+      const inviteNote = $('invite-note');
+      haveInvite.addEventListener('click', () => {
+        inviteForm.hidden = !inviteForm.hidden;
+        haveInvite.setAttribute('aria-expanded', String(!inviteForm.hidden));
+        if (!inviteForm.hidden) inviteForm.elements.code.focus();
+      });
+      inviteForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        if (!inviteForm.reportValidity()) return;
+        const join = inviteForm.querySelector('button');
+        join.disabled = true;
+        inviteNote.textContent = '';
+        try {
+          const { data, error: fnError } = await client.functions.invoke('redeem-invite', {
+            body: { code: inviteForm.elements.code.value, email: inviteForm.elements.email.value.trim() }
+          });
+          if (fnError) {
+            let text = 'Couldn\u2019t check the code just now. Try again in a minute.';
+            try { text = (await fnError.context.json()).error || text; } catch { /* keep the plain message */ }
+            inviteNote.textContent = text;
+          } else {
+            inviteNote.textContent = data?.message || 'Check your email.';
+            inviteForm.elements.code.value = '';
+          }
+        } catch {
+          inviteNote.textContent = 'Couldn\u2019t reach the server. Check your connection and try again.';
+        } finally {
+          join.disabled = false;
+        }
+      });
+    }
 
     $('sign-out').addEventListener('click', async () => {
       await client.auth.signOut();
