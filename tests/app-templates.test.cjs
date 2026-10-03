@@ -42,8 +42,8 @@ test('every template on every offered dataset builds a story in the worker schem
   assert.deepEqual([...views].sort(), ['bars', 'line', 'map', 'paired']);
 });
 
-test('county permits draw in solid colour (too small to hatch); state maps keep hatching', () => {
-  assert.deepEqual(plain(T.build('map', 'bps_county_permits', '').sequence.style_overrides), { choropleth: { mode: 'solid' } });
+test('county permits draw in continuous colour (too small to hatch); state maps keep hatching', () => {
+  assert.deepEqual(plain(T.build('map', 'bps_county_permits', '').sequence.style_overrides), { choropleth: { mode: 'solid', continuous: true } });
   assert.equal(T.build('map', 'state_obesity_fastfood', '').sequence.style_overrides, undefined);
 });
 
@@ -65,7 +65,8 @@ test('industry template: 18 state sector-share races, 1998-2023, headline from t
   assert.equal(s.sequence.clips[0].headline, 'Which states depend most on manufacturing?');
   assert.equal(s.sequence.clips[0].subhead, 'Manufacturing: share of CBP-covered jobs, by state (Census, annual)');
   assert.deepEqual(plain(s.sequence.clips[1]), { kind: 'render', id: 'main', dataset: 'cbp_manufacturing_share_state', view: 'bars',
-    start: '1998', end: '2023', transition: { kind: 'crossfade', seconds: 0.6 }, settings: { top_n: 10 } });
+    start: '1998', end: '2023', transition: { kind: 'crossfade', seconds: 0.6 }, settings: { top_n: 10, axis: 'fixed' }, hold_seconds: 3 });
+  assert.deepEqual(plain(s.sequence.style_overrides), { bars: { swap_seconds: 0.5 } });
   assert.equal(T.build('sector', 'cbp_retail_share_state', 'My own question').sequence.clips[0].headline, 'My own question');
   for (const d of t.datasets) {
     assert.ok(T.DATASETS[d].label.length <= 160);

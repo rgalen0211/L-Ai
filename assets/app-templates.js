@@ -8,10 +8,12 @@
 (() => {
   const DATASETS = {
     state_obesity_fastfood: { label: 'Obesity and fast food by state (CDC + Census, annual)', start: '2011', end: '2023' },
-    // Solid colour: about 12% of county shapes are too small to carry a hatch pattern, which fails the
-    // engine's texture check (sheet on engine main cccf022, 2026-10-03); solid passes.
+    // Continuous colour, capped at the 99th percentile (the engine's map default): county shapes are
+    // too small to hatch. Sheet on engine main 43d4a1c with the worker schema at 0cce7dd: every check
+    // passes, 34/34 half-second windows move, colours exact at every mark (316 s). Needs a worker
+    // whose schema accepts choropleth.continuous.
     bps_county_permits: { label: 'Residential building permits per 1,000 residents, by county', start: '1990', end: '2024',
-                          style: { choropleth: { mode: 'solid' } } },
+                          style: { choropleth: { mode: 'solid', continuous: true } } },
     bls_state_unemployment: { label: 'State unemployment rate (BLS LAUS, monthly)', start: '2019-01', end: '2022-12' }
   };
 
@@ -58,8 +60,11 @@
       datasets: ['state_obesity_fastfood'], settings: { line_top_n: 6 }, confirmed: true },
     { id: 'sector', view: 'bars', label: 'Industry', blurb: 'Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.',
       // Offered once the worker's dataset allowlist has these (a deliberate edit by Ryan): ryagramConfig.industryTemplate.
+      // R002's pacing: 3 s a year, swaps of 0.5 s, fixed axis. Manufacturing sheet on engine main 43d4a1c
+      // passes every check (0 jumps, motion 92.7%, 260 s); without swap_seconds the bars snap and fail.
       flag: 'industryTemplate', defaultDataset: 'cbp_manufacturing_share_state',
-      datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10 }, confirmed: false,
+      style: { bars: { swap_seconds: 0.5 } }, hold: 3,
+      datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10, axis: 'fixed' }, confirmed: false,
       note: "State shares only. A county’s share and a state’s share are measured against different totals (some jobs aren’t assigned to any county), so the two can’t share a map." }
   ];
 
@@ -83,6 +88,8 @@
     const render = { kind: 'render', id: 'main', dataset: datasetId, view: t.view, start: d.start, end: d.end,
                      transition: { kind: 'crossfade', seconds: 0.6 } };
     if (t.settings) render.settings = { ...t.settings };
+    if (t.hold) render.hold_seconds = t.hold;
+    const style = { ...(d.style || {}), ...(t.style || {}) };
     return {
       schema: 1,
       name: slug(title),
@@ -93,7 +100,7 @@
         fps: 30,
         theme: 'dark',
         hold_seconds: 0.5,
-        ...(d.style ? { style_overrides: JSON.parse(JSON.stringify(d.style)) } : {}),
+        ...(Object.keys(style).length ? { style_overrides: JSON.parse(JSON.stringify(style)) } : {}),
         clips: [
           { kind: 'title', id: 'open', seconds: 3, fade: 0.4, headline: title, subhead: cleanText(d.label, 160) },
           render
