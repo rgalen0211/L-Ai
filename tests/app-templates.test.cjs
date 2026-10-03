@@ -42,6 +42,23 @@ test('every template on every offered dataset builds a story in the worker schem
   assert.deepEqual([...views].sort(), ['bars', 'line', 'map', 'paired']);
 });
 
+test('industry template: 18 state sector-share races, 1998-2023, headline from the sector', () => {
+  const t = T.TEMPLATES.find(x => x.id === 'sector');
+  assert.equal(t.datasets.length, 18);
+  assert.ok(t.datasets.every(d => /^cbp_[a-z_]+_share_state$/.test(d)));
+  assert.match(t.note, /can’t share a map/);
+  const s = T.build('sector', 'cbp_manufacturing_share_state', '');
+  assert.equal(s.sequence.clips[0].headline, 'Which states depend most on manufacturing?');
+  assert.equal(s.sequence.clips[0].subhead, 'Manufacturing: share of CBP-covered jobs, by state (Census, annual)');
+  assert.deepEqual(plain(s.sequence.clips[1]), { kind: 'render', id: 'main', dataset: 'cbp_manufacturing_share_state', view: 'bars',
+    start: '1998', end: '2023', transition: { kind: 'crossfade', seconds: 0.6 }, settings: { top_n: 10 } });
+  assert.equal(T.build('sector', 'cbp_retail_share_state', 'My own question').sequence.clips[0].headline, 'My own question');
+  for (const d of t.datasets) {
+    assert.ok(T.DATASETS[d].label.length <= 160);
+    assert.doesNotMatch(T.DATASETS[d].label + T.DATASETS[d].headline, /all jobs/i);   // CBP-covered, never "all"
+  }
+});
+
 test('headlines are cleaned: control and direction-override characters removed, length capped', () => {
   const s = T.build('map', 'state_obesity_fastfood', 'Evil\u202eheadline\u0007 ' + 'x'.repeat(300));
   assertSchemaShape(s);

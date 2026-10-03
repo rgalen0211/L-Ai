@@ -117,6 +117,15 @@ insert into public.credit_dataset_shapes (dataset, shape, noted_by) values
   ('example_corp_products', 'excluded', 'CC1 2026-09-28: test fixture'),
   ('example_corp_states', 'excluded', 'CC1 2026-09-28: test fixture'),
   ('status_fixture', 'excluded', 'CC1 2026-09-28: test fixture');
+-- County Business Patterns by NAICS sector (engine main ea9ad52, 2026-10-02): for each of the 18
+-- sectors, establishments and employment by county, and the sector's share of CBP-covered jobs
+-- by county and by state. All standard-shaped (Ryan, 2026-10-03).
+insert into public.credit_dataset_shapes (dataset, shape, noted_by)
+select 'cbp_' || sector || suffix, 'standard', 'Ryan 2026-10-03: CBP sector datasets'
+from unnest(array['mining', 'utilities', 'construction', 'manufacturing', 'wholesale', 'retail', 'transportation',
+                  'information', 'finance', 'real_estate', 'professional', 'management', 'admin_support',
+                  'education', 'health_care', 'arts', 'accommodation_food', 'other_services']) sector
+cross join unnest(array['_establishments', '_employment', '_share', '_share_state']) suffix;
 
 -- Free-preview allowance, tunable without code.
 create table public.credit_rules (

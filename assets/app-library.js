@@ -511,21 +511,31 @@
       const T = window.ryagramTemplates;
       const blank = T.isBlank(v.story_spec);
       const error = errorLine();
-      let chosen = T.TEMPLATES.find(t => t.id === 'map') || T.TEMPLATES[0];
+      const offered = T.TEMPLATES.filter(t => !t.flag || window.ryagramConfig?.[t.flag] === true || window.ryagramMock);
+      let chosen = offered.find(t => t.id === 'map') || offered[0];
 
       const datasetSelect = h('select', { id: 'tpl-dataset' });
       const headline = h('input', { id: 'tpl-headline', maxlength: '160', value: project.title, autocomplete: 'off' });
       const note = h('p', { class: 'form-note' });
       const cards = h('div', { class: 'template-grid', role: 'radiogroup', 'aria-label': 'Template' });
 
+      let headlineEdited = false;
+      headline.addEventListener('input', () => { headlineEdited = true; });
+      // A dataset with its own question (the industry template) suggests it as the headline.
+      function suggestHeadline() {
+        const d = T.DATASETS[datasetSelect.value];
+        if (!headlineEdited) headline.value = d?.headline || project.title;
+      }
+      datasetSelect.addEventListener('change', suggestHeadline);
       function fillDatasets() {
-        datasetSelect.replaceChildren(...chosen.datasets.map(id => h('option', { value: id }, T.DATASETS[id].label)));
-        note.textContent = chosen.confirmed
-          ? ''
-          : 'This view hasn’t been rendered on this dataset before, so check the contact sheet closely.';
+        datasetSelect.replaceChildren(...chosen.datasets.map(id => h('option', { value: id, selected: id === chosen.defaultDataset }, T.DATASETS[id].label)));
+        note.textContent = [chosen.note || '',
+          chosen.confirmed ? '' : 'This view hasn’t been rendered on this dataset before, so check the contact sheet closely.']
+          .filter(Boolean).join(' ');
+        suggestHeadline();
       }
       function drawCards() {
-        cards.replaceChildren(...T.TEMPLATES.map(t => h('label', { class: `template-card${t === chosen ? ' is-chosen' : ''}` },
+        cards.replaceChildren(...offered.map(t => h('label', { class: `template-card${t === chosen ? ' is-chosen' : ''}` },
           h('input', { type: 'radio', name: 'tpl', value: t.id, checked: t === chosen,
                        onchange: () => { chosen = t; drawCards(); fillDatasets(); } }),
           h('strong', {}, t.label), h('span', {}, t.blurb))));

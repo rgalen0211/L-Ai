@@ -3,11 +3,37 @@
 // Character ranges are built from code points here, never written as escapes, so this
 // source stays plain ASCII (see tests/source-hygiene.test.cjs).
 
-export const DATASETS: Record<string, { label: string; start: string; end: string }> = {
+export const DATASETS: Record<string, { label: string; start: string; end: string; headline?: string }> = {
   state_obesity_fastfood: { label: "Obesity and fast food by state (CDC + Census, annual)", start: "2011", end: "2023" },
   bps_county_permits: { label: "Residential building permits per 1,000 residents, by county", start: "1990", end: "2024" },
   bls_state_unemployment: { label: "State unemployment rate (BLS LAUS, monthly)", start: "2019-01", end: "2022-12" },
 };
+
+// County Business Patterns sector shares, by state; the same table as the app's.
+const SECTORS: [string, string, string][] = [
+    ["mining", "Mining, quarrying, oil & gas", "mining, quarrying and oil & gas"],
+    ["utilities", "Utilities", "utilities"],
+    ["construction", "Construction", "construction"],
+    ["manufacturing", "Manufacturing", "manufacturing"],
+    ["wholesale", "Wholesale trade", "wholesale trade"],
+    ["retail", "Retail trade", "retail"],
+    ["transportation", "Transportation & warehousing", "transportation & warehousing"],
+    ["information", "Information", "the information sector"],
+    ["finance", "Finance & insurance", "finance & insurance"],
+    ["real_estate", "Real estate, rental & leasing", "real estate, rental & leasing"],
+    ["professional", "Professional, scientific & technical services", "professional, scientific & technical services"],
+    ["management", "Management of companies & enterprises", "managing companies"],
+    ["admin_support", "Admin, support & waste management", "admin, support & waste management"],
+    ["education", "Educational services (private sector)", "private educational services"],
+    ["health_care", "Health care & social assistance (private sector)", "private health care & social assistance"],
+    ["arts", "Arts, entertainment & recreation", "arts, entertainment & recreation"],
+    ["accommodation_food", "Accommodation & food services", "accommodation & food services"],
+    ["other_services", "Other services (except public administration)", "other services"],
+];
+for (const [slug, label, name] of SECTORS) {
+  DATASETS[`cbp_${slug}_share_state`] = { label: `${label}: share of CBP-covered jobs, by state (Census, annual)`,
+                                           start: "1998", end: "2023", headline: `Which states depend most on ${name}?` };
+}
 
 export const TEMPLATES = [
   { id: "line", view: "line", label: "Line", blurb: "How a handful of places move over time.",
@@ -18,6 +44,8 @@ export const TEMPLATES = [
     datasets: ["bls_state_unemployment"], settings: { top_n: 10, axis: "fixed" }, confirmed: true },
   { id: "paired", view: "paired", label: "Paired", blurb: "A map and a bar race side by side, one timeline.",
     datasets: ["state_obesity_fastfood"], settings: undefined, confirmed: true },
+  { id: "sector", view: "bars", label: "Industry", blurb: "Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.",
+    datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10 }, confirmed: false },
 ];
 
 // The worker's v1 render views; a story may use any of them on any catalog dataset.
@@ -47,7 +75,7 @@ export function build(templateId: string, datasetId: string, headline: unknown) 
   if (!t) throw new Error("Unknown template.");
   if (!t.datasets.includes(datasetId)) throw new Error("That dataset isn’t offered for this template.");
   const d = DATASETS[datasetId];
-  const title = cleanText(headline, 160) || cleanText(d.label, 160);
+  const title = cleanText(headline, 160) || cleanText(d.headline, 160) || cleanText(d.label, 160);
   const render: Record<string, unknown> = { kind: "render", id: "main", dataset: datasetId, view: t.view, start: d.start, end: d.end,
                                             transition: { kind: "crossfade", seconds: 0.6 } };
   if (t.settings) render.settings = { ...t.settings };

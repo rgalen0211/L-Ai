@@ -12,6 +12,34 @@
     bls_state_unemployment: { label: 'State unemployment rate (BLS LAUS, monthly)', start: '2019-01', end: '2022-12' }
   };
 
+  // County Business Patterns: each NAICS sector's share of CBP-covered jobs, by state (engine main,
+  // 2026-10-02). "CBP-covered", never "all jobs": CBP counts private non-farm employers only. NAICS
+  // starts in 1998 (no SIC splice, Ryan). [id slug, the engine's frame label, the headline's words]
+  const SECTORS = [
+    ['mining', 'Mining, quarrying, oil & gas', 'mining, quarrying and oil & gas'],
+    ['utilities', 'Utilities', 'utilities'],
+    ['construction', 'Construction', 'construction'],
+    ['manufacturing', 'Manufacturing', 'manufacturing'],
+    ['wholesale', 'Wholesale trade', 'wholesale trade'],
+    ['retail', 'Retail trade', 'retail'],
+    ['transportation', 'Transportation & warehousing', 'transportation & warehousing'],
+    ['information', 'Information', 'the information sector'],
+    ['finance', 'Finance & insurance', 'finance & insurance'],
+    ['real_estate', 'Real estate, rental & leasing', 'real estate, rental & leasing'],
+    ['professional', 'Professional, scientific & technical services', 'professional, scientific & technical services'],
+    ['management', 'Management of companies & enterprises', 'managing companies'],
+    ['admin_support', 'Admin, support & waste management', 'admin, support & waste management'],
+    ['education', 'Educational services (private sector)', 'private educational services'],
+    ['health_care', 'Health care & social assistance (private sector)', 'private health care & social assistance'],
+    ['arts', 'Arts, entertainment & recreation', 'arts, entertainment & recreation'],
+    ['accommodation_food', 'Accommodation & food services', 'accommodation & food services'],
+    ['other_services', 'Other services (except public administration)', 'other services']
+  ];
+  for (const [slug, label, name] of SECTORS) {
+    DATASETS[`cbp_${slug}_share_state`] = { label: `${label}: share of CBP-covered jobs, by state (Census, annual)`,
+                                             start: '1998', end: '2023', headline: `Which states depend most on ${name}?` };
+  }
+
   const TEMPLATES = [
     { id: 'line', view: 'line', label: 'Line', blurb: 'How a handful of places move over time.',
       datasets: ['bls_state_unemployment'], settings: { line_top_n: 6 }, confirmed: true },
@@ -20,7 +48,12 @@
     { id: 'bars', view: 'bars', label: 'Bars', blurb: 'A ranked bar race: who leads, year by year.',
       datasets: ['bls_state_unemployment'], settings: { top_n: 10, axis: 'fixed' }, confirmed: true },
     { id: 'paired', view: 'paired', label: 'Paired', blurb: 'A map and a bar race side by side, one timeline.',
-      datasets: ['state_obesity_fastfood'], confirmed: true }
+      datasets: ['state_obesity_fastfood'], confirmed: true },
+    { id: 'sector', view: 'bars', label: 'Industry', blurb: 'Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.',
+      // Offered once the worker's dataset allowlist has these (a deliberate edit by Ryan): ryagramConfig.industryTemplate.
+      flag: 'industryTemplate', defaultDataset: 'cbp_manufacturing_share_state',
+      datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10 }, confirmed: false,
+      note: "State shares only. A county’s share and a state’s share are measured against different totals (some jobs aren’t assigned to any county), so the two can’t share a map." }
   ];
 
   // What the schema allows in text drawn on a frame: no control or invisible characters.
@@ -39,7 +72,7 @@
     if (!t) throw new Error('Unknown template.');
     if (!t.datasets.includes(datasetId)) throw new Error('That dataset isn’t offered for this template.');
     const d = DATASETS[datasetId];
-    const title = cleanText(headline, 160) || cleanText(d.label, 160);
+    const title = cleanText(headline, 160) || cleanText(d.headline, 160) || cleanText(d.label, 160);
     const render = { kind: 'render', id: 'main', dataset: datasetId, view: t.view, start: d.start, end: d.end,
                      transition: { kind: 'crossfade', seconds: 0.6 } };
     if (t.settings) render.settings = { ...t.settings };

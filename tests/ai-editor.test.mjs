@@ -97,7 +97,7 @@ test('the Edge Function builds exactly the templates the app builds', () => {
       count++;
     }
   }
-  assert.equal(count, 20);
+  assert.equal(count, 92);
 });
 
 test('only signed-in people, from our pages, with the switch on and under the daily cap', async () => {

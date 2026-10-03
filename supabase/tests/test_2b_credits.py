@@ -263,6 +263,16 @@ class Ledger(unittest.TestCase):
                 self.final("map", dataset=dataset)
             self.assertIn(message, str(err.exception), dataset)
 
+    def test_cbp_sector_datasets_are_standard_and_priced_by_view(self):
+        self.assertEqual(self.admin("select count(*) from credit_dataset_shapes where dataset like 'cbp\_%%' "
+                                    "and noted_by like 'Ryan 2026-10-03%%' and shape = 'standard'"), 72)
+        for name in ("cbp_manufacturing_share_state", "cbp_manufacturing_share", "cbp_retail_employment",
+                     "cbp_accommodation_food_establishments", "cbp_other_services_share_state"):
+            self.assertEqual(self.admin("select shape from credit_dataset_shapes where dataset = %s", name), "standard", name)
+        self.grant(100)
+        _, job = self.final("bars", dataset="cbp_manufacturing_share_state")    # the state share bar race
+        self.assertEqual(self.admin("select credits_quoted from jobs where id = %s", job), 10)
+
     # -- Test 9: a gate failure releases the hold and returns the version to its editorial step
     def test_gate_failure_releases(self):
         vid, job = self.final("paired", grant=10)
