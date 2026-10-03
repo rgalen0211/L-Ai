@@ -524,7 +524,7 @@
       // A dataset with its own question (the industry template) suggests it as the headline.
       function suggestHeadline() {
         const d = T.DATASETS[datasetSelect.value];
-        if (!headlineEdited) headline.value = d?.headline || project.title;
+        if (!headlineEdited) headline.value = chosen.headline || d?.headline || project.title;
       }
       datasetSelect.addEventListener('change', suggestHeadline);
       function fillDatasets() {

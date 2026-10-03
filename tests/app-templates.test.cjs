@@ -47,6 +47,15 @@ test('county permits draw in solid colour (too small to hatch); state maps keep 
   assert.equal(T.build('map', 'state_obesity_fastfood', '').sequence.style_overrides, undefined);
 });
 
+test('"Highest" template: the six states with the highest adult obesity, as a line', () => {
+  const s = T.build('highest', 'state_obesity_fastfood', '');
+  assert.equal(s.sequence.clips[0].headline, 'The states with the highest adult obesity');
+  assert.deepEqual(plain(s.sequence.clips[1].settings), { line_top_n: 6 });
+  assert.equal(s.sequence.clips[1].view, 'line');
+  assert.equal(T.build('map', 'state_obesity_fastfood', '').sequence.clips[0].headline,
+               'Obesity and fast food by state (CDC + Census, annual)');            // other templates unchanged
+});
+
 test('industry template: 18 state sector-share races, 1998-2023, headline from the sector', () => {
   const t = T.TEMPLATES.find(x => x.id === 'sector');
   assert.equal(t.datasets.length, 18);
