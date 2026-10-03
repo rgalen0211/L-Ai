@@ -71,7 +71,7 @@
         case 'running': {
           if ((plan === 'crash_once' && job.attempt === 1) || plan === 'crash_always') return crash(job);
           if (plan === 'timeout') return finish(job, 'failed', ERRORS.timeout);
-          const progress = Math.min(1, Math.round(((job.progress || 0) + 0.34) * 100) / 100);
+          const progress = Math.min(1, Math.round(((job.progress || 0) + 0.1) * 100) / 100);
           const total = job.job_type === 'final_render' ? 1560 : 300;
           if (progress < 1) {
             return update(job, { progress, progress_note: `Drawing frames: ${Math.round(progress * 100)}%`,

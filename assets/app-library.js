@@ -703,20 +703,23 @@
         }
       }
 
-      // Live progress: the stage, a bar (indeterminate when the stage counts nothing), the count
-      // and an ETA marked "~" when it is the engine's estimate. The worker's own sentence shows when
-      // there is no structured detail (older workers).
+      // Live progress for each active job: Stage, Frames (or Clips) done / total, ETA and Running
+      // for, each "\u2014" until the data gives it. The ETA comes from what this page has seen:
+      // frames done over elapsed time (J.etaSeconds). The worker's own sentence shows below when it
+      // sends no structured detail (older workers).
+      const sightings = new Map();                      // job id -> samples (J.addSample)
       function progressBlock(j) {
-        const p = J.progressView(j);
+        const p = J.progressView(j, Date.now(), sightings.get(j.id) || []);
         if (!p) return null;
         const bar = p.fraction == null
-          ? h('progress', { 'aria-label': `${p.label}, no count for this step` })
-          : h('progress', { max: '1', value: String(p.fraction), 'aria-label': `${p.label}: ${Math.floor(p.fraction * 100)}%` });
-        const words = j.progress_detail ? [p.detail, p.eta, p.elapsed] : [j.progress_note || p.detail, p.elapsed];
+          ? h('progress', { 'aria-label': `${p.stage === '\u2014' ? 'Progress' : p.stage}: no count yet` })
+          : h('progress', { max: '1', value: String(p.fraction), 'aria-label': `${p.stage}: ${Math.floor(p.fraction * 100)}%` });
+        const row = (k, v) => [h('dt', {}, k), h('dd', {}, v)];
         return h('div', { class: 'job-progress' },
-          h('p', { class: 'job-stage' }, h('strong', {}, p.label), p.step ? h('span', { class: 'meta' }, ` \u00b7 ${p.step}`) : null),
           bar,
-          h('p', { class: 'form-note' }, words.filter(Boolean).join(' \u00b7 ')));
+          h('dl', { class: 'progress-fields' },
+            row('Stage', p.stage), row(p.countLabel, p.count), row('ETA', p.eta), row('Running for', p.running)),
+          !j.progress_detail && j.progress_note ? h('p', { class: 'form-note' }, j.progress_note) : null);
       }
 
       function jobItem(j) {
@@ -745,6 +748,11 @@
       }
 
       function draw() {
+        const now = Date.now();
+        for (const j of jobs) {
+          if (J.isActive(j)) sightings.set(j.id, J.addSample(sightings.get(j.id) || [], j, now));
+          else sightings.delete(j.id);
+        }
         syncControls();
         listEl.replaceChildren(jobs.length
           ? h('ul', { class: 'job-list' }, jobs.map(jobItem))
