@@ -16,18 +16,54 @@
     return /^[\w-]{11}$/.test(id) ? id : '';
   }
 
-  // Film slots: set data-youtube on a .film-slot to a link or ID and it becomes a player.
+  function thumbnail(id, quality) { return `https://i.ytimg.com/vi/${id}/${quality}.jpg`; }
+
+  // The real YouTube player, so a play counts as a YouTube view. Built only after a click: the click is
+  // the visitor asking to play, which is why autoplay is allowed here and sound is not forced off.
+  function filmPlayer(id, title) {
+    const frame = document.createElement('iframe');
+    frame.src = `https://www.youtube-nocookie.com/embed/${id}?autoplay=1&playsinline=1`;
+    frame.title = title;
+    frame.allow = 'autoplay; accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
+    frame.referrerPolicy = 'strict-origin-when-cross-origin';
+    frame.allowFullscreen = true;
+    return frame;
+  }
+
+  // Film slots: set data-youtube on a .film-slot to a link or ID. The slot shows YouTube's own thumbnail
+  // behind a play button; no player, script or iframe loads until someone presses it.
   for (const slot of document.querySelectorAll('.film-slot[data-youtube]')) {
     const id = youtubeId(slot.dataset.youtube);
     if (!id) continue;
-    const frame = document.createElement('iframe');
-    frame.src = `https://www.youtube-nocookie.com/embed/${id}`;
-    frame.title = slot.dataset.title || 'Ryagram film';
-    frame.loading = 'lazy';
-    frame.allow = 'accelerometer; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share';
-    frame.referrerPolicy = 'strict-origin-when-cross-origin';
-    frame.allowFullscreen = true;
-    slot.querySelector('.film-frame').replaceChildren(frame);
+    const title = slot.dataset.title || 'Ryagram film';
+    const holder = slot.querySelector('.film-frame');
+    const play = document.createElement('button');
+    play.type = 'button';
+    play.className = 'film-play';
+    play.setAttribute('aria-label', `Play video: ${title}`);
+    const poster = document.createElement('img');
+    poster.alt = '';
+    poster.loading = 'lazy';
+    // Not every video has a maxres thumbnail; YouTube answers 404, or a tiny placeholder, when it is missing.
+    let fellBack = false;
+    const fallBack = () => {
+      if (fellBack) return;
+      fellBack = true;
+      poster.src = thumbnail(id, 'hqdefault');
+    };
+    poster.addEventListener('error', fallBack);
+    poster.addEventListener('load', () => { if (poster.naturalWidth > 0 && poster.naturalWidth <= 120) fallBack(); });
+    poster.src = thumbnail(id, 'maxresdefault');
+    const icon = document.createElement('span');
+    icon.className = 'film-play-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    play.append(poster, icon);
+    play.addEventListener('click', () => {
+      const player = filmPlayer(id, title);
+      holder.replaceChildren(player);
+      player.focus();
+    }, { once: true });
+    holder.replaceChildren(play);
     slot.classList.add('is-live');
   }
 
