@@ -66,6 +66,7 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -125,7 +126,47 @@
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, form, list];
+      // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'));
+      data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list];
+    }
+
+    // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
+    async function waitlistAdminView(onStop) {
+      const A = window.ryagramAdmin;
+      const error = errorLine();
+      const range = h('select', { id: 'wl-days' },
+        [[30, 'Last 30 days'], [90, 'Last 90 days'], [365, 'Last year']].map(([d, t]) => h('option', { value: String(d) }, t)));
+      range.value = '90';
+      const body = h('div', { class: 'admin-body' }, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      async function load() {
+        error.hidden = true;
+        try {
+          const rows = await data.waitlistByFilm(Number(range.value));
+          const totals = A.byFilm(rows);
+          const total = totals.reduce((n, r) => n + r.signups, 0);
+          body.replaceChildren(
+            h('p', {}, `${total.toLocaleString('en-US')} signup${total === 1 ? '' : 's'} in this period.`),
+            totals.length ? h('table', { class: 'admin-table' },
+              h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col' }, 'From'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
+              h('tbody', {}, totals.map(r => h('tr', {}, h('td', {}, A.campaignLabel(r.campaign)), h('td', {}, r.utm_source || '\u2014'),
+                                                     h('td', { class: 'num' }, String(r.signups)))))) : null,
+            ...(rows.length ? [h('h2', {}, 'By day'), h('table', { class: 'admin-table' },
+              h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Day'), h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
+              h('tbody', {}, rows.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', {}, A.campaignLabel(r.campaign)),
+                                                   h('td', { class: 'num' }, String(r.signups))))))] : []));
+        } catch (err) { body.replaceChildren(); showError(error, err); }
+      }
+      range.addEventListener('change', load);
+      load();
+      return [
+        h('a', { href: '#/', class: 'back' }, '\u2190 All projects'),
+        h('h1', { tabindex: '-1' }, 'Waitlist by film'),
+        h('p', { class: 'form-note' }, 'Signups per film link (the utm_campaign in each film\u2019s description), by day in New York time. Counts only: no email addresses are shown here.'),
+        h('div', { class: 'inline-row' }, h('label', { for: 'wl-days' }, 'Period'), range),
+        body, error
+      ];
     }
 
     // --- #/account  password, the data choice, deleting the account

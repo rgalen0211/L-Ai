@@ -118,3 +118,8 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .progress-fields{display:grid;grid-template-columns:max-content 1fr;gap:2px 14px;margin:8px 0 0;font-size:.9rem}
 .progress-fields dt{color:var(--muted)}
 .progress-fields dd{margin:0;font-variant-numeric:tabular-nums}
+.admin-links{margin:-8px 0 16px}
+.admin-table{width:100%;border-collapse:collapse;margin:8px 0 20px;font-size:.92rem}
+.admin-table th,.admin-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;overflow-wrap:anywhere}
+.admin-table th{color:var(--muted);font-weight:700}
+.admin-table .num{text-align:right;font-variant-numeric:tabular-nums}
