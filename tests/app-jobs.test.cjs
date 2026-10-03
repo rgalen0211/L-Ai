@@ -30,6 +30,7 @@ async function setup() {
   };
   return { client, data, version, worker, until };
 }
+const plain = v => JSON.parse(JSON.stringify(v));
 const finished = j => ['complete', 'failed', 'editorial_action_required', 'cancelled'].includes(j.state);
 
 test('every mock outcome ends the way the real queue would', async () => {
@@ -229,30 +230,53 @@ test('engine checks: unknown current engine only compares sheet and preview; a p
   assert.equal(l.sheet.id, 'contact_sheet1');
 });
 
-test('live progress: stage, per-stage count, ETA marked ~ when estimated', () => {
+test('live progress: every field is "—" until the data gives it; never a made-up number', () => {
+  const D = '—';
   const now = Date.parse('2026-10-03T10:00:00Z');
   const job = (detail, extra = {}) => ({ state: 'running', started_at: '2026-10-03T09:56:00Z', progress_detail: detail, ...extra });
-  let p = J.progressView(job({ stage: 'drawing', done: 1200, total: 3000, unit: 'frames', eta_s: 118, eta_is_a_guess: true }), now);
-  assert.deepEqual([p.label, p.fraction, p.detail, p.eta, p.elapsed, p.step],
-    ['Drawing frames', 0.4, '1,200 of 3,000 frames (40%)', '~2 min left in this step', '4 min so far', 'Step 2 of 5']);
-  p = J.progressView(job({ stage: 'drawing', done: 10, total: 100, eta_s: 30, eta_is_a_guess: false }), now);
-  assert.equal(p.eta, 'under a minute left in this step');                       // not a guess: no "~"
-  p = J.progressView(job({ stage: 'encoding', done: 0, total: null, eta_s: null, eta_is_a_guess: true }), now);
-  assert.deepEqual([p.label, p.fraction, p.detail, p.eta], ['Encoding the film', null, 'No count for this step', '']);
-  assert.equal(J.progressView(job({ stage: 'drawing', done: 9, total: 10, eta_s: 12, eta_is_a_guess: true }), now).eta, '~1 min left in this step');
-  assert.equal(J.progressView(job({ stage: 'checks', done: 0, total: 1, unit: 'clips' }), now).detail, '0 of 1 clip (0%)');
-  assert.equal(J.progressView(job({ stage: 'starting' }, { started_at: '2026-09-28T00:00:00Z' }), now).elapsed, '');  // clock problem: hidden
-  p = J.progressView(job({ stage: 'checks', done: 2, total: 5, unit: 'clips', eta_s: 4000, eta_is_a_guess: true, total_is_provisional: true }), now);
-  assert.equal(p.detail, '2 of 5 clips so far (40%)');
-  assert.equal(p.eta, '~1 h 7 min left in this step');
-  p = J.progressView(job({ stage: 'starting' }), now);
-  assert.deepEqual([p.label, p.fraction], ['Building the data', null]);
-  // Older workers: no detail, only the drawing fraction and their own sentence.
-  p = J.progressView(job(null, { progress: 0.25 }), now);
-  assert.deepEqual([p.label, p.fraction, p.detail], ['Drawing frames', 0.25, '25% of frames drawn']);
-  assert.equal(J.progressView({ state: 'validating' }, now).label, 'Checking the film against its data');
+  // Nothing yet: claimed, no detail, no start time.
+  assert.deepEqual(plain(J.progressView({ state: 'claimed', progress_detail: null }, now)),
+    { stage: D, countLabel: 'Frames', count: D, fraction: null, eta: D, running: D });
+  // A stage with no count (the data build, encoding): the stage, and dashes for the rest.
+  let p = J.progressView(job({ stage: 'starting' }), now);
+  assert.deepEqual([p.stage, p.count, p.eta, p.running], ['Building the data', D, D, '4 min']);
+  p = J.progressView(job({ stage: 'encoding', done: 0, total: null }), now);
+  assert.deepEqual([p.stage, p.count, p.fraction], ['Encoding the film', D, null]);
+  // A count, but only one sighting: no ETA. The engine's own eta_s is not used.
+  const drawing = done => job({ stage: 'drawing', done, total: 3000, unit: 'frames', eta_s: 999, eta_is_a_guess: true });
+  let seen = J.addSample([], drawing(1200), now);
+  p = J.progressView(drawing(1200), now, seen);
+  assert.deepEqual([p.stage, p.countLabel, p.count, p.fraction, p.eta], ['Drawing frames', 'Frames', '1,200 / 3,000', 0.4, D]);
+  // 3 s later: still too soon to call a rate.
+  seen = J.addSample(seen, drawing(1230), now + 3000);
+  assert.equal(J.progressView(drawing(1230), now + 3000, seen).eta, D);
+  // 60 s after the first sighting, 600 more frames: 10 frames/s, 1,200 left -> 2 min.
+  seen = J.addSample(seen, drawing(1800), now + 60000);
+  assert.equal(J.progressView(drawing(1800), now + 60000, seen).eta, '~2 min left in this step');
+  // Unchanged reads add nothing; a near-done stage still floors at ~1 min.
+  assert.equal(J.addSample(seen, drawing(1800), now + 61000), seen);
+  seen = J.addSample(seen, drawing(2995), now + 180000);
+  assert.equal(J.progressView(drawing(2995), now + 180000, seen).eta, '~1 min left in this step');
+  // A new stage starts its own count: no ETA carried over from drawing.
+  const checks = job({ stage: 'checks', done: 1, total: 5, unit: 'clips' });
+  seen = J.addSample(seen, checks, now + 200000);
+  p = J.progressView(checks, now + 200000, seen);
+  assert.deepEqual([p.stage, p.countLabel, p.count, p.eta], ['Checking the film against its data', 'Clips', '1 / 5', D]);
+  // A count that doesn't move gives no ETA (no division by zero, no infinity).
+  const stuck = J.addSample(J.addSample([], drawing(10), now), drawing(10), now + 30000);
+  assert.equal(J.etaSeconds(stuck, now + 30000), null);
+  // A count that stops moving: the ETA grows with the wait instead of standing still.
+  const burst = J.addSample(J.addSample([], drawing(0), now), drawing(900), now + 6000);   // 150 frames/s
+  assert.equal(Math.round(J.etaSeconds(burst, now + 6000)), 14);     // 2,100 left at 150/s
+  assert.equal(Math.round(J.etaSeconds(burst, now + 36000)), 84);    // 900 in 36 s = 25/s -> 2,100 / 25
+  assert.equal(J.etaSeconds([]), null);
+  // Garbage in the detail is not a count.
+  for (const d of [{ stage: 'drawing', done: 5, total: 0 }, { stage: 'drawing', done: -1, total: 10 }, { stage: 'hacking', done: 1, total: 2 },
+                   { stage: 'drawing', done: 'x', total: 10 }, { stage: 'drawing', total: 10 }]) {
+    assert.equal(J.progressView(job(d), now).count, D, JSON.stringify(d));
+  }
   for (const j of [{ state: 'queued' }, { state: 'complete' }, { state: 'running', cancel_requested: true }]) assert.equal(J.progressView(j, now), null);
-  assert.equal(J.progressView(job({ stage: 'drawing', done: 5, total: 0 }), now).fraction, null);  // no division by zero
+  assert.equal(J.progressView(job({ stage: 'starting' }, { started_at: '2026-09-28T00:00:00Z' }), now).running, D);   // clock problem
 });
 
 test('jobs load without progress_detail until its SQL is applied', async () => {
