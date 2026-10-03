@@ -27,6 +27,7 @@
       return url;
     }
 
+    let detailColumn = null;                          // unknown until the first jobs query
     const api = {
       async listProjects() {
         const projects = await run(
@@ -116,9 +117,16 @@
           'Couldn’t change the version.');
       },
 
-      listJobs(versionId) {
-        return run(client.from('jobs').select(JOB_COLUMNS).eq('version_id', versionId)
-          .order('created_at', { ascending: false }), 'Couldn’t load the jobs.');
+      // progress_detail arrives with SQL 20261003000100; until then the jobs load without it.
+      async listJobs(versionId) {
+        const query = cols => client.from('jobs').select(cols).eq('version_id', versionId).order('created_at', { ascending: false });
+        if (detailColumn !== false) {
+          const { data, error } = await query(`${JOB_COLUMNS}, progress_detail`);
+          if (!error) { detailColumn = true; return data; }
+          if (!/progress_detail/.test(error.message || '')) throw new Error(error.message || 'Couldn’t load the jobs.');
+          detailColumn = false;
+        }
+        return run(query(JOB_COLUMNS), 'Couldn’t load the jobs.');
       },
 
       // The database checks everything again: parameters, the ladder, the kill switch.

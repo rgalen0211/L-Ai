@@ -111,3 +111,7 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .choice-text{display:block;color:var(--muted);font-size:.92rem}
 .button.danger{background:#9b2c2c;border-color:#9b2c2c;color:#fff}
 .account-danger p{max-width:60ch}
+.job-progress{flex-basis:100%;width:100%;margin:6px 0 2px}
+.job-progress .job-stage{margin:0 0 4px;font-size:.92rem}
+.job-progress progress{display:block;width:100%;height:10px}
+.job-progress .form-note{margin:4px 0 0}

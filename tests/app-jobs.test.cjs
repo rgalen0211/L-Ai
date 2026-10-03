@@ -228,3 +228,45 @@ test('engine checks: unknown current engine only compares sheet and preview; a p
   assert.equal(l.ready, true);
   assert.equal(l.sheet.id, 'contact_sheet1');
 });
+
+test('live progress: stage, per-stage count, ETA marked ~ when estimated', () => {
+  const now = Date.parse('2026-10-03T10:00:00Z');
+  const job = (detail, extra = {}) => ({ state: 'running', started_at: '2026-10-03T09:56:00Z', progress_detail: detail, ...extra });
+  let p = J.progressView(job({ stage: 'drawing', done: 1200, total: 3000, unit: 'frames', eta_s: 118, eta_is_a_guess: true }), now);
+  assert.deepEqual([p.label, p.fraction, p.detail, p.eta, p.elapsed, p.step],
+    ['Drawing frames', 0.4, '1,200 of 3,000 frames (40%)', '~2 min left in this step', '4 min so far', 'Step 2 of 5']);
+  p = J.progressView(job({ stage: 'drawing', done: 10, total: 100, eta_s: 30, eta_is_a_guess: false }), now);
+  assert.equal(p.eta, 'under a minute left in this step');                       // not a guess: no "~"
+  p = J.progressView(job({ stage: 'encoding', done: 0, total: null, eta_s: null, eta_is_a_guess: true }), now);
+  assert.deepEqual([p.label, p.fraction, p.detail, p.eta], ['Encoding the film', null, 'No count for this step', '']);
+  assert.equal(J.progressView(job({ stage: 'drawing', done: 9, total: 10, eta_s: 12, eta_is_a_guess: true }), now).eta, '~1 min left in this step');
+  assert.equal(J.progressView(job({ stage: 'checks', done: 0, total: 1, unit: 'clips' }), now).detail, '0 of 1 clip (0%)');
+  assert.equal(J.progressView(job({ stage: 'starting' }, { started_at: '2026-09-28T00:00:00Z' }), now).elapsed, '');  // clock problem: hidden
+  p = J.progressView(job({ stage: 'checks', done: 2, total: 5, unit: 'clips', eta_s: 4000, eta_is_a_guess: true, total_is_provisional: true }), now);
+  assert.equal(p.detail, '2 of 5 clips so far (40%)');
+  assert.equal(p.eta, '~1 h 7 min left in this step');
+  p = J.progressView(job({ stage: 'starting' }), now);
+  assert.deepEqual([p.label, p.fraction], ['Building the data', null]);
+  // Older workers: no detail, only the drawing fraction and their own sentence.
+  p = J.progressView(job(null, { progress: 0.25 }), now);
+  assert.deepEqual([p.label, p.fraction, p.detail], ['Drawing frames', 0.25, '25% of frames drawn']);
+  assert.equal(J.progressView({ state: 'validating' }, now).label, 'Checking the film against its data');
+  for (const j of [{ state: 'queued' }, { state: 'complete' }, { state: 'running', cancel_requested: true }]) assert.equal(J.progressView(j, now), null);
+  assert.equal(J.progressView(job({ stage: 'drawing', done: 5, total: 0 }), now).fraction, null);  // no division by zero
+});
+
+test('jobs load without progress_detail until its SQL is applied', async () => {
+  const calls = [];
+  const fakeQuery = cols => {
+    calls.push(cols);
+    const res = cols.includes('progress_detail')
+      ? { data: null, error: { message: 'column jobs.progress_detail does not exist' } }
+      : { data: [{ id: 'j1' }], error: null };
+    const q = { select: () => q, eq: () => q, order: () => Promise.resolve(res) };
+    return q;
+  };
+  const data = ryagramData({ from: () => ({ select: cols => fakeQuery(cols) }) });
+  assert.deepEqual(await data.listJobs('v'), [{ id: 'j1' }]);
+  assert.deepEqual(await data.listJobs('v'), [{ id: 'j1' }]);
+  assert.equal(calls.filter(c => c.includes('progress_detail')).length, 1);      // asked once, then remembered
+});

@@ -627,10 +627,7 @@
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
           finalNote, finalButton),
-        // Measured by WORKER (2026-09-29): a sheet or preview takes from about 10 seconds for a state
-        // line chart to about 20 minutes for county-level bars, mostly building and checking the data.
-        h('p', { class: 'form-note run-timing' },
-          'Sheets and previews take from under a minute to about 20 minutes for county-level data. You can leave this page; the jobs keep running.'));
+        h('p', { class: 'form-note run-timing' }, 'Jobs keep running if you leave this page.'));
 
       async function submit(button, type, params, ladder) {
         error.hidden = true;
@@ -696,6 +693,22 @@
         }
       }
 
+      // Live progress: the stage, a bar (indeterminate when the stage counts nothing), the count
+      // and an ETA marked "~" when it is the engine's estimate. The worker's own sentence shows when
+      // there is no structured detail (older workers).
+      function progressBlock(j) {
+        const p = J.progressView(j);
+        if (!p) return null;
+        const bar = p.fraction == null
+          ? h('progress', { 'aria-label': `${p.label}, no count for this step` })
+          : h('progress', { max: '1', value: String(p.fraction), 'aria-label': `${p.label}: ${Math.floor(p.fraction * 100)}%` });
+        const words = j.progress_detail ? [p.detail, p.eta, p.elapsed] : [j.progress_note || p.detail, p.elapsed];
+        return h('div', { class: 'job-progress' },
+          h('p', { class: 'job-stage' }, h('strong', {}, p.label), p.step ? h('span', { class: 'meta' }, ` \u00b7 ${p.step}`) : null),
+          bar,
+          h('p', { class: 'form-note' }, words.filter(Boolean).join(' \u00b7 ')));
+      }
+
       function jobItem(j) {
         const active = J.isActive(j);
         const failed = ['failed', 'editorial_action_required', 'cancelled'].includes(j.state);
@@ -705,9 +718,8 @@
           h('span', { class: `state job-${j.state}` }, J.STATE_LABELS[j.state] || j.state),
           h('span', { class: 'meta' }, date(j.created_at)),
           creditsOn() && accounting[j.id] ? h('span', { class: 'meta credit-line' }, C.jobCredits(accounting[j.id])) : null,
-          j.state === 'running' && j.progress != null
-            ? h('progress', { max: '1', value: String(j.progress), 'aria-label': `${J.TYPE_LABELS[j.job_type]} progress` }) : null,
-          note ? h('p', { class: failed && j.state !== 'cancelled' ? 'form-note job-problem' : 'form-note' }, note) : null,
+          progressBlock(j),
+          note && !J.progressView(j) ? h('p', { class: failed && j.state !== 'cancelled' ? 'form-note job-problem' : 'form-note' }, note) : null,
           active && !j.cancel_requested
             ? h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
                 await busy(event.currentTarget, 'Cancelling…', async () => {

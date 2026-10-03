@@ -66,16 +66,23 @@
       switch (job.state) {
         case 'claimed':
           if (plan === 'invalid') return finish(job, 'failed', ERRORS.invalid);
-          return update(job, { state: 'running', started_at: client.now(), progress: 0, progress_note: 'Drawing frames.',
-                               engine_commit: client.engineCommit });
+          return update(job, { state: 'running', started_at: client.now(), progress: 0, progress_note: 'Building the data.',
+                               progress_detail: { stage: 'starting' }, engine_commit: client.engineCommit });
         case 'running': {
           if ((plan === 'crash_once' && job.attempt === 1) || plan === 'crash_always') return crash(job);
           if (plan === 'timeout') return finish(job, 'failed', ERRORS.timeout);
           const progress = Math.min(1, Math.round(((job.progress || 0) + 0.34) * 100) / 100);
-          if (progress < 1) return update(job, { progress, progress_note: `Drawing frames: ${Math.round(progress * 100)}%` });
-          return update(job, { state: 'validating', progress: 1, progress_note: null });
+          const total = job.job_type === 'final_render' ? 1560 : 300;
+          if (progress < 1) {
+            return update(job, { progress, progress_note: `Drawing frames: ${Math.round(progress * 100)}%`,
+                                 progress_detail: { stage: 'drawing', done: Math.round(progress * total), total, unit: 'frames',
+                                                    eta_s: Math.round((1 - progress) * 150), eta_is_a_guess: true } });
+          }
+          return update(job, { state: 'validating', progress: 1, progress_note: null,
+                               progress_detail: { stage: 'checks', done: 0, total: 1, unit: 'clips', eta_s: null, eta_is_a_guess: true } });
         }
         case 'validating':
+          update(job, { progress_detail: { stage: 'uploading' } });
           if (plan === 'gate') return finish(job, 'editorial_action_required', ERRORS.gate);
           if (plan === 'limit') return finish(job, 'failed', ERRORS.limit);
           return update(job, { state: 'uploading' });
