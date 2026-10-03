@@ -286,6 +286,15 @@
       functions: {
         async invoke(name, { body }) {
           log.push({ fn: name, body });
+          if (name === 'redeem-invite') {
+            // Mock: RYA-TEST-CODE works; the "email" is the link /app/?mock&invite=mock-invite-token.
+            const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (code !== 'RYATESTCODE' && code !== 'TESTCODE') {
+              return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'That code isn\u2019t valid, has expired or has been used up.' }) } } };
+            }
+            log.push({ invited: body.email });
+            return { data: { message: 'If that email can join, a link to finish joining is on its way. It works once. Already have an account? Sign in instead.' }, error: null };
+          }
           if (name === 'delete-account') {
             if ((body.confirm_email || '').trim().toLowerCase() !== (session?.user?.email || '').toLowerCase()) {
               return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Type your account’s email address exactly to confirm.' }) } } };
@@ -369,7 +378,8 @@
         },
         async resetPasswordForEmail(email, options) { log.push({ reset: email, options }); return { data: {}, error: null }; },
         async verifyOtp({ token_hash, type }) {
-          if (type !== 'recovery' || token_hash !== 'mock-reset-token') return { error: { message: 'Token has expired or is invalid' } };
+          const ok = (type === 'recovery' && token_hash === 'mock-reset-token') || (type === 'invite' && token_hash === 'mock-invite-token');
+          if (!ok) return { error: { message: 'Token has expired or is invalid' } };
           session = { user: { id: 'u-ryan', email: 'ryan@example.com' } };
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { data: { session }, error: null };

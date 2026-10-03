@@ -31,6 +31,9 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    owner publishes, and the page needs the film-page function; see "Public film pages")
 11. `migrations/20260929000900_account_basics.sql` (the upload data choice and account deletion;
    see "Account basics")
+12. `migrations/20261003000100_job_progress_detail.sql` (live render progress; the worker's
+   4-argument heartbeat needs it)
+13. `migrations/20261003000200_invite_codes.sql` (beta invite codes; see "Beta invites")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -251,6 +254,36 @@ What they do:
   waitlist table is separate: an address there stays until you remove it.
 
 **Watch:** `select * from account_deletion_requests`.
+
+## Beta invites (branch invites): switching them on
+
+Sign-up stays closed to the public: **Authentication → Providers → Email → "Allow new users to
+sign up" stays OFF.** You hand out codes; a person enters a code and their email on the sign-in
+page, Supabase emails them an invite, and they choose a password from its link. Codes are stored
+only as hashes; a wrong code is throttled (10 an hour from one address, 300 an hour overall), and
+the answer never says whether an email already has an account.
+
+1. **Email sender first:** custom SMTP (Authentication → Emails → SMTP settings). Supabase's
+   built-in sender only reaches the project's team members, so invites wouldn't arrive.
+2. **Authentication → Emails → Invite user:** replace the link in the template with
+   `<a href="{{ .SiteURL }}/app/?invite={{ .TokenHash }}">Join Ryagram</a>` (Site URL
+   `https://uselai.com`, as for password reset). The app checks that token itself.
+3. **SQL Editor:** `migrations/20261003000200_invite_codes.sql`.
+4. **Deploy** (visitors aren't signed in; no secrets):
+
+   ```
+   npx supabase functions deploy redeem-invite --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+5. **Merge with `inviteSignup: true`** in `assets/ryagram-config.js` (with your OK).
+6. **Issue codes** in the SQL Editor; each is shown once, so copy it then:
+
+   ```sql
+   select public.invite_issue('Beta wave 1', 10, 14);   -- label, uses, days valid -> RYA-XXXX-XXXX
+   select label, uses, max_uses, expires_at, disabled from public.invite_codes order by created_at desc;
+   update public.invite_codes set disabled = true where label = 'Beta wave 1';   -- stop a code
+   select email, status, created_at from public.invite_redemptions order by created_at desc;  -- who joined
+   ```
+   A person can type the code with or without `RYA-`, in any case, with spaces.
 
 ## Kill switch
 

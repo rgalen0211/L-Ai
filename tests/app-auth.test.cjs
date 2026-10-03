@@ -12,7 +12,7 @@ function el(extra = {}) {
 
 function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'sb_publishable_x' }, signIn, library = true,
                   location = { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/', origin: 'https://uselai.com' },
-                  verifyOtp, updateUser, resetPassword } = {}) {
+                  verifyOtp, updateUser, resetPassword, invoke } = {}) {
   const listeners = {};
   const button = el();
   const form = {
@@ -30,15 +30,18 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
   };
   const resetForm = miniForm('reset', { email: { value: '', focus() {} } });
   const setForm = miniForm('setPassword', { password: { value: '' }, again: { value: '' } });
+  const inviteForm = miniForm('invite', { code: { value: '', focus() {} }, email: { value: '' } });
   const forgot = el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(type, fn) { listeners.forgot = fn; } });
   const appended = [];
   const els = {
     'app-status': el(), 'sign-in': el(), library: el(), account: el(), 'sign-in-form': form,
     'sign-in-error': el(), 'account-email': el(), 'sign-out': signOut,
     forgot, 'reset-form': resetForm, 'reset-note': el(), 'set-password': el(), 'set-password-form': setForm,
-    'set-password-error': el(), 'set-password-title': el(), 'forgot-row': el()
+    'set-password-error': el(), 'set-password-title': el(), 'forgot-row': el(),
+    'invite-row': el(), 'have-invite': el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { listeners.haveInvite = fn; } }),
+    'invite-form': inviteForm, 'invite-note': el()
   };
-  const calls = { created: null, signIn: [], signOut: 0, mounts: 0, unmounts: 0, verify: [], update: [], reset: [], replaced: [] };
+  const calls = { created: null, signIn: [], signOut: 0, mounts: 0, unmounts: 0, verify: [], update: [], reset: [], replaced: [], invoked: [] };
   let authListener;
   const client = {
     auth: {
@@ -49,7 +52,8 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
       updateUser: async args => { calls.update.push(args); return updateUser ? updateUser(args) : { error: null }; },
       resetPasswordForEmail: async (email, opts) => { calls.reset.push({ email, opts }); return resetPassword ? resetPassword() : { error: null }; },
       getSession: async () => ({ data: { session: { user: { email: 'ryan@example.com' } } } })
-    }
+    },
+    functions: { invoke: async (name, opts) => { calls.invoked.push({ name, body: opts.body }); return invoke ? invoke(opts) : { data: { message: 'sent' }, error: null }; } }
   };
   const history = { replaceState: (a, b, url) => { calls.replaced.push(url); } };
   const window = {
@@ -64,7 +68,8 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
   return { els, button, calls, window, appended, emit: async s => { authListener('X', s); await flush(); },
            submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut(),
            forgot: () => listeners.forgot(), resetForm, setForm,
-           requestReset: () => listeners.reset({ preventDefault() {} }), savePassword: () => listeners.setPassword({ preventDefault() {} }),
+           requestReset: () => listeners.reset({ preventDefault() {} }), inviteForm,
+           redeem: () => listeners.invite({ preventDefault() {} }), haveInvite: () => listeners.haveInvite(), savePassword: () => listeners.setPassword({ preventDefault() {} }),
            flush };
 }
 
@@ -188,4 +193,36 @@ test('a reset link: token leaves the address bar, is checked once, and a new pas
   const junk = harness({ location: { hostname: 'uselai.com', search: '?reset=<script>' } });
   assert.equal(junk.calls.verify.length, 0);                                         // not a token: ignored, still removed
   assert.equal(junk.calls.replaced.length, 1);
+});
+
+test('invite codes: hidden until the invite email is set up; a code and email go to redeem-invite', async () => {
+  assert.equal(harness().els['invite-row'].hidden, true);
+  const h = harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true } });
+  assert.equal(h.els['invite-row'].hidden, false);
+  h.haveInvite();
+  assert.equal(h.inviteForm.hidden, false);
+  h.inviteForm.elements.code.value = 'RYA-K7M2-9QPX';
+  h.inviteForm.elements.email.value = ' new@example.com ';
+  await h.redeem();
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.invoked)), [{ name: 'redeem-invite', body: { code: 'RYA-K7M2-9QPX', email: 'new@example.com' } }]);
+  assert.equal(h.els['invite-note'].textContent, 'sent');
+  assert.equal(h.inviteForm.elements.code.value, '');
+  const bad = harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true },
+                        invoke: () => ({ data: null, error: { context: { json: async () => ({ error: 'That code isn’t valid.' }) } } }) });
+  bad.inviteForm.elements.code.value = 'x'; bad.inviteForm.elements.email.value = 'a@b.co';
+  await bad.redeem();
+  assert.equal(bad.els['invite-note'].textContent, 'That code isn’t valid.');
+});
+
+test('an invite link: token checked as an invite, removed from the URL, password chosen before the library', async () => {
+  const h = harness({ location: { hostname: 'uselai.com', search: '?invite=inviteTOKEN_123-x', hash: '#/' } });
+  assert.deepEqual(h.calls.replaced, ['/app/#/']);
+  assert.deepEqual(JSON.parse(JSON.stringify(h.calls.verify)), [{ token_hash: 'inviteTOKEN_123-x', type: 'invite' }]);
+  assert.match(h.els['set-password-title'].textContent, /Welcome to Ryagram/);
+  await h.emit({ user: { email: 'new@example.com' } });
+  assert.equal(h.els['set-password'].hidden, false);
+  assert.equal(h.calls.mounts, 0);
+  const stale = harness({ location: { hostname: 'uselai.com', search: '?invite=expiredinvite1' }, verifyOtp: () => ({ error: { message: 'expired' } }) });
+  await stale.flush();
+  assert.match(stale.els['app-status'].textContent, /invite link has expired/);
 });
