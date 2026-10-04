@@ -47,6 +47,7 @@
   // Public film pages show once the film-page function is deployed (filmPages: true), or in mock mode.
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
+  const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
@@ -214,7 +215,7 @@
         h('span', {}, h('strong', {}, title), h('span', { class: 'choice-text' }, text)));
       sections.push(h('section', { class: 'account-section', 'aria-labelledby': 'acct-data' },
         h('h2', { id: 'acct-data' }, 'Data you upload'),
-        h('p', { class: 'form-note' }, 'Your default for data you upload. You can choose again for each upload. (Uploading opens later; films from Ryagram’s catalogue aren’t affected.)'),
+        h('p', { class: 'form-note' }, 'Your default for data you upload. You can choose again for each upload. (Films from Ryagram’s own data aren’t affected.)'),
         h('fieldset', { class: 'choices', 'aria-labelledby': 'acct-data' },
           option('keep', 'Store my data (default)', 'Ryagram privately keeps this dataset because it’s needed to rebuild the film later.'),
           option('dont_keep', 'Don’t keep my data', 'Ryagram deletes the input data after processing. The film can’t be rebuilt after its rendered copy is archived.')),
@@ -426,6 +427,17 @@
 
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
       const sources = sourcesPanel(v, !locked);
+      // Using an upload as this film's data points the story's render clips at it (v1: one uploaded dataset per film).
+      const uploads = uploadsOn() ? uploadsPanel(v, !locked, async ref => {
+        const built = window.ryagramUploads.useInStory(v.story_spec, ref);
+        if (!built) throw new Error('Add a render clip to the story first, then use your data in it.');
+        const result = await data.saveStory(v.id, built);
+        v.story_spec = built;
+        story.value = JSON.stringify(built, null, 2);
+        saved.textContent = 'Your data is now this film\u2019s data. Make a contact sheet to see it.';
+        jobs.storyChanged(result.story_sha256);
+        sources.refresh();
+      }) : null;
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
         if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
@@ -460,6 +472,7 @@
             : null),
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
         sources.el,
+        uploads?.el,
         picker,
         chat,
         storyForm,
@@ -509,6 +522,170 @@
           h('p', { class: 'form-note' }, S.note({ editable, count: cards.length }))].filter(Boolean));
       }
       refresh();
+      return { el, refresh };
+    }
+
+    // "Your own data": upload a spreadsheet, check what the reader found, confirm what the columns mean, use it in this film.
+    // The file goes to the person's own private slot; only the worker reads it. Hidden when the SQL isn't applied yet.
+    // Everything the reader reports about a file (names, sample values) is the person's own text and goes in as text nodes.
+    function uploadsPanel(v, editable, useInFilm) {
+      const U = window.ryagramUploads;
+      const el = h('section', { class: 'app-panel uploads-panel', 'aria-labelledby': 'uploads-title', hidden: true });
+      const error = errorLine();
+      let list = [], timer = null, open = null, latest = 0, retention = 'keep';
+
+      const ready = async () => {
+        try { retention = await data.uploadRetention(); } catch { /* keep is the default */ }
+        const box = el.querySelector(`input[name=upload-retention][value=${retention === 'dont_keep' ? 'dont_keep' : 'keep'}]`);
+        if (box) box.checked = true;       // the account's choice is where each upload starts
+      };
+
+      const fileInput = h('input', { type: 'file', id: 'upload-file', accept: U.ACCEPT });
+      const rights = h('input', { type: 'checkbox', id: 'upload-rights' });
+      const radio = (value, title, text) => h('label', { class: 'choice' },
+        h('input', { type: 'radio', name: 'upload-retention', value, checked: value === 'keep' }),
+        h('span', {}, h('strong', {}, title), h('span', { class: 'choice-text' }, text)));
+      const keepChoices = h('fieldset', { class: 'choices' }, h('legend', {}, 'Should Ryagram keep this file?'),
+        radio('keep', 'Store my data', 'Kept privately until you delete it, so the film can be rebuilt later.'),
+        radio('dont_keep', 'Don\u2019t keep my data', 'Deleted once your final film is made, or after 7 days without activity. The film can\u2019t be rebuilt afterwards.'));
+      const send = h('button', { class: 'button', type: 'submit' }, 'Upload');
+      const form = h('form', { class: 'upload-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        const file = fileInput.files[0];
+        const check = U.checkFile(file, { count: list.length });
+        if (!check.ok) return showError(error, new Error(check.problem));
+        if (!rights.checked) return showError(error, new Error('Tick the box to confirm you may use this data.'));
+        const choice = form.querySelector('input[name=upload-retention]:checked')?.value || retention;
+        await busy(send, 'Uploading\u2026', async () => {
+          try {
+            await data.startUpload(file, { label: check.label, ext: check.ext, contentType: U.MIME[check.ext], retention: choice });
+            form.reset();
+            await refresh();
+          } catch (err) { showError(error, err); }
+        });
+      } },
+        h('label', { for: 'upload-file' }, 'A spreadsheet (.csv, .tsv, .xlsx or .ods, up to 10 MB)'), fileInput,
+        keepChoices,
+        h('label', { class: 'choice' }, rights, h('span', {}, 'I have the right to use this data.')),
+        send);
+
+      function mappingForm(ds) {
+        const report = ds.ingest_report;
+        const mapping = U.draft(report);
+        if (!mapping) {
+          return h('p', { class: 'form-note app-error', role: 'alert' }, U.problem(null, report));
+        }
+        const cols = report.columns;
+        const shown = (c) => `${U.text(c.header) || `Column ${c.index + 1}`}${c.sample?.length ? ` (${c.sample.slice(0, 3).map(U.text).join(', ')})` : ''}`;
+        const note = errorLine();
+        const select = (label, key, { allowNone = false } = {}) => {
+          const s = h('select', { 'aria-label': label, onchange: () => {
+            mapping[key] = s.value === '' ? null : Number(s.value);
+            if (key === 'state_index') drawCounty();
+          } },
+            allowNone ? h('option', { value: '' }, 'None') : null,
+            cols.map(c => h('option', { value: String(c.index), selected: mapping[key] === c.index }, shown(c))));
+          return h('label', { class: 'field' }, h('span', {}, label), s);
+        };
+        const stateSelect = h('select', { 'aria-label': 'State for these counties', onchange: e => { mapping.state = e.target.value || undefined; } },
+          h('option', { value: '' }, 'Choose a state\u2026'),
+          Object.entries(U.STATES).map(([code, name]) => h('option', { value: code, selected: mapping.state === code }, name)));
+        const county = h('div', { class: 'field' });
+        function drawCounty() {
+          const need = mapping.geography === 'us_counties' && mapping.state_index == null;
+          county.replaceChildren(...(mapping.geography === 'us_counties'
+            ? [h('p', { class: 'form-note' }, 'County names need a state. Pick the column that has it, or the one state they are all in.'),
+               select('Column with the state', 'state_index', { allowNone: true }), need ? h('label', { class: 'field' }, h('span', {}, 'Or the state'), stateSelect) : null]
+            : []).filter(Boolean));
+        }
+        const geo = h('fieldset', { class: 'choices' }, h('legend', {}, 'The places are'),
+          ...[['us_states', 'U.S. states'], ['us_counties', 'U.S. counties']].map(([value, title]) => h('label', { class: 'choice' },
+            h('input', { type: 'radio', name: `geo-${ds.id}`, value, checked: mapping.geography === value, onchange: () => { mapping.geography = value; drawCounty(); } }),
+            h('span', {}, title))));
+        const cadence = h('fieldset', { class: 'choices' }, h('legend', {}, 'The periods are'),
+          ...[['annual', 'Yearly'], ['monthly', 'Monthly']].map(([value, title]) => h('label', { class: 'choice' },
+            h('input', { type: 'radio', name: `cad-${ds.id}`, value, checked: mapping.cadence === value, onchange: () => { mapping.cadence = value; } }),
+            h('span', {}, title))));
+        const values = h('fieldset', { class: 'choices' }, h('legend', {}, 'Columns of values (1 to 8) and what to call each'),
+          ...cols.filter(c => c.index !== mapping.place_index && c.index !== mapping.period_index).map(c => {
+            const on = mapping.value_indexes.includes(c.index);
+            const name = h('input', { type: 'text', maxlength: '80', 'aria-label': `Name for ${U.text(c.header)}`, value: mapping.measure_names[String(c.index)] || U.text(c.header),
+              oninput: () => { mapping.measure_names[String(c.index)] = name.value; } });
+            const box = h('input', { type: 'checkbox', checked: on, onchange: () => {
+              mapping.value_indexes = box.checked ? [...mapping.value_indexes, c.index].sort((a, b) => a - b) : mapping.value_indexes.filter(i => i !== c.index);
+              mapping.measure_names[String(c.index)] ??= U.text(c.header);
+              if (!mapping.value_indexes.includes(mapping.banded_index)) mapping.banded_index = mapping.value_indexes[0];
+            } });
+            return h('div', { class: 'value-row' }, h('label', { class: 'choice' }, box, h('span', {}, shown(c))), name);
+          }));
+        drawCounty();
+        const confirmBtn = h('button', { class: 'button', type: 'button', onclick: async () => {
+          note.hidden = true;
+          const problem = U.problem(mapping, report);
+          if (problem) return showError(note, new Error(problem));
+          await busy(confirmBtn, 'Saving\u2026', async () => {
+            try { await data.confirmMapping(ds.id, U.clean(mapping)); await refresh(); } catch (err) { showError(note, err); }
+          });
+        } }, 'These are right');
+        const rows = report.rows;
+        const per = report.periods;
+        return h('div', { class: 'mapping-form' },
+          h('p', { class: 'form-note' }, `We found ${rows.toLocaleString()} rows${per ? `, ${per.first} to ${per.last}` : ''}. Check what each column means. Only you can see these values.`),
+          select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values,
+          h('div', { class: 'actions-row' }, confirmBtn), note);
+      }
+
+      function card(ds) {
+        const c = U.chip(ds, ds.ingest);
+        const inUse = v.dataset_id === ds.id;
+        const del = h('button', { class: 'button secondary small', type: 'button', onclick: async () => {
+          if (!confirm('Delete this data? The file is removed from Ryagram and any film using it loses it.')) return;
+          await busy(del, 'Deleting\u2026', async () => {
+            try { await data.deleteUpload(ds.id); await refresh(); } catch (err) { showError(error, err); }
+          });
+        } }, 'Delete');
+        const use = c.key === 'ready' && editable && !inUse ? h('button', { class: 'button small', type: 'button', onclick: async () => {
+          await busy(use, 'Adding\u2026', async () => {
+            try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref)); v.dataset_id = ds.id; await refresh(); }
+            catch (err) { showError(error, err); }
+          });
+        } }, 'Use in this film') : null;
+        const edit = c.key === 'ready' ? h('button', { class: 'link-button', type: 'button', onclick: () => { open = open === ds.id ? null : ds.id; draw(); } }, 'See the columns') : null;
+        return h('li', { class: 'upload-card' },
+          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: `state state-upload-${c.key}` }, c.label),
+          h('p', { class: 'meta' }, [bytes(ds.bytes), ds.ext ? ds.ext.toUpperCase() : '', ds.retention === 'dont_keep' ? 'Deleted after your final film' : 'Kept until you delete it'].filter(Boolean).join(' \u00b7 '),
+            inUse ? ' \u00b7 In use in this film' : ''),
+          c.key === 'reading' ? h('p', { class: 'form-note', role: 'status' }, 'We\u2019re reading it. This usually takes under a minute.') : null,
+          c.key === 'failed' ? h('p', { class: 'form-note app-error' }, c.detail) : null,
+          c.key === 'check' ? mappingForm(ds) : null,
+          c.key === 'ready' && open === ds.id ? h('ul', { class: 'column-list' }, (ds.ingest_report?.columns || []).map(col => h('li', {}, `${U.text(col.header)} (${col.kind})`))) : null,
+          h('div', { class: 'actions-row' }, use, edit, c.key === 'deleting' ? null : del));
+      }
+
+      function draw() {
+        el.replaceChildren(...[
+          h('h2', { id: 'uploads-title' }, 'Your own data'),
+          h('p', { class: 'form-note' }, 'Upload a spreadsheet with one row per U.S. state or county and year. Only you can see it. You can delete it at any time.'),
+          editable ? form : null,
+          error,
+          list.length ? h('ul', { class: 'upload-cards' }, list.map(card)) : null].filter(Boolean));
+      }
+
+      async function refresh() {
+        const mine = ++latest;
+        clearTimeout(timer);
+        let rows;
+        try { rows = await data.listUploads(); } catch (err) { showError(error, err); return; }
+        if (mine !== latest) return;
+        if (rows === null) { el.hidden = true; return; }
+        el.hidden = false;
+        list = rows.filter(d => !d.delete_requested_at);
+        // Don't redraw a half-filled mapping form out from under someone: only redraw when nothing is being edited.
+        if (!el.querySelector('.mapping-form') || list.some(d => U.chip(d, d.ingest).key !== 'check')) draw();
+        if (list.some(d => U.chip(d, d.ingest).key === 'reading') && el.isConnected !== false) timer = setTimeout(refresh, 3000);
+      }
+      refresh().then(ready);
       return { el, refresh };
     }
 

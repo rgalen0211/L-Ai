@@ -3,6 +3,7 @@
 // readable Error. The database enforces the rules; this layer just asks.
 (() => {
   const ARTIFACT_BUCKET = 'ryagram-artifacts';
+  const UPLOAD_BUCKET = 'ryagram-uploads';
   // Links to private files expire after 15 minutes; the page signs fresh ones each time it draws.
   const SIGNED_URL_SECONDS = 900;
   const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, engine_commit, '
@@ -244,6 +245,45 @@
           .select('dataset_ref, kind, title, publisher, source_url, coverage, licence_short, licence_full, position')
           .eq('version_id', versionId).order('position', { ascending: true }), 'Couldn’t load the sources.');
         return rows || [];
+      },
+
+      // Upload your own data (SQL 20261004000200/300): a spreadsheet goes to the person's own private slot, the worker reads
+      // it and reports what it found, the person confirms what the columns mean, then it can be a film's data.
+      // Null when that SQL isn't applied yet.
+      async listUploads() {
+        const { data, error } = await client.from('datasets')
+          .select('id, name, filename_label, ext, bytes, status, retention, geography, mapping, ingest_report, uploaded_at, delete_requested_at, created_at')
+          .eq('source', 'upload').is('deleted_at', null).is('delete_requested_at', null).order('created_at', { ascending: false });
+        if (error) {
+          if (/column|does not exist|schema cache/i.test(error.message || '')) return null;
+          throw new Error(error.message || 'Couldn’t load your data.');
+        }
+        const ingests = await run(client.from('dataset_ingests').select('dataset_id, state, error_code, error_detail'), 'Couldn’t load your data.');
+        const byId = new Map((ingests || []).map(i => [i.dataset_id, i]));
+        return (data || []).map(d => ({ ...d, ingest: byId.get(d.id) || null }));
+      },
+      // Three steps, in order: open a slot (the database checks type, size and quota), put the file in it, say it's there.
+      // If the file never arrives the slot is deleted so nothing is left half-made.
+      async startUpload(file, { label, ext, contentType, retention }) {
+        const rows = await run(client.rpc('create_upload', { p_label: label, p_ext: ext, p_bytes: file.size, p_retention: retention || null }),
+          'Couldn’t start the upload.');
+        const slot = Array.isArray(rows) ? rows[0] : rows;
+        const { error } = await client.storage.from(UPLOAD_BUCKET).upload(slot.storage_path, file, { contentType, upsert: false });
+        if (error) {
+          await client.rpc('request_dataset_deletion', { p_dataset: slot.dataset_id });
+          throw new Error('The file didn’t upload. Check your connection and try again.');
+        }
+        await run(client.rpc('finish_upload', { p_dataset: slot.dataset_id }), 'Couldn’t finish the upload.');
+        return slot.dataset_id;
+      },
+      confirmMapping(datasetId, mapping) {
+        return run(client.rpc('confirm_dataset_mapping', { p_dataset: datasetId, p_mapping: mapping }), 'Couldn’t save that.');
+      },
+      attachUpload(versionId, datasetId) {
+        return run(client.rpc('attach_upload_to_version', { p_version: versionId, p_dataset: datasetId }), 'Couldn’t use this data.');
+      },
+      deleteUpload(datasetId) {
+        return run(client.rpc('request_dataset_deletion', { p_dataset: datasetId }), 'Couldn’t delete this data.');
       },
 
       // Ryan's admin view: is this account an admin (false if the SQL isn't applied), and the

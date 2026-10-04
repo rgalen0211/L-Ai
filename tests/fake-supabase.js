@@ -18,7 +18,7 @@
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [],
-                 account_settings: [], version_sources: [], ...structuredClone(seed) };
+                 account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -163,8 +163,14 @@
       db.version_sources = db.version_sources || [];
       if (EDITABLE.includes(v.state)) {
         const clips = Array.isArray(v.story_spec?.sequence?.clips) ? v.story_spec.sequence.clips : [];
-        const wanted = [...new Set(clips.filter(c => c.kind === 'render' && c.dataset).map(c => c.dataset))];
-        if (wanted.length > 5) return { data: null, error: { message: 'A film can use up to 5 sources.' } };
+        const named = [...new Set(clips.filter(c => c.kind === 'render' && c.dataset).map(c => c.dataset))];
+        if (named.length > 5) return { data: null, error: { message: 'A film can use up to 5 sources.' } };
+        // An uploaded dataset is named u_<24 hex>; it must be one of the person's approved uploads (the real rule).
+        const upload = ref => db.datasets.find(d => d.source === 'upload' && d.status === 'approved' && !d.deleted_at && !d.delete_requested_at && refOf(d) === ref);
+        for (const ref of named.filter(n => /^u_[0-9a-f]{24}$/.test(n))) {
+          if (!upload(ref)) return { data: null, error: { message: `"${ref}" isn't ready, or isn't yours.` } };
+        }
+        const wanted = named.filter(n => !/^u_[0-9a-f]{24}$/.test(n));
         for (const id of wanted) {
           if (!MOCK_CATALOG[id]) return { data: null, error: { message: `We don't have data called "${id}".` } };
           if (MOCK_CATALOG[id][6] === false) return { data: null, error: { message: `We have "${MOCK_CATALOG[id][0]}", but can't run it yet.` } };
@@ -179,7 +185,120 @@
       }
       return { data: db.version_sources.filter(r => r.version_id === versionId).sort((a, b) => a.position - b.position), error: null };
     }
+    // Mock of upload-your-own-data (SQL 20261004000200/300). The mock "worker" reads a .csv/.tsv for real (headers,
+    // a few sample values, a guess at which column is what) after READ_MS; other formats come back unreadable, because
+    // the real reader runs only on the worker. The real rules are tested against Postgres.
+    const READ_MS = seed.uploadReadMs ?? 600;
+    const files = {};
+    const COUNTY_STATES = ['AL','AK','AZ','AR','CA','CO','CT','DE','DC','FL','GA','HI','ID','IL','IN','IA','KS','KY','LA','ME','MD','MA','MI','MN','MS','MO','MT','NE','NV','NH','NJ','NM','NY','NC','ND','OH','OK','OR','PA','RI','SC','SD','TN','TX','UT','VT','VA','WA','WV','WI','WY'];
+    function readTable(textBody, sep) {
+      const rows = textBody.split(/\r?\n/).filter(l => l.trim()).map(l => l.split(sep).map(c => c.trim().replace(/^"|"$/g, '')));
+      if (rows.length < 2) return null;
+      const head = rows[0], body = rows.slice(1);
+      const kinds = head.map((_, i) => {
+        const vals = body.map(r => r[i] ?? '').filter(Boolean);
+        if (!vals.length) return 'text';
+        if (vals.every(v => /^(19|20)\d\d$/.test(v) || /^(19|20)\d\d-\d\d$/.test(v)) && /year|date|period|month/i.test(head[i])) return 'period';
+        if (vals.every(v => /^-?[\d,.]+$/.test(v))) return 'number';
+        return /state|county|place|name|area/i.test(head[i]) ? 'place' : 'text';
+      });
+      const columns = head.map((header, index) => ({ index, header: header.slice(0, 80), kind: kinds[index], sample: body.slice(0, 5).map(r => String(r[index] ?? '').slice(0, 40)) }));
+      const place = kinds.indexOf('place'), period = kinds.indexOf('period');
+      const periods = period >= 0 ? body.map(r => r[period]).filter(Boolean).sort() : [];
+      const wide = head.filter(h => /^(19|20)\d\d$/.test(h)).length >= 3;
+      return { rows: body.length, columns, place, period, wide, periods,
+               values: kinds.map((k, i) => (k === 'number' && i !== place && i !== period ? i : -1)).filter(i => i >= 0),
+               cadence: periods.some(p => /^\d{4}-\d\d$/.test(p)) ? 'monthly' : 'annual',
+               places: place >= 0 ? [...new Set(body.map(r => r[place]))] : [] };
+    }
+    function runMockWorker(ds) {
+      const ing = db.dataset_ingests.find(i => i.dataset_id === ds.id);
+      setTimeout(async () => {
+        const file = files[ds.storage_path];
+        const reject = (code, detail) => { ing.state = 'failed'; ing.error_code = code; ing.error_detail = detail; ds.status = 'rejected'; };
+        const text = ['csv', 'tsv'].includes(ds.ext);
+        let t = null;
+        if (text && file?.text) t = readTable(await file.text(), ds.ext === 'tsv' ? '\t' : ',');
+        if (!t) return reject(text ? 'not_a_table' : 'unreadable',
+                              text ? 'This doesn\u2019t look like a table with a header row and some data rows.'
+                                   : 'The mock reader only opens .csv and .tsv. The real reader also opens .xlsx and .ods.');
+        const named = t.places.filter(p => /^[A-Z]{2}$/.test(p) || /^[A-Z][a-z]+( [A-Z][a-z]+)*$/.test(p));
+        ds.ingest_report = { format: ds.ext, sha256: 'a'.repeat(64), rows: t.rows, columns: t.columns,
+          guess: { place_index: t.place, period_index: t.period, value_indexes: t.values, geography: named.length && named.length <= 52 ? 'us_states' : null,
+                   cadence: t.periods.length ? t.cadence : null, wide: t.wide },
+          periods: t.periods.length ? { first: t.periods[0], last: t.periods[t.periods.length - 1], count: new Set(t.periods).size } : null,
+          unmatched: { count: 0, names: [] } };
+        ds.row_count = t.rows;
+        ing.state = 'done';
+      }, READ_MS);
+    }
+    const mine = dsId => db.datasets.find(d => d.id === dsId && d.source === 'upload' && !d.deleted_at && !d.delete_requested_at);
+    const EXT_OK = ['csv', 'tsv', 'xlsx', 'ods'];
+    const refOf = ds => 'u_' + ds.id.replace(/-/g, '').slice(0, 24);
+    const rpcsExtra = {
+      create_upload({ p_label, p_ext, p_bytes, p_retention }) {
+        const label = String(p_label || '').trim();
+        if (!label) return fail('Give the file a name.');
+        if (!EXT_OK.includes(String(p_ext).toLowerCase())) return fail('Ryagram reads .csv, .tsv, .xlsx and .ods files.');
+        if (!(p_bytes > 0) || p_bytes > 10 * 1024 * 1024) return fail('A file can be up to 10 MB.');
+        const live = db.datasets.filter(d => d.source === 'upload' && !d.deleted_at && !d.delete_requested_at);
+        if (live.length >= 20) return fail('You can keep up to 20 uploaded datasets.');
+        if (live.reduce((a, d) => a + (d.bytes || 0), 0) + p_bytes > 100 * 1024 * 1024) return fail('Your uploads can add up to 100 MB. Delete some data first.');
+        const dsId = id();
+        const ext = String(p_ext).toLowerCase();
+        const path = `u-ryan/${dsId}/source.${ext}`;
+        db.datasets.push({ id: dsId, owner_id: 'u-ryan', name: label, filename_label: label, source: 'upload', status: 'pending_validation', ext, bytes: p_bytes,
+          retention: p_retention || db.account_settings[0]?.upload_retention || 'keep', storage_path: path, geography: null, mapping: null,
+          ingest_report: null, uploaded_at: null, delete_requested_at: null, deleted_at: null, created_at: now() });
+        return { data: [{ dataset_id: dsId, storage_path: path }], error: null };
+      },
+      finish_upload({ p_dataset }) {
+        const ds = mine(p_dataset);
+        if (!ds) return fail('Dataset not found.');
+        if (!files[ds.storage_path]) return fail('The file didn\u2019t arrive. Try uploading it again.');
+        ds.uploaded_at = now();
+        db.dataset_ingests.push({ id: id(), dataset_id: ds.id, state: 'queued', error_code: null, error_detail: null });
+        runMockWorker(ds);
+        return { data: null, error: null };
+      },
+      confirm_dataset_mapping({ p_dataset, p_mapping }) {
+        const ds = mine(p_dataset);
+        if (!ds) return fail('Dataset not found.');
+        if (!ds.ingest_report) return fail('We haven\u2019t finished reading this file yet.');
+        const m = p_mapping || {};
+        if (ds.ingest_report.guess.wide) return fail('This file has its years across the columns. Put the years in one column, with one row per place and year, and upload it again.');
+        if (!Number.isInteger(m.place_index) || !Number.isInteger(m.period_index)) return fail('Choose which column is the place and which is the period.');
+        if (m.geography === 'us_counties' && m.state_index == null && !COUNTY_STATES.includes(m.state)) return fail('County names need a state. Choose the state, or the column that has it.');
+        if (!m.value_indexes?.length) return fail('Choose 1 to 8 columns of values.');
+        Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved' });
+        return { data: null, error: null };
+      },
+      attach_upload_to_version({ p_version, p_dataset }) {
+        const v = db.versions.find(x => x.id === p_version);
+        const ds = mine(p_dataset);
+        if (!v || !ds) return fail('Dataset not found.');
+        if (!EDITABLE.includes(v.state)) return fail(`This version is ${v.state} and can't change its data. Make a new version.`);
+        if (ds.status !== 'approved') return fail('Confirm what the columns mean before using this data.');
+        v.dataset_id = ds.id;
+        const p = ds.ingest_report.periods;
+        const coverage = [ds.geography === 'us_counties' ? 'U.S. counties' : 'U.S. states', p ? `${p.first} to ${p.last}` : null, ds.mapping.cadence].filter(Boolean).join(', ');
+        db.version_sources = db.version_sources.filter(r => !(r.version_id === v.id && r.kind === 'upload'));
+        db.version_sources.push({ version_id: v.id, kind: 'upload', dataset_ref: refOf(ds), title: ds.name, publisher: 'Your data', source_url: '', coverage,
+          licence_short: 'You confirm you may use this data', licence_full: '', position: db.version_sources.filter(r => r.version_id === v.id).length + 1 });
+        return { data: refOf(ds), error: null };
+      },
+      request_dataset_deletion({ p_dataset }) {
+        const ds = mine(p_dataset);
+        if (!ds) return fail('Dataset not found.');
+        ds.delete_requested_at = now();
+        for (const v of db.versions) if (v.dataset_id === ds.id) v.dataset_id = null;
+        db.version_sources = db.version_sources.filter(r => r.dataset_ref !== refOf(ds));
+        delete files[ds.storage_path];
+        return { data: null, error: null };
+      }
+    };
     const rpcs = {
+      ...rpcsExtra,
       sync_version_sources({ p_version }) { return syncSources(p_version); },
       // Mock: the mock user is an admin; three films' worth of made-up signup counts.
       is_app_admin() { return { data: true, error: null }; },
@@ -397,6 +516,15 @@
       storage: {
         from(bucket) {
           return {
+            async upload(path, file, options) {
+              log.push({ upload: path, bucket, type: options?.contentType, bytes: file?.size });
+              if (bucket === 'ryagram-uploads') {
+                const slot = db.datasets.find(d => d.storage_path === path && !d.uploaded_at);
+                if (!slot || files[path]) return { data: null, error: { message: 'new row violates row-level security policy' } };
+                files[path] = file;
+              }
+              return { data: { path }, error: null };
+            },
             async createSignedUrl(path, seconds) {
               log.push({ signed: path, bucket, seconds });
               const url = /\.(png|jpg)$/.test(path)

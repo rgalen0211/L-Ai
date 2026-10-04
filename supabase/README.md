@@ -38,6 +38,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    "Waitlist by film")
 15. `migrations/20261004000100_version_sources.sql`, then `catalog_sources_seed.sql` (the sources screen;
    see "Sources screen")
+16. `migrations/20261004000200_uploads_schema.sql`, then `migrations/20261004000300_uploads_worker_and_sweep.sql`
+   (upload your own data, phase 1; see "Uploads")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -375,6 +377,61 @@ rows to the same table. The screen stays hidden until this SQL is applied.
    `tools/gen-catalog.py`, whenever the engine's datasets or the worker's allowlist change.
 3. Merge (with your OK). No function to deploy, no secrets, no flag.
 
+## Uploads (branch uploads-phase1): "Your own data", spreadsheets only
+
+Phase 1 reads **.csv, .tsv, .xlsx and .ods** (up to 10 MB; 20 datasets and 100 MB per person; U.S. states or
+counties). Phase 2 (PDFs, scans, handwriting) is separate and is not built. The panel on a version page stays
+hidden until `uploads: true` in `assets/ryagram-config.js`.
+
+**How a file travels**
+
+1. `create_upload(label, ext, bytes, retention)` checks type, size and quota and opens a slot for exactly one
+   file at `<user id>/<dataset id>/source.<ext>` in the **private** bucket `ryagram-uploads`.
+2. The browser uploads into that slot (the storage policy allows only the person's own open slot, once).
+3. `finish_upload(dataset)` checks the file arrived and queues it in `dataset_ingests`.
+4. **The worker** reads it (contract below) and reports what it found. Nothing is usable yet.
+5. The person checks what the reader found and confirms what each column means
+   (`confirm_dataset_mapping`); only then is the dataset `approved`. County names need a state: a state
+   column, or one state chosen by the person. A file with years across the columns is turned away in plain words.
+6. `attach_upload_to_version(version, dataset)` makes it the film's data (one uploaded dataset per film) and a
+   source card ("Your data"); the story names it `u_<first 24 hex of the dataset id>` and `sync_version_sources`
+   accepts that name only for the owner's approved uploads.
+7. Deleting (`request_dataset_deletion`) hides it at once and detaches it; the sweeper removes the file.
+
+**Store / Don't keep.** Kept data stays until the person deletes it or the account. Don't-keep files are removed
+when the final film is complete, after 7 days without activity, or 1 day after a file couldn't be read.
+Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sample values.
+
+**The worker's contract** (the same text heads `migrations/20261004000300_uploads_worker_and_sweep.sql`)
+
+- `claim_next_ingest()` returns one `(ingest_id, dataset_id, storage_path, ext, bytes)` or nothing. One piece of
+  work at a time per worker (a file waits for a render in progress). While it holds the claim, the worker's own
+  JWT can download exactly that file from `ryagram-uploads`; no other.
+- `report_ingest(ingest_id, report)` once per file. `report` is a closed shape: `format`, `sha256`, `rows`
+  (<= 1,000,000), `columns` (1 to 60: `index`, `header` <= 80, `kind` place|period|number|text, up to 5 `sample`
+  values <= 40 characters), `guess` (`place_index`, `period_index`, `value_indexes`, `geography`, `cadence`,
+  `wide`), `periods` (`first`, `last`, `count`), `unmatched` (`count`, up to 20 `names`), `state_column_index`,
+  `sheet`, `sheets`. Anything else is refused. Samples are the person's values, shown only to them.
+- `fail_ingest(ingest_id, code, detail)`: code is one of `too_large`, `unreadable`, `not_a_table`,
+  `too_many_rows`, `too_many_columns`, `unsupported`, `timeout`, `unknown`; `detail` is one plain sentence for the
+  person (<= 300 characters) and never contains values from the file.
+- Read values only: no formulas evaluated, no macros, no external links; caps on unzipped size, sheets, rows,
+  columns and time. A file that breaks a cap is failed, never partly reported.
+- A lost worker's claim lapses after 15 minutes and is retried up to 3 times.
+- **Not built yet (worker/engine):** rendering a story that names `u_...` data. The worker's story validator and
+  dataset allowlist know only catalog names; the engine's `ingested` plug-in needs the confirmed mapping (the
+  `mapping` and `ingest_report` columns). Until that exists a film built on an upload fails at the worker, which is why
+  the flag stays off.
+
+**Switching it on**
+
+1. **SQL Editor:** the two migrations above, in order.
+2. Deploy `purge-uploads` (`supabase functions deploy purge-uploads --no-verify-jwt`) and schedule it hourly
+   exactly like `purge-partial-uploads` (service role key as the bearer). Redeploy `delete-account` so an account
+   deletion removes uploaded files too.
+3. WORKER builds the reader and the render path above.
+4. Merge, then set `uploads: true`.
+
 ## Kill switch
 
 Table Editor → `control` (one row):
@@ -417,6 +474,9 @@ only its own functions, by running one tiny job the way the worker would.
 project named `acceptance-<time>` and one 16-byte file.
 
 ## Tests
+
+Uploads: `tests/test_uploads.py` (Postgres), `tests/purge-uploads.test.mjs`, `tests/delete-account.test.mjs`,
+`tests/app-uploads*.test.cjs`.
 
 The schema is tested against a local Postgres with Supabase stand-ins
 (`tests/supabase_stub.sql`, which models this project's no-default-grants

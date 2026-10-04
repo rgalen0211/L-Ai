@@ -11,8 +11,8 @@
 export interface Deps {
   allowedOrigins: string[];
   verifyUser(jwt: string): Promise<{ id: string; email: string } | null>;
-  check(owner: string): Promise<{ active_jobs: number; has_credit_history: boolean; storage_paths: string[] }>;
-  removeFiles(paths: string[]): Promise<void>;
+  check(owner: string): Promise<{ active_jobs: number; has_credit_history: boolean; storage_paths: string[]; upload_paths?: string[] }>;
+  removeFiles(paths: string[], bucket?: "uploads"): Promise<void>;
   requestDeletion(owner: string, email: string, reason: string): Promise<void>;
   deleteUser(owner: string): Promise<void>;
 }
@@ -58,9 +58,12 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     step = "files";
     const paths = (c.storage_paths ?? []).filter((p) => typeof p === "string" && p.startsWith(`${user.id}/`));
     for (let i = 0; i < paths.length; i += BATCH) await deps.removeFiles(paths.slice(i, i + BATCH));
+    // Spreadsheets the person uploaded live in their own private bucket.
+    const uploads = (c.upload_paths ?? []).filter((p) => typeof p === "string" && p.startsWith(`${user.id}/`));
+    for (let i = 0; i < uploads.length; i += BATCH) await deps.removeFiles(uploads.slice(i, i + BATCH), "uploads");
     step = "login";
     await deps.deleteUser(user.id);
-    return reply(200, { status: "deleted", files_removed: paths.length });
+    return reply(200, { status: "deleted", files_removed: paths.length + uploads.length });
   } catch (err) {
     console.error(`delete-account ${step}: ${(err as Error).message}`);
     return reply(500, { error: step === "login"

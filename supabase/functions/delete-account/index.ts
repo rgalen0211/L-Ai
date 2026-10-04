@@ -21,8 +21,8 @@ Deno.serve((req) => handle(req, {
     return error || !data.user ? null : { id: data.user.id, email: data.user.email ?? "" };
   },
   check: (owner) => rpc("account_deletion_check", { p_owner: owner }),
-  async removeFiles(paths) {
-    const { error } = await service.storage.from("ryagram-artifacts").remove(paths);
+  async removeFiles(paths, bucket) {
+    const { error } = await service.storage.from(bucket === "uploads" ? "ryagram-uploads" : "ryagram-artifacts").remove(paths);
     if (error) throw new Error(error.message);
   },
   requestDeletion: async (owner, email, reason) => {
