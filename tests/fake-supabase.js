@@ -18,7 +18,7 @@
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [],
-                 account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
+                 account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], data_gaps: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -235,7 +235,45 @@
     const mine = dsId => db.datasets.find(d => d.id === dsId && d.source === 'upload' && !d.deleted_at && !d.delete_requested_at);
     const EXT_OK = ['csv', 'tsv', 'xlsx', 'ods'];
     const refOf = ds => 'u_' + ds.id.replace(/-/g, '').slice(0, 24);
+    // Mock of source-search (SQL 20261004000400 + the function): a few keyword rules over the mock catalog, NO model. Every
+    // fact on a card is the mock catalog's, as in the real function; "recommended" follows the same closed reasons.
+    const CARD_FIELDS = id => {
+      const [title, publisher, source_url, coverage, licence_short, licence_full] = MOCK_CATALOG[id];
+      return { id, title, publisher, source_url, coverage, licence_short, licence_full };
+    };
+    function mockSearch(prompt) {
+      const p = String(prompt).toLowerCase();
+      const card = (id, fit, recommended, reason) => ({ ...CARD_FIELDS(id), fit, recommended: !!recommended, reason: recommended ? reason : '' });
+      const gap = (reason, nearest = []) => db.data_gaps.push({ id: id(), owner_id: 'u-ryan', created_at: now(), request_text: prompt.slice(0, 500),
+        need: { topic: p.slice(0, 40), level: 'county', year_first: null, year_last: null }, reason,
+        need_key: p.replace(/[^a-z0-9]+/g, ' ').trim().split(' ').slice(0, 3).join(' ') + '|x|unspecified', nearest_ids: nearest });
+      const answer = (suggestions, extra = {}) => ({ search_id: id(), suggestions, recommended: suggestions.find(c => c.recommended)?.id || null, verdict: null, unavailable: [], ...extra });
+      if (/tie|compare/.test(p)) return answer([card('state_obesity_fastfood', 'full', false), card('bls_state_unemployment', 'full', false)]);
+      if (/manufactur/.test(p)) return answer([card('cbp_manufacturing_share_state', 'full', true, 'The only data we have that covers what you asked for.')]);
+      if (/obes|fast food/.test(p)) return answer([card('state_obesity_fastfood', 'full', true, 'The only data we have that covers what you asked for.')]);
+      if (/permit|housing/.test(p)) return answer([card('bps_county_permits', 'full', true, 'The only data we have that covers what you asked for.')]);
+      if (/unemploy/.test(p)) return answer([card('bls_state_unemployment', 'full', false)]);
+      if (/retail/.test(p)) {
+        gap('exists_not_runnable_yet', ['cbp_retail_employment']);
+        return answer([], { verdict: { code: 'exists_not_runnable_yet', message: "We have data on this, but can't use it in a film yet. We've noted your request." },
+                            unavailable: [{ id: 'cbp_retail_employment', title: MOCK_CATALOG.cbp_retail_employment[0], message: `We have "${MOCK_CATALOG.cbp_retail_employment[0]}", but can't use it in a film yet.` }] });
+      }
+      gap('no_such_data');
+      return answer([], { verdict: { code: 'no_such_data', message: "We don't have data that answers that yet. We've noted your request." } });
+    }
     const rpcsExtra = {
+      delete_my_data_gaps() { const n = db.data_gaps.length; db.data_gaps = []; return { data: n, error: null }; },
+      data_gaps_by_need() {
+        const by = new Map();
+        for (const g of db.data_gaps) {
+          const r = by.get(g.need_key) || { need_key: g.need_key, asks: 0, people: 1, last_at: g.created_at, reason: g.reason, topic: g.need.topic, level: g.need.level, years: '', nearest_ids: g.nearest_ids };
+          r.asks++; by.set(g.need_key, r);
+        }
+        return { data: [...by.values()].sort((a, b) => b.asks - a.asks), error: null };
+      },
+      data_gap_requests({ p_need_key }) {
+        return { data: db.data_gaps.filter(g => g.need_key === p_need_key).map(g => ({ created_at: g.created_at, request_text: g.request_text, reason: g.reason })), error: null };
+      },
       create_upload({ p_label, p_ext, p_bytes, p_retention }) {
         const label = String(p_label || '').trim();
         if (!label) return fail('Give the file a name.');
@@ -448,6 +486,11 @@
       functions: {
         async invoke(name, { body }) {
           log.push({ fn: name, body });
+          if (name === 'source-search') {
+            const t = String(body.prompt || '').trim();
+            if (!t || t.length > 500) return { data: null, error: { context: { json: async () => ({ error: 'Write what you want to see, in up to 500 characters.' }) } } };
+            return { data: mockSearch(t), error: null };
+          }
           if (name === 'redeem-invite') {
             // Mock: RYA-TEST-CODE works; the "email" is the link /app/?mock&invite=mock-invite-token.
             const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');

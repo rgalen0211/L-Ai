@@ -48,6 +48,7 @@
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
+  const searchOn = () => window.ryagramConfig?.sourceSearch === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
@@ -68,6 +69,7 @@
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
+        else if (hash === '#/admin/data-requests' && await data.isAppAdmin()) view = await dataRequestsAdminView();
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -128,7 +130,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), searchOn() ? [' \u00b7 ', h('a', { href: '#/admin/data-requests' }, 'Data requests')] : null);
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list];
     }
@@ -166,6 +168,39 @@
         h('h1', { tabindex: '-1' }, 'Waitlist by film'),
         h('p', { class: 'form-note' }, 'Signups per film link (the utm_campaign in each film\u2019s description), by day in New York time. Counts only: no email addresses are shown here.'),
         h('div', { class: 'inline-row' }, h('label', { for: 'wl-days' }, 'Period'), range),
+        body, error
+      ];
+    }
+
+    // --- #/admin/data-requests  Ryan only: what people asked for that we can't show. Counts first; the words only on demand.
+    async function dataRequestsAdminView() {
+      const error = errorLine();
+      const body = h('div', { class: 'admin-body' }, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      const REASONS = { no_such_data: 'No such data', geography_too_fine: 'Finer places than we have', years_outside_coverage: 'Years outside coverage',
+                        needs_private_data: 'Needs private data', exists_not_runnable_yet: 'We have it, can\u2019t run it yet', partly_supported: 'Partly supported' };
+      try {
+        const rows = await data.dataGapsByNeed(365);
+        body.replaceChildren(rows.length ? h('table', { class: 'admin-table' },
+          h('thead', {}, h('tr', {}, ['What', 'Why', 'Asked', 'People', 'Nearest data', ''].map(t => h('th', { scope: 'col' }, t)))),
+          h('tbody', {}, rows.map(r => {
+            const texts = h('div', { class: 'gap-texts', hidden: true });
+            const show = h('button', { class: 'link-button', type: 'button', onclick: async () => {
+              if (!texts.hidden) { texts.hidden = true; return; }
+              try {
+                const reqs = await data.dataGapRequests(r.need_key);
+                texts.replaceChildren(h('ul', {}, reqs.map(q => h('li', {}, `${date(q.created_at)}: ${q.request_text}`))));
+                texts.hidden = false;
+              } catch (err) { showError(error, err); }
+            } }, 'Show requests');
+            return h('tr', {}, h('td', {}, [r.topic, r.level, r.years].filter(Boolean).join(' \u00b7 ') || r.need_key),
+                     h('td', {}, REASONS[r.reason] || r.reason), h('td', { class: 'num' }, String(r.asks)), h('td', { class: 'num' }, String(r.people)),
+                     h('td', {}, (r.nearest_ids || []).join(', ') || '\u2014'), h('td', {}, show, texts));
+          }))) : h('p', { class: 'form-note' }, 'No requests yet.'));
+      } catch (err) { body.replaceChildren(); showError(error, err); }
+      return [
+        h('a', { href: '#/', class: 'back' }, '\u2190 All projects'),
+        h('h1', { tabindex: '-1' }, 'Data requests'),
+        h('p', { class: 'form-note' }, 'What people asked for that Ryagram can\u2019t show yet, counted by need over the last year. Kept 12 months. The words people typed appear only when you open a row.'),
         body, error
       ];
     }
@@ -220,6 +255,28 @@
           option('keep', 'Store my data (default)', 'Ryagram privately keeps this dataset because it’s needed to rebuild the film later.'),
           option('dont_keep', 'Don’t keep my data', 'Ryagram deletes the input data after processing. The film can’t be rebuilt after its rendered copy is archived.')),
         choiceNote, choiceError));
+
+      // The words I typed when we couldn't help: visible and deletable by me.
+      if (searchOn()) {
+        const reqNote = h('p', { class: 'form-note', role: 'status' });
+        const reqError = errorLine();
+        const count = await data.myDataRequestCount().catch(() => null);
+        if (count !== null) {
+          const delReq = h('button', { class: 'button secondary', type: 'button', onclick: async () => {
+            if (!confirm('Delete everything you typed into "Find data" that we kept?')) return;
+            await busy(delReq, 'Deleting…', async () => {
+              try { const n = await data.deleteMyDataRequests(); reqNote.textContent = `Deleted ${n} request${n === 1 ? '' : 's'}.`; delReq.hidden = true; }
+              catch (err) { showError(reqError, err); }
+            });
+          } }, 'Delete my data requests');
+          sections.push(h('section', { class: 'account-section', 'aria-labelledby': 'acct-reqs' },
+            h('h2', { id: 'acct-reqs' }, 'Your data requests'),
+            h('p', { class: 'form-note' }, count
+              ? `When Find data can’t help, we keep what you typed (up to 500 characters, 12 months) so we know what to add. You have ${count}.`
+              : 'When Find data can’t help, we keep what you typed so we know what to add. You have none.'),
+            count ? delReq : null, reqNote, reqError));
+        }
+      }
 
       // Delete account
       const delError = errorLine();
@@ -451,6 +508,17 @@
       });
 
       const editorOn = window.ryagramConfig?.aiEditor === true || !!window.ryagramMock;
+      // Found data becomes the film's story from the ready-made films the app has (one clip per ticked source).
+      const finder = searchOn() ? searchPanel(v, !locked, async built => {
+        const blank = window.ryagramTemplates.isBlank(v.story_spec);
+        if (!blank && !confirm('Replace the current story with a film from this data? Save a new version first if you want to keep it.')) return;
+        const result = await data.saveStory(v.id, built);
+        v.story_spec = built;
+        story.value = JSON.stringify(built, null, 2);
+        saved.textContent = 'Story made from your data. Change the headline or years if you like, then make a contact sheet.';
+        jobs.storyChanged(result.story_sha256);
+        sources.refresh();
+      }) : null;
       const chat = editorOn && !locked ? editorPanel(v, {
         storyChanged: () => route(),
         refreshJobs: () => jobs.refresh()
@@ -473,6 +541,7 @@
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
         sources.el,
         uploads?.el,
+        finder,
         picker,
         chat,
         storyForm,
@@ -687,6 +756,78 @@
       }
       refresh().then(ready);
       return { el, refresh };
+    }
+
+    // "Describe what you want to see": type it, get data suggestions (source-search), tick the ones you want. Each card's
+    // source, coverage and licence come from the server's own table, never from the AI's wording. "Recommended" is rare and
+    // always has a reason. When we can't support the question we say so plainly (and it is noted for us).
+    function searchPanel(v, editable, applyStory) {
+      const S = window.ryagramSearch;
+      const T = window.ryagramTemplates;
+      const error = errorLine();
+      const prompt = h('textarea', { id: 'search-prompt', rows: '2', maxlength: String(S.MAX_PROMPT), placeholder: 'For example: which states depend most on manufacturing?' });
+      const go = h('button', { class: 'button', type: 'submit' }, 'Find data');
+      const results = h('div', { class: 'search-results', 'aria-live': 'polite' });
+      const form = h('form', { class: 'search-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        const check = S.checkPrompt(prompt.value);
+        if (!check.ok) return showError(error, new Error(check.problem));
+        await busy(go, 'Looking\u2026', async () => {
+          try { draw(S.answerView(await data.searchSources(check.prompt))); }
+          catch (err) { results.replaceChildren(); showError(error, err); }
+        });
+      } },
+        h('label', { for: 'search-prompt' }, 'Describe what you want to see'), prompt, go);
+
+      function draw(answer) {
+        const ticked = new Set();
+        const useBtn = h('button', { class: 'button', type: 'button', hidden: true, onclick: async () => {
+          const { story, missing } = S.filmFromTicks([...ticked], T, '');
+          note.textContent = missing.length
+            ? `There is no ready-made film for ${missing.length === 1 ? 'one of those' : `${missing.length} of those`} yet.${story ? ' The rest are used.' : ''}`
+            : '';
+          if (!story) return;
+          await busy(useBtn, 'Applying\u2026', async () => {
+            try { await applyStory(story); } catch (err) { showError(error, err); }
+          });
+        } }, 'Make a film from the ticked data');
+        const note = h('p', { class: 'form-note', role: 'status' });
+        const limit = h('p', { class: 'form-note' }, `Up to ${S.MAX_TICKS} sources per film, one clip each. Ryagram doesn't join datasets.`);
+        const cards = answer.cards.map(c => {
+          const full = c.licenceFull ? h('div', { class: 'source-licence-full', hidden: true },
+            h('p', {}, c.licenceFull), c.url ? h('p', {}, h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, `${c.publisher} (the publisher\u2019s page)`)) : null) : null;
+          const toggle = h('button', { class: 'link-button', type: 'button', 'aria-expanded': 'false', onclick: event => {
+            if (!full) return;
+            full.hidden = !full.hidden;
+            event.currentTarget.setAttribute('aria-expanded', String(!full.hidden));
+          } }, c.licenceShort);
+          const box = h('input', { type: 'checkbox', 'aria-label': `Use ${c.title}`, disabled: !editable, onchange: () => {
+            if (box.checked && ticked.size >= S.MAX_TICKS) { box.checked = false; return; }
+            if (box.checked) ticked.add(c.id); else ticked.delete(c.id);
+            useBtn.hidden = !ticked.size;
+          } });
+          return h('li', { class: `source-card${c.recommended ? ' is-recommended' : ''}` },
+            h('label', { class: 'choice' }, box, h('span', {}, h('strong', {}, c.title), c.recommended ? h('span', { class: 'badge-recommended' }, ' Recommended') : null)),
+            c.recommended && c.reason ? h('p', { class: 'meta' }, c.reason) : null,
+            c.fit === 'partial' ? h('p', { class: 'meta' }, 'Covers part of what you asked for.') : null,
+            h('p', { class: 'meta' }, 'Source: ', c.url ? h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, c.publisher) : c.publisher),
+            h('p', { class: 'meta' }, `Covers: ${c.coverage}`),
+            h('p', { class: 'meta' }, 'Licence: ', full ? toggle : c.licenceShort, full ? ' (full text)' : ''),
+            full);
+        });
+        results.replaceChildren(...[
+          answer.verdict ? h('p', { class: 'form-note', role: 'status' }, answer.verdict.message) : null,
+          ...answer.unavailable.map(u => h('p', { class: 'form-note' }, u.message)),
+          cards.length ? h('ul', { class: 'source-cards' }, cards) : null,
+          cards.length ? limit : null, note, useBtn].filter(Boolean));
+      }
+
+      return h('section', { class: 'app-panel search-panel', 'aria-labelledby': 'search-title' },
+        h('h2', { id: 'search-title' }, 'Find data'),
+        h('p', { class: 'form-note' }, 'Tell us what you want to see. We suggest data from Ryagram\u2019s catalog and show where each comes from. Your words are kept only when we can\u2019t help yet, so we know what to add. You can delete them under Your account.'),
+        editable ? form : h('p', { class: 'form-note' }, 'This version is finished. Make a new version to change its data.'),
+        error, results);
     }
 
     // A finished film's public page: off until the owner publishes it; they can stop at any time.

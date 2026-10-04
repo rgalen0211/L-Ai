@@ -286,6 +286,33 @@
         return run(client.rpc('request_dataset_deletion', { p_dataset: datasetId }), 'Couldn’t delete this data.');
       },
 
+      // Prompt-first sourcing, path 1 (SQL 20261004000400 + the source-search function): type what you want to see; the server
+      // picks from the internal catalog and answers with cards whose facts come from its table. Nothing is stored but a request
+      // the data can't support (the person's own words, capped, kept 12 months, deletable here).
+      async searchSources(prompt) {
+        const { data, error } = await client.functions.invoke('source-search', { body: { prompt } });
+        if (error) {
+          let text = 'Finding data didn\u2019t work just now. Try again in a moment.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
+      async myDataRequestCount() {
+        const { data, error } = await client.from('data_gaps').select('id');
+        return error ? null : (data || []).length;              // null when the SQL isn't applied yet
+      },
+      deleteMyDataRequests() {
+        return run(client.rpc('delete_my_data_gaps'), 'Couldn\u2019t delete your requests.');
+      },
+      // Ryan's admin view: what people asked for that we can't show. Counts first; the texts only when he opens one.
+      dataGapsByNeed(days) {
+        return run(client.rpc('data_gaps_by_need', { p_days: days }), 'Couldn\u2019t load the data requests.');
+      },
+      dataGapRequests(needKey) {
+        return run(client.rpc('data_gap_requests', { p_need_key: needKey, p_limit: 50 }), 'Couldn\u2019t load those requests.');
+      },
+
       // Ryan's admin view: is this account an admin (false if the SQL isn't applied), and the
       // waitlist COUNTS per film link per day (the function refuses everyone else).
       async isAppAdmin() {

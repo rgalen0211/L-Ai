@@ -40,6 +40,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    see "Sources screen")
 16. `migrations/20261004000200_uploads_schema.sql`, then `migrations/20261004000300_uploads_worker_and_sweep.sql`
    (upload your own data, phase 1; see "Uploads")
+17. `migrations/20261004000400_source_search.sql`, then the REGENERATED `catalog_sources_seed.sql` (AI source
+   suggestions and the data-gap queue; see "Source search")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -431,6 +433,48 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
    deletion removes uploaded files too.
 3. WORKER builds the reader and the render path above.
 4. Merge, then set `uploads: true`.
+
+## Source search (branch source-search): "Find data", path 1 of prompt-first sourcing
+
+On a version page: **Describe what you want to see** -> suggestions, each with its source, coverage and licence, tick the
+ones you want. Hidden until `sourceSearch: true` in `assets/ryagram-config.js`. No dataset picker or browse list exists or
+will: the catalog is only the internal list the server picks from.
+
+**How it works** (design: `Ryagram-logs/proposals/WEB-PROMPT-FIRST-SOURCING.md`, section 2)
+1. The page calls the Edge Function `source-search` with the person's words (at most 500 characters). The Anthropic key is a
+   function secret; the browser never talks to Anthropic.
+2. The function checks the sign-in, `control.ai_enabled` (the AI editor's kill switch) and `control.source_search_per_day`
+   (default 30 a rolling 24 hours), then reads the catalog from `catalog_sources` (service role, through
+   `source_search_catalog()`; runnable datasets are the only ones the model may choose, the rest are listed separately so
+   it can report "we have it, can't run it yet").
+3. The model (Haiku, one forced tool) only CHOOSES: catalog ids, a fit (full or partial) and, at most once, a claimed reason
+   code. The request is sent inside `<request>` tags as data; the output is a closed schema.
+4. The server (`match.ts`) checks everything against the table: an invented or non-runnable id is dropped; a "full" fit is
+   lowered to partial unless the table agrees on level (state/county) and years; **"recommended" is shown only when the
+   claimed reason is true in the table** (`only_full_fit`, `official_series_not_derived`, `finer_geography`,
+   `longer_coverage`); with two equal fits **nothing is recommended**. Every word on a card (title, publisher, coverage,
+   licence, the "why recommended" line) is written from the table, never from model text.
+5. When the data can't support the question the person gets plain wording from a closed list (`no_such_data`,
+   `geography_too_fine`, `years_outside_coverage`, `needs_private_data`, `exists_not_runnable_yet`, `partly_supported`).
+
+**The data-gap queue.** Only for those requests: `data_gaps` holds the person's own words (capped at 500 characters), the
+cleaned need, the reason and the nearest catalog ids. Kept 12 months (trimmed on every write), removed with the account,
+and the person can read and delete their own ("Your data requests" on the account page). **Ryan's view:** `#/admin/data-requests`
+(admins only, like Waitlist by film): counts per need first; the words only when a row is opened. `source_searches` keeps
+who/when/outcome/tokens/cost per search and no request text.
+
+**Switching it on (all Ryan's OK)**
+1. **SQL Editor:** `migrations/20261004000400_source_search.sql`, THEN the regenerated `catalog_sources_seed.sql` (it now
+   carries level, years, cadence, topic, measure, summary and whether a series is derived; rerun it whenever
+   `tools/gen-catalog.py` is rerun).
+2. The AI editor's prerequisites: `ANTHROPIC_API_KEY` in Edge Function secrets, `control.ai_enabled = true`.
+3. Deploy: `npx supabase functions deploy source-search --no-verify-jwt`.
+4. Merge, then set `sourceSearch: true`.
+
+**Tests:** `tests/source-search.test.mjs` (scripted Claude: no-match path, recommended rule incl. ties, facts only from the
+table, injection, caps, failures), `supabase/tests/test_source_search.py` (Postgres: caps, pricing, queue, retention, admin
+counts), `tests/app-search*.test.cjs`. The labelled 60-request set and the real-model run (proposal 2.8) happen once the
+editor is switched on; the hard lines are zero wrong "recommended", every unsupported request detected, zero invented ids or facts.
 
 ## Kill switch
 

@@ -38,6 +38,10 @@ window.ryagramConfig = Object.freeze({
   // 20261004000300 are applied, purge-uploads is deployed and scheduled, and the worker reads uploads
   // (supabase/README.md, "Uploads").
   uploads: false,
+  // Show "Describe what you want to see" on a version: AI suggestions of data (the source-search function). Turn on
+  // only once SQL 20261004000400 and the regenerated catalog_sources_seed.sql are applied, source-search is deployed with
+  // ANTHROPIC_API_KEY in its secrets, and control.ai_enabled is true (supabase/README.md, "Source search").
+  sourceSearch: false,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.
