@@ -79,38 +79,54 @@
     return s || 'ryagram-story';
   }
 
-  function build(templateId, datasetId, headline) {
-    const t = TEMPLATES.find(x => x.id === templateId);
-    if (!t) throw new Error('Unknown template.');
-    if (!t.datasets.includes(datasetId)) throw new Error('That dataset isn’t offered for this template.');
-    const d = DATASETS[datasetId];
-    const title = cleanText(headline, 160) || cleanText(t.headline, 160) || cleanText(d.headline, 160) || cleanText(d.label, 160);
-    const render = { kind: 'render', id: 'main', dataset: datasetId, view: t.view, start: d.start, end: d.end,
+  // One complete story: a title card and one render clip, in the worker's schema v1.
+  function assemble({ datasetId, label, start, end, view, settings, style, hold, title, note }) {
+    const render = { kind: 'render', id: 'main', dataset: datasetId, view, start, end,
                      transition: { kind: 'crossfade', seconds: 0.6 } };
-    if (t.settings) render.settings = { ...t.settings };
-    if (t.hold) render.hold_seconds = t.hold;
-    const style = { ...(d.style || {}), ...(t.style || {}) };
+    if (settings) render.settings = { ...settings };
+    if (hold) render.hold_seconds = hold;
     return {
       schema: 1,
       name: slug(title),
       engine: 'sequence',
-      notes: cleanText(`Started from the ${t.label} template. Edit the headline, the years (start and end) or the view, then make a contact sheet.`, 4000),
+      notes: cleanText(note, 4000),
       sequence: {
         canvas: [1920, 1080],
         fps: 30,
         theme: 'dark',
         hold_seconds: 0.5,
-        ...(Object.keys(style).length ? { style_overrides: JSON.parse(JSON.stringify(style)) } : {}),
+        ...(style && Object.keys(style).length ? { style_overrides: JSON.parse(JSON.stringify(style)) } : {}),
         clips: [
-          { kind: 'title', id: 'open', seconds: 3, fade: 0.4, headline: title, subhead: cleanText(d.label, 160) },
+          { kind: 'title', id: 'open', seconds: 3, fade: 0.4, headline: title, subhead: cleanText(label, 160) },
           render
         ]
       }
     };
   }
 
+  function build(templateId, datasetId, headline) {
+    const t = TEMPLATES.find(x => x.id === templateId);
+    if (!t) throw new Error('Unknown template.');
+    if (!t.datasets.includes(datasetId)) throw new Error('That dataset isn’t offered for this template.');
+    const d = DATASETS[datasetId];
+    const title = cleanText(headline, 160) || cleanText(t.headline, 160) || cleanText(d.headline, 160) || cleanText(d.label, 160);
+    return assemble({ datasetId, label: d.label, start: d.start, end: d.end, view: t.view, settings: t.settings,
+                      style: { ...(d.style || {}), ...(t.style || {}) }, hold: t.hold, title,
+                      note: `Started from the ${t.label} template. Edit the headline, the years (start and end) or the view, then make a contact sheet.` });
+  }
+
+  // A story for a dataset chosen from the catalog (assets/app-catalog.js storyInfo()).
+  function buildFor(info, headline) {
+    if (!info || !/^[a-z0-9_]{1,64}$/.test(info.id || '')) throw new Error('Unknown dataset.');
+    if (!['map', 'bars', 'line', 'paired'].includes(info.view)) throw new Error('That view isn’t available here.');
+    const title = cleanText(headline, 160) || cleanText(info.headline, 160) || cleanText(info.label, 160);
+    return assemble({ datasetId: info.id, label: info.label, start: info.start, end: info.end, view: info.view,
+                      settings: info.settings, style: info.style, hold: info.hold, title,
+                      note: 'Started from the data catalog. Edit the headline, the years (start and end) or the view, then make a contact sheet.' });
+  }
+
   // A story is "blank" when there is nothing to lose by replacing it.
   const isBlank = story => !story || typeof story !== 'object' || Object.keys(story).length === 0;
 
-  window.ryagramTemplates = { TEMPLATES, DATASETS, build, slug, isBlank };
+  window.ryagramTemplates = { TEMPLATES, DATASETS, build, buildFor, slug, isBlank };
 })();

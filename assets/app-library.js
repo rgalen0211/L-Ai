@@ -48,6 +48,10 @@
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
+  // The dataset catalog shows once a person can pick from it (catalog: true), or in mock mode. "Coming
+  // soon" rows (not on the worker's allowlist yet) are a second switch, off by default.
+  const catalogOn = () => window.ryagramConfig?.catalog === true || !!window.ryagramMock;
+  const catalogSoonOn = () => window.ryagramConfig?.catalogComingSoon === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
@@ -603,8 +607,89 @@
       const details = h('details', { class: 'template-picker', open: blank },
         h('summary', {}, blank ? 'Start from a template' : 'Start again from a template'),
         h('p', { class: 'form-note' }, 'Pick a kind of film and the data. You get a complete story you can then adjust.'),
-        form);
+        form,
+        catalogOn() ? catalogBrowser(project, async built => { if (await apply(built)) details.open = false; }) : null);
       return details;
+    }
+
+    // "Browse all datasets": everything the engine registers that a film can use, by topic, each with a
+    // line about it and its source. Only what the worker can run today is offered; the rest appears
+    // as "Coming soon" only when the second switch is on.
+    function catalogBrowser(project, apply) {
+      const K = window.ryagramCatalog, T = window.ryagramTemplates;
+      const box = h('details', { class: 'catalog-browser' }, h('summary', {}, 'Browse all datasets'));
+      const body = h('div', { class: 'catalog-body' }, h('p', { class: 'form-note' }, 'Loading the catalog\u2026'));
+      const search = h('input', { type: 'search', id: 'cat-search', placeholder: 'Search: jobs, housing, obesity\u2026', autocomplete: 'off', 'aria-label': 'Search datasets' });
+      let chosen = null;                                   // the entry whose "make a story" form is open
+
+      function row(e) {
+        const ready = e.status === 'usable';
+        const source = /^https:\/\//.test(e.url) ? h('a', { href: e.url, target: '_blank', rel: 'noopener noreferrer' }, e.source) : e.source;
+        const open = chosen && chosen.id === e.id;
+        return h('li', { class: `catalog-row${ready ? '' : ' is-soon'}` },
+          h('div', { class: 'catalog-main' },
+            h('strong', {}, e.family ? e.short : e.title),
+            h('span', { class: `catalog-badge${ready ? ' ready' : ''}` }, K.statusLabel(e)),
+            h('p', { class: 'catalog-blurb' }, e.blurb),
+            h('p', { class: 'meta' }, 'Source: ', source)),
+          ready ? h('button', { class: 'button secondary small', type: 'button', 'aria-expanded': String(!!open),
+                                onclick: () => { chosen = open ? null : e; draw(); } }, open ? 'Close' : 'Use this data')
+                : h('button', { class: 'button secondary small', type: 'button', disabled: true }, 'Coming soon'),
+          open ? storyForm(e) : null);
+      }
+
+      function storyForm(e) {
+        const error = errorLine();
+        const choices = K.viewChoices(e, T.TEMPLATES);
+        const first = choices.findIndex(c => !c.blocked);
+        const radios = choices.map((c, i) => h('label', { class: 'catalog-view' },
+          h('input', { type: 'radio', name: 'cat-view', value: c.view, checked: i === first, disabled: !!c.blocked }),
+          h('span', {}, K.VIEW_LABELS[c.view], c.blocked ? h('span', { class: 'meta' }, ` \u00b7 not offered: ${c.blocked}`)
+            : c.tested ? '' : h('span', { class: 'meta' }, ' \u00b7 not drawn before: check the contact sheet closely'))));
+        const suggested = (T.DATASETS[e.id] && T.DATASETS[e.id].headline) || (e.family ? '' : e.title);
+        const headline = h('input', { id: 'cat-headline', maxlength: '160', value: suggested, placeholder: e.title, autocomplete: 'off' });
+        const go = h('button', { class: 'button primary', type: 'submit' }, 'Make this story');
+        return h('form', { class: 'catalog-story', onsubmit: async event => {
+          event.preventDefault();
+          error.hidden = true;
+          const view = event.currentTarget.querySelector('input[name=cat-view]:checked')?.value;
+          await busy(go, 'Making\u2026', async () => {
+            try { await apply(T.buildFor(K.storyInfo(e, view), headline.value)); } catch (err) { showError(error, err); }
+          });
+        } },
+          h('p', { class: 'form-note' }, `Period: ${e.window ? e.window.join(' to ') : '\u2014'}. You can change it in the story afterwards.`),
+          h('fieldset', {}, h('legend', {}, 'How to draw it'), radios),
+          h('label', { for: 'cat-headline' }, 'Headline'), headline, go, error);
+      }
+
+      function draw(data) {
+        const entries = (data || K.data()).entries;
+        const soon = catalogSoonOn();
+        const groups = K.layout(entries, { soon, text: search.value });
+        const ready = entries.filter(e => e.status === 'usable').length;
+        body.replaceChildren(
+          h('p', { class: 'form-note' }, `${ready} dataset${ready === 1 ? '' : 's'} ready to use${soon ? '; the rest are marked coming soon' : ''}.`),
+          search,
+          ...(groups.length ? groups.map(g => h('section', { class: 'catalog-group', 'aria-label': g.name },
+            h('h3', {}, g.name, h('span', { class: 'meta' }, ` \u00b7 ${g.ready} ready${soon && g.total > g.ready ? `, ${g.total - g.ready} coming soon` : ''}`)),
+            g.intro ? h('p', { class: 'form-note' }, g.intro) : null,
+            g.items.length ? h('ul', { class: 'catalog-list' }, g.items.map(row)) : null,
+            ...g.families.map(f => h('details', { class: 'catalog-family', open: !!search.value || f.items.some(x => chosen && chosen.id === x.id) },
+              h('summary', {}, f.title, h('span', { class: 'meta' }, ` \u00b7 ${f.items.filter(x => x.status === 'usable').length} ready of ${f.items.length}`)),
+              h('ul', { class: 'catalog-list' }, f.items.map(row)))))) : [h('p', { class: 'form-intro' }, 'Nothing matches.')]));
+        const focused = document.activeElement && document.activeElement.id === 'cat-search';
+        if (focused) search.focus();
+      }
+
+      let started = false;
+      box.addEventListener('toggle', () => {
+        if (!box.open || started) return;
+        started = true;                                  // a second toggle must not load the data twice
+        K.load(box).then(data => { draw(data); search.addEventListener('input', () => draw(data)); })
+          .catch(err => { started = false; body.replaceChildren(h('p', { class: 'form-note app-error', role: 'alert' }, err.message)); });
+      });
+      box.append(body);
+      return box;
     }
 
     // Files for a version, refreshed on its own when a job finishes so the

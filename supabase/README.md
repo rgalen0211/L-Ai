@@ -336,6 +336,29 @@ role can read or change it over the API.
    the `insert into public.app_admins ...` line from the file's header after signing up.
 2. Merge (with your OK). No function to deploy and no secrets.
 
+## Dataset catalog (branch catalog): switching it on
+
+"Browse all datasets" under the template picker: every dataset the engine registers that a film can
+use, by topic (work and industry, housing, population, health, roads, income, banking, politics),
+each with one line about it and its source, and a "Use this data" button that writes a complete story
+you can then adjust. **Off by default** (`catalog: false` in `assets/ryagram-config.js`); no SQL, no
+function, no secrets.
+
+What is offered is decided by the worker, not by us: a dataset is **Ready** only if it is on the
+installed worker's allowlist. The data file `assets/app-catalog-data.js` is GENERATED, never edited:
+
+```
+python tools/gen-catalog.py --engine <an engine checkout> --setup C:\Users\Ryan\Ryagram-logs\proposals\WORKER-SETUP.ps1 --commit <engine commit>
+```
+
+Run it with the engine's own Python after the engine or the worker's allowlist changes; it records the
+engine commit. `tests/app-catalog.test.cjs` fails if the committed lists drift from WORKER-SETUP.ps1,
+if a ready dataset has no credit shape row, or if a story can't be built.
+
+Two switches: `catalog` (the browser itself) and `catalogComingSoon` (also list datasets the worker
+can't run yet, marked "Coming soon"; default off). Recommended: leave `catalogComingSoon` off, and turn
+`catalog` on only when the ready list is broad (see the proposal in the mailbox).
+
 ## Kill switch
 
 Table Editor → `control` (one row):
