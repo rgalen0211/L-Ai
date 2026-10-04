@@ -13,7 +13,7 @@ function world(check = {}, over = {}) {
       verifyUser: async jwt => (jwt === 'good' ? { id: ME, email: 'Ryan@Example.com' } : null),
       check: async () => ({ active_jobs: 0, has_credit_history: false,
                             storage_paths: Array.from({ length: 250 }, (_, i) => `${ME}/p/v/j${i}/film.mp4`), ...check }),
-      removeFiles: async paths => { calls.push(['remove', paths.length]); },
+      removeFiles: async (paths, bucket) => { calls.push([bucket === 'uploads' ? 'remove-uploads' : 'remove', paths.length]); },
       requestDeletion: async (owner, email, reason) => { calls.push(['request', owner, reason]); },
       deleteUser: async owner => { calls.push(['deleteUser', owner]); },
       ...over,
@@ -69,4 +69,12 @@ test('only the person’s own folder is touched, and failures say what state thi
   res = await call(w.deps, { confirm_email: 'ryan@example.com' });
   console.error = quiet;
   assert.match((await res.json()).error, /files were removed/);
+});
+
+test('uploaded spreadsheets are removed from their own bucket, only from the person’s own folder', async () => {
+  const w = world({ storage_paths: [], upload_paths: [`${ME}/d1/source.csv`, `${ME}/d2/source.xlsx`, 'someone-else/d3/source.csv'] });
+  const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
+  assert.equal(res.status, 200);
+  assert.deepEqual(w.calls, [['remove-uploads', 2], ['deleteUser', ME]]);
+  assert.equal((await res.json()).files_removed, 2);
 });
