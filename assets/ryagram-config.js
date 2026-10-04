@@ -34,6 +34,10 @@ window.ryagramConfig = Object.freeze({
   // template points at /app/?invite={{ .TokenHash }}, and redeem-invite is deployed
   // (supabase/README.md, "Beta invites").
   inviteSignup: false,
+  // Show "Your own data" (spreadsheet upload) on a version in /app/. Turn on only once SQL 20261004000200 and
+  // 20261004000300 are applied, purge-uploads is deployed and scheduled, and the worker reads uploads
+  // (supabase/README.md, "Uploads").
+  uploads: false,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.
