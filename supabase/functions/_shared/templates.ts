@@ -6,9 +6,9 @@
 export const DATASETS: Record<string, { label: string; start: string; end: string; headline?: string;
                                          style?: Record<string, unknown> }> = {
   state_obesity_fastfood: { label: "Obesity and fast food by state (CDC + Census, annual)", start: "2011", end: "2023" },
-  // Solid colour: county shapes are too small to carry a hatch pattern (engine texture check).
+  // Continuous colour with the engine's cap: county shapes are too small to hatch.
   bps_county_permits: { label: "Residential building permits per 1,000 residents, by county", start: "1990", end: "2024",
-                        style: { choropleth: { mode: "solid" } } },
+                        style: { choropleth: { mode: "solid", continuous: true } } },
   bls_state_unemployment: { label: "State unemployment rate (BLS LAUS, monthly)", start: "2019-01", end: "2022-12" },
 };
 
@@ -51,7 +51,8 @@ export const TEMPLATES = [
     headline: "The states with the highest adult obesity",
     datasets: ["state_obesity_fastfood"], settings: { line_top_n: 6 }, confirmed: true },
   { id: "sector", view: "bars", label: "Industry", blurb: "Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.",
-    datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10 }, confirmed: false },
+    style: { bars: { swap_seconds: 0.5 } } as Record<string, unknown>, hold: 3,
+    datasets: SECTORS.map(([slug]) => `cbp_${slug}_share_state`), settings: { top_n: 10, axis: "fixed" }, confirmed: false },
 ];
 
 // The worker's v1 render views; a story may use any of them on any catalog dataset.
@@ -86,6 +87,9 @@ export function build(templateId: string, datasetId: string, headline: unknown) 
   const render: Record<string, unknown> = { kind: "render", id: "main", dataset: datasetId, view: t.view, start: d.start, end: d.end,
                                             transition: { kind: "crossfade", seconds: 0.6 } };
   if (t.settings) render.settings = { ...t.settings };
+  const extra = t as { hold?: number; style?: Record<string, unknown> };
+  if (extra.hold) render.hold_seconds = extra.hold;
+  const style = { ...(d.style || {}), ...(extra.style || {}) };
   return {
     schema: 1,
     name: slug(title),
@@ -96,7 +100,7 @@ export function build(templateId: string, datasetId: string, headline: unknown) 
       fps: 30,
       theme: "dark",
       hold_seconds: 0.5,
-      ...(d.style ? { style_overrides: JSON.parse(JSON.stringify(d.style)) } : {}),
+      ...(Object.keys(style).length ? { style_overrides: JSON.parse(JSON.stringify(style)) } : {}),
       clips: [
         { kind: "title", id: "open", seconds: 3, fade: 0.4, headline: title, subhead: cleanText(d.label, 160) },
         render,
