@@ -33,5 +33,11 @@ window.ryagramConfig = Object.freeze({
   // Show "Have an invite code?" on sign-in. Turn on only once custom SMTP is set, the invite email
   // template points at /app/?invite={{ .TokenHash }}, and redeem-invite is deployed
   // (supabase/README.md, "Beta invites").
-  inviteSignup: false
+  inviteSignup: false,
+  // Show "Browse all datasets" under the template picker: the engine's catalog by topic, with what
+  // the worker can run today marked ready. Off until Ryan has seen it (supabase README, "Catalog").
+  catalog: false,
+  // With the catalog on, also list the datasets the worker can't run yet, marked "Coming soon".
+  // Off by default: the catalog lists what can run, and nothing it can't.
+  catalogComingSoon: false
 });

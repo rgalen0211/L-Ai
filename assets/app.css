@@ -123,3 +123,23 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .admin-table th,.admin-table td{padding:8px 10px;border-bottom:1px solid var(--line);text-align:left;overflow-wrap:anywhere}
 .admin-table th{color:var(--muted);font-weight:700}
 .admin-table .num{text-align:right;font-variant-numeric:tabular-nums}
+.catalog-browser{margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.catalog-browser>summary{cursor:pointer;font-weight:700}
+.catalog-body input[type=search]{width:100%;max-width:420px;margin:6px 0 14px}
+.catalog-group{margin:0 0 22px}
+.catalog-group h3{margin:0 0 4px;font-size:1.1rem}
+.catalog-list{list-style:none;margin:8px 0;padding:0;border-top:1px solid var(--line)}
+.catalog-row{display:flex;flex-wrap:wrap;align-items:flex-start;gap:6px 14px;padding:12px 0;border-bottom:1px solid var(--line)}
+.catalog-main{flex:1 1 18em;min-width:0}
+.catalog-main p{margin:2px 0}
+.catalog-blurb{color:var(--ink);font-size:.92rem}
+.catalog-badge{margin-left:8px;padding:1px 8px;border:1px solid var(--line);border-radius:999px;font-size:.78rem;color:var(--muted)}
+.catalog-badge.ready{border-color:var(--brand-deep);color:var(--brand-deep)}
+.catalog-row.is-soon .catalog-main{opacity:.72}
+.catalog-family{margin:10px 0}
+.catalog-family>summary{cursor:pointer;font-weight:700}
+.catalog-story{flex-basis:100%;margin:6px 0 4px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:#fafaf8}
+.catalog-story fieldset{margin:8px 0;padding:0;border:0}
+.catalog-story legend{font-weight:700;font-size:.9rem}
+.catalog-view{display:flex;gap:8px;align-items:baseline;margin:4px 0}
+.catalog-story .button[type=submit]{width:auto;margin-top:8px}
