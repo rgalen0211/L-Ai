@@ -47,7 +47,7 @@
     (function next() {
       if (!files.length) { start(window.createMockApp()); return; }
       const script = document.createElement('script');
-      script.src = files.shift();
+      script.src = `${files.shift()}?t=${Date.now()}`;           // mock files change often: never serve a cached copy
       script.onload = next;
       script.onerror = () => say('Mock mode files are missing.');
       document.body.append(script);

@@ -143,7 +143,7 @@ test('mock mode loads only on this computer, never on the public site', () => {
   assert.equal(live.appended.length, 0);
   assert.equal(live.calls.created.url, 'https://p.supabase.co');      // the real client, as normal
   const local = harness({ location: { hostname: '127.0.0.1', search: '?mock' } });
-  assert.equal(local.appended[0].src, '/tests/fake-supabase.js');
+  assert.match(local.appended[0].src, /^\/tests\/fake-supabase\.js\?t=[0-9]+$/);
   assert.equal(local.calls.created, null);
 });
 

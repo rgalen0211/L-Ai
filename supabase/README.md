@@ -36,6 +36,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
 13. `migrations/20261003000200_invite_codes.sql` (beta invite codes; see "Beta invites")
 14. `migrations/20261003000300_admin_waitlist_by_film.sql` (your "Waitlist by film" counts; see
    "Waitlist by film")
+15. `migrations/20261004000100_version_sources.sql`, then `catalog_sources_seed.sql` (the sources screen;
+   see "Sources screen")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -358,6 +360,20 @@ if a ready dataset has no credit shape row, or if a story can't be built.
 Two switches: `catalog` (the browser itself) and `catalogComingSoon` (also list datasets the worker
 can't run yet, marked "Coming soon"; default off). Recommended: leave `catalogComingSoon` off, and turn
 `catalog` on only when the ready list is broad (see the proposal in the mailbox).
+
+## Sources screen (branch sources): "What this film is made from"
+
+On a version's page, above the example films: one card per source of the film, each with its publisher
+(linked), what it covers, and a short licence line that opens the full licence text. The film's story is
+the truth: the database keeps the version's sources in step with the datasets the story names (at most 5;
+a dataset Ryagram has but can't run yet is refused in plain words), and fills every card's facts from an
+internal table, so nothing on a card comes from the browser. Later, ticked suggestions and uploads add
+rows to the same table. The screen stays hidden until this SQL is applied.
+
+1. **SQL Editor:** `migrations/20261004000100_version_sources.sql`.
+2. **SQL Editor:** `catalog_sources_seed.sql` (generated; idempotent). Rerun it, and regenerate it with
+   `tools/gen-catalog.py`, whenever the engine's datasets or the worker's allowlist change.
+3. Merge (with your OK). No function to deploy, no secrets, no flag.
 
 ## Kill switch
 

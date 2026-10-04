@@ -227,6 +227,25 @@
       },
       signOut() { return client.auth.signOut(); },
 
+      // What a film is made from (SQL 20261004000100): the database makes the version's sources match its story
+      // and fills each card's facts from its internal catalog. Null when that SQL isn't applied yet.
+      async syncSources(versionId) {
+        const { data, error } = await client.rpc('sync_version_sources', { p_version: versionId });
+        if (error) {
+          if (/does not exist|schema cache|PGRST202|Could not find the function/i.test(`${error.message || ''} ${error.code || ''}`)) return null;
+          throw new Error(error.message || 'Couldn\u2019t load the sources.');
+        }
+        return data || [];
+      },
+
+      // The sources already recorded (what a refused sync left in place).
+      async listSources(versionId) {
+        const rows = await run(client.from('version_sources')
+          .select('dataset_ref, kind, title, publisher, source_url, coverage, licence_short, licence_full, position')
+          .eq('version_id', versionId).order('position', { ascending: true }), 'Couldn’t load the sources.');
+        return rows || [];
+      },
+
       // Ryan's admin view: is this account an admin (false if the SQL isn't applied), and the
       // waitlist COUNTS per film link per day (the function refuses everyone else).
       async isAppAdmin() {
