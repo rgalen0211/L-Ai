@@ -8,15 +8,14 @@ stripe_apply receives what the stripe-webhook function extracts from each event
 """
 import json
 import sys
-import tempfile
 import threading
 import unittest
 from pathlib import Path
 
-import pgserver
 import psycopg
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pgtemp  # noqa: E402
 import test_2a_core as core  # noqa: E402
 import test_2b_credits as ledger  # noqa: E402
 
@@ -29,7 +28,7 @@ _count = 0
 
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-stripe-"), cleanup_mode="stop")
+    _server = pgtemp.start("stripe")
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmplst")
         c.execute("create database tmplst")
@@ -57,6 +56,7 @@ class Stripe(unittest.TestCase):
 
     def tearDown(self):
         self.db.c.close()
+        pgtemp.drop_database(_server, self.name)
 
     # -- helpers
     def apply(self, type_, data, event=None, livemode=False, created="2026-10-01T00:00:00Z"):

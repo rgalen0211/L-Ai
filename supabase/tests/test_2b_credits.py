@@ -8,16 +8,15 @@ credits: 3, 4, 5, 6, 7, 8, 9, 10, 11, 18 (held prices), 19 (grants), 20, 21.
 """
 import json
 import sys
-import tempfile
 import threading
 import unittest
 import uuid
 from pathlib import Path
 
-import pgserver
 import psycopg
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pgtemp  # noqa: E402
 import test_2a_core as core  # noqa: E402  (reuses Db, the ids and the 2A file list)
 
 ROOT = core.ROOT
@@ -34,7 +33,7 @@ def story(*views, dataset="test_standard"):
 
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-2b-"), cleanup_mode="stop")
+    _server = pgtemp.start("2b")
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmpl2b")
         c.execute("create database tmpl2b")
@@ -60,6 +59,7 @@ class Ledger(unittest.TestCase):
 
     def tearDown(self):
         self.db.c.close()
+        pgtemp.drop_database(_server, self.name)
 
     # -- helpers
     def denied(self, who, sql, *args):

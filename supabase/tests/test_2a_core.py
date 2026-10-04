@@ -9,14 +9,15 @@ Run from the repo root:
 supabase_stub.sql stands in for Supabase's auth/storage schemas and roles.
 auth.uid() reads request.jwt.claim.sub, as PostgREST sets it.
 """
-import os
-import tempfile
+import sys
 import unittest
 import uuid
 from pathlib import Path
 
-import pgserver
 import psycopg
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import pgtemp  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MIGRATIONS = [ROOT / "ryagram-waitlist.sql", *sorted((ROOT / "migrations").glob("*.sql"))]
@@ -28,7 +29,7 @@ _count = 0
 
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-pg-"), cleanup_mode="stop")
+    _server = pgtemp.start("pg")                    # deleted again when the module ends, pass or fail
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmpl")
         c.execute("create database tmpl")
@@ -69,13 +70,14 @@ class Base(unittest.TestCase):
     def setUp(self):
         global _count
         _count += 1
-        name = f"t{_count}"
+        self.dbname = f"t{_count}"
         with psycopg.connect(_server.get_uri(), autocommit=True) as c:
-            c.execute(f"create database {name} template tmpl")
-        self.db = Db(_server.get_uri(database=name))
+            c.execute(f"create database {self.dbname} template tmpl")
+        self.db = Db(_server.get_uri(database=self.dbname))
 
     def tearDown(self):
         self.db.c.close()
+        pgtemp.drop_database(_server, self.dbname)
 
     def denied(self, who, sql, *args):
         with self.assertRaises(psycopg.Error):

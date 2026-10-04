@@ -475,6 +475,11 @@ project named `acceptance-<time>` and one 16-byte file.
 
 ## Tests
 
+The Postgres suites clean up after themselves (`supabase/tests/pgtemp.py`): each module's temporary server folder is
+deleted when its tests end (pass, fail, or a crash in setup), each test drops its own database, and every start
+removes OLD leftovers of ours (older than 2 hours, no running postgres). `python supabase/tests/pgtemp.py` does
+that sweep by hand; `test_pgtemp.py` proves it. Never create a server folder with `tempfile.mkdtemp` in a test.
+
 Uploads: `tests/test_uploads.py` (Postgres), `tests/purge-uploads.test.mjs`, `tests/delete-account.test.mjs`,
 `tests/app-uploads*.test.cjs`.
 
