@@ -414,6 +414,7 @@
             const result = await data.saveStory(v.id, parsed);
             saved.textContent = 'Saved. Earlier sheets and previews were of the old story, so the final render needs new ones.';
             jobs.storyChanged(result.story_sha256);
+            sources.refresh();
           } catch (err) { showError(error, err); }
         });
       } },
@@ -423,6 +424,8 @@
           : 'The story file this version renders from. The render worker checks it in full before drawing anything.'),
         story, locked ? null : save, saved, error);
 
+      // What this film is made from: the database follows the story; refreshed whenever the story changes.
+      const sources = sourcesPanel(v, !locked);
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
         if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
@@ -431,6 +434,7 @@
         story.value = JSON.stringify(built, null, 2);
         saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.';
         jobs.storyChanged(result.story_sha256);
+        sources.refresh();
         return true;
       });
 
@@ -455,12 +459,57 @@
               } }, 'Archive this version')
             : null),
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
+        sources.el,
         picker,
         chat,
         storyForm,
         jobs.el,
         files.el
       ];
+    }
+
+    // "What this film is made from": one card per source with its publisher, coverage and a short licence
+    // that opens the full text. The facts come from the database, not from this page (sync_version_sources).
+    // Hidden when that SQL isn't applied yet; a problem (too many sources, data we can't run) shows in place.
+    function sourcesPanel(v, editable) {
+      const S = window.ryagramSources;
+      const el = h('section', { class: 'app-panel sources-panel', 'aria-labelledby': 'sources-title', hidden: true },
+        h('h2', { id: 'sources-title' }, 'What this film is made from'));
+      let latest = 0;
+      async function refresh() {
+        const mine = ++latest;
+        let rows, problem = '';
+        try { rows = await data.syncSources(v.id); }
+        catch (err) {
+          problem = err.message;                                     // a refused sync leaves the old rows in place: show them
+          rows = await data.listSources(v.id).catch(() => []);
+        }
+        if (mine !== latest) return;
+        if (rows === null) { el.hidden = true; return; }              // not available yet
+        el.hidden = false;
+        const cards = rows.map(r => {
+          const c = S.cardView(r);
+          const full = c.licenceFull ? h('div', { class: 'source-licence-full', hidden: true },
+            h('p', {}, c.licenceFull), c.url ? h('p', {}, h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, `${c.publisher} (the publisher\u2019s page)`)) : null) : null;
+          const toggle = h('button', { class: 'link-button', type: 'button', 'aria-expanded': 'false', onclick: event => {
+            if (!full) return;
+            full.hidden = !full.hidden;
+            event.currentTarget.setAttribute('aria-expanded', String(!full.hidden));
+          } }, c.licenceShort);
+          return h('li', { class: 'source-card' },
+            h('strong', {}, c.title),
+            h('p', { class: 'meta' }, 'Source: ', c.url ? h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, c.publisher) : c.publisher),
+            h('p', { class: 'meta' }, `Covers: ${c.coverage}`),
+            h('p', { class: 'meta' }, 'Licence: ', full ? toggle : c.licenceShort, full ? ' (full text)' : ''),
+            full);
+        });
+        el.replaceChildren(...[el.firstChild,
+          cards.length ? h('ul', { class: 'source-cards' }, cards) : null,
+          problem ? h('p', { class: 'form-note app-error', role: 'alert' }, problem) : null,
+          h('p', { class: 'form-note' }, S.note({ editable, count: cards.length }))].filter(Boolean));
+      }
+      refresh();
+      return { el, refresh };
     }
 
     // A finished film's public page: off until the owner publishes it; they can stop at any time.

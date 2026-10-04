@@ -18,7 +18,7 @@
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [],
-                 account_settings: [], ...structuredClone(seed) };
+                 account_settings: [], version_sources: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -148,7 +148,39 @@
       return q;
     }
 
+    // Mock version of sync_version_sources (SQL 20261004000100): facts for the template datasets, plus one
+    // dataset Ryagram has but can't run yet. The real rules are tested against Postgres.
+    const MOCK_CATALOG = {
+      state_obesity_fastfood: ['Obesity and fast food by state', 'CDC (BRFSS) and U.S. Census Bureau (County Business Patterns)', 'https://data.cdc.gov/d/hn4x-zwk7', 'US state (plus DC), 2011 to 2023, annual', 'Both are U.S. Government works in the public domain', 'Both are U.S. Government works in the public domain. CDC asks that BRFSS be cited and notes its values are self-reported survey estimates.'],
+      bps_county_permits: ['Residential building permits per 1,000 residents, by county', 'U.S. Census Bureau, Building Permits Survey', 'https://www.census.gov/construction/bps/', 'US county (lower 48 + DC), 1990 to 2024, annual', 'U.S. Government work, public domain', 'U.S. Government work, public domain. The Census Bureau asks that the source be cited.'],
+      bls_state_unemployment: ['BLS state unemployment', 'U.S. Bureau of Labor Statistics', 'https://www.bls.gov/lau/', 'US state (plus DC), 1976-01 onward, monthly', 'U.S. Government work, public domain', 'U.S. Government work, public domain.'],
+      cbp_manufacturing_share_state: ['Manufacturing share of CBP-covered employment, by state', 'U.S. Census Bureau, County Business Patterns', 'https://www.census.gov/programs-surveys/cbp.html', 'US state (plus DC), 1998 to 2023, annual', 'U.S. Government work, public domain', 'U.S. Government work, public domain. The Census Bureau asks that the source be cited.'],
+      cbp_retail_employment: ['Retail trade (employment)', 'U.S. Census Bureau, County Business Patterns', 'https://www.census.gov/programs-surveys/cbp.html', 'US county (lower 48 + DC), 1998 to 2023, annual', 'U.S. Government work, public domain', 'U.S. Government work, public domain.', false]
+    };
+    function syncSources(versionId) {
+      const v = db.versions.find(x => x.id === versionId);
+      if (!v) return { data: null, error: { message: 'Version not found.' } };
+      db.version_sources = db.version_sources || [];
+      if (EDITABLE.includes(v.state)) {
+        const clips = Array.isArray(v.story_spec?.sequence?.clips) ? v.story_spec.sequence.clips : [];
+        const wanted = [...new Set(clips.filter(c => c.kind === 'render' && c.dataset).map(c => c.dataset))];
+        if (wanted.length > 5) return { data: null, error: { message: 'A film can use up to 5 sources.' } };
+        for (const id of wanted) {
+          if (!MOCK_CATALOG[id]) return { data: null, error: { message: `We don't have data called "${id}".` } };
+          if (MOCK_CATALOG[id][6] === false) return { data: null, error: { message: `We have "${MOCK_CATALOG[id][0]}", but can't run it yet.` } };
+        }
+        db.version_sources = db.version_sources.filter(r => r.version_id !== versionId || r.kind !== 'catalog' || wanted.includes(r.dataset_ref));
+        wanted.forEach((id, i) => {
+          const [title, publisher, source_url, coverage, licence_short, licence_full] = MOCK_CATALOG[id];
+          const row = { version_id: versionId, kind: 'catalog', dataset_ref: id, title, publisher, source_url, coverage, licence_short, licence_full, position: i + 1 };
+          const at = db.version_sources.findIndex(r => r.version_id === versionId && r.dataset_ref === id);
+          if (at >= 0) db.version_sources[at] = row; else db.version_sources.push(row);
+        });
+      }
+      return { data: db.version_sources.filter(r => r.version_id === versionId).sort((a, b) => a.position - b.position), error: null };
+    }
     const rpcs = {
+      sync_version_sources({ p_version }) { return syncSources(p_version); },
       // Mock: the mock user is an admin; three films' worth of made-up signup counts.
       is_app_admin() { return { data: true, error: null }; },
       waitlist_by_film({ p_days }) {
