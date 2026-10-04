@@ -48,10 +48,6 @@
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
-  // The dataset catalog shows once a person can pick from it (catalog: true), or in mock mode. "Coming
-  // soon" rows (not on the worker's allowlist yet) are a second switch, off by default.
-  const catalogOn = () => window.ryagramConfig?.catalog === true || !!window.ryagramMock;
-  const catalogSoonOn = () => window.ryagramConfig?.catalogComingSoon === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
@@ -551,145 +547,60 @@
         log, form);
     }
 
-    // "Start from a template": a view, a dataset, a headline -> a valid story.
+    // "Start from a ready-made film": each card is one complete film (a view of one dataset), so there is
+    // nothing to pick the data from. No dataset dropdown and no browse list, by Ryan's ruling (2026-10-04):
+    // choosing data belongs to the sourcing step (type what you want to see; or upload your own).
     function templatePicker(project, v, apply) {
       const T = window.ryagramTemplates;
       const blank = T.isBlank(v.story_spec);
       const error = errorLine();
-      const offered = T.TEMPLATES.filter(t => !t.flag || window.ryagramConfig?.[t.flag] === true || window.ryagramMock);
-      let chosen = offered.find(t => t.id === 'map') || offered[0];
+      // One card per template x dataset it was drawn on. A template with a default dataset (Industry,
+      // behind its flag) shows only that one: the other sectors are for the sourcing step, not a list here.
+      const offered = T.TEMPLATES.filter(t => !t.flag || window.ryagramConfig?.[t.flag] === true || window.ryagramMock)
+        .flatMap(t => (t.defaultDataset ? [t.defaultDataset] : t.datasets).map(id => ({ t, id, key: `${t.id}:${id}` })));
+      const short = id => String((T.DATASETS[id] || {}).label || id).replace(/\s*\(.*$/, '');
+      let chosen = offered.find(o => o.t.id === 'map' && o.id === 'state_obesity_fastfood') || offered[0];
 
-      const datasetSelect = h('select', { id: 'tpl-dataset' });
       const headline = h('input', { id: 'tpl-headline', maxlength: '160', value: project.title, autocomplete: 'off' });
       const note = h('p', { class: 'form-note' });
-      const cards = h('div', { class: 'template-grid', role: 'radiogroup', 'aria-label': 'Template' });
+      const cards = h('div', { class: 'template-grid', role: 'radiogroup', 'aria-label': 'Ready-made films' });
 
       let headlineEdited = false;
       headline.addEventListener('input', () => { headlineEdited = true; });
-      // A dataset with its own question (the industry template) suggests it as the headline.
-      function suggestHeadline() {
-        const d = T.DATASETS[datasetSelect.value];
-        if (!headlineEdited) headline.value = chosen.headline || d?.headline || project.title;
-      }
-      datasetSelect.addEventListener('change', suggestHeadline);
-      function fillDatasets() {
-        datasetSelect.replaceChildren(...chosen.datasets.map(id => h('option', { value: id, selected: id === chosen.defaultDataset }, T.DATASETS[id].label)));
-        note.textContent = [chosen.note || '',
-          chosen.confirmed ? '' : 'This view hasn’t been rendered on this dataset before, so check the contact sheet closely.']
+      function choose() {
+        const { t, id } = chosen;
+        note.textContent = [t.note || '', t.confirmed ? '' : 'This view hasn\u2019t been rendered on this data before, so check the contact sheet closely.']
           .filter(Boolean).join(' ');
-        suggestHeadline();
+        if (!headlineEdited) headline.value = t.headline || (T.DATASETS[id] || {}).headline || project.title;
       }
       function drawCards() {
-        cards.replaceChildren(...offered.map(t => h('label', { class: `template-card${t === chosen ? ' is-chosen' : ''}` },
-          h('input', { type: 'radio', name: 'tpl', value: t.id, checked: t === chosen,
-                       onchange: () => { chosen = t; drawCards(); fillDatasets(); } }),
-          h('strong', {}, t.label), h('span', {}, t.blurb))));
+        cards.replaceChildren(...offered.map(o => h('label', { class: `template-card${o === chosen ? ' is-chosen' : ''}` },
+          h('input', { type: 'radio', name: 'tpl', value: o.key, checked: o === chosen,
+                       onchange: () => { chosen = o; drawCards(); choose(); } }),
+          h('strong', {}, o.t.label), h('span', {}, short(o.id)), h('span', { class: 'meta' }, o.t.blurb))));
       }
       drawCards();
-      fillDatasets();
+      choose();
 
-      const use = h('button', { class: 'button primary', type: 'submit' }, 'Use this template');
+      const use = h('button', { class: 'button primary', type: 'submit' }, 'Use this film');
       const form = h('form', { class: 'template-form', onsubmit: async event => {
         event.preventDefault();
         error.hidden = true;
-        await busy(use, 'Applying…', async () => {
+        await busy(use, 'Applying\u2026', async () => {
           try {
-            if (await apply(T.build(chosen.id, datasetSelect.value, headline.value))) details.open = false;
+            if (await apply(T.build(chosen.t.id, chosen.id, headline.value))) details.open = false;
           } catch (err) { showError(error, err); }
         });
       } },
         cards,
-        h('div', { class: 'template-fields' },
-          h('div', {}, h('label', { for: 'tpl-dataset' }, 'Data'), datasetSelect),
-          h('div', {}, h('label', { for: 'tpl-headline' }, 'Headline'), headline)),
+        h('div', { class: 'template-fields' }, h('div', {}, h('label', { for: 'tpl-headline' }, 'Headline'), headline)),
         note, use, error);
 
       const details = h('details', { class: 'template-picker', open: blank },
-        h('summary', {}, blank ? 'Start from a template' : 'Start again from a template'),
-        h('p', { class: 'form-note' }, 'Pick a kind of film and the data. You get a complete story you can then adjust.'),
-        form,
-        catalogOn() ? catalogBrowser(project, async built => { if (await apply(built)) details.open = false; }) : null);
+        h('summary', {}, blank ? 'Start from a ready-made film' : 'Start again from a ready-made film'),
+        h('p', { class: 'form-note' }, 'Each is a complete film you can then adjust.'),
+        form);
       return details;
-    }
-
-    // "Browse all datasets": everything the engine registers that a film can use, by topic, each with a
-    // line about it and its source. Only what the worker can run today is offered; the rest appears
-    // as "Coming soon" only when the second switch is on.
-    function catalogBrowser(project, apply) {
-      const K = window.ryagramCatalog, T = window.ryagramTemplates;
-      const box = h('details', { class: 'catalog-browser' }, h('summary', {}, 'Browse all datasets'));
-      const body = h('div', { class: 'catalog-body' }, h('p', { class: 'form-note' }, 'Loading the catalog\u2026'));
-      const search = h('input', { type: 'search', id: 'cat-search', placeholder: 'Search: jobs, housing, obesity\u2026', autocomplete: 'off', 'aria-label': 'Search datasets' });
-      let chosen = null;                                   // the entry whose "make a story" form is open
-
-      function row(e) {
-        const ready = e.status === 'usable';
-        const source = /^https:\/\//.test(e.url) ? h('a', { href: e.url, target: '_blank', rel: 'noopener noreferrer' }, e.source) : e.source;
-        const open = chosen && chosen.id === e.id;
-        return h('li', { class: `catalog-row${ready ? '' : ' is-soon'}` },
-          h('div', { class: 'catalog-main' },
-            h('strong', {}, e.family ? e.short : e.title),
-            h('span', { class: `catalog-badge${ready ? ' ready' : ''}` }, K.statusLabel(e)),
-            h('p', { class: 'catalog-blurb' }, e.blurb),
-            h('p', { class: 'meta' }, 'Source: ', source)),
-          ready ? h('button', { class: 'button secondary small', type: 'button', 'aria-expanded': String(!!open),
-                                onclick: () => { chosen = open ? null : e; draw(); } }, open ? 'Close' : 'Use this data')
-                : h('button', { class: 'button secondary small', type: 'button', disabled: true }, 'Coming soon'),
-          open ? storyForm(e) : null);
-      }
-
-      function storyForm(e) {
-        const error = errorLine();
-        const choices = K.viewChoices(e, T.TEMPLATES);
-        const first = choices.findIndex(c => !c.blocked);
-        const radios = choices.map((c, i) => h('label', { class: 'catalog-view' },
-          h('input', { type: 'radio', name: 'cat-view', value: c.view, checked: i === first, disabled: !!c.blocked }),
-          h('span', {}, K.VIEW_LABELS[c.view], c.blocked ? h('span', { class: 'meta' }, ` \u00b7 not offered: ${c.blocked}`)
-            : c.tested ? '' : h('span', { class: 'meta' }, ' \u00b7 not drawn before: check the contact sheet closely'))));
-        const suggested = (T.DATASETS[e.id] && T.DATASETS[e.id].headline) || (e.family ? '' : e.title);
-        const headline = h('input', { id: 'cat-headline', maxlength: '160', value: suggested, placeholder: e.title, autocomplete: 'off' });
-        const go = h('button', { class: 'button primary', type: 'submit' }, 'Make this story');
-        return h('form', { class: 'catalog-story', onsubmit: async event => {
-          event.preventDefault();
-          error.hidden = true;
-          const view = event.currentTarget.querySelector('input[name=cat-view]:checked')?.value;
-          await busy(go, 'Making\u2026', async () => {
-            try { await apply(T.buildFor(K.storyInfo(e, view), headline.value)); } catch (err) { showError(error, err); }
-          });
-        } },
-          h('p', { class: 'form-note' }, `Period: ${e.window ? e.window.join(' to ') : '\u2014'}. You can change it in the story afterwards.`),
-          h('fieldset', {}, h('legend', {}, 'How to draw it'), radios),
-          h('label', { for: 'cat-headline' }, 'Headline'), headline, go, error);
-      }
-
-      function draw(data) {
-        const entries = (data || K.data()).entries;
-        const soon = catalogSoonOn();
-        const groups = K.layout(entries, { soon, text: search.value });
-        const ready = entries.filter(e => e.status === 'usable').length;
-        body.replaceChildren(
-          h('p', { class: 'form-note' }, `${ready} dataset${ready === 1 ? '' : 's'} ready to use${soon ? '; the rest are marked coming soon' : ''}.`),
-          search,
-          ...(groups.length ? groups.map(g => h('section', { class: 'catalog-group', 'aria-label': g.name },
-            h('h3', {}, g.name, h('span', { class: 'meta' }, ` \u00b7 ${g.ready} ready${soon && g.total > g.ready ? `, ${g.total - g.ready} coming soon` : ''}`)),
-            g.intro ? h('p', { class: 'form-note' }, g.intro) : null,
-            g.items.length ? h('ul', { class: 'catalog-list' }, g.items.map(row)) : null,
-            ...g.families.map(f => h('details', { class: 'catalog-family', open: !!search.value || f.items.some(x => chosen && chosen.id === x.id) },
-              h('summary', {}, f.title, h('span', { class: 'meta' }, ` \u00b7 ${f.items.filter(x => x.status === 'usable').length} ready of ${f.items.length}`)),
-              h('ul', { class: 'catalog-list' }, f.items.map(row)))))) : [h('p', { class: 'form-intro' }, 'Nothing matches.')]));
-        const focused = document.activeElement && document.activeElement.id === 'cat-search';
-        if (focused) search.focus();
-      }
-
-      let started = false;
-      box.addEventListener('toggle', () => {
-        if (!box.open || started) return;
-        started = true;                                  // a second toggle must not load the data twice
-        K.load(box).then(data => { draw(data); search.addEventListener('input', () => draw(data)); })
-          .catch(err => { started = false; body.replaceChildren(h('p', { class: 'form-note app-error', role: 'alert' }, err.message)); });
-      });
-      box.append(body);
-      return box;
     }
 
     // Files for a version, refreshed on its own when a job finishes so the

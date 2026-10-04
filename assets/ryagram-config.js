@@ -34,10 +34,9 @@ window.ryagramConfig = Object.freeze({
   // template points at /app/?invite={{ .TokenHash }}, and redeem-invite is deployed
   // (supabase/README.md, "Beta invites").
   inviteSignup: false,
-  // Show "Browse all datasets" under the template picker: the engine's catalog by topic, with what
-  // the worker can run today marked ready. Off until Ryan has seen it (supabase README, "Catalog").
+  // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
+  // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
+  // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.
   catalog: false,
-  // With the catalog on, also list the datasets the worker can't run yet, marked "Coming soon".
-  // Off by default: the catalog lists what can run, and nothing it can't.
   catalogComingSoon: false
 });

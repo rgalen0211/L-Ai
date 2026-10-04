@@ -146,3 +146,15 @@ test('measured combinations: blocked views are not built, drawn-and-passing ones
     }
   }
 });
+
+test('there is no dataset picker or browse list for users: flags stay off, and the app has no dataset dropdown', () => {
+  const cfg = fs.readFileSync(path.join(root, 'assets/ryagram-config.js'), 'utf8');
+  assert.match(cfg, /\bcatalog:\s*false\b/);
+  assert.match(cfg, /\bcatalogComingSoon:\s*false\b/);
+  const lib = fs.readFileSync(path.join(root, 'assets/app-library.js'), 'utf8');
+  assert.doesNotMatch(lib, /tpl-dataset|datasetSelect|catalogBrowser|catalogOn|ryagramCatalog/);
+  const selects = [...lib.matchAll(/h\('select',\s*\{\s*id:\s*'([^']+)'/g)].map(m => m[1]);
+  assert.deepEqual(selects, ['wl-days']);                        // the admin period list is the only dropdown
+  const html = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
+  assert.doesNotMatch(html, /app-catalog/);                       // the browser never loads the catalog
+});
