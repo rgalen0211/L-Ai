@@ -103,6 +103,41 @@ def _postmaster_pid(folder):
         return None
 
 
+def _norm(path):
+    return os.path.normcase(os.path.abspath(str(path)))
+
+
+def _postmaster_state(folder, pid):
+    """What the process named in this folder's postmaster.pid is, to US:
+      "stale"    no such process, not a postgres, or a postgres running a DIFFERENT data folder (the pid was reused)
+      "ours"     a postgres whose command line says -D <this folder> (pgserver starts it that way)
+      "unknown"  it cannot be told (access denied, no command line): treated as in use, never stopped."""
+    try:
+        if not psutil.pid_exists(pid):
+            return "stale"
+        proc = psutil.Process(pid)
+        if "postgres" not in proc.name().lower():
+            return "stale"
+        cmd = proc.cmdline()
+        if not cmd:
+            return "unknown"
+        target, given = _norm(folder), None
+        for i, arg in enumerate(cmd):
+            if arg == "-D" and i + 1 < len(cmd):
+                given = cmd[i + 1]
+            elif arg.startswith("-D") and len(arg) > 2:
+                given = arg[2:]
+        if given is not None:
+            return "ours" if _norm(given) == target else "stale"
+        # No -D on the command line: only a process started AFTER the pid file was written can be a reused pid.
+        mtime = (Path(folder) / "postmaster.pid").stat().st_mtime
+        return "ours" if proc.create_time() <= mtime + 2 else "stale"
+    except psutil.NoSuchProcess:
+        return "stale"
+    except Exception:
+        return "unknown"
+
+
 def _in_use(folder):
     """True unless we can PROVE nothing needs this folder. Any error counts as in use (fail closed)."""
     try:
@@ -112,9 +147,14 @@ def _in_use(folder):
         pid = _postmaster_pid(folder)
         if pid is None:
             return True
-        if pid == 0 or not _alive_postgres(pid):
+        if pid == 0:
             return False
-        # A live postgres whose python holders are all gone is the orphan of a hard kill, but only if pgserver's own
+        state = _postmaster_state(folder, pid)
+        if state == "stale":
+            return False                            # a leftover pid file, or a reused pid: no postgres of ours
+        if state == "unknown":
+            return True
+        # A postgres of ours whose python holders are all gone is the orphan of a hard kill, but only if pgserver's own
         # handle file proves it started this one; with no handle file it is somebody else's postgres: leave it.
         return not (Path(folder) / ".handle_pids.json").exists()
     except Exception:
@@ -122,27 +162,29 @@ def _in_use(folder):
 
 
 def _stop_orphan(folder):
-    """Stop a postgres left running by a hard-killed test run: pg_ctl first, then the processes themselves."""
-    pid = _postmaster_pid(folder)
-    if not pid or not _alive_postgres(pid):
-        return True
+    """Stop a postgres left running by a hard-killed test run: pg_ctl first, then the processes themselves. Only ever
+    called for a process _postmaster_state says is OURS; never raises."""
     try:
-        from pgserver._commands import pg_ctl
-        pg_ctl(["-w", "-m", "immediate", "stop"], pgdata=Path(folder), user=None)
-    except Exception:
-        pass
-    try:
-        if _alive_postgres(pid):
+        pid = _postmaster_pid(folder)
+        if not pid or _postmaster_state(folder, pid) != "ours":
+            return True
+        try:
+            from pgserver._commands import pg_ctl
+            pg_ctl(["-w", "-m", "immediate", "stop"], pgdata=Path(folder), user=None)
+        except Exception:
+            pass
+        if _postmaster_state(folder, pid) == "ours":
             main = psutil.Process(pid)
             for child in main.children(recursive=True):
                 child.kill()
             main.kill()
             main.wait(5)
+        return _postmaster_state(folder, pid) != "ours"
     except psutil.NoSuchProcess:
-        pass
+        return True
     except Exception as err:
-        _note(f"could not stop the orphaned postgres {pid} for {folder}: {err}")
-    return not _alive_postgres(pid)
+        _note(f"could not stop the orphaned postgres for {folder}: {err}")
+        return False
 
 
 # ---------------------------------------------------------------- deleting
@@ -188,13 +230,15 @@ def _delete_tree_once(path):
             except OSError as err:
                 errors.append(err)
         elif entry.is_dir(follow_symlinks=False):
-            errors.extend(_delete_tree_once(p))
+            inner = _delete_tree_once(p)
+            errors.extend(inner)
             try:
                 os.rmdir(p)
             except FileNotFoundError:
                 pass
             except OSError as err:
-                errors.append(err)
+                if not inner:                    # a child already failed: this one's "not empty" (145) is only its echo
+                    errors.append(err)
         else:
             err = _try_delete_file(p)
             if err:
@@ -233,13 +277,15 @@ def remove_dir(path, tries=10):
                 except OSError as err:
                     errors.append(err)
             elif entry.is_dir(follow_symlinks=False):
-                errors.extend(_delete_tree_once(entry.path))
+                inner = _delete_tree_once(entry.path)
+                errors.extend(inner)
                 try:
                     os.rmdir(entry.path)
                 except FileNotFoundError:
                     pass
                 except OSError as err:
-                    errors.append(err)
+                    if not inner:
+                        errors.append(err)
             else:
                 err = _try_delete_file(entry.path)
                 if err:
