@@ -143,3 +143,24 @@ test('shop: current prices that Stripe sells; checkout URLs only go to Stripe', 
     await assert.rejects(ryagramData(answering(bad)).startCheckout('pack_starter'), /Couldn’t start the checkout/);
   }
 });
+
+test('mock ledger: cancelling a QUEUED final returns its credits; cancelling after the render started keeps them spent', async () => {
+  const w = await world(30);
+  const ladder = async () => {
+    const sheet = await w.data.submitJob(w.version.id, 'contact_sheet', {}); await w.until(sheet.id);
+    const prev = await w.data.submitJob(w.version.id, 'preview', { window_s: [0, 10] }); await w.until(prev.id);
+    return w.data.submitJob(w.version.id, 'final_render', {}, { sheetJobId: sheet.id, previewJobId: prev.id });
+  };
+  const bal = async () => (await w.data.creditBalances()).map(r => [r.available, r.held]);
+  const queued = await ladder();
+  assert.deepEqual(await bal(), [[20, 10]]);
+  await w.data.cancelJob(queued.id);
+  assert.equal(w.client.db.jobs.find(j => j.id === queued.id).state, 'cancelled');
+  assert.deepEqual(await bal(), [[30, 0]]);                                   // never started: all of it comes back
+  const started = await ladder();
+  const job = w.client.db.jobs.find(j => j.id === started.id);
+  job.state = 'running'; w.client.jobChanged(job);
+  job.state = 'cancelled'; w.client.jobChanged(job);
+  assert.deepEqual(await bal(), [[20, 0]]);                                   // started: spent, nothing held, nothing returned
+});
+

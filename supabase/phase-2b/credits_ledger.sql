@@ -16,7 +16,11 @@
 -- as the job change, so a job and its credits can never disagree:
 --   job inserted (submit_job)        -> quote; free preview, or HOLD (refused if short)
 --   job complete                     -> CAPTURE
---   job failed / cancelled / needs an editorial decision -> RELEASE
+--   job cancelled BEFORE the worker started rendering (it never reached 'running') -> RELEASE
+--   job cancelled AFTER it reached 'running'                                        -> CAPTURE: the credits are SPENT
+--                                    (Ryan, 2026-10-05, WEB-2B-CREDITS-LEDGER.md section 3a). jobs.ever_ran remembers it,
+--                                    so a job that ran, crashed, was re-queued and then cancelled is still spent.
+--   job failed / needs an editorial decision -> RELEASE (unchanged: not the person's cancellation)
 --   job re-queued for a retry        -> nothing: one hold covers every attempt
 -- Every grant/adjustment function is service_role only (Stripe webhooks, Ryan's tools).
 
@@ -192,6 +196,7 @@ create trigger credit_ledger_no_truncate before truncate on public.credit_ledger
 
 -- What each job was quoted. Filled by the trigger, never by people.
 alter table public.jobs
+  add column ever_ran boolean not null default false,        -- set the moment the job reaches 'running'; never cleared
   add column price_version text,
   add column price_code text,
   add column credits_quoted int check (credits_quoted >= 0),
@@ -364,6 +369,18 @@ create trigger jobs_hold after insert on public.jobs
 
 -- ---------------------------------------------------------------- capture / release (on state)
 
+-- Remember that the worker STARTED rendering. Only the database sets it (nobody can write jobs), and it can never go back to false.
+create function ryagram_private.jobs_note_run() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  new.ever_ran := old.ever_ran or new.state = 'running';
+  return new;
+end $$;
+create trigger jobs_note_run before update of state on public.jobs
+  for each row execute function ryagram_private.jobs_note_run();
+-- Jobs that already ran before this column existed (a re-run of this file on a live database).
+update public.jobs set ever_ran = true where state in ('running', 'validating', 'uploading', 'complete') or started_at is not null;
+
 create function ryagram_private.jobs_settle() returns trigger
 language plpgsql security definer set search_path = '' as $$
 begin
@@ -373,6 +390,13 @@ begin
   if new.state = 'complete' then
     insert into public.credit_ledger (owner_id, entry, pool, amount, resolves_id, job_id, reason, created_by)
       select h.owner_id, 'capture', h.pool, 0, h.id, h.job_id, 'Job complete', 'system'
+      from public.credit_ledger h
+      where h.hold_id = new.hold_id and h.entry = 'hold'
+        and not exists (select 1 from public.credit_ledger r where r.resolves_id = h.id and r.entry in ('capture', 'release'));
+  elsif new.state = 'cancelled' and new.ever_ran then
+    -- Cancelled after the render started: the credits are spent. The hold is resolved as a capture (amount 0), exactly once.
+    insert into public.credit_ledger (owner_id, entry, pool, amount, resolves_id, job_id, reason, created_by)
+      select h.owner_id, 'capture', h.pool, 0, h.id, h.job_id, 'Cancelled after the render started: credits spent', 'system'
       from public.credit_ledger h
       where h.hold_id = new.hold_id and h.entry = 'hold'
         and not exists (select 1 from public.credit_ledger r where r.resolves_id = h.id and r.entry in ('capture', 'release'));

@@ -64,8 +64,9 @@
     // What the jobs trigger does: a final render's state shows on its version; in 2B the
     // ledger triggers capture or release the job's hold.
     function jobChanged(job) {
+      if (job.state === 'running') job.ever_ran = true;          // the worker STARTED rendering: from here its credits are spent
       if (ledger && job.held && !job.captured && !job.released) {
-        if (job.state === 'complete') { job.captured = job.held; ledger.held -= job.held; }
+        if (job.state === 'complete' || (job.state === 'cancelled' && job.ever_ran)) { job.captured = job.held; ledger.held -= job.held; }   // cancelled after it started: spent
         else if (['failed', 'cancelled', 'editorial_action_required'].includes(job.state)) {
           job.released = job.held; ledger.held -= job.held; ledger.available += job.held;
         }

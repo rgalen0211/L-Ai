@@ -305,10 +305,85 @@ class Ledger(unittest.TestCase):
         self.assertEqual(self.available(), 10)
         self.assertEqual(self.admin("select count(*), sum(wall_s) from job_metering where job_id = %s", job), (3, 37.5))
 
-    def test_cancel_releases(self):
+    def test_cancel_while_queued_releases(self):
         _, job = self.final("paired", grant=10)
+        self.assertEqual(self.available(), 0)
         self.db.as_(RYAN).one("select state from cancel_job(%s)", job)
+        self.assertEqual(self.admin("select state from jobs where id = %s", job), "cancelled")
+        self.assertEqual(self.available(), 10)                                                    # nothing started: credits come back
+        self.assertEqual(self.admin("select count(*) from credit_ledger where job_id = %s and entry = 'release'", job), 1)
+
+    def run_then_cancel(self, via_request=True):
+        """A job the worker has started rendering, then cancelled (the owner asks; the worker stops and reports cancelled)."""
+        _, job = self.final("paired", grant=10)
+        self.assertEqual(self.db.as_(WORKER).one("select id from claim_next_job()"), job)
+        self.db.as_(WORKER).one("select state from report_state(%s, 'running')", job)
+        self.assertTrue(self.admin("select ever_ran from jobs where id = %s", job))
+        if via_request:
+            self.db.as_(RYAN).one("select state from cancel_job(%s)", job)
+            self.assertTrue(self.admin("select cancel_requested from jobs where id = %s", job))
+        self.db.as_(WORKER).one("select state from report_state(%s, 'cancelled')", job)
+        return job
+
+    def test_cancel_after_the_render_started_keeps_the_credits_spent(self):
+        job = self.run_then_cancel()
+        self.assertEqual(self.admin("select state from jobs where id = %s", job), "cancelled")
+        self.assertEqual(self.available(), 0)                                                     # 10 granted, 10 spent
+        rows = self.db.as_(None).all("select entry, amount, reason from credit_ledger where job_id = %s order by id", job)
+        self.assertEqual([r[:2] for r in rows], [("hold", -10), ("capture", 0)])
+        self.assertIn("credits spent", rows[1][2])
+        self.assertEqual(self.admin("select count(*) from credit_ledger where job_id = %s and entry = 'release'", job), 0)
+        self.assertEqual(self.admin("select captured from job_accounting where job_id = %s", job), 10)
+
+    def test_a_cancel_after_running_cannot_be_turned_into_a_refund(self):
+        job = self.run_then_cancel()
+        for sql in ("update jobs set ever_ran = false where id = %s returning 1", "update jobs set state = 'queued' where id = %s returning 1"):
+            try:
+                self.db.as_(RYAN).one(sql, job)
+            except psycopg.Error:
+                pass
+        self.assertTrue(self.admin("select ever_ran from jobs where id = %s", job))
+        self.assertEqual(self.available(), 0)
+        self.admin("update jobs set state = 'cancelled' where id = %s returning 1", job)            # a replayed event resolves nothing twice
+        self.assertEqual(self.admin("select count(*) from credit_ledger where job_id = %s and entry in ('capture', 'release')", job), 1)
+        self.assertEqual(self.available(), 0)
+
+    def test_ever_ran_cannot_be_cleared_even_by_the_database_owner_changing_state(self):
+        _, job = self.final("paired", grant=10)
+        self.admin("update jobs set state = 'running' where id = %s returning 1", job)
+        self.admin("update jobs set state = 'queued' where id = %s returning 1", job)               # a re-queue after a crash
+        self.assertTrue(self.admin("select ever_ran from jobs where id = %s", job))
+        self.admin("update jobs set state = 'cancelled' where id = %s returning 1", job)            # cancelled while queued again
+        self.assertEqual(self.available(), 0)                                                       # it ran once: still spent
+        self.assertEqual(self.admin("select count(*) from credit_ledger where job_id = %s and entry = 'capture'", job), 1)
+
+    def test_a_claimed_job_that_never_started_still_releases_on_cancel(self):
+        _, job = self.final("paired", grant=10)
+        self.assertEqual(self.db.as_(WORKER).one("select id from claim_next_job()"), job)
+        self.db.as_(RYAN).one("select state from cancel_job(%s)", job)
+        self.db.as_(WORKER).one("select state from report_state(%s, 'cancelled')", job)
+        self.assertFalse(self.admin("select ever_ran from jobs where id = %s", job))
         self.assertEqual(self.available(), 10)
+
+    def test_other_endings_after_running_still_release_as_before(self):
+        total = 0
+        for state in ("failed", "editorial_action_required"):
+            _, job = self.final("paired", grant=10)
+            total += 10
+            self.admin("update jobs set state = 'running' where id = %s returning 1", job)
+            self.settle(job, state, "gate")
+            with self.subTest(state=state):
+                self.assertEqual(self.available(), total)                                           # unchanged: not the person's cancellation
+                self.assertEqual(self.admin("select count(*) from credit_ledger where job_id = %s and entry = 'release'", job), 1)
+
+    def test_a_queued_job_in_a_deleted_film_is_cancelled_with_a_refund_but_a_started_one_is_not(self):
+        _, queued = self.final("paired", grant=20)
+        _, started = self.final("paired")
+        self.admin("update jobs set state = 'running' where id = %s returning 1", started)
+        before = self.available()
+        for job in (queued, started):
+            self.settle(job, "cancelled")                                                           # what the deletion path does for each
+        self.assertEqual(self.available() - before, 10)                                             # only the queued one came back
 
     # -- Test 18 (held prices): a price change never alters a job already quoted
     def test_price_change_keeps_existing_quotes(self):
