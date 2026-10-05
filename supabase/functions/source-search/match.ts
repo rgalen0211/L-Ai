@@ -162,12 +162,12 @@ export function interpret(answer: ModelAnswer, catalog: CatalogRow[]): Result {
     const code: Verdict = unavailable.length ? "exists_not_runnable_yet" : (said === "partly_supported" || said === "exists_not_runnable_yet" ? "no_such_data" : said);
     verdict = { code, message: MESSAGES[code] + NOTED };
     gaps.push({ reason: code, nearest });
-  } else {
-    if (!shown.some((s) => s.fit === "full")) {
-      verdict = { code: "partly_supported", message: MESSAGES.partly_supported + NOTED };
-      gaps.push({ reason: "partly_supported", nearest });
-    }
-    if (unavailable.length) gaps.push({ reason: "exists_not_runnable_yet", nearest });   // told plainly, logged for WORKER
+  } else if (!shown.some((s) => s.fit === "full")) {
+    // Only partial matches: the request is noted, ONE row (an unavailable id rides along in `nearest`, never as a second row).
+    verdict = { code: "partly_supported", message: MESSAGES.partly_supported + NOTED };
+    gaps.push({ reason: "partly_supported", nearest });
   }
+  // A FULL fit is shown: the data supports the request, so NOTHING of the person's words is kept, whatever else the model named.
+  // (An unavailable match is still told to the person plainly, in `unavailable`.)
   return { need, needKey: needKey(need), suggestions, recommended, verdict, unavailable, gaps, dropped };
 }

@@ -106,6 +106,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
 
   let body: { prompt?: unknown };
   try { body = await req.json(); } catch { return reply(400, { error: "Bad request." }); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return reply(400, { error: "Bad request." });
   const prompt = clean(body.prompt, MAX_PROMPT + 1);
   if (!prompt || prompt.length > MAX_PROMPT) return reply(400, { error: `Write what you want to see, in up to ${MAX_PROMPT} characters.` });
 
@@ -133,7 +134,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
                { type: "text", text: catalogBlock(catalog), cache_control: { type: "ephemeral" } }],
       tools: [REPORT_TOOL],
       tool_choice: { type: "tool", name: "report" },
-      messages: [{ role: "user", content: `<request>${prompt}</request>` }],
+      // The person's words cannot close or open the tag around them: any <request> or </request> in them becomes a space.
+      messages: [{ role: "user", content: `<request>${prompt.replace(/<\s*\/?\s*request\s*>/gi, " ")}</request>` }],
     });
   } catch (e) {
     await deps.store.finish(search, "failed", "error", 0, null,

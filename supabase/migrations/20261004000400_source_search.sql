@@ -11,7 +11,8 @@
 --
 -- The Edge Function verifies the person's sign-in itself and uses service_role ONLY for the functions below;
 -- p_owner is always the id it verified, never request data. The Anthropic key lives only in the function's secrets.
--- Caps and the kill switch reuse the AI editor's: control.ai_enabled, plus control.source_search_per_day.
+-- Caps and the kill switch reuse the AI editor's: control.ai_enabled, plus control.source_search_per_day, and its own
+-- control.source_search_enabled (default false), so deploying the function with the editor on does not switch it on.
 
 begin;
 
@@ -26,6 +27,8 @@ alter table public.catalog_sources
   add column derived boolean not null default false;
 
 alter table public.control add column source_search_per_day int not null default 30 check (source_search_per_day >= 0);
+-- Its own switch, OFF by default: a deployed function with the editor on is NOT live until this is true.
+alter table public.control add column source_search_enabled boolean not null default false;
 
 create table public.source_searches (
   id uuid primary key default gen_random_uuid(),
@@ -67,8 +70,9 @@ create index data_gaps_owner on public.data_gaps (owner_id, created_at);
 alter table public.data_gaps enable row level security;
 revoke all on public.data_gaps from anon, authenticated, service_role;
 grant select, delete on public.data_gaps to authenticated;
+-- Words older than 12 months are not readable even before a later write trims them.
 create policy "People read their own data requests" on public.data_gaps for select to authenticated
-  using (owner_id = (select auth.uid()));
+  using (owner_id = (select auth.uid()) and created_at > now() - interval '12 months');
 create policy "People delete their own data requests" on public.data_gaps for delete to authenticated
   using (owner_id = (select auth.uid()));
 
@@ -84,7 +88,7 @@ begin
   end if;
   perform pg_advisory_xact_lock(hashtextextended(p_owner::text, 44));
   select * into ctl from public.control where id;
-  if not ctl.ai_enabled then
+  if not ctl.ai_enabled or not ctl.source_search_enabled then
     raise exception 'Finding data is switched off.' using errcode = 'PT503';
   end if;
   if (select count(*) from public.source_searches
@@ -178,7 +182,7 @@ begin
            (select g2.nearest_ids from public.data_gaps g2 where g2.need_key = g.need_key
             order by g2.created_at desc limit 1)
     from public.data_gaps g
-    where g.created_at >= now() - make_interval(days => p_days)
+    where g.created_at >= greatest(now() - make_interval(days => p_days), now() - interval '12 months')
     group by g.need_key
     order by 2 desc, 4 desc;
 end $$;
@@ -192,7 +196,8 @@ begin
   end if;
   return query
     select g.created_at, g.request_text, g.reason from public.data_gaps g
-    where g.need_key = p_need_key order by g.created_at desc limit greatest(1, least(coalesce(p_limit, 50), 200));
+    where g.need_key = p_need_key and g.created_at > now() - interval '12 months'
+    order by g.created_at desc limit greatest(1, least(coalesce(p_limit, 50), 200));
 end $$;
 
 revoke execute on function public.source_search_reserve(uuid), public.source_search_finish(uuid, text, text, int, text, jsonb),
