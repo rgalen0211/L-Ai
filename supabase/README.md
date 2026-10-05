@@ -467,8 +467,9 @@ who/when/outcome/tokens/cost per search and no request text.
 licence says it may not be redistributed) carries `catalog_sources.no_redistribution`, derived by `tools/gen-catalog.py` from the
 engine's licence wording and an explicit list (never typed in the database). A film made from it is fine; its source card says the
 data itself can't be shared. **Any download or export feature must ask `dataset_download_allowed(ref)` first**: it is false for
-flagged data, for an unknown id, for null and for an upload (fail closed). No catalog dataset is flagged yet (NHGIS is not in the
-engine's registry); the machinery is there for the day it is. Apply order: 0400, 0600, then the regenerated seed.
+flagged data, for an unknown id, for null and for an upload (fail closed). **The generator FAILS CLOSED:** a dataset is downloadable only if its licence is recognised public domain / a U.S. Government work / CC0
+(or it is on the reviewed `REDISTRIBUTABLE_IDS` list); an unknown, missing or MIXED licence is restricted. Today exactly one of the 93
+datasets is flagged: `redistricting_2026` (public-domain shapes, CC BY-SA seat figures). Apply order: 0400, 0600, then the regenerated seed.
 
 **Switching it on (all Ryan's OK)**
 1. **SQL Editor:** `migrations/20261004000400_source_search.sql`, THEN the regenerated `catalog_sources_seed.sql` (it now

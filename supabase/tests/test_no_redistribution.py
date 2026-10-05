@@ -48,10 +48,15 @@ class NoRedistribution(core.Base):
         d.one("update versions set story_spec = %s::jsonb where id = %s returning id", story(*datasets), vid)
         return vid
 
-    def test_the_seed_carries_the_flag_and_nothing_in_the_current_catalog_is_restricted_yet(self):
-        self.assertEqual(self.admin("select count(*) from catalog_sources where no_redistribution"), 0)
-        self.assertEqual(self.admin("select bool_and(not no_redistribution) from catalog_sources"), True)
+    def test_the_seed_fails_closed_today_only_clean_public_domain_data_is_downloadable(self):
+        flagged = [r[0] for r in self.db.as_(None).all("select id from catalog_sources where no_redistribution order by id")]
+        self.assertEqual(flagged, ["redistricting_2026"])                                                # its licence mixes public domain with CC BY-SA
         self.assertGreaterEqual(self.admin("select count(*) from catalog_sources"), 90)
+        # every unflagged row's licence text is recognisably public domain / a U.S. Government work (the generator's own rule)
+        bad = self.db.as_(None).all("select id, licence_full from catalog_sources where not no_redistribution "
+                                    "and licence_full !~* '(public domain|government work|CC0)'")
+        self.assertEqual(bad, [])
+        self.assertFalse(self.db.as_(RYAN).one("select dataset_download_allowed('redistricting_2026')"))   # and the guard says no
 
     def test_download_is_allowed_only_for_unrestricted_catalog_data_and_fails_closed(self):
         rid = self.restricted()
@@ -95,17 +100,42 @@ class GeneratorRule(unittest.TestCase):
         cls.gen = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.gen)
 
-    def test_the_rule(self):
+    def test_the_rule_fails_closed(self):
         f = self.gen.no_redistribution
-        self.assertTrue(f({"id": "nhgis_county_population"}))                                               # by id pattern
+        # restricted
+        self.assertTrue(f({"id": "nhgis_county_population", "license": "U.S. Government work, public domain"}))          # by id pattern, whatever it says
         self.assertTrue(f({"id": "ipums_usa_x"}))
-        self.assertTrue(f({"id": "x", "license": "Terms: the data may not be redistributed."}))             # by licence wording
+        self.assertTrue(f({"id": "x", "license": "Terms: the data may not be redistributed."}))
         self.assertTrue(f({"id": "x", "license": "Private. Not published, not redistributable."}))
         self.assertTrue(f({"id": "x", "license": "Redistribution is prohibited without permission."}))
-        self.assertTrue(f({"id": "x", "notes": "No redistribution."}))
+        self.assertTrue(f({"id": "x", "license": "U.S. Government work, public domain.", "notes": "No redistribution."}))   # a note can only tighten
+        self.assertTrue(f({"id": "x", "license": "All rights reserved."}))
+        # unknown, missing or merely different = restricted (the point of this change)
+        self.assertTrue(f({"id": "x"}))
+        self.assertTrue(f({"id": "x", "license": ""}))
+        self.assertTrue(f({"id": "x", "license": None}))
+        self.assertTrue(f({"id": "x", "license": "Not stated by the publisher."}))
+        self.assertTrue(f({"id": "x", "license": "See the publisher"}))
+        self.assertTrue(f({"id": "x", "license": "Open data; you may redistribute with attribution."}))                # not a RECOGNISED licence
+        self.assertTrue(f({"id": "x", "license": "Creative Commons Attribution 4.0"}))
+        self.assertTrue(f({"id": "x", "license": "Census TIGERweb: U.S. Government work, public domain. Seat figures: Wikipedia, CC BY-SA 4.0."}))   # mixed: strictest wins
+        self.assertTrue(f({"id": "x", "license": "Public domain for the shapes; licensed under a proprietary agreement for the figures."}))
+        # recognised as redistributable
         self.assertFalse(f({"id": "cbp_x", "license": "U.S. Government work, public domain. The Census Bureau asks that the source be cited."}))
-        self.assertFalse(f({"id": "x", "license": "Open data; you may redistribute with attribution."}))     # "may redistribute" is not a restriction
-        self.assertFalse(f({"id": "x"}))
+        self.assertFalse(f({"id": "x", "license": "Public domain"}))
+        self.assertFalse(f({"id": "x", "license": "CC0 1.0"}))
+        self.assertFalse(f({"id": "x", "license": "U.S. Government work in the public domain (17 USC 105)"}))
+        # the explicit allow-list is the only other way in, and it can never override wording that forbids redistribution
+        self.gen.REDISTRIBUTABLE_IDS = frozenset({"listed", "listed_but_forbidden"})
+        try:
+            self.assertFalse(f({"id": "listed", "license": "Some custom open licence"}))
+            self.assertTrue(f({"id": "listed_but_forbidden", "license": "May not be redistributed."}))
+            self.assertTrue(f({"id": "unlisted", "license": "Some custom open licence"}))
+        finally:
+            self.gen.REDISTRIBUTABLE_IDS = frozenset()
+
+    def test_every_dataset_the_engine_lists_gets_an_answer_even_with_no_licence_field(self):
+        self.assertIs(self.gen.no_redistribution({"id": "a_new_dataset_with_no_fields_at_all"}), True)
 
     def test_the_seed_has_the_column_for_every_row(self):
         seed = (ROOT / "catalog_sources_seed.sql").read_text(encoding="utf-8")

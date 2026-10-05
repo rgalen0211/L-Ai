@@ -132,20 +132,38 @@ def year_of(v):
     return int(m.group(1)) if m else None
 
 
-#: Data whose licence does not let Ryagram pass the DATA ITSELF on (a film drawn from it is fine). Listed by id or id pattern here
-#: (with Ryan's OK), or recognised from the engine's own licence wording below; NEVER edited by hand in the database.
+#: FAIL CLOSED (WORKER's review, 2026-10-05): a dataset is downloadable ONLY if its licence is RECOGNISED as redistributable.
+#: Unknown, missing, odd or merely different wording = `no_redistribution` (a film drawn from it is still fine; the DATA is not handed on).
+#:
+#: Recognised as redistributable, in this order:
+#:   1. an id on REDISTRIBUTABLE_IDS (reviewed one by one, with Ryan's OK; the place for CC BY / CC BY-SA data once a download
+#:      can carry its attribution and share-alike terms, e.g. redistricting_2026's Wikipedia figures);
+#:   2. licence wording that says PUBLIC DOMAIN, a U.S. GOVERNMENT work, or CC0 (and does not also say it may not be redistributed).
+#: Always restricted: NO_REDISTRIBUTION_IDS, the NHGIS/IPUMS id pattern, and any licence wording that forbids redistribution.
 NO_REDISTRIBUTION_IDS = frozenset()
+REDISTRIBUTABLE_IDS = frozenset()
 NO_REDISTRIBUTION_PATTERN = re.compile(r'^(nhgis|ipums)_')
 _NO_REDIST_TEXT = re.compile(
     r"not\s+(be\s+)?redistribut|no\s+redistribution|redistribution\s+(is\s+)?(not\s+(permitted|allowed)|prohibited)"
-    r"|may\s+not\s+(be\s+)?redistribut|must\s+not\s+be\s+redistribut|not\s+redistributable", re.I)
+    r"|may\s+not\s+(be\s+)?redistribut|must\s+not\s+be\s+redistribut|not\s+redistributable|all\s+rights\s+reserved", re.I)
+_REDISTRIBUTABLE_TEXT = re.compile(
+    r"public\s+domain|u\.?s\.?\s+government\s+works?|work\s+of\s+the\s+(u\.?s\.?|united\s+states)\s+government|\bCC0\b", re.I)
+_OTHER_LICENCE_TEXT = re.compile(r"CC[\s-]*BY|creative\s+commons|share-?alike|wikipedia|licen[sc]ed\s+under|proprietary|subscription", re.I)
 
 
 def no_redistribution(d):
-    """True for licence-restricted data: an explicit id, an id pattern (NHGIS/IPUMS), or licence wording that says so."""
+    """True unless the licence is recognised as redistributable (fail closed: unknown or missing licence = True)."""
     if d['id'] in NO_REDISTRIBUTION_IDS or NO_REDISTRIBUTION_PATTERN.match(d['id']):
         return True
-    return bool(_NO_REDIST_TEXT.search(' '.join(str(d.get(k) or '') for k in ('license', 'notes'))))
+    wording = ' '.join(str(d.get(k) or '') for k in ('license', 'notes'))
+    if _NO_REDIST_TEXT.search(wording):
+        return True
+    if d['id'] in REDISTRIBUTABLE_IDS:
+        return False
+    lic = str(d.get('license') or '')
+    if _OTHER_LICENCE_TEXT.search(lic):
+        return True        # a MIXED licence ("public domain" for one part, CC BY-SA for another): the strictest part wins
+    return not _REDISTRIBUTABLE_TEXT.search(lic)                               # the LICENCE field decides, not a stray note
 
 
 def is_derived(d):
