@@ -47,7 +47,7 @@ MODULE = textwrap.dedent('''
 
 def run_module(boom="pass", expected=1):
     """Run the module in a subprocess whose TEMP is a fresh folder; return (returncode, leftovers in that TEMP)."""
-    with tempfile.TemporaryDirectory(prefix="pgtemp-selftest-") as base:
+    with tempfile.TemporaryDirectory(prefix="ryagram-pgtemp-selftest-") as base:
         mod = Path(base) / "case_test.py"
         mod.write_text(MODULE.format(here=str(HERE), boom=boom, expected=expected), encoding="utf-8")
         env = dict(os.environ, TEMP=base, TMP=base, TMPDIR=base)
@@ -76,7 +76,7 @@ class Reap(unittest.TestCase):
     DEAD = 2 ** 22 + 12345                         # a pid no process has
 
     def setUp(self):
-        self.base = tempfile.mkdtemp(prefix="pgtemp-reap-")
+        self.base = tempfile.mkdtemp(prefix="ryagram-pgtemp-reap-")
         self.was = tempfile.tempdir
         tempfile.tempdir = self.base
 
