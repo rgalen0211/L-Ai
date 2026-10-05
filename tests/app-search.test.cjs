@@ -21,7 +21,7 @@ test('the prompt is checked before it is sent: empty, and over 500 characters', 
 
 test('a card shows what the answer says, as plain text, with a dash for anything missing and https links only', () => {
   const c = S.cardView({ id: 'a', title: 'T\u0007itle', publisher: 'P', source_url: 'javascript:alert(1)', coverage: 'C', licence_short: 'L', licence_full: 'Full', fit: 'full', recommended: true, reason: 'Because.' });
-  assert.deepEqual(plain(c), { id: 'a', title: 'T itle', publisher: 'P', url: '', coverage: 'C', licenceShort: 'L', licenceFull: 'Full', fit: 'full', recommended: true, reason: 'Because.' });
+  assert.deepEqual(plain(c), { id: 'a', title: 'T itle', publisher: 'P', url: '', coverage: 'C', licenceShort: 'L', licenceFull: 'Full', fit: 'full', recommended: true, reason: 'Because.', noRedistribution: false });
   const empty = S.cardView({});
   assert.deepEqual([empty.title, empty.publisher, empty.coverage, empty.licenceShort, empty.fit, empty.recommended], [S.DASH, S.DASH, S.DASH, S.DASH, 'partial', false]);
   assert.equal(S.cardView({ id: 'a', source_url: 'https://www.census.gov/x' }).url, 'https://www.census.gov/x');

@@ -5,7 +5,7 @@
 
 export interface CatalogRow {
   id: string; title: string; publisher: string; source_url: string; coverage: string; licence_short: string;
-  licence_full: string; runnable: boolean; level: string | null; year_first: number | null; year_last: number | null;
+  licence_full: string; runnable: boolean; no_redistribution?: boolean; level: string | null; year_first: number | null; year_last: number | null;
   cadence: string; topic: string; measure: string; summary: string; derived: boolean;
 }
 export type Fit = "full" | "partial";
@@ -22,7 +22,7 @@ export const MAX_UNAVAILABLE = 3;
 
 export interface Card {
   id: string; title: string; publisher: string; source_url: string; coverage: string; licence_short: string;
-  licence_full: string; fit: Fit; recommended: boolean; reason: string;
+  licence_full: string; fit: Fit; recommended: boolean; reason: string; no_redistribution: boolean;
 }
 export interface Gap { reason: Verdict; nearest: string[] }
 export interface Result {
@@ -142,7 +142,7 @@ export function interpret(answer: ModelAnswer, catalog: CatalogRow[]): Result {
   const suggestions: Card[] = shown.map(({ row, fit }) => ({
     id: row.id, title: row.title, publisher: row.publisher, source_url: row.source_url, coverage: row.coverage,
     licence_short: row.licence_short, licence_full: row.licence_full, fit,
-    recommended: row.id === recommended, reason: row.id === recommended ? why : "",
+    recommended: row.id === recommended, reason: row.id === recommended ? why : "", no_redistribution: row.no_redistribution === true,
   }));
 
   const unavailable: Result["unavailable"] = [];

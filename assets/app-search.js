@@ -20,7 +20,8 @@
     const r = c && typeof c === 'object' ? c : {};
     return { id: text(r.id), title: text(r.title) || DASH, publisher: text(r.publisher) || DASH, url: https(r.source_url),
              coverage: text(r.coverage) || DASH, licenceShort: text(r.licence_short) || DASH, licenceFull: text(r.licence_full),
-             fit: r.fit === 'full' ? 'full' : 'partial', recommended: r.recommended === true, reason: r.recommended === true ? text(r.reason) : '' };
+             fit: r.fit === 'full' ? 'full' : 'partial', recommended: r.recommended === true, reason: r.recommended === true ? text(r.reason) : '',
+             noRedistribution: r.no_redistribution === true };
   }
 
   // The answer, made safe to draw: at most one recommended card, at most 6 cards, plain-text messages.

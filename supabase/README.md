@@ -463,6 +463,13 @@ and the person can read and delete their own ("Your data requests" on the accoun
 (admins only, like Waitlist by film): counts per need first; the words only when a row is opened. `source_searches` keeps
 who/when/outcome/tokens/cost per search and no request text.
 
+**No redistribution (SQL `20261004000600_no_redistribution.sql`).** Licence-restricted data (NHGIS/IPUMS tables, anything whose
+licence says it may not be redistributed) carries `catalog_sources.no_redistribution`, derived by `tools/gen-catalog.py` from the
+engine's licence wording and an explicit list (never typed in the database). A film made from it is fine; its source card says the
+data itself can't be shared. **Any download or export feature must ask `dataset_download_allowed(ref)` first**: it is false for
+flagged data, for an unknown id, for null and for an upload (fail closed). No catalog dataset is flagged yet (NHGIS is not in the
+engine's registry); the machinery is there for the day it is. Apply order: 0400, 0600, then the regenerated seed.
+
 **Switching it on (all Ryan's OK)**
 1. **SQL Editor:** `migrations/20261004000400_source_search.sql`, THEN the regenerated `catalog_sources_seed.sql` (it now
    carries level, years, cadence, topic, measure, summary and whether a series is derived; rerun it whenever

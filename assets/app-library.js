@@ -583,6 +583,7 @@
             h('p', { class: 'meta' }, 'Source: ', c.url ? h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, c.publisher) : c.publisher),
             h('p', { class: 'meta' }, `Covers: ${c.coverage}`),
             h('p', { class: 'meta' }, 'Licence: ', full ? toggle : c.licenceShort, full ? ' (full text)' : ''),
+            c.noRedistribution ? h('p', { class: 'meta' }, 'The data itself can\u2019t be shared or downloaded under its licence. The film is fine.') : null,
             full);
         });
         el.replaceChildren(...[el.firstChild,
@@ -814,6 +815,7 @@
             h('p', { class: 'meta' }, 'Source: ', c.url ? h('a', { href: c.url, target: '_blank', rel: 'noopener noreferrer' }, c.publisher) : c.publisher),
             h('p', { class: 'meta' }, `Covers: ${c.coverage}`),
             h('p', { class: 'meta' }, 'Licence: ', full ? toggle : c.licenceShort, full ? ' (full text)' : ''),
+            c.noRedistribution ? h('p', { class: 'meta' }, 'The data itself can’t be shared or downloaded under its licence. The film is fine.') : null,
             full);
         });
         results.replaceChildren(...[

@@ -18,7 +18,7 @@ test('a card shows exactly what the row says, as plain text, with a dash for any
   const c = plain(S.cardView({ title: 'Manufacturing share', publisher: 'U.S. Census Bureau', source_url: 'https://www.census.gov/x',
                                coverage: 'US state, 1998 to 2023', licence_short: 'Public domain', licence_full: 'U.S. Government work.', kind: 'catalog' }));
   assert.deepEqual(c, { title: 'Manufacturing share', publisher: 'U.S. Census Bureau', url: 'https://www.census.gov/x',
-                        coverage: 'US state, 1998 to 2023', licenceShort: 'Public domain', licenceFull: 'U.S. Government work.', kind: 'catalog' });
+                        coverage: 'US state, 1998 to 2023', licenceShort: 'Public domain', licenceFull: 'U.S. Government work.', kind: 'catalog', noRedistribution: false });
   const empty = S.cardView({});
   assert.deepEqual([empty.title, empty.publisher, empty.coverage, empty.licenceShort, empty.url], [S.DASH, S.DASH, S.DASH, S.DASH, '']);
   assert.equal(S.cardView(null).title, S.DASH);
@@ -61,4 +61,9 @@ test('syncSources: rows follow the story; refusals read plainly; null when the S
   await assert.rejects(data.syncSources(version.id), /up to 5 sources/);
   const old = ryagramData({ rpc: async () => ({ data: null, error: { message: 'Could not find the function public.sync_version_sources(p_version) in the schema cache', code: 'PGRST202' } }) });
   assert.equal(await old.syncSources('v'), null);
+});
+
+test('licence-restricted data says so on its card, only when the row says so', () => {
+  assert.equal(S.cardView({ title: 'x', no_redistribution: true }).noRedistribution, true);
+  for (const v of [false, 'true', 1, null, undefined]) assert.equal(S.cardView({ title: 'x', no_redistribution: v }).noRedistribution, false);
 });

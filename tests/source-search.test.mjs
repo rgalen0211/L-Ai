@@ -181,7 +181,7 @@ test('every fact on a card is the table’s, and a model that lies about facts o
   const real = CATALOG[0];
   assert.deepEqual(body.suggestions[0], { id: real.id, title: real.title, publisher: real.publisher, source_url: real.source_url,
     coverage: real.coverage, licence_short: real.licence_short, licence_full: real.licence_full, fit: 'full', recommended: true,
-    reason: 'The only data we have that covers what you asked for.' });
+    reason: 'The only data we have that covers what you asked for.', no_redistribution: false });
   assert.doesNotMatch(JSON.stringify(body), /Totally Different|1900 to 2100|Free for everyone|Made-up|passwd|invented/);
 });
 
@@ -274,7 +274,7 @@ test('the response carries nothing but the agreed fields', async () => {
   const body = await (await call(w.deps, { prompt: 'manufacturing' })).json();
   assert.deepEqual(Object.keys(body).sort(), ['recommended', 'search_id', 'suggestions', 'unavailable', 'verdict']);
   assert.deepEqual(Object.keys(body.suggestions[0]).sort(),
-    ['coverage', 'fit', 'id', 'licence_full', 'licence_short', 'publisher', 'reason', 'recommended', 'source_url', 'title']);
+    ['coverage', 'fit', 'id', 'licence_full', 'licence_short', 'no_redistribution', 'publisher', 'reason', 'recommended', 'source_url', 'title']);
 });
 
 test('at most six suggestions, full fits first', () => {
@@ -282,4 +282,10 @@ test('at most six suggestions, full fits first', () => {
   const r = interpret(answer({ candidates: many.map((m, i) => ({ id: m.id, fit: i < 2 ? 'partial' : 'full' })) }), many);
   assert.equal(r.suggestions.length, 6);
   assert.deepEqual(r.suggestions.map(s => s.fit), ['full', 'full', 'full', 'full', 'full', 'full']);
+});
+
+test('licence-restricted data is flagged on its card from the TABLE, and the model cannot change it', () => {
+  const restricted = [row('nhgis_x', { no_redistribution: true }), row('open_x')];
+  const r = interpret(answer({ candidates: [{ id: 'nhgis_x', fit: 'full', no_redistribution: false }, { id: 'open_x', fit: 'full', no_redistribution: true }] }), restricted);
+  assert.deepEqual(r.suggestions.map(s => [s.id, s.no_redistribution]), [['nhgis_x', true], ['open_x', false]]);
 });

@@ -17,7 +17,9 @@
       coverage: text(r.coverage) || DASH,
       licenceShort: text(r.licence_short) || (r.kind === 'upload' ? 'You confirm you may use this data' : DASH),
       licenceFull: text(r.licence_full),
-      kind: r.kind === 'upload' ? 'upload' : 'catalog'
+      kind: r.kind === 'upload' ? 'upload' : 'catalog',
+      // Licence-restricted data: the film is fine, the data itself is not handed on (never offered for download).
+      noRedistribution: r.no_redistribution === true
     };
   }
 

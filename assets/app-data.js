@@ -242,7 +242,7 @@
       // The sources already recorded (what a refused sync left in place).
       async listSources(versionId) {
         const rows = await run(client.from('version_sources')
-          .select('dataset_ref, kind, title, publisher, source_url, coverage, licence_short, licence_full, position')
+          .select('*')                                   // every column the SQL has (no_redistribution arrives with 20261004000600)
           .eq('version_id', versionId).order('position', { ascending: true }), 'Couldn’t load the sources.');
         return rows || [];
       },
