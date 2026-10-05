@@ -33,7 +33,7 @@ class SourceSearch(core.Base):
         return self.db.as_(None).one(sql, *args)
 
     def enable(self, per_day=30):
-        self.admin("update control set ai_enabled = true, source_search_per_day = %s returning 1", per_day)
+        self.admin("update control set ai_enabled = true, source_search_enabled = true, source_search_per_day = %s returning 1", per_day)
 
     def svc(self, sql, *args):
         return self.db.as_("service").one(sql, *args)
@@ -71,6 +71,17 @@ class SourceSearch(core.Base):
         for who in (RYAN, OTHER, WORKER, "anon"):
             with self.subTest(who=who), self.assertRaises(psycopg.Error):
                 self.db.as_(who).one("select source_search_reserve(%s)", RYAN)
+
+    def test_deploying_the_function_with_the_editor_on_is_not_enough(self):
+        self.assertFalse(self.admin("select source_search_enabled from control"))                      # off by default
+        self.admin("update control set ai_enabled = true returning 1")
+        with self.assertRaisesRegex(psycopg.Error, "switched off"):
+            self.svc("select source_search_reserve(%s)", RYAN)
+        self.admin("update control set source_search_enabled = true returning 1")
+        self.svc("select source_search_reserve(%s)", RYAN)
+        self.admin("update control set ai_enabled = false returning 1")                                 # and the editor's own kill switch still wins
+        with self.assertRaisesRegex(psycopg.Error, "switched off"):
+            self.svc("select source_search_reserve(%s)", RYAN)
 
     def test_usage_is_priced_and_unknown_is_never_zero(self):
         self.enable()
@@ -114,6 +125,20 @@ class SourceSearch(core.Base):
         self.admin("update data_gaps set created_at = now() - interval '13 months' returning 1")
         self.gap(text="new one", key="new|one")
         self.assertEqual([r[0] for r in self.db.as_(None).all("select request_text from data_gaps")], ["new one"])
+
+    def test_words_older_than_12_months_are_unreadable_even_with_no_new_write(self):
+        self.admin("insert into app_admins (user_id) values (%s) returning 1", RYAN)
+        self.gap(owner=RYAN, text="fresh words", key="a|b")
+        self.gap(owner=RYAN, text="old words", key="a|b")
+        self.admin("update data_gaps set created_at = now() - interval '13 months' where request_text = 'old words' returning 1")
+        # nothing has written since, so the trim in log_data_gap has not run: the READS must still hide it
+        self.assertEqual(self.admin("select count(*) from data_gaps"), 2)
+        self.assertEqual([r[0] for r in self.db.as_(RYAN).all("select request_text from data_gaps")], ["fresh words"])
+        self.assertEqual([r[0] for r in self.db.as_(RYAN).all("select request_text from data_gap_requests('a|b')")], ["fresh words"])
+        rows = self.db.as_(RYAN).all("select asks from data_gaps_by_need(3660)")
+        self.assertEqual(rows, [(1,)])                                                                    # the count ignores it too
+        self.assertEqual(self.db.as_(RYAN).one("select delete_my_data_gaps()"), 2)                          # deleting takes the old row too
+        self.assertEqual(self.admin("select count(*) from data_gaps"), 0)
 
     def test_people_see_and_delete_only_their_own_requests(self):
         self.gap(owner=RYAN, text="mine", key="a|b")

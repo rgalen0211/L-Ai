@@ -459,7 +459,7 @@ will: the catalog is only the internal list the server picks from.
 
 **The data-gap queue.** Only for those requests: `data_gaps` holds the person's own words (capped at 500 characters), the
 cleaned need, the reason and the nearest catalog ids. Kept 12 months (trimmed on every write), removed with the account,
-and the person can read and delete their own ("Your data requests" on the account page). **Ryan's view:** `#/admin/data-requests`
+and the person can read (the last 12 months only) and delete their own ("Your data requests" on the account page). **Ryan's view:** `#/admin/data-requests`
 (admins only, like Waitlist by film): counts per need first; the words only when a row is opened. `source_searches` keeps
 who/when/outcome/tokens/cost per search and no request text.
 
@@ -474,7 +474,9 @@ engine's registry); the machinery is there for the day it is. Apply order: 0400,
 1. **SQL Editor:** `migrations/20261004000400_source_search.sql`, THEN the regenerated `catalog_sources_seed.sql` (it now
    carries level, years, cadence, topic, measure, summary and whether a series is derived; rerun it whenever
    `tools/gen-catalog.py` is rerun).
-2. The AI editor's prerequisites: `ANTHROPIC_API_KEY` in Edge Function secrets, `control.ai_enabled = true`.
+2. The AI editor's prerequisites: `ANTHROPIC_API_KEY` in Edge Function secrets, `control.ai_enabled = true`, and Find data's OWN
+   switch, `update public.control set source_search_enabled = true;` (default false: deploying the function with the editor on
+   does not make it live).
 3. Deploy: `npx supabase functions deploy source-search --no-verify-jwt`.
 4. Merge, then set `sourceSearch: true`.
 
