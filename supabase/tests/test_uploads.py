@@ -309,6 +309,7 @@ class Uploads(core.Base):
         with self.assertRaises(psycopg.Error):
             self.db.as_(OTHER).one("select request_dataset_deletion(%s)", ds)
         self.db.as_(RYAN).one("select request_dataset_deletion(%s) is null", ds)
+        self.db.as_(RYAN).one("select delete_dataset_forever(%s) is null", ds)       # 20261004000700: Delete goes to Recently deleted first
         self.assertIsNone(self.admin("select dataset_id from versions where id = %s", vid))
         self.assertEqual(self.admin("select restorability from versions where id = %s", vid), "non_restorable")
         self.assertEqual(self.admin("select count(*) from version_sources where version_id = %s", vid), 0)
