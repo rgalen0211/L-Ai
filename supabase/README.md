@@ -40,6 +40,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    see "Sources screen")
 16. `migrations/20261004000200_uploads_schema.sql`, then `migrations/20261004000300_uploads_worker_and_sweep.sql`
    (upload your own data, phase 1; see "Uploads")
+17. `migrations/20261004000500_worker_job_upload.sql` (the worker learns which confirmed upload a render job reads;
+   see "Uploads")
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
