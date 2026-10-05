@@ -118,6 +118,53 @@ class WorkerUpload(core.Base):
         self.admin("update jobs set state = 'complete' where id = %s returning 1", job)
         self.assertEqual(count(WORKER), 0)
 
+    def test_the_storage_policy_refuses_a_file_whose_deletion_was_requested(self):
+        ds = self.confirmed_upload()
+        count = lambda who: self.db.as_(who).one("select count(*) from storage.objects where bucket_id = 'ryagram-uploads'")
+        job = self.job_on(ds)
+        self.assertEqual(count(WORKER), 1)                                           # control: it reads it while the job is held
+        self.db.as_(WORKER).one("select * from worker_job_upload(%s)", job)
+        self.admin("update datasets set delete_requested_at = now() where id = %s returning 1", ds)   # a deletion lands after the answer
+        self.assertEqual(count(WORKER), 0)                                           # the file is no longer readable through Storage
+        self.admin("update datasets set delete_requested_at = null where id = %s returning 1", ds)
+        self.assertEqual(count(WORKER), 1)
+
+    def test_the_storage_policy_needs_a_confirmed_upload_for_a_render(self):
+        ds = self.confirmed_upload()
+        job = self.job_on(ds)
+        count = lambda: self.db.as_(WORKER).one("select count(*) from storage.objects where bucket_id = 'ryagram-uploads'")
+        self.admin("update datasets set status = 'pending_validation' where id = %s returning 1", ds)
+        self.assertEqual(count(), 0)
+        self.admin("update datasets set status = 'approved', mapping = null where id = %s returning 1", ds)
+        self.assertEqual(count(), 0)
+        self.admin("update datasets set status = 'approved', mapping = %s::jsonb where id = %s returning 1", json.dumps(MAPPING), ds)
+        self.assertEqual(count(), 1)
+
+    def test_the_storage_policy_needs_the_job_to_be_the_owners(self):
+        ds = self.confirmed_upload()                                                  # RYAN's upload
+        d = self.db.as_(OTHER)
+        pid = d.one("insert into projects (title) values ('x') returning id")
+        vid = d.one("select id from create_version(%s)", pid)
+        self.admin("insert into jobs (owner_id, project_id, version_id, job_type, state, story, story_sha256, dataset_id, params, worker_user_id) "
+                   "values (%s, %s, %s, 'preview', 'running', '{}'::jsonb, %s, %s, %s::jsonb, %s) returning 1",
+                   OTHER, pid, vid, "e" * 64, ds, json.dumps({"window_s": [0, 10]}), WORKER)
+        self.assertEqual(self.db.as_(WORKER).one("select count(*) from storage.objects where bucket_id = 'ryagram-uploads'"), 0)
+
+    def test_the_policy_and_worker_job_upload_agree_on_the_job_states(self):
+        ds = self.confirmed_upload()
+        for state, may in (("claimed", True), ("running", True), ("validating", True), ("uploading", True), ("complete", False), ("failed", False), ("queued", False)):
+            job = self.job_on(ds, state=state, worker=WORKER if state != "queued" else None)
+            seen = self.db.as_(WORKER).one("select count(*) from storage.objects where bucket_id = 'ryagram-uploads'") == 1
+            try:
+                answered = bool(self.db.as_(WORKER).all("select * from worker_job_upload(%s)", job))
+            except psycopg.Error:
+                answered = False
+            with self.subTest(state=state):
+                self.assertEqual(seen, may)
+                self.assertEqual(answered, may)
+            self.admin("update jobs set state = 'failed' where id = %s returning 1", job)
+
+
 
 if __name__ == "__main__":
     unittest.main()

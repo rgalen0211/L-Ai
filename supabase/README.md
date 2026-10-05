@@ -42,6 +42,8 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    (upload your own data, phase 1; see "Uploads")
 17. `migrations/20261004000500_worker_job_upload.sql` (the worker learns which confirmed upload a render job reads;
    see "Uploads")
+   then `migrations/20261004000510_worker_read_policy_follow_up.sql` (the storage policy refuses a file whose deletion was
+   requested, an unconfirmed upload, or another person's job)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
