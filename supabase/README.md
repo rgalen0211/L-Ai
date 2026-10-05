@@ -420,10 +420,12 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
 - Read values only: no formulas evaluated, no macros, no external links; caps on unzipped size, sheets, rows,
   columns and time. A file that breaks a cap is failed, never partly reported.
 - A lost worker's claim lapses after 15 minutes and is retried up to 3 times.
-- **Not built yet (worker/engine):** rendering a story that names `u_...` data. The worker's story validator and
-  dataset allowlist know only catalog names; the engine's `ingested` plug-in needs the confirmed mapping (the
-  `mapping` and `ingest_report` columns). Until that exists a film built on an upload fails at the worker, which is why
-  the flag stays off.
+- **The worker's reader and the render path are built** (Ryagram branch `uploadreader`, docs/WORKER-UPLOADS.md there; review by
+  WORKER, then CC1): CSV, TSV, XLSX and ODS are read in a sandboxed child (no macros, no formulas evaluated, formula-injection
+  safe, zip-bomb and entity-expansion safe, hard caps); a render job whose story names `u_<24 hex>` is allowed by its own
+  `dataset_id`, the worker asks `worker_job_upload(job)` (migration 20261004000500) for the confirmed mapping, builds a
+  job-local dataset for the engine, draws the film, and deletes everything. Uploaded values never reach a receipt, a log or an
+  error; planted-sentinel tests prove it on a real render. Needs the worker's `[uploads]` section (`enabled = true`)
 
 **Switching it on**
 
@@ -431,8 +433,9 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
 2. Deploy `purge-uploads` (`supabase functions deploy purge-uploads --no-verify-jwt`) and schedule it hourly
    exactly like `purge-partial-uploads` (service role key as the bearer). Redeploy `delete-account` so an account
    deletion removes uploaded files too.
-3. WORKER builds the reader and the render path above.
-4. Merge, then set `uploads: true`.
+3. Run `20261004000500_worker_job_upload.sql`; merge the Ryagram `uploadreader` branch (WORKER + CC1 review, Ryan's OK), add
+   `[uploads] enabled = true` to worker.toml and update the worker.
+4. Merge this branch, then set `uploads: true`.
 
 ## Kill switch
 
