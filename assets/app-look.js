@@ -4,6 +4,8 @@
 // fails if they differ. Edit look.ts, then copy the region here.
 (() => {
 // BEGIN SHARED
+// LIMITS (Ryan, 2026-10-05 W2): no title-card or subhead cap tighter than the engine's. The engine's reading-speed (250 wpm) and
+// card-fit checks decide what is readable; these are only sanity bounds, and the worker schema must accept at least the same.
 const LOOK_INVISIBLE = new RegExp('[' + [[0, 31], [127, 159], [173, 173], [8203, 8207], [8234, 8238], [8288, 8303], [65279, 65279], [65529, 65531]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g');
 const LOOK_PERIOD = /^[0-9]{4}(-[0-9]{2}(-[0-9]{2})?)?$/;
 const LOOK_COLOUR = /^#[0-9a-fA-F]{6}$/;
@@ -15,10 +17,10 @@ const LOOK_FIELDS = {
     hold_seconds: { label: 'Seconds on each period (whole film)', kind: 'num', lo: 0, hi: 10 }
   },
   title: {
-    headline: { label: 'Headline', kind: 'text', max: 160 },
-    subhead: { label: 'Subhead', kind: 'text', max: 160 },
-    credit: { label: 'Credit line', kind: 'text', max: 160 },
-    seconds: { label: 'Seconds on screen', kind: 'num', lo: 0.5, hi: 6, required: true },
+    headline: { label: 'Headline', kind: 'text', max: 1000 },
+    subhead: { label: 'Subhead', kind: 'text', max: 1000 },
+    credit: { label: 'Credit line', kind: 'text', max: 1000 },
+    seconds: { label: 'Seconds on screen', kind: 'num', lo: 0.5, hi: 60, required: true },
     align: { label: 'Alignment', kind: 'enum', values: ['center', 'left'] },
     fade: { label: 'Fade (seconds)', kind: 'num', lo: 0, hi: 2 }
   },
