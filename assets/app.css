@@ -128,3 +128,11 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .source-card p{margin:2px 0}
 .source-licence-full{margin:6px 0 2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fafaf8;font-size:.9rem}
 .source-licence-full p{margin:4px 0}
+.look-panel{margin:18px 0 24px;padding:16px 18px;border:1px solid var(--line);border-left:3px solid var(--wheat);border-radius:14px;background:var(--paper)}
+.look-panel summary{cursor:pointer;font-weight:700}
+.look-panel[open] summary{margin-bottom:8px}
+.look-group{margin:12px 0;padding:10px 14px;border:1px solid var(--line);border-radius:10px}
+.look-group legend{font-weight:700;padding:0 6px}
+.look-field{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:6px 12px;align-items:start;margin:8px 0}
+.look-field label{font-size:.9rem}
+@media(max-width:620px){.look-field{grid-template-columns:1fr}}

@@ -450,6 +450,14 @@
         return true;
       });
 
+      const look = locked || !window.ryagramLook || window.ryagramTemplates.isBlank(v.story_spec) ? null : lookPanel(v, async built => {
+        const result = await data.saveStory(v.id, built);
+        v.story_spec = built;
+        story.value = JSON.stringify(built, null, 2);
+        jobs.storyChanged(result.story_sha256);
+        sources.refresh();
+      });
+
       const editorOn = window.ryagramConfig?.aiEditor === true || !!window.ryagramMock;
       const chat = editorOn && !locked ? editorPanel(v, {
         storyChanged: () => route(),
@@ -474,6 +482,7 @@
         sources.el,
         uploads?.el,
         picker,
+        look,
         chat,
         storyForm,
         jobs.el,
@@ -827,6 +836,104 @@
         h('p', { class: 'form-note' }, 'Each is a complete film you can then adjust.'),
         form);
       return details;
+    }
+
+    // "Shape the film": the settings people change most, as controls instead of JSON (editor parity audit,
+    // proposals/WEB-EDITOR-PARITY.md). Only what the worker's story schema accepts; each change goes through
+    // ryagramLook.apply (the same function the AI editor's set_look tool uses) and is saved like any story edit.
+    function lookPanel(v, onSaved) {
+      const L = window.ryagramLook;
+      const state = L.describe(v.story_spec);
+      const rows = [];
+      const error = errorLine();
+      const result = h('p', { class: 'form-note', role: 'status' });
+      const views = state.views.map(x => x.view);
+      const hasMap = views.some(x => x === 'map' || x === 'paired');
+      const hasBars = views.some(x => x === 'bars' || x === 'paired');
+      let uid = 0;
+
+      function control(scope, index, field, value) {
+        const spec = L.FIELDS[scope][field];
+        const id = `look-${scope}-${index}-${field}-${++uid}`;
+        const text = value == null ? '' : String(value);
+        let el;
+        if (spec.kind === 'enum') {
+          el = h('select', { id }, ...(spec.required ? [] : [h('option', { value: '' }, '(default)')]),
+                 ...spec.values.map(x => h('option', { value: x }, x)));
+        } else if (spec.kind === 'bool') {
+          el = h('select', { id }, h('option', { value: '' }, '(default)'), h('option', { value: 'true' }, 'on'), h('option', { value: 'false' }, 'off'));
+        } else if (spec.kind === 'text' && spec.max > 100) {
+          el = h('textarea', { id, rows: '2', maxlength: String(spec.max) });
+        } else {
+          el = h('input', { id, type: 'text', autocomplete: 'off', inputmode: spec.kind === 'num' ? 'decimal' : 'text',
+                            placeholder: spec.kind === 'colour' ? '#rrggbb' : spec.kind === 'period' ? '2016 or 2016-03' : '' });
+        }
+        el.value = text;
+        rows.push({ scope, index, field, el, was: text });
+        return h('div', { class: 'look-field' }, h('label', { for: id }, spec.label), el);
+      }
+
+      const groups = [];
+      state.titles.forEach((t, i) => groups.push(h('fieldset', { class: 'look-group' },
+        h('legend', {}, state.titles.length > 1 ? `Title card ${i + 1}` : 'Title card'),
+        control('title', i, 'headline', t.headline), control('title', i, 'subhead', t.subhead),
+        control('title', i, 'credit', t.credit), control('title', i, 'seconds', t.seconds))));
+      state.views.forEach((x, i) => {
+        const kids = [h('legend', {}, state.views.length > 1 ? `Data view ${i + 1}: ${x.view}` : `Data view: ${x.view}`),
+          control('view', i, 'start', x.start), control('view', i, 'end', x.end),
+          control('view', i, 'hold_seconds', x.hold_seconds), control('view', i, 'subtitle', x.subtitle)];
+        if (x.view === 'bars' || x.view === 'paired') kids.push(control('view', i, 'top_n', x.top_n), control('view', i, 'axis', x.axis));
+        if (x.view === 'line') kids.push(control('view', i, 'line_top_n', x.line_top_n));
+        groups.push(h('fieldset', { class: 'look-group' }, ...kids));
+      });
+      const lookKids = [h('legend', {}, 'Look'), control('film', 0, 'theme', state.film.theme)];
+      if (hasMap) {
+        lookKids.push(control('look', 0, 'map_mode', state.look.map_mode), control('look', 0, 'map_low', state.look.map_low),
+          control('look', 0, 'map_high', state.look.map_high), control('look', 0, 'map_steps', state.look.map_steps),
+          control('look', 0, 'map_continuous', state.look.map_continuous), control('look', 0, 'outline_width', state.look.outline_width),
+          control('look', 0, 'no_data_label', state.look.no_data_label));
+      }
+      if (hasBars) lookKids.push(control('look', 0, 'swap_seconds', state.look.swap_seconds));
+      groups.push(h('fieldset', { class: 'look-group' }, ...lookKids));
+
+      const apply = h('button', { class: 'button primary', type: 'submit' }, 'Apply changes');
+      const form = h('form', { class: 'look-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        result.textContent = '';
+        const patch = { film: {}, title: {}, view: {}, look: {} };
+        const per = { title: {}, view: {} };
+        for (const r of rows) {
+          if (r.el.value === r.was) continue;
+          if (r.scope === 'title' || r.scope === 'view') {
+            (per[r.scope][r.index] = per[r.scope][r.index] || { index: r.index })[r.field] = r.el.value;
+          } else patch[r.scope][r.field] = r.el.value;
+        }
+        const calls = [patch, ...['title', 'view'].flatMap(s => Object.values(per[s]).map(p => ({ [s]: p })))];
+        let story = v.story_spec;
+        const changed = [];
+        const notes = [];
+        for (const p of calls) {
+          if (!Object.values(p).some(part => Object.keys(part).some(k => k !== 'index'))) continue;
+          const out = L.apply(story, p);
+          if (!out.ok) { showError(error, new Error(out.problems.join(' '))); return; }
+          story = out.story;
+          changed.push(...out.changed);
+          notes.push(...out.notes);
+        }
+        if (!changed.length) { result.textContent = 'Nothing to change.'; return; }
+        await busy(apply, 'Applying…', async () => {
+          try {
+            await onSaved(story);
+            for (const r of rows) r.was = r.el.value;
+            result.textContent = `Saved: ${changed.length} change${changed.length === 1 ? '' : 's'}. ${notes.join(' ')} Make a new contact sheet to see them.`;
+          } catch (err) { showError(error, err); }
+        });
+      } }, ...groups, apply, result, error);
+      return h('details', { class: 'look-panel' },
+        h('summary', {}, 'Shape the film'),
+        h('p', { class: 'form-note' }, 'Change the words, years, pace and colours here. Leave a box empty to use the default. The story below updates when you apply.'),
+        form);
     }
 
     // Files for a version, refreshed on its own when a job finishes so the

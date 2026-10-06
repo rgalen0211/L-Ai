@@ -4,6 +4,7 @@
 // Starting a render counts against the hourly cap; the final render is never started here.
 import { build, DATASETS, RENDER_VIEWS, TEMPLATES } from "../_shared/templates.ts";
 import { untrusted } from "./prompt.ts";
+import { LOOK_FIELDS, applyLook } from "../_shared/look.ts";
 
 export interface Job {
   id: string; job_type: string; state: string; attempt: number; created_at: string;
@@ -40,6 +41,40 @@ const tool = (name: string, description: string, properties: Record<string, unkn
   input_schema: { type: "object", properties, required: Object.keys(properties), additionalProperties: false },
 });
 
+// set_look's inputs, built from the same field table the page's controls use. Every property is required
+// and nullable (strict tools), so the model names what it changes and passes null for the rest.
+const LOOK_SCOPE: Record<string, string> = { film: "film_", title: "title_", view: "view_", look: "" };
+const LOOK_TOOL_PROPS: Record<string, unknown> = {
+  title_index: nullable("integer", { minimum: 0, maximum: 39 }),
+  view_index: nullable("integer", { minimum: 0, maximum: 39 }),
+  clear: nullable("array", { items: { type: "string", maxLength: 40 }, maxItems: 30 }),
+};
+for (const [scope, fields] of Object.entries(LOOK_FIELDS as Record<string, Record<string, { kind: string; values?: string[]; max?: number }>>)) {
+  for (const [name, spec] of Object.entries(fields)) {
+    const key = LOOK_SCOPE[scope] + name;
+    LOOK_TOOL_PROPS[key] = spec.kind === "num" || spec.kind === "steps" ? nullable(spec.kind === "steps" ? "string" : "number")
+      : spec.kind === "bool" ? nullable("boolean")
+      : spec.kind === "enum" ? { type: ["string", "null"], enum: [...spec.values!, null] }
+      : nullable("string", { maxLength: spec.max ?? 20 });
+  }
+}
+
+// The model's flat input -> a look patch (see _shared/look.ts).
+export function lookPatch(input: Record<string, unknown>) {
+  const patch: Record<string, Record<string, unknown>> = { film: {}, title: {}, view: {}, look: {} };
+  if (input.title_index != null) patch.title.index = input.title_index;
+  if (input.view_index != null) patch.view.index = input.view_index;
+  const clear = new Set(Array.isArray(input.clear) ? input.clear.map(String) : []);
+  for (const [scope, fields] of Object.entries(LOOK_FIELDS as Record<string, Record<string, unknown>>)) {
+    for (const name of Object.keys(fields)) {
+      const key = LOOK_SCOPE[scope] + name;
+      if (clear.has(key)) { patch[scope][name] = null; clear.delete(key); }
+      else if (input[key] != null) patch[scope][name] = input[key];
+    }
+  }
+  return { patch, unknown: [...clear] };
+}
+
 export const TOOLS = [
   tool("inspect_project", "The project, this version (state and story), its versions and recent jobs."),
   tool("list_versions", "All versions of this project, newest last."),
@@ -59,6 +94,7 @@ export const TOOLS = [
     start: nullable("string", { maxLength: 10 }),
     end: nullable("string", { maxLength: 10 }),
   }),
+  tool("set_look", "Change wording, years, pace or colours of the story without replacing it: any of the named settings; null leaves a setting alone and a name in clear removes it.", LOOK_TOOL_PROPS),
   tool("edit_story", "Replace the whole story with this JSON text (the worker's story schema v1). Prefer set_mapping or draft_story.",
        { story_json: { type: "string", maxLength: 60000 } }),
   tool("generate_contact_sheet", "Start a contact sheet of the current story (free; runs the correctness checks).",
@@ -194,6 +230,14 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
       clips[i] = { ...clips[i], dataset, view, start: input.start ?? DATASETS[dataset].start, end: input.end ?? DATASETS[dataset].end };
       if (String(clips[i].start) > String(clips[i].end)) return { text: "The start is after the end.", isError: true };
       return await save(ctx, { ...story, sequence: { ...(story.sequence as object), clips } }, `Data view set to ${view} of ${dataset}.`);
+    }
+    case "set_look": {
+      const { patch, unknown } = lookPatch(input);
+      if (unknown.length) return { text: `Not settings I can clear: ${unknown.join(", ")}.`, isError: true };
+      const out = applyLook(story, patch);
+      if (!out.ok) return { text: out.problems.join(" "), isError: true };
+      if (!out.changed.length) return { text: "Nothing to change." };
+      return await save(ctx, out.story, `Changed: ${out.changed.join("; ")}.${out.notes.length ? " " + out.notes.join(" ") : ""}`);
     }
     case "edit_story": {
       let parsed: unknown;
