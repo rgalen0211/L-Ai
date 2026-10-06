@@ -903,7 +903,22 @@
           chosenTheme = key; themeNote.textContent = `${t.blurb} Choosing a theme puts the map and dot colours back to its own.`; drawThemes(); } }),
         h('strong', {}, t.label), h('span', { class: 'look-theme-chip', style: `background:${L.BASE[t.theme].page};border-color:${L.BASE[t.theme].fill}` }))));
       drawThemes();
-      const lookKids = [h('legend', {}, 'Look'), h('p', { class: 'form-note' }, 'Theme'), themeCards, themeNote];
+      // Shape of the picture and frame rate. 9:16 warns but does not block; 1:1 waits for the render machine to take it.
+      const canvasWarn = h('p', { class: 'form-note look-warn', role: 'status' });
+      const showCanvasWarn = key => { canvasWarn.textContent = (L.CANVAS[key] || {}).warn || ''; canvasWarn.hidden = !canvasWarn.textContent; };
+      const canvasSel = h('select', { id: 'look-canvas' }, ...Object.entries(L.CANVAS).map(([k, c]) =>
+        h('option', { value: k, disabled: !c.accepted }, c.accepted ? c.label : `${c.label} (not available yet)`)));
+      canvasSel.value = state.film.canvas;
+      canvasSel.addEventListener('change', () => showCanvasWarn(canvasSel.value));
+      rows.push({ scope: 'film', index: 0, field: 'canvas', el: canvasSel, was: canvasSel.value });
+      const fpsSel = h('select', { id: 'look-fps' }, ...L.FPS.map(n => h('option', { value: String(n) }, String(n))));
+      fpsSel.value = String(state.film.fps);
+      rows.push({ scope: 'film', index: 0, field: 'fps', el: fpsSel, was: fpsSel.value });
+      showCanvasWarn(state.film.canvas);
+      const lookKids = [h('legend', {}, 'Look'), h('p', { class: 'form-note' }, 'Theme'), themeCards, themeNote,
+        h('div', { class: 'look-field' }, h('label', { for: 'look-canvas' }, 'Shape of the picture'), canvasSel),
+        canvasWarn,
+        h('div', { class: 'look-field' }, h('label', { for: 'look-fps' }, 'Frames per second'), fpsSel)];
       if (hasMap) {
         lookKids.push(control('look', 0, 'map_mode', state.look.map_mode), control('look', 0, 'map_low', state.look.map_low),
           control('look', 0, 'map_high', state.look.map_high), control('look', 0, 'map_steps', state.look.map_steps),
@@ -915,12 +930,32 @@
       groups.push(h('fieldset', { class: 'look-group' }, ...lookKids));
 
       const apply = h('button', { class: 'button primary', type: 'submit' }, 'Apply changes');
+      // Choosing a theme puts colours back to its own: say so first when that would overwrite colours the person set.
+      let replaceOk = false;
+      const replaceText = h('span');
+      const replaceBox = h('div', { class: 'look-confirm', role: 'alert', hidden: true },
+        h('strong', {}, 'This replaces your custom colours'), ' ', replaceText,
+        h('div', { class: 'actions-row' },
+          h('button', { class: 'button primary', type: 'button', id: 'look-replace', onclick: () => { replaceOk = true; replaceBox.hidden = true; form.requestSubmit(); } }, 'Replace them'),
+          h('button', { class: 'button secondary', type: 'button', id: 'look-cancel', onclick: () => {
+            replaceBox.hidden = true; chosenTheme = wasTheme; drawThemes();
+            themeNote.textContent = wasTheme === 'custom' ? 'Your colours are customised. Pick a theme to start again from one.' : L.THEMES[wasTheme].blurb; } }, 'Cancel')));
       const form = h('form', { class: 'look-form', onsubmit: async event => {
         event.preventDefault();
         error.hidden = true;
         result.textContent = '';
         const patch = { film: {}, title: {}, view: {}, look: {} };
-        if (chosenTheme !== wasTheme && L.THEMES[chosenTheme]) patch.theme = chosenTheme;
+        if (chosenTheme !== wasTheme && L.THEMES[chosenTheme]) {
+          patch.theme = chosenTheme;
+          const lost = L.replaces(v.story_spec, chosenTheme);
+          if (lost.length && !replaceOk) {
+            replaceText.textContent = `${lost.join(', ')}. Cancel to keep them.`;
+            replaceBox.hidden = false;
+            return;
+          }
+        }
+        replaceOk = false;
+        replaceBox.hidden = true;
         const per = { title: {}, view: {} };
         for (const r of rows) {
           if (r.el.value === r.was) continue;
@@ -959,7 +994,7 @@
             result.textContent = `Saved: ${changed.length} change${changed.length === 1 ? '' : 's'}. ${notes.join(' ')} Make a new contact sheet to see them.`;
           } catch (err) { showError(error, err); }
         });
-      } }, ...groups, apply, result, error);
+      } }, ...groups, replaceBox, apply, result, error);
       return h('details', { class: 'look-panel' },
         h('summary', {}, 'Shape the film'),
         h('p', { class: 'form-note' }, 'Change the words, years, pace and colours here. Leave a box empty to use the default. The story below updates when you apply.'),

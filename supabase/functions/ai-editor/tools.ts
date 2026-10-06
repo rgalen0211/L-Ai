@@ -4,7 +4,7 @@
 // Starting a render counts against the hourly cap; the final render is never started here.
 import { build, DATASETS, RENDER_VIEWS, TEMPLATES } from "../_shared/templates.ts";
 import { untrusted } from "./prompt.ts";
-import { LOOK_FIELDS, LOOK_THEMES, applyLook } from "../_shared/look.ts";
+import { LOOK_FIELDS, LOOK_THEMES, LOOK_CANVAS, LOOK_FPS, applyLook } from "../_shared/look.ts";
 
 export interface Job {
   id: string; job_type: string; state: string; attempt: number; created_at: string;
@@ -53,7 +53,9 @@ const LOOK_TOOL_PROPS: Record<string, unknown> = {
 for (const [scope, fields] of Object.entries(LOOK_FIELDS as Record<string, Record<string, { kind: string; values?: string[]; max?: number }>>)) {
   for (const [name, spec] of Object.entries(fields)) {
     const key = LOOK_SCOPE[scope] + name;
-    LOOK_TOOL_PROPS[key] = spec.kind === "num" || spec.kind === "steps" ? nullable(spec.kind === "steps" ? "string" : "number")
+    LOOK_TOOL_PROPS[key] = spec.kind === "canvas" ? { type: ["string", "null"], enum: [...Object.keys(LOOK_CANVAS), null] }
+      : spec.kind === "fps" ? { type: ["integer", "null"], enum: [...LOOK_FPS, null] }
+      : spec.kind === "num" || spec.kind === "steps" ? nullable(spec.kind === "steps" ? "string" : "number")
       : spec.kind === "bool" ? nullable("boolean")
       : spec.kind === "enum" ? { type: ["string", "null"], enum: [...spec.values!, null] }
       : nullable("string", { maxLength: spec.max ?? 20 });

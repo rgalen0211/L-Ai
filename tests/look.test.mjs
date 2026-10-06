@@ -32,7 +32,7 @@ test('the page and the Edge Function run the same code', () => {
   assert.equal(region(read('assets/app-look.js')), region(read('supabase/functions/_shared/look.ts')));
   const w = {};
   vm.runInNewContext(read('assets/app-look.js'), { window: w });
-  assert.deepEqual(Object.keys(w.ryagramLook).sort(), ['BASE', 'FIELDS', 'THEMES', 'apply', 'de', 'describe']);
+  assert.deepEqual(Object.keys(w.ryagramLook).sort(), ['BASE', 'CANVAS', 'FIELDS', 'FPS', 'THEMES', 'apply', 'de', 'describe', 'replaces']);
   const s = MAP();
   const p = { title: { headline: 'New words' }, look: { map_mode: 'solid' } };
   assert.deepEqual(plain(w.ryagramLook.apply(s, p)), plain(applyLook(s, p)));
@@ -88,7 +88,7 @@ test('bad values are refused in plain words and nothing is applied', () => {
     [{ look: { map_continuous: true } }, /Smooth colour needs the map fill set to solid/],
     [{ film: { theme: 'sepia' } }, /light or dark/],
     [{ film: { hold_seconds: 11 } }, /between 0 and 10/],
-    [{ film: { canvas: 1 } }, /isn't something that can be changed here/],
+    [{ film: { canvas: 'cinema' } }, /must be one of 16:9 \(wide\), 1:1 \(square\), 9:16 \(vertical\)/],
     [{ title: { index: 3, headline: 'x' } }, /no such title card/],
     [{ view: { index: 2, subtitle: 'x' } }, /no such data view/]
   ];
@@ -202,6 +202,8 @@ const OLD = { seconds: 6, text: 160 };
 function edges(spec, name) {
   if (spec.kind === 'num') return [spec.lo, !relaxed && name === 'seconds' ? OLD.seconds : spec.hi];
   if (spec.kind === 'enum') return spec.values;
+  if (spec.kind === 'canvas') return ['wide', 'vertical'];
+  if (spec.kind === 'fps') return [24, 25, 30];
   if (spec.kind === 'period') return ['2020', '2020-03'];
   if (spec.kind === 'colour') return ['#FF00FF', '#00ffff'];
   if (spec.kind === 'bool') return [true, false];
@@ -365,4 +367,92 @@ test('set_look can change a theme and the colours of single elements', async () 
   const bad = await runTool('set_look', { ...none2, dot_color: '#f7f6f2' }, c);
   assert.equal(bad.isError, true);
   assert.match(bad.text, /small dots need a stronger contrast/);
+});
+
+// ---- canvas, frame rate, theme-reset warning -------------------------------------------------
+import { LOOK_CANVAS, LOOK_FPS, LOOK_SQUARE_ACCEPTED, lookWouldReplace } from '../supabase/functions/_shared/look.ts';
+
+function workerChecks(stories) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ryagram-canvas-'));
+  try {
+    const file = path.join(dir, 's.json');
+    fs.writeFileSync(file, JSON.stringify(stories));
+    const py = ['import sys, json', `sys.path.insert(0, ${JSON.stringify(repo)})`, 'from ryagram.worker.schema import validate_story, Rejected', 'out = {}',
+      'for it in json.load(open(sys.argv[1], encoding="utf-8")):', '    ds = {c["dataset"] for c in it["story"]["sequence"]["clips"] if c["kind"] == "render"}',
+      '    try:', '        validate_story(it["story"], datasets=ds); out[it["label"]] = "ok"', '    except Rejected as e:', '        out[it["label"]] = e.errors[0]', 'print(json.dumps(out))'].join(String.fromCharCode(10));
+    const run = spawnSync(python, ['-c', py, file], { encoding: 'utf8' });
+    assert.equal(run.status, 0, run.stderr);
+    return JSON.parse(run.stdout.trim());
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+}
+
+test('every canvas the picker offers and every frame rate sets the right size and passes the worker validate_story', () => {
+  const sizes = { wide: [1920, 1080], vertical: [1080, 1920] };
+  const stories = [];
+  for (const make of [MAP, BARS, LINE, PAIRED]) {
+    for (const [key, size] of Object.entries(sizes)) for (const fps of LOOK_FPS) {
+      const out = applyLook(make(), { film: { canvas: key, fps } });
+      assert.equal(out.ok, true, JSON.stringify(out.problems));
+      assert.deepEqual(plain(out.story.sequence.canvas), size);
+      assert.equal(out.story.sequence.fps, fps);
+      assert.deepEqual([describeLook(out.story).film.canvas, describeLook(out.story).film.fps], [key, fps]);
+      stories.push({ label: `${key} ${fps}`, story: out.story });
+    }
+  }
+  assert.equal(stories.length, 24);
+  if (haveEngine) {
+    const res = workerChecks(stories);
+    const bad = Object.entries(res).filter(([, v]) => v !== 'ok');
+    assert.deepEqual(bad, []);
+  }
+});
+
+test('1:1 is offered but refused in plain words until the worker schema takes it; a test tells us when it does', () => {
+  assert.equal(LOOK_SQUARE_ACCEPTED, false);
+  assert.deepEqual(LOOK_CANVAS.square.size, [1080, 1080]);
+  const out = applyLook(MAP(), { film: { canvas: 'square' } });
+  assert.equal(out.ok, false);
+  assert.match(out.problems[0], /1:1 \(square\) isn't available yet: the render machine takes 16:9 and 9:16 for now/);
+  if (haveEngine) {
+    const forced = plain(MAP());
+    forced.sequence.canvas = [1080, 1080];
+    const res = workerChecks([{ label: 'square', story: forced }]);
+    // While this fails the flag above must stay false. When the worker accepts 1080x1080, flip LOOK_SQUARE_ACCEPTED
+    // and the square entry's `accepted`, and this assertion should be changed to expect 'ok'.
+    assert.notEqual(res.square, 'ok', 'the worker now accepts a square: turn the 1:1 option on (look.ts LOOK_SQUARE_ACCEPTED, LOOK_CANVAS.square.accepted)');
+  }
+  assert.equal(applyLook(MAP(), { film: { fps: 29 } }).ok, false);
+  assert.match(applyLook(MAP(), { film: { fps: 29 } }).problems[0], /Frames per second must be 24, 25, 30/);
+});
+
+test('9:16 warns (does not block) that a vertical film needs its own title and end cards', () => {
+  const out = applyLook(MAP(), { film: { canvas: 'vertical' } });
+  assert.equal(out.ok, true);
+  assert.match(out.notes.join(' '), /vertical film needs its own title and end cards/);
+  assert.equal(applyLook(MAP(), { film: { canvas: 'wide' } }).notes.length, 0);
+});
+
+test('theme reset: knows which custom colours a theme would replace', () => {
+  const custom = applyLook(MAP(), { look: { map_mode: 'solid', map_low: '#ffffe0', map_high: '#800026', no_data_fill: '#ffcc00', dot_color: '#00e5ff' } }).story;
+  assert.deepEqual(lookWouldReplace(custom, 'atlas'), ['Map colour for low values', 'Map colour for high values', 'Colour for missing data', 'Dot colour']);
+  assert.deepEqual(lookWouldReplace(MAP(), 'atlas'), []);                                    // nothing custom: no warning
+  const contrast = applyLook(MAP(), { theme: 'contrast' }).story;
+  assert.deepEqual(lookWouldReplace(contrast, 'contrast'), []);                              // the theme's own colours are not "custom"
+  assert.deepEqual(lookWouldReplace(contrast, 'night'), ['Map colour for low values', 'Map colour for high values', 'Colour for missing data', 'Dot colour']);
+  const withTheme = applyLook(custom, { theme: 'atlas' });
+  assert.match(withTheme.notes.join(' '), /This replaced your custom colours: Map colour for low values/);
+  assert.equal(applyLook(MAP(), { theme: 'atlas' }).notes.length, 0);
+});
+
+test('set_look takes canvas and frame rate, with the same warning', async () => {
+  const props = TOOLS.find(x => x.name === 'set_look').input_schema.properties;
+  assert.deepEqual(plain(props.film_canvas.enum), ['wide', 'square', 'vertical', null]);
+  assert.deepEqual(plain(props.film_fps.enum), [24, 25, 30, null]);
+  const c = ctx(MAP());
+  const none3 = Object.fromEntries(Object.keys(props).map(k => [k, null]));
+  const out = await runTool('set_look', { ...none3, film_canvas: 'vertical', film_fps: 25 }, c);
+  assert.equal(out.isError, undefined, out.text);
+  assert.match(out.text, /vertical film needs its own title and end cards/);
+  assert.deepEqual(plain(c.story.sequence.canvas), [1080, 1920]);
+  assert.equal(c.story.sequence.fps, 25);
 });

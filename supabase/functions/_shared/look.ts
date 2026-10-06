@@ -21,6 +21,8 @@ const LOOK_COLOUR = /^#[0-9a-fA-F]{6}$/;
 const LOOK_FIELDS = {
   film: {
     theme: { label: 'Light or dark', kind: 'enum', values: ['light', 'dark'], required: true },
+    canvas: { label: 'Shape of the picture', kind: 'canvas', required: true },
+    fps: { label: 'Frames per second', kind: 'fps', required: true },
     hold_seconds: { label: 'Seconds on each period (whole film)', kind: 'num', lo: 0, hi: 10 }
   },
   title: {
@@ -134,6 +136,33 @@ function lookContrast(seq) {
   return out;
 }
 
+// ---- Canvas. The worker schema accepts 1920x1080, 1280x720 and 1080x1920 today (ryagram/worker/schema.py); a square
+// (1080x1080) is NOT accepted yet, so it is offered but refused in plain words until WORKER adds it and this flips.
+const LOOK_SQUARE_ACCEPTED = false;
+const LOOK_FPS = [24, 25, 30];
+const LOOK_CANVAS = {
+  wide: { label: '16:9 (wide)', size: [1920, 1080], accepted: true },
+  square: { label: '1:1 (square)', size: [1080, 1080], accepted: false },
+  vertical: { label: '9:16 (vertical)', size: [1080, 1920], accepted: true,
+              warn: 'A vertical film needs its own title and end cards: text written for a wide picture rarely fits a narrow one. Check the contact sheet before you render.' }
+};
+function lookCanvasName(seq) {
+  const c = Array.isArray(seq.canvas) ? seq.canvas : [];
+  for (const [k, v] of Object.entries(LOOK_CANVAS)) if (v.size[0] === c[0] && v.size[1] === c[1]) return k;
+  return 'wide';                                      // 1920x1080 and 1280x720 are both 16:9
+}
+// What choosing this theme would overwrite: colours the person has already changed (an element that is set and is not
+// what the theme itself would put there).
+const LOOK_COLOUR_FIELDS = ['map_low', 'map_high', 'no_data_fill', 'dot_color', 'dot_baseline_color'];
+function lookWouldReplace(story, themeKey) {
+  const t = LOOK_THEMES[themeKey];
+  if (!t || !story || !story.sequence) return [];
+  const so = story.sequence.style_overrides || {};
+  const cur = { map_low: (so.choropleth || {}).low, map_high: (so.choropleth || {}).high, no_data_fill: (so.state || {}).no_data_fill,
+                dot_color: (so.dots || {}).color, dot_baseline_color: (so.dots || {}).baseline_color };
+  return LOOK_COLOUR_FIELDS.filter((f) => cur[f] != null && cur[f] !== (t.set[f] ?? null)).map((f) => LOOK_FIELDS.look[f].label);
+}
+
 function lookClean(text, max) {
   return String(text == null ? '' : text).replace(LOOK_INVISIBLE, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
 }
@@ -170,6 +199,18 @@ function lookCheck(field, spec, raw) {
   if (spec.kind === 'colour') {
     return LOOK_COLOUR.test(String(raw)) ? { value: String(raw).toLowerCase() } : { problem: `${spec.label} must be a colour like #1a4fa3.` };
   }
+  if (spec.kind === 'canvas') {
+    const c = LOOK_CANVAS[raw];
+    if (!c) return { problem: `${spec.label} must be one of ${Object.values(LOOK_CANVAS).map((x) => x.label).join(', ')}.` };
+    if (!c.accepted && !(raw === 'square' && LOOK_SQUARE_ACCEPTED)) {
+      return { problem: `${c.label} isn't available yet: the render machine takes 16:9 and 9:16 for now.` };
+    }
+    return { value: raw, note: c.warn || null };
+  }
+  if (spec.kind === 'fps') {
+    const n = lookNum(raw);
+    return LOOK_FPS.includes(n) ? { value: n } : { problem: `${spec.label} must be ${LOOK_FPS.join(', ')}.` };
+  }
   if (spec.kind === 'bool') {
     return typeof raw === 'boolean' ? { value: raw } : raw === 'true' ? { value: true } : raw === 'false' ? { value: false } : { problem: `${spec.label} must be on or off.` };
   }
@@ -202,6 +243,8 @@ function lookWrite(story, scope, field, res, clipIndex) {
   const seq = story.sequence;
   if (scope === 'film') {
     if (field === 'theme') lookSet(seq, 'theme', res);
+    else if (field === 'canvas') seq.canvas = [...LOOK_CANVAS[res.value].size];
+    else if (field === 'fps') seq.fps = res.value;
     else lookSet(seq, 'hold_seconds', res);
     return;
   }
@@ -260,6 +303,8 @@ function applyLook(story, patch) {
     if (!t) {
       problems.push(`"${String(patch.theme).slice(0, 30)}" isn't one of the themes: ${Object.values(LOOK_THEMES).map((x) => x.label).join(', ')}.`);
     } else {
+      const replaced = lookWouldReplace(story, patch.theme);
+      if (replaced.length) notes.push(`This replaced your custom colours: ${replaced.join(', ')}.`);
       lookWrite(next, 'film', 'theme', { value: t.theme }, -1);
       for (const f of LOOK_RESET) lookWrite(next, 'look', f, { clear: true }, -1);
       for (const [f, v] of Object.entries(t.set)) lookWrite(next, 'look', f, { value: v }, -1);
@@ -330,7 +375,7 @@ function describeLook(story) {
   const ch = so.choropleth || {};
   return {
     theme_name: lookThemeName(seq),
-    film: { theme: seq.theme === 'light' ? 'light' : 'dark', hold_seconds: seq.hold_seconds ?? null },
+    film: { theme: seq.theme === 'light' ? 'light' : 'dark', hold_seconds: seq.hold_seconds ?? null, canvas: lookCanvasName(seq), fps: seq.fps ?? 30 },
     titles: clips.filter((c) => c && c.kind === 'title').map((c) => ({
       headline: c.headline ?? '', subhead: c.subhead ?? '', credit: c.credit ?? '', seconds: c.seconds ?? 3, align: c.align ?? 'center', fade: c.fade ?? null })),
     views: clips.filter((c) => c && c.kind === 'render').map((c) => ({
@@ -347,4 +392,4 @@ function describeLook(story) {
 }
 // END SHARED
 
-export { LOOK_FIELDS, LOOK_THEMES, LOOK_BASE, LOOK_PAGE_COLOURS_ACCEPTED, applyLook, describeLook, lookDE };
+export { LOOK_FIELDS, LOOK_THEMES, LOOK_BASE, LOOK_PAGE_COLOURS_ACCEPTED, LOOK_CANVAS, LOOK_FPS, LOOK_SQUARE_ACCEPTED, applyLook, describeLook, lookDE, lookWouldReplace };

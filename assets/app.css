@@ -142,3 +142,5 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .look-colour{display:flex;gap:8px;align-items:center}
 .look-swatch{width:42px;height:32px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
 @media(max-width:860px){.theme-grid{grid-template-columns:repeat(2,1fr)}}
+.look-confirm{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--wheat);border-radius:10px;background:var(--soft)}
+.look-warn{margin:4px 0 8px}
