@@ -870,6 +870,13 @@
         }
         el.value = text;
         rows.push({ scope, index, field, el, was: text });
+        if (spec.kind === 'colour') {
+          // A native colour chooser kept in step with the text box (the text box is what is saved).
+          const pick = h('input', { type: 'color', class: 'look-swatch', 'aria-label': `${spec.label}: choose a colour`, value: /^#[0-9a-f]{6}$/i.test(text) ? text : '#808080' });
+          pick.addEventListener('input', () => { el.value = pick.value; });
+          el.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(el.value)) pick.value = el.value; });
+          return h('div', { class: 'look-field' }, h('label', { for: id }, spec.label), h('span', { class: 'look-colour' }, el, pick));
+        }
         return h('div', { class: 'look-field' }, h('label', { for: id }, spec.label), el);
       }
 
@@ -886,13 +893,24 @@
         if (x.view === 'line') kids.push(control('view', i, 'line_top_n', x.line_top_n));
         groups.push(h('fieldset', { class: 'look-group' }, ...kids));
       });
-      const lookKids = [h('legend', {}, 'Look'), control('film', 0, 'theme', state.film.theme)];
+      // Named themes: each is a light or dark page plus colours, all settings the render machine already accepts.
+      let chosenTheme = state.theme_name;
+      let wasTheme = chosenTheme;
+      const themeNote = h('p', { class: 'form-note' }, chosenTheme === 'custom' ? 'Your colours are customised. Pick a theme to start again from one.' : L.THEMES[chosenTheme].blurb);
+      const themeCards = h('div', { class: 'theme-grid', role: 'radiogroup', 'aria-label': 'Theme' });
+      const drawThemes = () => themeCards.replaceChildren(...Object.entries(L.THEMES).map(([key, t]) => h('label', { class: `template-card${key === chosenTheme ? ' is-chosen' : ''}` },
+        h('input', { type: 'radio', name: 'look-theme', value: key, checked: key === chosenTheme, onchange: () => {
+          chosenTheme = key; themeNote.textContent = `${t.blurb} Choosing a theme puts the map and dot colours back to its own.`; drawThemes(); } }),
+        h('strong', {}, t.label), h('span', { class: 'look-theme-chip', style: `background:${L.BASE[t.theme].page};border-color:${L.BASE[t.theme].fill}` }))));
+      drawThemes();
+      const lookKids = [h('legend', {}, 'Look'), h('p', { class: 'form-note' }, 'Theme'), themeCards, themeNote];
       if (hasMap) {
         lookKids.push(control('look', 0, 'map_mode', state.look.map_mode), control('look', 0, 'map_low', state.look.map_low),
           control('look', 0, 'map_high', state.look.map_high), control('look', 0, 'map_steps', state.look.map_steps),
           control('look', 0, 'map_continuous', state.look.map_continuous), control('look', 0, 'outline_width', state.look.outline_width),
-          control('look', 0, 'no_data_label', state.look.no_data_label));
+          control('look', 0, 'no_data_fill', state.look.no_data_fill), control('look', 0, 'no_data_label', state.look.no_data_label));
       }
+      if (hasMap) lookKids.push(control('look', 0, 'dot_color', state.look.dot_color), control('look', 0, 'dot_baseline_color', state.look.dot_baseline_color));
       if (hasBars) lookKids.push(control('look', 0, 'swap_seconds', state.look.swap_seconds));
       groups.push(h('fieldset', { class: 'look-group' }, ...lookKids));
 
@@ -902,6 +920,7 @@
         error.hidden = true;
         result.textContent = '';
         const patch = { film: {}, title: {}, view: {}, look: {} };
+        if (chosenTheme !== wasTheme && L.THEMES[chosenTheme]) patch.theme = chosenTheme;
         const per = { title: {}, view: {} };
         for (const r of rows) {
           if (r.el.value === r.was) continue;
@@ -914,7 +933,7 @@
         const changed = [];
         const notes = [];
         for (const p of calls) {
-          if (!Object.values(p).some(part => Object.keys(part).some(k => k !== 'index'))) continue;
+          if (!p.theme && !Object.values(p).some(part => part && typeof part === 'object' && Object.keys(part).some(k => k !== 'index'))) continue;
           const out = L.apply(story, p);
           if (!out.ok) { showError(error, new Error(out.problems.join(' '))); return; }
           story = out.story;
@@ -925,7 +944,18 @@
         await busy(apply, 'Applying…', async () => {
           try {
             await onSaved(story);
-            for (const r of rows) r.was = r.el.value;
+            // The theme may have reset colours: show what the story now holds.
+            const now = L.describe(story);
+            for (const r of rows) {
+              const src = r.scope === 'film' ? now.film : r.scope === 'title' ? now.titles[r.index] : r.scope === 'view' ? now.views[r.index] : now.look;
+              const val = src ? src[r.field] : null;
+              r.el.value = val == null ? '' : String(val);
+              r.was = r.el.value;
+              r.el.dispatchEvent(new Event('input'));
+            }
+            wasTheme = chosenTheme = now.theme_name;
+            themeNote.textContent = now.theme_name === 'custom' ? 'Your colours are customised. Pick a theme to start again from one.' : L.THEMES[now.theme_name].blurb;
+            drawThemes();
             result.textContent = `Saved: ${changed.length} change${changed.length === 1 ? '' : 's'}. ${notes.join(' ')} Make a new contact sheet to see them.`;
           } catch (err) { showError(error, err); }
         });

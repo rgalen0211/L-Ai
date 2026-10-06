@@ -4,7 +4,7 @@
 // Starting a render counts against the hourly cap; the final render is never started here.
 import { build, DATASETS, RENDER_VIEWS, TEMPLATES } from "../_shared/templates.ts";
 import { untrusted } from "./prompt.ts";
-import { LOOK_FIELDS, applyLook } from "../_shared/look.ts";
+import { LOOK_FIELDS, LOOK_THEMES, applyLook } from "../_shared/look.ts";
 
 export interface Job {
   id: string; job_type: string; state: string; attempt: number; created_at: string;
@@ -47,6 +47,7 @@ const LOOK_SCOPE: Record<string, string> = { film: "film_", title: "title_", vie
 const LOOK_TOOL_PROPS: Record<string, unknown> = {
   title_index: nullable("integer", { minimum: 0, maximum: 39 }),
   view_index: nullable("integer", { minimum: 0, maximum: 39 }),
+  theme: { type: ["string", "null"], enum: [...Object.keys(LOOK_THEMES), null] },
   clear: nullable("array", { items: { type: "string", maxLength: 40 }, maxItems: 30 }),
 };
 for (const [scope, fields] of Object.entries(LOOK_FIELDS as Record<string, Record<string, { kind: string; values?: string[]; max?: number }>>)) {
@@ -61,15 +62,16 @@ for (const [scope, fields] of Object.entries(LOOK_FIELDS as Record<string, Recor
 
 // The model's flat input -> a look patch (see _shared/look.ts).
 export function lookPatch(input: Record<string, unknown>) {
-  const patch: Record<string, Record<string, unknown>> = { film: {}, title: {}, view: {}, look: {} };
-  if (input.title_index != null) patch.title.index = input.title_index;
-  if (input.view_index != null) patch.view.index = input.view_index;
+  const patch: Record<string, unknown> = { film: {}, title: {}, view: {}, look: {} };
+  if (input.theme != null) patch.theme = input.theme;
+  if (input.title_index != null) (patch.title as Record<string, unknown>).index = input.title_index;
+  if (input.view_index != null) (patch.view as Record<string, unknown>).index = input.view_index;
   const clear = new Set(Array.isArray(input.clear) ? input.clear.map(String) : []);
   for (const [scope, fields] of Object.entries(LOOK_FIELDS as Record<string, Record<string, unknown>>)) {
     for (const name of Object.keys(fields)) {
       const key = LOOK_SCOPE[scope] + name;
-      if (clear.has(key)) { patch[scope][name] = null; clear.delete(key); }
-      else if (input[key] != null) patch[scope][name] = input[key];
+      if (clear.has(key)) { (patch[scope] as Record<string, unknown>)[name] = null; clear.delete(key); }
+      else if (input[key] != null) (patch[scope] as Record<string, unknown>)[name] = input[key];
     }
   }
   return { patch, unknown: [...clear] };

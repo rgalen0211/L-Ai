@@ -32,7 +32,7 @@ test('the page and the Edge Function run the same code', () => {
   assert.equal(region(read('assets/app-look.js')), region(read('supabase/functions/_shared/look.ts')));
   const w = {};
   vm.runInNewContext(read('assets/app-look.js'), { window: w });
-  assert.deepEqual(Object.keys(w.ryagramLook).sort(), ['FIELDS', 'apply', 'describe']);
+  assert.deepEqual(Object.keys(w.ryagramLook).sort(), ['BASE', 'FIELDS', 'THEMES', 'apply', 'de', 'describe']);
   const s = MAP();
   const p = { title: { headline: 'New words' }, look: { map_mode: 'solid' } };
   assert.deepEqual(plain(w.ryagramLook.apply(s, p)), plain(applyLook(s, p)));
@@ -203,7 +203,7 @@ function edges(spec, name) {
   if (spec.kind === 'num') return [spec.lo, !relaxed && name === 'seconds' ? OLD.seconds : spec.hi];
   if (spec.kind === 'enum') return spec.values;
   if (spec.kind === 'period') return ['2020', '2020-03'];
-  if (spec.kind === 'colour') return ['#000000', '#FFFFFF'];
+  if (spec.kind === 'colour') return ['#FF00FF', '#00ffff'];
   if (spec.kind === 'bool') return [true, false];
   if (spec.kind === 'steps') return ['auto', 1, 9];
   if (spec.kind === 'text') return ['x', 'y'.repeat(!relaxed && ['headline', 'subhead', 'credit'].includes(name) ? OLD.text : spec.max)];
@@ -234,6 +234,8 @@ test('everything it writes, at the edge of every range, passes the worker valida
   const all = { film: {}, title: { index: 0 }, view: { index: 0 }, look: {} };
   for (const [scope, fields] of Object.entries(LOOK_FIELDS)) for (const [name, spec] of Object.entries(fields)) all[scope][name] = edges(spec, name)[0];
   all.look.map_continuous = false;
+  all.look.map_high = '#00ffff';
+  all.look.dot_baseline_color = '#00ffff';
   const everything = applyLook(MAP(), all);
   assert.equal(everything.ok, true, JSON.stringify(everything.problems));
   stories.push({ label: 'everything at once', story: everything.story });
@@ -271,4 +273,96 @@ test('invisible and control characters are stripped from words, as the worker sc
   assert.equal(out.ok, true);
   assert.equal(out.story.sequence.clips[0].headline, 'Hel lo wor ld');
   assert.doesNotMatch(out.story.sequence.clips[0].headline, new RegExp('[' + zw + bidi + nul + ']'));
+});
+
+// ---- themes ---------------------------------------------------------------------------------
+import { LOOK_THEMES, LOOK_BASE, lookDE } from '../supabase/functions/_shared/look.ts';
+
+test('lookDE is the engine CIE76 distance (values measured with ryagram.maprace.colour.dE)', () => {
+  const cases = [['#232838', '#14141a', 12.0], ['#e8eefb', '#14141a', 87.5], ['#eef1f6', '#fcfcfb', 5.1], ['#2a0845', '#fff68f', 124.8], ['#00e5ff', '#1f1f27', 83.7]];
+  for (const [a, b, want] of cases) assert.ok(Math.abs(lookDE(a, b) - want) < 0.15, `${a} ${b} ${lookDE(a, b)}`);
+});
+
+test('every named theme applies, is recognised by name, and passes the worker schema and the contrast rules', () => {
+  const stories = [];
+  for (const make of [MAP, BARS, LINE, PAIRED]) {
+    for (const [key, t] of Object.entries(LOOK_THEMES)) {
+      const out = applyLook(make(), { theme: key });
+      assert.equal(out.ok, true, `${key}: ${JSON.stringify(out.problems)}`);
+      assert.equal(out.story.sequence.theme, t.theme);
+      assert.equal(describeLook(out.story).theme_name, key);
+      stories.push({ label: `theme ${key}`, story: out.story });
+    }
+  }
+  assert.equal(describeLook(MAP()).theme_name, 'night');
+  assert.equal(describeLook(applyLook(MAP(), { look: { map_low: '#aa0000' } }).story).theme_name, 'custom');
+  if (haveEngine) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'ryagram-theme-'));
+    try {
+      const file = path.join(dir, 's.json');
+      fs.writeFileSync(file, JSON.stringify(stories));
+      const py = ['import sys, json', `sys.path.insert(0, ${JSON.stringify(repo)})`, 'from ryagram.worker.schema import validate_story, Rejected', 'bad = []',
+        'for it in json.load(open(sys.argv[1], encoding="utf-8")):', '    ds = {c["dataset"] for c in it["story"]["sequence"]["clips"] if c["kind"] == "render"}',
+        '    try:', '        validate_story(it["story"], datasets=ds)', '    except Rejected as e:', '        bad.append([it["label"], e.errors[:2]])', 'print(json.dumps(bad))'].join(String.fromCharCode(10));
+      const run = spawnSync(python, ['-c', py, file], { encoding: 'utf8' });
+      assert.equal(run.status, 0, run.stderr);
+      assert.deepEqual(JSON.parse(run.stdout.trim()), []);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+});
+
+test('switching theme resets earlier colours, and an explicit colour in the same change wins', () => {
+  const a = applyLook(MAP(), { look: { map_mode: 'solid', map_low: '#ffffe0', map_high: '#800026', no_data_fill: '#ffcc00' } }).story;
+  const b = applyLook(a, { theme: 'atlas' }).story;
+  assert.equal(b.sequence.theme, 'light');
+  assert.equal(b.sequence.style_overrides, undefined);
+  const c = applyLook(a, { theme: 'print', look: { outline_width: 1 } }).story;
+  assert.equal(c.sequence.style_overrides.state.outline_width, 1);
+  assert.equal(c.sequence.style_overrides.choropleth.mode, 'hatch');
+  const bad = applyLook(MAP(), { theme: 'sepia' });
+  assert.equal(bad.ok, false);
+  assert.match(bad.problems[0], /isn't one of the themes: Night, Atlas, Print, High contrast/);
+});
+
+test('the engine contrast rules refuse close colours in plain words', () => {
+  const solid = { map_mode: 'solid' };
+  const cases = [
+    [{ ...solid, map_low: '#232838', map_high: '#252a3a', map_steps: '5' }, /too close together to tell 5 steps apart/],
+    [{ ...solid, map_low: '#232838', map_high: '#262b3b' }, /too close together to give readable steps/],
+    [{ ...solid, map_low: '#14141b' }, /low colour would disappear into the page/],
+    [{ ...solid, map_high: '#15151b' }, /high colour would disappear into the page/],
+    [{ no_data_fill: '#202028' }, /missing data is too close/],
+    [{ dot_color: '#202028' }, /small dots need a stronger contrast/],
+    [{ dot_color: '#00e5ff', dot_baseline_color: '#10e0f8' }, /two kinds of dots are too close/]
+  ];
+  for (const [look, re] of cases) {
+    const out = applyLook(MAP(), { look });
+    assert.equal(out.ok, false, JSON.stringify(look));
+    assert.match(out.problems.join(' '), re, JSON.stringify(look));
+  }
+  // The same colours are fine where they do not matter (hatched map: low/high are unused) and the theme base is judged on the light page.
+  assert.equal(applyLook(MAP(), { look: { map_low: '#232838', map_high: '#252a3a' } }).ok, true);
+  assert.equal(applyLook(MAP(), { film: { theme: 'light' }, look: { ...solid, map_low: '#eef1f6', map_high: '#16233f', map_steps: '5' } }).ok, true);
+  for (const t of Object.values(LOOK_BASE)) assert.ok(lookDE(t.page, t.fill) > 0);
+});
+
+test('the engine own defaults pass the rules the picker applies', () => {
+  for (const [name, b] of Object.entries(LOOK_BASE)) {
+    assert.ok(lookDE(b.low, b.page) >= 5 && lookDE(b.high, b.page) >= 5, `${name} ramp ends vs page`);
+    assert.ok(lookDE(b.dot, b.fill) >= 20 && lookDE(b.dot, b.page) >= 20, `${name} dot`);
+    assert.ok(lookDE(b.low, b.high) >= 5 * 4, `${name} ramp carries 5 steps`);
+  }
+});
+
+test('set_look can change a theme and the colours of single elements', async () => {
+  const props = Object.keys(TOOLS.find(x => x.name === 'set_look').input_schema.properties);
+  assert.ok(props.includes('theme') && props.includes('no_data_fill') && props.includes('dot_color') && props.includes('dot_baseline_color'));
+  const none2 = Object.fromEntries(props.map(k => [k, null]));
+  const c = ctx(MAP());
+  const out = await runTool('set_look', { ...none2, theme: 'print' }, c);
+  assert.equal(out.isError, undefined, out.text);
+  assert.equal(c.story.sequence.theme, 'light');
+  const bad = await runTool('set_look', { ...none2, dot_color: '#f7f6f2' }, c);
+  assert.equal(bad.isError, true);
+  assert.match(bad.text, /small dots need a stronger contrast/);
 });

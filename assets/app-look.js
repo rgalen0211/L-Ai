@@ -47,11 +47,85 @@ const LOOK_FIELDS = {
     map_key_label: { label: 'Key label for a one-colour map', kind: 'text', max: 80 },
     no_data_label: { label: 'Key text for missing data', kind: 'text', max: 80 },
     outline_width: { label: 'State outline width', kind: 'num', lo: 0, hi: 4 },
+    no_data_fill: { label: 'Colour for missing data', kind: 'colour' },
+    dot_color: { label: 'Dot colour', kind: 'colour' },
+    dot_baseline_color: { label: 'Colour of the starting stock of dots', kind: 'colour' },
     dot_value: { label: 'One dot stands for', kind: 'num', lo: 1, hi: 1000000, int: true },
     dot_radius: { label: 'Dot size', kind: 'num', lo: 0.5, hi: 6 },
     swap_seconds: { label: 'Seconds for one bar to pass another', kind: 'num', lo: 0, hi: 1.5 }
   }
 };
+
+// ---- Themes. Each maps onto settings the worker schema already accepts: sequence.theme (light or dark) plus
+// style_overrides colour keys. Page and text colours are NOT written: the schema refuses them until WORKER's W1 lands
+// (LOOK_PAGE_COLOURS_ACCEPTED flips then). `reset` is what choosing a theme puts back to the engine's own colours.
+const LOOK_PAGE_COLOURS_ACCEPTED = false;
+const LOOK_RESET = ['map_mode', 'map_low', 'map_high', 'map_steps', 'map_continuous', 'no_data_fill', 'dot_color', 'dot_baseline_color', 'outline_width'];
+const LOOK_THEMES = {
+  night: { label: 'Night', blurb: 'The default: a dark page. Best for lines, paths and networks.', theme: 'dark', set: {} },
+  atlas: { label: 'Atlas', blurb: 'A light, near-white page, like a printed atlas.', theme: 'light', set: {} },
+  print: { label: 'Print', blurb: 'Black on white with hatched textures, so it still reads in greyscale.', theme: 'light', set: { map_mode: 'hatch', outline_width: 2.5 } },
+  contrast: { label: 'High contrast', blurb: 'Dark page, a wide yellow-to-purple ramp, heavy outlines, bright dots.', theme: 'dark',
+              set: { map_mode: 'solid', map_low: '#2a0845', map_high: '#fff68f', outline_width: 3, no_data_fill: '#6e5a3a', dot_color: '#00e5ff' } }
+};
+// The engine's own colours for each theme (ryagram/maprace/style.yaml), the things a person's colours are checked against.
+const LOOK_BASE = {
+  dark: { page: '#14141a', fill: '#1f1f27', low: '#232838', high: '#e8eefb', dot: '#ff8a3d' },
+  light: { page: '#fcfcfb', fill: '#f6f5f1', low: '#eef1f6', high: '#16233f', dot: '#c2410c' }
+};
+// The engine's floors (ryagram/maprace/colour.py, preflight.py): a patch needs 5 dE, a dot 20 dE (four times a patch).
+const LOOK_PATCH_DE = 5;
+const LOOK_DOT_DE = 20;
+
+function lookLab(hex) {
+  const c = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16) / 255).map((v) => (v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)));
+  const x = (0.4124564 * c[0] + 0.3575761 * c[1] + 0.1804375 * c[2]) / 0.95047;
+  const y = 0.2126729 * c[0] + 0.7151522 * c[1] + 0.072175 * c[2];
+  const z = (0.0193339 * c[0] + 0.119192 * c[1] + 0.9503041 * c[2]) / 1.08883;
+  const f = (t) => (t > 216 / 24389 ? Math.cbrt(t) : (24389 / 27 * t + 16) / 116);
+  return [116 * f(y) - 16, 500 * (f(x) - f(y)), 200 * (f(y) - f(z))];
+}
+// CIE76 colour distance, the same statistic the engine's checks use.
+function lookDE(a, b) {
+  const p = lookLab(a);
+  const q = lookLab(b);
+  return Math.sqrt((p[0] - q[0]) ** 2 + (p[1] - q[1]) ** 2 + (p[2] - q[2]) ** 2);
+}
+
+// The engine's contrast rules, in plain words, for the colours the person set. The engine re-checks the finished film.
+function lookContrast(seq) {
+  const base = LOOK_BASE[seq.theme === 'light' ? 'light' : 'dark'];
+  const so = seq.style_overrides || {};
+  const ch = so.choropleth || {};
+  const out = [];
+  const solid = ch.mode === 'solid';
+  const low = ch.low;
+  const high = ch.high;
+  if (solid && (low || high)) {
+    const a = low || base.low;
+    const b = high || base.high;
+    const n = Number.isInteger(ch.steps) ? ch.steps : null;
+    const need = LOOK_PATCH_DE * ((n || 3) - 1);
+    if (lookDE(a, b) < need) {
+      out.push(n ? `The map's low and high colours are too close together to tell ${n} steps apart. Choose colours that differ more, or fewer steps.`
+                 : 'The map\u2019s low and high colours are too close together to give readable steps. Choose colours that differ more.');
+    }
+    if (low && lookDE(low, base.page) < LOOK_PATCH_DE) out.push('The map\u2019s low colour would disappear into the page. Choose one that stands out from it.');
+    if (high && lookDE(high, base.page) < LOOK_PATCH_DE) out.push('The map\u2019s high colour would disappear into the page. Choose one that stands out from it.');
+  }
+  const nd = (so.state || {}).no_data_fill;
+  if (nd && lookDE(nd, base.fill) < LOOK_PATCH_DE) out.push('The colour for missing data is too close to the colour of a state with data. Choose one that differs more.');
+  const dots = so.dots || {};
+  if (dots.color) {
+    if (lookDE(dots.color, base.fill) < LOOK_DOT_DE || lookDE(dots.color, base.page) < LOOK_DOT_DE) {
+      out.push('The dot colour is too close to the map and page colours; small dots need a stronger contrast. Choose a brighter or darker one.');
+    }
+  }
+  if (dots.baseline_color && lookDE(dots.baseline_color, dots.color || base.dot) < LOOK_DOT_DE) {
+    out.push('The two kinds of dots are too close in colour to tell apart. Choose colours that differ more.');
+  }
+  return out;
+}
 
 function lookClean(text, max) {
   return String(text == null ? '' : text).replace(LOOK_INVISIBLE, ' ').replace(/\s+/g, ' ').trim().slice(0, max);
@@ -155,6 +229,9 @@ function lookWrite(story, scope, field, res, clipIndex) {
   else if (field === 'map_key_label') lookSet(group('choropleth'), 'single_label', res);
   else if (field === 'no_data_label') lookSet(group('layout'), 'no_data_label', res);
   else if (field === 'outline_width') lookSet(group('state'), 'outline_width', res);
+  else if (field === 'no_data_fill') lookSet(group('state'), 'no_data_fill', res);
+  else if (field === 'dot_color') lookSet(group('dots'), 'color', res);
+  else if (field === 'dot_baseline_color') lookSet(group('dots'), 'baseline_color', res);
   else if (field === 'dot_value') lookSet(group('dots'), 'value', res);
   else if (field === 'dot_radius') lookSet(group('dots'), 'radius', res);
   else if (field === 'swap_seconds') lookSet(group('bars'), 'swap_seconds', res);
@@ -171,6 +248,17 @@ function applyLook(story, patch) {
   const changed = [];
   const notes = [];
   const clips = next.sequence.clips;
+  if (patch && patch.theme !== undefined && patch.theme !== null) {
+    const t = LOOK_THEMES[patch.theme];
+    if (!t) {
+      problems.push(`"${String(patch.theme).slice(0, 30)}" isn't one of the themes: ${Object.values(LOOK_THEMES).map((x) => x.label).join(', ')}.`);
+    } else {
+      lookWrite(next, 'film', 'theme', { value: t.theme }, -1);
+      for (const f of LOOK_RESET) lookWrite(next, 'look', f, { clear: true }, -1);
+      for (const [f, v] of Object.entries(t.set)) lookWrite(next, 'look', f, { value: v }, -1);
+      changed.push(`Theme: ${t.label}`);
+    }
+  }
   for (const scope of ['film', 'title', 'view', 'look']) {
     const part = patch && patch[scope];
     if (!part || typeof part !== 'object') continue;
@@ -205,8 +293,26 @@ function applyLook(story, patch) {
   if (ch.continuous === true && ch.mode !== 'solid') {
     problems.push('Smooth colour needs the map fill set to solid.');
   }
+  if (patch && (patch.theme != null || (patch.look && Object.keys(patch.look).some((k) => /colou?r|fill|map_low|map_high|map_steps|map_mode/.test(k))) || (patch.film && patch.film.theme !== undefined))) {
+    problems.push(...lookContrast(next.sequence));
+  }
   if (problems.length) return { ok: false, problems };
   return { ok: true, story: next, changed, notes };
+}
+
+// Which named theme the story is on right now ('custom' when its colours were changed by hand).
+function lookThemeName(seq) {
+  const probe = JSON.parse(JSON.stringify({ sequence: seq }));
+  for (const [key, t] of Object.entries(LOOK_THEMES)) {
+    if ((seq.theme === 'light' ? 'light' : 'dark') !== t.theme) continue;
+    const copy = JSON.parse(JSON.stringify(probe));
+    lookWrite(copy, 'film', 'theme', { value: t.theme }, -1);
+    for (const f of LOOK_RESET) lookWrite(copy, 'look', f, { clear: true }, -1);
+    for (const [f, v] of Object.entries(t.set)) lookWrite(copy, 'look', f, { value: v }, -1);
+    const strip = (x) => JSON.stringify((x.sequence.style_overrides || {}));
+    if (strip(copy) === strip(probe)) return key;
+  }
+  return 'custom';
 }
 
 // What the controls show: the story's current values for every field above.
@@ -216,6 +322,7 @@ function describeLook(story) {
   const so = seq.style_overrides || {};
   const ch = so.choropleth || {};
   return {
+    theme_name: lookThemeName(seq),
     film: { theme: seq.theme === 'light' ? 'light' : 'dark', hold_seconds: seq.hold_seconds ?? null },
     titles: clips.filter((c) => c && c.kind === 'title').map((c) => ({
       headline: c.headline ?? '', subhead: c.subhead ?? '', credit: c.credit ?? '', seconds: c.seconds ?? 3, align: c.align ?? 'center', fade: c.fade ?? null })),
@@ -226,10 +333,11 @@ function describeLook(story) {
       transition: (c.transition || {}).kind ?? null, transition_seconds: (c.transition || {}).seconds ?? null })),
     look: {
       map_mode: ch.mode ?? null, map_low: ch.low ?? null, map_high: ch.high ?? null, map_steps: ch.steps ?? null, map_continuous: ch.continuous ?? null,
+      no_data_fill: (so.state || {}).no_data_fill ?? null, dot_color: (so.dots || {}).color ?? null, dot_baseline_color: (so.dots || {}).baseline_color ?? null,
       map_key_label: ch.single_label ?? null, no_data_label: (so.layout || {}).no_data_label ?? null, outline_width: (so.state || {}).outline_width ?? null,
       dot_value: (so.dots || {}).value ?? null, dot_radius: (so.dots || {}).radius ?? null, swap_seconds: (so.bars || {}).swap_seconds ?? null }
   };
 }
 // END SHARED
-  window.ryagramLook = { FIELDS: LOOK_FIELDS, apply: applyLook, describe: describeLook };
+  window.ryagramLook = { FIELDS: LOOK_FIELDS, THEMES: LOOK_THEMES, BASE: LOOK_BASE, apply: applyLook, describe: describeLook, de: lookDE };
 })();
