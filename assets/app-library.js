@@ -904,14 +904,16 @@
         h('strong', {}, t.label), h('span', { class: 'look-theme-chip', style: `background:${L.BASE[t.theme].page};border-color:${L.BASE[t.theme].fill}` }))));
       drawThemes();
       // Shape of the picture and frame rate. 9:16 warns but does not block; 1:1 waits for the render machine to take it.
+      const CANVAS_ID = 'look-canvas';   // (not a dataset picker: the shape of the picture and the frame rate)
+      const FPS_ID = 'look-fps';
       const canvasWarn = h('p', { class: 'form-note look-warn', role: 'status' });
       const showCanvasWarn = key => { canvasWarn.textContent = (L.CANVAS[key] || {}).warn || ''; canvasWarn.hidden = !canvasWarn.textContent; };
-      const canvasSel = h('select', { id: 'look-canvas' }, ...Object.entries(L.CANVAS).map(([k, c]) =>
+      const canvasSel = h('select', { id: CANVAS_ID }, ...Object.entries(L.CANVAS).map(([k, c]) =>
         h('option', { value: k, disabled: !c.accepted }, c.accepted ? c.label : `${c.label} (not available yet)`)));
       canvasSel.value = state.film.canvas;
       canvasSel.addEventListener('change', () => showCanvasWarn(canvasSel.value));
       rows.push({ scope: 'film', index: 0, field: 'canvas', el: canvasSel, was: canvasSel.value });
-      const fpsSel = h('select', { id: 'look-fps' }, ...L.FPS.map(n => h('option', { value: String(n) }, String(n))));
+      const fpsSel = h('select', { id: FPS_ID }, ...L.FPS.map(n => h('option', { value: String(n) }, String(n))));
       fpsSel.value = String(state.film.fps);
       rows.push({ scope: 'film', index: 0, field: 'fps', el: fpsSel, was: fpsSel.value });
       showCanvasWarn(state.film.canvas);
