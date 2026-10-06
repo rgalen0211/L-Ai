@@ -236,6 +236,70 @@ class Reap(unittest.TestCase):
                 pass
             time.sleep(1)
 
+    def test_a_BACKEND_of_someone_elses_postgres_that_took_over_our_pid_is_never_touched(self):
+        """CC1 round 3, (2): a backend's command line has no -D, so only the start-time rule can call it a reused pid.
+        Plant a live victim BACKEND pid in an old folder: the folder goes, the victim keeps answering on THAT connection.
+        And (3): a postgres whose command line cannot be read counts as in use -- its old folder is kept."""
+        import psycopg
+        victim_dir = Path(self.base) / "victim-backend"
+        victim_dir.mkdir()
+        script = textwrap.dedent("""
+            import sys, time
+            import pgserver
+            s = pgserver.get_server({victim!r}, cleanup_mode="stop")
+            print(s.get_uri(), flush=True)
+            print(s.get_pid(), flush=True)
+            time.sleep(180)
+        """).format(victim=str(victim_dir))
+        proc = subprocess.Popen([sys.executable, "-c", script], stdout=subprocess.PIPE, text=True)
+        victim_pm = None
+        try:
+            uri = proc.stdout.readline().strip()
+            victim_pm = int(proc.stdout.readline().strip())
+            conn = psycopg.connect(uri, autocommit=True)
+            try:
+                backend = conn.execute("select pg_backend_pid()").fetchone()[0]
+                self.assertNotEqual(backend, victim_pm)
+                cmd = psutil.Process(backend).cmdline()
+                self.assertFalse(any(a == "-D" or a.startswith("-D") for a in cmd))     # control: the no -D path is what runs
+                old_dir = self.folder("ryagram-pgtest-reused-backend", 5, pm_pid=backend, handles=[self.DEAD])
+                self.age(old_dir)
+                self.assertEqual(pgtemp._postmaster_state(old_dir, backend), "stale")   # started after the old pid file
+                self.assertEqual(pgtemp.reap(), [str(old_dir)])
+                self.assertEqual(conn.execute("select 42").fetchone()[0], 42)           # the victim's backend still answers
+                self.assertTrue(psutil.pid_exists(backend))
+
+                # (3) the same live postgres, but its command line cannot be read: unknown = in use, never touched
+                unreadable = self.folder("ryagram-pgtest-unreadable-cmdline", 5, pm_pid=victim_pm, handles=[self.DEAD])
+                self.age(unreadable)
+                real_cmdline = psutil.Process.cmdline
+
+                def denied(self_):
+                    raise psutil.AccessDenied(self_.pid)
+                psutil.Process.cmdline = denied
+                try:
+                    self.assertEqual(pgtemp._postmaster_state(unreadable, victim_pm), "unknown")
+                    self.assertEqual(pgtemp.reap(), [])
+                finally:
+                    psutil.Process.cmdline = real_cmdline
+                self.assertTrue(unreadable.exists())
+                self.assertEqual(conn.execute("select 43").fetchone()[0], 43)
+            finally:
+                conn.close()
+        finally:
+            proc.kill()
+            if victim_pm:
+                try:
+                    main = psutil.Process(victim_pm)
+                    if pgtemp._postmaster_state(victim_dir, victim_pm) == "ours":
+                        for child in main.children(recursive=True):
+                            child.kill()
+                        main.kill()
+                        main.wait(10)
+                except psutil.NoSuchProcess:
+                    pass
+            time.sleep(1)
+
     @unittest.skipUnless(sys.platform == "win32", "an open file blocks deleting only on Windows")
     def test_a_locked_file_keeps_the_marker_so_the_next_start_retries(self):
         path = self.folder("ryagram-pgtest-locked", 5)
@@ -253,7 +317,28 @@ class Reap(unittest.TestCase):
         self.assertFalse(path.exists())
         self.assertIn("COULD NOT DELETE", (Path(self.base) / pgtemp.FAILURE_LOG).read_text())   # and the failure was recorded
 
-    def _start_orphan(self, label):
+    def _alias(self, kind):
+        """TEMP as the suites may really see it: 'plain', a JUNCTION to it, or its 8.3 SHORT name. pgserver starts postgres
+        with -D <resolved real path>, so the reaper must compare real paths (CC1 round 3, (1))."""
+        if kind == "plain":
+            return self.base
+        if sys.platform != "win32":
+            self.skipTest("junctions and 8.3 names are Windows-only")
+        if kind == "junction":
+            alias = self.base + "-junction"
+            subprocess.run(["cmd", "/c", "mklink", "/J", alias, self.base], check=True, capture_output=True)
+            # pgtemp._is_link, not exists(): by cleanup time tearDown has deleted the target, and a dangling junction
+            # does not "exist" -- it would be left behind in TEMP.
+            self.addCleanup(lambda: pgtemp._is_link(alias) and pgtemp._unlink_link(alias))
+            return alias
+        import ctypes
+        buf = ctypes.create_unicode_buffer(1024)
+        ctypes.windll.kernel32.GetShortPathNameW(self.base, buf, 1024)
+        if not buf.value or os.path.normcase(buf.value) == os.path.normcase(self.base):
+            self.skipTest("8.3 short names are off on this volume: nothing to prove")      # SKIPPED, never PASSED
+        return buf.value
+
+    def _start_orphan(self, label, temp=None):
         script = textwrap.dedent("""
             import sys, time
             sys.path.insert(0, {here!r})
@@ -262,7 +347,8 @@ class Reap(unittest.TestCase):
             print(server.pgdata, flush=True)
             time.sleep(120)
         """).format(here=str(HERE), label=label)
-        env = dict(os.environ, TEMP=self.base, TMP=self.base, TMPDIR=self.base)
+        temp = temp or self.base
+        env = dict(os.environ, TEMP=temp, TMP=temp, TMPDIR=temp)
         proc = subprocess.Popen([sys.executable, "-c", script], env=env, stdout=subprocess.PIPE, text=True)
         folder = Path(proc.stdout.readline().strip())
         return proc, folder
@@ -281,8 +367,10 @@ class Reap(unittest.TestCase):
         proc.wait(30)
 
     def _stop_everything(self, folder):
+        """A failing assertion must not leave a live cluster -- but only ever stop THIS folder's postgres (its command line
+        says -D <folder>), never a process that merely reused the pid (CC1 round 3, (4))."""
         pm = pgtemp._postmaster_pid(folder)
-        if pm and psutil.pid_exists(pm):
+        if pm and psutil.pid_exists(pm) and pgtemp._postmaster_state(folder, pm) == "ours":
             try:
                 main = psutil.Process(pm)
                 for child in main.children(recursive=True):
@@ -292,8 +380,11 @@ class Reap(unittest.TestCase):
             except psutil.NoSuchProcess:
                 pass
 
-    def test_after_a_hard_kill_the_orphaned_postgres_is_stopped_then_the_folder_deleted(self):
-        proc, folder = self._start_orphan("orphan")
+    def _orphan_case(self, kind):
+        temp = self._alias(kind)
+        tempfile.tempdir = temp                                                    # the reaper sees TEMP the same way
+        proc, folder = self._start_orphan("orphan", temp=temp)
+        real = Path(os.path.realpath(folder))
         try:
             self.assertTrue(folder.exists())
             pm = pgtemp._postmaster_pid(folder)
@@ -302,12 +393,24 @@ class Reap(unittest.TestCase):
             self.assertTrue(pgtemp._alive_postgres(pm))                            # the postgres outlived it
             self.assertEqual(pgtemp.reap(), [])                                    # too new to touch
             self.age(folder)
-            self.assertEqual(pgtemp.reap(), [str(folder)])
-            self.assertFalse(pgtemp._alive_postgres(pm))
-            self.assertFalse(folder.exists())
+            entry = next(p for p in Path(temp).glob("ryagram-pgtest-orphan-*"))    # the path exactly as reap sees it
+            self.assertEqual(pgtemp._postmaster_state(entry, pm), "ours")          # through the alias: still recognised
+            self.assertEqual(pgtemp.reap(), [str(entry)])
+            self.assertFalse(pgtemp._alive_postgres(pm))                           # stopped BEFORE its files were deleted
+            self.assertFalse(real.exists())
         finally:
             proc.kill()
-            self._stop_everything(folder)                                          # a failing assertion must not leave a live cluster
+            self._stop_everything(real)                                            # a failing assertion must not leave a live cluster
+            tempfile.tempdir = self.base
+
+    def test_after_a_hard_kill_the_orphaned_postgres_is_stopped_then_the_folder_deleted(self):
+        self._orphan_case("plain")
+
+    def test_the_orphan_is_recognised_when_TEMP_is_reached_through_a_junction(self):
+        self._orphan_case("junction")
+
+    def test_the_orphan_is_recognised_when_TEMP_is_an_8_3_short_name(self):
+        self._orphan_case("short")
 
     def test_a_live_postgres_with_no_handle_file_is_somebody_elses_and_is_left_alone(self):
         proc, folder = self._start_orphan("nohandle")

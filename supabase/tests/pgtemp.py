@@ -104,7 +104,11 @@ def _postmaster_pid(folder):
 
 
 def _norm(path):
-    return os.path.normcase(os.path.abspath(str(path)))
+    """The REAL path, compared case-insensitively. pgserver starts postgres with -D <Path(pgdata).resolve()>, so TEMP
+    reached through a junction, or written with an 8.3 short name (Windows' default for long or spaced user names),
+    must be resolved the same way -- abspath left them unequal, our own orphan read as 'stale', and its RUNNING
+    cluster's files were deleted (CC1 round 3, (1))."""
+    return os.path.normcase(os.path.realpath(str(path)))
 
 
 def _postmaster_state(folder, pid):
