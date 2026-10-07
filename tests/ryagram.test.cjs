@@ -33,7 +33,7 @@ function walk(node, visit) {
   (node.children || []).forEach(child => walk(child, visit));
 }
 
-function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test' }, slots = [], website = '', useCase = '  ', search } = {}) {
+function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test' }, slots = [], website = '', useCase = '  ', search, pathname, navigator } = {}) {
   const listeners = {};
   const button = {};
   const fields = {};
@@ -56,7 +56,8 @@ function harness({ fetch = async () => ({ ok: true, status: 201 }), config = { s
     window: { ryagramConfig: config },
     fetch: (url, options) => { requests.push({ url, options }); return fetch(url, options); },
     URL, URLSearchParams, AbortController, setTimeout, clearTimeout,
-    ...(search === undefined ? {} : { location: { search } })
+    ...(search === undefined && pathname === undefined ? {} : { location: { search: search || '', pathname: pathname || '/ryagram/' } }),
+    ...(navigator === undefined ? {} : { navigator })
   });
   return { button, fields, status, requests, created, submit: () => listeners.submit({ preventDefault() {} }) };
 }
@@ -186,7 +187,9 @@ test('the page policy lets YouTube thumbnails and the nocookie frame through, an
     .split(';').map(part => part.trim().split(/\s+/)).filter(parts => parts[0]).map(([name, ...sources]) => [name, sources]));
   assert.ok(csp['img-src'].includes('https://i.ytimg.com'));
   assert.deepEqual(csp['frame-src'], ['https://www.youtube-nocookie.com']);
-  assert.deepEqual(csp['script-src'], ["'self'", 'https://connect.facebook.net']);
+  // Cloudflare Web Analytics (cookieless visit count, 2026-10-06): its beacon script and its report endpoint, nothing else new.
+  assert.deepEqual(csp['script-src'], ["'self'", 'https://connect.facebook.net', 'https://static.cloudflareinsights.com']);
+  assert.ok(csp['connect-src'].includes('https://cloudflareinsights.com'));
   assert.ok(!csp['connect-src'].some(source => /youtube|ytimg/.test(source)));
 });
 
@@ -264,4 +267,85 @@ test('repeated submits while waiting create only one request', async () => {
   resolve({ ok: true, status: 201 });
   await first;
   assert.equal(h.button.disabled, false);
+});
+
+// ---- ?ref= and the cookieless visit tally (2026-10-06) --------------------------------------------------
+test('?ref= is kept with the signup, last, cleaned and short', async () => {
+  const h = harness({ search: '?utm_source=youtube&utm_campaign=r002&ref=YouTube%20Desc!' });
+  await h.submit();
+  assert.equal(JSON.parse(h.requests[0].options.body).source, 'uselai.com/ryagram?utm_source=youtube&utm_campaign=r002&ref=YouTubeDesc');
+  const only = harness({ search: '?ref=' + 'z'.repeat(40) });
+  await only.submit();
+  assert.equal(JSON.parse(only.requests[0].options.body).source, 'uselai.com/ryagram?ref=' + 'z'.repeat(24));
+  const none = harness({ search: '?other=1' });
+  await none.submit();
+  assert.equal(JSON.parse(none.requests[0].options.body).source, 'uselai.com/ryagram');
+});
+
+const COUNTING = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test', visitCounting: true };
+const visitCalls = h => h.requests.filter(r => r.url.endsWith('/rest/v1/rpc/record_visit'));
+
+test('a visit is counted once per load with only the path and the source, when the switch is on', () => {
+  const h = harness({ config: COUNTING, search: '?ref=YouTube&utm_source=other', navigator: { userAgent: 'Mozilla/5.0' } });
+  const calls = visitCalls(h);
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0].url, 'https://proj.supabase.co/rest/v1/rpc/record_visit');
+  assert.deepEqual(JSON.parse(calls[0].options.body), { p_path: '/ryagram/', p_source: 'youtube' });         // ref wins, lower case
+  assert.equal(calls[0].options.method, 'POST');
+  assert.deepEqual(Object.keys(calls[0].options.headers).sort(), ['Content-Type', 'apikey']);               // no cookie, no credentials, no id
+  assert.equal(calls[0].options.credentials, undefined);
+  assert.equal(visitCalls(harness({ config: COUNTING, search: '?utm_source=youtube', navigator: {} }))[0].options.body.includes('"youtube"'), true);
+  assert.deepEqual(JSON.parse(visitCalls(harness({ config: COUNTING, search: '', navigator: {} }))[0].options.body), { p_path: '/ryagram/', p_source: '' });
+  assert.equal(JSON.parse(visitCalls(harness({ config: COUNTING, search: '?ref=' + 'Q'.repeat(40), navigator: {} }))[0].options.body).p_source, 'q'.repeat(24));
+});
+
+test('nothing is counted when the switch is off, off the ryagram page, or for Do Not Track, GPC, automation and crawlers', () => {
+  const off = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test' };
+  assert.equal(visitCalls(harness({ config: off, navigator: {} })).length, 0);                                   // switch off by default
+  assert.equal(visitCalls(harness({ config: { ...COUNTING, visitCounting: 'true' }, navigator: {} })).length, 0); // only the boolean true
+  assert.equal(visitCalls(harness({ config: { visitCounting: true }, navigator: {} })).length, 0);              // not connected
+  assert.equal(visitCalls(harness({ config: COUNTING, pathname: '/app/', navigator: {} })).length, 0);
+  assert.equal(visitCalls(harness({ config: COUNTING, pathname: '/ryagram/index.html', navigator: {} })).length, 1);
+  for (const nav of [{ doNotTrack: '1' }, { globalPrivacyControl: true }, { webdriver: true }, { userAgent: 'Googlebot/2.1' }, { userAgent: 'HeadlessChrome' }, { userAgent: 'Mozilla Lighthouse' }]) {
+    assert.equal(visitCalls(harness({ config: COUNTING, navigator: nav })).length, 0, JSON.stringify(nav));
+  }
+  assert.equal(visitCalls(harness({ config: COUNTING })).length, 0);                                            // no navigator at all: do nothing
+});
+
+test('a failing or throwing count never breaks the page or the waitlist form', async () => {
+  const h = harness({ config: COUNTING, navigator: {}, fetch: async (url) => { if (url.endsWith('record_visit')) throw new Error('offline'); return { ok: true, status: 201 }; } });
+  await new Promise(r => setTimeout(r, 5));
+  await h.submit();
+  assert.match(h.status.textContent, /on the list/);
+});
+
+// ---- Cloudflare Web Analytics beacon (analytics.js) ---------------------------------------------------
+const analyticsCode = fs.readFileSync(path.join(__dirname, '../assets/analytics.js'), 'utf8');
+function beaconRun(pathname, token) {
+  const appended = [];
+  vm.runInNewContext(analyticsCode, {
+    window: { location: { pathname }, laiAnalyticsConfig: { metaPixelId: '', cloudflareBeaconToken: token } },
+    document: { head: { appendChild: n => appended.push(n) }, createElement: () => ({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; } }) }
+  });
+  return appended;
+}
+test('the Cloudflare beacon loads only on /ryagram/, only with a 32-hex token, and carries nothing else', () => {
+  const token = 'a'.repeat(32);
+  const one = beaconRun('/ryagram/', token);
+  assert.equal(one.length, 1);
+  assert.equal(one[0].src, 'https://static.cloudflareinsights.com/beacon.min.js');
+  assert.equal(one[0].defer, true);
+  assert.deepEqual(JSON.parse(one[0].attrs['data-cf-beacon']), { token });
+  assert.equal(beaconRun('/ryagram/index.html', token).length, 1);
+  for (const [p, t] of [['/', token], ['/workflow-audit/', token], ['/app/', token], ['/ryagram/', ''], ['/ryagram/', 'xyz'], ['/ryagram/', 'A'.repeat(32)], ['/ryagram/', undefined]]) {
+    assert.equal(beaconRun(p, t).length, 0, `${p} ${t}`);
+  }
+});
+
+test('the shipped config has counting off: no visitor is counted and no script is added until Ryan turns it on', () => {
+  const cfg = fs.readFileSync(path.join(__dirname, '../assets/ryagram-config.js'), 'utf8');
+  assert.match(cfg, /visitCounting: false/);
+  assert.match(fs.readFileSync(path.join(__dirname, '../assets/analytics-config.js'), 'utf8'), /cloudflareBeaconToken: ''/);
+  const privacy = fs.readFileSync(path.join(__dirname, '../privacy-policy.html'), 'utf8');
+  assert.match(privacy, /Cloudflare Web Analytics[^<]*cookieless[^<]*no personal profiles/);
 });

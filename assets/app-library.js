@@ -68,6 +68,7 @@
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
+        else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -128,7 +129,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list];
     }
@@ -166,6 +167,48 @@
         h('h1', { tabindex: '-1' }, 'Waitlist by film'),
         h('p', { class: 'form-note' }, 'Signups per film link (the utm_campaign in each film\u2019s description), by day in New York time. Counts only: no email addresses are shown here.'),
         h('div', { class: 'inline-row' }, h('label', { for: 'wl-days' }, 'Period'), range),
+        body, error
+      ];
+    }
+
+    // --- #/admin/visits  Ryan only: visits to /ryagram/ by day and by link source, with signups beside them and the
+    // signup rate. A cookieless tally (SQL 20261006000100): counts only, nothing about any visitor.
+    async function visitsAdminView(onStop) {
+      const A = window.ryagramAdmin;
+      const error = errorLine();
+      const DAYS_ID = 'vs-days';   // (a reporting period, not a dataset picker)
+      const range = h('select', { id: DAYS_ID },
+        [[7, 'Last 7 days'], [30, 'Last 30 days'], [90, 'Last 90 days']].map(([d, t]) => h('option', { value: String(d) }, t)));
+      range.value = '30';
+      const body = h('div', { class: 'admin-body' }, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      const th = (t, num) => h('th', { scope: 'col', class: num ? 'num' : null }, t);
+      async function load() {
+        error.hidden = true;
+        try {
+          const [days, sources] = await Promise.all([data.visitsByDay(Number(range.value)), data.visitsBySource(Number(range.value))]);
+          const t = A.visitTotals(days);
+          const top = A.topSources(sources);
+          body.replaceChildren(
+            h('p', {}, `${t.visits.toLocaleString('en-US')} visit${t.visits === 1 ? '' : 's'}, ${t.signups.toLocaleString('en-US')} signup${t.signups === 1 ? '' : 's'}: ${t.rate} of visits became a signup.`),
+            h('h2', {}, 'Top sources'),
+            top.length ? h('table', { class: 'admin-table' },
+              h('thead', {}, h('tr', {}, th('Source'), th('Visits', true), th('Signups', true), th('Signup rate', true))),
+              h('tbody', {}, top.map(r => h('tr', {}, h('td', {}, A.sourceLabel(r.source)), h('td', { class: 'num' }, String(r.visits)),
+                                           h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : h('p', { class: 'form-note' }, 'Nothing counted yet.'),
+            h('h2', {}, 'By day'),
+            days.length ? h('table', { class: 'admin-table' },
+              h('thead', {}, h('tr', {}, th('Day'), th('Visits', true), th('Signups', true), th('Signup rate', true))),
+              h('tbody', {}, days.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', { class: 'num' }, String(r.visits)),
+                                          h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : null);
+        } catch (err) { body.replaceChildren(); showError(error, err); }
+      }
+      range.addEventListener('change', load);
+      load();
+      return [
+        h('a', { href: '#/', class: 'back' }, '\u2190 All projects'),
+        h('h1', { tabindex: '-1' }, 'Visits and signups'),
+        h('p', { class: 'form-note' }, 'Page loads of uselai.com/ryagram/ by day (New York time) and by link source (?ref=youtube, or the film link\u2019s utm_source), next to waitlist signups. A cookieless tally: nothing identifies a visitor, so these are visits, not people. Cloudflare Web Analytics is the independent total.'),
+        h('div', { class: 'inline-row' }, h('label', { for: DAYS_ID }, 'Period'), range),
         body, error
       ];
     }

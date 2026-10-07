@@ -75,13 +75,46 @@
     const base = 'uselai.com/ryagram';
     let params;
     try { params = new URLSearchParams(search || ''); } catch { return base; }
-    const tags = ['utm_source', 'utm_medium', 'utm_campaign']
-      .map(k => [k, String(params.get(k) || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 40)])
+    // `ref` (e.g. ?ref=youtube in a video description) is stored the same way, last, so a long link can only cut it.
+    const tags = ['utm_source', 'utm_medium', 'utm_campaign', 'ref']
+      .map(k => [k, String(params.get(k) || '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, k === 'ref' ? 24 : 40)])
       .filter(([, v]) => v);
     if (!tags.length) return base;
     return `${base}?${tags.map(([k, v]) => `${k}=${v}`).join('&')}`.slice(0, 100);
   }
   const landedFrom = waitlistSource(typeof location !== 'undefined' ? location.search : '');
+
+  // Which link brought this visit: ?ref=, or failing that utm_source. Lower case, letters digits . _ - only, 24 at most.
+  // The same rule the signup's source is read with in SQL (20261006000100_visit_counting.sql).
+  function visitSource(search) {
+    let params;
+    try { params = new URLSearchParams(search || ''); } catch { return ''; }
+    const clean = v => String(v || '').toLowerCase().replace(/[^a-z0-9._-]/g, '').slice(0, 24);
+    return clean(params.get('ref')) || clean(params.get('utm_source'));
+  }
+
+  // A cookieless tally of visits to /ryagram/ for Ryan's private view: one increment per page load, by day and source.
+  // Nothing identifies the visitor (no cookie, no storage, no id; the database never sees an address). Off until
+  // ryagramConfig.visitCounting is true (its SQL must be applied first); skipped for Do Not Track, Global Privacy Control,
+  // automated browsers and obvious crawlers. Never blocks or changes the page.
+  function recordVisit() {
+    try {
+      const cfg = window.ryagramConfig || {};
+      const base = String(cfg.supabaseUrl || '').replace(/\/+$/, '');
+      const publicKey = String(cfg.supabaseKey || '');
+      if (cfg.visitCounting !== true || !base || !publicKey) return;
+      if (typeof location === 'undefined' || typeof navigator === 'undefined') return;
+      if (location.pathname.replace(/index\.html$/, '') !== '/ryagram/') return;
+      if (navigator.doNotTrack === '1' || navigator.globalPrivacyControl === true || navigator.webdriver) return;
+      if (/bot|crawl|spider|headless|preview|lighthouse/i.test(navigator.userAgent || '')) return;
+      const headers = { apikey: publicKey, 'Content-Type': 'application/json' };
+      if (publicKey.startsWith('eyJ')) headers.Authorization = `Bearer ${publicKey}`;
+      Promise.resolve(fetch(`${base}/rest/v1/rpc/record_visit`, {
+        method: 'POST', keepalive: true, headers, body: JSON.stringify({ p_path: '/ryagram/', p_source: visitSource(location.search) })
+      })).catch(() => {});
+    } catch { /* counting must never get in the way of the page */ }
+  }
+  recordVisit();
 
   const form = document.getElementById('waitlist-form');
   if (!form) return;

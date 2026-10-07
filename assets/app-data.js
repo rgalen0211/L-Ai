@@ -295,6 +295,13 @@
       waitlistByFilm(days) {
         return run(client.rpc('waitlist_by_film', { p_days: days }), 'Couldn\u2019t load the waitlist counts.');
       },
+      // Visits to /ryagram/ (a cookieless tally, SQL 20261006000100) next to signups, by day and by link source. Admin only.
+      visitsByDay(days) {
+        return run(client.rpc('visits_by_day', { p_days: days }), 'Couldn\u2019t load the visit counts.');
+      },
+      visitsBySource(days) {
+        return run(client.rpc('visits_by_source', { p_days: days }), 'Couldn\u2019t load the visit counts.');
+      },
 
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
       // which builds the page's sources from the receipt; stopping is a plain RPC.
