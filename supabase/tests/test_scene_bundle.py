@@ -266,6 +266,27 @@ class Bundles(core.Base):
         _, other_vid = self.project_with_version(who=OTHER)
         self.assertEqual(self.request(other_vid, OTHER)[0], "building")    # per person, not global
 
+    def test_at_most_twenty_builds_an_hour(self):
+        vids = [self.project_with_version()[1] for _ in range(21)]
+        for vid in vids[:20]:
+            self.assertEqual(self.request(vid)[0], "building")
+            self.admin("update jobs set state = 'cancelled', ended_at = now() where version_id = %s "
+                       "and job_type = 'scene_bundle' returning 1", vid)            # not the in-flight cap
+        with self.assertRaisesRegex(psycopg.Error, "20 previews"):
+            self.request(vids[20])
+        self.admin("update jobs set created_at = now() - interval '61 minutes' where job_type = 'scene_bundle' "
+                   "returning 1")
+        self.assertEqual(self.request(vids[20])[0], "building")              # an hour later
+
+    def test_uploaded_data_films_are_not_bundled_in_v1(self):
+        _, vid = self.project_with_version()
+        ds = self.admin("insert into datasets (owner_id, name, source, status) values (%s, 'mine', 'upload', "
+                        "'approved') returning id", RYAN)
+        self.admin("update versions set dataset_id = %s where id = %s returning 1", ds, vid)
+        with self.assertRaisesRegex(psycopg.Error, "catalog films only"):
+            self.request(vid)
+        self.assertEqual(self.jobs(vid), 0)
+
 
 # The 2B ledger loaded on top: a bundle is priced at 0, holds nothing, writes no rows.
 class BundlesAreFree(unittest.TestCase):

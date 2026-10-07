@@ -13,7 +13,9 @@
 --     Change either and the next request builds a new one.
 --   * Only the version's owner can ask for it or read it (the existing artifact rules:
 --     owner_may_read needs the artifact's owner to be the reader, and the job complete).
---   * Free: never charged. (phase-2b/credits_ledger.sql prices it at 0 credits.)
+--   * Free: never charged. (phase-2b/credits_ledger.sql prices it at 0 credits.) Capped
+--     instead: 3 building at once and 20 new builds an hour per person.
+--   * v1: catalog films only (no uploaded datasets), per WEB-LIVE-PREVIEW.md.
 --   * Off until the worker can build bundles: 'scene_bundle' starts in
 --     control.disabled_job_types. Ryan removes it from there to turn bundles on.
 
@@ -167,13 +169,20 @@ begin
   if 'scene_bundle' = any (ctl.disabled_job_types) then
     raise exception 'Interactive previews are paused.' using errcode = '42501';
   end if;
-  if v.dataset_id is not null and not exists (
-       select 1 from public.datasets d where d.id = v.dataset_id and d.owner_id = me and d.status = 'approved') then
-    raise exception 'The dataset has not been approved.' using errcode = '42501';
+  -- v1: catalog films only. A bundle carries the values the film draws, and for an
+  -- upload those are the person's own; not stored as a bundle until CC1 has reviewed
+  -- that (WEB-LIVE-PREVIEW.md, decision 2). Lifting this is one line.
+  if v.dataset_id is not null then
+    raise exception 'Interactive previews are for catalog films only for now.' using errcode = '42501';
   end if;
   if (select count(*) from public.jobs where owner_id = me and job_type = 'scene_bundle'
         and state in ('queued', 'claimed', 'running', 'validating', 'uploading')) >= 3 then
     raise exception 'Three previews are already being built. Try again when one is ready.' using errcode = '42501';
+  end if;
+  -- A free job must not be a way to load the render machine (WEB: 20 new builds an hour).
+  if (select count(*) from public.jobs where owner_id = me and job_type = 'scene_bundle'
+        and created_at > now() - interval '1 hour') >= 20 then
+    raise exception 'That is 20 previews built in the last hour. Try again later.' using errcode = '42501';
   end if;
 
   perform set_config('ryagram.scene_bundle_request', 'on', true);
