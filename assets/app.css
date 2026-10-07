@@ -139,6 +139,8 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .theme-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin:8px 0}
 .theme-grid .template-card{display:flex;flex-direction:column;gap:6px}
 .look-theme-chip{display:block;height:18px;border:6px solid;border-radius:6px}
+.chip-dark{background:#14141a;border-color:#1f1f27}
+.chip-light{background:#fcfcfb;border-color:#f6f5f1}
 .look-colour{display:flex;gap:8px;align-items:center}
 .look-swatch{width:42px;height:32px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
 @media(max-width:860px){.theme-grid{grid-template-columns:repeat(2,1fr)}}

@@ -957,7 +957,7 @@
       const drawThemes = () => themeCards.replaceChildren(...Object.entries(L.THEMES).map(([key, t]) => h('label', { class: `template-card${key === chosenTheme ? ' is-chosen' : ''}` },
         h('input', { type: 'radio', name: 'look-theme', value: key, checked: key === chosenTheme, onchange: () => {
           chosenTheme = key; themeNote.textContent = `${t.blurb} Choosing a theme puts the map and dot colours back to its own.`; drawThemes(); } }),
-        h('strong', {}, t.label), h('span', { class: 'look-theme-chip', style: `background:${L.BASE[t.theme].page};border-color:${L.BASE[t.theme].fill}` }))));
+        h('strong', {}, t.label), h('span', { class: `look-theme-chip chip-${t.theme}` }))));
       drawThemes();
       // Shape of the picture and frame rate. 9:16 warns but does not block; 1:1 waits for the render machine to take it.
       const CANVAS_ID = 'look-canvas';   // (not a dataset picker: the shape of the picture and the frame rate)
