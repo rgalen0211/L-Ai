@@ -74,6 +74,8 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 .rg-steps p{color:var(--muted)}
 .rg-release{margin-top:22px;padding:14px 16px;border-left:4px solid var(--accent);background:var(--panel);border-radius:0 12px 12px 0}
 
+.rg-checks{margin-top:14px;color:var(--muted);font-size:.98rem;max-width:62ch}
+
 /* waitlist */
 .rg-cta{background:var(--panel)}
 .rg-waitlist{display:grid;gap:24px}

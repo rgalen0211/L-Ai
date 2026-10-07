@@ -30,7 +30,7 @@ ROOT = Path(__file__).resolve().parents[1]
 PORT = 8130
 W, H = 390, 844
 
-CAPTION_JS = """
+CAPTION_JS = r"""
 (() => {
   if (document.getElementById('rg-cap')) return;
   const css = document.createElement('style');
@@ -47,13 +47,31 @@ CAPTION_JS = """
   document.head.append(css);
   const cap = document.createElement('div'); cap.id = 'rg-cap'; cap.setAttribute('aria-hidden', 'true'); document.body.append(cap);
   const tap = document.createElement('div'); tap.id = 'rg-tap'; document.body.append(tap);
+  // NO PRICES IN THE VIDEO (Ryan, 2026-10-07): the app shows credits, prices and "free" next to its buttons and jobs. They are removed
+  // from the page while recording: " . free", " . 8 credits" after a label, and any line that is only a credit or free note.
+  const hideCss = document.createElement('style'); hideCss.textContent = '.rg-hide,.credit-line,.credit-balance{display:none!important}'; document.head.append(hideCss);
+  const PRICE_TAIL = /\s*\u00b7\s*(?:free preview|free|\d+ credits?)\b/gi;
+  const PRICE_LINE = /^(?:free(?: preview)?|\d+ credits?(?: held until it finishes| spent)?|credits?:?\s.*available|.*\bcredits? (?:held|spent|available)\b.*)$/i;
+  function scrub(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = []; while (walker.nextNode()) nodes.push(walker.currentNode);
+    for (const n of nodes) {
+      const t = n.nodeValue;
+      if (PRICE_TAIL.test(t)) { PRICE_TAIL.lastIndex = 0; n.nodeValue = t.replace(PRICE_TAIL, ''); }
+      PRICE_TAIL.lastIndex = 0;
+      const el = n.parentElement;
+      if (el && !el.closest('#rg-cap') && PRICE_LINE.test(n.nodeValue.trim())) el.classList.add('rg-hide');
+    }
+  }
+  scrub(document.body);
+  new MutationObserver(() => scrub(document.body)).observe(document.body, { childList: true, subtree: true, characterData: true });
   window.__caption = t => { cap.textContent = t || ''; cap.classList.toggle('on', !!t); };
   window.__tap = (x, y) => { tap.style.left = x + 'px'; tap.style.top = y + 'px'; tap.classList.add('on'); setTimeout(() => tap.classList.remove('on'), 380); };
 })();
 """
 
 # The scripted editor: applies the change through ryagramLook (the function the real editor's set_look uses) and answers in plain words.
-EDITOR_JS = """
+EDITOR_JS = r"""
 (() => {
   const c = window.ryagramMock.client;
   c.db.projects[0].title = 'Obesity and fast food';   // the mock's own title says (mock)
@@ -90,8 +108,16 @@ class Recorder:
     def __init__(self, page, frames_dir):
         self.page, self.dir, self.frames, self.t0, self.n = page, frames_dir, [], time.time(), 0
         self.marks = []
+        self.seen = {}
+        self.last_text = 0
 
     def shoot(self):
+        if time.time() - self.last_text > 0.5:
+            self.last_text = time.time()
+            for line in self.page.evaluate('document.body.innerText').splitlines():
+                line = line.strip()
+                if line:
+                    self.seen[line] = True
         path = self.dir / f'f{self.n:05d}.jpg'
         self.page.screenshot(path=str(path), type='jpeg', quality=88)
         self.frames.append((time.time() - self.t0, path.name))
@@ -147,6 +173,7 @@ def record(out: Path, film: Path | None):
             vid = page.evaluate('window.ryagramMock.client.db.versions[0].id')
             page.evaluate("id => { location.hash = '#/v/' + id }", vid)
             page.wait_for_selector('.template-picker summary')
+            r.seen.clear()                       # only the words that can appear in the video: from this page on
             r.pace(0.5)
             r.caption('Pick a topic.')
             r.tap(page.locator('.template-picker summary'))
@@ -229,6 +256,7 @@ def record(out: Path, film: Path | None):
     finally:
         srv.shutdown()
     (out / 'frames.json').write_text(json.dumps(r.frames))
+    (out / 'seen-text.json').write_text(json.dumps(list(r.seen)))
     print('caption marks (s):', r.marks, 'end', round(r.frames[-1][0], 1))
     return r.frames
 
@@ -261,6 +289,11 @@ def encode(out: Path, film: Path | None):
     final = out / 'walkthrough.mp4'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', str(listing), '-c:v', 'libx264', '-preset', 'slow', '-crf', '27',
                     '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-an', str(final)], check=True)
+    # The words that were on the page while recording, with the video's hash so the pair cannot drift apart (a test reads this).
+    import hashlib
+    seen = json.loads((out / 'seen-text.json').read_text()) if (out / 'seen-text.json').exists() else []
+    digest = hashlib.sha256(final.read_bytes()).hexdigest()
+    (out / 'walkthrough.text.txt').write_text('sha256 ' + digest + chr(10) + chr(10).join(seen) + chr(10), encoding='utf-8', newline=chr(10))
     return final
 
 

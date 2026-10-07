@@ -242,7 +242,7 @@ test('failures keep the form and allow retry', async () => {
     assert.notEqual(h.fields.hidden, true);
     assert.equal(h.button.disabled, false);
     assert.equal(h.status.focused, true);
-    assert.match(h.status.textContent, /ryan\.galen@uselai\.com/);
+    assert.match(h.status.textContent, /ryagram@uselai\.com/);
   }
 });
 
@@ -385,10 +385,39 @@ test('the Compilation Maker section is an illustration with public-domain words,
   assert.match(sec, /public-domain words \(Lincoln, 1863\)/);
 });
 
-test('how it works is three steps, with the release date left as a placeholder for Ryan', () => {
+test('how it works is three steps, one checks line (no strip), and the release line Ryan gave', () => {
   const how = pageHtml.match(/<section id="how"[\s\S]*?<\/section>/)[0];
   assert.equal([...how.matchAll(/<h3>/g)].length, 3);
-  assert.ok(how.includes('[RELEASE DATE]'));
+  assert.match(how, /<p class="rg-release">Private beta opening soon\. Join the waitlist and we'll tell you\.<\/p>/);
+  assert.doesNotMatch(pageHtml, /\[RELEASE DATE\]/);
+  const checks = [...pageHtml.matchAll(/<p class="rg-checks">([^<]*)<\/p>/g)];
+  assert.equal(checks.length, 1);                                              // ONE line
+  assert.match(checks[0][1], /^Every film is checked against its data before you get it: /);
+  assert.doesNotMatch(pageHtml, /check-list|checks-strip|rg-strip-checks|Correctness checks/);   // and no strip or section
+  assert.match(pageHtml, /<h1 id="hero-title">Type a question\. Get an animated data film\.<\/h1>/);   // the hero line stays
+});
+
+test('the operator is L\'Ai, LLC everywhere it is named; Ryagram pages, the policy and the app give ryagram@, the main pages ryan.galen@', () => {
+  const page = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const named = ['index.html', 'ryagram/index.html', 'privacy-policy.html', 'workflow-audit/index.html', 'workflow-audit-thanks.html', 'film/index.html', 'app/index.html'];
+  for (const f of named) {
+    const html = page(f);
+    assert.doesNotMatch(html, /Seasonings/, f);
+    assert.match(html, /L'Ai, LLC/, f);
+  }
+  // Ryagram's own pages, the policy and the app: ryagram@, never the personal address.
+  for (const f of ['ryagram/index.html', 'privacy-policy.html', 'app/index.html']) {
+    const html = page(f);
+    assert.match(html, /mailto:ryagram@uselai\.com/, f);
+    assert.doesNotMatch(html, /ryan\.galen@uselai\.com/, f);
+  }
+  assert.match(page('assets/ryagram.js'), /const CONTACT = 'ryagram@uselai\.com';/);
+  // The main uselai.com pages keep Ryan's address.
+  for (const f of ['index.html', 'workflow-audit/index.html', 'workflow-audit-thanks.html', 'thank-you.html']) assert.match(page(f), /ryan\.galen@uselai\.com/, f);
+  // The app names its operator and links the policy (it had no footer before).
+  assert.match(page('app/index.html'), /<footer class="app-foot"><span>Ryagram is operated by L'Ai, LLC\.<\/span><a href="mailto:ryagram@uselai\.com">ryagram@uselai\.com<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><\/footer>/);
+  // The Auth email templates live in the Supabase dashboard: the README says what to paste.
+  assert.match(page('supabase/README.md'), /Ryagram is operated by L'Ai, LLC\. Questions: ryagram@uselai\.com/);
 });
 
 test('the waitlist form keeps its fields: required email, optional "What do you do?", the bot trap, and the call to action repeats', () => {
@@ -457,4 +486,22 @@ test('without IntersectionObserver the loops simply play; a refused play never t
   assert.deepEqual(r.loops.map(v => v.played), [1, 1]);
   const bad = video(); bad.play = () => { throw new Error('refused'); };
   assert.doesNotThrow(() => runLoops({ observer: false, loops: [bad] }));
+});
+
+// ---- the walkthrough video's words (no prices, no credits) ---------------------------------------------------------------
+test('the walkthrough shows no credits, prices or "free" labels: the words on the page while it was recorded are saved beside it, tied to the exact video by its hash', () => {
+  const crypto = require('node:crypto');
+  const list = fs.readFileSync(path.join(__dirname, 'fixtures', 'walkthrough.text.txt'), 'utf8').split(/\r?\n/).filter(Boolean);
+  const video = fs.readFileSync(path.join(__dirname, '../assets/ryagram-walkthrough.mp4'));
+  assert.equal(list[0], `sha256 ${crypto.createHash('sha256').update(video).digest('hex')}`);   // this list belongs to THIS video
+  const words = list.slice(1);
+  assert.ok(words.length > 60, 'the recorder captured the page text');
+  for (const must of ['Shape the film', 'Make contact sheet', 'Make preview', 'Render final film', 'Editor']) assert.ok(words.includes(must), must);
+  const priced = words.filter(w => /\bcredits?\b(?!\s*line)|\bfree\b|\bpric(e|es|ing)\b|[$][0-9]|\b\d+\s*cr\b/i.test(w) && !/^Credit line$/.test(w));
+  assert.deepEqual(priced, []);
+  assert.doesNotMatch(words.join('\n'), /\(mock\)|mock@|localhost/i);              // and none of the mock app's own labels
+});
+test('the recorder keeps prices out of the video by rewriting the page while it records, and saves the words it saw', () => {
+  const rec = fs.readFileSync(path.join(__dirname, '../tools/record-walkthrough.py'), 'utf8');
+  for (const part of ['PRICE_TAIL', 'PRICE_LINE', 'MutationObserver', 'walkthrough.text.txt', 'seen-text.json']) assert.ok(rec.includes(part), part);
 });

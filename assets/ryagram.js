@@ -1,5 +1,5 @@
 (() => {
-  const CONTACT = 'ryan.galen@uselai.com';
+  const CONTACT = 'ryagram@uselai.com';
 
   // Accepts a bare video ID or any common YouTube link; returns '' for anything else.
   function youtubeId(value) {
