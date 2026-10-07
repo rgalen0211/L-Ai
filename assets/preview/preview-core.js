@@ -24,6 +24,15 @@
     const clock = scene.clock;
     if (!clock || !Array.isArray(clock.periods) || !clock.periods.length || clock.periods.length > 2000) bad('The preview has no timeline.');
     if (clock.periods.some(p => typeof p !== 'string' || p.length > 12)) bad('The preview timeline is damaged.');
+    // The engine's real clock: one [period index, tween share] per frame (BUILDER's scene-draw.js reads exactly this).
+    if (clock.ticks !== undefined) {
+      if (!Array.isArray(clock.ticks) || clock.ticks.length !== scene.frames) bad('The preview timeline is damaged.');
+      let prev = 0;
+      for (const t of clock.ticks) {
+        if (!Array.isArray(t) || t.length !== 2 || !isInt(t[0], 0, clock.periods.length - 1) || typeof t[1] !== 'number' || !(t[1] >= 0 && t[1] < 1) || t[0] < prev) bad('The preview timeline is damaged.');
+        prev = t[0];
+      }
+    }
     if (scene.marks !== undefined) {
       if (!Array.isArray(scene.marks) || scene.marks.length !== clock.periods.length) bad('The preview timeline is damaged.');
       let prev = -1;
@@ -37,6 +46,13 @@
   // frames_per_period and the stills, as the engine's timeline spaces them (a still holds the clock where it stands).
   function marksOf(scene) {
     if (Array.isArray(scene.marks)) return scene.marks.slice();
+    // From the real clock: period i is shown exactly at the first frame whose tick is [i, 0].
+    if (Array.isArray(scene.clock.ticks)) {
+      const out = new Array(scene.clock.periods.length).fill(-1);
+      scene.clock.ticks.forEach((t, f) => { if (t[1] === 0 && out[t[0]] < 0) out[t[0]] = f; });
+      let last = 0;
+      return out.map(m => { if (m < 0) m = last; last = m; return m; }).map((m, i, a) => (i > 0 && m <= a[i - 1] ? Math.min(scene.frames - 1, a[i - 1] + 1) : m));
+    }
     const n = scene.clock.periods.length;
     const per = scene.clock.frames_per_period || Math.max(1, Math.floor((scene.frames - 1) / Math.max(1, n - 1)));
     const stills = (scene.clock.stills || []).slice().sort((a, b) => a.first - b.first);
@@ -63,7 +79,20 @@
     if (i >= marks.length - 1) return marks[i];
     return (frame - marks[i]) < (marks[i + 1] - frame) ? marks[i] : marks[i + 1];
   }
-  const stills = scene => (scene.clock.stills || []).map(s => ({ first: s.first, last: s.last }));
+  // Where the film holds still: listed by the bundle, or the runs of two or more frames at exactly a year (tween share 0).
+  function stills(scene) {
+    if (Array.isArray(scene.clock.stills)) return scene.clock.stills.map(s => ({ first: s.first, last: s.last }));
+    const out = [];
+    const ticks = scene.clock.ticks;
+    if (!Array.isArray(ticks)) return out;
+    let start = -1;
+    for (let f = 0; f <= ticks.length; f++) {
+      const still = f < ticks.length && ticks[f][1] === 0 && (start < 0 || ticks[f][0] === ticks[start][0]);
+      if (still && start < 0) start = f;
+      else if (!still && start >= 0) { if (f - start >= 2) out.push({ first: start, last: f - 1 }); start = f < ticks.length && ticks[f][1] === 0 ? f : -1; }
+    }
+    return out;
+  }
 
   // ---- (c) smoothness ------------------------------------------------------------------------------------------
   // Drawing times (ms) of the last 10 frames. 'live' draws every frame the thumb passes; 'snap' shows exact years while it

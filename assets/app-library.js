@@ -1067,7 +1067,7 @@
       async function load() {
         error.hidden = true;
         if (typeof DecompressionStream !== 'function') throw new Error('This browser can\u2019t open the preview. Update it, or use a recent Chrome, Edge, Safari or Firefox.');
-        if (!window.ryagramSceneDraw) throw new Error('The preview isn\u2019t ready on this site yet.');
+        if (!window.RyagramScene) throw new Error('The preview isn\u2019t ready on this site yet.');
         say('Preparing your preview\u2026');
         let row = await data.requestSceneBundle(v.id);
         for (let i = 0; row && row.status === 'building' && i < 60; i++) { await wait(2000); row = await data.requestSceneBundle(v.id); }

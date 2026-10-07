@@ -1,0 +1,6 @@
+A REAL scene bundle from the engine's exporter, of the engine's own SYNTHETIC `network_fixture` dataset (a made-up road network): not real data, not Interstate.
+engine:   ryagram scenebundle-engine @ ac084755a002913dee40bba6ceadf86e495aa48f (clean)
+command:  python -m ryagram.preview.bundle story.json --out <folder>   then   node tools/pack-scene-fixture.mjs <folder>
+story:    {"schema":1,"name":"scene-bundle-fixture","engine":"sequence","sequence":{"fps":30,"hold_seconds":1.0,"clips":[{"kind":"render","id":"net","dataset":"network_fixture","view":"map"}]}}
+contents: scene.json.gz (73,530 bytes; 180 frames at 30 fps; 6 periods 1955 to 1960) and the two Liberation Sans fonts (SIL OFL, whole)
+drawer:   assets/preview/scene-draw.min.js, pinned in assets/preview/scene-draw.PIN

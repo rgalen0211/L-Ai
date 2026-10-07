@@ -47,7 +47,7 @@
   // screens without Supabase. Only on this computer, never on uselai.com.
   const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
   if (LOCAL_HOSTS.includes(location.hostname) && query.has('mock')) {
-    const files = ['/tests/fake-supabase.js', '/tests/mock-worker.js', '/tests/mock-app.js', '/tests/fixtures/scene-fixture.js', '/tests/fixtures/scene-draw-fixture.js'];
+    const files = ['/tests/fake-supabase.js', '/tests/mock-worker.js', '/tests/mock-app.js', '/tests/fixtures/scene-real.js'];
     (function next() {
       if (!files.length) { start(window.createMockApp()); return; }
       const script = document.createElement('script');

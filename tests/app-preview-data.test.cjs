@@ -15,7 +15,7 @@ function load(...files) {
 }
 const w = load('assets/app-data.js', 'assets/preview/preview-zip.js', 'assets/preview/preview-core.js');
 globalThis.window = globalThis.window || {};
-globalThis.window.ryagramSceneFixtureB64 = fs.readFileSync(path.join(__dirname, 'fixtures', 'scene-fixture.zip')).toString('base64');
+globalThis.window.ryagramSceneFixtureB64 = fs.readFileSync(path.join(__dirname, 'fixtures', 'scene-real.zip')).toString('base64');
 
 test('request_scene_bundle answers building, then ready with a path; the zip downloads and opens as a scene', async () => {
   const data = w.ryagramData(createFakeClient());

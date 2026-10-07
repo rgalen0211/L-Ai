@@ -32,7 +32,7 @@ PROFILES = [
 MEASURE = """
 async () => {
   const sleep = ms => new Promise(r => setTimeout(r, ms));
-  const D = window.ryagramSceneDraw;
+  const D = window.RyagramScene;
   const files = await window.ryagramZip.read(await window.ryagramMock.client.storage.from('x').download('a/scene.bundle.zip').then(r => r.data.arrayBuffer()));
   const scene = await window.ryagramZip.sceneJson(files['scene.json.gz']);
   // 1. the raw cost of a frame: build the string and put it in the page
@@ -63,8 +63,8 @@ async () => {
 HEAVY = """
 async () => {
   // A deliberately slow drawer (25 ms a frame, over both budgets): the viewer must fall back to exact years while dragging.
-  const D = window.ryagramSceneDraw; const real = D.draw;
-  window.ryagramSceneDraw = { ...D, draw: (s, f, o) => { const t = performance.now(); while (performance.now() - t < 25) { /* busy */ } return real(s, f, o); } };
+  const D = window.RyagramScene; const real = D.draw;
+  window.RyagramScene = { ...D, draw: (s, f, o) => { const t = performance.now(); while (performance.now() - t < 25) { /* busy */ } return real(s, f, o); } };
   document.querySelector('.preview-panel button').click();
   await new Promise(r => setTimeout(r, 1500));
   const slider = document.querySelector('.pv-slider'); slider.scrollIntoView({ block: 'center' });
@@ -74,7 +74,7 @@ async () => {
   const note = !document.querySelector('.pv-note').hidden;
   slider.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
   await new Promise(r => setTimeout(r, 200));
-  window.ryagramSceneDraw = D;
+  window.RyagramScene = D;
   return { snapNoteWhileDragging: note, labelAfterRelease: document.querySelector('.pv-label').textContent };
 }
 """

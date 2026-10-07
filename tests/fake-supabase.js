@@ -545,7 +545,7 @@
             // Authenticated download (the live preview's bundle): the synthetic fixture zip in mock mode.
             async download(path) {
               log.push({ download: path, bucket });
-              const b64 = (typeof window !== 'undefined' ? window : globalThis).ryagramSceneFixtureB64;
+              const b64 = (typeof window !== 'undefined' ? window : globalThis).ryagramSceneFixtureB64;   // tests/fixtures/scene-real.js
               if (!/scene\.bundle\.zip$/.test(path) || !b64) return { data: null, error: { message: 'not found' } };
               const bin = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
               const bytes = new Uint8Array(bin.length);

@@ -1,0 +1,3 @@
+ryagram/preview/scene-draw.min.js from the engine (BUILDER, branch scenebundle-engine @ ac08475)
+sha256 5123206f8ba4a203cb99064456136e3e24aa400ca2f9520ae5305486b1409c31
+4351 bytes, LF. Drawing only. Replace it by copying the engine's file and changing this pin in the same commit.

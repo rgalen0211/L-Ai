@@ -41,7 +41,7 @@
     });
   }
 
-  async function mount(host, { scene, fonts = {}, drawer = window.ryagramSceneDraw, env = {}, snapAlways = false } = {}) {
+  async function mount(host, { scene, fonts = {}, drawer = window.RyagramScene, env = {}, snapAlways = false } = {}) {
     C.parseScene(scene);
     if (!drawer || typeof drawer.draw !== 'function') throw new C.SceneError('The preview drawing code isn’t loaded.');
     const marks = C.marksOf(scene);
