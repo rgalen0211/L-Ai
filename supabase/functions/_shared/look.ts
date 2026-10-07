@@ -57,6 +57,11 @@ const LOOK_FIELDS = {
     no_data_label: { label: 'Key text for missing data', kind: 'text', max: 80 },
     outline_width: { label: 'State outline width', kind: 'num', lo: 0, hi: 4 },
     no_data_fill: { label: 'Colour for missing data', kind: 'colour' },
+    network_color: { label: 'Colour of the roads as they are built', kind: 'colour' },
+    network_base_color: { label: 'Colour of the roads already open', kind: 'colour' },
+    network_context_color: { label: 'Colour of the background roads', kind: 'colour' },
+    land_fill: { label: 'Colour of the land', kind: 'colour' },
+    page_background: { label: 'Colour of the page', kind: 'colour' },
     dot_color: { label: 'Dot colour', kind: 'colour' },
     dot_baseline_color: { label: 'Colour of the starting stock of dots', kind: 'colour' },
     dot_value: { label: 'One dot stands for', kind: 'num', lo: 1, hi: 1000000, int: true },
@@ -69,7 +74,7 @@ const LOOK_FIELDS = {
 // style_overrides colour keys. Page and text colours are NOT written: the schema refuses them until WORKER's W1 lands
 // (LOOK_PAGE_COLOURS_ACCEPTED flips then). `reset` is what choosing a theme puts back to the engine's own colours.
 const LOOK_PAGE_COLOURS_ACCEPTED = false;
-const LOOK_RESET = ['map_mode', 'map_low', 'map_high', 'map_steps', 'map_continuous', 'no_data_fill', 'dot_color', 'dot_baseline_color', 'outline_width'];
+const LOOK_RESET = ['map_mode', 'map_low', 'map_high', 'map_steps', 'map_continuous', 'no_data_fill', 'dot_color', 'dot_baseline_color', 'outline_width', 'network_color', 'network_base_color', 'network_context_color', 'land_fill', 'page_background'];
 const LOOK_THEMES = {
   night: { label: 'Night', blurb: 'The default: a dark page. Best for lines, paths and networks.', theme: 'dark', set: {} },
   atlas: { label: 'Atlas', blurb: 'A light, near-white page, like a printed atlas.', theme: 'light', set: {} },
@@ -153,14 +158,35 @@ function lookCanvasName(seq) {
 }
 // What choosing this theme would overwrite: colours the person has already changed (an element that is set and is not
 // what the theme itself would put there).
-const LOOK_COLOUR_FIELDS = ['map_low', 'map_high', 'no_data_fill', 'dot_color', 'dot_baseline_color'];
+const LOOK_COLOUR_FIELDS = ['map_low', 'map_high', 'no_data_fill', 'dot_color', 'dot_baseline_color', 'network_color', 'network_base_color', 'network_context_color', 'land_fill', 'page_background'];
 function lookWouldReplace(story, themeKey) {
   const t = LOOK_THEMES[themeKey];
   if (!t || !story || !story.sequence) return [];
   const so = story.sequence.style_overrides || {};
   const cur = { map_low: (so.choropleth || {}).low, map_high: (so.choropleth || {}).high, no_data_fill: (so.state || {}).no_data_fill,
-                dot_color: (so.dots || {}).color, dot_baseline_color: (so.dots || {}).baseline_color };
+                dot_color: (so.dots || {}).color, dot_baseline_color: (so.dots || {}).baseline_color,
+                network_color: (so.network || {}).color, network_base_color: (so.network || {}).base_color, network_context_color: (so.network || {}).context_color,
+                land_fill: (so.state || {}).fill, page_background: (so.page || {}).background };
   return LOOK_COLOUR_FIELDS.filter((f) => cur[f] != null && cur[f] !== (t.set[f] ?? null)).map((f) => LOOK_FIELDS.look[f].label);
+}
+
+// Warnings (never refusals) for the colours of a network film, in plain words. The page is the colour a line must stand out from;
+// a thin line is a small mark, so it gets the engine's small-mark floor (20); the land and the page need the patch floor (5).
+function lookWarnings(seq) {
+  const base = LOOK_BASE[seq.theme === 'light' ? 'light' : 'dark'];
+  const so = seq.style_overrides || {};
+  const net = so.network || {};
+  const page = (so.page || {}).background || base.page;
+  const land = (so.state || {}).fill || base.fill;
+  const out = [];
+  const far = (a, b, floor) => lookDE(a, b) >= floor;
+  if (net.color && !far(net.color, page, LOOK_DOT_DE)) out.push('The roads as they are built are too close to the page colour; thin lines need a stronger contrast. Choose a brighter or darker colour.');
+  if (net.color && !far(net.color, land, LOOK_DOT_DE)) out.push('The roads as they are built are too close to the colour of the land, where they run. Choose one that stands out from it.');
+  if (net.base_color && !far(net.base_color, page, LOOK_PATCH_DE)) out.push('The roads already open are too close to the page colour and would disappear. Choose one that differs more.');
+  if (net.base_color && net.color && lookDE(net.base_color, net.color) < LOOK_PATCH_DE * 2) out.push('The roads already open and the roads being built are too close in colour to tell apart.');
+  if (net.context_color && !far(net.context_color, page, LOOK_PATCH_DE)) out.push('The background roads are too close to the page colour and would disappear.');
+  if ((so.page || {}).background && !far(page, land, LOOK_PATCH_DE)) out.push('The page and the land are too close in colour for the shape of the country to show.');
+  return out;
 }
 
 function lookClean(text, max) {
@@ -280,12 +306,17 @@ function lookWrite(story, scope, field, res, clipIndex) {
   else if (field === 'no_data_label') lookSet(group('layout'), 'no_data_label', res);
   else if (field === 'outline_width') lookSet(group('state'), 'outline_width', res);
   else if (field === 'no_data_fill') lookSet(group('state'), 'no_data_fill', res);
+  else if (field === 'network_color') lookSet(group('network'), 'color', res);
+  else if (field === 'network_base_color') lookSet(group('network'), 'base_color', res);
+  else if (field === 'network_context_color') lookSet(group('network'), 'context_color', res);
+  else if (field === 'land_fill') lookSet(group('state'), 'fill', res);
+  else if (field === 'page_background') lookSet(group('page'), 'background', res);
   else if (field === 'dot_color') lookSet(group('dots'), 'color', res);
   else if (field === 'dot_baseline_color') lookSet(group('dots'), 'baseline_color', res);
   else if (field === 'dot_value') lookSet(group('dots'), 'value', res);
   else if (field === 'dot_radius') lookSet(group('dots'), 'radius', res);
   else if (field === 'swap_seconds') lookSet(group('bars'), 'swap_seconds', res);
-  for (const name of ['choropleth', 'layout', 'state', 'dots', 'bars']) lookPrune(so, name);
+  for (const name of ['choropleth', 'layout', 'state', 'dots', 'bars', 'network', 'page']) lookPrune(so, name);
   if (Object.keys(so).length === 0) delete seq.style_overrides;
 }
 
@@ -349,7 +380,9 @@ function applyLook(story, patch) {
     problems.push(...lookContrast(next.sequence));
   }
   if (problems.length) return { ok: false, problems };
-  return { ok: true, story: next, changed, notes };
+  const warnings = lookWarnings(next.sequence);
+  for (const w of warnings) notes.push(w);
+  return { ok: true, story: next, changed, notes, warnings };
 }
 
 // Which named theme the story is on right now ('custom' when its colours were changed by hand).
@@ -385,6 +418,8 @@ function describeLook(story) {
       transition: (c.transition || {}).kind ?? null, transition_seconds: (c.transition || {}).seconds ?? null })),
     look: {
       map_mode: ch.mode ?? null, map_low: ch.low ?? null, map_high: ch.high ?? null, map_steps: ch.steps ?? null, map_continuous: ch.continuous ?? null,
+      network_color: (so.network || {}).color ?? null, network_base_color: (so.network || {}).base_color ?? null, network_context_color: (so.network || {}).context_color ?? null,
+      land_fill: (so.state || {}).fill ?? null, page_background: (so.page || {}).background ?? null,
       no_data_fill: (so.state || {}).no_data_fill ?? null, dot_color: (so.dots || {}).color ?? null, dot_baseline_color: (so.dots || {}).baseline_color ?? null,
       map_key_label: ch.single_label ?? null, no_data_label: (so.layout || {}).no_data_label ?? null, outline_width: (so.state || {}).outline_width ?? null,
       dot_value: (so.dots || {}).value ?? null, dot_radius: (so.dots || {}).radius ?? null, swap_seconds: (so.bars || {}).swap_seconds ?? null }
@@ -392,4 +427,4 @@ function describeLook(story) {
 }
 // END SHARED
 
-export { LOOK_FIELDS, LOOK_THEMES, LOOK_BASE, LOOK_PAGE_COLOURS_ACCEPTED, LOOK_CANVAS, LOOK_FPS, LOOK_SQUARE_ACCEPTED, applyLook, describeLook, lookDE, lookWouldReplace };
+export { LOOK_FIELDS, LOOK_THEMES, LOOK_BASE, LOOK_PAGE_COLOURS_ACCEPTED, LOOK_CANVAS, LOOK_FPS, LOOK_SQUARE_ACCEPTED, applyLook, describeLook, lookDE, lookWouldReplace, lookWarnings };

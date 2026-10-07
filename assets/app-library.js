@@ -501,7 +501,7 @@
         sources.refresh();
       });
 
-      const preview = previewOn() && !locked ? previewPanel(v) : null;
+      const preview = previewOn() && !locked ? previewPanel(v, { saved: result => { jobs.storyChanged(result.story_sha256); sources.refresh(); story.value = JSON.stringify(v.story_spec, null, 2); } }) : null;
       if (preview) { const was = jobs.storyChanged; jobs.storyChanged = (...a) => { was(...a); preview.stale(); }; }
 
       const editorOn = window.ryagramConfig?.aiEditor === true || !!window.ryagramMock;
@@ -1054,47 +1054,131 @@
     // Shown only when ryagramConfig.livePreview is true, in mock mode, or for this browser session after a ?preview= key on the
     // address (the server still decides: scene bundles are off until Ryan turns the job type on).
     const previewOn = () => window.ryagramConfig?.livePreview === true || !!window.ryagramMock || (() => { try { return sessionStorage.getItem('ryagram-preview') === '1'; } catch { return false; } })();
-    function previewPanel(v) {
+    function previewPanel(v, { saved = () => {} } = {}) {
       const Z = window.ryagramZip;
+      const E = window.ryagramPreviewEdit;
+      const L = window.ryagramLook;
       const host = h('div', { class: 'pv-host' });
+      const editHost = h('div', { class: 'pv-edit', hidden: true });
       const status = h('p', { class: 'form-note', role: 'status' });
       const error = errorLine();
       const open = h('button', { class: 'button secondary', type: 'button' }, 'Open the preview');
       let viewer = null;
       let bundleSha = null;
+      let baseScene = null;
       const say = t => { status.textContent = t; };
       const wait = ms => new Promise(r => setTimeout(r, ms));
+      const draftKey = `ryagram-preview-draft:${v.id}`;
+      const clone = x => JSON.parse(JSON.stringify(x));
+      const readDraft = () => { try { return JSON.parse(localStorage.getItem(draftKey) || 'null'); } catch { return null; } };
+      const writeDraft = d => { try { if (d) localStorage.setItem(draftKey, JSON.stringify(d)); else localStorage.removeItem(draftKey); } catch { /* private window: no draft kept */ } };
+
+      // ---- editing the colours of the layers this film has (live; nothing is saved until Save)
+      function buildEditor() {
+        let draft = clone(v.story_spec || {});
+        let edits = {};
+        const rows = [];
+        const warn = h('ul', { class: 'pv-warnings', role: 'status', 'aria-live': 'polite' });
+        const msg = h('p', { class: 'form-note', role: 'status' });
+        const saveBtn = h('button', { class: 'button primary', type: 'button', disabled: true }, 'Save changes');
+        const revertBtn = h('button', { class: 'button secondary', type: 'button', disabled: true }, 'Revert');
+        const dirty = () => JSON.stringify(draft) !== JSON.stringify(v.story_spec || {});
+        const refresh = () => {
+          saveBtn.disabled = revertBtn.disabled = !dirty();
+          const ws = L.warnings((draft.sequence) || {});
+          warn.replaceChildren(...ws.map(w => h('li', {}, w)));
+          warn.hidden = !ws.length;
+          writeDraft(dirty() ? { base: JSON.stringify(v.story_spec || {}), draft, edits } : null);
+        };
+        function change(layer, hex, row) {
+          if (hex !== null && !E.HEX.test(hex)) { msg.textContent = 'A colour looks like #1a4fa3.'; return false; }
+          const out = L.apply(draft, { look: { [layer.field]: hex } });
+          if (!out.ok) { msg.textContent = out.problems.join(' '); return false; }
+          msg.textContent = '';
+          draft = out.story;
+          if (hex === null) delete edits[layer.id]; else edits[layer.id] = hex.toLowerCase();
+          viewer.setScene(E.recolour(baseScene, edits));
+          refresh();
+          return true;
+        }
+        const now = E.current(baseScene);
+        for (const layer of E.LAYERS.filter(l => now[l.id])) {
+          const id = `pv-c-${layer.id}`;
+          const text = h('input', { id, type: 'text', class: 'pv-hex', value: now[layer.id], autocomplete: 'off', spellcheck: 'false', maxlength: '7' });
+          const swatch = h('input', { type: 'color', class: 'look-swatch', value: now[layer.id], 'aria-label': `${layer.label}: choose a colour` });
+          const reset = h('button', { type: 'button', class: 'button secondary small', 'aria-label': `${layer.label}: back to the original` }, 'Reset');
+          const apply = hex => { if (change(layer, hex)) { text.value = hex; swatch.value = hex; } else text.value = (edits[layer.id] || now[layer.id]); };
+          swatch.addEventListener('input', () => apply(swatch.value));
+          text.addEventListener('change', () => apply(text.value.trim()));
+          reset.addEventListener('click', () => { if (change(layer, null)) { text.value = now[layer.id]; swatch.value = now[layer.id]; } });
+          rows.push({ layer, text, swatch });
+          editHost.append(h('div', { class: 'look-field' }, h('label', { for: id }, layer.label), h('span', { class: 'look-colour' }, text, swatch, reset)));
+        }
+        const restore = d => {
+          if (!d || d.base !== JSON.stringify(v.story_spec || {})) return;
+          for (const { layer, text, swatch } of rows) { const hex = d.edits && d.edits[layer.id]; if (hex && change(layer, hex)) { text.value = hex; swatch.value = hex; } }
+          msg.textContent = 'Restored your unsaved colour changes.';
+        };
+        saveBtn.addEventListener('click', async event => {
+          await busy(event.currentTarget, 'Saving…', async () => {
+            try {
+              const result = await data.saveStory(v.id, draft);
+              v.story_spec = clone(draft);
+              saved(result);
+              writeDraft(null);
+              refresh();
+              msg.textContent = 'Saved. Make a new contact sheet to see it as the render machine draws it. Refresh the preview to compare.';
+            } catch (err) { showError(error, err); }
+          });
+          saveBtn.disabled = !dirty();
+        });
+        revertBtn.addEventListener('click', () => {
+          draft = clone(v.story_spec || {}); edits = {};
+          viewer.setScene(baseScene);
+          for (const { layer, text, swatch } of rows) { text.value = now[layer.id]; swatch.value = now[layer.id]; }
+          msg.textContent = 'Back to the saved colours.';
+          refresh();
+        });
+        if (!rows.length) { editHost.replaceChildren(); editHost.hidden = true; return; }
+        editHost.prepend(h('h3', {}, 'Change the colours'), h('p', { class: 'form-note' }, 'Changes show at once and are saved only when you press Save. A warning never stops you; the final render’s checks decide what can be published.'));
+        editHost.append(warn, h('div', { class: 'actions-row' }, saveBtn, revertBtn), msg);
+        editHost.hidden = false;
+        restore(readDraft());
+        refresh();
+      }
+
       async function load() {
         error.hidden = true;
-        if (typeof DecompressionStream !== 'function') throw new Error('This browser can\u2019t open the preview. Update it, or use a recent Chrome, Edge, Safari or Firefox.');
-        if (!window.RyagramScene) throw new Error('The preview isn\u2019t ready on this site yet.');
-        say('Preparing your preview\u2026');
+        if (typeof DecompressionStream !== 'function') throw new Error('This browser can’t open the preview. Update it, or use a recent Chrome, Edge, Safari or Firefox.');
+        if (!window.RyagramScene) throw new Error('The preview isn’t ready on this site yet.');
+        say('Preparing your preview…');
         let row = await data.requestSceneBundle(v.id);
         for (let i = 0; row && row.status === 'building' && i < 60; i++) { await wait(2000); row = await data.requestSceneBundle(v.id); }
-        if (!row || row.status === 'failed') throw new Error(row?.error_detail ? `The preview couldn\u2019t be made: ${window.ryagramJobs.plainDetail(row.error_detail)}` : 'The preview couldn\u2019t be made.');
+        if (!row || row.status === 'failed') throw new Error(row?.error_detail ? `The preview couldn’t be made: ${window.ryagramJobs.plainDetail(row.error_detail)}` : 'The preview couldn’t be made.');
         if (row.status !== 'ready') throw new Error('The preview is taking longer than expected. Try again in a minute.');
-        say('Loading\u2026');
+        say('Loading…');
         const files = await Z.read(await data.downloadSceneBundle(row.storage_path));
-        const scene = await Z.sceneJson(files['scene.json.gz']);
+        baseScene = await Z.sceneJson(files['scene.json.gz']);
         if (viewer) viewer.destroy();
-        viewer = await window.ryagramPreview.mount(host, { scene, fonts: files });
+        editHost.replaceChildren();
+        viewer = await window.ryagramPreview.mount(host, { scene: { ...baseScene }, fonts: files });
         bundleSha = JSON.stringify(v.story_spec);
         say('Drag the slider to see the film at any moment. Nothing here costs credits; the final film is still rendered and checked on the render machine.');
-        open.textContent = 'Refresh the preview';
+        if (E && L) buildEditor();
       }
       open.addEventListener('click', async event => {
-        await busy(event.currentTarget, 'Preparing\u2026', async () => {
+        await busy(event.currentTarget, 'Preparing…', async () => {
           try { await load(); } catch (err) { say(''); showError(error, err); }
         });
         if (viewer) open.textContent = 'Refresh the preview';
       });
       return {
-        // The story changed (saved some other way): the drawing on screen is of the old one.
+        // The story changed some other way (not by this panel's own Save): the drawing on screen is of the old one.
         stale() { if (viewer && bundleSha !== JSON.stringify(v.story_spec)) say('The story changed. Refresh the preview to see it.'); },
         el: h('section', { class: 'app-panel preview-panel', 'aria-labelledby': 'preview-title' },
           h('h2', { id: 'preview-title' }, 'Preview'),
           h('p', { class: 'form-note' }, 'See the film at any moment before you render it. Free.'),
-          open, status, host, error)
+          open, status, host, editHost, error)
       };
     }
 

@@ -158,3 +158,8 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .pv-label{font-variant-numeric:tabular-nums;font-weight:700;white-space:pre;min-width:7.5em;text-align:right}
 .pv-note{margin-top:6px}
 @media(max-width:520px){.pv-controls{grid-template-columns:1fr auto}.pv-track{grid-column:1/-1;grid-row:2}}
+.pv-edit{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.pv-edit h3{margin:0 0 4px}
+.pv-hex{width:7.5em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.pv-warnings{margin:10px 0;padding:10px 14px 10px 30px;border-left:3px solid var(--wheat,#c9a45c);background:var(--soft,#f4f1ea);border-radius:0 10px 10px 0;font-size:.92rem}
+.pv-warnings[hidden]{display:none}

@@ -32,7 +32,7 @@ test('the page and the Edge Function run the same code', () => {
   assert.equal(region(read('assets/app-look.js')), region(read('supabase/functions/_shared/look.ts')));
   const w = {};
   vm.runInNewContext(read('assets/app-look.js'), { window: w });
-  assert.deepEqual(Object.keys(w.ryagramLook).sort(), ['BASE', 'CANVAS', 'FIELDS', 'FPS', 'THEMES', 'apply', 'de', 'describe', 'replaces']);
+  assert.deepEqual(Object.keys(w.ryagramLook).sort(), ['BASE', 'CANVAS', 'FIELDS', 'FPS', 'THEMES', 'apply', 'de', 'describe', 'replaces', 'warnings']);
   const s = MAP();
   const p = { title: { headline: 'New words' }, look: { map_mode: 'solid' } };
   assert.deepEqual(plain(w.ryagramLook.apply(s, p)), plain(applyLook(s, p)));
@@ -464,4 +464,38 @@ test('the theme cards carry no inline style (the app policy blocks it): their co
   const css = fs.readFileSync(path.join(here, '..', 'assets', 'app.css'), 'utf8');
   assert.match(css, new RegExp(`\.chip-dark\{background:${LOOK_BASE.dark.page};border-color:${LOOK_BASE.dark.fill}\}`));
   assert.match(css, new RegExp(`\.chip-light\{background:${LOOK_BASE.light.page};border-color:${LOOK_BASE.light.fill}\}`));
+});
+
+// ---- the network's own colours (W1 keys) and live warnings that never block -----------------------------------------------
+import { lookWarnings } from '../supabase/functions/_shared/look.ts';
+
+test('the roads, land and page colours land in the keys the worker schema names', () => {
+  const out = applyLook(MAP(), { look: { network_color: '#C8372D', network_base_color: '#7A7A7A', network_context_color: '#c9ccd6', land_fill: '#ECDFC6', page_background: '#d9e8f3' } });
+  assert.equal(out.ok, true, JSON.stringify(out.problems));
+  const so = out.story.sequence.style_overrides;
+  assert.deepEqual(plain(so.network), { color: '#c8372d', base_color: '#7a7a7a', context_color: '#c9ccd6' });
+  assert.equal(so.state.fill, '#ecdfc6');
+  assert.equal(so.page.background, '#d9e8f3');
+  const back = applyLook(out.story, { look: { network_color: null, network_base_color: null, network_context_color: null, land_fill: null, page_background: null } });
+  assert.equal(back.story.sequence.style_overrides, undefined);          // nothing left behind
+  assert.equal(describeLook(out.story).look.network_color, '#c8372d');
+  assert.equal(applyLook(MAP(), { look: { network_color: 'red' } }).ok, false);   // a colour is still #rrggbb
+});
+test('colour warnings are warnings: the change is made, the person is told, and nothing is refused', () => {
+  const near = applyLook(MAP(), { look: { network_color: '#16161c' } });          // almost the page colour
+  assert.equal(near.ok, true);
+  assert.equal(near.story.sequence.style_overrides.network.color, '#16161c');
+  assert.match(near.warnings.join(' '), /roads as they are built are too close to the page colour/);
+  assert.ok(near.notes.some(n => /too close to the page colour/.test(n)));       // shown wherever notes are shown
+  const checks = [
+    [{ network_color: '#232830', page_background: '#14141a' }, /too close to the colour of the land|too close to the page colour/],
+    [{ network_base_color: '#15151b' }, /roads already open are too close to the page colour/],
+    [{ network_base_color: '#8a8a95', network_color: '#8c8c97' }, /already open and the roads being built are too close/],
+    [{ network_context_color: '#14141b' }, /background roads are too close to the page colour/],
+    [{ page_background: '#1f1f28' }, /page and the land are too close/]
+  ];
+  for (const [look, re] of checks) assert.match(applyLook(MAP(), { look }).warnings.join(' '), re, JSON.stringify(look));
+  assert.deepEqual(applyLook(MAP(), { look: { network_color: '#ff8a3d' } }).warnings, []);       // the engine's own orange on dark: fine
+  assert.deepEqual(lookWarnings({ theme: 'dark' }), []);
+  assert.deepEqual(lookWarnings({ theme: 'light', style_overrides: { network: { color: '#1a4fa3' }, page: { background: '#d9e8f3' } } }), []);
 });
