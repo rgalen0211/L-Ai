@@ -457,8 +457,10 @@
           try {
             const result = await data.saveStory(v.id, parsed);
             saved.textContent = 'Saved. Earlier sheets and previews were of the old story, so the final render needs new ones.';
+            v.story_spec = parsed;
             jobs.storyChanged(result.story_sha256);
             sources.refresh();
+            refreshLook();
           } catch (err) { showError(error, err); }
         });
       } },
@@ -480,6 +482,7 @@
         saved.textContent = 'Your data is now this film\u2019s data. Make a contact sheet to see it.';
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
+        refreshLook();
       }) : null;
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
@@ -490,16 +493,26 @@
         saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.';
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
+        refreshLook();
         return true;
       });
 
-      const look = locked || !window.ryagramLook || window.ryagramTemplates.isBlank(v.story_spec) ? null : lookPanel(v, async built => {
-        const result = await data.saveStory(v.id, built);
-        v.story_spec = built;
-        story.value = JSON.stringify(built, null, 2);
-        jobs.storyChanged(result.story_sha256);
-        sources.refresh();
-      });
+      // "Shape the film" is rebuilt whenever the story changes some other way (a ready-made film, your data, the JSON box),
+      // so its boxes never show an old story. It keeps its open/closed state.
+      const lookHost = h('div', { class: 'look-host' });
+      const refreshLook = () => {
+        const wasOpen = lookHost.querySelector('.look-panel')?.open;
+        const fresh = locked || !window.ryagramLook || window.ryagramTemplates.isBlank(v.story_spec) ? null : lookPanel(v, async built => {
+          const result = await data.saveStory(v.id, built);
+          v.story_spec = built;
+          story.value = JSON.stringify(built, null, 2);
+          jobs.storyChanged(result.story_sha256);
+          sources.refresh();
+        });
+        if (fresh && wasOpen) fresh.open = true;
+        lookHost.replaceChildren(...(fresh ? [fresh] : []));
+      };
+      refreshLook();
 
       const editorOn = window.ryagramConfig?.aiEditor === true || !!window.ryagramMock;
       const chat = editorOn && !locked ? editorPanel(v, {
@@ -525,7 +538,7 @@
         sources.el,
         uploads?.el,
         picker,
-        look,
+        lookHost,
         chat,
         storyForm,
         jobs.el,
