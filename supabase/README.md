@@ -491,3 +491,12 @@ allow-lists, the contact sheet → preview → final ladder, worker confinement,
 upload size/type checks, sequential exactly-once claiming, lost-worker retry,
 retry_job vs final failures, metering for handed-back attempts, finished
 versions staying locked, the kill switch and cancel.
+
+## Visit counting (uselai.com/ryagram/)
+
+A cookieless count of visits to the Ryagram page, nothing displayed on the page. Two parts, both off until switched on:
+
+1. **Cloudflare Web Analytics** (the independent total; filters bots). uselai.com is served by GitHub Pages (DNS points at GitHub, not at Cloudflare), so there is no Cloudflare Pages project to toggle: use the JS snippet. In the Cloudflare dashboard: *Analytics & Logs* -> *Web Analytics* -> *Add a site* -> hostname `uselai.com` -> choose the manual JavaScript snippet (not "automatic setup", which needs the site proxied through Cloudflare) -> copy the 32-character `token` from the snippet -> put it in `assets/analytics-config.js` as `cloudflareBeaconToken`. The token is public (it ships in the page), not a secret. Only `/ryagram/` loads the beacon; its Content-Security-Policy already allows `static.cloudflareinsights.com` and `cloudflareinsights.com`.
+2. **A tally by link source** (`?ref=youtube`, or failing that `?utm_source=`), because Cloudflare does not break visits out by query parameter. SQL `migrations/20261006000100_visit_counting.sql` (after 20261003000300): table `ryagram_visits` (day, path, source, count: no visitor id, cookie, address or agent), `record_visit` (anyone may add 1), `visits_by_day` and `visits_by_source` (admin only). Apply it, then set `visitCounting: true` in `assets/ryagram-config.js`. Ryan's view is `/app/#/admin/visits` (visits, signups and signup rate, by day and by source). A signup keeps its `ref` in the existing `source` column.
+
+Counted: one per page load; skipped for Do Not Track, Global Privacy Control, automated browsers and obvious crawlers. The privacy policy has one sentence on it.
