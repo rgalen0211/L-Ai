@@ -60,6 +60,25 @@ async () => {
 }
 """
 
+HEAVY = """
+async () => {
+  // A deliberately slow drawer (25 ms a frame, over both budgets): the viewer must fall back to exact years while dragging.
+  const D = window.ryagramSceneDraw; const real = D.draw;
+  window.ryagramSceneDraw = { ...D, draw: (s, f, o) => { const t = performance.now(); while (performance.now() - t < 25) { /* busy */ } return real(s, f, o); } };
+  document.querySelector('.preview-panel button').click();
+  await new Promise(r => setTimeout(r, 1500));
+  const slider = document.querySelector('.pv-slider'); slider.scrollIntoView({ block: 'center' });
+  slider.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true }));
+  const seen = new Set();
+  for (let i = 0; i <= 60; i++) { slider.value = String(20 * i + 7); slider.dispatchEvent(new Event('input', { bubbles: true })); await new Promise(r => setTimeout(r, 40)); seen.add(document.querySelector('.pv-label').textContent.split(' ')[0]); }
+  const note = !document.querySelector('.pv-note').hidden;
+  slider.dispatchEvent(new PointerEvent('pointerup', { bubbles: true }));
+  await new Promise(r => setTimeout(r, 200));
+  window.ryagramSceneDraw = D;
+  return { snapNoteWhileDragging: note, labelAfterRelease: document.querySelector('.pv-label').textContent };
+}
+"""
+
 
 def serve():
     class Quiet(http.server.SimpleHTTPRequestHandler):
@@ -98,6 +117,8 @@ def main():
                 cached_before = page.evaluate('document.querySelectorAll(".pv-bitmap").length')
                 res = page.evaluate(MEASURE)
                 snap = page.evaluate('({note: !document.querySelector(".pv-note").hidden, label: document.querySelector(".pv-label").textContent, vt: document.querySelector(".pv-slider").getAttribute("aria-valuetext")})')
+                if name == 'desktop':
+                    print('  slow-drawer fallback:', json.dumps(page.evaluate(HEAVY)))
                 res.update(errors=errors, label=snap['label'], valuetext=snap['vt'])
                 print(f'{name}: {json.dumps(res)}')
                 ok = ok and not errors
