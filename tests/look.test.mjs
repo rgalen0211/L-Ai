@@ -456,3 +456,12 @@ test('set_look takes canvas and frame rate, with the same warning', async () => 
   assert.deepEqual(plain(c.story.sequence.canvas), [1080, 1920]);
   assert.equal(c.story.sequence.fps, 25);
 });
+
+test('the theme cards carry no inline style (the app policy blocks it): their colours come from classes that match the engine page and state colours', () => {
+  const lib = fs.readFileSync(path.join(here, '..', 'assets', 'app-library.js'), 'utf8');
+  assert.doesNotMatch(lib, /look-theme-chip', style/);
+  assert.match(lib, /look-theme-chip chip-\$\{t\.theme\}/);
+  const css = fs.readFileSync(path.join(here, '..', 'assets', 'app.css'), 'utf8');
+  assert.match(css, new RegExp(`\.chip-dark\{background:${LOOK_BASE.dark.page};border-color:${LOOK_BASE.dark.fill}\}`));
+  assert.match(css, new RegExp(`\.chip-light\{background:${LOOK_BASE.light.page};border-color:${LOOK_BASE.light.fill}\}`));
+});
