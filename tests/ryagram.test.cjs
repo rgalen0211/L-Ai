@@ -342,10 +342,11 @@ test('the Cloudflare beacon loads only on /ryagram/, only with a 32-hex token, a
   }
 });
 
-test('the shipped config has counting off: no visitor is counted and no script is added until Ryan turns it on', () => {
+test('the shipped config: the tally is on, the Cloudflare beacon stays off until Ryan gives a token, and the privacy page says what is live', () => {
   const cfg = fs.readFileSync(path.join(__dirname, '../assets/ryagram-config.js'), 'utf8');
-  assert.match(cfg, /visitCounting: false/);
+  assert.match(cfg, /visitCounting: true/);   // live since 2026-10-06 (SQL 20261006000100 applied)
   assert.match(fs.readFileSync(path.join(__dirname, '../assets/analytics-config.js'), 'utf8'), /cloudflareBeaconToken: ''/);
   const privacy = fs.readFileSync(path.join(__dirname, '../privacy-policy.html'), 'utf8');
-  assert.match(privacy, /Cloudflare Web Analytics[^<]*cookieless[^<]*no personal profiles/);
+  assert.match(privacy, /simple tally of page loads[^<]*cookieless[^<]*no personal profiles/);
+  assert.doesNotMatch(privacy, /Cloudflare Web Analytics/);       // add the Cloudflare words in the same commit that adds the token
 });
