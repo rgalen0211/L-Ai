@@ -15,9 +15,42 @@
   const isActive = job => ACTIVE.includes(job.state);
   const versionTakesJobs = versionState => !LOCKED_VERSION.includes(versionState);
 
+  // The engine's and the worker's own words, said plainly (WEB-EDITOR-PARITY.md section 4). The first rule that
+  // matches a job's error text replaces it; text no rule knows is shown as the worker wrote it.
+  const PLAIN_RULES = [
+    [/choropleth\.continuous needs choropleth\.mode: solid/i, 'Smooth colour needs the solid map fill. Set the fill to solid, or turn smooth colour off.'],
+    [/choropleth\.continuous was asked for on a CLASS map/i, 'This data is in fixed classes, so colours can\u2019t blend smoothly. Turn smooth colour off.'],
+    [/paired race and its story does not say how many keyframes/i, 'The paired view needs a measured number of keyframes per year for this data. Use bars, map or line, or ask us to set it up.'],
+    [/line view: axis must be 'fixed'/i, 'The line view can\u2019t use a moving scale. Set the axis to fixed, or use bars.'],
+    [/line view: (\d+) series but only (\d+) colours/i, (m) => `The line view shows at most ${m[2]} lines with colours you can tell apart. Lower the number of lines.`],
+    [/a still is declared at '([^']+)', which is not a period/i, (m) => `A pause is set at ${m[1]}, which isn\u2019t in the years this film shows. Move or remove the pause.`],
+    [/(\d+) periods do not divide into windows of (\d+)/i, (m) => `Your ${m[1]} years don\u2019t split evenly into ${m[2]}-year averages. Change the first or last year so the count is a multiple of ${m[2]}.`],
+    [/period_years must be 2 or more/i, 'Averaging needs 2 or more years. Leave it empty to use single years.'],
+    [/peaks at ([\d,]+) dots/i, (m) => `There would be too many dots (${m[1]} in the busiest place). Make one dot stand for more.`],
+    [/hatch\.band_method|hatch\.breaks/i, 'Manual break values need one value per band, in rising order.'],
+    [/a held period runs ([\d.]+)s, over the ([\d.]+)s limit/i, (m) => `The film sits on one picture for ${m[1]} seconds; the limit is ${m[2]}. Shorten the seconds per period.`],
+    [/mostly still/i, 'Most of this film is the same picture. Use more years, or shorter holds.'],
+    [/axis top moves between frames/i, 'The bar scale changes during the film, which distorts the bars. Set the axis to fixed.'],
+    [/rows overlap|too small to read/i, 'Too many bars to read at this size. Lower how many places are shown (10 works).'],
+    [/cannot tell these key entries apart|claims to show change that no viewer can see/i, 'These colours are too close to tell apart. Use fewer steps, or colours that differ more.'],
+    [/words per minute|wpm|reading speed/i, 'The title text goes by too fast to read in the time given. Give the card more seconds, or shorten the text.'],
+    [/(card|headline|subhead|title).{0,40}(does not fit|doesn.t fit|too long)|does not fit on the card/i, 'The title text is too long to fit on the card. Shorten it.'],
+    [/NOT A CLEAN RENDER: (\d+) preflight check/i, (m) => `The film was drawn but didn\u2019t pass ${m[1]} quality check${m[1] === '1' ? '' : 's'}, so it wasn\u2019t released.`],
+    [/period '(\d{4})' is not shown by any render clip/i, (m) => `${m[1]} isn\u2019t in this film. Pick years the film shows.`],
+    [/ladder evidence approves engine/i, 'The renderer was updated since your last preview. Make a new contact sheet and preview first.']
+  ];
+  function plainDetail(detail) {
+    const text = String(detail || '');
+    for (const [re, say] of PLAIN_RULES) {
+      const m = text.match(re);
+      if (m) return typeof say === 'function' ? say(m) : say;
+    }
+    return text;
+  }
+
   // One sentence for a finished job that did not complete, by error class.
   function problem(job) {
-    const detail = job.error_detail ? ` ${job.error_detail}` : '';
+    const detail = job.error_detail ? ` ${plainDetail(job.error_detail)}` : '';
     if (job.state === 'cancelled') return 'Cancelled.';
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       return `Ryagram’s checks stopped this render.${detail} Change the story, then make a new preview.`;
@@ -188,6 +221,6 @@
   }
 
   window.ryagramJobs = {
-    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
+    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();

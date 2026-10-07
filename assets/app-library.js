@@ -493,6 +493,14 @@
         return true;
       });
 
+      const look = locked || !window.ryagramLook || window.ryagramTemplates.isBlank(v.story_spec) ? null : lookPanel(v, async built => {
+        const result = await data.saveStory(v.id, built);
+        v.story_spec = built;
+        story.value = JSON.stringify(built, null, 2);
+        jobs.storyChanged(result.story_sha256);
+        sources.refresh();
+      });
+
       const editorOn = window.ryagramConfig?.aiEditor === true || !!window.ryagramMock;
       const chat = editorOn && !locked ? editorPanel(v, {
         storyChanged: () => route(),
@@ -517,6 +525,7 @@
         sources.el,
         uploads?.el,
         picker,
+        look,
         chat,
         storyForm,
         jobs.el,
@@ -870,6 +879,171 @@
         h('p', { class: 'form-note' }, 'Each is a complete film you can then adjust.'),
         form);
       return details;
+    }
+
+    // "Shape the film": the settings people change most, as controls instead of JSON (editor parity audit,
+    // proposals/WEB-EDITOR-PARITY.md). Only what the worker's story schema accepts; each change goes through
+    // ryagramLook.apply (the same function the AI editor's set_look tool uses) and is saved like any story edit.
+    function lookPanel(v, onSaved) {
+      const L = window.ryagramLook;
+      const state = L.describe(v.story_spec);
+      const rows = [];
+      const error = errorLine();
+      const result = h('p', { class: 'form-note', role: 'status' });
+      const views = state.views.map(x => x.view);
+      const hasMap = views.some(x => x === 'map' || x === 'paired');
+      const hasBars = views.some(x => x === 'bars' || x === 'paired');
+      let uid = 0;
+
+      function control(scope, index, field, value) {
+        const spec = L.FIELDS[scope][field];
+        const id = `look-${scope}-${index}-${field}-${++uid}`;
+        const text = value == null ? '' : String(value);
+        let el;
+        if (spec.kind === 'enum') {
+          el = h('select', { id }, ...(spec.required ? [] : [h('option', { value: '' }, '(default)')]),
+                 ...spec.values.map(x => h('option', { value: x }, x)));
+        } else if (spec.kind === 'bool') {
+          el = h('select', { id }, h('option', { value: '' }, '(default)'), h('option', { value: 'true' }, 'on'), h('option', { value: 'false' }, 'off'));
+        } else if (spec.kind === 'text' && spec.max > 100) {
+          el = h('textarea', { id, rows: '2', maxlength: String(spec.max) });
+        } else {
+          el = h('input', { id, type: 'text', autocomplete: 'off', inputmode: spec.kind === 'num' ? 'decimal' : 'text',
+                            placeholder: spec.kind === 'colour' ? '#rrggbb' : spec.kind === 'period' ? '2016 or 2016-03' : '' });
+        }
+        el.value = text;
+        rows.push({ scope, index, field, el, was: text });
+        if (spec.kind === 'colour') {
+          // A native colour chooser kept in step with the text box (the text box is what is saved).
+          const pick = h('input', { type: 'color', class: 'look-swatch', 'aria-label': `${spec.label}: choose a colour`, value: /^#[0-9a-f]{6}$/i.test(text) ? text : '#808080' });
+          pick.addEventListener('input', () => { el.value = pick.value; });
+          el.addEventListener('input', () => { if (/^#[0-9a-f]{6}$/i.test(el.value)) pick.value = el.value; });
+          return h('div', { class: 'look-field' }, h('label', { for: id }, spec.label), h('span', { class: 'look-colour' }, el, pick));
+        }
+        return h('div', { class: 'look-field' }, h('label', { for: id }, spec.label), el);
+      }
+
+      const groups = [];
+      state.titles.forEach((t, i) => groups.push(h('fieldset', { class: 'look-group' },
+        h('legend', {}, state.titles.length > 1 ? `Title card ${i + 1}` : 'Title card'),
+        control('title', i, 'headline', t.headline), control('title', i, 'subhead', t.subhead),
+        control('title', i, 'credit', t.credit), control('title', i, 'seconds', t.seconds))));
+      state.views.forEach((x, i) => {
+        const kids = [h('legend', {}, state.views.length > 1 ? `Data view ${i + 1}: ${x.view}` : `Data view: ${x.view}`),
+          control('view', i, 'start', x.start), control('view', i, 'end', x.end),
+          control('view', i, 'hold_seconds', x.hold_seconds), control('view', i, 'subtitle', x.subtitle)];
+        if (x.view === 'bars' || x.view === 'paired') kids.push(control('view', i, 'top_n', x.top_n), control('view', i, 'axis', x.axis));
+        if (x.view === 'line') kids.push(control('view', i, 'line_top_n', x.line_top_n));
+        groups.push(h('fieldset', { class: 'look-group' }, ...kids));
+      });
+      // Named themes: each is a light or dark page plus colours, all settings the render machine already accepts.
+      let chosenTheme = state.theme_name;
+      let wasTheme = chosenTheme;
+      const themeNote = h('p', { class: 'form-note' }, chosenTheme === 'custom' ? 'Your colours are customised. Pick a theme to start again from one.' : L.THEMES[chosenTheme].blurb);
+      const themeCards = h('div', { class: 'theme-grid', role: 'radiogroup', 'aria-label': 'Theme' });
+      const drawThemes = () => themeCards.replaceChildren(...Object.entries(L.THEMES).map(([key, t]) => h('label', { class: `template-card${key === chosenTheme ? ' is-chosen' : ''}` },
+        h('input', { type: 'radio', name: 'look-theme', value: key, checked: key === chosenTheme, onchange: () => {
+          chosenTheme = key; themeNote.textContent = `${t.blurb} Choosing a theme puts the map and dot colours back to its own.`; drawThemes(); } }),
+        h('strong', {}, t.label), h('span', { class: 'look-theme-chip', style: `background:${L.BASE[t.theme].page};border-color:${L.BASE[t.theme].fill}` }))));
+      drawThemes();
+      // Shape of the picture and frame rate. 9:16 warns but does not block; 1:1 waits for the render machine to take it.
+      const CANVAS_ID = 'look-canvas';   // (not a dataset picker: the shape of the picture and the frame rate)
+      const FPS_ID = 'look-fps';
+      const canvasWarn = h('p', { class: 'form-note look-warn', role: 'status' });
+      const showCanvasWarn = key => { canvasWarn.textContent = (L.CANVAS[key] || {}).warn || ''; canvasWarn.hidden = !canvasWarn.textContent; };
+      const canvasSel = h('select', { id: CANVAS_ID }, ...Object.entries(L.CANVAS).map(([k, c]) =>
+        h('option', { value: k, disabled: !c.accepted }, c.accepted ? c.label : `${c.label} (not available yet)`)));
+      canvasSel.value = state.film.canvas;
+      canvasSel.addEventListener('change', () => showCanvasWarn(canvasSel.value));
+      rows.push({ scope: 'film', index: 0, field: 'canvas', el: canvasSel, was: canvasSel.value });
+      const fpsSel = h('select', { id: FPS_ID }, ...L.FPS.map(n => h('option', { value: String(n) }, String(n))));
+      fpsSel.value = String(state.film.fps);
+      rows.push({ scope: 'film', index: 0, field: 'fps', el: fpsSel, was: fpsSel.value });
+      showCanvasWarn(state.film.canvas);
+      const lookKids = [h('legend', {}, 'Look'), h('p', { class: 'form-note' }, 'Theme'), themeCards, themeNote,
+        h('div', { class: 'look-field' }, h('label', { for: 'look-canvas' }, 'Shape of the picture'), canvasSel),
+        canvasWarn,
+        h('div', { class: 'look-field' }, h('label', { for: 'look-fps' }, 'Frames per second'), fpsSel)];
+      if (hasMap) {
+        lookKids.push(control('look', 0, 'map_mode', state.look.map_mode), control('look', 0, 'map_low', state.look.map_low),
+          control('look', 0, 'map_high', state.look.map_high), control('look', 0, 'map_steps', state.look.map_steps),
+          control('look', 0, 'map_continuous', state.look.map_continuous), control('look', 0, 'outline_width', state.look.outline_width),
+          control('look', 0, 'no_data_fill', state.look.no_data_fill), control('look', 0, 'no_data_label', state.look.no_data_label));
+      }
+      if (hasMap) lookKids.push(control('look', 0, 'dot_color', state.look.dot_color), control('look', 0, 'dot_baseline_color', state.look.dot_baseline_color));
+      if (hasBars) lookKids.push(control('look', 0, 'swap_seconds', state.look.swap_seconds));
+      groups.push(h('fieldset', { class: 'look-group' }, ...lookKids));
+
+      const apply = h('button', { class: 'button primary', type: 'submit' }, 'Apply changes');
+      // Choosing a theme puts colours back to its own: say so first when that would overwrite colours the person set.
+      let replaceOk = false;
+      const replaceText = h('span');
+      const replaceBox = h('div', { class: 'look-confirm', role: 'alert', hidden: true },
+        h('strong', {}, 'This replaces your custom colours'), ' ', replaceText,
+        h('div', { class: 'actions-row' },
+          h('button', { class: 'button primary', type: 'button', id: 'look-replace', onclick: () => { replaceOk = true; replaceBox.hidden = true; form.requestSubmit(); } }, 'Replace them'),
+          h('button', { class: 'button secondary', type: 'button', id: 'look-cancel', onclick: () => {
+            replaceBox.hidden = true; chosenTheme = wasTheme; drawThemes();
+            themeNote.textContent = wasTheme === 'custom' ? 'Your colours are customised. Pick a theme to start again from one.' : L.THEMES[wasTheme].blurb; } }, 'Cancel')));
+      const form = h('form', { class: 'look-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        result.textContent = '';
+        const patch = { film: {}, title: {}, view: {}, look: {} };
+        if (chosenTheme !== wasTheme && L.THEMES[chosenTheme]) {
+          patch.theme = chosenTheme;
+          const lost = L.replaces(v.story_spec, chosenTheme);
+          if (lost.length && !replaceOk) {
+            replaceText.textContent = `${lost.join(', ')}. Cancel to keep them.`;
+            replaceBox.hidden = false;
+            return;
+          }
+        }
+        replaceOk = false;
+        replaceBox.hidden = true;
+        const per = { title: {}, view: {} };
+        for (const r of rows) {
+          if (r.el.value === r.was) continue;
+          if (r.scope === 'title' || r.scope === 'view') {
+            (per[r.scope][r.index] = per[r.scope][r.index] || { index: r.index })[r.field] = r.el.value;
+          } else patch[r.scope][r.field] = r.el.value;
+        }
+        const calls = [patch, ...['title', 'view'].flatMap(s => Object.values(per[s]).map(p => ({ [s]: p })))];
+        let story = v.story_spec;
+        const changed = [];
+        const notes = [];
+        for (const p of calls) {
+          if (!p.theme && !Object.values(p).some(part => part && typeof part === 'object' && Object.keys(part).some(k => k !== 'index'))) continue;
+          const out = L.apply(story, p);
+          if (!out.ok) { showError(error, new Error(out.problems.join(' '))); return; }
+          story = out.story;
+          changed.push(...out.changed);
+          notes.push(...out.notes);
+        }
+        if (!changed.length) { result.textContent = 'Nothing to change.'; return; }
+        await busy(apply, 'Applying…', async () => {
+          try {
+            await onSaved(story);
+            // The theme may have reset colours: show what the story now holds.
+            const now = L.describe(story);
+            for (const r of rows) {
+              const src = r.scope === 'film' ? now.film : r.scope === 'title' ? now.titles[r.index] : r.scope === 'view' ? now.views[r.index] : now.look;
+              const val = src ? src[r.field] : null;
+              r.el.value = val == null ? '' : String(val);
+              r.was = r.el.value;
+              r.el.dispatchEvent(new Event('input'));
+            }
+            wasTheme = chosenTheme = now.theme_name;
+            themeNote.textContent = now.theme_name === 'custom' ? 'Your colours are customised. Pick a theme to start again from one.' : L.THEMES[now.theme_name].blurb;
+            drawThemes();
+            result.textContent = `Saved: ${changed.length} change${changed.length === 1 ? '' : 's'}. ${notes.join(' ')} Make a new contact sheet to see them.`;
+          } catch (err) { showError(error, err); }
+        });
+      } }, ...groups, replaceBox, apply, result, error);
+      return h('details', { class: 'look-panel' },
+        h('summary', {}, 'Shape the film'),
+        h('p', { class: 'form-note' }, 'Change the words, years, pace and colours here. Leave a box empty to use the default. The story below updates when you apply.'),
+        form);
     }
 
     // Files for a version, refreshed on its own when a job finishes so the
