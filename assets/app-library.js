@@ -501,6 +501,9 @@
         sources.refresh();
       });
 
+      const preview = previewOn() && !locked ? previewPanel(v) : null;
+      if (preview) { const was = jobs.storyChanged; jobs.storyChanged = (...a) => { was(...a); preview.stale(); }; }
+
       const editorOn = window.ryagramConfig?.aiEditor === true || !!window.ryagramMock;
       const chat = editorOn && !locked ? editorPanel(v, {
         storyChanged: () => route(),
@@ -524,6 +527,7 @@
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
         sources.el,
         uploads?.el,
+        preview?.el,
         picker,
         look,
         chat,
@@ -1044,6 +1048,54 @@
         h('summary', {}, 'Shape the film'),
         h('p', { class: 'form-note' }, 'Change the words, years, pace and colours here. Leave a box empty to use the default. The story below updates when you apply.'),
         form);
+    }
+
+    // --- Live preview (phase 1): draw the film in the page as the person drags a slider. Free, no credits.
+    // Shown only when ryagramConfig.livePreview is true, in mock mode, or for this browser session after a ?preview= key on the
+    // address (the server still decides: scene bundles are off until Ryan turns the job type on).
+    const previewOn = () => window.ryagramConfig?.livePreview === true || !!window.ryagramMock || (() => { try { return sessionStorage.getItem('ryagram-preview') === '1'; } catch { return false; } })();
+    function previewPanel(v) {
+      const Z = window.ryagramZip;
+      const host = h('div', { class: 'pv-host' });
+      const status = h('p', { class: 'form-note', role: 'status' });
+      const error = errorLine();
+      const open = h('button', { class: 'button secondary', type: 'button' }, 'Open the preview');
+      let viewer = null;
+      let bundleSha = null;
+      const say = t => { status.textContent = t; };
+      const wait = ms => new Promise(r => setTimeout(r, ms));
+      async function load() {
+        error.hidden = true;
+        if (typeof DecompressionStream !== 'function') throw new Error('This browser can\u2019t open the preview. Update it, or use a recent Chrome, Edge, Safari or Firefox.');
+        if (!window.ryagramSceneDraw) throw new Error('The preview isn\u2019t ready on this site yet.');
+        say('Preparing your preview\u2026');
+        let row = await data.requestSceneBundle(v.id);
+        for (let i = 0; row && row.status === 'building' && i < 60; i++) { await wait(2000); row = await data.requestSceneBundle(v.id); }
+        if (!row || row.status === 'failed') throw new Error(row?.error_detail ? `The preview couldn\u2019t be made: ${window.ryagramJobs.plainDetail(row.error_detail)}` : 'The preview couldn\u2019t be made.');
+        if (row.status !== 'ready') throw new Error('The preview is taking longer than expected. Try again in a minute.');
+        say('Loading\u2026');
+        const files = await Z.read(await data.downloadSceneBundle(row.storage_path));
+        const scene = await Z.sceneJson(files['scene.json.gz']);
+        if (viewer) viewer.destroy();
+        viewer = await window.ryagramPreview.mount(host, { scene, fonts: files });
+        bundleSha = JSON.stringify(v.story_spec);
+        say('Drag the slider to see the film at any moment. Nothing here costs credits; the final film is still rendered and checked on the render machine.');
+        open.textContent = 'Refresh the preview';
+      }
+      open.addEventListener('click', async event => {
+        await busy(event.currentTarget, 'Preparing\u2026', async () => {
+          try { await load(); } catch (err) { say(''); showError(error, err); }
+        });
+        if (viewer) open.textContent = 'Refresh the preview';
+      });
+      return {
+        // The story changed (saved some other way): the drawing on screen is of the old one.
+        stale() { if (viewer && bundleSha !== JSON.stringify(v.story_spec)) say('The story changed. Refresh the preview to see it.'); },
+        el: h('section', { class: 'app-panel preview-panel', 'aria-labelledby': 'preview-title' },
+          h('h2', { id: 'preview-title' }, 'Preview'),
+          h('p', { class: 'form-note' }, 'See the film at any moment before you render it. Free.'),
+          open, status, host, error)
+      };
     }
 
     // Files for a version, refreshed on its own when a job finishes so the

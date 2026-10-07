@@ -5,6 +5,9 @@
 // Never put a secret or service_role key here.
 // Empty means not connected: the form sends nothing and points people to email.
 window.ryagramConfig = Object.freeze({
+  // Show "Preview" (draw the film in the page as you drag a slider) on a version. Needs the scene-bundle SQL applied, the worker's
+  // bundle job on, and the engine's drawing code at assets/preview/scene-draw.js. A tester can also open /app/?preview=KEY.
+  livePreview: false,
   // Count visits to /ryagram/ (a cookieless tally by day and link source, for Ryan's private view at #/admin/visits).
   // Turn on only once SQL 20261006000100 is applied (supabase/README.md, "Visit counting").
   visitCounting: true,

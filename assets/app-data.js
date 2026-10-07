@@ -341,6 +341,19 @@
           .order('created_at', { ascending: true }), 'Couldn’t load the conversation.');
       },
 
+      // Live preview (SQL 20261006000300, WORKER): ask for the scene bundle of this version's story as it is now. The reply is one row:
+      // { status: 'ready' | 'building' | 'failed', job_id, storage_path, engine_commit, error_detail }. Free: no credits.
+      async requestSceneBundle(versionId) {
+        const rows = await run(client.rpc('request_scene_bundle', { p_version_id: versionId }), 'Couldn\u2019t prepare the preview.');
+        return Array.isArray(rows) ? rows[0] : rows;
+      },
+      // The bundle is one zip in the artifacts bucket, read through the owner's own access (no public link).
+      async downloadSceneBundle(path) {
+        const { data, error } = await client.storage.from(ARTIFACT_BUCKET).download(path);
+        if (error || !data) throw new Error('Couldn\u2019t load the preview.');
+        return new Uint8Array(await data.arrayBuffer());
+      },
+
       async fileUrl(path) {
         const data = await run(client.storage.from(ARTIFACT_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS),
           'Couldn’t open the file.');

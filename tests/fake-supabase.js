@@ -297,6 +297,7 @@
         return { data: null, error: null };
       }
     };
+    const sceneAsks = {};
     const rpcs = {
       ...rpcsExtra,
       sync_version_sources({ p_version }) { return syncSources(p_version); },
@@ -320,6 +321,12 @@
       visits_by_source({ p_days }) {
         const rows = p_days >= 90 ? [['youtube', 120, 7], ['', 30, 1], ['newsletter', 6, 0]] : [['youtube', 70, 4], ['', 10, 0], ['newsletter', 3, 0]];
         return { data: rows.map(([source, visits, signups]) => ({ source, visits, signups })), error: null };
+      },
+      // Mock scene bundle (live preview): 'building' on the first ask, then 'ready' with the synthetic fixture.
+      request_scene_bundle({ p_version_id }) {
+        sceneAsks[p_version_id] = (sceneAsks[p_version_id] || 0) + 1;
+        if (sceneAsks[p_version_id] === 1) return { data: [{ status: 'building', job_id: id(), storage_path: null, engine_commit: null, error_detail: null }], error: null };
+        return { data: [{ status: 'ready', job_id: id(), storage_path: `mock/${p_version_id}/scene.bundle.zip`, engine_commit: 'f1x7ure', error_detail: null }], error: null };
       },
       film_unpublish({ p_version }) {
         const page = db.film_pages.find(p => p.version_id === p_version);
@@ -534,6 +541,16 @@
                 files[path] = file;
               }
               return { data: { path }, error: null };
+            },
+            // Authenticated download (the live preview's bundle): the synthetic fixture zip in mock mode.
+            async download(path) {
+              log.push({ download: path, bucket });
+              const b64 = (typeof window !== 'undefined' ? window : globalThis).ryagramSceneFixtureB64;
+              if (!/scene\.bundle\.zip$/.test(path) || !b64) return { data: null, error: { message: 'not found' } };
+              const bin = typeof atob === 'function' ? atob(b64) : Buffer.from(b64, 'base64').toString('binary');
+              const bytes = new Uint8Array(bin.length);
+              for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+              return { data: new Blob([bytes], { type: 'application/zip' }), error: null };
             },
             async createSignedUrl(path, seconds) {
               log.push({ signed: path, bucket, seconds });

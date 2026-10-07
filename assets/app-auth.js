@@ -39,11 +39,15 @@
     if (message) status.focus();
   }
 
+  // /app/?preview=KEY turns the live preview panel on for this browser session (a tester's key; the server still decides
+  // whether a preview can be built). Nothing about the key is stored or sent.
+  try { if (query.get('preview')) sessionStorage.setItem('ryagram-preview', '1'); } catch { /* private window: the panel simply stays off */ }
+
   // Mock mode (/app/?mock): fake data and a pretend worker, for testing the
   // screens without Supabase. Only on this computer, never on uselai.com.
   const LOCAL_HOSTS = ['localhost', '127.0.0.1', '[::1]'];
   if (LOCAL_HOSTS.includes(location.hostname) && query.has('mock')) {
-    const files = ['/tests/fake-supabase.js', '/tests/mock-worker.js', '/tests/mock-app.js'];
+    const files = ['/tests/fake-supabase.js', '/tests/mock-worker.js', '/tests/mock-app.js', '/tests/fixtures/scene-fixture.js', '/tests/fixtures/scene-draw-fixture.js'];
     (function next() {
       if (!files.length) { start(window.createMockApp()); return; }
       const script = document.createElement('script');
