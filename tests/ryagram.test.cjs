@@ -90,29 +90,30 @@ test('film slots accept YouTube links or IDs and ignore anything else', () => {
   });
 });
 
-test('the shipped page has films 1 and 2 filled and film 3 still coming soon', () => {
-  assert.equal(shippedSlots.length, 3);
-  assert.equal(shippedSlots[0].youtube, 'https://youtu.be/6Vgfp4WzHh4');
-  assert.equal(shippedSlots[1].youtube, 'https://youtu.be/h32_9Gd8cOg');
-  assert.equal(shippedSlots[2].youtube, '');
-  assert.match(pageHtml, /<article class="film-slot" data-youtube="" data-title="Ryagram film 3"><div class="film-frame"><span>Coming soon<\/span><\/div><h3>Film 3<\/h3><\/article>/);
+test('the shipped page shows two finished-film loops that link to the full films (no film slots any more)', () => {
+  assert.equal(shippedSlots.length, 0);
+  const films = [...pageHtml.matchAll(/<article class="rg-film">([\s\S]*?)<\/article>/g)].map(m => m[1]);
+  assert.equal(films.length, 2);
+  assert.match(films[0], /href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*rel="noopener"/);
+  assert.match(films[1], /href="https:\/\/youtu\.be\/h32_9Gd8cOg"[^>]*rel="noopener"/);
+  for (const f of films) {
+    assert.match(f, /<video class="rg-loop" muted loop playsinline preload="none" poster="\/assets\/ryagram-loop-[a-z]+\.jpg"/);
+    assert.match(f, /aria-label="[^"]{20,}"/);                                  // a described, silent loop
+    assert.doesNotMatch(f, /\sautoplay[\s>]/);                                 // started by ryagram-loops.js, only while visible
+  }
 });
 
-test('before a click there is no YouTube iframe or script, in the markup or in the DOM the script builds', () => {
-  // Static markup: nothing but our own scripts, and no iframe at all.
+test('before a click there is no YouTube iframe or script in the page', () => {
   assert.doesNotMatch(pageHtml, /<iframe/i);
   const scripts = [...pageHtml.matchAll(/<script[^>]*\ssrc="([^"]+)"/g)].map(m => m[1]);
   for (const src of scripts) assert.doesNotMatch(src, /youtube|ytimg|google/i);
   assert.doesNotMatch(pageHtml, /iframe_api|youtube\.com\/embed/i);
-
-  // After ryagram.js has run over the real slots: facades only.
-  const slots = shippedSlots.map(s => slot(s.youtube, s.title));
+  // The facade code in ryagram.js still works for any slot a later page adds.
+  const slots = [slot('https://youtu.be/6Vgfp4WzHh4', 'A film'), slot('', 'Soon')];
   const h = harness({ slots });
   assert.ok(!h.created.some(node => node.tag === 'iframe' || node.tag === 'script'));
-  slots.forEach(s => walk(s.frame, node => assert.ok(node.tag !== 'iframe' && node.tag !== 'script')));
   assert.equal(slots[0].frame.children[0].tag, 'button');
-  assert.equal(slots[1].frame.children[0].tag, 'button');
-  assert.equal(slots[2].frame.children.length, 0);
+  assert.equal(slots[1].frame.children.length, 0);
 });
 
 test('the play control is a real button with an accessible name and a decorative thumbnail', () => {
@@ -241,7 +242,7 @@ test('failures keep the form and allow retry', async () => {
     assert.notEqual(h.fields.hidden, true);
     assert.equal(h.button.disabled, false);
     assert.equal(h.status.focused, true);
-    assert.match(h.status.textContent, /ryan\.galen@uselai\.com/);
+    assert.match(h.status.textContent, /ryagram@uselai\.com/);
   }
 });
 
@@ -349,4 +350,159 @@ test('the shipped config: the tally is on, the Cloudflare beacon stays off until
   const privacy = fs.readFileSync(path.join(__dirname, '../privacy-policy.html'), 'utf8');
   assert.match(privacy, /simple tally of page loads[^<]*cookieless[^<]*no personal profiles/);
   assert.doesNotMatch(privacy, /Cloudflare Web Analytics/);       // add the Cloudflare words in the same commit that adds the token
+});
+
+// ---- the pitch page (2026-10-06): structure, honesty, weight -------------------------------------------------------
+const visibleText = pageHtml.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/g, ' ').replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+const assetSize = rel => fs.statSync(path.join(__dirname, '..', rel.replace(/^\//, ''))).size;
+
+test('the page says what Ryagram does in one line, with the waitlist button, in the hero', () => {
+  assert.match(pageHtml, /<h1 id="hero-title">Type a question\. Get an animated data film\.<\/h1>/);
+  const hero = pageHtml.match(/<section class="rg-wrap rg-hero"[\s\S]*?<\/section>/)[0];
+  assert.match(hero, /<a class="rg-btn" href="#waitlist">Join the waitlist<\/a>/);
+  assert.equal([...pageHtml.matchAll(/<h1[ >]/g)].length, 1);
+});
+
+test('the walkthrough is a muted, looping, inline video with a poster and a text version', () => {
+  const v = pageHtml.match(/<video class="rg-walk"[^>]*>/)[0];
+  for (const attr of ['autoplay', 'muted', 'loop', 'playsinline', 'poster="/assets/ryagram-walkthrough-poster.jpg"', 'aria-describedby="walk-words"']) assert.ok(v.includes(attr), attr);
+  assert.match(pageHtml, /<source src="\/assets\/ryagram-walkthrough\.mp4" type="video\/mp4">/);
+  assert.match(pageHtml, /id="walk-words"/);
+  assert.ok(assetSize('/assets/ryagram-walkthrough.mp4') < 2.5e6, 'the tour stays small enough for a phone');
+  assert.ok(assetSize('/assets/ryagram-walkthrough-poster.jpg') < 80e3);
+});
+
+test('every showcase loop is small, and every file the page names exists', () => {
+  for (const f of ['/assets/ryagram-loop-housing.mp4', '/assets/ryagram-loop-obesity.mp4']) assert.ok(assetSize(f) < 450e3, f);
+  for (const m of pageHtml.matchAll(/(?:src|href|poster)="(\/assets\/[^"]+)"/g)) assert.ok(assetSize(m[1]) > 0, m[1]);
+});
+
+test('the Compilation Maker section is an illustration with public-domain words, with no video of anyone else footage', () => {
+  const sec = pageHtml.match(/<section id="compilation"[\s\S]*?<\/section>/)[0];
+  assert.doesNotMatch(sec, /<video|<iframe|<img/);
+  assert.match(sec, /Coming soon/);
+  assert.match(sec, /every time it is said in your own footage/);
+  assert.match(sec, /turn your clips into songs/);
+  assert.match(sec, /public-domain words \(Lincoln, 1863\)/);
+});
+
+test('how it works is three steps, one checks line (no strip), and the release line Ryan gave', () => {
+  const how = pageHtml.match(/<section id="how"[\s\S]*?<\/section>/)[0];
+  assert.equal([...how.matchAll(/<h3>/g)].length, 3);
+  assert.match(how, /<p class="rg-release">Private beta opening soon\. Join the waitlist and we'll tell you\.<\/p>/);
+  assert.doesNotMatch(pageHtml, /\[RELEASE DATE\]/);
+  const checks = [...pageHtml.matchAll(/<p class="rg-checks">([^<]*)<\/p>/g)];
+  assert.equal(checks.length, 1);                                              // ONE line
+  assert.match(checks[0][1], /^Every film is checked against its data before you get it: /);
+  assert.doesNotMatch(pageHtml, /check-list|checks-strip|rg-strip-checks|Correctness checks/);   // and no strip or section
+  assert.match(pageHtml, /<h1 id="hero-title">Type a question\. Get an animated data film\.<\/h1>/);   // the hero line stays
+});
+
+test('the operator is L\'Ai, LLC everywhere it is named; Ryagram pages, the policy and the app give ryagram@, the main pages ryan.galen@', () => {
+  const page = f => fs.readFileSync(path.join(__dirname, '..', f), 'utf8');
+  const named = ['index.html', 'ryagram/index.html', 'privacy-policy.html', 'workflow-audit/index.html', 'workflow-audit-thanks.html', 'film/index.html', 'app/index.html'];
+  for (const f of named) {
+    const html = page(f);
+    assert.doesNotMatch(html, /Seasonings/, f);
+    assert.match(html, /L'Ai, LLC/, f);
+  }
+  // Ryagram's own pages, the policy and the app: ryagram@, never the personal address.
+  for (const f of ['ryagram/index.html', 'privacy-policy.html', 'app/index.html']) {
+    const html = page(f);
+    assert.match(html, /mailto:ryagram@uselai\.com/, f);
+    assert.doesNotMatch(html, /ryan\.galen@uselai\.com/, f);
+  }
+  assert.match(page('assets/ryagram.js'), /const CONTACT = 'ryagram@uselai\.com';/);
+  // The main uselai.com pages keep Ryan's address.
+  for (const f of ['index.html', 'workflow-audit/index.html', 'workflow-audit-thanks.html', 'thank-you.html']) assert.match(page(f), /ryan\.galen@uselai\.com/, f);
+  // The app names its operator and links the policy (it had no footer before).
+  assert.match(page('app/index.html'), /<footer class="app-foot"><span>Ryagram is operated by L'Ai, LLC\.<\/span><a href="mailto:ryagram@uselai\.com">ryagram@uselai\.com<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><\/footer>/);
+  // The Auth email templates live in the Supabase dashboard: the README says what to paste.
+  assert.match(page('supabase/README.md'), /Ryagram is operated by L'Ai, LLC\. Questions: ryagram@uselai\.com/);
+});
+
+test('the waitlist form keeps its fields: required email, optional "What do you do?", the bot trap, and the call to action repeats', () => {
+  assert.match(pageHtml, /<form id="waitlist-form"/);
+  assert.match(pageHtml, /id="wl-email" name="email" type="email"[^>]*required/);
+  assert.match(pageHtml, /<label for="wl-use">What do you do\? <span>\(optional\)<\/span><\/label>/);
+  assert.match(pageHtml, /id="wl-use" name="use_case"(?![^>]*required)/);
+  assert.match(pageHtml, /name="website"/);
+  assert.ok([...pageHtml.matchAll(/href="#waitlist"/g)].length >= 3);        // header, hero, skip link
+  assert.match(pageHtml, /<section id="waitlist"[^>]*>[\s\S]*Want to make one\?/);
+});
+
+test('nothing on the page reveals how data is found or chosen, or how anything is priced', () => {
+  assert.doesNotMatch(visibleText, /\b(broker|brokering|sourcing|catalog|catalogue|price|pricing|priced|credits?|per film|Anthropic|Claude|Supabase|Cloudflare|Playwright|worker)\b/i);
+  assert.doesNotMatch(visibleText, /\$\d/);
+});
+
+test('the page works with the strict policy: no inline script or style, and nothing from outside but the typeface', () => {
+  assert.doesNotMatch(pageHtml, /\sstyle="/);
+  assert.doesNotMatch(pageHtml, /<script(?![^>]*\ssrc=)[^>]*>/);
+  assert.doesNotMatch(pageHtml, /unsafe-inline|unsafe-eval/);
+  const external = [...pageHtml.matchAll(/(?:src|href)="(https?:\/\/[^"]+)"/g)].map(m => new URL(m[1]).hostname);
+  for (const host of new Set(external)) assert.ok(['fonts.googleapis.com', 'fonts.gstatic.com', 'youtu.be', 'uselai.com'].includes(host), host);
+});
+
+test('accessibility basics: language, one main, a skip link, labelled sections, text alternatives, large tap targets, Night', () => {
+  assert.match(pageHtml, /<html lang="en">/);
+  assert.equal([...pageHtml.matchAll(/<main>/g)].length, 1);
+  assert.match(pageHtml, /<a class="skip-link" href="#waitlist">/);
+  for (const sec of pageHtml.matchAll(/<section[^>]*aria-labelledby="([^"]+)"/g)) assert.match(pageHtml, new RegExp(`id="${sec[1]}"`), sec[1]);
+  for (const v of pageHtml.matchAll(/<video[^>]*class="rg-loop"[^>]*>/g)) assert.match(v[0], /aria-label=/);
+  const css = fs.readFileSync(path.join(__dirname, '../assets/ryagram.css'), 'utf8');
+  assert.match(css, /\.rg-btn\{[^}]*min-height:52px/);
+  assert.match(css, /prefers-reduced-motion/);
+  assert.match(css, /--bg:#14141a/);                                          // Night, as in the films
+});
+
+// ---- ryagram-loops.js ------------------------------------------------------------------------------------------
+const loopsCode = fs.readFileSync(path.join(__dirname, '../assets/ryagram-loops.js'), 'utf8');
+function video() { return { played: 0, paused: 0, attrs: { autoplay: '' }, controls: false, play() { this.played++; return Promise.resolve(); }, pause() { this.paused++; }, removeAttribute(n) { delete this.attrs[n]; } }; }
+function runLoops({ reduced = false, observer = true, loops = [video(), video()], walk = video() } = {}) {
+  let cb = null; const observed = [];
+  vm.runInNewContext(loopsCode, {
+    document: { querySelectorAll: () => loops, querySelector: () => walk },
+    matchMedia: () => ({ matches: reduced }),
+    ...(observer ? { IntersectionObserver: function (fn) { cb = fn; this.observe = t => observed.push(t); } } : {})
+  });
+  return { loops, walk, observed, fire: entries => cb(entries) };
+}
+test('loops start only while on screen and pause when they leave', () => {
+  const r = runLoops();
+  assert.equal(r.observed.length, 2);
+  assert.equal(r.loops[0].played, 0);
+  r.fire([{ target: r.loops[0], isIntersecting: true }, { target: r.loops[1], isIntersecting: false }]);
+  assert.deepEqual([r.loops[0].played, r.loops[1].played, r.loops[1].paused], [1, 0, 1]);
+  r.fire([{ target: r.loops[0], isIntersecting: false }]);
+  assert.equal(r.loops[0].paused, 1);
+});
+test('with reduced motion nothing autoplays and the browser controls appear', () => {
+  const r = runLoops({ reduced: true });
+  for (const v of [...r.loops, r.walk]) assert.deepEqual([v.attrs.autoplay, v.controls, v.paused], [undefined, true, 1]);
+  assert.equal(r.observed.length, 0);
+});
+test('without IntersectionObserver the loops simply play; a refused play never throws', () => {
+  const r = runLoops({ observer: false });
+  assert.deepEqual(r.loops.map(v => v.played), [1, 1]);
+  const bad = video(); bad.play = () => { throw new Error('refused'); };
+  assert.doesNotThrow(() => runLoops({ observer: false, loops: [bad] }));
+});
+
+// ---- the walkthrough video's words (no prices, no credits) ---------------------------------------------------------------
+test('the walkthrough shows no credits, prices or "free" labels: the words on the page while it was recorded are saved beside it, tied to the exact video by its hash', () => {
+  const crypto = require('node:crypto');
+  const list = fs.readFileSync(path.join(__dirname, 'fixtures', 'walkthrough.text.txt'), 'utf8').split(/\r?\n/).filter(Boolean);
+  const video = fs.readFileSync(path.join(__dirname, '../assets/ryagram-walkthrough.mp4'));
+  assert.equal(list[0], `sha256 ${crypto.createHash('sha256').update(video).digest('hex')}`);   // this list belongs to THIS video
+  const words = list.slice(1);
+  assert.ok(words.length > 60, 'the recorder captured the page text');
+  for (const must of ['Shape the film', 'Make contact sheet', 'Make preview', 'Render final film', 'Editor']) assert.ok(words.includes(must), must);
+  const priced = words.filter(w => /\bcredits?\b(?!\s*line)|\bfree\b|\bpric(e|es|ing)\b|[$][0-9]|\b\d+\s*cr\b/i.test(w) && !/^Credit line$/.test(w));
+  assert.deepEqual(priced, []);
+  assert.doesNotMatch(words.join('\n'), /\(mock\)|mock@|localhost/i);              // and none of the mock app's own labels
+});
+test('the recorder keeps prices out of the video by rewriting the page while it records, and saves the words it saw', () => {
+  const rec = fs.readFileSync(path.join(__dirname, '../tools/record-walkthrough.py'), 'utf8');
+  for (const part of ['PRICE_TAIL', 'PRICE_LINE', 'MutationObserver', 'walkthrough.text.txt', 'seen-text.json']) assert.ok(rec.includes(part), part);
 });

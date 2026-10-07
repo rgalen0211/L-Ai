@@ -2,86 +2,123 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="theme-color" content="#14141a">
 <!-- GitHub Pages cannot send headers, so the policy is a meta tag. Facebook entries are for the
-     optional Meta Pixel (off until configured); the style hash is the noscript rule below. -->
+     optional Meta Pixel (off until configured); Cloudflare entries are for the optional visit counter
+     (off until a token is set); the style hash is the noscript rule below. -->
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' https://connect.facebook.net https://static.cloudflareinsights.com; style-src 'self' https://fonts.googleapis.com 'sha256-X9M4C5GZAxfxJNAK0liPui7LKk9rxjbMMSyDBMYdT6Y='; font-src https://fonts.gstatic.com; img-src 'self' data: https://www.facebook.com https://i.ytimg.com; media-src 'self'; frame-src https://www.youtube-nocookie.com; connect-src https://jxtkfishqfxuptwjzczz.supabase.co https://www.facebook.com https://cloudflareinsights.com; base-uri 'none'; form-action 'none'; object-src 'none'">
-<title>Ryagram — Data films that show what the data say | L'Ai</title>
-<meta name="description" content="Ryagram makes short animated data films that show what the data actually say, with correctness checks built in. Join the waitlist.">
+<title>Ryagram: type a question, get an animated data film | L'Ai</title>
+<meta name="description" content="Type a question. Get an animated data film, checked against its data. Join the Ryagram waitlist.">
 <link rel="canonical" href="https://uselai.com/ryagram/">
+<link rel="icon" href="data:,">
+<link rel="preload" as="image" href="/assets/ryagram-walkthrough-poster.jpg">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="/assets/workflow-audit.css">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/ryagram.css">
 <noscript><style>.waitlist-fields{display:none}</style></noscript>
 </head>
 <body class="ryagram-page">
 <a class="skip-link" href="#waitlist">Skip to the waitlist</a>
-<header><div class="container nav"><a class="brand" href="/" aria-label="L'Ai home"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">AI workflow automation<br>for small business</span></a><nav class="page-nav" aria-label="Ryagram page"><a href="#films">Films</a><a href="#checks">Checks</a><a class="button primary" href="#waitlist">Join the waitlist</a></nav></div></header>
+<header class="rg-top"><div class="rg-wrap rg-nav"><a class="rg-brand" href="/" aria-label="L'Ai home"><span class="rg-wordmark" aria-hidden="true">L'Ai</span><span class="rg-brand-sub">Ryagram</span></a><a class="rg-btn rg-btn-small" href="#waitlist">Join the waitlist</a></div></header>
 <main>
-  <section class="container rg-hero">
-    <div>
-      <div class="eyebrow">Ryagram, from L'Ai</div>
-      <h1>Data films that show what the data actually say.</h1>
-      <p class="hero-copy">Ryagram turns a dataset into a short animated film: maps, bar races, flows and globes, drawn straight from the numbers rather than by hand.</p>
-      <p class="reassurance">Every film is checked against its data. If the picture and the numbers disagree, it doesn’t get published.</p>
-      <a class="button primary" href="#waitlist">Join the waitlist</a>
+  <section class="rg-wrap rg-hero" aria-labelledby="hero-title">
+    <div class="rg-hero-copy">
+      <h1 id="hero-title">Type a question. Get an animated data film.</h1>
+      <p class="rg-lead">Maps, bar races and charts that move, drawn straight from the numbers and checked before you get them.</p>
+      <a class="rg-btn" href="#waitlist">Join the waitlist</a>
     </div>
-    <figure class="rg-reel">
-      <video autoplay loop muted playsinline poster="/assets/ryagram-reel-poster.png" width="960" height="540" aria-label="Silent demo reel: a map of the United States, a bar race, a flow chart and a rotating globe, all driven by one 36-month timeline of synthetic data."><source src="/assets/ryagram-reel.webm" type="video/webm"></video>
-      <figcaption>Demo reel. The figures are synthetic and labelled as such on every frame.</figcaption>
+    <figure class="rg-phone">
+      <video class="rg-walk" autoplay muted loop playsinline preload="auto" poster="/assets/ryagram-walkthrough-poster.jpg" width="540" height="1168" aria-describedby="walk-words">
+        <source src="/assets/ryagram-walkthrough.mp4" type="video/mp4">
+      </video>
+      <figcaption>A 45-second tour of the app. Silent; the captions say it all.</figcaption>
+      <details class="rg-words"><summary>The tour in words</summary><p id="walk-words">You pick a topic. You shape the film: the theme, the colours, the years and the shape of the picture. You type what you want in plain English and the editor changes the film. You watch it render with a live progress timer, and a finished film comes out.</p></details>
     </figure>
   </section>
 
-  <section id="films" class="rg-section">
-    <div class="container">
-      <div class="section-head"><div class="eyebrow">Films</div><h2>Finished films</h2><p>The first two films are out. Each was checked against its data before it was published, and the next one is in the works.</p></div>
-      <div class="film-grid">
-        <!-- To publish a film: put its YouTube link in data-youtube and its name in data-title and the h3. It shows a thumbnail and play button; the YouTube player loads only when it is pressed. -->
-        <article class="film-slot" data-youtube="https://youtu.be/6Vgfp4WzHh4" data-title="America Never Started Building Again"><div class="film-frame"><noscript><a href="https://youtu.be/6Vgfp4WzHh4">Watch on YouTube</a></noscript></div><h3>America Never Started Building Again</h3></article>
-        <article class="film-slot" data-youtube="https://youtu.be/h32_9Gd8cOg" data-title="Fast Food and Obesity: Not What You’d Expect"><div class="film-frame"><noscript><a href="https://youtu.be/h32_9Gd8cOg">Watch on YouTube</a></noscript></div><h3>Fast Food and Obesity: Not What You’d Expect</h3></article>
-        <article class="film-slot" data-youtube="" data-title="Ryagram film 3"><div class="film-frame"><span>Coming soon</span></div><h3>Film 3</h3></article>
+  <section id="films" class="rg-section" aria-labelledby="films-title">
+    <div class="rg-wrap">
+      <h2 id="films-title">Films made with Ryagram</h2>
+      <p class="rg-sub">Short loops from finished films. Each one was checked against its data before it was published.</p>
+      <div class="rg-films">
+        <!-- The Interstate night film goes here when Ryan supplies it: copy an <article class="rg-film">, point it at the new loop and poster. -->
+        <article class="rg-film">
+          <video class="rg-loop" muted loop playsinline preload="none" poster="/assets/ryagram-loop-housing.jpg" width="960" height="540" aria-label="A map of US counties changing colour year by year, from a film about building permits."><source src="/assets/ryagram-loop-housing.mp4" type="video/mp4"></video>
+          <h3>America Never Started Building Again</h3>
+          <a href="https://youtu.be/6Vgfp4WzHh4" target="_blank" rel="noopener">Watch the full film</a>
+        </article>
+        <article class="rg-film">
+          <video class="rg-loop" muted loop playsinline preload="none" poster="/assets/ryagram-loop-obesity.jpg" width="960" height="540" aria-label="A map and a bar race side by side, from a film about fast food and obesity."><source src="/assets/ryagram-loop-obesity.mp4" type="video/mp4"></video>
+          <h3>Did Fast Food Grow With Obesity?</h3>
+          <a href="https://youtu.be/h32_9Gd8cOg" target="_blank" rel="noopener">Watch the full film</a>
+        </article>
       </div>
     </div>
   </section>
 
-  <section id="checks" class="rg-section">
-    <div class="container">
-      <div class="section-head"><div class="eyebrow">Correctness checks</div><h2>Checked before it’s published.</h2><p>An animated chart can mislead without a single wrong number: an axis that doesn’t start at zero, a label that drifts from its source, a change smaller than the survey’s error. Ryagram checks for that before anything is published.</p></div>
-      <ul class="check-list">
-        <li><strong>Honest axes.</strong> Bars start at zero, so a bar’s length is its value.</li>
-        <li><strong>Every number traced.</strong> Each figure on screen matches its published source at every year mark, checked frame by frame.</li>
-        <li><strong>Uncertainty stated.</strong> When survey error is larger than a change, the film says so on screen.</li>
-        <li><strong>Repeatable.</strong> Every film carries a receipt, and it rebuilds exactly from its project file and the code version that drew it.</li>
-      </ul>
-      <p class="check-note"><strong>Honest labels.</strong> Sample or synthetic data is marked as such on every frame.</p>
+  <section id="compilation" class="rg-section" aria-labelledby="comp-title">
+    <div class="rg-wrap rg-comp">
+      <div>
+        <p class="rg-tag">Coming soon</p>
+        <h2 id="comp-title">Compilation Maker</h2>
+        <p class="rg-sub">Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.</p>
+      </div>
+      <figure class="rg-demo" aria-labelledby="demo-cap">
+        <div class="rg-demo-phrase"><span class="rg-demo-label">Phrase</span> <q>of the people, by the people</q></div>
+        <ol class="rg-demo-hits" aria-label="Moments found in the example recording">
+          <li><span class="rg-time">0:41</span> <span class="rg-hit"><mark>of the people, by the people</mark>, for the people</span></li>
+          <li><span class="rg-time">3:17</span> <span class="rg-hit">a government <mark>of the people, by the people</mark></span></li>
+          <li><span class="rg-time">6:02</span> <span class="rg-hit">...that it is <mark>of the people, by the people</mark>...</span></li>
+        </ol>
+        <div class="rg-strip" role="img" aria-label="Three short moments joined into one clip"><span class="w1"></span><span class="w2"></span><span class="w3"></span></div>
+        <figcaption id="demo-cap">An illustration with public-domain words (Lincoln, 1863) and made-up timestamps, not a screenshot.</figcaption>
+      </figure>
     </div>
   </section>
 
-  <section id="waitlist" class="rg-section">
-    <div class="container rg-waitlist">
-      <div class="section-head"><div class="eyebrow">Waitlist</div><h2>Want to make one?</h2><p>Ryagram isn’t open yet. Leave your email and we’ll let you know when there’s a version to try.</p></div>
-      <form id="waitlist-form" class="contact-form">
+  <section id="how" class="rg-section" aria-labelledby="how-title">
+    <div class="rg-wrap">
+      <h2 id="how-title">How it works</h2>
+      <ol class="rg-steps">
+        <li><span class="rg-num" aria-hidden="true">1</span><h3>Ask</h3><p>Type what you want to see, or pick a topic to start from.</p></li>
+        <li><span class="rg-num" aria-hidden="true">2</span><h3>Shape</h3><p>Change the look, the years and the words, or just tell the editor what you want.</p></li>
+        <li><span class="rg-num" aria-hidden="true">3</span><h3>Watch</h3><p>Your film is drawn while you watch, with a live timer.</p></li>
+      </ol>
+      <p class="rg-checks">Every film is checked against its data before you get it: honest axes, every number traced, uncertainty stated.</p>
+      <p class="rg-release">Private beta opening soon. Join the waitlist and we'll tell you.</p>
+    </div>
+  </section>
+
+  <section id="waitlist" class="rg-section rg-cta" aria-labelledby="wait-title">
+    <div class="rg-wrap rg-waitlist">
+      <div>
+        <h2 id="wait-title">Want to make one?</h2>
+        <p class="rg-sub">Ryagram isn't open yet. Leave your email and we will let you know when there is a version to try.</p>
+      </div>
+      <form id="waitlist-form" class="rg-form">
         <div class="waitlist-fields">
           <label for="wl-email">Email <span>(required)</span></label>
-          <input id="wl-email" name="email" type="email" autocomplete="email" maxlength="254" required>
-          <label for="wl-use">What would you make with it? <span>(optional)</span></label>
-          <textarea id="wl-use" name="use_case" maxlength="2000" placeholder="The data you have, and what you’d want people to see in it."></textarea>
+          <input id="wl-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="254" required>
+          <label for="wl-use">What do you do? <span>(optional)</span></label>
+          <input id="wl-use" name="use_case" type="text" maxlength="2000" autocomplete="organization-title" placeholder="For example: teacher, analyst, journalist">
           <div class="hp" aria-hidden="true"><label for="wl-website">Website</label><input id="wl-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
-          <button class="button primary" type="submit">Join the waitlist</button>
-          <p class="form-note">We’ll only use this to contact you about Ryagram. See our <a href="/privacy-policy.html">Privacy Policy</a>.</p>
+          <button class="rg-btn" type="submit">Join the waitlist</button>
+          <p class="rg-note">We will only use this to contact you about Ryagram. See our <a href="/privacy-policy.html">Privacy Policy</a>.</p>
         </div>
-        <p id="waitlist-status" class="form-note waitlist-status" role="status" tabindex="-1" hidden></p>
-        <noscript><p class="form-note">To join without JavaScript, email <a href="mailto:ryan.galen@uselai.com?subject=Ryagram%20waitlist">ryan.galen@uselai.com</a>.</p></noscript>
+        <p id="waitlist-status" class="rg-note waitlist-status" role="status" tabindex="-1" hidden></p>
+        <noscript><p class="rg-note">To join without JavaScript, email <a href="mailto:ryagram@uselai.com?subject=Ryagram%20waitlist">ryagram@uselai.com</a>.</p></noscript>
       </form>
     </div>
   </section>
 </main>
-<footer><div class="container footer-row"><span>L'Ai — operated by Ry's Seasonings LLC.</span><a href="mailto:ryan.galen@uselai.com">ryan.galen@uselai.com</a><a href="/privacy-policy.html">Privacy Policy</a></div></footer>
+<footer class="rg-foot"><div class="rg-wrap rg-foot-row"><span>Ryagram is operated by L'Ai, LLC.</span><a href="mailto:ryagram@uselai.com">ryagram@uselai.com</a><a href="/privacy-policy.html">Privacy Policy</a></div></footer>
 <script src="/assets/analytics-config.js" defer></script>
 <script src="/assets/analytics.js" defer></script>
 <script src="/assets/ryagram-config.js" defer></script>
 <script src="/assets/ryagram.js" defer></script>
+<script src="/assets/ryagram-loops.js" defer></script>
 </body>
 </html>

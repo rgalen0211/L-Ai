@@ -261,6 +261,16 @@ What they do:
 
 **Watch:** `select * from account_deletion_requests`.
 
+## Email templates: who is named
+
+The Auth emails (invite, reset password, confirm) are edited in the Supabase dashboard, not in this repo. End each one with the operator and the Ryagram contact, in plain text:
+
+```
+Ryagram is operated by L'Ai, LLC. Questions: ryagram@uselai.com
+```
+
+(Ryan, 2026-10-07: the operator is L'Ai, LLC, and Ryagram's pages, policy and app give ryagram@uselai.com. The sender address below is a separate setting: it stays the Google Workspace mailbox until a Send-As for ryagram@ is set up.)
+
 ## Email sender: Google Workspace (ryan.galen@uselai.com) via Supabase custom SMTP
 
 Password-reset and invite emails need this; nothing else changes. Checked against Google's and

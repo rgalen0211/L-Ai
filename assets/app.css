@@ -128,3 +128,6 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .source-card p{margin:2px 0}
 .source-licence-full{margin:6px 0 2px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:#fafaf8;font-size:.9rem}
 .source-licence-full p{margin:4px 0}
+.app-foot{display:flex;flex-wrap:wrap;gap:6px 20px;max-width:1120px;margin:32px auto 0;padding:18px 18px 28px;border-top:1px solid var(--line);font-size:.85rem;color:var(--muted)}
+.app-foot a{color:inherit}
+body:has(.mock-bar) .app-foot{padding-bottom:120px}
