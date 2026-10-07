@@ -60,7 +60,9 @@ insert into public.credit_prices (price_version, code, credits, price_cents, mon
   ('2026-09', 'final_paired', 10, null, false, '2026-09-01'),
   ('2026-09', 'rebuild_line', 2, null, false, '2026-09-01'),
   ('2026-09', 'rebuild_map', 3, null, false, '2026-09-01'),
-  ('2026-09', 'rebuild_paired', 4, null, false, '2026-09-01');
+  ('2026-09', 'rebuild_paired', 4, null, false, '2026-09-01'),
+  -- The interactive preview's scene bundle (request_scene_bundle): always free.
+  ('2026-09', 'scene_bundle', 0, null, false, '2026-09-01');
 
 -- Which film price each engine view belongs to. Names confirmed by CC1 from Session.frame_for
 -- (2026-09-28): map, bars, line, paired, panel, split, globe; plus "river", which the engine
@@ -310,8 +312,12 @@ begin
     else
       new.price_code := 'preview_extra';
     end if;
-  else
+  elsif new.job_type = 'scene_bundle' then
+    new.price_code := 'scene_bundle';
+  elsif new.job_type = 'final_render' then
     new.price_code := ryagram_private.film_price_code(new.story);
+  else      -- a job type nobody priced is refused, never charged at a film's price
+    raise exception 'No price for % jobs.', new.job_type using errcode = '22023';
   end if;
   new.credits_quoted := ryagram_private.price(new.price_version, new.price_code);
   if new.credits_quoted is null then
@@ -532,7 +538,9 @@ begin
     free := ryagram_private.free_previews_used(me, v.project_id, null) < rules.free_previews_per_project
         and ryagram_private.free_previews_used(me, null, now() - interval '24 hours') < rules.free_previews_per_24h;
     code := case when free then 'preview_free' else 'preview_extra' end;
-  else code := ryagram_private.film_price_code(v.story_spec);
+  elsif p_job_type = 'scene_bundle' then code := 'scene_bundle';
+  elsif p_job_type = 'final_render' then code := ryagram_private.film_price_code(v.story_spec);
+  else raise exception 'No price for % jobs.', p_job_type using errcode = '22023';
   end if;
   return query select code, ryagram_private.price(pv, code), free,
     (ryagram_private.pool_balance(me, 'subscription') + ryagram_private.pool_balance(me, 'granted')
