@@ -35,7 +35,7 @@ CAPTION_JS = """
   if (document.getElementById('rg-cap')) return;
   const css = document.createElement('style');
   css.textContent = `
-    .mock-bar,.sources-panel,.uploads-panel,.share-panel,form:has(#story),.admin-links,.credit-balance,.form-intro+.version-list{display:none!important}
+    header,.mock-bar,.sources-panel,.uploads-panel,.share-panel,form:has(#story),section[aria-labelledby=files-title],.admin-links,.credit-balance,.form-intro+.version-list{display:none!important}
     #rg-cap{position:fixed;left:12px;right:12px;bottom:14px;z-index:99999;padding:12px 16px;border-radius:14px;background:rgba(20,20,26,.94);
       color:#f2f2ef;font:700 17px/1.25 system-ui,-apple-system,Segoe UI,sans-serif;text-align:center;letter-spacing:-.01em;
       border:1px solid #3a3a44;box-shadow:0 8px 30px rgba(0,0,0,.35);transition:opacity .25s;opacity:0;pointer-events:none}
@@ -56,6 +56,8 @@ CAPTION_JS = """
 EDITOR_JS = """
 (() => {
   const c = window.ryagramMock.client;
+  c.db.projects[0].title = 'Obesity and fast food';   // the mock's own title says (mock)
+  c.now = () => new Date().toISOString();   // real clock, so the page's 'Running for' timer counts from the moment a job starts
   c.functions.invoke = async (name, { body }) => {
     const v = c.db.versions.find(x => x.id === body.version_id);
     const L = window.ryagramLook;
@@ -87,6 +89,7 @@ def serve():
 class Recorder:
     def __init__(self, page, frames_dir):
         self.page, self.dir, self.frames, self.t0, self.n = page, frames_dir, [], time.time(), 0
+        self.marks = []
 
     def shoot(self):
         path = self.dir / f'f{self.n:05d}.jpg'
@@ -100,6 +103,7 @@ class Recorder:
             self.shoot()
 
     def caption(self, text):
+        self.marks.append((round(time.time() - self.t0, 1), text))
         self.page.evaluate('t => window.__caption(t)', text)
         self.pace(0.35)
 
@@ -137,7 +141,7 @@ def record(out: Path, film: Path | None):
             page.evaluate(CAPTION_JS)
             page.evaluate(EDITOR_JS)
             r = Recorder(page, frames_dir)
-            r.pace(0.8)
+            r.pace(0.4)
 
             # 1. Pick a topic ---------------------------------------------------------------------------------------------
             vid = page.evaluate('window.ryagramMock.client.db.versions[0].id')
@@ -177,7 +181,7 @@ def record(out: Path, film: Path | None):
             r.scroll_to(canvas, 'center')
             r.tap(canvas)
             canvas.select_option('vertical')
-            r.pace(1.2)
+            r.pace(0.9)
             canvas.select_option('wide')
             r.pace(0.5)
             r.tap(look.locator('button[type=submit]'))
@@ -187,10 +191,10 @@ def record(out: Path, film: Path | None):
             r.caption('Ask the editor in plain English.')
             chat = page.locator('#chat-input')
             r.scroll_to(chat, 'center')
-            r.type(chat, 'Make the title say where obesity is highest, and where fast food followed')
+            r.type(chat, 'Make the title say where obesity is highest')
             r.pace(0.3)
             r.tap(page.locator('.chat-panel button[type=submit]'))
-            r.pace(2.6)
+            r.pace(2.0)
 
             # 4. Render --------------------------------------------------------------------------------------------------
             r.caption('Watch it render.')
@@ -199,7 +203,7 @@ def record(out: Path, film: Path | None):
 
             def run_job(button, label, fast=True, limit=40):
                 r.tap(button)
-                page.evaluate('fast => { window.__fast = setInterval(() => window.ryagramMock.worker.tick(), fast) }', 130 if fast else 520)
+                page.evaluate('fast => { window.__fast = setInterval(() => window.ryagramMock.worker.tick(), fast) }', 130 if fast else 380)
                 t_end = time.time() + limit
                 while time.time() < t_end:
                     r.pace(0.25)
@@ -225,6 +229,7 @@ def record(out: Path, film: Path | None):
     finally:
         srv.shutdown()
     (out / 'frames.json').write_text(json.dumps(r.frames))
+    print('caption marks (s):', r.marks, 'end', round(r.frames[-1][0], 1))
     return r.frames
 
 
@@ -238,7 +243,7 @@ def encode(out: Path, film: Path | None):
             f.write(f"file '{(frames_dir / name).as_posix()}'\nduration {max(dur, 0.02):.3f}\n")
         f.write(f"file '{(frames_dir / frames[-1][1]).as_posix()}'\n")
     app = out / 'app.mp4'
-    vf = 'fps=24,scale=540:-2:flags=lanczos,format=yuv420p'
+    vf = 'fps=24,scale=540:-2:flags=lanczos:in_range=pc:out_range=tv,format=yuv420p'
     subprocess.run(['ffmpeg', '-v', 'error', '-y', '-f', 'concat', '-safe', '0', '-i', str(lst), '-vf', vf, '-c:v', 'libx264', '-preset', 'slow',
                     '-crf', '27', '-movflags', '+faststart', '-an', str(app)], check=True)
     parts = [app]
@@ -248,7 +253,7 @@ def encode(out: Path, film: Path | None):
         filter_ = ("[0:v]fps=24,scale=540:-2:flags=lanczos[v];color=c=0x14141a:s=540x1170:r=24[bg];[bg][v]overlay=0:(H-h)/2-20:shortest=1,"
                    "drawbox=x=12:y=ih-92:w=iw-24:h=60:color=0x14141aF0:t=fill,"
                    "drawtext=text='A finished film.':fontcolor=0xf2f2ef:fontsize=26:x=(w-text_w)/2:y=h-76:fontfile='C\\:/Windows/Fonts/arialbd.ttf',format=yuv420p")
-        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', '42', '-t', '4.5', '-i', str(film), '-filter_complex', filter_, '-c:v', 'libx264', '-preset', 'slow',
+        subprocess.run(['ffmpeg', '-v', 'error', '-y', '-ss', '23', '-t', '5', '-i', str(film), '-filter_complex', filter_, '-c:v', 'libx264', '-preset', 'slow',
                         '-crf', '27', '-an', str(end)], check=True)
         parts.append(end)
     listing = out / 'parts.txt'

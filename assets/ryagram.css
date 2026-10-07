@@ -1,43 +1,104 @@
-/* Ryagram page. Loads after workflow-audit.css and reuses its tokens, header, form and footer styles. */
-.page-nav{display:flex;align-items:center;gap:22px}
-.page-nav a:not(.button){color:var(--ink);text-decoration:none;font-weight:700;font-size:.92rem}
-.page-nav a:not(.button):hover{color:var(--brand)}
-.rg-hero{display:grid;grid-template-columns:.95fr 1.05fr;gap:48px;align-items:center;padding-top:64px;padding-bottom:72px}
-.rg-hero h1{font-size:clamp(2.5rem,5vw,4.4rem);line-height:1}
-.rg-hero .reassurance{margin-bottom:28px}
-.rg-reel{border-radius:24px;overflow:hidden;border-top:4px solid var(--wheat);box-shadow:0 22px 70px rgba(31,45,49,.16);background:var(--dark)}
-.rg-reel video{display:block;width:100%;height:auto}
-.rg-reel figcaption{padding:12px 18px;font-size:.8rem;color:var(--muted);background:var(--paper)}
-.rg-section{padding:72px 0;border-top:1px solid var(--line)}
-.rg-section .section-head{max-width:720px;margin-bottom:32px}
-.rg-section .section-head h2{font-size:clamp(1.9rem,3.6vw,3rem);line-height:1.05;letter-spacing:-.04em}
-.rg-section .section-head p{color:var(--muted);font-size:1.04rem}
-.film-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:20px}
-.film-slot{min-width:0}
-.film-slot h3{font-size:1rem;margin-top:12px}
-.film-frame{aspect-ratio:16/9;border-radius:18px;overflow:hidden;background:var(--soft);border:1px dashed var(--line);display:flex;align-items:center;justify-content:center}
-.film-frame span{color:var(--muted);font-size:.85rem;font-weight:700;letter-spacing:.08em;text-transform:uppercase}
-.film-slot.is-live .film-frame{border:0;background:var(--dark)}
-.film-frame iframe{width:100%;height:100%;border:0;display:block}
-/* Click-to-load facade: fills the frame, so the 16:9 box is the same size before and after the iframe swaps in. */
-.film-frame{position:relative}
-.film-frame a{font-size:.85rem;font-weight:700}
-.film-play{position:absolute;inset:0;display:block;width:100%;height:100%;padding:0;border:0;background:var(--dark);cursor:pointer}
-.film-play img{display:block;width:100%;height:100%;object-fit:cover}
-.film-play-icon{position:absolute;left:50%;top:50%;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;background:var(--brand-deep);border:3px solid var(--paper);display:flex;align-items:center;justify-content:center}
-.film-play-icon::before{content:"";margin-left:5px;border-style:solid;border-width:11px 0 11px 18px;border-color:transparent transparent transparent var(--paper)}
-.film-play:hover .film-play-icon{background:var(--brand)}
-.film-play:focus-visible{outline:4px solid var(--paper);outline-offset:-8px}
-.film-play:focus-visible .film-play-icon{background:var(--brand)}
-.check-list{list-style:none;padding:0;display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
-.check-list li{margin:0;padding:22px;border:1px solid var(--line);border-radius:18px;background:var(--paper);box-shadow:inset 3px 0 0 var(--wheat-soft);font-size:.96rem}
-.check-list strong{display:block;margin-bottom:4px}
-.check-note{margin-top:18px;font-size:.92rem;color:var(--muted)}.check-note strong{color:var(--ink)}
-.rg-waitlist{display:grid;grid-template-columns:.9fr 1.1fr;gap:48px;align-items:start}
-.rg-waitlist .section-head{margin-bottom:0}
-.ryagram-page .contact-form{grid-column:auto;grid-row:auto}
+/* Ryagram landing page: the Night look of the films (dark page, light text, orange accent). Mobile first.
+   Self-contained: it does not load workflow-audit.css, so the page stays small. */
+:root{--bg:#14141a;--panel:#1b1b23;--panel-2:#23232d;--line:#3a3a44;--text:#f2f2ef;--muted:#b6b5ae;--accent:#ff8a3d;--accent-ink:#14141a;--link:#8fb6ea;--radius:18px}
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%;scroll-behavior:smooth}
+@media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--text);font:400 1.0625rem/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;padding-bottom:env(safe-area-inset-bottom)}
+h1,h2,h3{margin:0;line-height:1.08;letter-spacing:-.03em;text-wrap:balance}
+h1{font-size:clamp(2.1rem,9vw,4rem);font-weight:800}
+h2{font-size:clamp(1.65rem,6vw,2.6rem);font-weight:800}
+h3{font-size:1.1rem;font-weight:700;letter-spacing:-.01em}
+p{margin:0}
+a{color:var(--link)}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,video:focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+.rg-wrap{width:100%;max-width:1120px;margin:0 auto;padding-left:max(18px,env(safe-area-inset-left));padding-right:max(18px,env(safe-area-inset-right))}
+.skip-link{position:absolute;left:-9999px;top:8px;z-index:10;background:var(--accent);color:var(--accent-ink);padding:10px 14px;border-radius:10px;font-weight:700}
+.skip-link:focus{left:8px}
+
+/* header */
+.rg-top{position:sticky;top:0;z-index:5;background:rgba(20,20,26,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+.rg-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:60px}
+.rg-brand{display:flex;align-items:baseline;gap:10px;color:var(--text);text-decoration:none}
+.rg-wordmark{font:100 1.9rem/1 "Noto Serif Display",Georgia,serif;letter-spacing:.01em}
+.rg-brand-sub{color:var(--muted);font-weight:700;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase}
+
+/* buttons */
+.rg-btn{display:inline-flex;align-items:center;justify-content:center;min-height:52px;padding:12px 26px;border:0;border-radius:999px;background:var(--accent);color:var(--accent-ink);font:800 1.05rem/1 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;text-decoration:none;cursor:pointer;touch-action:manipulation}
+.rg-btn:hover{filter:brightness(1.08)}
+.rg-btn:active{transform:translateY(1px)}
+.rg-btn[disabled]{opacity:.6;cursor:default}
+.rg-btn-small{min-height:44px;padding:8px 18px;font-size:.95rem}
+
+/* hero */
+.rg-hero{display:grid;gap:28px;padding-top:34px;padding-bottom:44px}
+.rg-hero-copy{display:grid;gap:18px;justify-items:start}
+.rg-lead{font-size:1.15rem;color:var(--muted);max-width:34ch}
+.rg-phone{margin:0;display:grid;gap:10px;justify-items:center}
+.rg-walk{display:block;width:auto;max-width:100%;max-height:80vh;max-height:80svh;aspect-ratio:540/1168;border-radius:26px;border:1px solid var(--line);background:var(--panel);box-shadow:0 24px 70px rgba(0,0,0,.5)}
+.rg-phone figcaption{font-size:.85rem;color:var(--muted);text-align:center}
+.rg-words{font-size:.9rem;color:var(--muted);max-width:420px}
+.rg-words summary{cursor:pointer;min-height:44px;display:flex;align-items:center;justify-content:center}
+.rg-words p{padding:4px 2px 8px}
+
+/* sections */
+.rg-section{padding:52px 0;border-top:1px solid var(--line)}
+.rg-sub{margin-top:12px;color:var(--muted);max-width:56ch}
+
+/* showcase */
+.rg-films{display:grid;gap:22px;margin-top:26px}
+.rg-film{display:grid;gap:10px;align-content:start}
+.rg-loop{display:block;width:100%;height:auto;aspect-ratio:16/9;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel)}
+.rg-film a{font-weight:700;min-height:44px;display:inline-flex;align-items:center}
+
+/* compilation */
+.rg-comp{display:grid;gap:26px}
+.rg-tag{display:inline-block;margin-bottom:10px;padding:4px 12px;border:1px solid var(--accent);border-radius:999px;color:var(--accent);font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.rg-demo{margin:0;padding:18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel);display:grid;gap:14px}
+.rg-demo-phrase{font-size:1.1rem}
+.rg-demo-label{display:inline-block;margin-right:6px;color:var(--muted);font-size:.78rem;font-weight:800;letter-spacing:.12em;text-transform:uppercase}
+.rg-demo q{font-weight:700}
+.rg-demo-hits{list-style:none;margin:0;padding:0;display:grid;gap:8px;font-size:.95rem}
+.rg-demo-hits li{display:grid;grid-template-columns:3.2rem 1fr;gap:10px;align-items:baseline;padding:10px 12px;border-radius:12px;background:var(--panel-2)}
+.rg-time{font-variant-numeric:tabular-nums;color:var(--muted);font-weight:700}
+.rg-demo mark{background:rgba(255,138,61,.28);color:var(--text);border-radius:4px;padding:0 3px}
+.rg-strip{display:flex;gap:4px;height:34px}
+.rg-strip span{display:block;border-radius:6px;background:var(--accent);opacity:.9}
+.rg-strip .w1{flex:34}.rg-strip .w2{flex:28;opacity:.7}.rg-strip .w3{flex:38;opacity:.5}
+.rg-demo figcaption{font-size:.8rem;color:var(--muted)}
+
+/* how it works */
+.rg-steps{list-style:none;margin:26px 0 0;padding:0;display:grid;gap:14px}
+.rg-steps li{display:grid;grid-template-columns:44px 1fr;column-gap:14px;row-gap:4px;padding:18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--panel)}
+.rg-num{grid-row:span 2;display:flex;align-items:center;justify-content:center;width:44px;height:44px;border-radius:50%;background:var(--accent);color:var(--accent-ink);font-weight:800;font-size:1.1rem}
+.rg-steps p{color:var(--muted)}
+.rg-release{margin-top:22px;padding:14px 16px;border-left:4px solid var(--accent);background:var(--panel);border-radius:0 12px 12px 0}
+
+/* waitlist */
+.rg-cta{background:var(--panel)}
+.rg-waitlist{display:grid;gap:24px}
+.rg-form{display:grid;gap:6px;max-width:520px}
+.rg-form label{display:block;margin-top:10px;font-weight:700}
+.rg-form label span{color:var(--muted);font-weight:400}
+.rg-form input[type=email],.rg-form input[type=text]{width:100%;min-height:52px;margin-top:6px;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--text);font:inherit;font-size:1rem}
+.rg-form .rg-btn{width:100%;margin-top:16px}
+.rg-note{margin-top:10px;font-size:.88rem;color:var(--muted)}
 .hp{position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden}
-.waitlist-status{font-size:.95rem;color:var(--ink)}
-@media(max-width:860px){.rg-hero,.rg-waitlist{grid-template-columns:1fr;gap:32px}.film-grid{grid-template-columns:1fr;max-width:640px}.check-list{grid-template-columns:1fr}.page-nav a:not(.button){display:none}}
-@media(max-width:520px){.rg-hero{padding-top:36px;padding-bottom:48px}.rg-section{padding:52px 0}.page-nav .button{min-height:44px;padding:8px 16px;font-size:.9rem}}
-@media(max-width:400px){.brand-copy{display:none}}
+.waitlist-status{font-size:1rem;color:var(--text)}
+
+/* footer */
+.rg-foot{padding:26px 0 34px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
+.rg-foot-row{display:flex;flex-wrap:wrap;gap:8px 22px}
+
+/* wider screens */
+@media(min-width:900px){
+  .rg-hero{grid-template-columns:1.1fr .9fr;align-items:center;gap:64px;padding-top:64px;padding-bottom:72px}
+  .rg-walk{max-height:78vh}
+  .rg-section{padding:84px 0}
+  .rg-films{grid-template-columns:repeat(2,1fr);gap:28px}
+  .rg-comp{grid-template-columns:1fr 1fr;align-items:center;gap:56px}
+  .rg-steps{grid-template-columns:repeat(3,1fr)}
+  .rg-steps li{grid-template-columns:1fr;row-gap:10px}
+  .rg-num{grid-row:auto}
+  .rg-waitlist{grid-template-columns:1fr 1fr;align-items:start;gap:56px}
+}
