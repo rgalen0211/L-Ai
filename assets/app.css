@@ -146,3 +146,6 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 @media(max-width:860px){.theme-grid{grid-template-columns:repeat(2,1fr)}}
 .look-confirm{margin:12px 0;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--wheat);border-radius:10px;background:var(--soft)}
 .look-warn{margin:4px 0 8px}
+.app-foot{display:flex;flex-wrap:wrap;gap:6px 20px;max-width:1120px;margin:32px auto 0;padding:18px 18px 28px;border-top:1px solid var(--line);font-size:.85rem;color:var(--muted)}
+.app-foot a{color:inherit}
+body:has(.mock-bar) .app-foot{padding-bottom:120px}

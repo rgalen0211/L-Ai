@@ -311,6 +311,16 @@
         return { data: rows.filter(r => Date.parse(r[0]) > since)
                    .map(([day, campaign, utm_source, signups]) => ({ day, campaign, utm_source, signups })), error: null };
       },
+      // Mock visit counts: made-up numbers for the private view (the real ones come from SQL 20261006000100).
+      visits_by_day({ p_days }) {
+        const rows = [['2026-10-05', 40, 3], ['2026-10-04', 25, 1], ['2026-10-03', 18, 0], ['2026-08-01', 90, 4]];
+        const since = Date.parse('2026-10-05T00:00:00Z') - p_days * 864e5;
+        return { data: rows.filter(r => Date.parse(r[0]) > since).map(([day, visits, signups]) => ({ day, visits, signups })), error: null };
+      },
+      visits_by_source({ p_days }) {
+        const rows = p_days >= 90 ? [['youtube', 120, 7], ['', 30, 1], ['newsletter', 6, 0]] : [['youtube', 70, 4], ['', 10, 0], ['newsletter', 3, 0]];
+        return { data: rows.map(([source, visits, signups]) => ({ source, visits, signups })), error: null };
+      },
       film_unpublish({ p_version }) {
         const page = db.film_pages.find(p => p.version_id === p_version);
         if (!page) return fail('No public page for that film.');

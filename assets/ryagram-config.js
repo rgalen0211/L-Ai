@@ -5,6 +5,9 @@
 // Never put a secret or service_role key here.
 // Empty means not connected: the form sends nothing and points people to email.
 window.ryagramConfig = Object.freeze({
+  // Count visits to /ryagram/ (a cookieless tally by day and link source, for Ryan's private view at #/admin/visits).
+  // Turn on only once SQL 20261006000100 is applied (supabase/README.md, "Visit counting").
+  visitCounting: true,
   supabaseUrl: 'https://jxtkfishqfxuptwjzczz.supabase.co',
   supabaseKey: 'sb_publishable_6bjao-hnRZ0t2WAMwcJD9g_3zJ7paR0',
   // Show the AI editor panel in /app/. Turn on only after the ai-editor function is deployed
