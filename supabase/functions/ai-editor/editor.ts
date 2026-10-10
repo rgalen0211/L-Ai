@@ -3,6 +3,7 @@
 import { projectBlock, SYSTEM } from "./prompt.ts";
 import { runTool, TOOLS, type UserData } from "./tools.ts";
 
+export const PAUSED_REPLY = "The editor is paused for now to keep costs in check. Your film and everything else in Ryagram work as usual; the editor will be back soon.";
 export const HAIKU = { model: "claude-haiku-4-5", max_tokens: 4000 };
 export const SONNET = { model: "claude-sonnet-5", max_tokens: 8000, output_config: { effort: "medium" } };
 const HISTORY = 12;           // messages kept verbatim; older ones live in the running summary
@@ -14,6 +15,8 @@ export interface Store {
   turnContext(turnId: string): Promise<{ summary: string | null; rulings: string[]; tool_calls_per_turn: number;
                                          message_count: number; messages: { role: "user" | "assistant"; content: string }[] }>;
   allowExecution(turnId: string): Promise<boolean>;
+  /** Asked before EVERY Anthropic call: false when a site-wide or per-project spend cap is reached (ai_budget_ok). */
+  budgetOk(turnId: string): Promise<boolean>;
   recordUsage(turnId: string, usage: Record<string, unknown>): Promise<number | null>;
   addRuling(turnId: string, text: string): Promise<number>;
   finishTurn(turnId: string, status: string, escalated: boolean, toolCalls: number,
@@ -121,6 +124,10 @@ async function runTurn(deps: Deps, jwt: string, versionId: string, message: stri
   let messages: any[] = [...history, { role: "user", content: message }];
   let replyText = "";
   for (let round = 0; round < cap + 2; round++) {
+    if (!(await deps.store.budgetOk(turnId))) {       // the cap is checked in the database before each call, never trusted to this code
+      replyText = PAUSED_REPLY;
+      break;
+    }
     const started = now();
     let res: any;
     try {
@@ -197,6 +204,7 @@ async function runTurn(deps: Deps, jwt: string, versionId: string, message: stri
 }
 
 async function summarise(deps: Deps, turnId: string, previous: string | null, recent: { role: string; content: string }[]) {
+  if (!(await deps.store.budgetOk(turnId))) return previous;
   const transcript = recent.map((m) => `${m.role}: ${m.content}`).join("\n").slice(-20000);
   const res = await deps.claude.messages.create({
     ...HAIKU, max_tokens: 800,

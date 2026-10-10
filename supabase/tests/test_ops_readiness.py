@@ -208,3 +208,132 @@ class OpsLedger(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RetryPolicy(unittest.TestCase):
+    """Ryan, 2026-10-10: infrastructure failures keep up to 3 attempts; failures that repeat identically get NO retry, and the
+    credits come back at once (ledger 3a). These pin the existing 2A rules so nobody loosens them."""
+    setUp, tearDown = credits.Ledger.setUp, credits.Ledger.tearDown
+    admin, denied = credits.Ledger.admin, credits.Ledger.denied
+    grant, available = credits.Ledger.grant, credits.Ledger.available
+    version, submit, final, settle = credits.Ledger.version, credits.Ledger.submit, credits.Ledger.final, credits.Ledger.settle
+
+    def held_final(self):
+        self.grant(100)
+        _, job = self.final("paired")
+        return job
+
+    def claim(self):
+        return self.db.as_(WORKER).one("select id from claim_next_job()")
+
+    def test_deterministic_failures_are_never_retried_and_refund_at_once(self):
+        granted = 0
+        for code in ("schema_rejected", "engine_unsupported", "engine_refused", "dataset_not_allowed", "ladder_missing",
+                     "gate_failed", "timeout", "limit_exceeded", "no_receipt", "no_commit"):
+            with self.subTest(code=code):
+                job = self.held_final()
+                granted += 100
+                self.assertEqual(self.claim(), job)
+                w = self.db.as_(WORKER)
+                with self.assertRaisesRegex(psycopg.Error, "not retryable"):
+                    w.one("select retry_job(%s, %s)", job, code)
+                self.db.as_(WORKER).c.execute("select state from report_state(%s, 'running', null, null, 'abc1234', false)", (job,))
+                self.db.as_(WORKER).c.execute("select state from report_state(%s, 'failed', %s, 'plain reason')", (job, code))
+                self.assertEqual(self.admin("select state::text, attempt from public.jobs where id = %s", job), ("failed", 1))
+                self.assertEqual(self.available(), granted)                                 # credits back, immediately
+
+    def test_infrastructure_failures_retry_up_to_three_attempts_then_fail_and_refund(self):
+        job = self.held_final()
+        for attempt in (1, 2):
+            self.assertEqual(self.claim(), job)
+            self.assertEqual(self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job), "queued")
+            self.assertEqual(self.available(), 90)                                          # still held while it can still run
+        self.assertEqual(self.claim(), job)
+        self.assertEqual(self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job), "failed")
+        self.assertEqual(self.admin("select attempt, error_code from public.jobs where id = %s", job), (3, "crash"))
+        self.assertEqual(self.available(), 100)
+
+
+def _usage(output_tokens, mid):
+    # claude-haiku-4-5 output is $5 per million tokens: 200_000 output tokens = $1.00
+    return json.dumps({"model": "claude-haiku-4-5", "message_id": mid, "input_tokens": 0, "output_tokens": output_tokens,
+                       "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0})
+
+
+class AiCaps(core.Base):
+    def setUp(self):
+        super().setUp()
+        d = self.db.as_(RYAN)
+        self.pid = d.one("insert into projects (title) values ('p') returning id")
+        self.vid = d.one("select id from create_version(%s)", self.pid)
+
+    def svc(self, sql, *args):
+        return self.db.as_("service").one(sql, *args)
+
+    def caps(self, **kw):
+        sets = ", ".join(["ai_enabled = true"] + [f"{k} = {v}" for k, v in kw.items()])
+        self.db.as_(None).one(f"update control set {sets} returning 1")
+
+    def turn(self, who=RYAN, vid=None):
+        s = self.svc("select id from ai_session_for(%s, %s)", who, vid or self.vid)
+        return self.svc("select ai_reserve_turn(%s, %s)", who, s)
+
+    def spend(self, turn, dollars, mid):
+        self.svc("select ai_record_usage(%s, %s::jsonb)", turn, _usage(int(dollars * 200000), mid))
+
+    def alerts(self):
+        return sorted(r[0].split(":")[0] for r in self.db.as_(None).all("select key from public.ops_alerts where key like 'ai%%'"))
+
+    def test_daily_cap_warns_once_at_80_then_pauses_the_editor_with_a_friendly_message(self):
+        self.caps(ai_daily_usd_cap=1.00, ai_project_cap_usd=100, ai_project_alert_usd=100)
+        t = self.turn()
+        self.spend(t, 0.5, "m1")
+        self.assertTrue(self.svc("select ai_budget_ok(%s)", t))
+        self.assertEqual(self.alerts(), [])
+        self.spend(t, 0.4, "m2")                                            # 90%
+        self.assertTrue(self.svc("select ai_budget_ok(%s)", t))
+        for _ in range(3):
+            self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(self.alerts(), ["ai_day_80"])                       # ONE alert however often it is checked
+        self.spend(t, 0.2, "m3")                                             # over 100%
+        self.assertFalse(self.svc("select ai_budget_ok(%s)", t))             # no further Anthropic call in this turn
+        with self.assertRaisesRegex(psycopg.Error, "paused to keep costs in check"):
+            self.turn()
+        self.assertEqual(self.alerts(), ["ai_day_100", "ai_day_80"])
+        self.db.as_(RYAN).one("insert into projects (title) values ('other app work') returning id")   # the rest of the app works
+
+    def test_monthly_cap_pauses_too_and_a_new_day_does_not_unpause_it(self):
+        self.caps(ai_daily_usd_cap=100, ai_monthly_usd_cap=1.00, ai_project_cap_usd=100, ai_project_alert_usd=100)
+        t = self.turn()
+        self.spend(t, 1.1, "m1")
+        self.assertFalse(self.svc("select ai_budget_ok(%s)", t))
+        self.db.as_(None).one("update ai_usage set created_at = now() - interval '1 day' returning 1")
+        if self.db.as_(None).one("select date_trunc('month', now() at time zone 'EST5EDT') = date_trunc('month', (now() - interval '1 day') at time zone 'EST5EDT')"):
+            with self.assertRaisesRegex(psycopg.Error, "paused"):
+                self.turn()
+
+    def test_old_spend_does_not_count_against_todays_cap(self):
+        self.caps(ai_daily_usd_cap=1.00, ai_monthly_usd_cap=1000, ai_project_cap_usd=100, ai_project_alert_usd=100)
+        t = self.turn()
+        self.spend(t, 2.0, "m1")
+        self.db.as_(None).one("update ai_usage set created_at = now() - interval '3 days' returning 1")
+        self.assertTrue(self.svc("select ai_budget_ok(%s)", t))
+
+    def test_the_per_project_cap_is_enforced_for_that_project_only(self):
+        self.caps(ai_project_cap_usd=0.50, ai_project_alert_usd=0.10)
+        t = self.turn()
+        self.spend(t, 0.6, "m1")
+        self.assertFalse(self.svc("select ai_budget_ok(%s)", t))
+        with self.assertRaisesRegex(psycopg.Error, "done a lot of work"):
+            self.turn()
+        d = self.db.as_(OTHER)
+        vid = d.one("select id from create_version(%s)", d.one("insert into projects (title) values ('q') returning id"))
+        self.turn(OTHER, vid)                                                 # someone else's film is not affected
+
+    def test_budget_functions_are_service_only_and_a_finished_turn_is_refused(self):
+        self.caps()
+        t = self.turn()
+        for who in ("anon", RYAN):
+            self.denied(who, "select ai_budget_ok(%s)", t)
+        self.svc("select ai_finish_turn(%s, 'done', false, 0, null, null, null)", t)
+        self.assertFalse(self.svc("select ai_budget_ok(%s)", t))
