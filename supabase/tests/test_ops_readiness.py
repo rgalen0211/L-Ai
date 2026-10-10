@@ -178,6 +178,27 @@ class Ops(core.Base):
             for who in ("anon", RYAN, "service"):
                 self.denied(who, f"select * from public.{t}")
 
+    # -- outbox and digest data
+    def test_digest_data_is_not_actionable_when_all_is_well_and_actionable_with_an_open_alert_or_ticket(self):
+        svc = lambda: self.db.as_("service").one("select ops_digest_data()")
+        d = svc()
+        self.assertFalse(d["actionable"])                                  # silent day
+        self.db.as_("anon").one("select submit_support('a@x.co', 'other', 'hello there', null)")
+        self.assertTrue(svc()["actionable"])
+        self.assertEqual(svc()["support_open"], 1)
+
+    def test_one_digest_a_day_and_the_outbox_is_closed_to_everyone_but_the_function(self):
+        add = lambda kind="digest": self.db.as_("service").one("select ops_outbox_add(%s, 'dry_run', 'ryagram@uselai.com', 's', 'b')", kind)
+        self.assertTrue(add())
+        self.assertFalse(add())                                            # a second digest the same day is refused
+        self.assertTrue(add("alert")); self.assertTrue(add("alert"))       # alerts are not limited this way
+        self.assertTrue(self.db.as_("service").one("select ops_digest_data()")["digest_sent_today"])
+        for who in ("anon", RYAN, "service"):
+            self.denied(who, "select * from public.ops_outbox")
+        for who in ("anon", RYAN):
+            self.denied(who, "select ops_outbox_add('alert', 'live', 'x@y.co', 's', 'b')")
+            self.denied(who, "select ops_digest_data()")
+
 
 class OpsLedger(unittest.TestCase):
     setUp, tearDown = credits.Ledger.setUp, credits.Ledger.tearDown

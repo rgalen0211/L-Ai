@@ -507,3 +507,14 @@ A cookieless count of visits to the Ryagram page, nothing displayed on the page.
 2. **A tally by link source** (`?ref=youtube`, or failing that `?utm_source=`), because Cloudflare does not break visits out by query parameter. SQL `migrations/20261006000100_visit_counting.sql` (after 20261003000300): table `ryagram_visits` (day, path, source, count: no visitor id, cookie, address or agent), `record_visit` (anyone may add 1), `visits_by_day` and `visits_by_source` (admin only). Apply it, then set `visitCounting: true` in `assets/ryagram-config.js`. Ryan's view is `/app/#/admin/visits` (visits, signups and signup rate, by day and by source). A signup keeps its `ref` in the existing `source` column.
 
 Counted: one per page load; skipped for Do Not Track, Global Privacy Control, automated browsers and obvious crawlers. The privacy policy has one sentence on it.
+
+## Hands-off operations (branch ops-readiness): switching it on
+
+Design and audit: `Ryagram-logs/proposals/WEB-OPS-READINESS.md`. Nothing below is applied or deployed until Claude has reviewed the SQL.
+
+1. Apply `migrations/20261010000100_ops_readiness.sql` (after the AI editor, film pages and app_admins migrations). It also replaces `ai_reserve_turn` with the capped version and adds `control.ai_daily_usd_cap` ($5), `ai_monthly_usd_cap` ($60) and `ai_project_cap_usd` ($5): tune them in the Table Editor on the `control` row.
+2. Redeploy `ai-editor` (it now asks `ai_budget_ok` before every Anthropic call). Deploy `ops-tick` and `ops-digest` the same way as `purge-uploads` (`--no-verify-jwt`).
+3. Dashboard > Integrations > Cron: `ops-tick` every 5 minutes; `ops-digest` daily at 13:00 UTC. Same Authorization header as the purge jobs.
+4. Mail is DRY-RUN by default: every alert and digest is written to the `ops_outbox` table (Table Editor) and nothing is sent. To go live, set the Edge Function secrets `OPS_MAIL_MODE=resend`, `RESEND_API_KEY` and `OPS_MAIL_FROM` (e.g. `Ryagram <ops@uselai.com>`; the domain must be verified in Resend). Anything missing keeps it in dry-run.
+5. WORKER adds one `worker_ping(free_gb)` call per minute. Until then rendering status is `unknown` and no worker alert is raised.
+6. Merge `.github/workflows/ops-ping.yml` only after step 1.

@@ -411,10 +411,59 @@ begin
     and ryagram_private.ai_project_spent(t.project_id) < ctl.ai_project_cap_usd;
 end $$;
 
+-- ---------------------------------------------------------------- outbox and digest data (ops-tick / ops-digest)
+-- Every message the ops functions send is recorded here. mode 'dry_run' = NOT sent, only written (until Ryan sets up email);
+-- 'live' = handed to the real sender. Ryan can read dry-run mail in the Table Editor or #/admin/ops.
+create table public.ops_outbox (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null check (kind in ('alert', 'digest', 'ack')),
+  mode text not null check (mode in ('dry_run', 'live')),
+  to_addr text not null,
+  subject text not null check (char_length(subject) <= 200),
+  body text not null check (char_length(body) <= 20000),
+  day text                                   -- New York day, set for digests: at most ONE digest per day
+);
+create unique index ops_outbox_one_digest_a_day on public.ops_outbox (day) where kind = 'digest';
+alter table public.ops_outbox enable row level security;
+revoke all on table public.ops_outbox from anon, authenticated, service_role;
+
+-- Records a message. Returns false (and writes nothing) when a digest for that day already exists.
+create function public.ops_outbox_add(p_kind text, p_mode text, p_to text, p_subject text, p_body text) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare d text := case when p_kind = 'digest' then to_char(now() at time zone 'EST5EDT', 'YYYY-MM-DD') end;
+begin
+  insert into public.ops_outbox (kind, mode, to_addr, subject, body, day)
+    values (p_kind, p_mode, p_to, left(p_subject, 200), left(p_body, 20000), d);
+  return true;
+exception when unique_violation then
+  return false;
+end $$;
+
+-- What the daily digest says. {actionable: bool, items: [...], lines: [...]}: actionable is false when nothing needs Ryan, and
+-- then the digest sends NOTHING. Resolved incidents are listed only as "back to normal" alongside real items.
+create function public.ops_digest_data() returns jsonb
+language plpgsql stable security definer set search_path = '' as $$
+declare items jsonb; recovered jsonb; sup int; ab int; b jsonb := ryagram_private.ai_budget();
+begin
+  select coalesce(jsonb_agg(detail order by first_seen), '[]'::jsonb) into items from public.ops_alerts where resolved_at is null;
+  select coalesce(jsonb_agg(detail order by resolved_at), '[]'::jsonb) into recovered
+    from public.ops_alerts where resolved_at > now() - interval '26 hours';
+  select count(*) into sup from public.support_requests where answered_at is null;
+  select count(*) into ab from public.abuse_reports where reviewed_at is null;
+  return jsonb_build_object(
+    'actionable', jsonb_array_length(items) > 0 or sup > 0 or ab > 0,
+    'items', items, 'recovered', recovered, 'support_open', sup, 'abuse_waiting', ab,
+    'rendering', ryagram_private.service_state(),
+    'digest_sent_today', exists (select 1 from public.ops_outbox where kind = 'digest' and day = to_char(now() at time zone 'EST5EDT', 'YYYY-MM-DD')),
+    'ai_day_spent', b->'day_spent', 'ai_day_cap', b->'day_cap', 'ai_month_spent', b->'month_spent', 'ai_month_cap', b->'month_cap');
+end $$;
+
 -- ---------------------------------------------------------------- grants
 revoke execute on function public.worker_ping(numeric), public.service_status(), public.ops_tick(), public.ops_mark_notified(text[]),
   public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text),
   public.admin_review_report(bigint, text), public.admin_ops() from public, anon;
+revoke execute on function public.ops_outbox_add(text, text, text, text, text), public.ops_digest_data() from public, anon, authenticated;
 revoke execute on function ryagram_private.ai_budget(), ryagram_private.ai_budget_alerts(), ryagram_private.ai_project_spent(uuid), public.ai_budget_ok(uuid) from public, anon, authenticated;
 revoke execute on function ryagram_private.service_state(), ryagram_private.reap_lost_leases(), ryagram_private.expire_stale_queue(),
   ryagram_private.ops_raise(text, text), ryagram_private.ops_clear(text), ryagram_private.film_page_held() from public, anon, authenticated;
@@ -422,6 +471,7 @@ grant execute on function public.worker_ping(numeric) to authenticated;         
 grant execute on function public.service_status() to anon, authenticated;
 grant execute on function public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text) to anon, authenticated;
 grant execute on function public.admin_review_report(bigint, text), public.admin_ops() to authenticated;   -- is_app_admin() is the gate
-grant execute on function public.ops_tick(), public.ops_mark_notified(text[]), public.ai_budget_ok(uuid) to service_role;
+grant execute on function public.ops_tick(), public.ops_mark_notified(text[]), public.ai_budget_ok(uuid),
+  public.ops_outbox_add(text, text, text, text, text), public.ops_digest_data() to service_role;
 
 commit;
