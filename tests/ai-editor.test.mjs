@@ -39,7 +39,7 @@ const use = (name, input = {}) => ({ type: 'tool_use', id: `tu_${++n}`, name, in
 function fakeWorld({ story = { schema: 1, engine: 'sequence', name: 'x', sequence: { clips: [{ kind: 'render', view: 'map', dataset: 'state_obesity_fastfood', start: '2011', end: '2023' }] } },
                      state = 'draft', enabled = true, turnsLeft = 5, execLeft = 5, messageCount = 0, jobs = [] } = {}) {
   const w = {
-    story, sha: 'sha-1', jobs: [...jobs], saved: [], submitted: [], usage: [], finished: [], rulings: [], engine: 'e0a1b2c',
+    paused: false, budgetCalls: 0, story, sha: 'sha-1', jobs: [...jobs], saved: [], submitted: [], usage: [], finished: [], rulings: [], engine: 'e0a1b2c',
     store: {
       async sessionFor(owner, versionId) {
         if (owner === 'worker') throw Object.assign(new Error("The worker account can't use the editor."), { code: '42501' });
@@ -56,6 +56,7 @@ function fakeWorld({ story = { schema: 1, engine: 'sequence', name: 'x', sequenc
                  messages: messageCount ? [{ role: 'user', content: 'earlier' }, { role: 'assistant', content: 'earlier reply' }] : [] };
       },
       async allowExecution() { return execLeft-- > 0; },
+      async budgetOk() { return w.budgetCalls++, !w.paused; },
       async recordUsage(turn, u) { w.usage.push(u); return 0.01; },
       async addRuling(turn, t) { w.rulings.push(t); return w.rulings.length; },
       async finishTurn(...args) { w.finished.push(args); }
@@ -276,4 +277,22 @@ test('summaries come often enough that nothing leaves the window unsummarised', 
     assert.ok(covered >= oldestInWindow - 1, `messages ${covered + 1}..${oldestInWindow - 1} were lost at ${count}`);
     if (stored >= HISTORY && stored % EVERY < 2) covered = stored;
   }
+});
+
+test('a spend cap pauses the editor: no Anthropic call is made, the person gets a friendly reply, the cap is asked before each call', async () => {
+  const w = fakeWorld();
+  w.paused = true;
+  const claude = fakeClaude([]);
+  const res = await handle(ask(), deps(w, claude));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.match(body.reply, /paused for now to keep costs in check/);
+  assert.equal(claude.calls.length, 0);
+  assert.equal(w.finished[0][1], 'done');
+
+  const w2 = fakeWorld();
+  const claude2 = fakeClaude([{ content: [{ type: 'text', text: 'Hello' }], stop_reason: 'end_turn', usage: {} }]);
+  await handle(ask(), deps(w2, claude2));
+  assert.equal(claude2.calls.length, 1);
+  assert.equal(w2.budgetCalls, 1);
 });

@@ -153,6 +153,7 @@ begin
     perform ryagram_private.ops_clear('worker_stale');
   end if;
   expired := ryagram_private.expire_stale_queue();
+  perform ryagram_private.ai_budget_alerts();
   select count(*) into stuck from public.jobs
     where state in ('claimed', 'running', 'validating', 'uploading') and lease_expires_at < now() - interval '15 minutes';
   if stuck > 0 then perform ryagram_private.ops_raise('stuck_jobs', stuck || ' jobs have an expired lease for 15+ minutes.');
@@ -314,16 +315,113 @@ begin
   -- Stripe's needs_review count lives in phase-2b/stripe_test_mode.sql (not a migration yet); the digest reads it once that is applied.
 end $$;
 
+-- ---------------------------------------------------------------- AI editor hard spend caps (Ryan, 2026-10-10)
+-- Enforced here, in the database, BEFORE every Anthropic call (the Edge Function asks ai_budget_ok before each call). The
+-- Anthropic console limit stays the outer wall. At 80% of a cap ONE alert is raised; at 100% the editor pauses with a friendly
+-- message and the rest of the app (renders, library, account) is untouched. Spend = ai_usage.cost_usd; a call with an unknown
+-- price is counted as 0 (keep ai_prices current), so a missing price can only under-count.
+alter table public.control
+  add column ai_daily_usd_cap numeric not null default 5.00 check (ai_daily_usd_cap > 0),      -- New York calendar day
+  add column ai_monthly_usd_cap numeric not null default 60.00 check (ai_monthly_usd_cap > 0), -- New York calendar month
+  add column ai_project_cap_usd numeric not null default 5.00 check (ai_project_cap_usd > 0);  -- HARD limit per project;
+                                                                                              -- ai_project_alert_usd (3.00) stays the early warning
+create function ryagram_private.ai_budget() returns jsonb
+language sql stable security definer set search_path = '' as $$
+  with c as (select * from public.control where id),
+  d as (select coalesce(sum(cost_usd), 0) as spent from public.ai_usage
+         where (created_at at time zone 'EST5EDT')::date = (now() at time zone 'EST5EDT')::date),
+  m as (select coalesce(sum(cost_usd), 0) as spent from public.ai_usage
+         where date_trunc('month', created_at at time zone 'EST5EDT') = date_trunc('month', now() at time zone 'EST5EDT'))
+  select jsonb_build_object(
+    'day_spent', d.spent, 'day_cap', c.ai_daily_usd_cap, 'month_spent', m.spent, 'month_cap', c.ai_monthly_usd_cap,
+    'day', to_char(now() at time zone 'EST5EDT', 'YYYY-MM-DD'), 'month', to_char(now() at time zone 'EST5EDT', 'YYYY-MM'),
+    'state', case when d.spent >= c.ai_daily_usd_cap or m.spent >= c.ai_monthly_usd_cap then 'paused'
+                  when d.spent >= 0.8 * c.ai_daily_usd_cap or m.spent >= 0.8 * c.ai_monthly_usd_cap then 'warn' else 'ok' end)
+  from c, d, m;
+$$;
+
+-- One alert per cap per period (the key carries the day or month, so tomorrow can alert again).
+create function ryagram_private.ai_budget_alerts() returns void
+language plpgsql security definer set search_path = '' as $$
+declare b jsonb := ryagram_private.ai_budget();
+begin
+  if (b->>'day_spent')::numeric >= 0.8 * (b->>'day_cap')::numeric then
+    perform ryagram_private.ops_raise('ai_day_80:' || (b->>'day'),
+      'AI editor spend today is $' || round((b->>'day_spent')::numeric, 2) || ' of the $' || (b->>'day_cap') || ' daily cap (80% reached).');
+  end if;
+  if (b->>'day_spent')::numeric >= (b->>'day_cap')::numeric then
+    perform ryagram_private.ops_raise('ai_day_100:' || (b->>'day'), 'The AI editor is PAUSED for today: the $' || (b->>'day_cap') || ' daily cap was reached.');
+  end if;
+  if (b->>'month_spent')::numeric >= 0.8 * (b->>'month_cap')::numeric then
+    perform ryagram_private.ops_raise('ai_month_80:' || (b->>'month'),
+      'AI editor spend this month is $' || round((b->>'month_spent')::numeric, 2) || ' of the $' || (b->>'month_cap') || ' monthly cap (80% reached).');
+  end if;
+  if (b->>'month_spent')::numeric >= (b->>'month_cap')::numeric then
+    perform ryagram_private.ops_raise('ai_month_100:' || (b->>'month'), 'The AI editor is PAUSED for the month: the $' || (b->>'month_cap') || ' monthly cap was reached.');
+  end if;
+end $$;
+
+create function ryagram_private.ai_project_spent(p_project uuid) returns numeric
+language sql stable security definer set search_path = '' as $$
+  select coalesce(sum(cost_usd), 0) from public.ai_usage where project_id = p_project;
+$$;
+
+-- Same checks as 2A-8 plus the two cap kinds. (create or replace: this migration comes after 20260929000600.)
+create or replace function public.ai_reserve_turn(p_owner uuid, p_session uuid) returns uuid
+language plpgsql security definer set search_path = '' as $$
+declare ctl public.control; s public.ai_sessions; turn uuid; b jsonb;
+begin
+  perform pg_advisory_xact_lock(hashtextextended(p_owner::text, 42));
+  select * into ctl from public.control where id;
+  if not ctl.ai_enabled then
+    raise exception 'The AI editor is switched off.' using errcode = 'PT503';
+  end if;
+  b := ryagram_private.ai_budget();
+  perform ryagram_private.ai_budget_alerts();
+  if b->>'state' = 'paused' then
+    raise exception 'The editor is paused to keep costs in check. It will be back soon. The rest of Ryagram works as usual.' using errcode = 'PT503';
+  end if;
+  select * into s from public.ai_sessions where id = p_session and owner_id = p_owner;
+  if not found then
+    raise exception 'Session not found.' using errcode = 'PT404';
+  end if;
+  if ryagram_private.ai_project_spent(s.project_id) >= ctl.ai_project_cap_usd then
+    raise exception 'The editor has done a lot of work on this film. Please continue by hand, or write to ryagram@uselai.com.' using errcode = 'PT429';
+  end if;
+  if (select count(*) from public.ai_turns
+      where owner_id = p_owner and created_at > now() - interval '24 hours') >= ctl.ai_turns_per_day then
+    raise exception 'You have reached today''s limit for the editor. It resets over the next 24 hours.'
+      using errcode = 'PT429';
+  end if;
+  insert into public.ai_turns (owner_id, session_id, project_id) values (p_owner, s.id, s.project_id)
+    returning id into turn;
+  return turn;
+end $$;
+
+-- Asked before EVERY Anthropic call in a turn (a turn can make several). false = do not call.
+create function public.ai_budget_ok(p_turn uuid) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare t public.ai_turns; ctl public.control;
+begin
+  select * into t from public.ai_turns where id = p_turn and status = 'running';
+  if not found then return false; end if;
+  select * into ctl from public.control where id;
+  perform ryagram_private.ai_budget_alerts();
+  return ctl.ai_enabled and ryagram_private.ai_budget()->>'state' <> 'paused'
+    and ryagram_private.ai_project_spent(t.project_id) < ctl.ai_project_cap_usd;
+end $$;
+
 -- ---------------------------------------------------------------- grants
 revoke execute on function public.worker_ping(numeric), public.service_status(), public.ops_tick(), public.ops_mark_notified(text[]),
   public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text),
   public.admin_review_report(bigint, text), public.admin_ops() from public, anon;
+revoke execute on function ryagram_private.ai_budget(), ryagram_private.ai_budget_alerts(), ryagram_private.ai_project_spent(uuid), public.ai_budget_ok(uuid) from public, anon, authenticated;
 revoke execute on function ryagram_private.service_state(), ryagram_private.reap_lost_leases(), ryagram_private.expire_stale_queue(),
   ryagram_private.ops_raise(text, text), ryagram_private.ops_clear(text), ryagram_private.film_page_held() from public, anon, authenticated;
 grant execute on function public.worker_ping(numeric) to authenticated;                    -- require_worker() is the gate
 grant execute on function public.service_status() to anon, authenticated;
 grant execute on function public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text) to anon, authenticated;
 grant execute on function public.admin_review_report(bigint, text), public.admin_ops() to authenticated;   -- is_app_admin() is the gate
-grant execute on function public.ops_tick(), public.ops_mark_notified(text[]) to service_role;
+grant execute on function public.ops_tick(), public.ops_mark_notified(text[]), public.ai_budget_ok(uuid) to service_role;
 
 commit;
