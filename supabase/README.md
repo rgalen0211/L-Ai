@@ -263,6 +263,8 @@ What they do:
 
 ## Email templates: who is named
 
+**BLOCKED until custom SMTP is set up (Ryan, 2026-10-09):** Supabase does not let the Auth email templates be edited while the project uses its built-in sender. So this waits for the launch-checklist item below, "Email sender: ... custom SMTP" (the last step there adds this line to the 3 templates).
+
 The Auth emails (invite, reset password, confirm) are edited in the Supabase dashboard, not in this repo. End each one with the operator and the Ryagram contact, in plain text:
 
 ```
@@ -302,6 +304,12 @@ chat or this repo.
 - [ ] **Then** the template edits and switches: password reset ("Account basics" above, steps 2
       and 5) and beta invites (below, steps 2 to 5). Auth emails also show in your Sent folder,
       and replies come to your inbox.
+- [ ] **LAUNCH CHECKLIST (Ryan, 2026-10-09): set up custom SMTP (Google Workspace as above, or a free
+      service), then add the operator line to the 3 templates** (Confirm sign up, Invite user, Reset
+      password: "Ryagram is operated by L'Ai, LLC. Questions: ryagram@uselai.com", at the end of each
+      body, leaving the link variables alone). Templates cannot be edited on Supabase's built-in
+      sender, so this cannot be done before the SMTP steps above are finished. Any free service must
+      be one that authenticates the uselai.com domain (SPF and DKIM) so the emails do not land in spam.
 
 ## Beta invites: switching them on
 
