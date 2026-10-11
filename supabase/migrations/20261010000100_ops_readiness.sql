@@ -32,7 +32,9 @@ create table public.ops_settings (
   stale_after_s int not null default 180 check (stale_after_s >= 60),         -- no check-in this long = delayed
   queue_timeout_min int not null default 60 check (queue_timeout_min >= 10),  -- queued this long while delayed = cancelled and refunded
   support_reply_hours int not null default 48,
-  abuse_hide_per_reporter_day int not null default 3
+  abuse_hide_per_reporter_day int not null default 3,
+  backups_expected boolean not null default false,      -- Ryan sets true once the daily backup is installed: then a stale backup alerts
+  backup_max_age_hours int not null default 48            -- newest good daily backup older than this = alert (Ryan, 2026-10-10: 2 days)
 );
 insert into public.ops_settings default values;
 alter table public.ops_settings enable row level security;
@@ -154,6 +156,7 @@ begin
   end if;
   expired := ryagram_private.expire_stale_queue();
   perform ryagram_private.ai_budget_alerts();
+  perform ryagram_private.backup_alerts();
   select count(*) into stuck from public.jobs
     where state in ('claimed', 'running', 'validating', 'uploading') and lease_expires_at < now() - interval '15 minutes';
   if stuck > 0 then perform ryagram_private.ops_raise('stuck_jobs', stuck || ' jobs have an expired lease for 15+ minutes.');
@@ -302,17 +305,55 @@ begin
   if not ryagram_private.is_app_admin() then
     raise exception 'Only an admin can see operations.' using errcode = '42501';
   end if;
+  -- Stripe's needs_review count lives in phase-2b/stripe_test_mode.sql (not a migration yet); it is added once that is applied.
   return jsonb_build_object(
     'rendering', ryagram_private.service_state(),
     'last_check_in', (select max(last_seen_at) from public.workers),
     'free_gb', (select min(free_gb) from public.workers where enabled),
     'queued', (select count(*) from public.jobs where state = 'queued'),
     'running', (select count(*) from public.jobs where state in ('claimed', 'running', 'validating', 'uploading')),
+    'oldest_queued_min', (select floor(extract(epoch from now() - min(created_at)) / 60) from public.jobs where state = 'queued'),
+    'stuck', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'job_type', job_type, 'state', state, 'attempt', attempt, 'lease_expired_at', lease_expires_at)
+                                         order by lease_expires_at)
+                         from public.jobs where state in ('claimed', 'running', 'validating', 'uploading') and lease_expires_at < now()), '[]'::jsonb),
+    -- Jobs that ended without a film in the last 7 days. Their credits are released by the ledger (failed, gate-stopped, or cancelled
+    -- before they started); the per-job amounts live in the ledger, which the app shows to the owner.
+    'ended', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'job_type', job_type, 'state', state, 'error_code', error_code, 'ended_at', ended_at)
+                                        order by ended_at desc)
+                        from (select * from public.jobs where state in ('failed', 'cancelled', 'editorial_action_required')
+                                and ended_at > now() - interval '7 days' order by ended_at desc limit 20) e), '[]'::jsonb),
+    'ai', ryagram_private.ai_budget() || jsonb_build_object('enabled', (select ai_enabled from public.control where id)),
+    'outbox', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'created_at', created_at, 'kind', kind, 'mode', mode, 'subject', subject) order by id desc)
+                          from (select * from public.ops_outbox order by id desc limit 10) o), '[]'::jsonb),
+    'backups', jsonb_build_object(
+      'expected', (select backups_expected from public.ops_settings),
+      'last_daily_ok', (select max(created_at) from public.ops_backups where kind = 'daily' and ok),
+      'last_daily_bytes', (select bytes from public.ops_backups where kind = 'daily' and ok order by created_at desc limit 1),
+      'last_failure', (select max(created_at) from public.ops_backups where not ok),
+      'last_restore_test', (select max(created_at) from public.ops_backups where kind = 'restore_test'),
+      'last_restore_ok', (select ok from public.ops_backups where kind = 'restore_test' order by created_at desc limit 1)),
     'open_alerts', coalesce((select jsonb_agg(jsonb_build_object('key', key, 'detail', detail, 'since', first_seen) order by first_seen)
                                from public.ops_alerts where resolved_at is null), '[]'::jsonb),
     'support_open', (select count(*) from public.support_requests where answered_at is null),
-    'abuse_waiting', (select count(*) from public.abuse_reports where reviewed_at is null));
-  -- Stripe's needs_review count lives in phase-2b/stripe_test_mode.sql (not a migration yet); the digest reads it once that is applied.
+    'support', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'created_at', created_at, 'topic', topic, 'email', email, 'job_id', job_id,
+                                                           'job_state', job_state, 'job_error_code', job_error_code, 'message', left(message, 300))
+                                          order by id)
+                           from (select * from public.support_requests where answered_at is null order by id limit 20) q), '[]'::jsonb),
+    'abuse_waiting', (select count(*) from public.abuse_reports where reviewed_at is null),
+    'abuse', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'created_at', created_at, 'slug', slug, 'reason', reason,
+                                                         'auto_held', auto_held, 'details', left(details, 300)) order by id)
+                         from (select * from public.abuse_reports where reviewed_at is null order by id limit 20) r), '[]'::jsonb));
+end $$;
+
+-- Ryan marks a ticket answered (he answers from his inbox; this only clears it from the queue and the 48-hour alert).
+create function public.admin_answer_support(p_id bigint) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not ryagram_private.is_app_admin() then
+    raise exception 'Only an admin can answer support requests.' using errcode = '42501';
+  end if;
+  update public.support_requests set answered_at = now() where id = p_id and answered_at is null;
+  perform ryagram_private.ops_clear('support:' || p_id);
 end $$;
 
 -- ---------------------------------------------------------------- AI editor hard spend caps (Ryan, 2026-10-10)
@@ -474,7 +515,58 @@ begin
     'ai_day_spent', b->'day_spent', 'ai_day_cap', b->'day_cap', 'ai_month_spent', b->'month_spent', 'ai_month_cap', b->'month_cap');
 end $$;
 
+-- ---------------------------------------------------------------- backups report in (Ryan, 2026-10-10)
+-- The daily pg_dump and the monthly restore test run on Ryan's PC (proposals/WEB-BACKUP-DESIGN.md) and report here through the
+-- worker login already on that PC (require_worker, like worker_ping). Nothing about the data is sent: a kind, ok, a size, a short note.
+create table public.ops_backups (
+  id bigint generated always as identity primary key,
+  created_at timestamptz not null default now(),
+  kind text not null check (kind in ('daily', 'restore_test')),
+  ok boolean not null,
+  bytes bigint check (bytes >= 0),
+  detail text not null default '' check (char_length(detail) <= 500)
+);
+alter table public.ops_backups enable row level security;
+revoke all on table public.ops_backups from anon, authenticated, service_role;
+
+create function public.record_backup(p_kind text, p_ok boolean, p_bytes bigint default null, p_detail text default '') returns void
+language plpgsql security definer set search_path = '' as $$
+declare w public.workers := ryagram_private.require_worker();
+begin
+  insert into public.ops_backups (kind, ok, bytes, detail) values (p_kind, p_ok, p_bytes, left(coalesce(p_detail, ''), 500));
+end $$;
+
+-- Alerts, once backups_expected is true: no good daily dump within backup_max_age_hours (2 days); the latest restore test failed;
+-- or the oldest good dump is over 45 days old and no restore test has passed in 45 days.
+create function ryagram_private.backup_alerts() returns void
+language plpgsql security definer set search_path = '' as $$
+declare s public.ops_settings; last_ok timestamptz; first_ok timestamptz; last_test record; last_test_ok timestamptz;
+begin
+  select * into s from public.ops_settings;
+  if not s.backups_expected then
+    perform ryagram_private.ops_clear('backup_stale'); perform ryagram_private.ops_clear('restore_test_failed');
+    return;
+  end if;
+  select max(created_at), min(created_at) into last_ok, first_ok from public.ops_backups where kind = 'daily' and ok;
+  if last_ok is null or last_ok < now() - make_interval(hours => s.backup_max_age_hours) then
+    perform ryagram_private.ops_raise('backup_stale', 'No good database backup in the last ' || s.backup_max_age_hours / 24 || ' days'
+      || case when last_ok is null then ' (none has ever been recorded).' else ' (the newest was ' || to_char(last_ok at time zone 'EST5EDT', 'Mon DD HH24:MI') || ').' end);
+  else
+    perform ryagram_private.ops_clear('backup_stale');
+  end if;
+  select * into last_test from public.ops_backups where kind = 'restore_test' order by created_at desc limit 1;
+  select max(created_at) into last_test_ok from public.ops_backups where kind = 'restore_test' and ok;
+  if (last_test.id is not null and not last_test.ok)
+     or (first_ok is not null and first_ok < now() - interval '45 days' and coalesce(last_test_ok, '-infinity') < now() - interval '45 days') then
+    perform ryagram_private.ops_raise('restore_test_failed', 'The monthly backup restore test failed or has not passed in 45 days.');
+  else
+    perform ryagram_private.ops_clear('restore_test_failed');
+  end if;
+end $$;
+
 -- ---------------------------------------------------------------- grants
+revoke execute on function public.record_backup(text, boolean, bigint, text), public.admin_answer_support(bigint) from public, anon;
+revoke execute on function ryagram_private.backup_alerts() from public, anon, authenticated;
 revoke execute on function public.worker_ping(numeric), public.service_status(), public.ops_tick(), public.ops_mark_notified(text[]),
   public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text),
   public.admin_review_report(bigint, text), public.admin_ops() from public, anon;
@@ -482,10 +574,10 @@ revoke execute on function public.ops_outbox_add(text, text, text, text, text), 
 revoke execute on function ryagram_private.ai_row_cost(numeric, int, int, int, int), ryagram_private.ai_budget(), ryagram_private.ai_budget_alerts(), ryagram_private.ai_project_spent(uuid), public.ai_budget_ok(uuid) from public, anon, authenticated;
 revoke execute on function ryagram_private.service_state(), ryagram_private.reap_lost_leases(), ryagram_private.expire_stale_queue(),
   ryagram_private.ops_raise(text, text), ryagram_private.ops_clear(text), ryagram_private.film_page_held() from public, anon, authenticated;
-grant execute on function public.worker_ping(numeric) to authenticated;                    -- require_worker() is the gate
+grant execute on function public.worker_ping(numeric), public.record_backup(text, boolean, bigint, text) to authenticated;                    -- require_worker() is the gate
 grant execute on function public.service_status() to anon, authenticated;
 grant execute on function public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text) to anon, authenticated;
-grant execute on function public.admin_review_report(bigint, text), public.admin_ops() to authenticated;   -- is_app_admin() is the gate
+grant execute on function public.admin_review_report(bigint, text), public.admin_ops(), public.admin_answer_support(bigint) to authenticated;   -- is_app_admin() is the gate
 grant execute on function public.ops_tick(), public.ops_mark_notified(text[]), public.ai_budget_ok(uuid),
   public.ops_outbox_add(text, text, text, text, text), public.ops_digest_data() to service_role;
 

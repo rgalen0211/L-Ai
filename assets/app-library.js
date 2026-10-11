@@ -72,6 +72,7 @@
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
+        else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -178,7 +179,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list, help];
@@ -219,6 +220,45 @@
         h('div', { class: 'inline-row' }, h('label', { for: 'wl-days' }, 'Period'), range),
         body, error
       ];
+    }
+
+    // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
+    async function opsAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const body = h('div', { class: 'admin-body' }, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      const section = (title, ...kids) => h('section', { class: 'ops-section' }, h('h2', {}, title), ...kids);
+      const none = text => h('p', { class: 'form-note' }, text);
+      const button = (label, work) => h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
+        await busy(event.currentTarget, 'Saving\u2026', async () => { try { await work(); await load(); } catch (err) { showError(error, err); } });
+      } }, label);
+      async function load() {
+        error.hidden = true;
+        let d;
+        try { d = await data.adminOps(); } catch (err) { body.replaceChildren(); showError(error, err); return; }
+        const now = Date.now();
+        body.replaceChildren(
+          section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
+          section('Needs you', d.open_alerts.length ? h('ul', { class: 'ops-list' }, d.open_alerts.map(a => h('li', {}, a.detail, h('span', { class: 'meta' }, ` since ${O.ago(a.since, now)}`)))) : none('Nothing needs you.')),
+          section('Stuck jobs', d.stuck.length ? h('ul', { class: 'ops-list' }, d.stuck.map(j => h('li', {}, `${j.job_type} ${j.state}, attempt ${j.attempt}`, h('span', { class: 'meta' }, ` ${j.id}, lease expired ${O.ago(j.lease_expired_at, now)}`)))) : none('None.')),
+          section('Ended without a film (last 7 days)', d.ended.length ? h('ul', { class: 'ops-list' }, d.ended.map(j => h('li', {}, `${O.ENDED_WORDS[j.state] || j.state}: ${j.job_type}`, h('span', { class: 'meta' }, ` ${j.error_code || 'no code'}, ${O.ago(j.ended_at, now)}, ${j.id}`)))) : none('None.'),
+            h('p', { class: 'form-note' }, 'Their credits are released by the ledger; the owner sees the amount on the film.')),
+          section('AI editor spend', O.spendLines(d.ai).map(t => h('p', {}, t))),
+          section('Backups', h('p', {}, O.backupLine(d.backups, now))),
+          section(`Help requests (${d.support_open})`, d.support.length ? h('ul', { class: 'ops-list' }, d.support.map(q => h('li', {},
+            h('strong', {}, `#${q.id} ${q.topic}`), h('span', { class: 'meta' }, ` ${q.email}, ${O.ago(q.created_at, now)}${q.job_id ? `, film job ${q.job_id} (${q.job_state}${q.job_error_code ? `, ${q.job_error_code}` : ''})` : ''}`),
+            h('p', {}, q.message), button('Mark answered', () => data.adminAnswerSupport(q.id))))) : none('None waiting.')),
+          section(`Abuse reports (${d.abuse_waiting})`, d.abuse.length ? h('ul', { class: 'ops-list' }, d.abuse.map(r => h('li', {},
+            h('strong', {}, `#${r.id} ${O.REASON_WORDS[r.reason] || r.reason}`), h('span', { class: 'meta' }, ` ${O.ago(r.created_at, now)}${r.auto_held ? ', page hidden' : ', page still up'}, `), h('a', { href: `/film/?s=${r.slug}` }, 'film page'),
+            r.details ? h('p', {}, r.details) : null,
+            button('Restore the page', () => data.adminReviewReport(r.id, 'restored')), ' ', button('Remove the page', () => data.adminReviewReport(r.id, 'removed')), ' ', button('Dismiss', () => data.adminReviewReport(r.id, 'dismissed'))))) : none('None waiting.')),
+          section('Recent messages (dry-run until email is set up)', d.outbox.length ? h('ul', { class: 'ops-list' }, d.outbox.map(o => h('li', {}, `${o.kind}: ${o.subject}`, h('span', { class: 'meta' }, ` ${o.mode === 'live' ? 'sent' : 'not sent (dry run)'}, ${O.ago(o.created_at, now)}`)))) : none('None.')));
+      }
+      load();
+      const timer = setInterval(load, 60000);
+      onStop(() => clearInterval(timer));
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Operations'),
+              h('p', { class: 'form-note' }, 'Everything the daily email says, live. It refreshes every minute.'), body, error];
     }
 
     // --- #/admin/visits  Ryan only: visits to /ryagram/ by day and by link source, with signups beside them and the
@@ -1078,6 +1118,12 @@
           !j.progress_detail && j.progress_note ? h('p', { class: 'form-note' }, j.progress_note) : null);
       }
 
+      // "Your credits were returned." under a failed or stopped job, from the ledger (job_accounting), never guessed.
+      function returnedLine(j, note) {
+        const text = C.returnedNote(accounting[j.id]);
+        return text && !(note || '').toLowerCase().includes('returned') ? h('p', { class: 'form-note credit-returned' }, text) : null;
+      }
+
       function jobItem(j) {
         const active = J.isActive(j);
         const failed = ['failed', 'editorial_action_required', 'cancelled'].includes(j.state);
@@ -1101,6 +1147,7 @@
                        j.job_type === 'preview' && !j.params?.window_s ? { ...j.params, window_s: [0, 10] } : j.params || {},
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
               }, 'Try again') : null,
+          creditsOn() && failed ? returnedLine(j, note) : null,
           opsOn() && failed && j.state !== 'cancelled' ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Get help with this') : null);
       }
 

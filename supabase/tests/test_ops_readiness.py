@@ -199,6 +199,79 @@ class Ops(core.Base):
             self.denied(who, "select ops_outbox_add('alert', 'live', 'x@y.co', 's', 'b')")
             self.denied(who, "select ops_digest_data()")
 
+    # -- backups report in (Ryan: alert when the newest good backup is older than 2 days)
+    def tick(self):
+        return self.db.as_("service").one("select ops_tick()")
+
+    def alert_keys(self):
+        return sorted(r[0] for r in self.db.as_(None).all("select key from public.ops_alerts where resolved_at is null and (key like '%%backup%%' or key like 'restore%%')"))
+
+    def test_only_the_worker_login_can_record_a_backup_and_only_known_kinds(self):
+        self.db.as_(WORKER).one("select record_backup('daily', true, 123456, 'ok')")
+        for who in (RYAN, "anon", OTHER):
+            self.denied(who, "select record_backup('daily', true)")
+        with self.assertRaises(psycopg.Error):
+            self.db.as_(WORKER).one("select record_backup('weird', true)")
+        self.assertEqual(self.admin("select count(*) from public.ops_backups"), 1)
+        for who in ("anon", RYAN, "service"):
+            self.denied(who, "select * from public.ops_backups")
+
+    def test_a_stale_backup_alerts_once_after_backups_are_expected_and_clears_on_the_next_good_one(self):
+        self.tick()
+        self.assertEqual(self.alert_keys(), [])                                  # not expected yet: silent
+        self.admin("update public.ops_settings set backups_expected = true returning 1")
+        self.assertEqual([a["key"] for a in self.tick()["new_alerts"] if "backup" in a["key"]], ["backup_stale"])
+        self.db.as_("service").one("select ops_mark_notified(%s)", ["backup_stale"])                       # the Edge Function does this after emailing
+        self.assertEqual([a["key"] for a in self.tick()["new_alerts"] if "backup" in a["key"]], [])        # one alert, not one per tick
+        self.db.as_(WORKER).one("select record_backup('daily', true, 5000000)")
+        self.tick()
+        self.assertEqual(self.alert_keys(), [])
+        self.admin("update public.ops_backups set created_at = now() - interval '3 days' returning 1")
+        self.assertEqual([a["key"] for a in self.tick()["new_alerts"] if "backup" in a["key"]], ["backup_stale"])   # older than 2 days: alert again
+        self.db.as_(WORKER).one("select record_backup('daily', false, null, 'pg_dump failed')")                  # a FAILED dump does not count as a backup
+        self.tick()
+        self.assertEqual(self.alert_keys(), ["backup_stale"])
+
+    def test_a_failed_restore_test_alerts(self):
+        self.admin("update public.ops_settings set backups_expected = true returning 1")
+        self.db.as_(WORKER).one("select record_backup('daily', true, 1)")
+        self.db.as_(WORKER).one("select record_backup('restore_test', false, null, 'row counts differ')")
+        self.assertIn("restore_test_failed", [a["key"] for a in self.tick()["new_alerts"]])
+        self.db.as_(WORKER).one("select record_backup('restore_test', true)")
+        self.tick()
+        self.assertEqual(self.alert_keys(), [])
+
+    # -- #/admin/ops
+    def test_admin_ops_shows_everything_ryan_needs_and_only_to_ryan(self):
+        self.make_ryan_admin()
+        self.ping("10 minutes")
+        job = self.lost_job()
+        self.db.as_("anon").one("select submit_support('a@x.co', 'render', 'film stuck please help', null)")
+        self.publish_page()
+        self.db.as_("anon").c.execute("select report_film_page(%s, 'harassment', 'rep@x.co', 'bad')", (SLUG,))
+        self.db.as_("service").one("select ops_outbox_add('alert', 'dry_run', 'ryagram@uselai.com', 'Ryagram: x', 'b')")
+        self.db.as_(WORKER).one("select record_backup('daily', true, 42)")
+        d = self.db.as_(RYAN).one("select admin_ops()")
+        self.assertEqual((d["rendering"], d["free_gb"] is not None, d["queued"], d["running"]), ("delayed", True, 0, 1))
+        self.assertEqual([j["id"] for j in d["stuck"]], [str(job)])
+        self.assertEqual(d["ai"]["state"], "ok")
+        self.assertEqual(set(d["ai"]) >= {"day_spent", "day_cap", "month_spent", "month_cap", "enabled"}, True)
+        self.assertEqual([o["kind"] for o in d["outbox"]], ["alert"])
+        self.assertEqual((d["backups"]["last_daily_bytes"], d["backups"]["expected"]), (42, False))
+        self.assertEqual((d["support_open"], d["support"][0]["topic"], d["support"][0]["email"]), (1, "render", "a@x.co"))
+        self.assertEqual((d["abuse_waiting"], d["abuse"][0]["reason"], d["abuse"][0]["auto_held"]), (1, "harassment", True))
+        self.assertTrue(any(a["key"].startswith("abuse:") for a in d["open_alerts"]))
+        self.denied(OTHER, "select admin_ops()")
+
+    def test_ryan_marks_a_ticket_answered_and_nobody_else_can(self):
+        self.make_ryan_admin()
+        n = self.db.as_("anon").one("select submit_support('a@x.co', 'other', 'hello there', null)")
+        self.denied(OTHER, "select admin_answer_support(%s)", n)
+        self.db.as_(RYAN).one("select admin_answer_support(%s)", n)
+        d = self.db.as_(RYAN).one("select admin_ops()")
+        self.assertEqual((d["support_open"], d["support"]), (0, []))
+        self.assertEqual(self.admin("select resolved_at is not null from public.ops_alerts where key = %s", f"support:{n}"), True)
+
 
 class OpsLedger(unittest.TestCase):
     setUp, tearDown = credits.Ledger.setUp, credits.Ledger.tearDown
