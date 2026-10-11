@@ -3,9 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const dir = path.join(__dirname, '..', 'supabase', 'email-templates');
-const read = f => fs.readFileSync(path.join(dir, f), 'utf8').replace(/
-/g, '
-');          // line endings do not matter (autocrlf checkouts)
+const read = f => fs.readFileSync(path.join(dir, f), 'utf8').replace(/\r\n/g, '\n');          // line endings do not matter (autocrlf checkouts)
 
 // name -> the verifyOtp type its link must carry
 const TEMPLATES = { 'confirm-signup': 'signup', 'invite-user': 'invite', 'magic-link': 'magiclink', 'reset-password': 'recovery', 'email-change': 'email_change' };
