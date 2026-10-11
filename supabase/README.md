@@ -269,9 +269,13 @@ The Auth emails (invite, reset password, confirm) are edited in the Supabase das
 Ryagram is operated by L'Ai, LLC. Questions: ryagram@uselai.com
 ```
 
+**Ready-to-paste templates (2026-10-10):** `supabase/email-templates/reset-password.html`, `invite-user.html` and `confirm-signup.html`, with their subject lines and the paste steps in `Ryagram-logs/proposals/WEB-AUTH-EMAIL-TEMPLATES.md`. Each carries the operator line, the Ryagram branding and the right link (`?reset=` and `?invite=` go to the app, which checks the token itself).
+
 (Ryan, 2026-10-07: the operator is L'Ai, LLC, and Ryagram's pages, policy and app give ryagram@uselai.com. The sender address below is a separate setting: it stays the Google Workspace mailbox until a Send-As for ryagram@ is set up.)
 
 ## Email sender: Google Workspace (ryan.galen@uselai.com) via Supabase custom SMTP
+
+**SUPERSEDED (Ryan, 2026-10-10): custom SMTP is set up with Resend instead**, sender `noreply@uselai.com`, domain verified (DKIM and SPF). The Google Workspace steps below are kept only as a fallback; do not follow them. The Auth email templates are now editable: ready-to-paste versions are in `supabase/email-templates/` (see "Email templates: who is named").
 
 Password-reset and invite emails need this; nothing else changes. Checked against Google's and
 Supabase's docs on 2026-10-03. Gmail's SMTP server takes a Workspace address plus an **app
@@ -513,7 +517,7 @@ Design and audit: `Ryagram-logs/proposals/WEB-OPS-READINESS.md`. Nothing below i
 1. Apply `migrations/20261010000100_ops_readiness.sql` (after the AI editor, film pages and app_admins migrations). It also replaces `ai_reserve_turn` with the capped version and adds `control.ai_daily_usd_cap` ($5), `ai_monthly_usd_cap` ($60) and `ai_project_cap_usd` ($5): tune them in the Table Editor on the `control` row.
 2. Redeploy `ai-editor` (it now asks `ai_budget_ok` before every Anthropic call). Deploy `ops-tick` and `ops-digest` the same way as `purge-uploads` (`--no-verify-jwt`).
 3. Dashboard > Integrations > Cron: `ops-tick` every 5 minutes; `ops-digest` daily at 13:00 UTC. Same Authorization header as the purge jobs.
-4. Mail is DRY-RUN by default: every alert and digest is written to the `ops_outbox` table (Table Editor) and nothing is sent. To go live, set the Edge Function secrets `OPS_MAIL_MODE=resend`, `RESEND_API_KEY` and `OPS_MAIL_FROM` (e.g. `Ryagram <ops@uselai.com>`; the domain must be verified in Resend). Anything missing keeps it in dry-run.
+4. Mail is DRY-RUN by default: every alert and digest is written to the `ops_outbox` table (Table Editor) and nothing is sent. **Secrets already set (Ryan, 2026-10-10): `RESEND_API_KEY` and `OPS_MAIL_FROM`; the Resend domain is verified (DKIM and SPF).** `OPS_MAIL_MODE` is still unset, so it stays in dry-run. **Going live = set the secret `OPS_MAIL_MODE=resend`, but only after CC1 has approved ops-readiness, the SQL is applied and the `ops-tick` and `ops-digest` functions are deployed and scheduled.** Anything missing keeps it in dry-run. (Supabase's own Auth emails use the same Resend account through custom SMTP, set separately in Authentication > Emails.)
 5. WORKER adds one `worker_ping(free_gb)` call per minute. Until then rendering status is `unknown` and no worker alert is raised.
 6. Merge `.github/workflows/ops-ping.yml` only after step 1.
 7. **Launch checklist (Ryan, 2026-10-10): raise the site-wide AI caps before public launch; consider per-user caps tied to credits.** The defaults ($5 a day, $60 a month, $5 a project) suit one user. A call whose model has no row in `ai_prices` is counted at the most expensive known price and raises one alert `ai_price_missing:<model>`: add the price row to clear it.
