@@ -318,19 +318,27 @@ end $$;
 -- ---------------------------------------------------------------- AI editor hard spend caps (Ryan, 2026-10-10)
 -- Enforced here, in the database, BEFORE every Anthropic call (the Edge Function asks ai_budget_ok before each call). The
 -- Anthropic console limit stays the outer wall. At 80% of a cap ONE alert is raised; at 100% the editor pauses with a friendly
--- message and the rest of the app (renders, library, account) is untouched. Spend = ai_usage.cost_usd; a call with an unknown
--- price is counted as 0 (keep ai_prices current), so a missing price can only under-count.
+-- message and the rest of the app (renders, library, account) is untouched. Spend = ai_usage.cost_usd. A call whose model has
+-- NO price in ai_prices (cost_usd NULL) is counted at the MOST EXPENSIVE known price of each kind of token (never as 0, so a
+-- missing price can only over-count and the caps stay safe), and one alert 'ai_price_missing:<model>' says to add the price.
 alter table public.control
   add column ai_daily_usd_cap numeric not null default 5.00 check (ai_daily_usd_cap > 0),      -- New York calendar day
   add column ai_monthly_usd_cap numeric not null default 60.00 check (ai_monthly_usd_cap > 0), -- New York calendar month
   add column ai_project_cap_usd numeric not null default 5.00 check (ai_project_cap_usd > 0);  -- HARD limit per project;
                                                                                               -- ai_project_alert_usd (3.00) stays the early warning
+create function ryagram_private.ai_row_cost(p_cost numeric, p_in int, p_out int, p_cr int, p_cw int) returns numeric
+language sql stable security definer set search_path = '' as $$
+  select coalesce(p_cost, (coalesce(p_in, 0) * max(input_per_mtok) + coalesce(p_out, 0) * max(output_per_mtok)
+                           + coalesce(p_cr, 0) * max(cache_read_per_mtok) + coalesce(p_cw, 0) * max(cache_write_5m_per_mtok)) / 1000000.0)
+  from public.ai_prices;
+$$;
+
 create function ryagram_private.ai_budget() returns jsonb
 language sql stable security definer set search_path = '' as $$
   with c as (select * from public.control where id),
-  d as (select coalesce(sum(cost_usd), 0) as spent from public.ai_usage
+  d as (select coalesce(sum(ryagram_private.ai_row_cost(cost_usd, input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens)), 0) as spent from public.ai_usage
          where (created_at at time zone 'EST5EDT')::date = (now() at time zone 'EST5EDT')::date),
-  m as (select coalesce(sum(cost_usd), 0) as spent from public.ai_usage
+  m as (select coalesce(sum(ryagram_private.ai_row_cost(cost_usd, input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens)), 0) as spent from public.ai_usage
          where date_trunc('month', created_at at time zone 'EST5EDT') = date_trunc('month', now() at time zone 'EST5EDT'))
   select jsonb_build_object(
     'day_spent', d.spent, 'day_cap', c.ai_daily_usd_cap, 'month_spent', m.spent, 'month_cap', c.ai_monthly_usd_cap,
@@ -343,8 +351,15 @@ $$;
 -- One alert per cap per period (the key carries the day or month, so tomorrow can alert again).
 create function ryagram_private.ai_budget_alerts() returns void
 language plpgsql security definer set search_path = '' as $$
-declare b jsonb := ryagram_private.ai_budget();
+declare b jsonb := ryagram_private.ai_budget(); m text;
 begin
+  for m in select distinct u.model from public.ai_usage u
+            where u.cost_usd is null and u.model is not null and u.input_tokens is not null
+              and not exists (select 1 from public.ai_prices p where p.model = u.model)
+  loop
+    perform ryagram_private.ops_raise('ai_price_missing:' || m,
+      'AI calls to model "' || m || '" have no price in ai_prices; they are counted at the most expensive known price. Add the price row.');
+  end loop;
   if (b->>'day_spent')::numeric >= 0.8 * (b->>'day_cap')::numeric then
     perform ryagram_private.ops_raise('ai_day_80:' || (b->>'day'),
       'AI editor spend today is $' || round((b->>'day_spent')::numeric, 2) || ' of the $' || (b->>'day_cap') || ' daily cap (80% reached).');
@@ -363,7 +378,7 @@ end $$;
 
 create function ryagram_private.ai_project_spent(p_project uuid) returns numeric
 language sql stable security definer set search_path = '' as $$
-  select coalesce(sum(cost_usd), 0) from public.ai_usage where project_id = p_project;
+  select coalesce(sum(ryagram_private.ai_row_cost(cost_usd, input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens)), 0) from public.ai_usage where project_id = p_project;
 $$;
 
 -- Same checks as 2A-8 plus the two cap kinds. (create or replace: this migration comes after 20260929000600.)
@@ -464,7 +479,7 @@ revoke execute on function public.worker_ping(numeric), public.service_status(),
   public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text),
   public.admin_review_report(bigint, text), public.admin_ops() from public, anon;
 revoke execute on function public.ops_outbox_add(text, text, text, text, text), public.ops_digest_data() from public, anon, authenticated;
-revoke execute on function ryagram_private.ai_budget(), ryagram_private.ai_budget_alerts(), ryagram_private.ai_project_spent(uuid), public.ai_budget_ok(uuid) from public, anon, authenticated;
+revoke execute on function ryagram_private.ai_row_cost(numeric, int, int, int, int), ryagram_private.ai_budget(), ryagram_private.ai_budget_alerts(), ryagram_private.ai_project_spent(uuid), public.ai_budget_ok(uuid) from public, anon, authenticated;
 revoke execute on function ryagram_private.service_state(), ryagram_private.reap_lost_leases(), ryagram_private.expire_stale_queue(),
   ryagram_private.ops_raise(text, text), ryagram_private.ops_clear(text), ryagram_private.film_page_held() from public, anon, authenticated;
 grant execute on function public.worker_ping(numeric) to authenticated;                    -- require_worker() is the gate

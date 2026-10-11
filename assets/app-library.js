@@ -49,6 +49,8 @@
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
+  // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
@@ -67,6 +69,7 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
@@ -79,8 +82,54 @@
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
       stopView();
       stopView = () => stops.forEach(fn => fn());
-      root.replaceChildren(...[view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
+      const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
+      if (mine !== token) return;
+      root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
       root.querySelector('h1')?.focus();
+    }
+
+    async function delayedNotice() {
+      const text = window.ryagramOps.bannerText(await data.serviceStatus());
+      return text ? h('p', { class: 'app-status', role: 'status' }, text) : null;
+    }
+
+    // --- #/help  the help form. Signed-in people's job (from #/help?job=<id>) is attached by the server.
+    async function helpView() {
+      const O = window.ryagramOps;
+      const job = O.jobFromHash(location.hash);
+      const known = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
+      const error = errorLine();
+      const done = h('p', { class: 'form-note', role: 'status', hidden: true });
+      const email = h('input', { id: 'help-email', type: 'email', required: true, maxlength: '200', autocomplete: 'email', value: known });
+      const topics = O.TOPICS.map(([id, label]) => h('label', { class: 'choice' },
+        h('input', { type: 'radio', name: 'help-topic', value: id, ...(id === (job ? 'render' : 'other') ? { checked: true } : {}) }), ' ', label));
+      const topicValue = () => form.querySelector('input[name="help-topic"]:checked')?.value;
+      const message = h('textarea', { id: 'help-message', required: true, rows: '6', maxlength: '4000' });
+      const trap = h('input', { id: 'help-website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off' });   // honeypot
+      const send = h('button', { class: 'button primary', type: 'submit' }, 'Send');
+      const form = h('form', { class: 'contact-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        const problem = O.checkSupport({ email: email.value, topic: topicValue(), message: message.value });
+        if (problem) { showError(error, new Error(problem)); return; }
+        await busy(send, 'Sending\u2026', async () => {
+          try {
+            const id = await data.submitSupport({ email: email.value.trim(), topic: topicValue(), message: message.value.trim(), job, website: trap.value });
+            form.hidden = true;
+            done.textContent = `Thank you. We got it${Number(id) > 0 ? ` (ticket #${id})` : ''} and will reply to ${email.value.trim()} within 2 working days.`;
+            done.hidden = false;
+          } catch (err) { showError(error, err); }
+        });
+      } },
+        h('label', { for: 'help-email' }, 'Your email'), email,
+        h('fieldset', { class: 'choices' }, h('legend', {}, 'What is it about?'), topics),
+        h('label', { for: 'help-message' }, 'What happened?'), message,
+        h('div', { class: 'hp-field', 'aria-hidden': 'true' }, h('label', { for: 'help-website' }, 'Leave this empty'), trap),
+        job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
+        send, error);
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
+              h('p', { class: 'form-note' }, 'Common questions are answered in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
+              form, done];
     }
 
     function errorLine() {
@@ -131,7 +180,8 @@
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
       const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list];
+      const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -1050,7 +1100,8 @@
                 submit(event.currentTarget, j.job_type,
                        j.job_type === 'preview' && !j.params?.window_s ? { ...j.params, window_s: [0, 10] } : j.params || {},
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
-              }, 'Try again') : null);
+              }, 'Try again') : null,
+          opsOn() && failed && j.state !== 'cancelled' ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Get help with this') : null);
       }
 
       function draw() {
