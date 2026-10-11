@@ -317,6 +317,11 @@
           'Couldn\u2019t send that just now. Please try again, or write to ryagram@uselai.com.');
       },
 
+      // Ryan's Operations screen (SQL 20261010000100): one summary, and the three buttons. Admin only; the functions refuse everyone else.
+      adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
+      adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
+      adminReviewReport(id, outcome) { return run(client.rpc('admin_review_report', { p_id: id, p_outcome: outcome }), 'Couldn\u2019t update that report.'); },
+
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
       // which builds the page's sources from the receipt; stopping is a plain RPC.
       async filmPage(versionId) {

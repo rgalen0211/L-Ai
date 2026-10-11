@@ -58,3 +58,32 @@ test('the notice and help form are OFF in the shipped config until the SQL is ap
   const src = fs.readFileSync(path.join(__dirname, '..', 'assets', 'ryagram-config.js'), 'utf8');
   assert.match(src, /opsTools: false/);
 });
+
+const C = load('app-credits.js').ryagramCredits;
+const NOW = Date.parse('2026-10-10T20:00:00Z');
+const iso = min => new Date(NOW - min * 60000).toISOString();
+
+test('Operations wording: ages, rendering, queue, spend and backups', () => {
+  assert.equal(O.ago(iso(0.2), NOW), 'just now');
+  assert.equal(O.ago(iso(5), NOW), '5 minutes ago');
+  assert.equal(O.ago(iso(61), NOW), '1 hour ago');
+  assert.equal(O.ago(iso(3 * 1440), NOW), '3 days ago');
+  assert.equal(O.ago(null, NOW), 'never');
+  assert.match(O.renderingLine({ rendering: 'delayed', last_check_in: iso(10), free_gb: 212.4 }, NOW), /DELAYED.*10 minutes ago.*212 GB free/);
+  assert.match(O.renderingLine({ rendering: 'unknown', last_check_in: null, free_gb: null }, NOW), /not reported in yet/);
+  assert.equal(O.queueLine({ queued: 0, running: 1, oldest_queued_min: null }), '0 queued, 1 running.');
+  assert.equal(O.queueLine({ queued: 2, running: 0, oldest_queued_min: 125 }), '2 queued, 0 running. The oldest has waited 2 hours.');
+  const ai = { day_spent: 4.2, day_cap: 5, month_spent: 10, month_cap: 60, state: 'warn', enabled: true };
+  assert.deepEqual(JSON.parse(JSON.stringify(O.spendLines(ai))), ['Spend is over 80% of a cap.', 'Today $4.20 of $5.00. This month $10.00 of $60.00.']);
+  assert.match(O.spendLines({ ...ai, state: 'paused' })[0], /PAUSED/);
+  assert.match(O.spendLines({ ...ai, enabled: false })[0], /switched off/);
+  assert.equal(O.backupLine({ expected: false, last_daily_ok: null }, NOW), 'Backups are not set up yet.');
+  assert.match(O.backupLine({ expected: true, last_daily_ok: iso(600), last_daily_bytes: 5242880, last_restore_test: iso(14400), last_restore_ok: false }, NOW), /10 hours ago, 5\.0 MB\. Restore test FAILED 10 days ago/);
+});
+
+test('"credits were returned" appears only when the ledger says released and nothing was spent', () => {
+  assert.equal(C.returnedNote({ credits_quoted: 10, released: 10, captured: 0 }), 'Your 10 credits were returned.');
+  assert.equal(C.returnedNote({ credits_quoted: 1, released: 1, captured: 0 }), 'Your credit was returned.');
+  for (const a of [null, { free_preview: true, credits_quoted: 0 }, { credits_quoted: 0 }, { credits_quoted: 10, released: 0, captured: 10 },
+                   { credits_quoted: 10, released: 4, captured: 6 }, { credits_quoted: 10, held: 10 }]) assert.equal(C.returnedNote(a), '', JSON.stringify(a));
+});

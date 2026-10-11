@@ -331,6 +331,22 @@
         db.support.push({ p_email, p_topic, p_message, p_job });
         return { data: db.support.length, error: null };
       },
+      // Mock: a made-up Operations summary for #/admin/ops.
+      admin_ops() {
+        const now = Date.now(), ago = m => new Date(now - m * 60000).toISOString();
+        return { data: {
+          rendering: 'ok', last_check_in: ago(0.4), free_gb: 212, queued: 1, running: 1, oldest_queued_min: 4,
+          stuck: [], ended: [{ id: 'job-9', job_type: 'preview', state: 'failed', error_code: 'worker_lost', ended_at: ago(300) }],
+          ai: { day_spent: 0.84, day_cap: 5, month_spent: 3.1, month_cap: 60, state: 'ok', enabled: true },
+          outbox: [{ id: 1, created_at: ago(20), kind: 'digest', mode: 'dry_run', subject: 'Ryagram daily: 1 thing needs you' }],
+          backups: { expected: true, last_daily_ok: ago(600), last_daily_bytes: 5242880, last_restore_test: ago(14400), last_restore_ok: true },
+          open_alerts: [{ key: 'support:1', detail: 'New support request #1 (render)', since: ago(30) }],
+          support_open: db.supportOpen ?? 1,
+          support: (db.supportOpen ?? 1) ? [{ id: 1, created_at: ago(30), topic: 'render', email: 'sam@example.com', job_id: 'job-9', job_state: 'failed', job_error_code: 'worker_lost', message: 'My preview failed twice.' }] : [],
+          abuse_waiting: 0, abuse: [] }, error: null };
+      },
+      admin_answer_support() { db.supportOpen = 0; return { data: null, error: null }; },
+      admin_review_report() { return { data: null, error: null }; },
       film_unpublish({ p_version }) {
         const page = db.film_pages.find(p => p.version_id === p_version);
         if (!page) return fail('No public page for that film.');
