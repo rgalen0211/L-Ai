@@ -19,18 +19,28 @@
   const button = form.querySelector('button[type="submit"]');
   const setPassword = $('set-password');
 
-  // A password-reset link lands here as /app/?reset=<token hash>, and a beta invite as
-  // /app/?invite=<token hash> (the Supabase email templates in supabase/README.md). Take the token
-  // out of the address bar at once, before anything else runs.
+  // Auth emails link through OUR domain (deliverability: the sender is uselai.com, so the link must be too):
+  //   https://uselai.com/app/#/auth/confirm?token_hash=<hash>&type=<signup|invite|magiclink|recovery|email_change|email>
+  // The token sits in the address FRAGMENT, which browsers never send to any server. The page checks it itself with verifyOtp, takes it
+  // out of the address bar at once (before anything else runs), and lands on the library. Links already sent as /app/?reset=<hash> and
+  // /app/?invite=<hash> keep working. Templates: supabase/email-templates/.
   const query = new URLSearchParams(location.search);
   const TOKEN = /^[A-Za-z0-9_-]{10,200}$/;
-  const linkType = query.has('invite') ? 'invite' : query.has('reset') ? 'recovery' : null;
-  const linkToken = linkType && TOKEN.test(query.get(linkType === 'invite' ? 'invite' : 'reset') || '')
+  const AUTH_TYPES = ['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email'];
+  let linkType = query.has('invite') ? 'invite' : query.has('reset') ? 'recovery' : null;
+  let linkToken = linkType && TOKEN.test(query.get(linkType === 'invite' ? 'invite' : 'reset') || '')
     ? query.get(linkType === 'invite' ? 'invite' : 'reset') : null;
-  if (query.has('reset') || query.has('invite')) {
+  const confirmHash = /^#\/auth\/confirm(?:\?(.*))?$/.exec(location.hash || '');
+  if (confirmHash) {
+    const p = new URLSearchParams(confirmHash[1] || '');
+    const type = p.get('type');
+    linkType = AUTH_TYPES.includes(type) ? type : null;
+    linkToken = linkType && TOKEN.test(p.get('token_hash') || '') ? p.get('token_hash') : null;
+  }
+  if (query.has('reset') || query.has('invite') || confirmHash) {
     query.delete('reset');
     query.delete('invite');
-    history.replaceState(null, '', location.pathname + (query.toString() ? `?${query}` : '') + location.hash);
+    history.replaceState(null, '', location.pathname + (query.toString() ? `?${query}` : '') + (confirmHash ? '#/' : location.hash));
   }
 
   function say(message) {
@@ -108,18 +118,27 @@
     }
 
     if (linkToken) {
-      recovering = true;
+      recovering = linkType === 'invite' || linkType === 'recovery';       // these two choose a password before the library
       if (linkType === 'invite') {
         $('set-password-title').textContent = 'Welcome to Ryagram. Choose your password';
       }
+      const FAILED = {
+        invite: 'That invite link has expired or was already used. If you set a password, sign in; if not, ask for a new invite.',
+        recovery: 'That reset link has expired or was already used. Ask for a new one from the sign-in page.',
+        signup: 'That confirmation link has expired or was already used. Try signing in; if that fails, ask for a new one.',
+        magiclink: 'That sign-in link has expired or was already used. Ask for a new one from the sign-in page.',
+        email: 'That link has expired or was already used. Ask for a new one from the sign-in page.',
+        email_change: 'That link has expired or was already used. Start the email change again from your Account page.'
+      };
+      const DONE = { signup: 'Your email is confirmed. Welcome to Ryagram.', email_change: 'Your email address is updated.' };
       client.auth.verifyOtp({ token_hash: linkToken, type: linkType }).then(async ({ error: otpError }) => {
         if (otpError) {
           recovering = false;
           const { data } = await client.auth.getSession();
           render(data.session);
-          say(linkType === 'invite'
-            ? 'That invite link has expired or was already used. If you set a password, sign in; if not, ask for a new invite.'
-            : 'That reset link has expired or was already used. Ask for a new one from the sign-in page.');
+          say(FAILED[linkType]);
+        } else if (DONE[linkType]) {
+          say(DONE[linkType]);
         }
       });
     }

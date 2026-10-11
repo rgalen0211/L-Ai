@@ -1,0 +1,15 @@
+Ryagram
+
+Confirm your email
+
+You're getting this because someone used {{ .Email }} to create a Ryagram account.
+
+Confirm my email:
+{{ .SiteURL }}/app/#/auth/confirm?token_hash={{ .TokenHash }}&type=signup
+
+If that wasn't you, you can ignore this email.
+
+--
+Ryagram is operated by L'Ai, LLC.
+Questions: ryagram@uselai.com
+https://uselai.com/ryagram/
