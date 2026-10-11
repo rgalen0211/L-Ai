@@ -34,6 +34,7 @@ create table public.ops_settings (
   support_reply_hours int not null default 48,
   abuse_hide_per_reporter_day int not null default 3,
   backups_expected boolean not null default false,      -- Ryan sets true once the daily backup is installed: then a stale backup alerts
+  max_alert_mails_per_day int not null default 20 check (max_alert_mails_per_day >= 1),   -- a flood cannot use up the mail service's free daily allowance
   backup_max_age_hours int not null default 48            -- newest good daily backup older than this = alert (Ryan, 2026-10-10: 2 days)
 );
 insert into public.ops_settings default values;
@@ -56,7 +57,7 @@ language sql stable security definer set search_path = '' as $$
 $$;
 
 -- ---------------------------------------------------------------- stuck jobs, even with no worker polling
--- Same rule as the top of claim_next_job (2A core): record the lost attempt, then retry (attempt < 3) or fail. The ledger trigger
+-- The same block as the top of claim_next_job (as last redefined in 20260928000400, queued_at reset included): record the lost attempt, then retry (attempt < 3) or fail. The ledger trigger
 -- releases the hold on failure. Returns how many jobs it put back or failed.
 create function ryagram_private.reap_lost_leases() returns int
 language plpgsql security definer set search_path = '' as $$
@@ -81,7 +82,8 @@ begin
         error_detail = case when not lost.cancel_requested then 'The worker stopped responding.' end,
         ended_at = case when lost.cancel_requested or lost.attempt >= 3 then now() end,
         claimed_at = null, started_at = null, lease_expires_at = null, heartbeat_at = null,
-        worker_id = null, worker_user_id = null, progress = null, progress_note = null
+        worker_id = null, worker_user_id = null, progress = null, progress_note = null,
+        queued_at = case when not lost.cancel_requested and lost.attempt < 3 then now() else lost.queued_at end
       where id = lost.id;
     n := n + 1;
   end loop;
@@ -90,16 +92,21 @@ end $$;
 
 create function ryagram_private.expire_stale_queue() returns int
 language plpgsql security definer set search_path = '' as $$
-declare n int;
+declare n int; s public.ops_settings;
 begin
-  if ryagram_private.service_state() <> 'delayed' then
+  select * into s from public.ops_settings;
+  -- Only when rendering is delayed AND has been silent for the whole timeout: a 3-minute reboot never cancels an old backlog.
+  if ryagram_private.service_state() <> 'delayed'
+     or (select max(last_seen_at) from public.workers where enabled) > now() - make_interval(mins => s.queue_timeout_min) then
     return 0;
   end if;
+  -- Ends as FAILED with an infrastructure error (not 'cancelled'): a failed job releases its hold under the ledger as it is today
+  -- and under ledger-cancel-spent, which captures credits for a cancelled job that ever ran.
   with c as (
-    update public.jobs j set state = 'cancelled', error_code = 'queue_timeout', error_class = 'cancelled',
-           error_detail = 'Rendering was delayed, so this film was cancelled before it started. Your credits were returned.',
-           ended_at = now()
-      from public.ops_settings s
+    update public.jobs j set state = 'failed', error_code = 'queue_timeout', error_class = 'infrastructure',
+           error_detail = 'Rendering was delayed, so this film could not start. Your credits were returned.',
+           ended_at = now(), claimed_at = null, started_at = null, lease_expires_at = null, heartbeat_at = null,
+           worker_id = null, worker_user_id = null, progress = null, progress_note = null
       where j.state = 'queued' and j.created_at < now() - make_interval(mins => s.queue_timeout_min)
       returning j.id)
   select count(*) into n from c;
@@ -169,6 +176,8 @@ begin
   if ab > 0 then perform ryagram_private.ops_raise('abuse_waiting', ab || ' abuse reports are waiting for review.');
   else perform ryagram_private.ops_clear('abuse_waiting'); end if;
   return jsonb_build_object('rendering', st, 'reaped', reaped, 'expired', expired,
+    'alert_mail_budget', greatest(0, s.max_alert_mails_per_day - (select count(*) from public.ops_outbox
+        where kind = 'alert' and (created_at at time zone 'EST5EDT')::date = (now() at time zone 'EST5EDT')::date)),
     'new_alerts', coalesce((select jsonb_agg(jsonb_build_object('key', key, 'detail', detail))
                               from public.ops_alerts where resolved_at is null and notified_at is null), '[]'::jsonb));
 end $$;
@@ -231,6 +240,7 @@ create table public.abuse_reports (
   details text not null default '' check (char_length(details) <= 4000),
   reporter_email text not null check (char_length(reporter_email) between 3 and 200 and reporter_email like '%_@_%'),
   version_id uuid, auto_held boolean not null default false,
+  reporter_key text,                          -- md5(caller address + day) or the email: for rate limits only; the address itself is never stored
   reviewed_at timestamptz, outcome text check (outcome in ('restored', 'removed', 'dismissed'))
 );
 alter table public.abuse_reports enable row level security;
@@ -250,7 +260,7 @@ create trigger film_pages_held before insert or update on public.film_pages
 create function public.report_film_page(p_slug text, p_reason text, p_email text, p_details text default '', p_website text default '')
 returns void
 language plpgsql security definer set search_path = '' as $$
-declare fp public.film_pages; hold boolean; held_today int; id bigint; s public.ops_settings;
+declare fp public.film_pages; hold boolean; held_today int; id bigint; s public.ops_settings; rk text; ip text;
 begin
   if coalesce(p_website, '') <> '' then
     return;                                                                       -- honeypot
@@ -260,24 +270,34 @@ begin
   if not found then
     return;                                                                       -- same silence for a slug that does not exist
   end if;
-  if (select count(*) from public.abuse_reports where lower(reporter_email) = lower(p_email) and created_at > now() - interval '1 hour') >= 5 then
+  -- The reporter is the caller's address when the request carries one (rotating daily, hashed), else the typed email. A new email
+  -- per report therefore does not reset the limits, and a GLOBAL cap stops a flood from any number of addresses.
+  begin
+    ip := nullif(split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1), '');
+  exception when others then
+    ip := null;
+  end;
+  rk := coalesce(md5(ip || to_char(now() at time zone 'EST5EDT', 'YYYY-MM-DD')), lower(trim(p_email)));
+  if (select count(*) from public.abuse_reports where reporter_key = rk and created_at > now() - interval '1 hour') >= 5
+     or (select count(*) from public.abuse_reports where created_at > now() - interval '1 hour') >= 30 then
     raise exception 'Too many reports. Please try again later.' using errcode = 'P0001';
   end if;
   hold := p_reason in ('child_safety', 'private_information', 'harassment', 'copyright') and fp.held_at is null and fp.owner_id is distinct from auth.uid();
   if hold then
-    select count(*) into held_today from public.abuse_reports
-      where lower(reporter_email) = lower(p_email) and auto_held and created_at > now() - interval '1 day';
-    hold := held_today < s.abuse_hide_per_reporter_day;                           -- griefing guard: a few auto-hides a day per reporter
+    select count(*) into held_today from public.abuse_reports where reporter_key = rk and auto_held and created_at > now() - interval '1 day';
+    hold := held_today < s.abuse_hide_per_reporter_day                            -- griefing guard: a few auto-hides a day per reporter
+            and (select count(*) from public.abuse_reports where auto_held and created_at > now() - interval '1 hour') < 10;   -- and 10 an hour in all
   end if;
-  insert into public.abuse_reports (slug, reason, details, reporter_email, version_id, auto_held)
-    values (p_slug, p_reason, coalesce(p_details, ''), trim(p_email), fp.version_id, hold) returning abuse_reports.id into id;
+  insert into public.abuse_reports (slug, reason, details, reporter_email, reporter_key, version_id, auto_held)
+    values (p_slug, p_reason, coalesce(p_details, ''), trim(p_email), rk, fp.version_id, hold) returning abuse_reports.id into id;
   if hold then
     update public.film_pages set held_at = now(), published = false where slug = p_slug;
   end if;
   perform ryagram_private.ops_raise('abuse:' || id, 'Abuse report #' || id || ' (' || p_reason || ')' || case when hold then ' - page held' else '' end);
 end $$;
 
--- Ryan decides. 'restored' lifts the hold (the owner may republish); 'removed' deletes the page; 'dismissed' = no action needed.
+-- Ryan decides. 'restored' lifts the hold (the owner may republish); 'removed' keeps the row HELD for good (the owner cannot republish
+-- it: film_page_held forces published = false); 'dismissed' lifts the hold, no action needed.
 create function public.admin_review_report(p_id bigint, p_outcome text) returns void
 language plpgsql security definer set search_path = '' as $$
 declare r public.abuse_reports;
@@ -291,7 +311,7 @@ begin
   end if;
   update public.abuse_reports set reviewed_at = now(), outcome = p_outcome where id = p_id;
   if p_outcome = 'removed' then
-    delete from public.film_pages where slug = r.slug;
+    update public.film_pages set held_at = coalesce(held_at, now()), published = false where slug = r.slug;
   elsif p_outcome in ('restored', 'dismissed') then
     update public.film_pages set held_at = null where slug = r.slug;
   end if;
@@ -393,6 +413,8 @@ $$;
 create function ryagram_private.ai_budget_alerts() returns void
 language plpgsql security definer set search_path = '' as $$
 declare b jsonb := ryagram_private.ai_budget(); m text;
+  dsp numeric := (b->>'day_spent')::numeric; dcap numeric := (b->>'day_cap')::numeric;
+  msp numeric := (b->>'month_spent')::numeric; mcap numeric := (b->>'month_cap')::numeric;
 begin
   for m in select distinct u.model from public.ai_usage u
             where u.cost_usd is null and u.model is not null and u.input_tokens is not null
@@ -401,18 +423,31 @@ begin
     perform ryagram_private.ops_raise('ai_price_missing:' || m,
       'AI calls to model "' || m || '" have no price in ai_prices; they are counted at the most expensive known price. Add the price row.');
   end loop;
-  if (b->>'day_spent')::numeric >= 0.8 * (b->>'day_cap')::numeric then
+  -- A price that now exists resolves its alert.
+  update public.ops_alerts set resolved_at = now()
+    where resolved_at is null and key like 'ai\_price\_missing:%' and exists (select 1 from public.ai_prices p where 'ai_price_missing:' || p.model = key);
+  -- Each cap alert is keyed by its day or month. Resolve every OTHER period's alert (the period turned), and this period's when the
+  -- spend is back under (a raised cap), so a yesterday-80% never keeps the digest "actionable" forever.
+  update public.ops_alerts set resolved_at = now() where resolved_at is null and key like 'ai\_day\_80:%' and key <> 'ai_day_80:' || (b->>'day');
+  update public.ops_alerts set resolved_at = now() where resolved_at is null and key like 'ai\_day\_100:%' and key <> 'ai_day_100:' || (b->>'day');
+  update public.ops_alerts set resolved_at = now() where resolved_at is null and key like 'ai\_month\_80:%' and key <> 'ai_month_80:' || (b->>'month');
+  update public.ops_alerts set resolved_at = now() where resolved_at is null and key like 'ai\_month\_100:%' and key <> 'ai_month_100:' || (b->>'month');
+  if dsp < 0.8 * dcap then perform ryagram_private.ops_clear('ai_day_80:' || (b->>'day')); end if;
+  if dsp < dcap then perform ryagram_private.ops_clear('ai_day_100:' || (b->>'day')); end if;
+  if msp < 0.8 * mcap then perform ryagram_private.ops_clear('ai_month_80:' || (b->>'month')); end if;
+  if msp < mcap then perform ryagram_private.ops_clear('ai_month_100:' || (b->>'month')); end if;
+  if dsp >= 0.8 * dcap then
     perform ryagram_private.ops_raise('ai_day_80:' || (b->>'day'),
-      'AI editor spend today is $' || round((b->>'day_spent')::numeric, 2) || ' of the $' || (b->>'day_cap') || ' daily cap (80% reached).');
+      'AI editor spend today is $' || round(dsp, 2) || ' of the $' || (b->>'day_cap') || ' daily cap (80% reached).');
   end if;
-  if (b->>'day_spent')::numeric >= (b->>'day_cap')::numeric then
+  if dsp >= dcap then
     perform ryagram_private.ops_raise('ai_day_100:' || (b->>'day'), 'The AI editor is PAUSED for today: the $' || (b->>'day_cap') || ' daily cap was reached.');
   end if;
-  if (b->>'month_spent')::numeric >= 0.8 * (b->>'month_cap')::numeric then
+  if msp >= 0.8 * mcap then
     perform ryagram_private.ops_raise('ai_month_80:' || (b->>'month'),
-      'AI editor spend this month is $' || round((b->>'month_spent')::numeric, 2) || ' of the $' || (b->>'month_cap') || ' monthly cap (80% reached).');
+      'AI editor spend this month is $' || round(msp, 2) || ' of the $' || (b->>'month_cap') || ' monthly cap (80% reached).');
   end if;
-  if (b->>'month_spent')::numeric >= (b->>'month_cap')::numeric then
+  if msp >= mcap then
     perform ryagram_private.ops_raise('ai_month_100:' || (b->>'month'), 'The AI editor is PAUSED for the month: the $' || (b->>'month_cap') || ' monthly cap was reached.');
   end if;
 end $$;
@@ -421,6 +456,50 @@ create function ryagram_private.ai_project_spent(p_project uuid) returns numeric
 language sql stable security definer set search_path = '' as $$
   select coalesce(sum(ryagram_private.ai_row_cost(cost_usd, input_tokens, output_tokens, cache_read_input_tokens, cache_creation_input_tokens)), 0) from public.ai_usage where project_id = p_project;
 $$;
+
+-- ai_record_usage as in 20260929000600 except that a missing cache_read / cache_creation count is 0 (the API leaves them out when
+-- nothing was cached), so such a call is priced instead of becoming NULL. Input and output counts stay "unknown" when missing.
+create or replace function public.ai_record_usage(p_turn uuid, p_usage jsonb) returns numeric
+language plpgsql security definer set search_path = '' as $$
+declare
+  t public.ai_turns;
+  ctl public.control;
+  pr public.ai_prices;
+  v_model text := p_usage->>'model';
+  inp int := (p_usage->>'input_tokens')::int;
+  outp int := (p_usage->>'output_tokens')::int;
+  cr int := coalesce((p_usage->>'cache_read_input_tokens')::int, 0);
+  cw int := coalesce((p_usage->>'cache_creation_input_tokens')::int, 0);
+  cost numeric;
+  spend numeric;
+begin
+  select * into t from public.ai_turns where id = p_turn;
+  if not found then
+    raise exception 'Turn not found.' using errcode = 'PT404';
+  end if;
+  select * into pr from public.ai_prices
+    where ai_prices.model = v_model and effective_from <= now()
+    order by effective_from desc limit 1;
+  if pr.model is not null and inp is not null and outp is not null then
+    cost := (inp * pr.input_per_mtok + outp * pr.output_per_mtok
+             + cr * pr.cache_read_per_mtok + cw * pr.cache_write_5m_per_mtok) / 1000000.0;
+  end if;
+  insert into public.ai_usage (turn_id, owner_id, project_id, purpose, model, message_id, input_tokens, output_tokens,
+                               cache_read_input_tokens, cache_creation_input_tokens, tool_calls, stop_reason,
+                               latency_ms, price_version, cost_usd, tool_log, error)
+    values (t.id, t.owner_id, t.project_id, coalesce(p_usage->>'purpose', 'turn'), v_model, p_usage->>'message_id',
+            inp, outp, cr, cw, (p_usage->>'tool_calls')::int, p_usage->>'stop_reason',
+            (p_usage->>'latency_ms')::int, pr.price_version, cost,
+            case when jsonb_typeof(p_usage->'tool_log') = 'array' then p_usage->'tool_log' end,
+            left(p_usage->>'error', 2000));
+  select case when bool_or(u.cost_usd is null) then null else sum(u.cost_usd) end into spend
+    from public.ai_usage u where u.project_id = t.project_id;
+  select * into ctl from public.control where id;
+  if spend is not null and spend >= ctl.ai_project_alert_usd then
+    update public.ai_turns set spend_alert = true where id = t.id;
+  end if;
+  return spend;
+end $$;
 
 -- Same checks as 2A-8 plus the two cap kinds. (create or replace: this migration comes after 20260929000600.)
 create or replace function public.ai_reserve_turn(p_owner uuid, p_session uuid) returns uuid
@@ -502,7 +581,8 @@ create function public.ops_digest_data() returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare items jsonb; recovered jsonb; sup int; ab int; b jsonb := ryagram_private.ai_budget();
 begin
-  select coalesce(jsonb_agg(detail order by first_seen), '[]'::jsonb) into items from public.ops_alerts where resolved_at is null;
+  select coalesce(jsonb_agg(detail order by first_seen), '[]'::jsonb) into items from public.ops_alerts
+    where resolved_at is null and key not like 'support:%' and key not like 'abuse:%';        -- those are counted below, not listed twice
   select coalesce(jsonb_agg(detail order by resolved_at), '[]'::jsonb) into recovered
     from public.ops_alerts where resolved_at > now() - interval '26 hours';
   select count(*) into sup from public.support_requests where answered_at is null;
@@ -574,6 +654,8 @@ revoke execute on function public.ops_outbox_add(text, text, text, text, text), 
 revoke execute on function ryagram_private.ai_row_cost(numeric, int, int, int, int), ryagram_private.ai_budget(), ryagram_private.ai_budget_alerts(), ryagram_private.ai_project_spent(uuid), public.ai_budget_ok(uuid) from public, anon, authenticated;
 revoke execute on function ryagram_private.service_state(), ryagram_private.reap_lost_leases(), ryagram_private.expire_stale_queue(),
   ryagram_private.ops_raise(text, text), ryagram_private.ops_clear(text), ryagram_private.film_page_held() from public, anon, authenticated;
+revoke all on function public.ops_tick(), public.ops_mark_notified(text[]), public.ai_budget_ok(uuid),
+  public.ops_outbox_add(text, text, text, text, text), public.ops_digest_data() from public, anon, authenticated;
 grant execute on function public.worker_ping(numeric), public.record_backup(text, boolean, bigint, text) to authenticated;                    -- require_worker() is the gate
 grant execute on function public.service_status() to anon, authenticated;
 grant execute on function public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text) to anon, authenticated;

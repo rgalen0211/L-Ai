@@ -139,10 +139,10 @@ async function runTurn(deps: Deps, jwt: string, versionId: string, message: stri
     }
     const uses = (res.content ?? []).filter((b: any) => b.type === "tool_use");
     await deps.store.recordUsage(turnId, {
-      model: res.model ?? tier.model, message_id: res.id, stop_reason: res.stop_reason, latency_ms: now() - started,
+      model: tier.model, message_id: res.id, stop_reason: res.stop_reason, latency_ms: now() - started,
       input_tokens: res.usage?.input_tokens ?? null, output_tokens: res.usage?.output_tokens ?? null,
-      cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? null,
-      cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? null,
+      cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? 0,        // the API omits these when nothing was cached
+      cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? 0,
       tool_calls: uses.length, tool_log: uses.map((u: any) => ({ tool: u.name })),
     });
 
@@ -212,10 +212,10 @@ async function summarise(deps: Deps, turnId: string, previous: string | null, re
     messages: [{ role: "user", content: `Previous summary:\n${previous ?? "(none)"}\n\nRecent conversation:\n${transcript}` }],
   });
   await deps.store.recordUsage(turnId, {
-    purpose: "summary", model: res.model ?? HAIKU.model, message_id: res.id, stop_reason: res.stop_reason,
+    purpose: "summary", model: HAIKU.model, message_id: res.id, stop_reason: res.stop_reason,
     input_tokens: res.usage?.input_tokens ?? null, output_tokens: res.usage?.output_tokens ?? null,
-    cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? null,
-    cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? null, tool_calls: 0,
+    cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? 0,
+    cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? 0, tool_calls: 0,
   });
   return textOf(res.content ?? []).slice(0, 8000) || previous;
 }

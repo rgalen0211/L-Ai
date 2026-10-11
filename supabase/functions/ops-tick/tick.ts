@@ -4,7 +4,7 @@ import { isService, json, OPS_TO, type Sender } from "../_shared/ops_mail.ts";
 
 export interface Deps {
   serviceKey: string;
-  tick(): Promise<{ rendering: string; reaped: number; expired: number; new_alerts: { key: string; detail: string }[] }>;
+  tick(): Promise<{ rendering: string; reaped: number; expired: number; alert_mail_budget: number; new_alerts: { key: string; detail: string }[] }>;
   markNotified(keys: string[]): Promise<number>;
   sender: Sender;
 }
@@ -15,7 +15,12 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   let r;
   try { r = await deps.tick(); } catch (e) { console.error("ops_tick failed", (e as Error).message); return json(500, { error: "tick failed" }); }
   let notified = 0;
-  if (r.new_alerts.length) {
+  let held = 0;
+  if (r.new_alerts.length && r.alert_mail_budget <= 0) {
+    // Today's alert-mail allowance is used up (a flood must not exhaust the mail service's free tier). The alerts stay open and
+    // un-notified: the next day's first tick sends them, and the daily digest lists them.
+    held = r.new_alerts.length;
+  } else if (r.new_alerts.length) {
     const body = r.new_alerts.map((a) => `- ${a.detail}`).join("\n") + "\n\nDetails: #/admin/ops in the app. You will not be emailed about these again unless they clear and come back.";
     try {
       await deps.sender.send({ kind: "alert", to: OPS_TO,
@@ -25,5 +30,5 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       console.error("alert not sent; will retry next tick", (e as Error).message);
     }
   }
-  return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, notified, mode: deps.sender.mode });
+  return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, notified, held, mode: deps.sender.mode });
 }
