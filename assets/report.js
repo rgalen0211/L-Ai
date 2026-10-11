@@ -33,7 +33,7 @@
     if (res.ok) return true;
     let text = '';
     try { text = (await res.json()).message || ''; } catch { /* keep the plain message */ }
-    throw new Error(/Too many/.test(text) ? 'Too many reports from this email just now. Please try again later.'
+    throw new Error(/Too many/.test(text) ? 'Too many reports from this connection just now. Please try again later.'
       : 'Couldn’t send that just now. Please write to ryagram@uselai.com.');
   }
 
