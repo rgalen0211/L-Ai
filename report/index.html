@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Report a Ryagram film (takedown / abuse intake). DRAFT: off until SQL 20261010000100 is applied (assets/report.js checks
+     ryagramConfig.opsTools). Not linked from anywhere until Ryan approves the wording. -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; connect-src https://jxtkfishqfxuptwjzczz.supabase.co; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex">
+<title>Report a film | L'Ai</title>
+<link rel="canonical" href="https://uselai.com/report/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20261010a">
+<link rel="stylesheet" href="/assets/help.css?v=20261010a">
+</head>
+<body>
+<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
+<main class="container help-main" id="main">
+  <h1 tabindex="-1">Report a film</h1>
+  <p class="help-lede">Tell us what is wrong with a public Ryagram film. If it involves child safety, someone's private information, harassment or copyright, we hide the film right away while we review it. We reply to the email you give within 7 days.</p>
+  <form id="report-form" class="report-form" novalidate>
+    <div><label for="r-film">The film's link</label><input id="r-film" type="text" autocomplete="off" placeholder="https://uselai.com/film/?s=..."></div>
+    <fieldset><legend>What is the problem?</legend>
+      <label class="choice"><input type="radio" name="reason" value="child_safety"> Child safety</label>
+      <label class="choice"><input type="radio" name="reason" value="private_information"> Someone's private information</label>
+      <label class="choice"><input type="radio" name="reason" value="harassment"> Harassment or threats</label>
+      <label class="choice"><input type="radio" name="reason" value="copyright"> Copyright</label>
+      <label class="choice"><input type="radio" name="reason" value="other" checked> Something else</label></fieldset>
+    <div><label for="r-details">Tell us more (optional)</label><textarea id="r-details" rows="5" maxlength="4000"></textarea></div>
+    <div><label for="r-email">Your email</label><input id="r-email" type="email" autocomplete="email" maxlength="200"></div>
+    <div class="hp-field" aria-hidden="true"><label for="r-website">Leave this empty</label><input id="r-website" type="text" tabindex="-1" autocomplete="off"></div>
+    <p class="report-error" id="r-error" role="alert" hidden></p>
+    <button class="button primary" type="submit">Send report</button>
+  </form>
+  <p class="report-done" id="r-done" role="status" hidden>Thank you. We have your report and will review it. We reply to your email within 7 days.</p>
+  <noscript><p>This form needs JavaScript. Please write to <a href="mailto:ryagram@uselai.com">ryagram@uselai.com</a> with the film's link.</p></noscript>
+</main>
+<footer><div class="container footer-row"><span>Ryagram, from L'Ai. Operated by L'Ai, LLC.</span><a href="/help/">Help</a><a href="/privacy-policy.html">Privacy Policy</a></div></footer>
+<script src="/assets/ryagram-config.js?v=20261010a"></script>
+<script src="/assets/report.js?v=20261010a"></script>
+</body>
+</html>
