@@ -77,16 +77,34 @@ class Ops(core.Base):
         self.admin("select ryagram_private.reap_lost_leases()")
         self.assertEqual(self.shape(job), ("failed", 3, "worker_lost", True, True))
 
-    def test_reaper_matches_claim_next_job_on_identical_fixtures(self):
-        a = self.lost_job(2)
-        via_reaper = (self.admin("select ryagram_private.reap_lost_leases()"), self.shape(a))
-        self.db.as_(None).c.execute("delete from public.jobs")
-        b = self.lost_job(2)
-        self.db.as_(WORKER).one("select count(*) from claim_next_job()")           # the worker's own path
-        state_b = self.shape(b)
-        # claim_next_job then claims the requeued job, so compare the lost-attempt record, which both write identically.
-        self.assertEqual(via_reaper[1][2], state_b[2])
-        self.assertEqual(self.admin("select count(*) from public.job_metering where error_code = 'worker_lost'"), 1)
+    ROW = ("select state::text, attempt, error_code, error_class::text, error_detail, ended_at is null, claimed_at is null, started_at is null, "
+           "lease_expires_at is null, heartbeat_at is null, worker_id is null, worker_user_id is null, progress is null, "
+           "queued_at > now() - interval '1 minute' from public.jobs where id = %s")
+
+    def test_reaper_does_exactly_what_claim_next_jobs_lease_block_does_row_for_row(self):
+        for attempt, cancel in ((1, False), (3, False), (2, True)):
+            with self.subTest(attempt=attempt, cancel=cancel):
+                self.db.as_(None).c.execute("delete from public.job_metering")
+                self.db.as_(None).c.execute("delete from public.jobs")
+                a = self.lost_job(attempt)
+                self.admin("update public.jobs set cancel_requested = %s where id = %s returning 1", cancel, a)
+                self.admin("update public.control set claims_enabled = false returning 1")          # claim_next_job now ONLY runs its lease block
+                self.db.as_(WORKER).one("select count(*) from claim_next_job()")
+                via_claim = (self.admin(self.ROW, a), self.admin("select error_code from public.job_metering where job_id = %s", a))
+                self.db.as_(None).c.execute("delete from public.job_metering")
+                self.db.as_(None).c.execute("delete from public.jobs")
+                self.admin("update public.control set claims_enabled = true returning 1")
+                b = self.lost_job(attempt)
+                self.admin("update public.jobs set cancel_requested = %s where id = %s returning 1", cancel, b)
+                self.assertEqual(self.admin("select ryagram_private.reap_lost_leases()"), 1)
+                via_reaper = (self.admin(self.ROW, b), self.admin("select error_code from public.job_metering where job_id = %s", b))
+                self.assertEqual(via_reaper, via_claim)
+
+    def test_the_reaper_leaves_a_job_whose_lease_is_still_fresh_alone(self):
+        job = self.lost_job(1)
+        self.admin("update public.jobs set lease_expires_at = now() + interval '90 seconds' where id = %s returning 1", job)
+        self.assertEqual(self.admin("select ryagram_private.reap_lost_leases()"), 0)
+        self.assertEqual(self.admin("select state::text, attempt from public.jobs where id = %s", job), ("claimed", 1))
 
     # -- one alert per incident
     def test_ops_tick_raises_one_alert_per_incident_and_none_before_pings_exist(self):
@@ -169,7 +187,9 @@ class Ops(core.Base):
         self.assertEqual(self.db.as_(RYAN).one("select admin_ops()")["abuse_waiting"], 0)
         self.db.as_(None).c.execute("update public.abuse_reports set reviewed_at = null, outcome = null")
         self.db.as_(RYAN).one("select admin_review_report(%s, 'removed')", rid)
-        self.assertEqual(self.admin("select count(*) from public.film_pages"), 0)
+        self.assertEqual(self.page(), (False, True))                          # the row stays, held for good...
+        self.admin("update public.film_pages set published = true where slug = %s returning 1", SLUG)
+        self.assertEqual(self.page(), (False, True))                          # ...so the owner cannot publish it again
 
     def test_admin_ops_is_admin_only_and_tables_are_closed(self):
         self.denied(OTHER, "select admin_ops()")
@@ -272,6 +292,84 @@ class Ops(core.Base):
         self.assertEqual((d["support_open"], d["support"]), (0, []))
         self.assertEqual(self.admin("select resolved_at is not null from public.ops_alerts where key = %s", f"support:{n}"), True)
 
+    # -- CC1's MEDs
+    def test_a_mail_budget_is_reported_and_shrinks_with_each_alert_mail_sent_today(self):
+        self.admin("update public.ops_settings set max_alert_mails_per_day = 2 returning 1")
+        self.assertEqual(self.tick()["alert_mail_budget"], 2)
+        for _ in range(2):
+            self.db.as_("service").one("select ops_outbox_add('alert', 'dry_run', 'ryagram@uselai.com', 's', 'b')")
+        self.assertEqual(self.tick()["alert_mail_budget"], 0)
+        self.db.as_("service").one("select ops_outbox_add('digest', 'dry_run', 'ryagram@uselai.com', 's', 'b')")
+        self.assertEqual(self.tick()["alert_mail_budget"], 0)                  # digests do not use the alert allowance, and it never goes below 0
+
+    def test_the_digest_counts_tickets_and_reports_but_does_not_list_them_twice_and_goes_quiet_once_answered(self):
+        self.make_ryan_admin()
+        n = self.db.as_("anon").one("select submit_support('a@x.co', 'other', 'hello there', null)")
+        d = self.db.as_("service").one("select ops_digest_data()")
+        self.assertEqual((d["actionable"], d["items"], d["support_open"]), (True, [], 1))
+        self.db.as_(RYAN).one("select admin_answer_support(%s)", n)
+        self.assertFalse(self.db.as_("service").one("select ops_digest_data()")["actionable"])
+
+    def test_a_report_from_a_new_email_each_time_does_not_get_around_the_caller_limits(self):
+        self.publish_page()
+        c = self.db.as_("anon").c
+        c.execute("select set_config('request.headers', %s, false)", ('{"x-forwarded-for": "203.0.113.9, 10.0.0.1"}',))
+        for i in range(5):
+            c.execute("select report_film_page(%s, 'other', %s)", (SLUG, f"new{i}@x.co"))                 # a different email every time
+        with self.assertRaisesRegex(psycopg.Error, "Too many"):
+            c.execute("select report_film_page(%s, 'other', 'yet-another@x.co')", (SLUG,))
+        self.assertEqual(self.admin("select count(*) from public.abuse_reports"), 5)
+        stored = self.admin("select reporter_key from public.abuse_reports limit 1")
+        self.assertNotIn("203.0.113.9", stored)                                                          # the address itself is never stored
+        c.execute("select set_config('request.headers', %s, false)", ('{"x-forwarded-for": "198.51.100.7"}',))
+        c.execute("select report_film_page(%s, 'other', 'someone@x.co')", (SLUG,))                       # another caller is not blocked
+
+    def test_there_is_a_global_cap_on_reports_and_on_auto_hides(self):
+        self.publish_page()
+        self.admin("insert into public.abuse_reports (slug, reason, reporter_email, reporter_key, auto_held) "
+                   "select %s, 'harassment', 'f' || g || '@x.co', 'k' || g, true from generate_series(1, 10) g returning 1", SLUG)
+        self.db.as_("anon").c.execute("select report_film_page(%s, 'harassment', 'late@x.co')", (SLUG,))
+        self.assertEqual(self.page(), (True, False))                                  # ten holds an hour already: this one only queues
+        self.admin("insert into public.abuse_reports (slug, reason, reporter_email, reporter_key) "
+                   "select %s, 'other', 'g' || g || '@x.co', 'j' || g from generate_series(1, 20) g returning 1", SLUG)
+        with self.assertRaisesRegex(psycopg.Error, "Too many"):
+            self.db.as_("anon").c.execute("select report_film_page(%s, 'other', 'toomany@x.co')", (SLUG,))
+
+    def test_service_only_functions_are_closed_to_signed_in_users_even_under_supabases_default_grants(self):
+        # Supabase grants execute on every new public function to anon, authenticated and service_role. Rebuild a database under
+        # THOSE defaults (the stub models the strictest reading), apply everything, then look at what this migration exposed.
+        name = "dg" + str(abs(hash(self.id())) % 100000)
+        with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
+            c.execute(f"create database {name}")
+        listing = ("select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
+                   "where n.nspname = 'public'")
+        with psycopg.connect(core._server.get_uri(database=name), autocommit=True) as c:
+            stub = "".join(l for l in (core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8").splitlines(True) if not l.startswith("create role"))   # roles are cluster-wide
+            c.execute(stub)
+            c.execute("alter default privileges in schema public grant execute on functions to anon, authenticated, service_role")
+            before = set()
+            for path in core.MIGRATIONS:
+                if path.name.startswith("20261010000100"):
+                    before = {r[0] for r in c.execute(listing).fetchall()}
+                c.execute(path.read_text(encoding="utf-8"))
+            new = sorted({r[0] for r in c.execute(listing).fetchall()} - before)
+            self.assertTrue(new)
+            may_sign_in = {"worker_ping(numeric)", "service_status()", "submit_support(text,text,text,uuid,text)",
+                           "report_film_page(text,text,text,text,text)", "admin_review_report(bigint,text)", "admin_ops()",
+                           "admin_answer_support(bigint)", "record_backup(text,boolean,bigint,text)"}
+            for fn in new:
+                if fn in may_sign_in:
+                    continue
+                for role in ("authenticated", "anon"):
+                    with self.subTest(fn=fn, role=role):
+                        self.assertFalse(c.execute("select has_function_privilege(%s, %s::regprocedure, 'execute')", (role, fn)).fetchone()[0],
+                                         f"{role} can run {fn}")
+            for fn in ("ops_tick()", "ops_mark_notified(text[])", "ai_budget_ok(uuid)", "ops_outbox_add(text,text,text,text,text)", "ops_digest_data()"):
+                self.assertIn(fn, new)
+                self.assertTrue(c.execute("select has_function_privilege('service_role', %s::regprocedure, 'execute')", (fn,)).fetchone()[0], fn)
+        with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
+            c.execute(f"drop database {name}")
+
 
 class OpsLedger(unittest.TestCase):
     setUp, tearDown = credits.Ledger.setUp, credits.Ledger.tearDown
@@ -286,8 +384,11 @@ class OpsLedger(unittest.TestCase):
         self.admin("update public.jobs set created_at = now() - interval '2 hours' where id = %s returning 1", job)
         self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)      # service 'unknown': never cancels
         self.admin("update public.workers set last_seen_at = now() - interval '10 minutes' where name = 'ryan-pc' returning 1")
+        self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)      # a 10-minute outage never cancels an hour-old backlog
+        self.assertEqual(self.admin("select state::text from public.jobs where id = %s", job), "queued")
+        self.admin("update public.workers set last_seen_at = now() - interval '2 hours' where name = 'ryan-pc' returning 1")
         self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 1)
-        self.assertEqual(self.admin("select state::text, error_code from public.jobs where id = %s", job), ("cancelled", "queue_timeout"))
+        self.assertEqual(self.admin("select state::text, error_code, error_class::text from public.jobs where id = %s", job), ("failed", "queue_timeout", "infrastructure"))
         self.assertEqual(self.available(), 100)
         self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)      # nothing is refunded twice
         self.assertEqual(self.available(), 100)
@@ -296,12 +397,9 @@ class OpsLedger(unittest.TestCase):
         self.grant(100)
         _, job = self.final("paired")
         self.admin("update public.jobs set created_at = now() - interval '2 hours', state = 'running' where id = %s returning 1", job)
-        self.admin("update public.workers set last_seen_at = now() - interval '10 minutes' where name = 'ryan-pc' returning 1")
+        self.admin("update public.workers set last_seen_at = now() - interval '2 hours' where name = 'ryan-pc' returning 1")
         self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)
 
-
-if __name__ == "__main__":
-    unittest.main()
 
 
 class RetryPolicy(unittest.TestCase):
@@ -449,3 +547,40 @@ class AiCaps(core.Base):
         self.db.as_(None).one("insert into public.ai_prices values ('2026-10', 'claude-mystery-9', 1, 5, 0.1, 1.25, now()) returning 1")
         self.svc("select ai_budget_ok(%s)", t)
         self.assertEqual(self.db.as_(None).one("select count(*) from public.ops_alerts where key like 'ai_price_missing%%'"), 1)
+
+    def test_cap_alerts_clear_when_the_period_turns_or_spend_falls_and_a_price_alert_clears_when_the_price_is_added(self):
+        self.caps(ai_daily_usd_cap=1.00, ai_project_cap_usd=100, ai_project_alert_usd=100)
+        t = self.turn()
+        self.spend(t, 0.9, "m1")
+        self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(self.alerts(), ["ai_day_80"])
+        open_ = lambda: self.db.as_(None).one("select count(*) from public.ops_alerts where resolved_at is null and key like 'ai%%'")
+        self.assertEqual(open_(), 1)
+        self.db.as_(None).one("update ai_usage set created_at = now() - interval '2 days' returning 1")        # the day turned
+        self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(open_(), 0)                                                                         # yesterday's 80% is not open any more
+        self.spend(t, 0.9, "m2")
+        self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(open_(), 1)
+        self.caps(ai_daily_usd_cap=100)                                                                      # cap raised: spend is far under it
+        self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(open_(), 0)
+        self.svc("select ai_record_usage(%s, %s::jsonb)", t, _usage(1000, "m3", "claude-mystery-9"))
+        self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(open_(), 1)
+        self.db.as_(None).one("insert into public.ai_prices values ('2026-10', 'claude-mystery-9', 1, 5, 0.1, 1.25, now()) returning 1")
+        self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(open_(), 0)
+
+    def test_a_call_without_cache_token_counts_is_still_priced_and_a_dated_model_name_is_unpriced_not_free(self):
+        self.caps(ai_project_cap_usd=100, ai_project_alert_usd=100)
+        t = self.turn()
+        u = json.dumps({"model": "claude-haiku-4-5", "message_id": "n1", "input_tokens": 1000, "output_tokens": 200})   # no cache fields at all
+        spend = self.svc("select ai_record_usage(%s, %s::jsonb)", t, u)
+        self.assertAlmostEqual(float(spend), (1000 * 1 + 200 * 5) / 1e6, places=6)                          # priced, not NULL
+        self.svc("select ai_record_usage(%s, %s::jsonb)", t, _usage(200000, "n2", "claude-haiku-4-5-20251001"))
+        self.assertIsNone(self.db.as_(None).one("select cost_usd from ai_usage where message_id = 'n2'"))      # unknown to ai_prices...
+        self.assertGreaterEqual(float(self.db.as_(None).one("select ryagram_private.ai_budget()->>'day_spent'")), 2.0)   # ...but never counted as 0
+
+if __name__ == "__main__":
+    unittest.main()

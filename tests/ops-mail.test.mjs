@@ -23,10 +23,10 @@ test('only the scheduler (service key) can run either function', async () => {
 test('tick sends nothing when there are no new alerts, and one message for new ones, marking them notified', async () => {
   const o = outbox(); const marked = [];
   const base = { serviceKey: 'secret', markNotified: async k => { marked.push(k); return k.length; }, sender: dryRunSender(o) };
-  let res = await tick(req(), { ...base, tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, new_alerts: [] }) });
-  assert.deepEqual(await res.json(), { rendering: 'ok', reaped: 0, expired: 0, alerts: 0, notified: 0, mode: 'dry_run' });
+  let res = await tick(req(), { ...base, tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: [] }) });
+  assert.deepEqual(await res.json(), { rendering: 'ok', reaped: 0, expired: 0, alerts: 0, notified: 0, held: 0, mode: 'dry_run' });
   assert.equal(o.rows.length, 0);
-  res = await tick(req(), { ...base, tick: async () => ({ rendering: 'delayed', reaped: 1, expired: 0, new_alerts: [{ key: 'worker_stale', detail: 'Rendering has not checked in for over 3 minutes.' }] }) });
+  res = await tick(req(), { ...base, tick: async () => ({ rendering: 'delayed', reaped: 1, expired: 0, alert_mail_budget: 20, new_alerts: [{ key: 'worker_stale', detail: 'Rendering has not checked in for over 3 minutes.' }] }) });
   assert.equal((await res.json()).notified, 1);
   assert.equal(o.rows.length, 1);
   assert.equal(o.rows[0][2], OPS_TO);
@@ -39,7 +39,7 @@ test('a failed send leaves the alert un-notified so the next tick retries it (an
   const marked = [];
   const sender = { mode: 'live', send: async () => { throw new Error('mail down'); } };
   const res = await tick(req(), { serviceKey: 'secret', sender, markNotified: async k => marked.push(k),
-    tick: async () => ({ rendering: 'delayed', reaped: 0, expired: 0, new_alerts: [{ key: 'a', detail: 'x' }] }) });
+    tick: async () => ({ rendering: 'delayed', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: [{ key: 'a', detail: 'x' }] }) });
   console.error = quiet;
   assert.equal(res.status, 200);
   assert.equal((await res.json()).notified, 0);
@@ -76,6 +76,8 @@ test('the sender is dry-run unless EVERYTHING for live is set; live sends before
   assert.equal(chooseSender(env({}), o, null).mode, 'dry_run');
   assert.equal(chooseSender(env({ OPS_MAIL_MODE: 'resend' }), o, null).mode, 'dry_run');
   assert.equal(chooseSender(env({ OPS_MAIL_MODE: 'resend', RESEND_API_KEY: 'k' }), o, null).mode, 'dry_run');
+  assert.equal(chooseSender(env({ RESEND_API_KEY: 'k', OPS_MAIL_FROM: 'a@b.co' }), o, null).mode, 'dry_run');          // key and from but no MODE: still dry-run
+  assert.equal(chooseSender(env({ OPS_MAIL_MODE: 'live', RESEND_API_KEY: 'k', OPS_MAIL_FROM: 'a@b.co' }), o, null).mode, 'dry_run');
   const calls = [];
   const ok = async (url, init) => { calls.push([url, init.headers.Authorization, JSON.parse(init.body)]); return { ok: true, status: 200 }; };
   const live = chooseSender(env({ OPS_MAIL_MODE: 'resend', RESEND_API_KEY: 'k', OPS_MAIL_FROM: 'Ryagram <ops@uselai.com>' }), o, ok);
@@ -87,4 +89,14 @@ test('the sender is dry-run unless EVERYTHING for live is set; live sends before
   const refuse = resendSender(o, 'k', 'f', async () => ({ ok: false, status: 422 }));
   await assert.rejects(refuse.send({ kind: 'alert', to: OPS_TO, subject: 's', body: 'b' }), /refused/);
   assert.equal(o.rows.length, 1);
+});
+
+test('when the daily alert-mail allowance is used up nothing is sent and the alerts stay un-notified for the next day and the digest', async () => {
+  const o = outbox(); const marked = [];
+  const res = await tick(req(), { serviceKey: 'secret', sender: dryRunSender(o), markNotified: async k => marked.push(k),
+    tick: async () => ({ rendering: 'delayed', reaped: 0, expired: 0, alert_mail_budget: 0, new_alerts: [{ key: 'a', detail: 'x' }] }) });
+  const b = await res.json();
+  assert.deepEqual([b.alerts, b.notified, b.held], [1, 0, 1]);
+  assert.equal(o.rows.length, 0);
+  assert.deepEqual(marked, []);
 });

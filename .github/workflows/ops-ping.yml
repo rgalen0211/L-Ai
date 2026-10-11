@@ -26,4 +26,6 @@ jobs:
           out=$(curl -fsS --max-time 30 -X POST "$url/rest/v1/rpc/service_status" -H "apikey: $key" -H "Content-Type: application/json" -d '{}') \
             || { echo "Supabase did not answer (paused or down?)"; exit 1; }
           echo "service_status: $out"
-          case "$out" in *'"delayed"'*) echo "Rendering is delayed (the render PC has not checked in)"; exit 1;; esac
+          # A delayed render PC is NOT a failed run (that would email every 6 hours while the PC is off): ops-tick already alerts once and
+          # the daily digest follows it. It shows as a warning on the run instead.
+          case "$out" in *'"delayed"'*) echo "::warning::Rendering is delayed (the render PC has not checked in)";; esac

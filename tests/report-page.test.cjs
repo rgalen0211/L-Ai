@@ -53,8 +53,9 @@ test('the help and report pages are static, allow no inline script or style, and
   assert.match(fs.readFileSync(path.join(root, 'assets/film.js'), 'utf8'), /\/report\/\?film=\$\{slug\}/);
 });
 
-test('the FAQ answer about uploaded data stays hidden until the uploadreader branch is merged', () => {
+test('the FAQ has its 7 answers and none is hidden (the uploaded-data answer is live: uploadreader is on main)', () => {
   const html = fs.readFileSync(path.join(root, 'help/index.html'), 'utf8');
-  assert.match(html, /<details hidden data-held="uploadreader"><summary>My own data/);
+  assert.match(html, /<details><summary>My own data/);
   assert.equal((html.match(/<details/g) || []).length, 7);
+  assert.doesNotMatch(html, /<details[^>]*hidden/);
 });
