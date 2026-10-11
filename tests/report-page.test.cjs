@@ -36,7 +36,7 @@ test('sending goes to the report RPC with only the public key, and failures say 
   const ok = async (url, init) => { calls.push([url, init.headers.apikey, init.method]); return { ok: true }; };
   assert.equal(await R.send({ p_slug: SLUG }, ok, cfg), true);
   assert.deepEqual(calls[0], ['https://x.supabase.co/rest/v1/rpc/report_film_page', 'sb_publishable_k', 'POST']);
-  await assert.rejects(R.send({}, async () => ({ ok: false, json: async () => ({ message: 'Too many reports. Please try again later.' }) }), cfg), /Too many reports from this email/);
+  await assert.rejects(R.send({}, async () => ({ ok: false, json: async () => ({ message: 'Too many reports. Please try again later.' }) }), cfg), /Too many reports from this connection/);
   await assert.rejects(R.send({}, async () => ({ ok: false, json: async () => { throw new Error('x'); } }), cfg), /ryagram@uselai.com/);
   await assert.rejects(R.send({}, ok, {}), /not available/);
 });

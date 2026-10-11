@@ -170,10 +170,14 @@ begin
   else perform ryagram_private.ops_clear('stuck_jobs'); end if;
   select count(*) into sup from public.support_requests
     where answered_at is null and created_at < now() - make_interval(hours => s.support_reply_hours);
-  if sup > 0 then perform ryagram_private.ops_raise('support_overdue', sup || ' support requests are unanswered after ' || s.support_reply_hours || ' hours.');
+  if sup > 0 then
+    perform ryagram_private.ops_raise('support_overdue', sup || ' support requests are unanswered after ' || s.support_reply_hours || ' hours.');
+    update public.ops_alerts set detail = sup || ' support requests are unanswered after ' || s.support_reply_hours || ' hours.' where key = 'support_overdue' and resolved_at is null;
   else perform ryagram_private.ops_clear('support_overdue'); end if;
   select count(*) into ab from public.abuse_reports where reviewed_at is null;
-  if ab > 0 then perform ryagram_private.ops_raise('abuse_waiting', ab || ' abuse reports are waiting for review.');
+  if ab > 0 then
+    perform ryagram_private.ops_raise('abuse_waiting', ab || ' abuse reports are waiting for review.');
+    update public.ops_alerts set detail = ab || ' abuse reports are waiting for review.' where key = 'abuse_waiting' and resolved_at is null;     -- the count stays true
   else perform ryagram_private.ops_clear('abuse_waiting'); end if;
   return jsonb_build_object('rendering', st, 'reaped', reaped, 'expired', expired,
     'alert_mail_budget', greatest(0, s.max_alert_mails_per_day - (select count(*) from public.ops_outbox
@@ -231,7 +235,9 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------- takedown / abuse intake
-alter table public.film_pages add column held_at timestamptz;
+alter table public.film_pages add column held_at timestamptz,
+  add column restored_at timestamptz,        -- Ryan restored it: the next report queues for review, it is never auto-held again
+  add column removed_at timestamptz;         -- Ryan removed it: held for good; no later review can lift it
 create table public.abuse_reports (
   id bigint generated always as identity primary key,
   created_at timestamptz not null default now(),
@@ -260,7 +266,7 @@ create trigger film_pages_held before insert or update on public.film_pages
 create function public.report_film_page(p_slug text, p_reason text, p_email text, p_details text default '', p_website text default '')
 returns void
 language plpgsql security definer set search_path = '' as $$
-declare fp public.film_pages; hold boolean; held_today int; id bigint; s public.ops_settings; rk text; ip text;
+declare fp public.film_pages; hold boolean; held_today int; id bigint; s public.ops_settings; rk text; ip text; hdr json;
 begin
   if coalesce(p_website, '') <> '' then
     return;                                                                       -- honeypot
@@ -272,21 +278,30 @@ begin
   end if;
   -- The reporter is the caller's address when the request carries one (rotating daily, hashed), else the typed email. A new email
   -- per report therefore does not reset the limits, and a GLOBAL cap stops a flood from any number of addresses.
+  -- Header choice: cf-connecting-ip is set by Cloudflare in front of the API and overwrites anything the client sent. Without it, the
+  -- LAST hop of x-forwarded-for (the one our own proxy appended), never the first, which the client writes. Verify once on the real
+  -- project which of the two arrives (supabase/README.md, "Hands-off operations", go-live step 10).
   begin
-    ip := nullif(split_part(coalesce(current_setting('request.headers', true)::json->>'x-forwarded-for', ''), ',', 1), '');
+    hdr := current_setting('request.headers', true)::json;
+    ip := nullif(trim(coalesce(hdr->>'cf-connecting-ip',
+                               (string_to_array(coalesce(hdr->>'x-forwarded-for', ''), ','))[array_length(string_to_array(coalesce(hdr->>'x-forwarded-for', ''), ','), 1)])), '');
   exception when others then
     ip := null;
   end;
   rk := coalesce(md5(ip || to_char(now() at time zone 'EST5EDT', 'YYYY-MM-DD')), lower(trim(p_email)));
+  -- Per caller: 5 an hour. In all: 30 an hour, EXCEPT child-safety reports, which no flood of other reports may block.
   if (select count(*) from public.abuse_reports where reporter_key = rk and created_at > now() - interval '1 hour') >= 5
-     or (select count(*) from public.abuse_reports where created_at > now() - interval '1 hour') >= 30 then
+     or (p_reason <> 'child_safety' and (select count(*) from public.abuse_reports where created_at > now() - interval '1 hour') >= 30) then
     raise exception 'Too many reports. Please try again later.' using errcode = 'P0001';
   end if;
-  hold := p_reason in ('child_safety', 'private_information', 'harassment', 'copyright') and fp.held_at is null and fp.owner_id is distinct from auth.uid();
+  -- A page Ryan has restored is never auto-held again (he decided; the report only queues), and a removed page is already held.
+  hold := p_reason in ('child_safety', 'private_information', 'harassment', 'copyright') and fp.held_at is null
+          and fp.restored_at is null and fp.removed_at is null and fp.owner_id is distinct from auth.uid();
   if hold then
     select count(*) into held_today from public.abuse_reports where reporter_key = rk and auto_held and created_at > now() - interval '1 day';
     hold := held_today < s.abuse_hide_per_reporter_day                            -- griefing guard: a few auto-hides a day per reporter
-            and (select count(*) from public.abuse_reports where auto_held and created_at > now() - interval '1 hour') < 10;   -- and 10 an hour in all
+            and (p_reason = 'child_safety'                                         -- and 10 an hour in all, never limiting child safety
+                 or (select count(*) from public.abuse_reports where auto_held and created_at > now() - interval '1 hour') < 10);
   end if;
   insert into public.abuse_reports (slug, reason, details, reporter_email, reporter_key, version_id, auto_held)
     values (p_slug, p_reason, coalesce(p_details, ''), trim(p_email), rk, fp.version_id, hold) returning abuse_reports.id into id;
@@ -296,26 +311,47 @@ begin
   perform ryagram_private.ops_raise('abuse:' || id, 'Abuse report #' || id || ' (' || p_reason || ')' || case when hold then ' - page held' else '' end);
 end $$;
 
--- Ryan decides. 'restored' lifts the hold (the owner may republish); 'removed' keeps the row HELD for good (the owner cannot republish
--- it: film_page_held forces published = false); 'dismissed' lifts the hold, no action needed.
+-- Ryan decides, once per report (a reviewed report cannot be reviewed again).
+--   'removed'   the page is held FOR GOOD (removed_at; the owner cannot republish it and no later review lifts it) and every other
+--               open report on the page is settled with it;
+--   'restored'  the hold is lifted, restored_at is set (the page is never auto-held again) and every other open report on the page is
+--               settled with it, unless the page was removed (then nothing lifts);
+--   'dismissed' only this report is settled; the hold is lifted only if no OTHER report on the page is still open and it was not removed.
 create function public.admin_review_report(p_id bigint, p_outcome text) returns void
 language plpgsql security definer set search_path = '' as $$
-declare r public.abuse_reports;
+declare r public.abuse_reports; fp public.film_pages; o record;
 begin
   if not ryagram_private.is_app_admin() then
     raise exception 'Only an admin can review reports.' using errcode = '42501';
   end if;
-  select * into r from public.abuse_reports where id = p_id;
+  select * into r from public.abuse_reports where id = p_id for update;
   if not found or p_outcome not in ('restored', 'removed', 'dismissed') then
     raise exception 'No such report or outcome.' using errcode = 'P0001';
   end if;
+  if r.reviewed_at is not null then
+    raise exception 'That report was already reviewed.' using errcode = 'P0001';
+  end if;
+  select * into fp from public.film_pages where slug = r.slug for update;
   update public.abuse_reports set reviewed_at = now(), outcome = p_outcome where id = p_id;
+  perform ryagram_private.ops_clear('abuse:' || p_id);
+  if p_outcome in ('removed', 'restored') then
+    for o in with u as (update public.abuse_reports set reviewed_at = now(), outcome = p_outcome
+                          where slug = r.slug and reviewed_at is null returning id) select id from u loop
+      perform ryagram_private.ops_clear('abuse:' || o.id);
+    end loop;
+  end if;
+  if fp.slug is null then
+    return;
+  end if;
   if p_outcome = 'removed' then
-    update public.film_pages set held_at = coalesce(held_at, now()), published = false where slug = r.slug;
-  elsif p_outcome in ('restored', 'dismissed') then
+    update public.film_pages set removed_at = coalesce(removed_at, now()), held_at = coalesce(held_at, now()), published = false where slug = r.slug;
+  elsif fp.removed_at is not null then
+    null;                                                                           -- removed pages stay removed
+  elsif p_outcome = 'restored' then
+    update public.film_pages set held_at = null, restored_at = now() where slug = r.slug;
+  elsif not exists (select 1 from public.abuse_reports where slug = r.slug and reviewed_at is null) then
     update public.film_pages set held_at = null where slug = r.slug;
   end if;
-  perform ryagram_private.ops_clear('abuse:' || p_id);
 end $$;
 
 -- ---------------------------------------------------------------- Ryan's summary
@@ -584,7 +620,7 @@ begin
   select coalesce(jsonb_agg(detail order by first_seen), '[]'::jsonb) into items from public.ops_alerts
     where resolved_at is null and key not like 'support:%' and key not like 'abuse:%';        -- those are counted below, not listed twice
   select coalesce(jsonb_agg(detail order by resolved_at), '[]'::jsonb) into recovered
-    from public.ops_alerts where resolved_at > now() - interval '26 hours';
+    from public.ops_alerts where resolved_at > now() - interval '26 hours' and key not like 'support:%' and key not like 'abuse:%';
   select count(*) into sup from public.support_requests where answered_at is null;
   select count(*) into ab from public.abuse_reports where reviewed_at is null;
   return jsonb_build_object(

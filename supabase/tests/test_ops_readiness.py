@@ -87,7 +87,7 @@ class Ops(core.Base):
                 self.db.as_(None).c.execute("delete from public.job_metering")
                 self.db.as_(None).c.execute("delete from public.jobs")
                 a = self.lost_job(attempt)
-                self.admin("update public.jobs set cancel_requested = %s where id = %s returning 1", cancel, a)
+                self.admin("update public.jobs set cancel_requested = %s, queued_at = now() - interval '2 hours' where id = %s returning 1", cancel, a)
                 self.admin("update public.control set claims_enabled = false returning 1")          # claim_next_job now ONLY runs its lease block
                 self.db.as_(WORKER).one("select count(*) from claim_next_job()")
                 via_claim = (self.admin(self.ROW, a), self.admin("select error_code from public.job_metering where job_id = %s", a))
@@ -95,7 +95,7 @@ class Ops(core.Base):
                 self.db.as_(None).c.execute("delete from public.jobs")
                 self.admin("update public.control set claims_enabled = true returning 1")
                 b = self.lost_job(attempt)
-                self.admin("update public.jobs set cancel_requested = %s where id = %s returning 1", cancel, b)
+                self.admin("update public.jobs set cancel_requested = %s, queued_at = now() - interval '2 hours' where id = %s returning 1", cancel, b)
                 self.assertEqual(self.admin("select ryagram_private.reap_lost_leases()"), 1)
                 via_reaper = (self.admin(self.ROW, b), self.admin("select error_code from public.job_metering where job_id = %s", b))
                 self.assertEqual(via_reaper, via_claim)
@@ -152,8 +152,7 @@ class Ops(core.Base):
 
     def test_a_serious_report_hides_the_page_at_once_and_the_owner_cannot_republish_it(self):
         self.publish_page()
-        self.db.as_("anon").one("select report_film_page(%s, 'child_safety', 'rep@x.co', 'details')", SLUG) if False else \
-            self.db.as_("anon").c.execute("select report_film_page(%s, 'child_safety', 'rep@x.co', 'details')", (SLUG,))
+        self.db.as_("anon").c.execute("select report_film_page(%s, 'child_safety', 'rep@x.co', 'details')", (SLUG,))
         self.assertEqual(self.page(), (False, True))
         self.admin("update public.film_pages set published = true where slug = %s returning 1", SLUG)
         self.assertEqual(self.page(), (False, True))                        # the hold wins, even over the table owner's update
@@ -468,6 +467,106 @@ class Ops(core.Base):
         self.assertEqual(ops["rendering"], "delayed")
         self.assertTrue(any(a["key"] == "worker_stale" for a in ops["open_alerts"]))
         self.assertEqual([o["mode"] for o in ops["outbox"]], ["dry_run"] * len(ops["outbox"]))              # nothing was ever sent live
+
+    # -- CC1's second review (bb56101): report keys, restored/removed pages, permanent removal
+    def headers(self, c, **h):
+        import json as _json
+        c.execute("select set_config('request.headers', %s, false)", (_json.dumps(h),))
+
+    def test_a_forged_first_forwarded_hop_cannot_reset_the_report_limits(self):
+        self.publish_page()
+        c = self.db.as_("anon").c
+        for i in range(5):                                                       # the client writes the FIRST hop; our proxy appends the last
+            self.headers(c, **{"x-forwarded-for": f"198.51.100.{i}, 203.0.113.9"})
+            c.execute("select report_film_page(%s, 'other', %s)", (SLUG, f"a{i}@x.co"))
+        self.headers(c, **{"x-forwarded-for": "198.51.100.99, 203.0.113.9"})
+        with self.assertRaisesRegex(psycopg.Error, "Too many"):
+            c.execute("select report_film_page(%s, 'other', 'b@x.co')", (SLUG,))
+        self.assertEqual(self.admin("select count(distinct reporter_key) from public.abuse_reports"), 1)
+        # Cloudflare's header wins over anything in x-forwarded-for
+        self.db.as_(None).c.execute("delete from public.abuse_reports")
+        for i in range(5):
+            self.headers(c, **{"cf-connecting-ip": "203.0.113.50", "x-forwarded-for": f"10.0.0.{i}, 203.0.113.9"})
+            c.execute("select report_film_page(%s, 'other', %s)", (SLUG, f"c{i}@x.co"))
+        self.headers(c, **{"cf-connecting-ip": "203.0.113.50", "x-forwarded-for": "10.9.9.9, 203.0.113.1"})
+        with self.assertRaisesRegex(psycopg.Error, "Too many"):
+            c.execute("select report_film_page(%s, 'other', 'd@x.co')", (SLUG,))
+
+    def test_child_safety_reports_are_never_blocked_by_the_global_caps(self):
+        self.publish_page()
+        self.admin("insert into public.abuse_reports (slug, reason, reporter_email, reporter_key) "
+                   "select %s, 'other', 'f' || g || '@x.co', 'k' || g from generate_series(1, 30) g returning 1", SLUG)
+        c = self.db.as_("anon").c
+        with self.assertRaisesRegex(psycopg.Error, "Too many"):
+            c.execute("select report_film_page(%s, 'harassment', 'late@x.co')", (SLUG,))
+        c.execute("select report_film_page(%s, 'child_safety', 'brave@x.co', 'please look')", (SLUG,))
+        self.assertEqual(self.page(), (False, True))                                          # accepted AND the page is held
+        self.db.as_(None).c.execute("update public.film_pages set held_at = null, published = true")
+        self.admin("insert into public.abuse_reports (slug, reason, reporter_email, reporter_key, auto_held, created_at) "
+                   "select %s, 'harassment', 'h' || g || '@x.co', 'h' || g, true, now() - interval '2 hours' from generate_series(1, 10) g returning 1", SLUG)
+        self.admin("update public.abuse_reports set created_at = now() - interval '10 minutes' where reporter_key like 'h%%' returning 1")
+        self.db.as_(None).c.execute("delete from public.abuse_reports where reporter_key like 'k%%'")                  # only the hold cap is in play
+        c.execute("select report_film_page(%s, 'child_safety', 'brave2@x.co')", (SLUG,))
+        self.assertEqual(self.page(), (False, True))                                          # 10 holds an hour: child safety is still held
+
+    def test_a_page_ryan_restored_is_not_auto_held_again_and_a_review_is_final(self):
+        self.make_ryan_admin()
+        self.publish_page()
+        c = self.db.as_("anon").c
+        c.execute("select report_film_page(%s, 'copyright', 'one@x.co')", (SLUG,))
+        rid = self.admin("select id from public.abuse_reports")
+        self.db.as_(RYAN).one("select admin_review_report(%s, 'restored')", rid)
+        with self.assertRaisesRegex(psycopg.Error, "already reviewed"):
+            self.db.as_(RYAN).one("select admin_review_report(%s, 'removed')", rid)               # one decision per report
+        self.db.as_(RYAN).one("select admin_ops()")
+        self.admin("update public.film_pages set published = true where slug = %s returning 1", SLUG)
+        c.execute("select report_film_page(%s, 'harassment', 'two@x.co')", (SLUG,))
+        self.assertEqual(self.page(), (True, False))                                          # queued for review, NOT hidden again
+        self.assertEqual(self.admin("select auto_held from public.abuse_reports order by id desc limit 1"), False)
+
+    def test_a_removed_page_stays_removed_whatever_happens_to_other_reports_on_it(self):
+        self.make_ryan_admin()
+        self.publish_page()
+        c = self.db.as_("anon").c
+        c.execute("select report_film_page(%s, 'copyright', 'one@x.co')", (SLUG,))
+        c.execute("select report_film_page(%s, 'other', 'two@x.co')", (SLUG,))
+        first, second = [r[0] for r in self.db.as_(None).all("select id from public.abuse_reports order by id")]
+        self.db.as_(RYAN).one("select admin_review_report(%s, 'removed')", first)
+        self.assertEqual(self.admin("select count(*) from public.abuse_reports where reviewed_at is null"), 0)   # the other report was settled with it
+        with self.assertRaisesRegex(psycopg.Error, "already reviewed"):
+            self.db.as_(RYAN).one("select admin_review_report(%s, 'dismissed')", second)            # the click order CC1 probed now refuses
+        self.assertEqual(self.page(), (False, True))
+        self.admin("update public.film_pages set published = true where slug = %s returning 1", SLUG)
+        self.assertEqual(self.page(), (False, True))                                          # the owner cannot republish it
+        c.execute("select report_film_page(%s, 'other', 'three@x.co')", (SLUG,))              # a LATER report dismissed or restored does not lift it either
+        third = self.admin("select max(id) from public.abuse_reports")
+        self.db.as_(RYAN).one("select admin_review_report(%s, 'restored')", third)
+        self.assertEqual(self.page(), (False, True))
+        self.assertIsNotNone(self.admin("select removed_at from public.film_pages where slug = %s", SLUG))
+
+    def test_dismissing_one_report_does_not_lift_a_hold_while_another_report_on_the_page_is_open(self):
+        self.make_ryan_admin()
+        self.publish_page()
+        self.admin("update public.ops_settings set abuse_hide_per_reporter_day = 5 returning 1")
+        c = self.db.as_("anon").c
+        c.execute("select report_film_page(%s, 'harassment', 'one@x.co')", (SLUG,))
+        c.execute("select report_film_page(%s, 'other', 'two@x.co')", (SLUG,))
+        first, second = [r[0] for r in self.db.as_(None).all("select id from public.abuse_reports order by id")]
+        self.db.as_(RYAN).one("select admin_review_report(%s, 'dismissed')", second)
+        self.assertEqual(self.page(), (False, True))                                          # report 1 is still open: still held
+        self.db.as_(RYAN).one("select admin_review_report(%s, 'dismissed')", first)
+        self.assertEqual(self.page(), (False, False))                                         # nothing open any more: the hold lifts
+
+    def test_back_to_normal_does_not_list_answered_tickets_or_reports(self):
+        self.make_ryan_admin()
+        n = self.db.as_("anon").one("select submit_support('a@x.co', 'other', 'hello there', null)")
+        self.db.as_(RYAN).one("select admin_answer_support(%s)", n)
+        self.assertEqual(self.db.as_("service").one("select ops_digest_data()")["recovered"], [])
+
+    def test_an_alert_from_an_earlier_period_is_resolved_even_when_this_periods_spend_is_unchanged(self):
+        self.db.as_(None).c.execute("insert into public.ops_alerts (key, detail) values ('ai_day_80:2020-01-01', 'old'), ('ai_month_100:2020-01', 'old')")
+        self.db.as_("service").one("select ops_tick()")
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where resolved_at is null and key like 'ai%%'"), 0)
 
 
 class OpsLedger(unittest.TestCase):

@@ -24,7 +24,7 @@
   <section class="faq" aria-label="Common questions">
     <!-- source: app-ops.js bannerText; migration service_status / expire_stale_queue (60 minutes) -->
     <details><summary>The app says "Rendering is delayed". What does that mean?</summary>
-      <p>Your film is made on our render machine, and it hasn't checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If it waits more than an hour we cancel it and give your credits back.</p></details>
+      <p>Your film is made on our render machine, and it hasn't checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If it waits more than an hour we stop it and give your credits back.</p></details>
     <!-- source: claim_next_job: one job at a time per worker, oldest first -->
     <details><summary>Why is my film still "Queued"?</summary>
       <p>Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. The Render panel shows your place in line.</p></details>
