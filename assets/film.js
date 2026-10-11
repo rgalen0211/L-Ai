@@ -23,6 +23,9 @@
   const date = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); };
   const cta = `/ryagram/?utm_source=film_page&utm_medium=referral&utm_campaign=${encodeURIComponent(SLUG.test(slug) ? slug : 'film')}`;
 
+  const reportLink = document.getElementById('report-link');
+  if (reportLink && SLUG.test(slug)) reportLink.href = `/report/?film=${slug}`;
+
   async function load() {
     if (mock) return (await fetch('/tests/fixtures/film/page-sample.json')).json();
     if (!SLUG.test(slug)) return null;
