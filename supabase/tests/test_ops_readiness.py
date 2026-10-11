@@ -370,6 +370,105 @@ class Ops(core.Base):
         with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
             c.execute(f"drop database {name}")
 
+    # -- the whole worker-offline path, end to end, in dry-run (Ryan, 2026-10-11):
+    #    stale heartbeat -> banner -> ONE alert row in ops_outbox -> a digest line -> recovery clears it
+    def bridge(self, payload):
+        import json as _json
+        import subprocess
+        node = "node"
+        root = core.ROOT.parent
+        out = subprocess.run([node, str(root / "tests" / "ops_bridge.mjs")], input=_json.dumps(payload, default=str), capture_output=True,
+                             text=True, cwd=str(root), timeout=60)
+        self.assertEqual(out.returncode, 0, out.stderr)
+        return _json.loads(out.stdout)
+
+    def run_tick(self):
+        """The real ops_tick (SQL) -> the real ops-tick handler (TS) -> its mail goes to the REAL ops_outbox and the alerts are marked."""
+        r = self.db.as_("service").one("select ops_tick()")
+        b = self.bridge({"kind": "tick", "tick": r})
+        for m in b["adds"]:
+            self.db.as_("service").one("select ops_outbox_add(%s, %s, %s, %s, %s)", m["kind"], m["mode"], m["to"], m["subject"], m["body"])
+        if b["marked"]:
+            self.db.as_("service").one("select ops_mark_notified(%s)", b["marked"])
+        return r, b
+
+    def run_digest(self):
+        d = self.db.as_("service").one("select ops_digest_data()")
+        b = self.bridge({"kind": "digest", "data": d})
+        for m in b["adds"]:
+            self.assertTrue(self.db.as_("service").one("select ops_outbox_add(%s, %s, %s, %s, %s)", m["kind"], m["mode"], m["to"], m["subject"], m["body"]))
+        return d, b
+
+    def outbox(self, kind=None):
+        sql = "select kind, mode, to_addr, subject, body from public.ops_outbox" + (" where kind = %s" if kind else "") + " order by id"
+        return self.admin_all(sql, *([kind] if kind else []))
+
+    def admin_all(self, sql, *args):
+        return self.db.as_(None).all(sql, *args)
+
+    def test_worker_goes_offline_banner_one_alert_in_the_outbox_a_digest_line_and_recovery_clears_it(self):
+        self.make_ryan_admin()
+        # 0. a healthy worker: no banner, no alert, no mail, a silent digest day
+        self.ping()
+        self.assertEqual(self.bridge({"kind": "banner", "status": self.status()})["banner"], None)
+        r, b = self.run_tick()
+        self.assertEqual((r["rendering"], r["new_alerts"], b["adds"]), ("ok", [], []))
+        d, bd = self.run_digest()
+        self.assertEqual((d["actionable"], bd["adds"], bd["response"]["sent"]), (False, [], False))
+        # 1. the heartbeat goes stale (the PC sleeps): status -> delayed, and the app shows the banner
+        self.ping("10 minutes")
+        status = self.status()
+        self.assertEqual(status["rendering"], "delayed")
+        banner = self.bridge({"kind": "banner", "status": status})["banner"]
+        self.assertRegex(banner, r"^Rendering is delayed\. The render machine last checked in at ")
+        self.assertIn("give your credits back", banner)
+        # 2. the tick raises ONE alert; the real ops-tick handler turns it into ONE dry-run message in the REAL ops_outbox
+        r, b = self.run_tick()
+        self.assertEqual([a["key"] for a in r["new_alerts"]], ["worker_stale"])
+        self.assertEqual((b["response"]["alerts"], b["response"]["notified"], b["mode"]), (1, 1, "dry_run"))
+        rows = self.outbox("alert")
+        self.assertEqual(len(rows), 1)
+        self.assertEqual((rows[0][1], rows[0][2]), ("dry_run", "ryagram@uselai.com"))                    # NOT sent: recorded only
+        self.assertIn("has not checked in", rows[0][3])
+        self.assertIsNotNone(self.admin("select notified_at from public.ops_alerts where key = 'worker_stale'"))
+        # 3. still down: more ticks make NO second alert row and no second mail
+        for _ in range(3):
+            r, b = self.run_tick()
+            self.assertEqual((r["new_alerts"], b["adds"]), ([], []))
+        self.assertEqual(len(self.outbox("alert")), 1)
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key = 'worker_stale'"), 1)
+        # 4. the daily digest has a line for it, goes to the outbox once, and is not repeated the same day
+        d, bd = self.run_digest()
+        self.assertEqual(d["actionable"], True)
+        self.assertEqual(d["rendering"], "delayed")
+        self.assertEqual(bd["response"], {"sent": True, "mode": "dry_run"})
+        digests = self.outbox("digest")
+        self.assertEqual(len(digests), 1)
+        self.assertIn("Rendering has not checked in", digests[0][4])
+        self.assertIn("Rendering: delayed", digests[0][4])
+        d2, bd2 = self.run_digest()
+        self.assertEqual((bd2["response"]["sent"], bd2["adds"]), (False, []))
+        self.assertEqual(len(self.outbox("digest")), 1)
+        # 5. the worker comes back: the banner goes, the alert clears, and the next digest is silent (it lists it as recovered only
+        #    alongside a real item, so with nothing else open it sends nothing)
+        self.ping()
+        self.assertEqual(self.bridge({"kind": "banner", "status": self.status()})["banner"], None)
+        r, b = self.run_tick()
+        self.assertEqual((r["rendering"], r["new_alerts"], b["adds"]), ("ok", [], []))
+        self.assertIsNotNone(self.admin("select resolved_at from public.ops_alerts where key = 'worker_stale'"))
+        d3 = self.db.as_("service").one("select ops_digest_data()")
+        self.assertEqual((d3["actionable"], d3["items"]), (False, []))
+        # 6. and a NEW outage is a new incident: one more alert row and one more mail
+        self.ping("10 minutes")
+        r, b = self.run_tick()
+        self.assertEqual([a["key"] for a in r["new_alerts"]], ["worker_stale"])
+        self.assertEqual(len(self.outbox("alert")), 2)
+        # 7. Ryan's view: the Operations summary shows it too
+        ops = self.db.as_(RYAN).one("select admin_ops()")
+        self.assertEqual(ops["rendering"], "delayed")
+        self.assertTrue(any(a["key"] == "worker_stale" for a in ops["open_alerts"]))
+        self.assertEqual([o["mode"] for o in ops["outbox"]], ["dry_run"] * len(ops["outbox"]))              # nothing was ever sent live
+
 
 class OpsLedger(unittest.TestCase):
     setUp, tearDown = credits.Ledger.setUp, credits.Ledger.tearDown
