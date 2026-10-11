@@ -269,6 +269,8 @@ The Auth emails (invite, reset password, confirm) are edited in the Supabase das
 Ryagram is operated by L'Ai, LLC. Questions: ryagram@uselai.com
 ```
 
+**Auth emails link through our own domain (2026-10-11):** every template's link is `{{ .SiteURL }}/app/#/auth/confirm?token_hash={{ .TokenHash }}&type=<type>` (`signup`, `invite`, `magiclink`, `recovery`, `email_change`). The app checks the token itself (`verifyOtp`) and removes it from the address bar; links already sent as `/app/?reset=` or `/app/?invite=` keep working. Five ready-to-paste templates (HTML, matching plain text, subject) are in `supabase/email-templates/`; paste them in Supabase > Authentication > Emails **only after this route is deployed**. Steps: `Ryagram-logs/proposals/WEB-AUTH-EMAIL-TEMPLATES.md`.
+
 (Ryan, 2026-10-07: the operator is L'Ai, LLC, and Ryagram's pages, policy and app give ryagram@uselai.com. The sender address below is a separate setting: it stays the Google Workspace mailbox until a Send-As for ryagram@ is set up.)
 
 ## Email sender: Google Workspace (ryan.galen@uselai.com) via Supabase custom SMTP

@@ -1,0 +1,2 @@
+# Email templates are pasted into Supabase: keep them LF on every checkout.
+supabase/email-templates/** text eol=lf

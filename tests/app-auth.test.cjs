@@ -226,3 +226,74 @@ test('an invite link: token checked as an invite, removed from the URL, password
   await stale.flush();
   assert.match(stale.els['app-status'].textContent, /invite link has expired/);
 });
+
+// ---- Auth emails link through our own domain: /app/#/auth/confirm?token_hash=...&type=... (deliverability) ----
+const confirmAt = (type, token = 'tokenHASH_1234567890-x') => ({ hostname: 'uselai.com', search: '', hash: `#/auth/confirm?token_hash=${token}&type=${type}` });
+const plain = v => JSON.parse(JSON.stringify(v));
+
+test('confirm route, every type: verifyOtp gets exactly {token_hash, type}, and the token leaves the address bar at once', async () => {
+  for (const type of ['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email']) {
+    const h = harness({ location: confirmAt(type) });
+    assert.deepEqual(plain(h.calls.verify), [{ token_hash: 'tokenHASH_1234567890-x', type }], type);
+    assert.deepEqual(h.calls.replaced, ['/app/#/'], type);                       // fragment replaced before anything else runs
+  }
+});
+
+test('confirm route: signup, magic link and email change go straight to the library; recovery and invite choose a password first', async () => {
+  const user = { user: { email: 'ryan@example.com' } };
+  for (const [type, say] of [['signup', /email is confirmed/], ['magiclink', null], ['email', null], ['email_change', /email address is updated/]]) {
+    const h = harness({ location: confirmAt(type) });
+    await h.flush();
+    await h.emit(user);
+    assert.equal(h.els['set-password'].hidden, true, type);
+    assert.equal(h.els.library.hidden, false, type);
+    assert.equal(h.calls.mounts, 1, type);
+    if (say) assert.match(h.els['app-status'].textContent, say, type); else assert.equal(h.els['app-status'].textContent, '', type);
+  }
+  for (const type of ['recovery', 'invite']) {
+    const h = harness({ location: confirmAt(type) });
+    await h.flush();
+    await h.emit(user);
+    assert.equal(h.els['set-password'].hidden, false, type);
+    assert.equal(h.calls.mounts, 0, type);
+  }
+  const inv = harness({ location: confirmAt('invite') });
+  assert.match(inv.els['set-password-title'].textContent, /Welcome to Ryagram/);
+});
+
+test('confirm route: an expired or used link says so in words for each type, and never leaves the page stuck', async () => {
+  const expected = { signup: /confirmation link has expired/, invite: /invite link has expired/, magiclink: /sign-in link has expired/,
+                     recovery: /reset link has expired/, email_change: /Start the email change again/, email: /link has expired/ };
+  for (const [type, re] of Object.entries(expected)) {
+    const h = harness({ location: confirmAt(type), verifyOtp: () => ({ error: { message: 'expired' } }) });
+    await h.flush();
+    assert.match(h.els['app-status'].textContent, re, type);
+    assert.equal(h.els['set-password'].hidden, true, type);
+  }
+});
+
+test('confirm route: an unknown type or a junk token is ignored (no verify call), still removed from the address bar', () => {
+  for (const loc of [confirmAt('admin'), confirmAt('recovery', '<script>'), confirmAt('recovery', 'short'), { hostname: 'uselai.com', search: '', hash: '#/auth/confirm?type=recovery' },
+                     { hostname: 'uselai.com', search: '', hash: '#/auth/confirm' }]) {
+    const h = harness({ location: loc });
+    assert.equal(h.calls.verify.length, 0, loc.hash);
+    assert.deepEqual(h.calls.replaced, ['/app/#/'], loc.hash);
+  }
+  const other = harness({ location: { hostname: 'uselai.com', search: '', hash: '#/p/some-project' } });       // ordinary routes are untouched
+  assert.equal(other.calls.verify.length, 0);
+  assert.equal(other.calls.replaced.length, 0);
+});
+
+test('links already sent (?reset= and ?invite=) still work after the new route exists', () => {
+  const r = harness({ location: { hostname: 'uselai.com', search: '?reset=abcDEF123_-xyz', hash: '#/' } });
+  assert.deepEqual(plain(r.calls.verify), [{ token_hash: 'abcDEF123_-xyz', type: 'recovery' }]);
+  const i = harness({ location: { hostname: 'uselai.com', search: '?invite=inviteTOKEN_123-x', hash: '#/' } });
+  assert.deepEqual(plain(i.calls.verify), [{ token_hash: 'inviteTOKEN_123-x', type: 'invite' }]);
+});
+
+test('the app sends the token to Supabase over its own client only: no other network call is made for a confirm link', () => {
+  const h = harness({ location: confirmAt('signup') });
+  assert.equal(h.calls.invoked.length, 0);
+  assert.equal(h.calls.signIn.length, 0);
+  assert.equal(h.appended.length, 0);
+});
