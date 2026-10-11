@@ -321,6 +321,16 @@
         const rows = p_days >= 90 ? [['youtube', 120, 7], ['', 30, 1], ['newsletter', 6, 0]] : [['youtube', 70, 4], ['', 10, 0], ['newsletter', 3, 0]];
         return { data: rows.map(([source, visits, signups]) => ({ source, visits, signups })), error: null };
       },
+      // Mock: rendering is delayed when the page is opened with ?delayed; one pretend support ticket.
+      service_status() {
+        return { data: { rendering: (typeof location !== 'undefined' && /[?&]delayed/.test(location.search)) ? 'delayed' : 'ok', last_check_in: '2026-10-10T18:02:00Z' }, error: null };
+      },
+      submit_support({ p_email, p_topic, p_message, p_job, p_website }) {
+        if (p_website) return { data: 0, error: null };
+        db.support = db.support || [];
+        db.support.push({ p_email, p_topic, p_message, p_job });
+        return { data: db.support.length, error: null };
+      },
       film_unpublish({ p_version }) {
         const page = db.film_pages.find(p => p.version_id === p_version);
         if (!page) return fail('No public page for that film.');

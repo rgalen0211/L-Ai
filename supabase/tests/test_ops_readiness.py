@@ -275,9 +275,9 @@ class RetryPolicy(unittest.TestCase):
         self.assertEqual(self.available(), 100)
 
 
-def _usage(output_tokens, mid):
+def _usage(output_tokens, mid, model="claude-haiku-4-5"):
     # claude-haiku-4-5 output is $5 per million tokens: 200_000 output tokens = $1.00
-    return json.dumps({"model": "claude-haiku-4-5", "message_id": mid, "input_tokens": 0, "output_tokens": output_tokens,
+    return json.dumps({"model": model, "message_id": mid, "input_tokens": 0, "output_tokens": output_tokens,
                        "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0})
 
 
@@ -358,3 +358,21 @@ class AiCaps(core.Base):
             self.denied(who, "select ai_budget_ok(%s)", t)
         self.svc("select ai_finish_turn(%s, 'done', false, 0, null, null, null)", t)
         self.assertFalse(self.svc("select ai_budget_ok(%s)", t))
+
+    def test_a_call_with_no_known_price_counts_at_the_most_expensive_price_and_alerts_once(self):
+        self.caps(ai_daily_usd_cap=3.00, ai_project_cap_usd=100, ai_project_alert_usd=100)
+        t = self.turn()
+        self.svc("select ai_record_usage(%s, %s::jsonb)", t, _usage(200000, "m1", "claude-mystery-9"))
+        self.assertIsNone(self.db.as_(None).one("select cost_usd from ai_usage where message_id = 'm1'"))     # recorded as unknown...
+        # ...but counted at sonnet's $10 per million output tokens (the dearest known): 200,000 tokens = $2.00, not $0
+        self.assertAlmostEqual(float(self.db.as_(None).one("select ryagram_private.ai_budget()->>'day_spent'")), 2.0, places=4)
+        self.assertTrue(self.svc("select ai_budget_ok(%s)", t))
+        for _ in range(3):
+            self.svc("select ai_budget_ok(%s)", t)
+        keys = [r[0] for r in self.db.as_(None).all("select key from public.ops_alerts where key like 'ai_price_missing%%'")]
+        self.assertEqual(keys, ["ai_price_missing:claude-mystery-9"])                                       # ONE alert, however often
+        self.svc("select ai_record_usage(%s, %s::jsonb)", t, _usage(100000, "m2", "claude-mystery-9"))       # $1.00 more = $3.00 = the cap
+        self.assertFalse(self.svc("select ai_budget_ok(%s)", t))
+        self.db.as_(None).one("insert into public.ai_prices values ('2026-10', 'claude-mystery-9', 1, 5, 0.1, 1.25, now()) returning 1")
+        self.svc("select ai_budget_ok(%s)", t)
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.ops_alerts where key like 'ai_price_missing%%'"), 1)

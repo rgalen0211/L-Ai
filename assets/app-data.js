@@ -303,6 +303,20 @@
         return run(client.rpc('visits_by_source', { p_days: days }), 'Couldn\u2019t load the visit counts.');
       },
 
+      // Operations (SQL 20261010000100): is rendering alive? Never throws: no answer means no notice.
+      async serviceStatus() {
+        try {
+          const { data, error } = await client.rpc('service_status');
+          return error ? null : data;
+        } catch { return null; }
+      },
+      // The help form. job is the person's own job id (the server attaches its state and error code, never its content);
+      // website is the hidden honeypot field and must stay empty.
+      async submitSupport({ email, topic, message, job, website }) {
+        return run(client.rpc('submit_support', { p_email: email, p_topic: topic, p_message: message, p_job: job || null, p_website: website || '' }),
+          'Couldn\u2019t send that just now. Please try again, or write to ryagram@uselai.com.');
+      },
+
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
       // which builds the page's sources from the receipt; stopping is a plain RPC.
       async filmPage(versionId) {
