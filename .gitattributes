@@ -1,2 +1,4 @@
 # Email templates are pasted into Supabase: keep them LF on every checkout.
 supabase/email-templates/** text eol=lf
+# The pinned engine drawer is LF only (its hash is checked).
+assets/preview/scene-draw.min.js text eol=lf
