@@ -10,9 +10,7 @@
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <title>Interstate film preview | Ryagram</title>
 <link rel="icon" href="data:,">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
+<!-- The display font is added by preview-offline.js AFTER the page has loaded: a stylesheet from another site in the head would hold the whole page back on bad wifi. -->
 <link rel="stylesheet" href="/assets/workflow-audit.css?v=20261011a">
 <link rel="stylesheet" href="/assets/app.css?v=20261011a">
 <link rel="stylesheet" href="/assets/preview/preview-demo.css?v=20261011a">
@@ -30,6 +28,8 @@
     <p class="form-note">Changes show at once. Nothing is saved on this page.</p>
   </div>
   <p id="demo-perf" class="form-note" hidden></p>
+  <p id="demo-offline" class="form-note" role="status" hidden></p>
+  <p><button id="demo-offline-btn" class="button secondary small" type="button" hidden>Save for use without internet</button></p>
   <noscript><p>This page needs JavaScript.</p></noscript>
 </main>
 <footer><div class="container footer-row"><span>Ryagram, from L'Ai. Operated by L'Ai, LLC.</span><a href="/ryagram/">About Ryagram</a><a href="/privacy-policy.html">Privacy Policy</a></div></footer>
@@ -39,5 +39,6 @@
 <script src="/assets/preview/preview-viewer.js?v=20261011a"></script>
 <script src="/assets/preview/preview-edit.js?v=20261011a"></script>
 <script src="/assets/preview/preview-demo.js?v=20261011a"></script>
+<script src="/assets/preview/preview-offline.js?v=20261012a"></script>
 </body>
 </html>
