@@ -109,6 +109,10 @@
       },
 
       saveStory(id, story) {
+        // The worker's title-card limits, checked HERE, before anything is sent (assets/app-limits.js): a story that would fail the render is
+        // refused with a plain sentence at save time. Every save in the app goes through this function.
+        const problems = window.ryagramLimits ? window.ryagramLimits.titleProblems(story) : [];
+        if (problems.length) return Promise.reject(new Error(problems.join(' ')));
         return run(client.from('versions').update({ story_spec: story }).eq('id', id)
           .select('id, story_sha256, updated_at').single(), 'Couldn’t save the story.');
       },
