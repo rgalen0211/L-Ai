@@ -87,3 +87,11 @@ test('"credits were returned" appears only when the ledger says released and not
   for (const a of [null, { free_preview: true, credits_quoted: 0 }, { credits_quoted: 0 }, { credits_quoted: 10, released: 0, captured: 10 },
                    { credits_quoted: 10, released: 4, captured: 6 }, { credits_quoted: 10, held: 10 }]) assert.equal(C.returnedNote(a), '', JSON.stringify(a));
 });
+
+test('the Operations screen says how many child-safety reports are open, which are NOT hidden, and the hourly hide cap', () => {
+  assert.equal(O.childSafetyLine({ open: 0, open_not_hidden: 0, holds_this_hour: 0, holds_cap: 10 }), 'No open child-safety reports. Pages hidden automatically this hour: 0 of 10.');
+  assert.equal(O.childSafetyLine({ open: 2, open_not_hidden: 0, holds_this_hour: 2, holds_cap: 10 }), '2 open child-safety reports, all hidden pending your review. Pages hidden automatically this hour: 2 of 10.');
+  assert.match(O.childSafetyLine({ open: 3, open_not_hidden: 1, holds_this_hour: 10, holds_cap: 10 }), /3 open child-safety reports, 1 NOT hidden \(the hourly cap was reached\): review it first\. Pages hidden automatically this hour: 10 of 10\./);
+  assert.match(O.childSafetyLine({ open: 2, open_not_hidden: 2, holds_this_hour: 10, holds_cap: 10 }), /2 NOT hidden .*review them first/);
+  assert.equal(O.childSafetyLine(null), 'No child-safety information.');
+});

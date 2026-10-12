@@ -239,6 +239,7 @@
         const now = Date.now();
         body.replaceChildren(
           section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
+          section('Child safety', h('p', { class: d.child_safety && d.child_safety.open_not_hidden ? 'app-error' : '' }, O.childSafetyLine(d.child_safety))),
           section('Needs you', d.open_alerts.length ? h('ul', { class: 'ops-list' }, d.open_alerts.map(a => h('li', {}, a.detail, h('span', { class: 'meta' }, ` since ${O.ago(a.since, now)}`)))) : none('Nothing needs you.')),
           section('Stuck jobs', d.stuck.length ? h('ul', { class: 'ops-list' }, d.stuck.map(j => h('li', {}, `${j.job_type} ${j.state}, attempt ${j.attempt}`, h('span', { class: 'meta' }, ` ${j.id}, lease expired ${O.ago(j.lease_expired_at, now)}`)))) : none('None.')),
           section('Ended without a film (last 7 days)', d.ended.length ? h('ul', { class: 'ops-list' }, d.ended.map(j => h('li', {}, `${O.ENDED_WORDS[j.state] || j.state}: ${j.job_type}`, h('span', { class: 'meta' }, ` ${j.error_code || 'no code'}, ${O.ago(j.ended_at, now)}, ${j.id}`)))) : none('None.'),

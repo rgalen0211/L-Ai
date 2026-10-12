@@ -156,7 +156,7 @@ class Ops(core.Base):
         self.assertEqual(self.page(), (False, True))
         self.admin("update public.film_pages set published = true where slug = %s returning 1", SLUG)
         self.assertEqual(self.page(), (False, True))                        # the hold wins, even over the table owner's update
-        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'abuse:%%'"), 1)
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'urgent:child_safety:%%'"), 1)        # child safety raises the URGENT alert
 
     def test_other_reports_only_queue_unknown_slugs_are_silent_and_the_honeypot_does_nothing(self):
         self.publish_page()
@@ -568,6 +568,86 @@ class Ops(core.Base):
         self.db.as_("service").one("select ops_tick()")
         self.assertEqual(self.admin("select count(*) from public.ops_alerts where resolved_at is null and key like 'ai%%'"), 0)
 
+    # -- CHILD SAFETY (Ryan, 2026-10-12): always recorded, URGENT alert at once, auto-hide capped per hour site-wide
+    def publish_many(self, n):
+        slugs = []
+        for i in range(n):
+            _, vid = self.project_with_version()
+            slug = f"{chr(65 + i)}" * 22
+            self.admin("insert into public.film_pages (version_id, owner_id, slug, title, summary) values (%s, %s, %s, 'T', %s::jsonb) returning 1", vid, RYAN, slug, SUMMARY)
+            slugs.append(slug)
+        return slugs
+
+    def page_of(self, slug):
+        return self.admin("select published, held_at is not null from public.film_pages where slug = %s", slug)
+
+    def test_child_safety_hides_pages_only_up_to_the_hourly_cap_but_always_records_and_always_alerts_urgently(self):
+        self.assertEqual(self.admin("select child_safety_holds_per_hour from public.ops_settings"), 10)         # the default Ryan chose
+        self.admin("update public.ops_settings set child_safety_holds_per_hour = 2 returning 1")
+        a, b, c = self.publish_many(3)
+        anon = self.db.as_("anon").c
+        for i, slug in enumerate((a, b, c)):
+            anon.execute("select report_film_page(%s, 'child_safety', %s, 'details')", (slug, f"r{i}@x.co"))
+        self.assertEqual([self.page_of(a), self.page_of(b), self.page_of(c)], [(False, True), (False, True), (True, False)])   # the third is queued, NOT hidden
+        self.assertEqual(self.admin("select count(*) from public.abuse_reports where reason = 'child_safety'"), 3)           # all three recorded
+        rows = self.db.as_(None).all("select key, detail from public.ops_alerts where key like 'urgent:%%' order by key")
+        self.assertEqual(len(rows), 3)
+        self.assertTrue(all(r[1].startswith("URGENT: child-safety report #") for r in rows))
+        self.assertIn("HIDDEN pending your review", rows[0][1])
+        self.assertIn("NOT hidden", rows[2][1])
+        self.assertIn("hourly cap on automatic hiding (2) is reached", rows[2][1])
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'abuse:%%'"), 0)         # no second, ordinary alert for the same report
+        new = self.db.as_("service").one("select ops_tick()")["new_alerts"]
+        self.assertEqual([x["urgent"] for x in new[:3]], [True, True, True])                                         # urgent ones come first, flagged
+
+    def test_child_safety_reports_are_recorded_even_from_one_caller_past_every_per_caller_limit(self):
+        self.admin("update public.ops_settings set child_safety_holds_per_hour = 100 returning 1")
+        slugs = self.publish_many(8)
+        c = self.db.as_("anon").c
+        self.headers(c, **{"cf-connecting-ip": "203.0.113.77"})
+        for slug in slugs:                                                                  # eight reports from ONE caller: ordinary reports stop at five
+            c.execute("select report_film_page(%s, 'child_safety', 'same@x.co')", (slug,))
+        self.assertEqual(self.admin("select count(*) from public.abuse_reports where reason = 'child_safety'"), 8)
+        self.assertEqual(self.admin("select count(*) from public.film_pages where held_at is not null"), 8)
+
+    def test_a_cap_of_zero_never_hides_automatically_but_still_records_and_alerts(self):
+        self.admin("update public.ops_settings set child_safety_holds_per_hour = 0 returning 1")
+        (a,) = self.publish_many(1)
+        self.db.as_("anon").c.execute("select report_film_page(%s, 'child_safety', 'r@x.co')", (a,))
+        self.assertEqual(self.page_of(a), (True, False))
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'urgent:child_safety:%%' and detail like '%%NOT hidden%%'"), 1)
+
+    def test_the_hourly_hold_cap_counts_child_safety_holds_only_and_old_holds_age_out(self):
+        self.admin("update public.ops_settings set child_safety_holds_per_hour = 1 returning 1")
+        a, b, c = self.publish_many(3)
+        self.admin("insert into public.abuse_reports (slug, reason, reporter_email, reporter_key, auto_held) "
+                   "select %s, 'harassment', 'h' || g || '@x.co', 'h' || g, true from generate_series(1, 20) g returning 1", a)   # ordinary holds do not count
+        anon = self.db.as_("anon").c
+        anon.execute("select report_film_page(%s, 'child_safety', 'one@x.co')", (a,))
+        self.assertEqual(self.page_of(a), (False, True))
+        anon.execute("select report_film_page(%s, 'child_safety', 'two@x.co')", (b,))
+        self.assertEqual(self.page_of(b), (True, False))                                    # the cap of 1 an hour is used
+        self.admin("update public.abuse_reports set created_at = now() - interval '2 hours' where reason = 'child_safety' returning 1")
+        anon.execute("select report_film_page(%s, 'child_safety', 'three@x.co')", (c,))
+        self.assertEqual(self.page_of(c), (False, True))                                    # an hour later the cap has room again
+
+    def test_ryans_screen_and_review_know_about_child_safety_reports(self):
+        self.make_ryan_admin()
+        self.admin("update public.ops_settings set child_safety_holds_per_hour = 1 returning 1")
+        a, b = self.publish_many(2)
+        anon = self.db.as_("anon").c
+        anon.execute("select report_film_page(%s, 'child_safety', 'one@x.co')", (a,))
+        anon.execute("select report_film_page(%s, 'child_safety', 'two@x.co')", (b,))
+        d = self.db.as_(RYAN).one("select admin_ops()")
+        self.assertEqual(plain(d["child_safety"]), {"open": 2, "open_not_hidden": 1, "holds_this_hour": 1, "holds_cap": 1})
+        self.assertEqual(self.db.as_("service").one("select ops_digest_data()")["actionable"], True)
+        ids = [r[0] for r in self.db.as_(None).all("select id from public.abuse_reports order by id")]
+        for rid in ids:
+            self.db.as_(RYAN).one("select admin_review_report(%s, 'dismissed')", rid)
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'urgent:%%' and resolved_at is null"), 0)
+        self.assertEqual(self.db.as_("service").one("select ops_digest_data()")["recovered"], [])          # an answered urgent alert is not "back to normal"
+        self.assertEqual(plain(self.db.as_(RYAN).one("select admin_ops()")["child_safety"])["open"], 0)
+
 
 class OpsLedger(unittest.TestCase):
     setUp, tearDown = credits.Ledger.setUp, credits.Ledger.tearDown
@@ -642,6 +722,10 @@ class RetryPolicy(unittest.TestCase):
         self.assertEqual(self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job), "failed")
         self.assertEqual(self.admin("select attempt, error_code from public.jobs where id = %s", job), (3, "crash"))
         self.assertEqual(self.available(), 100)
+
+
+def plain(x):
+    return json.loads(json.dumps(x))
 
 
 def _usage(output_tokens, mid, model="claude-haiku-4-5"):

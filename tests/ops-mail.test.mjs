@@ -24,7 +24,7 @@ test('tick sends nothing when there are no new alerts, and one message for new o
   const o = outbox(); const marked = [];
   const base = { serviceKey: 'secret', markNotified: async k => { marked.push(k); return k.length; }, sender: dryRunSender(o) };
   let res = await tick(req(), { ...base, tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: [] }) });
-  assert.deepEqual(await res.json(), { rendering: 'ok', reaped: 0, expired: 0, alerts: 0, notified: 0, held: 0, mode: 'dry_run' });
+  assert.deepEqual(await res.json(), { rendering: 'ok', reaped: 0, expired: 0, alerts: 0, urgent: 0, notified: 0, held: 0, mode: 'dry_run' });
   assert.equal(o.rows.length, 0);
   res = await tick(req(), { ...base, tick: async () => ({ rendering: 'delayed', reaped: 1, expired: 0, alert_mail_budget: 20, new_alerts: [{ key: 'worker_stale', detail: 'Rendering has not checked in for over 3 minutes.' }] }) });
   assert.equal((await res.json()).notified, 1);
@@ -99,4 +99,35 @@ test('when the daily alert-mail allowance is used up nothing is sent and the ale
   assert.deepEqual([b.alerts, b.notified, b.held], [1, 0, 1]);
   assert.equal(o.rows.length, 0);
   assert.deepEqual(marked, []);
+});
+
+test('a child-safety (URGENT) alert is sent at once, in its own message, even when the daily alert-mail allowance is used up; ordinary alerts still wait', async () => {
+  const o = outbox(); const marked = [];
+  const res = await tick(req(), { serviceKey: 'secret', sender: dryRunSender(o), markNotified: async k => { marked.push(k); return k.length; },
+    tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 0, new_alerts: [
+      { key: 'urgent:child_safety:7', detail: 'URGENT: child-safety report #7 on a public film page. The page is HIDDEN pending your review.', urgent: true },
+      { key: 'worker_stale', detail: 'Rendering has not checked in for over 3 minutes.', urgent: false }] }) });
+  const b = await res.json();
+  assert.deepEqual([b.alerts, b.urgent, b.notified, b.held], [2, 1, 1, 1]);
+  assert.equal(o.rows.length, 1);
+  assert.match(o.rows[0][3], /^URGENT: child-safety report #7/);
+  assert.equal(o.rows[0][2], OPS_TO);
+  assert.match(o.rows[0][4], /Review now: #\/admin\/ops/);
+  assert.deepEqual(marked, [['urgent:child_safety:7']]);                      // only the urgent one is marked; the ordinary one waits
+});
+
+test('several urgent alerts make one URGENT message; a failed urgent send leaves them un-notified so the next tick sends them again', async () => {
+  const o = outbox(); const marked = [];
+  const alerts = [1, 2, 3].map(n => ({ key: `urgent:child_safety:${n}`, detail: `URGENT: child-safety report #${n}`, urgent: true }));
+  const ok = await tick(req(), { serviceKey: 'secret', sender: dryRunSender(o), markNotified: async k => { marked.push(k); return k.length; },
+    tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: alerts }) });
+  assert.equal((await ok.json()).urgent, 3);
+  assert.equal(o.rows.length, 1);
+  assert.match(o.rows[0][3], /^URGENT: 3 child-safety reports/);
+  const quiet = console.error; console.error = () => {};
+  const bad = await tick(req(), { serviceKey: 'secret', sender: { mode: 'live', send: async () => { throw new Error('mail down'); } }, markNotified: async k => { marked.push(['BAD', k]); return 0; },
+    tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: alerts }) });
+  console.error = quiet;
+  assert.equal((await bad.json()).urgent, 0);
+  assert.equal(marked.some(m => m[0] === 'BAD'), false);
 });

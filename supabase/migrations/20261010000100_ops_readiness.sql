@@ -34,6 +34,7 @@ create table public.ops_settings (
   support_reply_hours int not null default 48,
   abuse_hide_per_reporter_day int not null default 3,
   backups_expected boolean not null default false,      -- Ryan sets true once the daily backup is installed: then a stale backup alerts
+  child_safety_holds_per_hour int not null default 10 check (child_safety_holds_per_hour >= 0),   -- Ryan, 2026-10-12: at most 10 pages auto-hidden an hour, site-wide, for child-safety reports; above it the report is queued and an URGENT alert says the page is NOT hidden
   max_alert_mails_per_day int not null default 20 check (max_alert_mails_per_day >= 1),   -- a flood cannot use up the mail service's free daily allowance
   backup_max_age_hours int not null default 48            -- newest good daily backup older than this = alert (Ryan, 2026-10-10: 2 days)
 );
@@ -182,7 +183,7 @@ begin
   return jsonb_build_object('rendering', st, 'reaped', reaped, 'expired', expired,
     'alert_mail_budget', greatest(0, s.max_alert_mails_per_day - (select count(*) from public.ops_outbox
         where kind = 'alert' and (created_at at time zone 'EST5EDT')::date = (now() at time zone 'EST5EDT')::date)),
-    'new_alerts', coalesce((select jsonb_agg(jsonb_build_object('key', key, 'detail', detail))
+    'new_alerts', coalesce((select jsonb_agg(jsonb_build_object('key', key, 'detail', detail, 'urgent', key like 'urgent:%') order by key like 'urgent:%' desc, first_seen)
                               from public.ops_alerts where resolved_at is null and notified_at is null), '[]'::jsonb));
 end $$;
 
@@ -289,26 +290,41 @@ begin
     ip := null;
   end;
   rk := coalesce(md5(ip || to_char(now() at time zone 'EST5EDT', 'YYYY-MM-DD')), lower(trim(p_email)));
-  -- Per caller: 5 an hour. In all: 30 an hour, EXCEPT child-safety reports, which no flood of other reports may block.
-  if (select count(*) from public.abuse_reports where reporter_key = rk and created_at > now() - interval '1 hour') >= 5
-     or (p_reason <> 'child_safety' and (select count(*) from public.abuse_reports where created_at > now() - interval '1 hour') >= 30) then
+  -- CHILD SAFETY (Ryan, 2026-10-12): such a report is ALWAYS RECORDED (no caller or global cap can refuse it), Ryan is alerted AT ONCE (an URGENT
+  -- alert that bypasses the daily mail allowance), and the page is hidden pending his review, but at most ops_settings.child_safety_holds_per_hour
+  -- (10) pages an hour site-wide. Above that the report is still recorded and still alerts, as queued, with the words "NOT hidden".
+  -- Every other reason: per caller 5 an hour, 30 an hour in all (a refusal), a few auto-hides a day per caller, 10 auto-hides an hour in all.
+  if p_reason <> 'child_safety'
+     and ((select count(*) from public.abuse_reports where reporter_key = rk and created_at > now() - interval '1 hour') >= 5
+          or (select count(*) from public.abuse_reports where created_at > now() - interval '1 hour') >= 30) then
     raise exception 'Too many reports. Please try again later.' using errcode = 'P0001';
   end if;
   -- A page Ryan has restored is never auto-held again (he decided; the report only queues), and a removed page is already held.
   hold := p_reason in ('child_safety', 'private_information', 'harassment', 'copyright') and fp.held_at is null
           and fp.restored_at is null and fp.removed_at is null and fp.owner_id is distinct from auth.uid();
-  if hold then
+  if hold and p_reason = 'child_safety' then
+    hold := (select count(*) from public.abuse_reports where reason = 'child_safety' and auto_held and created_at > now() - interval '1 hour')
+            < s.child_safety_holds_per_hour;
+  elsif hold then
     select count(*) into held_today from public.abuse_reports where reporter_key = rk and auto_held and created_at > now() - interval '1 day';
     hold := held_today < s.abuse_hide_per_reporter_day                            -- griefing guard: a few auto-hides a day per reporter
-            and (p_reason = 'child_safety'                                         -- and 10 an hour in all, never limiting child safety
-                 or (select count(*) from public.abuse_reports where auto_held and created_at > now() - interval '1 hour') < 10);
+            and (select count(*) from public.abuse_reports where auto_held and created_at > now() - interval '1 hour') < 10;   -- and 10 an hour in all
   end if;
   insert into public.abuse_reports (slug, reason, details, reporter_email, reporter_key, version_id, auto_held)
     values (p_slug, p_reason, coalesce(p_details, ''), trim(p_email), rk, fp.version_id, hold) returning abuse_reports.id into id;
   if hold then
     update public.film_pages set held_at = now(), published = false where slug = p_slug;
   end if;
-  perform ryagram_private.ops_raise('abuse:' || id, 'Abuse report #' || id || ' (' || p_reason || ')' || case when hold then ' - page held' else '' end);
+  if p_reason = 'child_safety' then
+    perform ryagram_private.ops_raise('urgent:child_safety:' || id,
+      'URGENT: child-safety report #' || id || ' on a public film page. ' ||
+      case when hold then 'The page is HIDDEN pending your review.'
+           when fp.held_at is not null then 'The page was already hidden.'
+           when fp.removed_at is not null or fp.restored_at is not null then 'The page was already reviewed by you and is NOT hidden.'
+           else 'The hourly cap on automatic hiding (' || s.child_safety_holds_per_hour || ') is reached: the page is NOT hidden. Review it now.' end);
+  else
+    perform ryagram_private.ops_raise('abuse:' || id, 'Abuse report #' || id || ' (' || p_reason || ')' || case when hold then ' - page held' else '' end);
+  end if;
 end $$;
 
 -- Ryan decides, once per report (a reviewed report cannot be reviewed again).
@@ -334,10 +350,12 @@ begin
   select * into fp from public.film_pages where slug = r.slug for update;
   update public.abuse_reports set reviewed_at = now(), outcome = p_outcome where id = p_id;
   perform ryagram_private.ops_clear('abuse:' || p_id);
+  perform ryagram_private.ops_clear('urgent:child_safety:' || p_id);
   if p_outcome in ('removed', 'restored') then
     for o in with u as (update public.abuse_reports set reviewed_at = now(), outcome = p_outcome
                           where slug = r.slug and reviewed_at is null returning id) select id from u loop
       perform ryagram_private.ops_clear('abuse:' || o.id);
+      perform ryagram_private.ops_clear('urgent:child_safety:' || o.id);
     end loop;
   end if;
   if fp.slug is null then
@@ -396,6 +414,12 @@ begin
                                           order by id)
                            from (select * from public.support_requests where answered_at is null order by id limit 20) q), '[]'::jsonb),
     'abuse_waiting', (select count(*) from public.abuse_reports where reviewed_at is null),
+    'child_safety', jsonb_build_object(
+      'open', (select count(*) from public.abuse_reports where reason = 'child_safety' and reviewed_at is null),
+      'open_not_hidden', (select count(*) from public.abuse_reports r where r.reason = 'child_safety' and r.reviewed_at is null and not r.auto_held
+                            and not exists (select 1 from public.film_pages f where f.slug = r.slug and f.held_at is not null)),
+      'holds_this_hour', (select count(*) from public.abuse_reports where reason = 'child_safety' and auto_held and created_at > now() - interval '1 hour'),
+      'holds_cap', (select child_safety_holds_per_hour from public.ops_settings)),
     'abuse', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'created_at', created_at, 'slug', slug, 'reason', reason,
                                                          'auto_held', auto_held, 'details', left(details, 300)) order by id)
                          from (select * from public.abuse_reports where reviewed_at is null order by id limit 20) r), '[]'::jsonb));
@@ -620,7 +644,7 @@ begin
   select coalesce(jsonb_agg(detail order by first_seen), '[]'::jsonb) into items from public.ops_alerts
     where resolved_at is null and key not like 'support:%' and key not like 'abuse:%';        -- those are counted below, not listed twice
   select coalesce(jsonb_agg(detail order by resolved_at), '[]'::jsonb) into recovered
-    from public.ops_alerts where resolved_at > now() - interval '26 hours' and key not like 'support:%' and key not like 'abuse:%';
+    from public.ops_alerts where resolved_at > now() - interval '26 hours' and key not like 'support:%' and key not like 'abuse:%' and key not like 'urgent:%';
   select count(*) into sup from public.support_requests where answered_at is null;
   select count(*) into ab from public.abuse_reports where reviewed_at is null;
   return jsonb_build_object(

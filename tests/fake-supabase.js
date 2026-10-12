@@ -343,7 +343,7 @@
           open_alerts: [{ key: 'support:1', detail: 'New support request #1 (render)', since: ago(30) }],
           support_open: db.supportOpen ?? 1,
           support: (db.supportOpen ?? 1) ? [{ id: 1, created_at: ago(30), topic: 'render', email: 'sam@example.com', job_id: 'job-9', job_state: 'failed', job_error_code: 'worker_lost', message: 'My preview failed twice.' }] : [],
-          abuse_waiting: 0, abuse: [] }, error: null };
+          child_safety: { open: 0, open_not_hidden: 0, holds_this_hour: 0, holds_cap: 10 }, abuse_waiting: 0, abuse: [] }, error: null };
       },
       admin_answer_support() { db.supportOpen = 0; return { data: null, error: null }; },
       admin_review_report() { return { data: null, error: null }; },

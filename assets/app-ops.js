@@ -70,8 +70,16 @@
     return `Last good daily dump ${ago(b.last_daily_ok, now)}${size}.${test}`;
   }
 
+  // Child-safety reports (Ryan, 2026-10-12): always recorded, hidden automatically up to an hourly cap, URGENT alert for every one.
+  function childSafetyLine(cs) {
+    if (!cs) return 'No child-safety information.';
+    const open = Number(cs.open) || 0;
+    const head = open ? `${plural(open, 'open child-safety report')}${cs.open_not_hidden ? `, ${cs.open_not_hidden} NOT hidden (the hourly cap was reached): review ${cs.open_not_hidden === 1 ? 'it' : 'them'} first` : ', all hidden pending your review'}.` : 'No open child-safety reports.';
+    return `${head} Pages hidden automatically this hour: ${cs.holds_this_hour} of ${cs.holds_cap}.`;
+  }
+
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, usd, ENDED_WORDS, REASON_WORDS };
+  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, usd, ENDED_WORDS, REASON_WORDS };
 })();
