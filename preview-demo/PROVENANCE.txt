@@ -1,0 +1,8 @@
+A REAL scene bundle of the Interstate film (Brooks & Liscow, DOI 10.3886/E144281V1, CC BY 4.0), exported from the engine on Ryagram main.
+engine:   Ryagram main @ 98836d817e42 (clean detached worktree; facts/roads_shp_extras_dated.json copied from the renderer worktree)
+story:    the render clip 'interstate' of projects/roads-story.json (renderer worktree, 2026-10-11), alone in a one-clip story named roads-bundle-demo
+          (the exporter takes one render clip; the title and closing cards are not in the preview)
+command:  python -m ryagram.preview.bundle story.json --out <folder>      then pack with tools/pack-scene-fixture.mjs's zip()
+result:   scene.json.gz 2,534,627 bytes (sha256 514857f3dfc08412...), 2,820 frames at 30 fps, 1956 to 1993; two Liberation Sans fonts (SIL OFL)
+drawer:   assets/preview/scene-draw.min.js, pinned in assets/preview/scene-draw.PIN
+NOT final: the film itself is still in review (RENDERER's final film will replace this bundle); shields and layout follow main, not the unmerged shield branches.

@@ -32,7 +32,7 @@ const msg = async (fn, re) => assert.rejects(Promise.resolve().then(fn), err => 
 // ---- the fixture and the vendored drawer -------------------------------------------------------------------------------------
 test('the fixture is a real engine export, the drawer is the pinned engine file, and the pin file says so', () => {
   assert.equal(scene.format, 'ryagram-scene');
-  assert.equal(scene.version, 1);
+  assert.equal(scene.version, 2);
   assert.equal(scene.engine_dirty, false);
   assert.equal(scene.frames, 180);
   assert.match(fs.readFileSync(path.join(here, 'fixtures', 'scene-real.PROVENANCE.txt'), 'utf8'), /network_fixture/);
@@ -89,7 +89,7 @@ test('a gzip bomb stops at the cap and a scene that is not JSON is refused', asy
 test('a scene is checked before anything draws it', () => {
   const refuse = (mut, re) => { const s = plain(scene); mut(s); assert.throws(() => C.parseScene(s), re); };
   refuse(s => { s.format = 'other'; }, /isn.t a scene/);
-  refuse(s => { s.version = 2; }, /newer app/);
+  refuse(s => { s.version = 3; }, /newer app/);
   refuse(s => { delete s.version; }, /no version/);
   refuse(s => { s.canvas = [1920]; }, /picture size/);
   refuse(s => { s.canvas = [10, 1080]; }, /picture size/);
@@ -223,6 +223,55 @@ test('the drawer draws every frame of the real export: attributes only, parts th
   assert.notEqual(D.body(scene, m[1], { parts: 'texts' }), D.body(scene, m[4], { parts: 'texts' }));
   assert.equal(D.describe(scene, m[3]).period, '1958');
   assert.throws(() => D.draw(scene, scene.frames), /outside/);
-  assert.throws(() => D.draw({ ...scene, version: 2 }, 0), /version/);
+  assert.throws(() => D.draw({ ...scene, version: 3 }, 0), /version/);
   assert.match(D.draw(scene, 0), /^<svg xmlns="http:\/\/www\.w3\.org\/2000\/svg" width="\d+" height="\d+" viewBox="0 0 \d+ \d+"><defs>/);
+});
+
+// ---- the two-layer fast path: bitmap at the mark + live overlay must EQUAL the engine's whole frame ---------------------------------------
+function twoLayerEqualsWhole(sc, frames) {
+  const marks = C.marksOf(sc);
+  const plainScene = C.bitmapScene(sc);
+  const over = C.overlayScene(sc);
+  let compared = 0, skippedFade = 0;
+  for (const f of frames) {
+    const p = sc.clock.ticks[f][0];
+    if (C.ctxAt(sc, f) !== C.ctxAt(sc, marks[p])) { skippedFade++; continue; }       // the roads-today layer is still fading: drawn whole
+    const whole = D.body(sc, f, { parts: 'graphics' });
+    const bitmap = D.body(plainScene, marks[p], { parts: 'graphics' });
+    const overlay = D.body(over, f, { parts: 'graphics' });
+    assert.equal(bitmap + overlay, whole, `frame ${f}`);
+    assert.equal(D.body(over, f, { parts: 'texts' }), D.body(sc, f, { parts: 'texts' }), `texts, frame ${f}`);
+    compared++;
+  }
+  return { compared, skippedFade };
+}
+test('two layers equal the whole frame: every frame of the real fixture (bitmap at the mark + overlay = the engine\'s own graphics, byte for byte)', () => {
+  const r = twoLayerEqualsWhole(scene, Array.from({ length: scene.frames }, (_, f) => f));
+  assert.ok(r.compared >= scene.frames - 40, `compared ${r.compared}`);
+});
+test('the overlay keeps every definition its drawing points at (ids with dots included) and drops the megabytes of line work it does not', () => {
+  const over = C.overlayScene(scene);
+  const refs = s => [...String(s).matchAll(/(?:href="#|url\(#)([A-Za-z0-9_.-]+)/g)].map(m => m[1]);
+  for (const f of [0, 40, 90, 150, scene.frames - 1]) {
+    const svg = D.draw(over, f, { parts: 'all' });
+    const ids = new Set([...svg.matchAll(/ id="([^"]+)"/g)].map(m => m[1]));
+    for (const id of refs(D.body(over, f, { parts: 'all' }))) assert.ok(ids.has(id), `frame ${f} points at #${id}, which the overlay dropped`);
+  }
+  assert.ok(Object.keys(over.defs).length < Object.keys(scene.defs).length, 'the overlay keeps fewer definitions');
+  assert.ok(JSON.stringify(over.defs).length < JSON.stringify(scene.defs).length / 2, 'and far fewer bytes');
+  assert.notEqual(scene.parts.page, '', 'the original scene is untouched');
+});
+const demoZip = path.join(here, '..', 'preview-demo', 'interstate.bundle.zip');
+test('the same on the REAL Interstate bundle: 120 frames across the film, bitmap + overlay equal the engine\'s whole frame', { skip: !fs.existsSync(demoZip) }, async () => {
+  const f = await Z.read(new Uint8Array(fs.readFileSync(demoZip)));
+  const real = await Z.sceneJson(f['scene.json.gz']);
+  assert.equal(real.frames, 2820);
+  assert.ok(real.parts.shields.length > 50);
+  const frames = Array.from({ length: 120 }, (_, i) => Math.round((i / 119) * (real.frames - 1)));
+  const r = twoLayerEqualsWhole(real, frames);
+  assert.ok(r.compared >= 110, `compared ${r.compared}, skipped ${r.skippedFade}`);
+  const over = C.overlayScene(real);
+  assert.ok(JSON.stringify(over.defs).length < JSON.stringify(real.defs).length / 20, 'the overlay drops almost all of the Interstate line work');
+  assert.ok(Object.keys(over.defs).some(id => id.includes('.')), 'a shield definition with a dot in its id is kept (a regex that stops at the dot loses every shield outline)');
+  assert.ok(real.parts.shields.every(sh => [...sh.svg.matchAll(/href="#([A-Za-z0-9_.-]+)"/g)].every(m => over.defs[m[1]] !== undefined)), 'every shield outline is there');
 });

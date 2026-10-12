@@ -5,7 +5,7 @@
 // The DRAWING RULES are not here: they are BUILDER's reference drawer (scene-draw.js, vendored); this file only
 // decides WHICH frame to draw and WHEN.
 (() => {
-  const SUPPORTED_MAJOR = 1;
+  const SUPPORTED_MAJOR = 2;
 
   class SceneError extends Error {}
   const bad = msg => { throw new SceneError(msg); };
@@ -192,6 +192,29 @@
   }
   const mmss = (frame, fps) => { const s = Math.floor(frame / fps); return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; };
 
-  window.ryagramPreviewCore = { SUPPORTED_MAJOR, SceneError, parseScene, marksOf, clampFrame, periodAt, nearestMark, stills,
+  // ---- (f) the two-layer fast path, as pure functions (the viewer uses them; tests/preview-core.test.mjs holds them to the engine) ------------
+  // A frame of period p is: the BITMAP of the scene at period p's exact mark (page, land, roads-today layer, base, every year up to p, drawn
+  // WITHOUT shields) + an OVERLAY drawn live by the engine's own drawer from a copy of the scene whose static parts are emptied: the crawl of
+  // the year being opened, every shield (so they stay crisp), and the texts. Concatenated, bitmap graphics + overlay graphics equal the full
+  // frame's graphics string exactly, so the arithmetic stays the engine's. It holds only while the roads-today layer's strength is the same
+  // at the frame and at the mark (ctxAt), which is false only in the first second of the film (that frame is drawn whole).
+  const ctxAt = (scene, f) => { const c = scene.parts && scene.parts.context; if (!c) return 0; let v = 0; for (const [first, val] of c.a) { if (first > f) break; v = val; } return v; };
+  const bitmapScene = scene => ({ ...scene, parts: { ...scene.parts, shields: [] } });
+  function overlayScene(scene) {
+    const parts = { ...scene.parts, page: '', states: '', base: '', years: [] };
+    if (parts.context) parts.context = { ...parts.context, layer: '' };           // its picture is in the bitmap; its key and credit stay live
+    // Only the definitions the overlay still points at: the full set holds every year's line work (megabytes) and would be parsed per frame.
+    // An id may contain a dot (shield-19.500x19.500); a reference is href="#id" or url(#id).
+    const need = new Set(), todo = [];
+    const add = str => { for (const m of String(str || '').matchAll(/(?:href="#|url\(#)([A-Za-z0-9_.-]+)/g)) { const id = m[1]; if (!need.has(id) && scene.defs[id] !== undefined) { need.add(id); todo.push(id); } } };
+    const walk = v => { if (typeof v === 'string') add(v); else if (Array.isArray(v)) v.forEach(walk); else if (v && typeof v === 'object') Object.values(v).forEach(walk); };
+    walk(parts);
+    while (todo.length) add(scene.defs[todo.pop()]);
+    const defs = {};
+    for (const id of Object.keys(scene.defs)) if (need.has(id)) defs[id] = scene.defs[id];
+    return { ...scene, parts, defs };
+  }
+
+  window.ryagramPreviewCore = { ctxAt, bitmapScene, overlayScene, SUPPORTED_MAJOR, SceneError, parseScene, marksOf, clampFrame, periodAt, nearestMark, stills,
     BUDGET_MS, FrameBudget, frameWhileDragging, deviceClass, cachePlan, FrameCache, keyTarget, valueText, mmss };
 })();

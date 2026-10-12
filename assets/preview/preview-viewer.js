@@ -50,7 +50,7 @@
     const cache = new C.FrameCache(80);
     const faces = await loadFonts(fonts);
     const [cw, ch] = scene.canvas;
-    const bw = Math.min(900, cw), bh = Math.round(bw * ch / cw);
+    const bw = Math.min(device === 'desktop' ? 1200 : 900, cw), bh = Math.round(bw * ch / cw);       // 38 bitmaps: about 120 MB on a desktop, 70 MB on a phone
 
     // --- the page of the viewer
     const svgHost = el('div', { class: 'pv-svg' });
@@ -62,29 +62,46 @@
     const playBtn = el('button', { type: 'button', class: 'button secondary pv-play' }, 'Play');
     const note = el('p', { class: 'form-note pv-note', role: 'status', hidden: true }, 'Showing exact years while you drag.');
     const notches = el('div', { class: 'pv-notches', 'aria-hidden': 'true' });
+    const ready = el('p', { class: 'form-note pv-ready', role: 'status', hidden: true });
     for (const s of C.stills(scene)) {
       const n = el('span', { class: 'pv-notch' });
       n.style.left = `${(s.first / Math.max(1, scene.frames - 1)) * 100}%`;
       n.style.width = `${Math.max(0.6, ((s.last - s.first + 1) / Math.max(1, scene.frames - 1)) * 100)}%`;
       notches.append(n);
     }
-    host.replaceChildren(stage, el('div', { class: 'pv-controls' }, playBtn, el('div', { class: 'pv-track' }, slider, notches), label), note);
+    host.replaceChildren(stage, el('div', { class: 'pv-controls' }, playBtn, el('div', { class: 'pv-track' }, slider, notches), label), note, ready);
 
     let frame = 0, shown = -1, dragging = false, playing = false, raf = 0, pending = false, destroyed = false;
     let playT0 = 0, playF0 = 0, lastMs = 0;
 
-    function draw(f, { snapped = false } = {}) {
+    // ---- the two-layer fast path (found by measuring the real Interstate bundle: a full frame costs about 170 ms to paint, because every road
+    // opened so far is one huge path). Everything drawn at a year's EXACT mark (page, land, base, every year up to it, its shields) is the same for
+    // every frame of that period, and it is already in the exact-year cache as a bitmap. A frame inside the period is that bitmap plus a small
+    // live drawing: the crawl of the year being opened, its shields, and the texts. The overlay is the engine's own drawer run on a copy of the
+    // scene with the static parts emptied, so the arithmetic is still the engine's.
+    const overlays = new Map();
+    let plain = null;
+    const bitmapScene = () => plain || (plain = C.bitmapScene(scene));
+    const ticks = scene.clock && Array.isArray(scene.clock.ticks) ? scene.clock.ticks : null;
+    const overlayFor = p => { if (!overlays.has(p)) overlays.set(p, C.overlayScene(scene)); return overlays.get(p); };
+    function fastDraw(f) {
+      if (!ticks || !ticks[f]) return false;
+      const p = ticks[f][0];
+      const mark = marks[p];
+      const base = mark === undefined ? undefined : cache.get(mark);
+      if (!base || C.ctxAt(scene, f) !== C.ctxAt(scene, mark)) return false;                      // not cached yet, or the roads-today layer is still fading
+      const g = bitmap.getContext('2d');
+      g.clearRect(0, 0, bw, bh); g.drawImage(base, 0, 0);
+      bitmap.hidden = false;
+      svgHost.innerHTML = drawer.draw(overlayFor(p), f, { parts: 'all' });
+      return true;
+    }
+
+    function draw(f) {
       const t0 = performance.now();
-      const cached = snapped ? cache.get(f) : undefined;
-      if (snapped && cached) {
-        const g = bitmap.getContext('2d');
-        g.clearRect(0, 0, bw, bh); g.drawImage(cached, 0, 0);
-        bitmap.hidden = false;
-        svgHost.innerHTML = drawer.draw(scene, f, { parts: 'texts' });
-      } else {
-        bitmap.hidden = true;
-        svgHost.innerHTML = drawer.draw(scene, f, { parts: 'all' });
-      }
+      if (fastDraw(f)) { shown = f; lastMs = performance.now() - t0; return lastMs; }
+      bitmap.hidden = true;                                                      // not cached yet (or the context layer is still fading): the whole frame, live
+      svgHost.innerHTML = drawer.draw(scene, f, { parts: 'all' });
       const ms = performance.now() - t0;
       shown = f;
       lastMs = ms;
@@ -95,7 +112,7 @@
       slider.value = String(frame);
       const snapMode = dragging && budget.mode === 'snap';
       const target = C.frameWhileDragging(dragging ? budget.mode : 'live', marks, frame);
-      const ms = draw(target, { snapped: snapMode });
+      const ms = draw(target);
       if (dragging || playing) budget.record(ms);
       note.hidden = !(dragging && budget.mode === 'snap');
       slider.setAttribute('aria-valuetext', C.valueText(scene, marks, frame, drawer.describe));
@@ -105,15 +122,23 @@
     function request(f) { frame = C.clampFrame(scene, f); if (pending) return; pending = true; requestAnimationFrame(() => { pending = false; if (!destroyed) show(frame); }); }
 
     // --- the exact-year cache, filled in idle time, nearest the current position first
-    let prefetchTimer = 0;
-    function schedulePrefetch() { clearTimeout(prefetchTimer); prefetchTimer = setTimeout(prefetch, 400); }
+    let prefetchTimer = 0, prefetching = false;
+    function schedulePrefetch(delay = 400) { clearTimeout(prefetchTimer); prefetchTimer = setTimeout(prefetch, delay); }
     async function prefetch() {
-      for (const f of C.cachePlan(marks, frame)) {
-        if (destroyed || dragging || playing) return;
-        if (cache.has(f)) continue;
-        try { cache.set(f, await rasterize(drawer.draw(scene, f, { parts: 'graphics' }), bw, bh), frame); } catch { return; }
-        await new Promise(r => setTimeout(r, 0));
-      }
+      if (prefetching) return;
+      prefetching = true;
+      try {
+        for (const f of C.cachePlan(marks, frame)) {
+          if (destroyed || dragging || playing) return;
+          if (cache.has(f)) continue;
+          ready.hidden = false;
+          ready.textContent = `Getting smooth playback ready: ${cache.size} of ${marks.length} years.`;
+          try { cache.set(f, await rasterize(drawer.draw(bitmapScene(), f, { parts: 'graphics' }), bw, bh), frame); } catch { return; }
+          await new Promise(r => setTimeout(r, 0));
+        }
+        ready.hidden = true;
+        if (!destroyed && !playing && !dragging) show(frame);                    // redraw the current frame on the fast path now that its year is cached
+      } finally { prefetching = false; }
     }
 
     // --- input
@@ -140,18 +165,18 @@
       playing = true; playBtn.textContent = 'Pause'; playT0 = performance.now(); playF0 = frame;
       raf = requestAnimationFrame(tickPlay);
     }
-    function stopPlay() { playing = false; cancelAnimationFrame(raf); playBtn.textContent = 'Play'; }
+    function stopPlay() { playing = false; cancelAnimationFrame(raf); playBtn.textContent = 'Play'; if (!destroyed) schedulePrefetch(); }
     playBtn.addEventListener('click', () => { if (playing) stopPlay(); else startPlay(); });
     const onHide = () => { if (document.hidden) stopPlay(); };
     document.addEventListener('visibilitychange', onHide);
 
     show(0);
-    schedulePrefetch();
+    schedulePrefetch(0);                                                          // start filling the exact-year cache at once
     return {
       setFrame: f => show(f, { fromUser: true }),
       // The scene, restyled in place by the editor (a patched copy); redraws the current frame and refills the cache.
-      setScene(next) { Object.assign(scene, next); cache.clear(); show(frame); schedulePrefetch(); },
-      state: () => ({ frame, shown, mode: budget.mode, playing, cached: cache.size, device, marks }),
+      setScene(next) { Object.assign(scene, next); cache.clear(); overlays.clear(); plain = null; show(frame); schedulePrefetch(0); },
+      state: () => ({ frame, shown, mode: budget.mode, playing, cached: cache.size, device, marks, lastMs }),
       budget, cache,
       destroy() { destroyed = true; stopPlay(); clearTimeout(prefetchTimer); document.removeEventListener('visibilitychange', onHide); cache.clear(); for (const f of faces) try { document.fonts.delete(f); } catch { /* ok */ } host.replaceChildren(); }
     };
