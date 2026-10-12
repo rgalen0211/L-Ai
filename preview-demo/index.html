@@ -21,10 +21,13 @@
 <header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
 <main class="container app-main" id="main">
   <h1 tabindex="-1">Drag through the film</h1>
-  <p class="form-intro">This is the Interstate film, drawn in your browser from the same drawing rules the render machine uses. Drag the slider to any moment, or press Play. Change a colour and the whole film updates at once. Nothing here is sent anywhere, and nothing costs credits; the final film is still rendered and checked on the render machine.</p>
+  <p class="form-intro">This is the Interstate film, drawn in your browser from the same drawing rules the render machine uses. Drag the slider to any moment, or press Play. Switch the theme or change a colour and the whole film updates at once. Nothing here is sent anywhere, and nothing costs credits; the final film is still rendered and checked on the render machine.</p>
   <p id="demo-status" class="form-note" role="status">Loading the film…</p>
   <p id="demo-error" class="app-error" role="alert" hidden></p>
   <div id="demo-host" class="pv-host"></div>
+  <fieldset id="demo-theme" class="pv-theme choices" hidden>
+    <legend>Theme</legend>
+  </fieldset>
   <div id="demo-edit" class="pv-edit" hidden>
     <h3>Change the colours</h3>
     <p class="form-note">Changes show at once. Nothing is saved on this page.</p>

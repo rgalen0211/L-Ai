@@ -20,3 +20,14 @@
 .pv-hex{width:7.5em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
 .pv-warnings{margin:10px 0;padding:10px 14px 10px 30px;border-left:3px solid var(--wheat,#c9a45c);background:var(--soft,#f4f1ea);border-radius:0 10px 10px 0;font-size:.92rem}
 .pv-warnings[hidden]{display:none}
+.pv-theme{margin:16px 0 0;padding:12px 0 0;border:0;border-top:1px solid var(--line)}
+.pv-theme legend{font-weight:700;padding:0 6px 0 0}
+.pv-theme .choice{display:inline-flex;align-items:center;gap:6px;margin-right:18px;font-weight:400}
+.pv-theme .choice input{width:auto;margin:0}
+.pv-endcard{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:rgba(20,20,26,.92);color:#f2f2ef}
+.pv-endcard[hidden]{display:none}
+.pv-endcard-mark{margin:0;font-family:'Noto Serif Display',Georgia,serif;font-size:clamp(1.6rem,5vw,3rem);letter-spacing:-.02em}
+.pv-endcard-line{margin:0;max-width:34em;color:#b6b5ae;font-size:clamp(.9rem,2vw,1.1rem)}
+.pv-endcard-actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:6px}
+.pv-endcard .button.secondary{color:#f2f2ef;border-color:#b6b5ae;background:transparent}
+.pv-endcard .button.secondary:hover{border-color:#f2f2ef}
