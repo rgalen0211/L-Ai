@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
-const sample = JSON.parse(read('film/samples/interstate.json'));
+const sample = JSON.parse(read('tests/fixtures/film-samples/interstate.json'));
 const filmJs = read('assets/film.js');
 const SLUG = 'AbCdEfGhIjKlMnOpQrStUv';
 
@@ -78,7 +78,7 @@ test('the sample is the Interstate film with its REAL source and receipt, made b
 const plain = x => JSON.parse(JSON.stringify(x));
 
 test('the sample\'s poster is a real JPEG of the film\'s last frame, small enough for a phone', () => {
-  const file = path.join(root, 'film/samples/interstate-final-frame.jpg');
+  const file = path.join(root, 'tests/fixtures/film-samples/interstate-final-frame.jpg');
   const bytes = fs.readFileSync(file);
   assert.deepEqual([bytes[0], bytes[1], bytes[2]], [0xff, 0xd8, 0xff]);
   assert.ok(bytes.length > 50_000 && bytes.length < 450_000, `${bytes.length} bytes`);
@@ -194,7 +194,7 @@ function appData(responses) {
   } } };
   return { data: w.ryagramData(client), calls };
 }
-const UPLOAD_409 = { error: { code: 'confirm_uploaded', error: 'This film was made from data you uploaded. A public page shows the film and its sources only, never your data. Publish it anyway?' } };
+const UPLOAD_409 = { error: { code: 'confirm_uploaded', error: "This film was drawn from data you uploaded, so anyone with the link will see what it shows — your data's values and pattern, frame by frame. The page lists the film's sources, not your file. Publish it anyway?" } };
 
 test('APP FLOW: public data publishes with ONE request and no question', async () => {
   const { data, calls } = appData([{ data: { slug: SLUG, url: 'u' } }]);
@@ -212,7 +212,7 @@ test('APP FLOW: an upload film asks once with the server\'s words, and only a ye
   const out = await data.publishFilmWithConfirm('v1', title.value, m => { messages.push(m); title.value = 'Changed while the question was open'; return true; });
   assert.equal(out.slug, SLUG);
   assert.equal(messages.length, 1);
-  assert.match(messages[0], /made from data you uploaded.*never your data/);
+  assert.match(messages[0], /drawn from data you uploaded.*frame by frame.*sources, not your file/);
   assert.deepEqual(calls.map(c => [c.body.title, c.body.confirm_uploaded]), [['First title', undefined], ['First title', true]]);
 });
 
@@ -268,4 +268,11 @@ test('focus: #sources moves focus to the sources heading; a failed load (even wi
   const plainLoad = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
   assert.equal(find(plainLoad.root, n => n.attrs.id === 'sources-title').attrs.tabindex, '-1');
   assert.equal(find(plainLoad.root, n => n.tag === 'h1').focused, true);
+});
+
+test('THE SAMPLE IS OFFLINE: nothing is served from /film/samples/, and /film/?sample=interstate says "No film here" (parked in tests/fixtures/film-samples/ until the final Roads film lands)', async () => {
+  assert.equal(fs.existsSync(path.join(root, 'film/samples')), false);
+  const r = await renderPage({ search: '?sample=interstate', sampleJson: null });
+  assert.match(textOf(r.root), /No film here/);
+  assert.equal(findAll(r.root, n => n.tag === 'img' || n.tag === 'video').length, 0);
 });
