@@ -137,6 +137,22 @@ def main():
                         print(f'  fast vs full frame {frame}: PSNR {raw:.1f} dB at screen size (the cached bitmap is softer), {at_bitmap:.1f} dB at the bitmap own size')
                     print(f'  worst fast-vs-full PSNR at the bitmap size {worst:.1f} dB (the bundle check against the engine is a separate, stricter test)')
                     ok = ok and worst >= 30
+                    # the theme swap (engine's light palette via the bundle's styles table) and the closing card
+                    swap_ms = page.evaluate('''async () => { const t = performance.now(); const r = document.querySelector('#demo-theme-light'); r.checked = true;
+                        r.dispatchEvent(new Event('change', { bubbles: true })); await new Promise(x => requestAnimationFrame(() => requestAnimationFrame(x))); return performance.now() - t; }''')
+                    page.evaluate('window.ryagramDemo.viewer.setFrame(1650)')
+                    page.wait_for_timeout(700)
+                    page.locator('.pv-stage').screenshot(path=str(OUT / 'interstate-light-1650.png'))
+                    page.wait_for_timeout(6000)                                            # the bitmaps are rebuilt in the new colours in idle time
+                    cached = page.evaluate('window.ryagramDemo.viewer.state().cached')
+                    page.evaluate('window.ryagramDemo.viewer.setFrame(2819)')
+                    page.wait_for_timeout(600)
+                    card = page.evaluate("!document.querySelector('.pv-endcard').hidden")
+                    page.locator('.pv-stage').screenshot(path=str(OUT / 'interstate-endcard.png'))
+                    page.locator('#demo-theme-dark').check()
+                    page.wait_for_timeout(300)
+                    print(f'  theme swap to light: {swap_ms:.0f} ms to repaint; exact years re-cached: {cached} of 38; end card shown at the last frame: {card}')
+                    ok = ok and card
                 ok = ok and not errors
                 ctx.close()
             browser.close()
