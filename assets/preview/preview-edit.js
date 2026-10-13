@@ -89,5 +89,62 @@
     return next;
   }
 
-  window.ryagramPreviewEdit = { LAYERS: LAYERS.map(l => ({ id: l.id, field: l.field, label: l.label })), current, recolour, toRgb, toHex, HEX };
+  // ---- THEME: both palettes the engine has, applied through the bundle's own `styles` table ------------------------------------------------
+  // scene.styles[key] = { source: 'theme' | 'story', value: 'rgb(r,g,b)' (as drawn), places: ['parts.key', 'defs.x', ...] }. A theme swap restyles exactly the
+  // keys whose source is 'theme', inside exactly the places listed, in ONE pass per place (so a colour that becomes another colour's old value
+  // is not changed twice). The bundle carries the theme it was drawn in; the other palette is the engine's own, from ryagram/maprace/style.yaml
+  // (themes.light, engine commit 98836d8), pinned by tests/preview-edit.test.mjs. Story colours (the roads) belong to the story, not the theme.
+  const LIGHT = Object.freeze({ 'page.background': '#fcfcfb', 'state.fill': '#f6f5f1', 'state.outline': '#3d3c39',
+                                'text.primary': '#0b0b0b', 'text.secondary': '#52514e', 'text.muted': '#898781' });
+  const themeKeys = scene => Object.keys(scene.styles || {}).filter(k => scene.styles[k] && scene.styles[k].source === 'theme');
+  const getAt = (scene, place) => place.split('.').reduce((o, k) => (o == null ? o : o[k]), scene);
+  function mapStrings(v, fn) {                                                  // a copy with fn applied to every string inside (arrays and objects walked)
+    if (typeof v === 'string') return fn(v);
+    if (Array.isArray(v)) return v.map(x => mapStrings(x, fn));
+    if (v && typeof v === 'object') { const o = {}; for (const k of Object.keys(v)) o[k] = mapStrings(v[k], fn); return o; }
+    return v;
+  }
+  function setAt(scene, place, value) {                                         // copy-on-write along the path; the original scene is never changed
+    const keys = place.split('.');
+    const go = (o, i) => ({ ...o, [keys[i]]: i === keys.length - 1 ? value : go(o[keys[i]], i + 1) });
+    return go(scene, 0);
+  }
+  // edits: { 'text.primary': '#rrggbb', ... } keyed by styles key. Unknown keys and bad colours are ignored.
+  function restyle(scene, edits) {
+    const byPlace = new Map();
+    for (const key of Object.keys(edits || {})) {
+      const st = scene.styles && scene.styles[key];
+      const to = edits[key];
+      if (!st || !HEX.test(to || '') || toRgb(to.toLowerCase()) === st.value) continue;
+      for (const place of st.places || []) {
+        if (!byPlace.has(place)) byPlace.set(place, new Map());
+        byPlace.get(place).set(st.value, toRgb(to.toLowerCase()));
+      }
+    }
+    let next = scene;
+    const styles = { ...(scene.styles || {}) };
+    for (const key of Object.keys(edits || {})) {                                 // the table follows the scene, so a restyled scene can be restyled again
+      const st = styles[key];
+      if (st && HEX.test(edits[key] || '')) styles[key] = { ...st, value: toRgb(edits[key].toLowerCase()) };
+    }
+    for (const [place, map] of byPlace) {
+      const cur = getAt(next, place);
+      if (cur === undefined) continue;
+      const olds = [...map.keys()].map(v => v.replace(/[()]/g, c => '\\' + c));
+      const re = new RegExp(olds.join('|'), 'g');
+      next = setAt(next, place, mapStrings(cur, str => str.replace(re, m => map.get(m))));
+    }
+    return byPlace.size === 0 ? scene : { ...next, styles };
+  }
+  // The edits that put the scene in a theme: 'light' = the engine's light palette; 'dark' (or any other name) = the colours the bundle was drawn with.
+  function themeEdits(scene, theme, drawnIn = scene) {
+    const out = {};
+    for (const key of themeKeys(drawnIn)) {
+      if (theme === 'light') { if (LIGHT[key]) out[key] = LIGHT[key]; }
+      else out[key] = toHex(drawnIn.styles[key].value);
+    }
+    return out;
+  }
+
+  window.ryagramPreviewEdit = { LIGHT, themeKeys, restyle, themeEdits, LAYERS: LAYERS.map(l => ({ id: l.id, field: l.field, label: l.label })), current, recolour, toRgb, toHex, HEX };
 })();

@@ -41,7 +41,7 @@
     });
   }
 
-  async function mount(host, { scene, fonts = {}, drawer = window.RyagramScene, env = {}, snapAlways = false } = {}) {
+  async function mount(host, { scene, fonts = {}, drawer = window.RyagramScene, env = {}, snapAlways = false, onFrame = null } = {}) {
     C.parseScene(scene);
     if (!drawer || typeof drawer.draw !== 'function') throw new C.SceneError('The preview drawing code isn’t loaded.');
     const marks = C.marksOf(scene);
@@ -118,6 +118,7 @@
       slider.setAttribute('aria-valuetext', C.valueText(scene, marks, frame, drawer.describe));
       label.textContent = `${scene.clock.periods[C.periodAt(marks, frame)]}  ${C.mmss(frame, scene.fps)}`;
       if (fromUser) schedulePrefetch();
+      if (onFrame) onFrame(frame, { playing });
     }
     function request(f) { frame = C.clampFrame(scene, f); if (pending) return; pending = true; requestAnimationFrame(() => { pending = false; if (!destroyed) show(frame); }); }
 
@@ -174,6 +175,7 @@
     schedulePrefetch(0);                                                          // start filling the exact-year cache at once
     return {
       setFrame: f => show(f, { fromUser: true }),
+      stage, play: startPlay, pause: stopPlay,
       // The scene, restyled in place by the editor (a patched copy); redraws the current frame and refills the cache.
       setScene(next) { Object.assign(scene, next); cache.clear(); overlays.clear(); plain = null; show(frame); schedulePrefetch(0); },
       state: () => ({ frame, shown, mode: budget.mode, playing, cached: cache.size, device, marks, lastMs }),
