@@ -1,4 +1,4 @@
-// Public film pages. Two callers:
+// Public film pages: OFF until the owner publishes (nothing here ever publishes by itself). Two callers:
 //   GET  ?s=<slug>                       anyone: the page's data, with short-lived signed links
 //   POST { version_id, title? } + JWT    the owner: publish (or refresh) the page, get its slug
 // Unpublishing is the film_unpublish RPC, straight from the app. Tested in tests/film-page.test.mjs.
@@ -57,7 +57,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   const user = jwt ? await deps.verifyUser(jwt).catch(() => null) : null;
   if (!user) return reply(401, { error: "Sign in first." });
 
-  let body: { version_id?: unknown; title?: unknown };
+  let body: { version_id?: unknown; title?: unknown; confirm_uploaded?: unknown };
   try { body = await req.json(); } catch { return reply(400, { error: "Bad request." }); }
   const versionId = String(body.version_id ?? "");
   if (!UUID.test(versionId)) return reply(400, { error: "Bad version." });
@@ -65,6 +65,12 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
 
   try {
     const ctx = await deps.publishContext(user.id, versionId);
+    // A film made from the owner's own upload (which includes every "Don't keep my data" project) is never public by accident: the owner must say, in
+    // this request, that they know the page will show the film and its sources only, never the data. Nothing is read or written before that.
+    if (ctx.uploaded_data && body.confirm_uploaded !== true) {
+      return reply(409, { code: "confirm_uploaded",
+        error: "This film was made from data you uploaded. A public page shows the film and its sources only, never your data. Publish it anyway?" });
+    }
     let receipt: unknown;
     try { receipt = JSON.parse(await deps.readFile(ctx.receipt_path)); }
     catch { return reply(409, { error: "This film's receipt couldn't be read, so its sources can't be shown." }); }

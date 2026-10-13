@@ -61,6 +61,21 @@ class FilmPages(core.Base):
         self.assertEqual(self.publish(vid, title="  "), slug)
         self.assertEqual(self.svc().one("select public_film(%s)", slug)["title"], "Obesity")
 
+    def test_a_finished_film_is_NOT_public_until_the_owner_publishes_it(self):
+        """Opt-in per film, off by default (Ryan, 2026-10-13): finishing a film, even looking at its publish context, makes no page."""
+        vid, final = self.finished()
+        count = lambda: self.db.as_(None).one("select count(*) from public.film_pages")
+        self.assertEqual(count(), 0)                                                   # finished, rendered, stored: and still nothing public
+        self.svc().one("select film_publish_context(%s, %s)", RYAN, vid)             # asking what publishing WOULD use creates nothing
+        self.assertEqual(count(), 0)
+        for who in ("anon", RYAN, OTHER):
+            self.denied(who, "select public_film('AbCdEfGhIjKlMnOpQrStUv')")
+        slug = self.publish(vid)
+        self.assertEqual(count(), 1)
+        self.svc().one("select public_film(%s)", slug)
+        self.db.as_(RYAN).one("select film_unpublish(%s)", vid)
+        self.assertIsNone(self.svc().one("select public_film(%s)", slug))             # off again: the link answers "not found"
+
     def test_unpublish_is_the_owners_and_takes_effect_at_once(self):
         vid, _ = self.finished()
         slug = self.publish(vid)

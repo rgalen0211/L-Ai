@@ -8,6 +8,8 @@
   const local = ['localhost', '127.0.0.1'].includes(location.hostname);
   const mock = local && params.has('mock');               // sample data, for local checks only
   const SLUG = /^[A-Za-z0-9_-]{22}$/;
+  const SAMPLE = /^[a-z0-9-]{1,40}$/;                    // /film/?sample=interstate: a fixed sample page from /film/samples/<name>.json, no server involved
+  const sampleName = SAMPLE.test(params.get('sample') || '') ? params.get('sample') : '';
 
   function h(tag, attrs = {}, ...children) {
     const el = document.createElement(tag);
@@ -21,9 +23,18 @@
   }
   const safeUrl = u => { try { const x = new URL(u); return x.protocol === 'https:' ? x.href : null; } catch { return null; } };
   const date = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); };
-  const cta = `/ryagram/?utm_source=film_page&utm_medium=referral&utm_campaign=${encodeURIComponent(SLUG.test(slug) ? slug : 'film')}`;
+  // "Make your own data film" goes to the WAITLIST while Ryagram is coming soon (the waitlist section of the Ryagram page), tagged so signups from film pages
+  // can be counted. The link a film's "Made with Ryagram · View sources" mark points to is this page's own address plus #sources: /film/?s=<slug>#sources.
+  const cta = `/ryagram/?utm_source=film_page&utm_medium=referral&utm_campaign=${encodeURIComponent(sampleName ? `sample_${sampleName}` : SLUG.test(slug) ? slug : 'film')}#waitlist`;
 
   async function load() {
+    if (sampleName) {
+      const res = await fetch(`/film/samples/${sampleName}.json`);
+      if (!res.ok) return null;
+      const page = await res.json();
+      const meta = document.createElement('meta'); meta.name = 'robots'; meta.content = 'noindex, nofollow'; document.head.append(meta);   // a sample is not a real film page
+      return page;
+    }
     if (mock) return (await fetch('/tests/fixtures/film/page-sample.json')).json();
     if (!SLUG.test(slug)) return null;
     const base = window.ryagramConfig?.supabaseUrl;
@@ -64,6 +75,7 @@
     const rows = [
       s.window && ['Period', s.window.start === s.window.end ? s.window.start : `${s.window.start} to ${s.window.end}`],
       s.area && ['Area', s.area],
+      page.sample && ['This page', 'A sample, to show what a Ryagram film page contains'],
       f.seconds && ['Length', `${Math.round(f.seconds)} seconds${f.width && f.height ? `, ${f.width}×${f.height}` : ''}${f.fps ? `, ${f.fps} fps` : ''}`],
       e.drawn_at && ['Drawn', e.drawn_at],
       e.commit && ['Engine version', e.commit],
@@ -78,21 +90,31 @@
   function render(page) {
     const s = page.summary || {};
     document.title = `${page.title} | Made with Ryagram`;
+    const posterUrl = page.poster_url && (/^\/film\/samples\/[a-z0-9-]+\.jpg$/.test(page.poster_url) || safeUrl(page.poster_url)) ? page.poster_url : null;
     const video = page.video_url
       ? h('video', { controls: true, playsinline: true, preload: 'metadata', poster: page.poster_url || null, src: page.video_url,
                      width: String(s.film?.width || 1920), height: String(s.film?.height || 1080) })
-      : h('p', { class: 'film-gone' }, 'This film is no longer stored, but its sources are below.');
-    root.replaceChildren(
+      : page.sample && posterUrl
+        ? h('img', { class: 'film-poster', src: posterUrl, alt: `The last frame of the film: ${s.headline || page.title}, ${s.window ? `${s.window.start} to ${s.window.end}` : ''}`, width: String(s.film?.width || 1920), height: String(s.film?.height || 1080) })
+        : h('p', { class: 'film-gone' }, 'This film is no longer stored, but its sources are below.');
+    root.replaceChildren(...[                                                  // (replaceChildren(null) would print the word "null": drop the empty parts)
       h('h1', { tabindex: '-1' }, page.title),
       s.subhead && s.subhead !== page.title ? h('p', { class: 'film-subhead' }, s.subhead) : null,
+      page.sample ? h('p', { class: 'film-sample', role: 'note' }, 'This is a sample page. It shows what every published Ryagram film page contains: the film, where its data came from, how it was drawn, and its receipt.') : null,
       h('figure', { class: 'film-player' }, video,
-        h('figcaption', {}, 'Made with Ryagram · ', h('a', { href: '#sources' }, 'View sources'))),
+        h('figcaption', {}, 'Made with Ryagram · ', h('a', { href: '#sources' }, 'View sources'),
+          page.sample && page.preview_url && /^\/[a-z0-9\/_-]*$/.test(page.preview_url) ? [' · ', h('a', { href: page.preview_url }, 'Drag through the film')] : null)),
       h('div', { class: 'film-cta' },
-        h('p', {}, 'Have a question? Ryagram makes the data answer it.'),
+        h('div', {}, h('p', {}, 'Have a question? Ryagram makes the data answer it.'),
+          h('p', { class: 'film-meta' }, 'Ryagram is opening by invitation. Join the waitlist and we will tell you when it is your turn.')),
         h('a', { class: 'button primary', href: cta }, 'Make your own data film')),
       sourcesSection(s),
-      receipt(page));
+      receipt(page)].filter(Boolean));
     document.getElementById('cta-top').setAttribute('href', cta);
+    if (location.hash === '#sources') {                                      // the link an exported film points to: land on the sources
+      const at = document.getElementById('sources');
+      if (at) { at.scrollIntoView(); document.getElementById('sources-title')?.setAttribute('tabindex', '-1'); document.getElementById('sources-title')?.focus(); }
+    }
   }
 
   function notFound(text) {
@@ -102,5 +124,5 @@
 
   load().then(page => (page ? render(page) : notFound('This film page doesn’t exist, or its maker has stopped sharing it.')))
     .catch(() => notFound('The film couldn’t be loaded just now. Try again in a minute.'))
-    .finally(() => root.querySelector('h1')?.focus());
+    .finally(() => { if (location.hash !== '#sources') root.querySelector('h1')?.focus(); });
 })();

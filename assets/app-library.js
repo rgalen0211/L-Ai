@@ -765,7 +765,16 @@
           if (!confirm('Publish a public page for this film? Anyone with the link can watch it and read its sources and method. Uploaded data is never shown.')) return;
           error.hidden = true;
           await busy(go, 'Publishing…', async () => {
-            try { await data.publishFilm(v.id, title.value); await draw(); } catch (err) { showError(error, err); }
+            try {
+              try { await data.publishFilm(v.id, title.value); }
+              catch (err) {
+                // A film made from the person's own upload: ask once more, in plain words, and only then publish (never the data, only the film and its sources).
+                if (err.code !== 'confirm_uploaded') throw err;
+                if (!confirm(err.message)) throw new Error('Not published. Nothing is public.');
+                await data.publishFilm(v.id, title.value, { confirmUploaded: true });
+              }
+              await draw();
+            } catch (err) { showError(error, err); }
           });
         } }, 'Publish a public page');
         el.replaceChildren(heading,

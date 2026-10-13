@@ -314,12 +314,13 @@
           .eq('version_id', versionId), 'Couldn’t load the public page.');
         return rows[0] || null;
       },
-      async publishFilm(versionId, title) {
-        const { data, error } = await client.functions.invoke('film-page', { body: { version_id: versionId, title } });
+      // confirmUploaded: the owner has said yes to publishing a film made from their own upload (the page shows the film and its sources, never the data).
+      async publishFilm(versionId, title, { confirmUploaded = false } = {}) {
+        const { data, error } = await client.functions.invoke('film-page', { body: { version_id: versionId, title, ...(confirmUploaded ? { confirm_uploaded: true } : {}) } });
         if (error) {
-          let text = 'Couldn’t publish just now.';
-          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
-          throw new Error(text);
+          let text = 'Couldn’t publish just now.', code = null;
+          try { const body = await error.context.json(); text = body.error || text; code = body.code || null; } catch { /* keep the plain message */ }
+          throw Object.assign(new Error(text), { code });
         }
         return data;
       },

@@ -1,0 +1,180 @@
+// The public film page (film/index.html + assets/film.js) and its sample (the Interstate film): what a page shows, what it must never show, where its
+// "Make your own data film" button goes, and the link target a film's "Made with Ryagram · View sources" mark points to (/film/?s=<slug>#sources).
+// film.js runs here against a tiny fake DOM, so the page's real rendering code is what is tested.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const root = path.join(here, '..');
+const read = p => fs.readFileSync(path.join(root, p), 'utf8');
+const sample = JSON.parse(read('film/samples/interstate.json'));
+const filmJs = read('assets/film.js');
+const SLUG = 'AbCdEfGhIjKlMnOpQrStUv';
+
+// ---- a fake DOM: enough for film.js's own h() helper ----------------------------------------------------------------------------------------
+class Node_ {
+  constructor(tag) { this.tag = tag; this.attrs = {}; this.children = []; this.className = ''; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return this.attrs[k] ?? null; }
+  append(...kids) { for (const k of kids) this.children.push(typeof k === 'string' ? { text: k } : k); }
+  replaceChildren(...kids) { this.children = []; this.append(...kids); }
+  focus() { this.focused = true; }
+  scrollIntoView() { this.scrolled = true; }
+  querySelector(sel) { return sel === 'h1' ? find(this, n => n.tag === 'h1') : null; }
+}
+const walk = (n, f) => { if (!n || n.text !== undefined) return; f(n); n.children.forEach(c => walk(c, f)); };
+const find = (n, pred) => { let hit = null; walk(n, x => { if (!hit && pred(x)) hit = x; }); return hit; };
+const findAll = (n, pred) => { const out = []; walk(n, x => { if (pred(x)) out.push(x); }); return out; };
+const textOf = n => (n.text !== undefined ? n.text : n.children.map(textOf).join(''));
+
+async function renderPage({ search = '', hash = '', page = null, status = 200, sampleJson = null } = {}) {
+  const els = { film: new Node_('main'), 'cta-top': new Node_('a') };
+  const head = new Node_('head');
+  const calls = [];
+  const document = {
+    getElementById: id => (id === 'sources' ? find(els.film, n => n.attrs.id === 'sources') : id === 'sources-title' ? find(els.film, n => n.attrs.id === 'sources-title') : els[id] || null),
+    createElement: tag => new Node_(tag), head, title: ''
+  };
+  const fetch = async url => {
+    calls.push(url);
+    if (url.startsWith('/film/samples/')) return { ok: !!sampleJson, status: sampleJson ? 200 : 404, json: async () => sampleJson };
+    return { ok: status === 200, status, json: async () => page };
+  };
+  const ctx = { window: { ryagramConfig: { supabaseUrl: 'https://p.supabase.co' } }, document, location: { search, hash, hostname: 'uselai.com' }, URLSearchParams, URL, fetch,
+                Date, isNaN, encodeURIComponent, String, Number, Array, Object, JSON, Promise, Error };
+  vm.createContext(ctx);
+  vm.runInContext(filmJs, ctx);
+  await new Promise(r => setTimeout(r, 30));
+  return { root: els.film, head, ctaTop: els['cta-top'], calls, document };
+}
+const PUBLISHED = { title: 'Fast food and obesity', published_at: '2026-10-01T00:00:00Z', video_url: 'https://jxtk.supabase.co/v.mp4', poster_url: 'https://jxtk.supabase.co/p.jpg',
+  summary: { headline: 'Fast food and obesity', subhead: '', window: { start: '2011', end: '2023' }, area: 'States', uploaded_data: false, measures: [{ label: 'Obesity rate', unit: '%' }],
+             datasets: [{ label: 'CDC', credit: 'Source: CDC', sources: [{ name: 'CDC adult obesity', url: 'https://www.cdc.gov/obesity/', license: 'Public domain' }], method: 'Survey data.', retrieved: '2026-09-30', values_are: 'measured', derivations: [], breaks: [] }],
+             film: { seconds: 30, width: 1920, height: 1080, fps: 30 }, engine: { commit: 'abcdef123456', drawn_at: '2026-10-01' } } };
+
+// ---- the sample ----------------------------------------------------------------------------------------------------------------------------------
+test('the sample is the Interstate film with its REAL source and receipt, made by the live allowlist, and carries nothing private', () => {
+  assert.equal(sample.sample, true);
+  assert.equal(sample.title, 'The Interstate Highway System');
+  const d = sample.summary.datasets[0];
+  assert.match(d.label, /Interstate network by opening year \(Brooks & Liscow/);
+  assert.equal(d.sources[0].url, 'https://doi.org/10.3886/E144281V1');
+  assert.match(d.sources[0].license, /^CC BY 4\.0/);
+  assert.match(d.credit, /Brooks & Liscow \(2023\), DOI 10\.3886\/E144281V1 \(CC BY 4\.0\)/);
+  assert.deepEqual(plain(sample.summary.window), { start: '1956', end: '1993' });
+  assert.match(sample.summary.engine.commit, /^[0-9a-f]{12}$/);
+  assert.equal(sample.summary.uploaded_data, false);
+  assert.equal(sample.published_at, null);                         // a sample has no publish date
+  assert.equal(sample.video_url, null);                            // and no video file: the film is not published
+  assert.equal(JSON.stringify(sample).match(/C:\\|\/Users\/|\/home\/|sidecar|cache|reproduce|\.json"|\.py/i), null);
+  const reference = JSON.parse(read('tests/fixtures/film/page-sample.json'));
+  assert.deepEqual(Object.keys(sample.summary).sort(), Object.keys(reference.summary).sort());      // exactly the allowlisted summary's keys
+  assert.deepEqual(Object.keys(sample.summary.datasets[0]).sort(), Object.keys(reference.summary.datasets[0]).sort());
+});
+const plain = x => JSON.parse(JSON.stringify(x));
+
+test('the sample\'s poster is a real JPEG of the film\'s last frame, small enough for a phone', () => {
+  const file = path.join(root, 'film/samples/interstate-final-frame.jpg');
+  const bytes = fs.readFileSync(file);
+  assert.deepEqual([bytes[0], bytes[1], bytes[2]], [0xff, 0xd8, 0xff]);
+  assert.ok(bytes.length > 50_000 && bytes.length < 450_000, `${bytes.length} bytes`);
+  assert.equal(sample.poster_url, '/film/samples/interstate-final-frame.jpg');
+});
+
+// ---- the page, rendered by film.js ------------------------------------------------------------------------------------------------------------
+test('THE SAMPLE PAGE: title, sample note, poster, "Made with Ryagram · View sources", the real source linked, the receipt, noindex, and no video', async () => {
+  const r = await renderPage({ search: '?sample=interstate', sampleJson: sample });
+  const text = textOf(r.root);
+  assert.deepEqual(r.calls, ['/film/samples/interstate.json']);
+  assert.match(text, /The Interstate Highway System/);
+  assert.match(text, /This is a sample page\./);
+  assert.match(text, /Made with Ryagram · View sources/);
+  assert.match(text, /Brooks & Liscow \(2023\), Infrastructure Costs, replication package/);
+  assert.match(text, /Engine version9b3d886dee22/);
+  assert.match(text, /This pageA sample, to show what a Ryagram film page contains/);
+  assert.doesNotMatch(text, /Published/);
+  assert.ok(findAll(r.root, n => n.tag === 'img' && n.attrs.src === '/film/samples/interstate-final-frame.jpg').length === 1);
+  assert.equal(findAll(r.root, n => n.tag === 'video').length, 0);
+  assert.ok(findAll(r.root, n => n.tag === 'a' && n.attrs.href === 'https://doi.org/10.3886/E144281V1').length === 1);
+  assert.deepEqual(findAll(r.head, n => n.tag === 'meta').map(n => [n.name, n.content]), [['robots', 'noindex, nofollow']]);
+});
+
+test('"Make your own data film" goes to the WAITLIST while Ryagram is coming soon, tagged for counting, in the header and in the page', async () => {
+  const sampleR = await renderPage({ search: '?sample=interstate', sampleJson: sample });
+  const live = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
+  for (const [r, campaign] of [[sampleR, 'sample_interstate'], [live, SLUG]]) {
+    const btn = findAll(r.root, n => n.tag === 'a' && textOf(n) === 'Make your own data film')[0];
+    assert.equal(btn.attrs.href, `/ryagram/?utm_source=film_page&utm_medium=referral&utm_campaign=${campaign}#waitlist`);
+    assert.equal(r.ctaTop.attrs.href, btn.attrs.href);
+    assert.match(textOf(r.root), /opening by invitation\. Join the waitlist/);
+  }
+});
+
+test('A PUBLISHED FILM: the film, "Made with Ryagram · View sources" pointing at #sources, the sources and method, the receipt; no sample note, indexable', async () => {
+  const r = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
+  const text = textOf(r.root);
+  assert.deepEqual(r.calls, [`https://p.supabase.co/functions/v1/film-page?s=${SLUG}`]);
+  assert.equal(findAll(r.root, n => n.tag === 'video').length, 1);
+  const cap = find(r.root, n => n.tag === 'figcaption');
+  assert.equal(textOf(cap), 'Made with Ryagram · View sources');
+  assert.equal(find(cap, n => n.tag === 'a').attrs.href, '#sources');
+  assert.match(text, /Sources and method/);
+  assert.match(text, /CDC adult obesity/);
+  assert.match(text, /Published/);
+  assert.doesNotMatch(text, /sample page/i);
+  assert.equal(findAll(r.head, n => n.tag === 'meta').length, 0);
+});
+
+test('a film with no separate subhead shows no stray "null" (replaceChildren(null) prints the word)', async () => {
+  const r = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
+  assert.doesNotMatch(textOf(r.root), /null|undefined/);
+  const withSub = await renderPage({ search: `?s=${SLUG}`, page: { ...PUBLISHED, summary: { ...PUBLISHED.summary, subhead: 'A subhead' } } });
+  assert.match(textOf(withSub.root), /A subhead/);
+});
+
+test('THE LINK TARGET for exported films: /film/?s=<slug>#sources lands on the sources section (and the heading, not the title, takes focus)', async () => {
+  const r = await renderPage({ search: `?s=${SLUG}`, hash: '#sources', page: PUBLISHED });
+  const section = find(r.root, n => n.attrs.id === 'sources');
+  assert.equal(section.scrolled, true);
+  assert.equal(find(r.root, n => n.attrs.id === 'sources-title').focused, true);
+  assert.notEqual(find(r.root, n => n.tag === 'h1').focused, true);
+  const plainOpen = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
+  assert.equal(find(plainOpen.root, n => n.attrs.id === 'sources').scrolled, undefined);
+});
+
+test('NOT PUBLISHED, UNKNOWN OR BAD: "No film here" and nothing else; a made-up slug never reaches the server; an unknown sample says no film', async () => {
+  const gone = await renderPage({ search: `?s=${SLUG}`, status: 404 });
+  assert.match(textOf(gone.root), /No film here/);
+  assert.match(textOf(gone.root), /doesn’t exist, or its maker has stopped sharing it/);
+  const bad = await renderPage({ search: '?s=short' });
+  assert.match(textOf(bad.root), /No film here/);
+  assert.deepEqual(bad.calls, []);
+  const nope = await renderPage({ search: '?sample=nope' });
+  assert.match(textOf(nope.root), /No film here/);
+  const weird = await renderPage({ search: '?sample=../../etc/passwd' });
+  assert.deepEqual(weird.calls, []);                                                       // a sample name is letters, digits and hyphens only
+  assert.match(textOf(weird.root), /No film here/);
+});
+
+test('A FILM MADE FROM THE OWNER\'S UPLOAD names only "the maker\'s own data": no source labels, links, notes or values appear', async () => {
+  const page = { ...PUBLISHED, summary: { ...PUBLISHED.summary, uploaded_data: true, measures: [],
+                  datasets: [{ label: 'The maker’s own data', credit: '', sources: [], method: '', retrieved: '', values_are: '', derivations: [], breaks: [] }] } };
+  const r = await renderPage({ search: `?s=${SLUG}`, page });
+  const text = textOf(r.root);
+  assert.match(text, /made from data its maker uploaded\. The data itself isn’t published here\./);
+  assert.match(text, /The maker’s own data/);
+  assert.doesNotMatch(text, /CDC|Survey data|Obesity rate/);
+});
+
+test('the film page file loads the sample and the page script, under a policy that allows only its own files and the project\'s storage', () => {
+  const html = read('film/index.html');
+  assert.match(html, /film\.js\?v=20261013a/);
+  const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
+  assert.match(csp, /script-src 'self'(;|$)/);
+  assert.match(csp, /connect-src 'self' https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co/);
+  assert.doesNotMatch(csp, /unsafe/);
+});
