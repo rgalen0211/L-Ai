@@ -95,3 +95,11 @@ test('the Operations screen says how many child-safety reports are open, which a
   assert.match(O.childSafetyLine({ open: 2, open_not_hidden: 2, holds_this_hour: 10, holds_cap: 10 }), /2 NOT hidden .*review them first/);
   assert.equal(O.childSafetyLine(null), 'No child-safety information.');
 });
+
+test('the Operations screen words the payments that need review, and says nothing is wrong when there are none or payments are off', () => {
+  assert.equal(O.stripeLine({ available: false, open: 0, items: [] }), 'Payments are not set up yet, so there is nothing to review.');
+  assert.equal(O.stripeLine(null), 'Payments are not set up yet, so there is nothing to review.');
+  assert.equal(O.stripeLine({ available: true, open: 0, items: [] }), 'No payment events need review.');
+  assert.match(O.stripeLine({ available: true, open: 1, items: [] }), /^1 payment event needs your review: nothing was changed for it\. Fix by hand/);
+  assert.match(O.stripeLine({ available: true, open: 3, items: [] }), /^3 payment events need your review: nothing was changed for them\./);
+});

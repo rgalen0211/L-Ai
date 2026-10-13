@@ -78,8 +78,15 @@
     return `${head} Pages hidden automatically this hour: ${cs.holds_this_hour} of ${cs.holds_cap}.`;
   }
 
+  // Stripe events the webhook could not match (nothing was changed for them): Ryan fixes them by hand, then marks them reviewed.
+  function stripeLine(st) {
+    if (!st || !st.available) return 'Payments are not set up yet, so there is nothing to review.';
+    const open = Number(st.open) || 0;
+    return open ? `${plural(open, 'payment event')} need${open === 1 ? 's' : ''} your review: nothing was changed for ${open === 1 ? 'it' : 'them'}. Fix by hand (adjust or grant credits), then mark ${open === 1 ? 'it' : 'them'} reviewed.` : 'No payment events need review.';
+  }
+
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, usd, ENDED_WORDS, REASON_WORDS };
+  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, usd, ENDED_WORDS, REASON_WORDS };
 })();

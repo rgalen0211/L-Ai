@@ -355,7 +355,7 @@ class Ops(core.Base):
             self.assertTrue(new)
             may_sign_in = {"worker_ping(numeric)", "service_status()", "submit_support(text,text,text,uuid,text)",
                            "report_film_page(text,text,text,text,text)", "admin_review_report(bigint,text)", "admin_ops()",
-                           "admin_answer_support(bigint)", "record_backup(text,boolean,bigint,text)"}
+                           "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
@@ -647,6 +647,49 @@ class Ops(core.Base):
         self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'urgent:%%' and resolved_at is null"), 0)
         self.assertEqual(self.db.as_("service").one("select ops_digest_data()")["recovered"], [])          # an answered urgent alert is not "back to normal"
         self.assertEqual(plain(self.db.as_(RYAN).one("select admin_ops()")["child_safety"])["open"], 0)
+
+    # -- Stripe payments that need review (Phase 2B's stripe_events, read dynamically)
+    STRIPE_TABLE = ("create table public.stripe_events (event_id text primary key, type text not null, livemode boolean not null, "
+                    "outcome text not null, detail text, owner_id uuid, received_at timestamptz not null default now())")
+
+    def test_stripe_review_is_unavailable_until_the_table_exists_then_lists_counts_alerts_once_and_clears_when_reviewed(self):
+        self.make_ryan_admin()
+        d = self.db.as_(RYAN).one("select admin_ops()")
+        self.assertEqual(plain(d["stripe"]), {"available": False, "open": 0, "items": []})        # no stripe_events yet: nothing breaks
+        self.assertEqual([a["key"] for a in self.tick()["new_alerts"]], [])
+        self.db.as_(None).c.execute(self.STRIPE_TABLE)
+        for i, (outcome, detail) in enumerate((("needs_review", "Paid for an unknown pack: pack_x."), ("needs_review", "Checkout has no Ryagram user."),
+                                               ("applied", None), ("ignored", None), ("refused_live", None))):
+            self.admin("insert into public.stripe_events (event_id, type, livemode, outcome, detail) values (%s, 'checkout.session.completed', false, %s, %s) returning 1", f"evt_a{i}", outcome, detail)
+        st = self.db.as_(RYAN).one("select admin_ops()")["stripe"]
+        self.assertEqual((st["available"], st["open"], [e["event_id"] for e in st["items"]]), (True, 2, ["evt_a0", "evt_a1"]))
+        self.assertEqual(st["items"][0]["detail"], "Paid for an unknown pack: pack_x.")
+        new = self.tick()["new_alerts"]
+        self.assertEqual([(a["key"], a["urgent"]) for a in new if a["key"] == "stripe_needs_review"], [("stripe_needs_review", False)])
+        self.assertIn("2 Stripe payment events need review", [a["detail"] for a in new if a["key"] == "stripe_needs_review"][0])
+        self.db.as_("service").one("select ops_mark_notified(%s)", ["stripe_needs_review"])
+        self.assertEqual([a["key"] for a in self.tick()["new_alerts"]], [])                    # one alert, not one per tick
+        self.db.as_(RYAN).one("select admin_ack_stripe('evt_a0')")
+        self.db.as_(RYAN).one("select admin_ack_stripe('evt_a0')")                              # idempotent
+        self.assertEqual(self.db.as_(RYAN).one("select admin_ops()")["stripe"]["open"], 1)
+        self.tick()
+        self.assertIn("1 Stripe payment events need review", self.admin("select detail from public.ops_alerts where key = 'stripe_needs_review'"))
+        self.db.as_(RYAN).one("select admin_ack_stripe('evt_a1')")
+        self.tick()
+        self.assertIsNotNone(self.admin("select resolved_at from public.ops_alerts where key = 'stripe_needs_review'"))
+        self.assertEqual(plain(self.db.as_(RYAN).one("select admin_ops()")["stripe"]), {"available": True, "open": 0, "items": []})
+        self.admin("insert into public.stripe_events (event_id, type, livemode, outcome) values ('evt_later', 'invoice.paid', false, 'needs_review') returning 1")
+        self.assertEqual([a["key"] for a in self.tick()["new_alerts"] if a["key"] == "stripe_needs_review"], ["stripe_needs_review"])   # a new incident alerts again
+
+    def test_only_ryan_can_mark_a_payment_reviewed_and_only_with_a_real_event_id(self):
+        self.make_ryan_admin()
+        for who in (OTHER, "anon"):
+            self.denied(who, "select admin_ack_stripe('evt_x1')")
+        for bad in ("", "x1", "evt_", "evt_a b", "evt_x'; drop table"):
+            with self.assertRaises(psycopg.Error):
+                self.db.as_(RYAN).one("select admin_ack_stripe(%s)", bad)
+        for who in ("anon", RYAN, "service"):
+            self.denied(who, "select * from public.ops_stripe_reviewed")
 
 
 class OpsLedger(unittest.TestCase):

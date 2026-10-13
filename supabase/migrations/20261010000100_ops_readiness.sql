@@ -151,7 +151,7 @@ $$;
 create function public.ops_tick() returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
-  reaped int; expired int; st text; stuck int; sup int; ab int; s public.ops_settings;
+  reaped int; expired int; st text; stuck int; sup int; ab int; s public.ops_settings; stripe_n bigint;
 begin
 -- the scheduler only: execute is granted to service_role alone (below), like the other service functions.
   select * into s from public.ops_settings;
@@ -165,6 +165,11 @@ begin
   expired := ryagram_private.expire_stale_queue();
   perform ryagram_private.ai_budget_alerts();
   perform ryagram_private.backup_alerts();
+  stripe_n := (ryagram_private.stripe_review()->>'open')::bigint;
+  if stripe_n > 0 then
+    perform ryagram_private.ops_raise('stripe_needs_review', stripe_n || ' Stripe payment events need review: nothing was changed for them.');
+    update public.ops_alerts set detail = stripe_n || ' Stripe payment events need review: nothing was changed for them.' where key = 'stripe_needs_review' and resolved_at is null;
+  else perform ryagram_private.ops_clear('stripe_needs_review'); end if;
   select count(*) into stuck from public.jobs
     where state in ('claimed', 'running', 'validating', 'uploading') and lease_expires_at < now() - interval '15 minutes';
   if stuck > 0 then perform ryagram_private.ops_raise('stuck_jobs', stuck || ' jobs have an expired lease for 15+ minutes.');
@@ -408,6 +413,7 @@ begin
       'last_restore_ok', (select ok from public.ops_backups where kind = 'restore_test' order by created_at desc limit 1)),
     'open_alerts', coalesce((select jsonb_agg(jsonb_build_object('key', key, 'detail', detail, 'since', first_seen) order by first_seen)
                                from public.ops_alerts where resolved_at is null), '[]'::jsonb),
+    'stripe', ryagram_private.stripe_review(),
     'support_open', (select count(*) from public.support_requests where answered_at is null),
     'support', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'created_at', created_at, 'topic', topic, 'email', email, 'job_id', job_id,
                                                            'job_state', job_state, 'job_error_code', job_error_code, 'message', left(message, 300))
@@ -704,8 +710,50 @@ begin
   end if;
 end $$;
 
+-- ---------------------------------------------------------------- Stripe payments that need Ryan (Phase 2B's stripe_events)
+-- stripe_events lives in supabase/phase-2b/stripe_test_mode.sql (applied by hand, not a migration), so everything here reads it DYNAMICALLY: with
+-- the table absent the answer is {available: false} and nothing breaks; once it exists the same functions light up. A 'needs_review' event is one the
+-- webhook could not match (amount, unknown price or customer, partial refund): nothing changed, Ryan fixes it by hand (adjust_credits / grant_credits).
+-- stripe_events has no "reviewed" column and is not ours to change, so Ryan's "reviewed" marks live in their own table.
+create table public.ops_stripe_reviewed (
+  event_id text primary key,
+  reviewed_at timestamptz not null default now()
+);
+alter table public.ops_stripe_reviewed enable row level security;
+revoke all on table public.ops_stripe_reviewed from anon, authenticated, service_role;
+
+create function ryagram_private.stripe_review() returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare n bigint; items jsonb;
+begin
+  if to_regclass('public.stripe_events') is null then
+    return jsonb_build_object('available', false, 'open', 0, 'items', '[]'::jsonb);
+  end if;
+  execute 'select count(*) from public.stripe_events e where e.outcome = ''needs_review''
+             and not exists (select 1 from public.ops_stripe_reviewed r where r.event_id = e.event_id)' into n;
+  execute 'select coalesce(jsonb_agg(jsonb_build_object(''event_id'', event_id, ''type'', type, ''detail'', left(coalesce(detail, ''''), 300), ''received_at'', received_at, ''livemode'', livemode) order by received_at), ''[]''::jsonb)
+             from (select * from public.stripe_events e where e.outcome = ''needs_review''
+                     and not exists (select 1 from public.ops_stripe_reviewed r where r.event_id = e.event_id)
+                   order by received_at limit 10) x' into items;
+  return jsonb_build_object('available', true, 'open', n, 'items', items);
+end $$;
+
+-- Ryan marks an event reviewed (he fixed it by hand, or decided nothing is needed).
+create function public.admin_ack_stripe(p_event_id text) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  if not ryagram_private.is_app_admin() then
+    raise exception 'Only an admin can review payments.' using errcode = '42501';
+  end if;
+  if coalesce(p_event_id, '') !~ '^evt_[A-Za-z0-9]+$' then
+    raise exception 'That is not a Stripe event id.' using errcode = 'P0001';
+  end if;
+  insert into public.ops_stripe_reviewed (event_id) values (p_event_id) on conflict do nothing;
+end $$;
+
 -- ---------------------------------------------------------------- grants
-revoke execute on function public.record_backup(text, boolean, bigint, text), public.admin_answer_support(bigint) from public, anon;
+revoke execute on function public.record_backup(text, boolean, bigint, text), public.admin_answer_support(bigint), public.admin_ack_stripe(text) from public, anon;
+revoke execute on function ryagram_private.stripe_review() from public, anon, authenticated;
 revoke execute on function ryagram_private.backup_alerts() from public, anon, authenticated;
 revoke execute on function public.worker_ping(numeric), public.service_status(), public.ops_tick(), public.ops_mark_notified(text[]),
   public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text),
@@ -719,7 +767,7 @@ revoke all on function public.ops_tick(), public.ops_mark_notified(text[]), publ
 grant execute on function public.worker_ping(numeric), public.record_backup(text, boolean, bigint, text) to authenticated;                    -- require_worker() is the gate
 grant execute on function public.service_status() to anon, authenticated;
 grant execute on function public.submit_support(text, text, text, uuid, text), public.report_film_page(text, text, text, text, text) to anon, authenticated;
-grant execute on function public.admin_review_report(bigint, text), public.admin_ops(), public.admin_answer_support(bigint) to authenticated;   -- is_app_admin() is the gate
+grant execute on function public.admin_review_report(bigint, text), public.admin_ops(), public.admin_answer_support(bigint), public.admin_ack_stripe(text) to authenticated;   -- is_app_admin() is the gate
 grant execute on function public.ops_tick(), public.ops_mark_notified(text[]), public.ai_budget_ok(uuid),
   public.ops_outbox_add(text, text, text, text, text), public.ops_digest_data() to service_role;
 

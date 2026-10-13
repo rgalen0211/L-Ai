@@ -320,6 +320,7 @@
       // Ryan's Operations screen (SQL 20261010000100): one summary, and the three buttons. Admin only; the functions refuse everyone else.
       adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
       adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
+      adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
       adminReviewReport(id, outcome) { return run(client.rpc('admin_review_report', { p_id: id, p_outcome: outcome }), 'Couldn\u2019t update that report.'); },
 
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
