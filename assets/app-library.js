@@ -766,14 +766,10 @@
           error.hidden = true;
           await busy(go, 'Publishing…', async () => {
             try {
-              try { await data.publishFilm(v.id, title.value); }
-              catch (err) {
-                // A film made from the person's own upload: ask once more, in plain words, and only then publish (never the data, only the film and its sources).
-                if (err.code !== 'confirm_uploaded') throw err;
-                if (!confirm(err.message)) throw new Error('Not published. Nothing is public.');
-                await data.publishFilm(v.id, title.value, { confirmUploaded: true });
-              }
-              await draw();
+              // A film made from the person's own upload asks once more, in plain words (the page shows the film and its sources, never the data).
+              const out = await data.publishFilmWithConfirm(v.id, title.value, message => confirm(message));
+              await draw();                                                          // published, or (cancelled) back to the plain "Off" panel: nothing is public
+              if (out && out.cancelled) return;
             } catch (err) { showError(error, err); }
           });
         } }, 'Publish a public page');

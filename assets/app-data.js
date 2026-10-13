@@ -324,6 +324,18 @@
         }
         return data;
       },
+      // Publish, asking the owner once more when the film was made from their own upload. ask(message) -> true to go ahead. Returns { cancelled: true } when the
+      // owner says no (nothing is published and no second request is sent), the publish result otherwise; any other error is thrown, never retried. The title is
+      // read once, so an edit made while the question is open cannot change what gets published.
+      async publishFilmWithConfirm(versionId, title, ask) {
+        const fixed = String(title ?? '');
+        try { return await api.publishFilm(versionId, fixed); }
+        catch (err) {
+          if (err.code !== 'confirm_uploaded') throw err;
+          if (!ask(err.message)) return { cancelled: true };
+          return api.publishFilm(versionId, fixed, { confirmUploaded: true });
+        }
+      },
       unpublishFilm(versionId) {
         return run(client.rpc('film_unpublish', { p_version: versionId }), 'Couldn’t stop sharing.');
       },

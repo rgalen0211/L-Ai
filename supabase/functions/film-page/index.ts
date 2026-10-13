@@ -28,8 +28,8 @@ Deno.serve((req) => handle(req, {
     if (error || !data) throw new Error("receipt missing");
     return await data.text();
   },
-  publish: (owner, versionId, title, summary) =>
-    rpc("film_publish", { p_owner: owner, p_version: versionId, p_title: title, p_summary: summary }),
+  publish: (owner, versionId, title, summary, confirmed) =>
+    rpc("film_publish", { p_owner: owner, p_version: versionId, p_title: title, p_summary: summary, p_confirmed: confirmed }),
   publicFilm: (slug) => rpc("public_film", { p_slug: slug }),
   async signedUrl(path, seconds) {
     const { data, error } = await bucket().createSignedUrl(path, seconds);

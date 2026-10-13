@@ -82,7 +82,7 @@ function world(over = {}) {
       publishContext: async () => ({ project_title: 'Obesity', story: STORY, uploaded_data: false,
                                      receipt_path: 'u/p/v/j/receipt.sequence.json', slug: null }),
       readFile: async () => JSON.stringify(RECEIPT),
-      publish: async (owner, versionId, title, summary) => { published.push({ owner, versionId, title, summary }); return SLUG; },
+      publish: async (owner, versionId, title, summary, confirmed) => { published.push({ owner, versionId, title, summary, confirmed }); return SLUG; },
       publicFilm: async slug => (slug === SLUG ? { title: 'Fast food and obesity', summary: { headline: 'x' }, published_at: '2026-10-01T00:00:00Z',
                                                    video_path: 'u/p/v/j/film.mp4', thumb_path: 'u/p/v/j/thumb.jpg' } : null),
       signedUrl: async (path, seconds) => `https://jxtk.supabase.co/storage/v1/object/sign/ryagram-artifacts/${path}?token=t&s=${seconds}`,
@@ -176,6 +176,7 @@ test('a film made from the owner\'s upload (every "Don\'t keep my data" project)
   const ok = await post(deps, { version_id: V, confirm_uploaded: true });
   assert.equal(ok.status, 200);
   assert.equal(published.length, 1);
+  assert.equal(published[0].confirmed, true);                      // the database backstop is told the owner confirmed
   const s = published[0].summary;
   assert.equal(s.uploaded_data, true);
   assert.deepEqual(s.datasets.map(d => [d.label, d.sources.length, d.method]), [['The maker’s own data', 0, '']]);        // the film and "own data", never the data's labels or notes
@@ -195,4 +196,12 @@ test('nothing in this function can publish by itself: the only writer is the POS
   assert.equal((await post(deps, { version_id: V }, { jwt: 'forged' })).status, 401);
   assert.equal((await post(deps, { version_id: V }, { origin: 'https://evil.example' })).status, 403);
   assert.equal(published.length, 0);
+});
+
+test('a film made from public data reaches the database with confirmed = false (the backstop stays armed); only boolean true counts', async () => {
+  const { deps, published } = world();
+  assert.equal((await post(deps, { version_id: V })).status, 200);
+  assert.equal(published[0].confirmed, false);
+  assert.equal((await post(deps, { version_id: V, confirm_uploaded: 'yes' })).status, 200);
+  assert.equal(published[1].confirmed, false);
 });

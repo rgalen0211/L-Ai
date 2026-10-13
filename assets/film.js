@@ -27,6 +27,7 @@
   // can be counted. The link a film's "Made with Ryagram · View sources" mark points to is this page's own address plus #sources: /film/?s=<slug>#sources.
   const cta = `/ryagram/?utm_source=film_page&utm_medium=referral&utm_campaign=${encodeURIComponent(sampleName ? `sample_${sampleName}` : SLUG.test(slug) ? slug : 'film')}#waitlist`;
 
+  let handledSources = false;                                                  // true once #sources took the focus (so the title does not)
   async function load() {
     if (sampleName) {
       const res = await fetch(`/film/samples/${sampleName}.json`);
@@ -92,7 +93,7 @@
     document.title = `${page.title} | Made with Ryagram`;
     const posterUrl = page.poster_url && (/^\/film\/samples\/[a-z0-9-]+\.jpg$/.test(page.poster_url) || safeUrl(page.poster_url)) ? page.poster_url : null;
     const video = page.video_url
-      ? h('video', { controls: true, playsinline: true, preload: 'metadata', poster: page.poster_url || null, src: page.video_url,
+      ? h('video', { controls: true, playsinline: true, preload: 'metadata', poster: safeUrl(page.poster_url) || null, src: safeUrl(page.video_url) || null,
                      width: String(s.film?.width || 1920), height: String(s.film?.height || 1080) })
       : page.sample && posterUrl
         ? h('img', { class: 'film-poster', src: posterUrl, alt: `The last frame of the film: ${s.headline || page.title}, ${s.window ? `${s.window.start} to ${s.window.end}` : ''}`, width: String(s.film?.width || 1920), height: String(s.film?.height || 1080) })
@@ -103,7 +104,7 @@
       page.sample ? h('p', { class: 'film-sample', role: 'note' }, 'This is a sample page. It shows what every published Ryagram film page contains: the film, where its data came from, how it was drawn, and its receipt.') : null,
       h('figure', { class: 'film-player' }, video,
         h('figcaption', {}, 'Made with Ryagram · ', h('a', { href: '#sources' }, 'View sources'),
-          page.sample && page.preview_url && /^\/[a-z0-9\/_-]*$/.test(page.preview_url) ? [' · ', h('a', { href: page.preview_url }, 'Drag through the film')] : null)),
+          page.sample && page.preview_url && /^\/(?!\/)[a-z0-9\/_-]*$/.test(page.preview_url) ? [' · ', h('a', { href: page.preview_url }, 'Drag through the film')] : null)),
       h('div', { class: 'film-cta' },
         h('div', {}, h('p', {}, 'Have a question? Ryagram makes the data answer it.'),
           h('p', { class: 'film-meta' }, 'Ryagram is opening by invitation. Join the waitlist and we will tell you when it is your turn.')),
@@ -111,9 +112,10 @@
       sourcesSection(s),
       receipt(page)].filter(Boolean));
     document.getElementById('cta-top').setAttribute('href', cta);
+    document.getElementById('sources-title')?.setAttribute('tabindex', '-1');         // so the header "Sources" link can move focus here too
     if (location.hash === '#sources') {                                      // the link an exported film points to: land on the sources
       const at = document.getElementById('sources');
-      if (at) { at.scrollIntoView(); document.getElementById('sources-title')?.setAttribute('tabindex', '-1'); document.getElementById('sources-title')?.focus(); }
+      if (at) { at.scrollIntoView(); document.getElementById('sources-title')?.focus(); handledSources = true; }
     }
   }
 
@@ -124,5 +126,5 @@
 
   load().then(page => (page ? render(page) : notFound('This film page doesn’t exist, or its maker has stopped sharing it.')))
     .catch(() => notFound('The film couldn’t be loaded just now. Try again in a minute.'))
-    .finally(() => { if (location.hash !== '#sources') root.querySelector('h1')?.focus(); });
+    .finally(() => { if (!handledSources) root.querySelector('h1')?.focus(); });   // a failed load focuses its heading too, #sources or not
 })();

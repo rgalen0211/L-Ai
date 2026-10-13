@@ -201,6 +201,9 @@ minutes.
 
 1. **SQL Editor:** `migrations/20260929000800_film_pages.sql` (after 0700; independent of the
    2B and Stripe files).
+   **Then** `migrations/20261013000100_film_publish_confirmed.sql`: the database refuses to publish a
+   film made from the owner's own upload unless the caller says the owner confirmed (it replaces
+   `film_publish` with a 5-argument version). Apply it BEFORE deploying the updated function.
 2. **Deploy** (visitors aren't signed in; owners' tokens are checked inside):
 
    ```

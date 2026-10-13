@@ -178,3 +178,94 @@ test('the film page file loads the sample and the page script, under a policy th
   assert.match(csp, /connect-src 'self' https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co/);
   assert.doesNotMatch(csp, /unsafe/);
 });
+
+// ---- the app's publish flow (assets/app-data.js: publishFilmWithConfirm) ----------------------------------------------------------------------
+function appData(responses) {
+  const calls = [];
+  const w = {};
+  const ctx = { window: w, Array, Number, String, Object, RegExp, Promise, Error, JSON };
+  vm.createContext(ctx);
+  vm.runInContext(read('assets/app-data.js'), ctx);
+  const client = { functions: { invoke: async (name, opts) => {
+    calls.push({ name, body: opts.body });
+    const next = responses.shift();
+    if (next.error) return { data: null, error: { context: { json: async () => { if (next.notJson) throw new Error('not json'); return next.error; } } } };
+    return { data: next.data, error: null };
+  } } };
+  return { data: w.ryagramData(client), calls };
+}
+const UPLOAD_409 = { error: { code: 'confirm_uploaded', error: 'This film was made from data you uploaded. A public page shows the film and its sources only, never your data. Publish it anyway?' } };
+
+test('APP FLOW: public data publishes with ONE request and no question', async () => {
+  const { data, calls } = appData([{ data: { slug: SLUG, url: 'u' } }]);
+  let asked = 0;
+  const out = await data.publishFilmWithConfirm('v1', 'My title', () => { asked++; return true; });
+  assert.equal(out.slug, SLUG);
+  assert.deepEqual([calls.length, asked], [1, 0]);
+  assert.equal('confirm_uploaded' in calls[0].body, false);
+});
+
+test('APP FLOW: an upload film asks once with the server\'s words, and only a yes sends the second request with confirm_uploaded: true and the SAME title', async () => {
+  const { data, calls } = appData([UPLOAD_409, { data: { slug: SLUG, url: 'u' } }]);
+  const title = { value: 'First title' };
+  const messages = [];
+  const out = await data.publishFilmWithConfirm('v1', title.value, m => { messages.push(m); title.value = 'Changed while the question was open'; return true; });
+  assert.equal(out.slug, SLUG);
+  assert.equal(messages.length, 1);
+  assert.match(messages[0], /made from data you uploaded.*never your data/);
+  assert.deepEqual(calls.map(c => [c.body.title, c.body.confirm_uploaded]), [['First title', undefined], ['First title', true]]);
+});
+
+test('APP FLOW: saying NO sends no second request and publishes nothing (cancelled, not an error)', async () => {
+  const { data, calls } = appData([UPLOAD_409]);
+  const out = await data.publishFilmWithConfirm('v1', 't', () => false);
+  assert.deepEqual(plain(out), { cancelled: true });
+  assert.equal(calls.length, 1);
+});
+
+test('APP FLOW: any OTHER error is thrown at once and never retried, a non-JSON error too (a broken answer can never turn into a confirmed publish)', async () => {
+  for (const [resp, re] of [[{ error: { code: 'other', error: 'Only a finished film can have a public page.' } }, /Only a finished film/], [{ error: { error: 'Sign in first.' } }, /Sign in first/],
+                            [{ error: {}, notJson: true }, /Couldn’t publish just now/]]) {
+    const { data, calls } = appData([resp]);
+    let asked = 0;
+    await assert.rejects(data.publishFilmWithConfirm('v1', 't', () => { asked++; return true; }), re);
+    assert.deepEqual([calls.length, asked], [1, 0]);
+  }
+});
+
+test('APP FLOW: the Publish button uses this one function (no second copy of the retry logic)', () => {
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /data\.publishFilmWithConfirm\(v\.id, title\.value, message => confirm\(message\)\)/);
+  assert.doesNotMatch(lib, /confirmUploaded: true/);
+});
+
+// ---- film.js: the review's lower findings -----------------------------------------------------------------------------------------------------------
+test('a preview link must be a path on this site: a protocol-relative "//evil.example" is never rendered as a link', async () => {
+  for (const bad of ['//evil.example/x', 'https://evil.example/', 'javascript:alert(1)', '/a b']) {
+    const r = await renderPage({ search: '?sample=interstate', sampleJson: { ...sample, preview_url: bad } });
+    assert.equal(findAll(r.root, n => n.tag === 'a' && /evil|javascript/.test(n.attrs.href || '')).length, 0, bad);
+    assert.doesNotMatch(textOf(r.root), /Drag through the film/, bad);
+  }
+  const ok = await renderPage({ search: '?sample=interstate', sampleJson: sample });
+  assert.match(textOf(ok.root), /Drag through the film/);
+});
+
+test('the video and its poster are https links only (a signed storage link): anything else is dropped', async () => {
+  const r = await renderPage({ search: `?s=${SLUG}`, page: { ...PUBLISHED, video_url: 'javascript:alert(1)', poster_url: 'http://insecure.example/p.jpg' } });
+  const v = findAll(r.root, n => n.tag === 'video')[0];
+  assert.equal(v.attrs.src, undefined);
+  assert.equal(v.attrs.poster, undefined);
+  const good = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
+  assert.equal(findAll(good.root, n => n.tag === 'video')[0].attrs.src, 'https://jxtk.supabase.co/v.mp4');
+});
+
+test('focus: #sources moves focus to the sources heading; a failed load (even with #sources) focuses its heading; the Sources link target can take focus', async () => {
+  const ok = await renderPage({ search: `?s=${SLUG}`, hash: '#sources', page: PUBLISHED });
+  assert.equal(find(ok.root, n => n.attrs.id === 'sources-title').focused, true);
+  assert.equal(find(ok.root, n => n.attrs.id === 'sources-title').attrs.tabindex, '-1');
+  const failed = await renderPage({ search: `?s=${SLUG}`, hash: '#sources', status: 404 });
+  assert.equal(find(failed.root, n => n.tag === 'h1').focused, true);
+  const plainLoad = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
+  assert.equal(find(plainLoad.root, n => n.attrs.id === 'sources-title').attrs.tabindex, '-1');
+  assert.equal(find(plainLoad.root, n => n.tag === 'h1').focused, true);
+});

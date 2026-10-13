@@ -11,7 +11,7 @@ export interface Deps {
   publishContext(owner: string, versionId: string): Promise<{ project_title: string; story: unknown; uploaded_data: boolean;
                                                               receipt_path: string; slug: string | null }>;
   readFile(path: string): Promise<string>;
-  publish(owner: string, versionId: string, title: string, summary: unknown): Promise<string>;
+  publish(owner: string, versionId: string, title: string, summary: unknown, confirmed: boolean): Promise<string>;
   publicFilm(slug: string): Promise<{ title: string; summary: unknown; published_at: string;
                                       video_path: string | null; thumb_path: string | null } | null>;
   signedUrl(path: string, seconds: number): Promise<string>;
@@ -75,7 +75,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     try { receipt = JSON.parse(await deps.readFile(ctx.receipt_path)); }
     catch { return reply(409, { error: "This film's receipt couldn't be read, so its sources can't be shown." }); }
     const summary = summarize(receipt, ctx.story, { uploaded: ctx.uploaded_data });
-    const slug = await deps.publish(user.id, versionId, title || summary.headline || ctx.project_title, summary);
+    const slug = await deps.publish(user.id, versionId, title || summary.headline || ctx.project_title, summary, body.confirm_uploaded === true);
     return reply(200, { slug, url: `${deps.siteUrl}/film/?s=${slug}` });
   } catch (e) {
     const status = statusOf(e);
