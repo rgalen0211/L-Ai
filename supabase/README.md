@@ -540,7 +540,15 @@ what they make, a link, and the question they would answer with data). Ryan appr
   `creator-beta` function). Ryan's two functions (`admin_creator_beta`, `admin_decide_creator`) are gated by `is_app_admin()`.
 - **Approving sends nothing and grants no credits.** It marks the row and clears its alert. Ryan replies from his inbox and grants the free
   credits by hand (the invite code or `grant_credits`), so nothing can cost money by itself.
-- **Limits:** one application per address; 40 new applications an hour site-wide (then a friendly "try again later"); a hidden honeypot field.
+- **Limits:** one application per email; **3 an hour per caller** and 40 an hour site-wide (each a friendly "try again later"); a hidden
+  honeypot field. The per-caller limit is checked first, so one spammer is refused long before the site-wide cap is near and cannot lock real
+  applicants out. The function hashes the caller's address with the New York day (sha-256) and passes only the hash; the address is never stored
+  and the key changes daily. Only stored applications count. A request with no address gets no per-caller limit (never one shared bucket).
+  People behind one shared address (a school or newsroom) share its 3 an hour.
+- **Verify once on the live project** (like the report form's go-live step): which header carries the real caller address. The function reads
+  `cf-connecting-ip` (set by Cloudflare, overwrites anything the client sent), else the LAST hop of `x-forwarded-for`, never the first.
+  After deploying, apply from two different networks and check `select count(distinct caller_key) from creator_applications` is 2, not 1.
+  If it is 1 (every caller looks the same) the per-caller limit would block everybody after 3: do not switch the form on until fixed.
 - **Alerts:** each new application raises one `creator:<id>` alert (in the daily digest and "Needs you"), cleared when Ryan decides it.
 
 To switch it on (in this order):

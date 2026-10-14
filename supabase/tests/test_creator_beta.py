@@ -30,8 +30,8 @@ class CreatorBeta(core.Base):
         self.admin("update auth.users set email = 'ryan.galen@uselai.com' where id = %s returning 1", RYAN)
         self.admin("insert into public.app_admins (user_id, note) select id, 'test' from auth.users where lower(email) = 'ryan.galen@uselai.com' returning 1")
 
-    def apply(self, *fields, website=""):
-        return self.svc().one("select creator_beta_apply(%s, %s, %s, %s, %s, %s, %s)", *fields, website)
+    def apply(self, *fields, website="", caller=""):
+        return self.svc().one("select creator_beta_apply(%s, %s, %s, %s, %s, %s, %s, %s)", *fields, website, caller)
 
     def count(self):
         return self.admin("select count(*) from public.creator_applications")
@@ -97,6 +97,52 @@ class CreatorBeta(core.Base):
         self.assertEqual(cm.exception.sqlstate, "PT429")
         self.assertEqual(self.count(), 40)
         self.assertEqual(self.apply(n, "p0@example.com", k, m, l, q), 1)                                # an address already in still gets its normal answer
+
+    def test_one_caller_is_limited_to_3_an_hour_and_cannot_lock_real_applicants_out(self):
+        n, e, k, m, l, q = GOOD
+        spammer = "a" * 64
+        for i in range(3):
+            self.apply(n, f"spam{i}@example.com", k, m, l, q, caller=spammer)
+        with self.assertRaisesRegex(psycopg.Error, "few applications already") as cm:
+            self.apply(n, "spam3@example.com", k, m, l, q, caller=spammer)
+        self.assertEqual(cm.exception.sqlstate, "PT429")
+        self.assertEqual(self.count(), 3)                                                       # the refused one stored nothing
+        self.assertEqual(self.apply(n, "spam0@example.com", k, m, l, q, caller=spammer), 1)     # an address already in still gets its normal answer
+        # real applicants, each from their own address (or none), still get in while the spammer is locked out
+        for i in range(10):
+            self.apply("Real Person", f"real{i}@example.com", k, m, l, q, caller=f"{i:x}".rjust(64, "b"))
+        for i in range(5):
+            self.apply("No Address", f"noaddr{i}@example.com", k, m, l, q)                      # no address: only the site-wide cap applies, never a shared bucket
+        self.assertEqual(self.count(), 18)
+        with self.assertRaises(psycopg.Error):
+            self.apply(n, "spam4@example.com", k, m, l, q, caller=spammer)
+        self.assertEqual(self.count(), 18)
+
+    def test_the_per_caller_window_is_one_hour(self):
+        n, e, k, m, l, q = GOOD
+        c = "c" * 64
+        for i in range(3):
+            self.apply(n, f"w{i}@example.com", k, m, l, q, caller=c)
+        self.admin("update public.creator_applications set created_at = now() - interval '61 minutes' where caller_key = %s returning 1", c)
+        self.apply(n, "w3@example.com", k, m, l, q, caller=c)                                   # the old ones have aged out
+        self.assertEqual(self.count(), 4)
+
+    def test_a_bad_caller_key_is_ignored_not_trusted_and_only_a_hash_is_ever_stored(self):
+        n, e, k, m, l, q = GOOD
+        for i in range(5):
+            self.apply(n, f"x{i}@example.com", k, m, l, q, caller="203.0.113.7")               # an address (not a 64-hex hash) is dropped, never stored
+        self.assertEqual(self.admin("select count(*) from public.creator_applications where caller_key is not null"), 0)
+        with self.assertRaises(psycopg.Error):
+            self.admin("insert into public.creator_applications (name, email, kind, makes, link, question, caller_key) "
+                       "values ('Eve Mallory', 'eve@example.com', 'other', 'things', 'https://e.example/x', 'a question about data?', '203.0.113.7')")
+
+    def test_the_site_wide_cap_still_holds_across_many_callers(self):
+        n, e, k, m, l, q = GOOD
+        for i in range(40):
+            self.apply(n, f"s{i}@example.com", k, m, l, q, caller=f"{i:x}".rjust(64, "d"))
+        with self.assertRaisesRegex(psycopg.Error, "Too many applications") as cm:
+            self.apply(n, "s99@example.com", k, m, l, q, caller="e" * 64)
+        self.assertEqual(cm.exception.sqlstate, "PT429")
 
     def test_ryan_sees_the_waiting_applications_and_approves_or_declines_them(self):
         self.make_ryan_admin()

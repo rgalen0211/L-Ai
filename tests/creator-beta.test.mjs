@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
-import { handle } from '../supabase/functions/creator-beta/apply.ts';
+import { handle, callerAddress, callerKey } from '../supabase/functions/creator-beta/apply.ts';
 
 const require = createRequire(import.meta.url);
 const { createFakeClient } = require('./fake-supabase.js');
@@ -19,8 +19,8 @@ function world({ fail } = {}) {
   const deps = { allowedOrigins: [ORIGIN, 'https://www.uselai.com'], apply: async a => { if (fail) throw fail; applied.push(a); return applied.length; } };
   return { deps, applied };
 }
-const post = (deps, body, { origin = ORIGIN, method = 'POST', raw } = {}) =>
-  handle(new Request('https://x.supabase.co/functions/v1/creator-beta', { method, headers: { ...(origin ? { origin } : {}), 'content-type': 'application/json' },
+const post = (deps, body, { origin = ORIGIN, method = 'POST', raw, extra = {} } = {}) =>
+  handle(new Request('https://x.supabase.co/functions/v1/creator-beta', { method, headers: { ...(origin ? { origin } : {}), 'content-type': 'application/json', ...extra },
                                                                          ...(method === 'GET' ? {} : { body: raw ?? JSON.stringify(body) }) }), deps);
 
 // ---- the function --------------------------------------------------------------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ test('FUNCTION: a good application from uselai.com is handed to the database onc
   assert.deepEqual(await res.json(), { ok: true });                               // never an id or a "you already applied"
   assert.equal(res.headers.get('access-control-allow-origin'), ORIGIN);
   assert.equal(res.headers.get('cache-control'), 'no-store');
-  assert.deepEqual(applied, [{ ...GOOD, website: '' }]);
+  assert.deepEqual(applied, [{ ...GOOD, website: '', caller: '' }]);                  // no address on the request: no per-caller key
 });
 
 test('FUNCTION: only uselai.com may post: no origin, a foreign origin, GET and a preflight from elsewhere all get nothing stored', async () => {
@@ -82,11 +82,47 @@ test('FUNCTION: the database’s own sentences (invalid field 422, too many 429)
   }
 });
 
+test('PER-CALLER: the address comes from cf-connecting-ip, else the LAST x-forwarded-for hop (never the first, which the client writes); none gives nothing', () => {
+  const h = o => new Headers(o);
+  assert.equal(callerAddress(h({ 'cf-connecting-ip': '203.0.113.7', 'x-forwarded-for': '1.1.1.1, 2.2.2.2' })), '203.0.113.7');
+  assert.equal(callerAddress(h({ 'x-forwarded-for': '6.6.6.6, 198.51.100.9' })), '198.51.100.9');              // a client that writes its own first hop changes nothing
+  assert.equal(callerAddress(h({ 'x-forwarded-for': '198.51.100.9' })), '198.51.100.9');
+  assert.equal(callerAddress(h({})), '');
+  assert.equal(callerAddress(h({ 'x-forwarded-for': ' , ' })), '');
+});
+
+test('PER-CALLER: the key is a 64-hex hash that never contains the address, differs by address and by (New York) day, and is empty with no address', async () => {
+  const a = await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), new Date('2026-10-14T16:00:00Z'));
+  assert.match(a, /^[0-9a-f]{64}$/);
+  assert.ok(!a.includes('203'));
+  assert.equal(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), new Date('2026-10-14T20:00:00Z')));        // same day, same key
+  assert.notEqual(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.8' }), new Date('2026-10-14T16:00:00Z')));    // another address
+  assert.notEqual(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), new Date('2026-10-15T16:00:00Z')));    // another day
+  assert.equal(await callerKey(new Headers({}), new Date()), '');
+});
+
+test('PER-CALLER: the function passes the hashed key to the database, and the spammer\u2019s forged first hop does not change it', async () => {
+  const { deps, applied } = world();
+  await post(deps, GOOD, { extra: { 'x-forwarded-for': '9.9.9.9, 198.51.100.9' } });
+  await post(deps, { ...GOOD, email: 'b@example.com' }, { extra: { 'x-forwarded-for': '7.7.7.7, 198.51.100.9' } });
+  assert.match(applied[0].caller, /^[0-9a-f]{64}$/);
+  assert.equal(applied[0].caller, applied[1].caller);
+  assert.ok(!JSON.stringify(applied).includes('198.51.100.9'));
+});
+
+test('PER-CALLER: the database refusal (429) reaches the form as its own sentence', async () => {
+  const { deps } = world({ fail: Object.assign(new Error('You have sent a few applications already. Please try again in an hour.'), { code: 'PT429' }) });
+  const res = await post(deps, GOOD, { extra: { 'cf-connecting-ip': '203.0.113.7' } });
+  assert.equal(res.status, 429);
+  assert.match((await res.json()).error, /few applications already/);
+});
+
 test('FUNCTION: index.ts allows only uselai.com, uses the service role through the one database function, and needs no JWT', () => {
   const src = read('supabase/functions/creator-beta/index.ts');
   assert.match(src, /allowedOrigins: \["https:\/\/uselai\.com", "https:\/\/www\.uselai\.com"\]/);
   assert.match(src, /service\.rpc\("creator_beta_apply"/);
   assert.match(src, /--no-verify-jwt/);
+  assert.match(src, /p_caller: a\.caller/);
   assert.doesNotMatch(src, /\.from\(/);                                           // it never touches the table directly
 });
 

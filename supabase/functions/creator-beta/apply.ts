@@ -3,11 +3,30 @@
 //   POST { name, email, kind, makes, link, question, website? }   from uselai.com only
 export interface Deps {
   allowedOrigins: string[];
-  apply(a: { name: string; email: string; kind: string; makes: string; link: string; question: string; website: string }): Promise<number>;
+  apply(a: { name: string; email: string; kind: string; makes: string; link: string; question: string; website: string; caller: string }): Promise<number>;
 }
 
 const MAX_BODY = 8000;
 const FIELDS = ["name", "email", "kind", "makes", "link", "question"] as const;
+
+// Who is calling, for the per-caller limit only. cf-connecting-ip is set by Cloudflare in front of the API and overwrites anything the client sent; without
+// it, the LAST hop of x-forwarded-for (the one our own proxy appended), never the first, which the client writes. Verify once on the real project which
+// of the two arrives (supabase/README.md, "Creator beta"). No address at all gives "" and only the site-wide cap applies.
+export function callerAddress(headers: Headers): string {
+  const cf = (headers.get("cf-connecting-ip") ?? "").trim();
+  if (cf) return cf;
+  const hops = (headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+  return hops.length ? hops[hops.length - 1] : "";
+}
+
+// A hex sha-256 of the address and the New York day: the database never sees the address, and the key changes every day.
+export async function callerKey(headers: Headers, now = new Date()): Promise<string> {
+  const ip = callerAddress(headers).slice(0, 100);
+  if (!ip) return "";
+  const day = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const bytes = new TextEncoder().encode(`creator-beta|${ip}|${day}`);
+  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
 
 const statusOf = (e: unknown) => {
   const code = (e as { code?: string })?.code ?? "";
@@ -41,7 +60,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   }
   const website = typeof body.website === "string" ? body.website : "";
   try {
-    await deps.apply({ name: a.name, email: a.email, kind: a.kind, makes: a.makes, link: a.link, question: a.question, website });
+    await deps.apply({ name: a.name, email: a.email, kind: a.kind, makes: a.makes, link: a.link, question: a.question, website, caller: await callerKey(req.headers) });
     return reply(200, { ok: true });
   } catch (e) {
     const status = statusOf(e);

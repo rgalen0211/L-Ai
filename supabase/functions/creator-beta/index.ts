@@ -10,7 +10,7 @@ Deno.serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   async apply(a) {
     const { data, error } = await service.rpc("creator_beta_apply", {
-      p_name: a.name, p_email: a.email, p_kind: a.kind, p_makes: a.makes, p_link: a.link, p_question: a.question, p_website: a.website });
+      p_name: a.name, p_email: a.email, p_kind: a.kind, p_makes: a.makes, p_link: a.link, p_question: a.question, p_website: a.website, p_caller: a.caller });
     if (error) throw Object.assign(new Error(error.message), { code: error.code });
     return data as number;
   },

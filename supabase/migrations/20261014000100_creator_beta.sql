@@ -21,21 +21,27 @@ create table public.creator_applications (
   question text not null check (char_length(question) between 10 and 1000),                   -- the question they would answer with data
   source text not null default 'creator_beta' check (source = 'creator_beta'),
   status text not null default 'new' check (status in ('new', 'approved', 'declined')),
-  decided_at timestamptz
+  decided_at timestamptz,
+  caller_key text check (caller_key is null or char_length(caller_key) = 64)   -- sha-256 of (caller address + day), made by the function; for the per-caller limit only. The address itself is never stored.
 );
 -- One application per address, whatever the capitalisation.
 create unique index creator_applications_email_key on public.creator_applications (lower(email));
+create index creator_applications_caller_idx on public.creator_applications (caller_key, created_at) where caller_key is not null;
 alter table public.creator_applications enable row level security;
 revoke all on table public.creator_applications from anon, authenticated, service_role;
 
 -- Returns the application number. A non-empty p_website is the honeypot: reported as success, stored nowhere. An address that already
 -- applied gets the same answer (so the form cannot be used to find out who applied) and changes nothing.
-create function public.creator_beta_apply(p_name text, p_email text, p_kind text, p_makes text, p_link text, p_question text, p_website text default '')
+-- Limits (only STORED applications count): 3 an hour per caller (p_caller = the function's hash of the caller's address and the day; empty when the
+-- request carried no address, in which case only the site-wide cap applies, never one shared bucket for everybody) and 40 an hour in all. The per-caller
+-- limit is checked first, so one spammer is refused long before the site-wide cap is anywhere near, and cannot lock real applicants out.
+create function public.creator_beta_apply(p_name text, p_email text, p_kind text, p_makes text, p_link text, p_question text, p_website text default '', p_caller text default '')
 returns bigint
 language plpgsql security definer set search_path = '' as $$
 declare r public.creator_applications; n text := regexp_replace(trim(coalesce(p_name, '')), '\s+', ' ', 'g');
         e text := trim(coalesce(p_email, '')); m text := regexp_replace(trim(coalesce(p_makes, '')), '\s+', ' ', 'g');
         l text := trim(coalesce(p_link, '')); q text := trim(coalesce(p_question, ''));
+        ck text := case when coalesce(p_caller, '') ~ '^[0-9a-f]{64}$' then p_caller else null end;
 begin
   if coalesce(p_website, '') <> '' then
     return 0;
@@ -53,10 +59,13 @@ begin
   if found then
     return r.id;
   end if;
+  if ck is not null and (select count(*) from public.creator_applications where caller_key = ck and created_at > now() - interval '1 hour') >= 3 then
+    raise exception 'You have sent a few applications already. Please try again in an hour.' using errcode = 'PT429';
+  end if;
   if (select count(*) from public.creator_applications where created_at > now() - interval '1 hour') >= 40 then
     raise exception 'Too many applications right now. Please try again later.' using errcode = 'PT429';
   end if;
-  insert into public.creator_applications (name, email, kind, makes, link, question) values (n, e, p_kind, m, l, q) returning * into r;
+  insert into public.creator_applications (name, email, kind, makes, link, question, caller_key) values (n, e, p_kind, m, l, q, ck) returning * into r;
   perform ryagram_private.ops_raise('creator:' || r.id, 'New creator beta application #' || r.id || ' (' || r.kind || ')');
   return r.id;
 end $$;
@@ -91,7 +100,7 @@ begin
   perform ryagram_private.ops_clear('creator:' || p_id);
 end $$;
 
-revoke execute on function public.creator_beta_apply(text, text, text, text, text, text, text) from public, anon, authenticated;
-grant execute on function public.creator_beta_apply(text, text, text, text, text, text, text) to service_role;
+revoke execute on function public.creator_beta_apply(text, text, text, text, text, text, text, text) from public, anon, authenticated;
+grant execute on function public.creator_beta_apply(text, text, text, text, text, text, text, text) to service_role;
 revoke execute on function public.admin_creator_beta(), public.admin_decide_creator(bigint, text) from public, anon;
 grant execute on function public.admin_creator_beta(), public.admin_decide_creator(bigint, text) to authenticated;   -- is_app_admin() is the gate
