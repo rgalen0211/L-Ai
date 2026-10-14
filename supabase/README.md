@@ -528,3 +528,29 @@ Design and audit: `Ryagram-logs/proposals/WEB-OPS-READINESS.md`. Nothing below i
 9. **Before go-live, look at one real `ai_usage` row** after the first editor turn: `model` must be the alias in `ai_prices` (`claude-haiku-4-5` / `claude-sonnet-5`), `cost_usd` not null. The editor records usage under the REQUESTED model, so a dated name from the API cannot make a call unpriced; if `ai_price_missing` ever alerts, add the price row.
 10. **HARD GATE before the report form is switched on (`opsTools`): verify the report limits see the real caller.** `report_film_page` keys its limits on the `cf-connecting-ip` header (set by Cloudflare, which a client cannot forge), else the LAST hop of `x-forwarded-for`, else the typed email. If `cf-connecting-ip` does not reach PostgREST, the last forwarded hop is probably a SHARED proxy or edge address: then one person's 5 reports an hour blocks everyone, child safety included, and the check must FAIL. Test from a phone and a laptop: send two harmless reports (reason: other) to a test page from each and read `abuse_reports.reporter_key`: it must differ between the two devices and be the same for two reports from one device. If every key is the same, or every report has a new key, do NOT switch the form on; tell Claude (the limits then fall back to the typed email, which does not stop a flood).
 11. **Child-safety reports (Ryan, 2026-10-12).** A report with the reason `child_safety` is ALWAYS recorded (no limit can refuse it) and raises an URGENT alert that is emailed at once, bypassing the daily alert-mail allowance. The page is hidden pending your review, but at most `ops_settings.child_safety_holds_per_hour` (default 10) pages an hour site-wide; above that the report is still recorded and the alert says the page is NOT hidden, and `#/admin/ops` lists it first. Because the alert goes out on the next `ops-tick`, schedule `ops-tick` **every minute** (Dashboard > Integrations > Cron; it is a cheap SQL pass that only sends mail when something is new) so the worst-case delay is about a minute. **Launch checklist: a lawyer confirms the CSAM reporting duties (NCMEC) and the review process before public launch.**
+
+## Creator beta (branch creator-beta): switching it on
+
+YouTubers, podcasters, newsletter writers, journalists, teachers and researchers apply on `/ryagram/#creators` (name, email, who they are,
+what they make, a link, and the question they would answer with data). Ryan approves or declines each one on `#/admin/ops`
+("Creator beta applications"). The page says plainly that beta credits are free in exchange for feedback and that any promotion is disclosed.
+
+- **Stored:** `public.creator_applications`, tagged `source = 'creator_beta'`. RLS is on and every grant is revoked, the service role
+  included, so nobody can read or change a row directly. The ONLY writer is `creator_beta_apply`, callable by the service role only (the
+  `creator-beta` function). Ryan's two functions (`admin_creator_beta`, `admin_decide_creator`) are gated by `is_app_admin()`.
+- **Approving sends nothing and grants no credits.** It marks the row and clears its alert. Ryan replies from his inbox and grants the free
+  credits by hand (the invite code or `grant_credits`), so nothing can cost money by itself.
+- **Limits:** one application per address; 40 new applications an hour site-wide (then a friendly "try again later"); a hidden honeypot field.
+- **Alerts:** each new application raises one `creator:<id>` alert (in the daily digest and "Needs you"), cleared when Ryan decides it.
+
+To switch it on (in this order):
+
+1. **SQL Editor:** `migrations/20261014000100_creator_beta.sql`, after `20261010000100_ops_readiness.sql` (it uses that file's alert ledger
+   and `is_app_admin`).
+2. **Deploy** (visitors are not signed in):
+
+   ```
+   npx supabase functions deploy creator-beta --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+3. Set `creatorBeta: true` in `assets/ryagram-config.js` and push. Until then the form tells people to email ryagram@uselai.com and sends nothing.
+

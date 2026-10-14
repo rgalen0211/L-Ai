@@ -85,8 +85,16 @@
     return open ? `${plural(open, 'payment event')} need${open === 1 ? 's' : ''} your review: nothing was changed for ${open === 1 ? 'it' : 'them'}. Fix by hand (adjust or grant credits), then mark ${open === 1 ? 'it' : 'them'} reviewed.` : 'No payment events need review.';
   }
 
+  // Creator beta applications on the Operations screen (SQL 20261014000100).
+  const CREATOR_KIND_WORDS = { youtuber: 'YouTuber', podcaster: 'Podcaster', newsletter: 'Newsletter writer', journalist: 'Journalist', teacher: 'Teacher', researcher: 'Researcher', other: 'Something else' };
+  function creatorLine(cb) {
+    if (!cb) return 'Creator applications are not set up yet (apply SQL 20261014000100).';
+    const w = Number(cb.waiting) || 0;
+    return `${plural(w, 'application')} waiting. ${Number(cb.approved) || 0} approved, ${Number(cb.declined) || 0} declined so far. Approving sends nothing and grants no credits: reply from your inbox and grant the free beta credits by hand.`;
+  }
+
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, usd, ENDED_WORDS, REASON_WORDS };
+  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, usd, ENDED_WORDS, REASON_WORDS };
 })();

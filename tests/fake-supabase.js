@@ -346,6 +346,21 @@
           stripe: db.stripeAcked ? { available: true, open: 0, items: [] } : { available: true, open: 1, items: [{ event_id: 'evt_mock1', type: 'checkout.session.completed', detail: 'Paid for an unknown pack: pack_x.', received_at: ago(90), livemode: false }] },
           child_safety: { open: 0, open_not_hidden: 0, holds_this_hour: 0, holds_cap: 10 }, abuse_waiting: 0, abuse: [] }, error: null };
       },
+      // Mock: two pretend creator beta applications for #/admin/ops.
+      admin_creator_beta() {
+        const now = Date.now(), ago = m => new Date(now - m * 60000).toISOString();
+        db.creators = db.creators || [
+          { id: 2, created_at: ago(95), name: 'Maya Ortiz', email: 'maya@example.com', kind: 'youtuber', makes: 'Weekly explainers on housing and cities', link: 'https://www.youtube.com/@mayaexplains', question: 'Did cities that legalized duplexes build more homes within five years?', status: 'new' },
+          { id: 1, created_at: ago(1500), name: 'Dr. Sam Lee', email: 'sam.lee@example.edu', kind: 'teacher', makes: 'High-school statistics lessons', link: 'https://example.edu/~slee', question: 'How has the gap between rent and wages changed since 2000, state by state?', status: 'new' }];
+        const waiting = db.creators.filter(c => c.status === 'new');
+        return { data: { waiting: waiting.length, approved: db.creators.filter(c => c.status === 'approved').length, declined: db.creators.filter(c => c.status === 'declined').length,
+                         items: waiting.slice().sort((a, b) => a.id - b.id) }, error: null };
+      },
+      admin_decide_creator({ p_id, p_decision }) {
+        const c = (db.creators || []).find(x => x.id === p_id && x.status === 'new');
+        if (c) c.status = p_decision;
+        return { data: null, error: null };
+      },
       admin_ack_stripe() { db.stripeAcked = true; return { data: null, error: null }; },
       admin_answer_support() { db.supportOpen = 0; return { data: null, error: null }; },
       admin_review_report() { return { data: null, error: null }; },

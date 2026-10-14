@@ -431,9 +431,33 @@ test('the waitlist form keeps its fields: required email, optional "What do you 
   assert.match(pageHtml, /<section id="waitlist"[^>]*>[\s\S]*Want to make one\?/);
 });
 
+// The one deliberate exception (Ryan, 2026-10-14): the creator beta terms must say plainly that beta credits are free. That paragraph (class
+// rg-terms) is checked on its own below, so "credits" is allowed THERE and nowhere else.
+const termsParagraph = (pageHtml.match(/<p class="rg-terms">[\s\S]*?<\/p>/) || [''])[0];
+const publicText = visibleText.replace(termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), ' ');
+
 test('nothing on the page reveals how data is found or chosen, or how anything is priced', () => {
-  assert.doesNotMatch(visibleText, /\b(broker|brokering|sourcing|catalog|catalogue|price|pricing|priced|credits?|per film|Anthropic|Claude|Supabase|Cloudflare|Playwright|worker)\b/i);
+  assert.notEqual(termsParagraph, '');
+  assert.doesNotMatch(publicText, /\b(broker|brokering|sourcing|catalog|catalogue|price|pricing|priced|credits?|per film|Anthropic|Claude|Supabase|Cloudflare|Playwright|worker)\b/i);
   assert.doesNotMatch(visibleText, /\$\d/);
+});
+
+test('CREATOR BETA: the section says plainly that beta credits are free in exchange for feedback and that any promotion is disclosed, and prices nothing', () => {
+  const text = termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Beta credits are free, in exchange for your feedback\./);
+  assert.match(text, /promote .* you disclose that your credits were free/);
+  assert.doesNotMatch(text, /\$|\b(price|pricing|priced|per film|Anthropic|Claude|Supabase|worker)\b/i);
+  assert.match(pageHtml, /<section id="creators"[^>]*aria-labelledby="creators-title"/);
+  assert.match(pageHtml, /<a class="rg-navlink" href="#creators">Creator beta<\/a>/);
+});
+
+test('CREATOR BETA: the form asks name, email, who they are (all six kinds), what they make, a link, and their data question; has a honeypot; and every field has a label', () => {
+  const form = pageHtml.match(/<form id="creator-form"[\s\S]*?<\/form>/)[0];
+  for (const name of ['name', 'email', 'kind', 'makes', 'link', 'question', 'website']) assert.match(form, new RegExp(`name="${name}"`), name);
+  for (const kind of ['youtuber', 'podcaster', 'newsletter', 'journalist', 'teacher', 'researcher']) assert.match(form, new RegExp(`<option value="${kind}">`), kind);
+  for (const id of [...form.matchAll(/<(?:input|select|textarea) id="([^"]+)"/g)].map(m => m[1])) assert.match(form, new RegExp(`for="${id}"`), id);
+  assert.match(form, /<div class="hp" aria-hidden="true">/);
+  assert.match(pageHtml, /<script src="\/assets\/creator-beta\.js" defer><\/script>/);
 });
 
 test('the page works with the strict policy: no inline script or style, and nothing from outside but the typeface', () => {

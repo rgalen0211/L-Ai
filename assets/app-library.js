@@ -236,6 +236,8 @@
         error.hidden = true;
         let d;
         try { d = await data.adminOps(); } catch (err) { body.replaceChildren(); showError(error, err); return; }
+        let cb = null;     // creator applications; null until their SQL is applied (the rest of the screen works without it)
+        try { cb = await data.adminCreatorBeta(); } catch { cb = null; }
         const now = Date.now();
         body.replaceChildren(
           section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
@@ -250,6 +252,12 @@
             d.stripe && d.stripe.items.length ? h('ul', { class: 'ops-list' }, d.stripe.items.map(e => h('li', {},
               h('strong', {}, e.type), h('span', { class: 'meta' }, ` ${e.event_id}, ${O.ago(e.received_at, now)}${e.livemode ? ', LIVE mode' : ', test mode'}`),
               h('p', {}, e.detail || '(no detail recorded)'), button('Mark reviewed', () => data.adminAckStripe(e.event_id))))) : null),
+          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)),
+            cb && cb.items.length ? h('ul', { class: 'ops-list' }, cb.items.map(a => h('li', {},
+              h('strong', {}, `#${a.id} ${a.name}`), h('span', { class: 'meta' }, ` ${O.CREATOR_KIND_WORDS[a.kind] || a.kind}, ${a.email}, ${O.ago(a.created_at, now)}`),
+              h('p', {}, 'Makes: ', a.makes, ' \u00b7 ', h('a', { href: a.link, rel: 'noopener noreferrer', target: '_blank' }, a.link)),
+              h('p', {}, 'Question: ', a.question),
+              button('Approve', () => data.adminDecideCreator(a.id, 'approved')), ' ', button('Decline', () => data.adminDecideCreator(a.id, 'declined'))))) : null),
           section(`Help requests (${d.support_open})`, d.support.length ? h('ul', { class: 'ops-list' }, d.support.map(q => h('li', {},
             h('strong', {}, `#${q.id} ${q.topic}`), h('span', { class: 'meta' }, ` ${q.email}, ${O.ago(q.created_at, now)}${q.job_id ? `, film job ${q.job_id} (${q.job_state}${q.job_error_code ? `, ${q.job_error_code}` : ''})` : ''}`),
             h('p', {}, q.message), button('Mark answered', () => data.adminAnswerSupport(q.id))))) : none('None waiting.')),

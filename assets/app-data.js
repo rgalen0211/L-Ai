@@ -325,6 +325,9 @@
       adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
       adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
       adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
+      // Creator beta applications (SQL 20261014000100): Ryan's list, and Approve / Decline. Neither sends anything or moves credits.
+      adminCreatorBeta() { return run(client.rpc('admin_creator_beta'), 'Couldn\u2019t load creator applications.'); },
+      adminDecideCreator(id, decision) { return run(client.rpc('admin_decide_creator', { p_id: id, p_decision: decision }), 'Couldn\u2019t update that application.'); },
       adminReviewReport(id, outcome) { return run(client.rpc('admin_review_report', { p_id: id, p_outcome: outcome }), 'Couldn\u2019t update that report.'); },
 
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
