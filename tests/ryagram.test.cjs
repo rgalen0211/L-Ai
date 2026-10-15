@@ -90,16 +90,38 @@ test('film slots accept YouTube links or IDs and ignore anything else', () => {
   });
 });
 
-test('the shipped page shows two finished-film loops that link to the full films (no film slots any more)', () => {
+test('the shipped page shows four films, newest first: two still-image entries (Interstate: watch link; Construction Mix: Coming soon, NO link) and the two finished-film loops (no film slots any more)', () => {
   assert.equal(shippedSlots.length, 0);
   const films = [...pageHtml.matchAll(/<article class="rg-film">([\s\S]*?)<\/article>/g)].map(m => m[1]);
-  assert.equal(films.length, 2);
-  assert.match(films[0], /href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*rel="noopener"/);
-  assert.match(films[1], /href="https:\/\/youtu\.be\/h32_9Gd8cOg"[^>]*rel="noopener"/);
-  for (const f of films) {
+  assert.equal(films.length, 4);
+  // Interstate: the published film (youtu.be/UC4j77KYVQ8). Its title, line and credit are the film's own card and licence text.
+  assert.match(films[0], /<h3>Rise of the Interstate Highway, 1956&ndash;1993<\/h3>/);
+  assert.match(films[0], /href="https:\/\/youtu\.be\/UC4j77KYVQ8"[^>]*rel="noopener"/);
+  assert.match(films[0], /39,279 miles constructed, 1956&ndash;1993/);
+  assert.match(films[0], /Brooks &amp; Liscow \(2023\), CC BY 4\.0/);
+  // Construction Mix: not out yet, so a plain "Coming soon" and no link of any kind to a film that does not exist.
+  assert.match(films[1], /<p class="rg-tag">Coming soon<\/p>/);
+  assert.match(films[1], /<h3>America's Housing Permits: The Construction Mix \(1990&ndash;2024\)<\/h3>/);
+  assert.match(films[1], /23\.5% of the new homes America authorized were in buildings with 5 or more units\. By 2024 it was 29\.9%\./);
+  assert.doesNotMatch(films[1], /<a\s|href=/);
+  for (const f of films.slice(0, 2)) {
+    assert.match(f, /<img class="rg-loop" src="\/assets\/ryagram-film-[a-z-]+\.jpg" width="960" height="540" loading="lazy" alt="[^"]{40,}"/);
+    assert.doesNotMatch(f, /<video|autoplay/);
+  }
+  assert.match(films[2], /href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*rel="noopener"/);
+  assert.match(films[3], /href="https:\/\/youtu\.be\/h32_9Gd8cOg"[^>]*rel="noopener"/);
+  for (const f of films.slice(2)) {
     assert.match(f, /<video class="rg-loop" muted loop playsinline preload="none" poster="\/assets\/ryagram-loop-[a-z]+\.jpg"/);
     assert.match(f, /aria-label="[^"]{20,}"/);                                  // a described, silent loop
     assert.doesNotMatch(f, /\sautoplay[\s>]/);                                 // started by ryagram-loops.js, only while visible
+  }
+});
+
+test('the two new film images exist, are real JPEGs, and are small enough for a phone', () => {
+  for (const name of ['interstate', 'construction-mix']) {
+    const bytes = fs.readFileSync(path.join(__dirname, `../assets/ryagram-film-${name}.jpg`));
+    assert.deepEqual([bytes[0], bytes[1], bytes[2]], [0xff, 0xd8, 0xff], name);
+    assert.ok(bytes.length > 20000 && bytes.length < 150000, `${name}: ${bytes.length} bytes`);
   }
 });
 

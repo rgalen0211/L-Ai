@@ -50,6 +50,9 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 .rg-film{display:grid;gap:10px;align-content:start}
 .rg-loop{display:block;width:100%;height:auto;aspect-ratio:16/9;border-radius:var(--radius);border:1px solid var(--line);background:var(--panel)}
 .rg-film a{font-weight:700;min-height:44px;display:inline-flex;align-items:center}
+.rg-film .rg-tag{margin-bottom:0;justify-self:start}
+.rg-film-line{margin:0;color:var(--text)}
+.rg-film-credit{margin:0;font-size:.88rem;color:var(--muted)}
 
 /* compilation */
 .rg-comp{display:grid;gap:26px}
