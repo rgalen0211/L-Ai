@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.join(here, '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8');
-const sample = JSON.parse(read('tests/fixtures/film-samples/interstate.json'));
+const sample = JSON.parse(read('film/samples/interstate.json'));
 const filmJs = read('assets/film.js');
 const SLUG = 'AbCdEfGhIjKlMnOpQrStUv';
 
@@ -59,7 +59,7 @@ const PUBLISHED = { title: 'Fast food and obesity', published_at: '2026-10-01T00
 // ---- the sample ----------------------------------------------------------------------------------------------------------------------------------
 test('the sample is the Interstate film with its REAL source and receipt, made by the live allowlist, and carries nothing private', () => {
   assert.equal(sample.sample, true);
-  assert.equal(sample.title, 'The Interstate Highway System');
+  assert.equal(sample.title, 'Rise of the Interstate Highway, 1956–1993');                 // the film's public title
   const d = sample.summary.datasets[0];
   assert.match(d.label, /Interstate network by opening year \(Brooks & Liscow/);
   assert.equal(d.sources[0].url, 'https://doi.org/10.3886/E144281V1');
@@ -78,7 +78,7 @@ test('the sample is the Interstate film with its REAL source and receipt, made b
 const plain = x => JSON.parse(JSON.stringify(x));
 
 test('the sample\'s poster is a real JPEG of the film\'s last frame, small enough for a phone', () => {
-  const file = path.join(root, 'tests/fixtures/film-samples/interstate-final-frame.jpg');
+  const file = path.join(root, 'film/samples/interstate-final-frame.jpg');
   const bytes = fs.readFileSync(file);
   assert.deepEqual([bytes[0], bytes[1], bytes[2]], [0xff, 0xd8, 0xff]);
   assert.ok(bytes.length > 50_000 && bytes.length < 450_000, `${bytes.length} bytes`);
@@ -90,11 +90,12 @@ test('THE SAMPLE PAGE: title, sample note, poster, "Made with Ryagram · View so
   const r = await renderPage({ search: '?sample=interstate', sampleJson: sample });
   const text = textOf(r.root);
   assert.deepEqual(r.calls, ['/film/samples/interstate.json']);
-  assert.match(text, /The Interstate Highway System/);
+  assert.match(text, /Rise of the Interstate Highway, 1956–1993/);
+  assert.match(text, /Contiguous United States 39,279 Miles Constructed/);                    // the film's own title card line, as its subhead
   assert.match(text, /This is a sample page\./);
   assert.match(text, /Made with Ryagram · View sources/);
   assert.match(text, /Brooks & Liscow \(2023\), Infrastructure Costs, replication package/);
-  assert.match(text, /Engine version9b3d886dee22/);
+  assert.match(text, /Engine versionb17561adead5/);
   assert.match(text, /This pageA sample, to show what a Ryagram film page contains/);
   assert.doesNotMatch(text, /Published/);
   assert.ok(findAll(r.root, n => n.tag === 'img' && n.attrs.src === '/film/samples/interstate-final-frame.jpg').length === 1);
@@ -270,9 +271,12 @@ test('focus: #sources moves focus to the sources heading; a failed load (even wi
   assert.equal(find(plainLoad.root, n => n.tag === 'h1').focused, true);
 });
 
-test('THE SAMPLE IS OFFLINE: nothing is served from /film/samples/, and /film/?sample=interstate says "No film here" (parked in tests/fixtures/film-samples/ until the final Roads film lands)', async () => {
-  assert.equal(fs.existsSync(path.join(root, 'film/samples')), false);
-  const r = await renderPage({ search: '?sample=interstate', sampleJson: null });
-  assert.match(textOf(r.root), /No film here/);
-  assert.equal(findAll(r.root, n => n.tag === 'img' || n.tag === 'video').length, 0);
+test('THE SAMPLE IS BUILT FROM THE PUBLIC FILM: its title, final engine, draw date, length, the one real source and a real last-frame poster are served from /film/samples/', () => {
+  assert.ok(fs.existsSync(path.join(root, 'film/samples/interstate.json')));
+  assert.ok(fs.existsSync(path.join(root, 'film/samples/interstate-final-frame.jpg')));
+  assert.equal(sample.title, 'Rise of the Interstate Highway, 1956–1993');                 // the film's public title (youtu.be/UC4j77KYVQ8)
+  assert.deepEqual(sample.summary.film, { seconds: 119.5, width: 1920, height: 1080, fps: 30 });
+  assert.deepEqual(sample.summary.engine, { commit: 'b17561adead5', drawn_at: '2026-10-15' });   // the FINAL film's sidecar, not the 10-10 draft's
+  assert.equal(sample.published_at, null);                                                     // a sample, not a published page
+  assert.equal(sample.summary.datasets[0].sources[0].url, 'https://doi.org/10.3886/E144281V1');
 });
