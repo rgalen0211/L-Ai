@@ -49,6 +49,8 @@
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
+  // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
@@ -67,8 +69,10 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
+        else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -79,8 +83,54 @@
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
       stopView();
       stopView = () => stops.forEach(fn => fn());
-      root.replaceChildren(...[view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
+      const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
+      if (mine !== token) return;
+      root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
       root.querySelector('h1')?.focus();
+    }
+
+    async function delayedNotice() {
+      const text = window.ryagramOps.bannerText(await data.serviceStatus());
+      return text ? h('p', { class: 'app-status', role: 'status' }, text) : null;
+    }
+
+    // --- #/help  the help form. Signed-in people's job (from #/help?job=<id>) is attached by the server.
+    async function helpView() {
+      const O = window.ryagramOps;
+      const job = O.jobFromHash(location.hash);
+      const known = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
+      const error = errorLine();
+      const done = h('p', { class: 'form-note', role: 'status', hidden: true });
+      const email = h('input', { id: 'help-email', type: 'email', required: true, maxlength: '200', autocomplete: 'email', value: known });
+      const topics = O.TOPICS.map(([id, label]) => h('label', { class: 'choice' },
+        h('input', { type: 'radio', name: 'help-topic', value: id, ...(id === (job ? 'render' : 'other') ? { checked: true } : {}) }), ' ', label));
+      const topicValue = () => form.querySelector('input[name="help-topic"]:checked')?.value;
+      const message = h('textarea', { id: 'help-message', required: true, rows: '6', maxlength: '4000' });
+      const trap = h('input', { id: 'help-website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off' });   // honeypot
+      const send = h('button', { class: 'button primary', type: 'submit' }, 'Send');
+      const form = h('form', { class: 'contact-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        const problem = O.checkSupport({ email: email.value, topic: topicValue(), message: message.value });
+        if (problem) { showError(error, new Error(problem)); return; }
+        await busy(send, 'Sending\u2026', async () => {
+          try {
+            const id = await data.submitSupport({ email: email.value.trim(), topic: topicValue(), message: message.value.trim(), job, website: trap.value });
+            form.hidden = true;
+            done.textContent = `Thank you. We got it${Number(id) > 0 ? ` (ticket #${id})` : ''} and will reply to ${email.value.trim()} within 2 working days.`;
+            done.hidden = false;
+          } catch (err) { showError(error, err); }
+        });
+      } },
+        h('label', { for: 'help-email' }, 'Your email'), email,
+        h('fieldset', { class: 'choices' }, h('legend', {}, 'What is it about?'), topics),
+        h('label', { for: 'help-message' }, 'What happened?'), message,
+        h('div', { class: 'hp-field', 'aria-hidden': 'true' }, h('label', { for: 'help-website' }, 'Leave this empty'), trap),
+        job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
+        send, error);
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
+              h('p', { class: 'form-note' }, 'Common questions are answered in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
+              form, done];
     }
 
     function errorLine() {
@@ -129,9 +179,10 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list];
+      const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -169,6 +220,60 @@
         h('div', { class: 'inline-row' }, h('label', { for: 'wl-days' }, 'Period'), range),
         body, error
       ];
+    }
+
+    // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
+    async function opsAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const body = h('div', { class: 'admin-body' }, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      const section = (title, ...kids) => h('section', { class: 'ops-section' }, h('h2', {}, title), ...kids);
+      const none = text => h('p', { class: 'form-note' }, text);
+      const button = (label, work) => h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
+        await busy(event.currentTarget, 'Saving\u2026', async () => { try { await work(); await load(); } catch (err) { showError(error, err); } });
+      } }, label);
+      async function load() {
+        error.hidden = true;
+        let d;
+        try { d = await data.adminOps(); } catch (err) { body.replaceChildren(); showError(error, err); return; }
+        let cb = null;     // creator applications; null until their SQL is applied (the rest of the screen works without it)
+        try { cb = await data.adminCreatorBeta(); } catch { cb = null; }
+        const now = Date.now();
+        body.replaceChildren(
+          section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
+          section('Child safety', h('p', { class: d.child_safety && d.child_safety.open_not_hidden ? 'app-error' : '' }, O.childSafetyLine(d.child_safety))),
+          section('Needs you', d.open_alerts.length ? h('ul', { class: 'ops-list' }, d.open_alerts.map(a => h('li', {}, a.detail, h('span', { class: 'meta' }, ` since ${O.ago(a.since, now)}`)))) : none('Nothing needs you.')),
+          section('Stuck jobs', d.stuck.length ? h('ul', { class: 'ops-list' }, d.stuck.map(j => h('li', {}, `${j.job_type} ${j.state}, attempt ${j.attempt}`, h('span', { class: 'meta' }, ` ${j.id}, lease expired ${O.ago(j.lease_expired_at, now)}`)))) : none('None.')),
+          section('Ended without a film (last 7 days)', d.ended.length ? h('ul', { class: 'ops-list' }, d.ended.map(j => h('li', {}, `${O.ENDED_WORDS[j.state] || j.state}: ${j.job_type}`, h('span', { class: 'meta' }, ` ${j.error_code || 'no code'}, ${O.ago(j.ended_at, now)}, ${j.id}`)))) : none('None.'),
+            h('p', { class: 'form-note' }, 'Their credits are released by the ledger; the owner sees the amount on the film.')),
+          section('AI editor spend', O.spendLines(d.ai).map(t => h('p', {}, t))),
+          section('Backups', h('p', {}, O.backupLine(d.backups, now))),
+          section('Payments to review', h('p', { class: d.stripe && d.stripe.open ? 'app-error' : '' }, O.stripeLine(d.stripe)),
+            d.stripe && d.stripe.items.length ? h('ul', { class: 'ops-list' }, d.stripe.items.map(e => h('li', {},
+              h('strong', {}, e.type), h('span', { class: 'meta' }, ` ${e.event_id}, ${O.ago(e.received_at, now)}${e.livemode ? ', LIVE mode' : ', test mode'}`),
+              h('p', {}, e.detail || '(no detail recorded)'), button('Mark reviewed', () => data.adminAckStripe(e.event_id))))) : null),
+          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)),
+            cb && cb.items.length ? h('ul', { class: 'ops-list' }, cb.items.map(a => h('li', {},
+              h('strong', {}, `#${a.id} ${a.name}`), h('span', { class: 'meta' }, ` ${O.CREATOR_KIND_WORDS[a.kind] || a.kind}, ${a.email}, ${O.ago(a.created_at, now)}`),
+              h('p', {}, 'Makes: ', a.makes, ' \u00b7 ', h('a', { href: a.link, rel: 'noopener noreferrer', target: '_blank' }, a.link)),
+              h('p', {}, 'Question: ', a.question),
+              button('Approve', () => data.adminDecideCreator(a.id, 'approved')), ' ', button('Decline', () => data.adminDecideCreator(a.id, 'declined'))))) : null),
+          section(`Help requests (${d.support_open})`, d.support.length ? h('ul', { class: 'ops-list' }, d.support.map(q => h('li', {},
+            h('strong', {}, `#${q.id} ${q.topic}`), h('span', { class: 'meta' }, ` ${q.email}, ${O.ago(q.created_at, now)}${q.job_id ? `, film job ${q.job_id} (${q.job_state}${q.job_error_code ? `, ${q.job_error_code}` : ''})` : ''}`),
+            h('p', {}, q.message), button('Mark answered', () => data.adminAnswerSupport(q.id))))) : none('None waiting.')),
+          section(`Abuse reports (${d.abuse_waiting})`, d.abuse.length ? h('ul', { class: 'ops-list' }, d.abuse.map(r => h('li', {},
+            h('strong', {}, `#${r.id} ${O.REASON_WORDS[r.reason] || r.reason}`), h('span', { class: 'meta' }, ` ${O.ago(r.created_at, now)}${r.auto_held ? ', page hidden' : ', page still up'}, `), h('a', { href: `/film/?s=${r.slug}` }, 'film page'),
+            r.reporter ? h('span', { class: 'meta' }, ` reporter ${r.reporter}`) : null,
+            r.details ? h('p', {}, r.details) : null,
+            r.details_omitted ? h('p', { class: 'form-note' }, 'Short record: this reporter had already sent more than 5 reports in an hour, so only the time, reporter, page and reason were kept (no free text).') : null,
+            button('Restore the page', () => data.adminReviewReport(r.id, 'restored')), ' ', button('Remove the page', () => data.adminReviewReport(r.id, 'removed')), ' ', button('Dismiss', () => data.adminReviewReport(r.id, 'dismissed'))))) : none('None waiting.')),
+          section('Recent messages (dry-run until email is set up)', d.outbox.length ? h('ul', { class: 'ops-list' }, d.outbox.map(o => h('li', {}, `${o.kind}: ${o.subject}`, h('span', { class: 'meta' }, ` ${o.mode === 'live' ? 'sent' : 'not sent (dry run)'}, ${O.ago(o.created_at, now)}`)))) : none('None.')));
+      }
+      load();
+      const timer = setInterval(load, 60000);
+      onStop(() => clearInterval(timer));
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Operations'),
+              h('p', { class: 'form-note' }, 'Everything the daily email says, live. It refreshes every minute.'), body, error];
     }
 
     // --- #/admin/visits  Ryan only: visits to /ryagram/ by day and by link source, with signups beside them and the
@@ -1033,6 +1138,12 @@
           !j.progress_detail && j.progress_note ? h('p', { class: 'form-note' }, j.progress_note) : null);
       }
 
+      // "Your credits were returned." under a failed or stopped job, from the ledger (job_accounting), never guessed.
+      function returnedLine(j, note) {
+        const text = C.returnedNote(accounting[j.id]);
+        return text && !(note || '').toLowerCase().includes('returned') ? h('p', { class: 'form-note credit-returned' }, text) : null;
+      }
+
       function jobItem(j) {
         const active = J.isActive(j);
         const failed = ['failed', 'editorial_action_required', 'cancelled'].includes(j.state);
@@ -1055,7 +1166,9 @@
                 submit(event.currentTarget, j.job_type,
                        j.job_type === 'preview' && !j.params?.window_s ? { ...j.params, window_s: [0, 10] } : j.params || {},
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
-              }, 'Try again') : null);
+              }, 'Try again') : null,
+          creditsOn() && failed ? returnedLine(j, note) : null,
+          opsOn() && failed && j.state !== 'cancelled' ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Get help with this') : null);
       }
 
       function draw() {

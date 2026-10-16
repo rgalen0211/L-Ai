@@ -18,11 +18,11 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&amp;display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/ryagram.css">
-<noscript><style>.waitlist-fields{display:none}</style></noscript>
+<noscript><style>.waitlist-fields,.creator-fields{display:none}</style></noscript>
 </head>
 <body class="ryagram-page">
 <a class="skip-link" href="#waitlist">Skip to the waitlist</a>
-<header class="rg-top"><div class="rg-wrap rg-nav"><a class="rg-brand" href="/" aria-label="L'Ai home"><span class="rg-wordmark" aria-hidden="true">L'Ai</span><span class="rg-brand-sub">Ryagram</span></a><a class="rg-btn rg-btn-small" href="#waitlist">Join the waitlist</a></div></header>
+<header class="rg-top"><div class="rg-wrap rg-nav"><a class="rg-brand" href="/" aria-label="L'Ai home"><span class="rg-wordmark" aria-hidden="true">L'Ai</span><span class="rg-brand-sub">Ryagram</span></a><a class="rg-navlink" href="#creators">Creator beta</a><a class="rg-btn rg-btn-small" href="#waitlist">Join the waitlist</a></div></header>
 <main>
   <section class="rg-wrap rg-hero" aria-labelledby="hero-title">
     <div class="rg-hero-copy">
@@ -42,9 +42,22 @@
   <section id="films" class="rg-section" aria-labelledby="films-title">
     <div class="rg-wrap">
       <h2 id="films-title">Films made with Ryagram</h2>
-      <p class="rg-sub">Short loops from finished films. Each one was checked against its data before it was published.</p>
+      <p class="rg-sub">From finished films made with Ryagram.</p>
       <div class="rg-films">
-        <!-- The Interstate night film goes here when Ryan supplies it: copy an <article class="rg-film">, point it at the new loop and poster. -->
+        <article class="rg-film">
+          <img class="rg-loop" src="/assets/ryagram-film-interstate.jpg" width="960" height="540" loading="lazy" alt="A map of the contiguous United States with the Interstate Highway System drawn in blue, from the film's final frame: 1993, 39,279 Interstate miles constructed.">
+          <h3>Rise of the Interstate Highway, 1956&ndash;1993</h3>
+          <p class="rg-film-line">The Interstate Highway System, contiguous United States: 39,279 miles constructed, 1956&ndash;1993.</p>
+          <a href="https://youtu.be/UC4j77KYVQ8" target="_blank" rel="noopener">Watch the full film</a>
+          <p class="rg-film-credit">Data: Brooks &amp; Liscow (2023), CC BY 4.0, transformed by Ryagram.</p>
+        </article>
+        <article class="rg-film">
+          <img class="rg-loop" src="/assets/ryagram-film-construction-mix.jpg" width="960" height="540" loading="lazy" alt="A chart of new US housing permits since 1990 with the headline 23.5% to 29.9% of new homes in buildings with 5 or more units, 1990 to 2024.">
+          <p class="rg-tag">Coming soon</p>
+          <h3>America's Housing Permits: The Construction Mix (1990&ndash;2024)</h3>
+          <p class="rg-film-line">In 1990, 23.5% of the new homes America authorized were in buildings with 5 or more units. By 2024 it was 29.9%.</p>
+          <p class="rg-film-credit">Data: U.S. Census Bureau, Building Permits Survey.</p>
+        </article>
         <article class="rg-film">
           <video class="rg-loop" muted loop playsinline preload="none" poster="/assets/ryagram-loop-housing.jpg" width="960" height="540" aria-label="A map of US counties changing colour year by year, from a film about building permits."><source src="/assets/ryagram-loop-housing.mp4" type="video/mp4"></video>
           <h3>America Never Started Building Again</h3>
@@ -113,12 +126,53 @@
       </form>
     </div>
   </section>
+
+  <section id="creators" class="rg-section" aria-labelledby="creators-title">
+    <div class="rg-wrap rg-waitlist">
+      <div>
+        <h2 id="creators-title">Creator beta</h2>
+        <p class="rg-sub">For YouTubers, podcasters, newsletter writers, journalists, teachers and researchers who have a question that data can answer. Tell us who you are and the question, and we may invite you to make a film with it.</p>
+        <p class="rg-terms"><strong>Beta credits are free, in exchange for your feedback.</strong> If you talk about or promote Ryagram, or a film you made with it, you disclose that your credits were free. Applying doesn't guarantee a place; we reply by email.</p>
+      </div>
+      <form id="creator-form" class="rg-form">
+        <div class="creator-fields">
+          <label for="cb-name">Your name <span>(required)</span></label>
+          <input id="cb-name" name="name" type="text" autocomplete="name" maxlength="100" required>
+          <label for="cb-email">Email <span>(required)</span></label>
+          <input id="cb-email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="200" required>
+          <label for="cb-kind">I am a <span>(required)</span></label>
+          <select id="cb-kind" name="kind" required>
+            <option value="">Choose one</option>
+            <option value="youtuber">YouTuber</option>
+            <option value="podcaster">Podcaster</option>
+            <option value="newsletter">Newsletter writer</option>
+            <option value="journalist">Journalist</option>
+            <option value="teacher">Teacher</option>
+            <option value="researcher">Researcher</option>
+            <option value="other">Something else</option>
+          </select>
+          <label for="cb-makes">What you make <span>(required)</span></label>
+          <input id="cb-makes" name="makes" type="text" maxlength="200" placeholder="For example: weekly explainer videos on housing" required>
+          <label for="cb-link">Link to your channel or site <span>(required)</span></label>
+          <input id="cb-link" name="link" type="url" inputmode="url" autocomplete="url" maxlength="300" placeholder="https://" required>
+          <label for="cb-question">The question you'd answer with data <span>(required)</span></label>
+          <textarea id="cb-question" name="question" rows="4" maxlength="1000" placeholder="For example: Did cities that added bike lanes see fewer cyclist deaths?" required></textarea>
+          <div class="hp" aria-hidden="true"><label for="cb-website">Website</label><input id="cb-website" name="website" type="text" tabindex="-1" autocomplete="off"></div>
+          <button class="rg-btn" type="submit">Apply for the creator beta</button>
+          <p class="rg-note">We will only use this to contact you about the beta. See our <a href="/privacy-policy.html">Privacy Policy</a>.</p>
+        </div>
+        <p id="creator-status" class="rg-note waitlist-status" role="status" tabindex="-1" hidden></p>
+        <noscript><p class="rg-note">To apply without JavaScript, email <a href="mailto:ryagram@uselai.com?subject=Ryagram%20creator%20beta">ryagram@uselai.com</a> with your link and your question.</p></noscript>
+      </form>
+    </div>
+  </section>
 </main>
 <footer class="rg-foot"><div class="rg-wrap rg-foot-row"><span>Ryagram is operated by L'Ai, LLC.</span><a href="mailto:ryagram@uselai.com">ryagram@uselai.com</a><a href="/privacy-policy.html">Privacy Policy</a></div></footer>
 <script src="/assets/analytics-config.js" defer></script>
 <script src="/assets/analytics.js" defer></script>
 <script src="/assets/ryagram-config.js" defer></script>
 <script src="/assets/ryagram.js" defer></script>
+<script src="/assets/creator-beta.js" defer></script>
 <script src="/assets/ryagram-loops.js" defer></script>
 </body>
 </html>

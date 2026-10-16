@@ -90,16 +90,38 @@ test('film slots accept YouTube links or IDs and ignore anything else', () => {
   });
 });
 
-test('the shipped page shows two finished-film loops that link to the full films (no film slots any more)', () => {
+test('the shipped page shows four films, newest first: two still-image entries (Interstate: watch link; Construction Mix: Coming soon, NO link) and the two finished-film loops (no film slots any more)', () => {
   assert.equal(shippedSlots.length, 0);
   const films = [...pageHtml.matchAll(/<article class="rg-film">([\s\S]*?)<\/article>/g)].map(m => m[1]);
-  assert.equal(films.length, 2);
-  assert.match(films[0], /href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*rel="noopener"/);
-  assert.match(films[1], /href="https:\/\/youtu\.be\/h32_9Gd8cOg"[^>]*rel="noopener"/);
-  for (const f of films) {
+  assert.equal(films.length, 4);
+  // Interstate: the published film (youtu.be/UC4j77KYVQ8). Its title, line and credit are the film's own card and licence text.
+  assert.match(films[0], /<h3>Rise of the Interstate Highway, 1956&ndash;1993<\/h3>/);
+  assert.match(films[0], /href="https:\/\/youtu\.be\/UC4j77KYVQ8"[^>]*rel="noopener"/);
+  assert.match(films[0], /39,279 miles constructed, 1956&ndash;1993/);
+  assert.match(films[0], /Brooks &amp; Liscow \(2023\), CC BY 4\.0/);
+  // Construction Mix: not out yet, so a plain "Coming soon" and no link of any kind to a film that does not exist.
+  assert.match(films[1], /<p class="rg-tag">Coming soon<\/p>/);
+  assert.match(films[1], /<h3>America's Housing Permits: The Construction Mix \(1990&ndash;2024\)<\/h3>/);
+  assert.match(films[1], /23\.5% of the new homes America authorized were in buildings with 5 or more units\. By 2024 it was 29\.9%\./);
+  assert.doesNotMatch(films[1], /<a\s|href=/);
+  for (const f of films.slice(0, 2)) {
+    assert.match(f, /<img class="rg-loop" src="\/assets\/ryagram-film-[a-z-]+\.jpg" width="960" height="540" loading="lazy" alt="[^"]{40,}"/);
+    assert.doesNotMatch(f, /<video|autoplay/);
+  }
+  assert.match(films[2], /href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*rel="noopener"/);
+  assert.match(films[3], /href="https:\/\/youtu\.be\/h32_9Gd8cOg"[^>]*rel="noopener"/);
+  for (const f of films.slice(2)) {
     assert.match(f, /<video class="rg-loop" muted loop playsinline preload="none" poster="\/assets\/ryagram-loop-[a-z]+\.jpg"/);
     assert.match(f, /aria-label="[^"]{20,}"/);                                  // a described, silent loop
     assert.doesNotMatch(f, /\sautoplay[\s>]/);                                 // started by ryagram-loops.js, only while visible
+  }
+});
+
+test('the two new film images exist, are real JPEGs, and are small enough for a phone', () => {
+  for (const name of ['interstate', 'construction-mix']) {
+    const bytes = fs.readFileSync(path.join(__dirname, `../assets/ryagram-film-${name}.jpg`));
+    assert.deepEqual([bytes[0], bytes[1], bytes[2]], [0xff, 0xd8, 0xff], name);
+    assert.ok(bytes.length > 20000 && bytes.length < 150000, `${name}: ${bytes.length} bytes`);
   }
 });
 
@@ -431,9 +453,33 @@ test('the waitlist form keeps its fields: required email, optional "What do you 
   assert.match(pageHtml, /<section id="waitlist"[^>]*>[\s\S]*Want to make one\?/);
 });
 
+// The one deliberate exception (Ryan, 2026-10-14): the creator beta terms must say plainly that beta credits are free. That paragraph (class
+// rg-terms) is checked on its own below, so "credits" is allowed THERE and nowhere else.
+const termsParagraph = (pageHtml.match(/<p class="rg-terms">[\s\S]*?<\/p>/) || [''])[0];
+const publicText = visibleText.replace(termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim(), ' ');
+
 test('nothing on the page reveals how data is found or chosen, or how anything is priced', () => {
-  assert.doesNotMatch(visibleText, /\b(broker|brokering|sourcing|catalog|catalogue|price|pricing|priced|credits?|per film|Anthropic|Claude|Supabase|Cloudflare|Playwright|worker)\b/i);
+  assert.notEqual(termsParagraph, '');
+  assert.doesNotMatch(publicText, /\b(broker|brokering|sourcing|catalog|catalogue|price|pricing|priced|credits?|per film|Anthropic|Claude|Supabase|Cloudflare|Playwright|worker)\b/i);
   assert.doesNotMatch(visibleText, /\$\d/);
+});
+
+test('CREATOR BETA: the section says plainly that beta credits are free in exchange for feedback and that any promotion is disclosed, and prices nothing', () => {
+  const text = termsParagraph.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.match(text, /Beta credits are free, in exchange for your feedback\./);
+  assert.match(text, /promote .* you disclose that your credits were free/);
+  assert.doesNotMatch(text, /\$|\b(price|pricing|priced|per film|Anthropic|Claude|Supabase|worker)\b/i);
+  assert.match(pageHtml, /<section id="creators"[^>]*aria-labelledby="creators-title"/);
+  assert.match(pageHtml, /<a class="rg-navlink" href="#creators">Creator beta<\/a>/);
+});
+
+test('CREATOR BETA: the form asks name, email, who they are (all six kinds), what they make, a link, and their data question; has a honeypot; and every field has a label', () => {
+  const form = pageHtml.match(/<form id="creator-form"[\s\S]*?<\/form>/)[0];
+  for (const name of ['name', 'email', 'kind', 'makes', 'link', 'question', 'website']) assert.match(form, new RegExp(`name="${name}"`), name);
+  for (const kind of ['youtuber', 'podcaster', 'newsletter', 'journalist', 'teacher', 'researcher']) assert.match(form, new RegExp(`<option value="${kind}">`), kind);
+  for (const id of [...form.matchAll(/<(?:input|select|textarea) id="([^"]+)"/g)].map(m => m[1])) assert.match(form, new RegExp(`for="${id}"`), id);
+  assert.match(form, /<div class="hp" aria-hidden="true">/);
+  assert.match(pageHtml, /<script src="\/assets\/creator-beta\.js" defer><\/script>/);
 });
 
 test('the page works with the strict policy: no inline script or style, and nothing from outside but the typeface', () => {

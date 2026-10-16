@@ -278,6 +278,8 @@ Ryagram is operated by L'Ai, LLC. Questions: ryagram@uselai.com
 
 ## Email sender: Google Workspace (ryan.galen@uselai.com) via Supabase custom SMTP
 
+**SUPERSEDED (Ryan, 2026-10-10): custom SMTP is set up with Resend instead**, sender `noreply@uselai.com`, domain verified (DKIM and SPF). The Google Workspace steps below are kept only as a fallback; do not follow them. The Auth email templates are now editable: ready-to-paste versions are in `supabase/email-templates/` (see "Email templates: who is named").
+
 Password-reset and invite emails need this; nothing else changes. Checked against Google's and
 Supabase's docs on 2026-10-03. Gmail's SMTP server takes a Workspace address plus an **app
 password** ("less secure apps" ended 1 May 2025). Google's SMTP relay needs fixed sending IPs, which
@@ -510,3 +512,53 @@ A cookieless count of visits to the Ryagram page, nothing displayed on the page.
 2. **A tally by link source** (`?ref=youtube`, or failing that `?utm_source=`), because Cloudflare does not break visits out by query parameter. SQL `migrations/20261006000100_visit_counting.sql` (after 20261003000300): table `ryagram_visits` (day, path, source, count: no visitor id, cookie, address or agent), `record_visit` (anyone may add 1), `visits_by_day` and `visits_by_source` (admin only). Apply it, then set `visitCounting: true` in `assets/ryagram-config.js`. Ryan's view is `/app/#/admin/visits` (visits, signups and signup rate, by day and by source). A signup keeps its `ref` in the existing `source` column.
 
 Counted: one per page load; skipped for Do Not Track, Global Privacy Control, automated browsers and obvious crawlers. The privacy policy has one sentence on it.
+
+## Hands-off operations (branch ops-readiness): switching it on
+
+Design and audit: `Ryagram-logs/proposals/WEB-OPS-READINESS.md`. Nothing below is applied or deployed until Claude has reviewed the SQL.
+
+1. Apply `migrations/20261010000100_ops_readiness.sql` (after the AI editor, film pages and app_admins migrations). It also replaces `ai_reserve_turn` with the capped version and adds `control.ai_daily_usd_cap` ($5), `ai_monthly_usd_cap` ($60) and `ai_project_cap_usd` ($5): tune them in the Table Editor on the `control` row.
+2. Redeploy `ai-editor` (it now asks `ai_budget_ok` before every Anthropic call). Deploy `ops-tick` and `ops-digest` the same way as `purge-uploads` (`--no-verify-jwt`).
+3. Dashboard > Integrations > Cron: `ops-tick` every MINUTE (a child-safety report's first email goes out within a minute); `ops-digest` daily at 13:00 UTC. Same Authorization header as the purge jobs.
+4. Mail is DRY-RUN by default: every alert and digest is written to the `ops_outbox` table (Table Editor) and nothing is sent. **Secrets already set (Ryan, 2026-10-10): `RESEND_API_KEY` and `OPS_MAIL_FROM`; the Resend domain is verified (DKIM and SPF).** `OPS_MAIL_MODE` is still unset, so it stays in dry-run. **Going live = set the secret `OPS_MAIL_MODE=resend`, but only after CC1 has approved ops-readiness, the SQL is applied and the `ops-tick` and `ops-digest` functions are deployed and scheduled.** Anything missing keeps it in dry-run. (Supabase's own Auth emails use the same Resend account through custom SMTP, set separately in Authentication > Emails.)
+5. WORKER adds one `worker_ping(free_gb)` call per minute. Until then rendering status is `unknown` and no worker alert is raised.
+6. Merge `.github/workflows/ops-ping.yml` only after step 1.
+7. **Launch checklist (Ryan, 2026-10-10): raise the site-wide AI caps before public launch; consider per-user caps tied to credits.** The defaults ($5 a day, $60 a month, $5 a project) suit one user. A call whose model has no row in `ai_prices` is counted at the most expensive known price and raises one alert `ai_price_missing:<model>`: add the price row to clear it.
+8. **Backups:** after the daily backup is installed (proposals/WEB-BACKUP-DESIGN.md), set `ops_settings.backups_expected = true` in the Table Editor; from then on a good dump older than 2 days raises one alert.
+9. **Before go-live, look at one real `ai_usage` row** after the first editor turn: `model` must be the alias in `ai_prices` (`claude-haiku-4-5` / `claude-sonnet-5`), `cost_usd` not null. The editor records usage under the REQUESTED model, so a dated name from the API cannot make a call unpriced; if `ai_price_missing` ever alerts, add the price row.
+10. **HARD GATE before the report form is switched on (`opsTools`): verify the report limits see the real caller.** `report_film_page` keys its limits on the `cf-connecting-ip` header (set by Cloudflare, which a client cannot forge), else the LAST hop of `x-forwarded-for`, else the typed email. If `cf-connecting-ip` does not reach PostgREST, the last forwarded hop is probably a SHARED proxy or edge address: then one person's 5 reports an hour blocks everyone, child safety included, and the check must FAIL. Test from a phone and a laptop: send two harmless reports (reason: other) to a test page from each and read `abuse_reports.reporter_key`: it must differ between the two devices and be the same for two reports from one device. If every key is the same, or every report has a new key, do NOT switch the form on; tell Claude (the limits then fall back to the typed email, which does not stop a flood).
+11. **Child-safety reports (Ryan, 2026-10-12).** A report with the reason `child_safety` is ALWAYS recorded (no limit can refuse it) and raises an URGENT alert that is emailed at once, bypassing the daily alert-mail allowance. The page is hidden pending your review, but at most `ops_settings.child_safety_holds_per_hour` (default 10) pages an hour site-wide; above that the report is still recorded and the alert says the page is NOT hidden, and `#/admin/ops` lists it first. Because the alert goes out on the next `ops-tick`, schedule `ops-tick` **every minute** (Dashboard > Integrations > Cron; it is a cheap SQL pass that only sends mail when something is new) so the worst-case delay is about a minute. **Launch checklist: a lawyer confirms the CSAM reporting duties (NCMEC) and the review process before public launch.** **Ryan's answers (2026-10-14):** (a) the FIRST urgent email goes out at once; after that ONE grouped email at most every 15 minutes (`ops_settings.urgent_mail_every_min`) covers everything since, and nothing is dropped: urgent mail is its own outbox kind (`urgent`), so it never counts against, and is never held by, the 20-a-day allowance for ordinary alerts. One mail lists up to 100 reports; every report is on `#/admin/ops`. (b) A reporter's first 5 reports in an hour (`report_detail_per_reporter_hour`) keep their full details; after that each report is still recorded as a SHORT record (time, reporter, page, reason; no free text, `details_omitted`), and `#/admin/ops` says so. Child-safety reports are never refused for it; other reasons keep their per-reporter limit. Hides by child-safety reports do not use up the ordinary per-reporter or hourly hide allowances, and report handling takes a lock so concurrent reports cannot race past the caps.
+
+## Creator beta (branch creator-beta): switching it on
+
+YouTubers, podcasters, newsletter writers, journalists, teachers and researchers apply on `/ryagram/#creators` (name, email, who they are,
+what they make, a link, and the question they would answer with data). Ryan approves or declines each one on `#/admin/ops`
+("Creator beta applications"). The page says plainly that beta credits are free in exchange for feedback and that any promotion is disclosed.
+
+- **Stored:** `public.creator_applications`, tagged `source = 'creator_beta'`. RLS is on and every grant is revoked, the service role
+  included, so nobody can read or change a row directly. The ONLY writer is `creator_beta_apply`, callable by the service role only (the
+  `creator-beta` function). Ryan's two functions (`admin_creator_beta`, `admin_decide_creator`) are gated by `is_app_admin()`.
+- **Approving sends nothing and grants no credits.** It marks the row and clears its alert. Ryan replies from his inbox and grants the free
+  credits by hand (the invite code or `grant_credits`), so nothing can cost money by itself.
+- **Limits:** one application per email; **3 an hour per caller** and 40 an hour site-wide (each a friendly "try again later"); a hidden
+  honeypot field. The per-caller limit is checked first, so one spammer is refused long before the site-wide cap is near and cannot lock real
+  applicants out. The function hashes the caller's address with the New York day (sha-256) and passes only the hash; the address is never stored
+  and the key changes daily. Only stored applications count. A request with no address gets no per-caller limit (never one shared bucket).
+  People behind one shared address (a school or newsroom) share its 3 an hour.
+- **Verify once on the live project** (like the report form's go-live step): which header carries the real caller address. The function reads
+  `cf-connecting-ip` (set by Cloudflare, overwrites anything the client sent), else the LAST hop of `x-forwarded-for`, never the first.
+  After deploying, apply from two different networks and check `select count(distinct caller_key) from creator_applications` is 2, not 1.
+  If it is 1 (every caller looks the same) the per-caller limit would block everybody after 3: do not switch the form on until fixed.
+- **Alerts:** each new application raises one `creator:<id>` alert (in the daily digest and "Needs you"), cleared when Ryan decides it.
+
+To switch it on (in this order):
+
+1. **SQL Editor:** `migrations/20261014000100_creator_beta.sql`, after `20261010000100_ops_readiness.sql` (it uses that file's alert ledger
+   and `is_app_admin`).
+2. **Deploy** (visitors are not signed in):
+
+   ```
+   npx supabase functions deploy creator-beta --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+3. Set `creatorBeta: true` in `assets/ryagram-config.js` and push. Until then the form tells people to email ryagram@uselai.com and sends nothing.
+
