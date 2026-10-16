@@ -1,10 +1,12 @@
-// ops-tick: every 5 minutes. Runs the database's health pass (ops_tick: reap lost leases, expire stale queue, raise alerts) and
+// ops-tick: every MINUTE. Runs the database's health pass (ops_tick: reap lost leases, expire stale queue, raise alerts) and
 // emails every NEW alert exactly once. A failed send leaves the alert un-notified, so the next tick tries again.
 import { isService, json, OPS_TO, type Sender } from "../_shared/ops_mail.ts";
 
+const URGENT_LINES = 100;          // one mail lists up to 100 reports; any more are counted in it and all of them are on #/admin/ops
+
 export interface Deps {
   serviceKey: string;
-  tick(): Promise<{ rendering: string; reaped: number; expired: number; alert_mail_budget: number; new_alerts: { key: string; detail: string; urgent?: boolean }[] }>;
+  tick(): Promise<{ rendering: string; reaped: number; expired: number; alert_mail_budget: number; urgent_wait_s?: number; new_alerts: { key: string; detail: string; urgent?: boolean }[] }>;
   markNotified(keys: string[]): Promise<number>;
   sender: Sender;
 }
@@ -19,17 +21,25 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   let urgentSent = 0;
   const urgent = r.new_alerts.filter((a) => a.urgent);
   const normal = r.new_alerts.filter((a) => !a.urgent);
-  // URGENT alerts (a child-safety report) are sent AT ONCE and never wait for, or count against, the daily alert-mail allowance.
-  if (urgent.length) {
+  // URGENT alerts (a child-safety report), Ryan 2026-10-14: the FIRST goes out at once; after that ONE grouped mail at most every 15 minutes (the
+  // database says how many seconds are still to wait: urgent_wait_s), covering EVERYTHING since the last one. Nothing is dropped: an alert that has to
+  // wait stays un-notified and is in the next mail (a failed send is tried again next minute). Urgent mail is its own kind: it never counts against,
+  // and is never held by, the daily allowance for ordinary alerts.
+  let urgentHeld = 0;
+  if (urgent.length && (r.urgent_wait_s ?? 0) <= 0) {
+    const lines = urgent.slice(0, URGENT_LINES).map((a) => `- ${a.detail.replace(/^URGENT:\s*/, "")}`);
+    if (urgent.length > URGENT_LINES) lines.push(`- ...and ${urgent.length - URGENT_LINES} more: every one is listed in #/admin/ops (Abuse reports).`);
     try {
-      await deps.sender.send({ kind: "alert", to: OPS_TO,
+      await deps.sender.send({ kind: "urgent", to: OPS_TO,
         subject: urgent.length === 1 ? `URGENT: ${urgent[0].detail.replace(/^URGENT:\s*/, "")}`.slice(0, 120) : `URGENT: ${urgent.length} child-safety reports`,
-        body: urgent.map((a) => `- ${a.detail}`).join("\n") + "\n\nReview now: #/admin/ops in the app (Abuse reports). Open reports stay listed in the daily email until you decide." });
+        body: lines.join("\n") + "\n\nReview now: #/admin/ops in the app (Abuse reports). Open reports stay listed in the daily email until you decide. Further reports are grouped into one email every 15 minutes." });
       notified += await deps.markNotified(urgent.map((a) => a.key));
       urgentSent = urgent.length;
     } catch (e) {
       console.error("urgent alert not sent; will retry next tick", (e as Error).message);
     }
+  } else {
+    urgentHeld = urgent.length;
   }
   if (normal.length && r.alert_mail_budget <= 0) {
     // Today's alert-mail allowance is used up (a flood must not exhaust the mail service's free tier). The alerts stay open and
@@ -45,5 +55,5 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       console.error("alert not sent; will retry next tick", (e as Error).message);
     }
   }
-  return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, notified, held, mode: deps.sender.mode });
+  return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, urgent_held: urgentHeld, notified, held, mode: deps.sender.mode });
 }

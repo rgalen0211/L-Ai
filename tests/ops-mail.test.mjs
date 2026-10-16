@@ -24,7 +24,7 @@ test('tick sends nothing when there are no new alerts, and one message for new o
   const o = outbox(); const marked = [];
   const base = { serviceKey: 'secret', markNotified: async k => { marked.push(k); return k.length; }, sender: dryRunSender(o) };
   let res = await tick(req(), { ...base, tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: [] }) });
-  assert.deepEqual(await res.json(), { rendering: 'ok', reaped: 0, expired: 0, alerts: 0, urgent: 0, notified: 0, held: 0, mode: 'dry_run' });
+  assert.deepEqual(await res.json(), { rendering: 'ok', reaped: 0, expired: 0, alerts: 0, urgent: 0, urgent_held: 0, notified: 0, held: 0, mode: 'dry_run' });
   assert.equal(o.rows.length, 0);
   res = await tick(req(), { ...base, tick: async () => ({ rendering: 'delayed', reaped: 1, expired: 0, alert_mail_budget: 20, new_alerts: [{ key: 'worker_stale', detail: 'Rendering has not checked in for over 3 minutes.' }] }) });
   assert.equal((await res.json()).notified, 1);
@@ -131,3 +131,54 @@ test('several urgent alerts make one URGENT message; a failed urgent send leaves
   assert.equal((await bad.json()).urgent, 0);
   assert.equal(marked.some(m => m[0] === 'BAD'), false);
 });
+
+// ---- Ryan's answer (2026-10-14): the FIRST urgent mail at once, then ONE grouped mail every 15 minutes, nothing dropped, outside the daily allowance
+const urgentAlerts = ids => ids.map(n => ({ key: `urgent:child_safety:${n}`, detail: `URGENT: child-safety report #${n} on a public film page.`, urgent: true }));
+const tickWith = (o, marked, r) => tick(req(), { serviceKey: 'secret', sender: dryRunSender(o), markNotified: async k => { marked.push(k); return k.length; },
+  tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: [], ...r }) });
+
+test('URGENT cadence: while the 15-minute wait is running the urgent alerts are HELD (un-notified, unsent); when it is over they all go in ONE mail of kind urgent', async () => {
+  const o = outbox(); const marked = [];
+  let b = await (await tickWith(o, marked, { urgent_wait_s: 600, new_alerts: urgentAlerts([4, 5]) })).json();
+  assert.deepEqual([b.urgent, b.urgent_held, b.notified], [0, 2, 0]);
+  assert.deepEqual([o.rows.length, marked.length], [0, 0]);                       // nothing sent, nothing marked: they wait for the next mail
+  b = await (await tickWith(o, marked, { urgent_wait_s: 0, new_alerts: urgentAlerts([4, 5, 6]) })).json();
+  assert.deepEqual([b.urgent, b.urgent_held, b.notified], [3, 0, 3]);
+  assert.equal(o.rows.length, 1);
+  assert.equal(o.rows[0][0], 'urgent');                                           // its own kind: never counted in the ordinary allowance
+  for (const n of [4, 5, 6]) assert.match(o.rows[0][4], new RegExp(`child-safety report #${n}\\b`));
+  assert.deepEqual(marked, [['urgent:child_safety:4', 'urgent:child_safety:5', 'urgent:child_safety:6']]);
+});
+
+test('URGENT cadence: an older database without urgent_wait_s behaves as "send now" (the first one is never held)', async () => {
+  const o = outbox(); const marked = [];
+  const b = await (await tickWith(o, marked, { new_alerts: urgentAlerts([1]) })).json();
+  assert.deepEqual([b.urgent, o.rows.length, o.rows[0][0]], [1, 1, 'urgent']);
+});
+
+test('URGENT cadence: the daily allowance never holds an urgent mail and an urgent mail is never an ordinary "alert" row', async () => {
+  const o = outbox(); const marked = [];
+  const b = await (await tickWith(o, marked, { alert_mail_budget: 0, urgent_wait_s: 0, new_alerts: [...urgentAlerts([9]), { key: 'worker_stale', detail: 'Rendering has not checked in.', urgent: false }] })).json();
+  assert.deepEqual([b.urgent, b.held, o.rows.map(r => r[0])], [1, 1, ['urgent']]);
+});
+
+test('URGENT cadence: a held ordinary alert is not affected by the urgent wait, and a failed urgent send keeps the alerts for the next minute', async () => {
+  const o = outbox(); const marked = [];
+  const quiet = console.error; console.error = () => {};
+  const bad = await tick(req(), { serviceKey: 'secret', sender: { mode: 'live', send: async () => { throw new Error('mail down'); } }, markNotified: async k => { marked.push(k); return k.length; },
+    tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, urgent_wait_s: 0, new_alerts: urgentAlerts([1, 2]) }) });
+  console.error = quiet;
+  assert.deepEqual([(await bad.json()).urgent, marked.length], [0, 0]);
+  const retry = await (await tickWith(o, marked, { urgent_wait_s: 0, new_alerts: urgentAlerts([1, 2]) })).json();
+  assert.equal(retry.urgent, 2);                                                  // the next minute sends both
+});
+
+test('URGENT mail lists up to 100 reports and says how many more are on #/admin/ops (nothing is lost, the screen has every one)', async () => {
+  const o = outbox(); const marked = [];
+  const b = await (await tickWith(o, marked, { urgent_wait_s: 0, new_alerts: urgentAlerts(Array.from({ length: 130 }, (_, i) => i + 1)) })).json();
+  assert.equal(b.urgent, 130);
+  assert.equal((o.rows[0][4].match(/child-safety report #/g) || []).length, 100);
+  assert.match(o.rows[0][4], /\.\.\.and 30 more: every one is listed in #\/admin\/ops/);
+  assert.equal(marked[0].length, 130);                                            // all 130 are marked notified: the mail told Ryan about them
+});
+

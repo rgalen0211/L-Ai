@@ -255,7 +255,9 @@
             h('p', {}, q.message), button('Mark answered', () => data.adminAnswerSupport(q.id))))) : none('None waiting.')),
           section(`Abuse reports (${d.abuse_waiting})`, d.abuse.length ? h('ul', { class: 'ops-list' }, d.abuse.map(r => h('li', {},
             h('strong', {}, `#${r.id} ${O.REASON_WORDS[r.reason] || r.reason}`), h('span', { class: 'meta' }, ` ${O.ago(r.created_at, now)}${r.auto_held ? ', page hidden' : ', page still up'}, `), h('a', { href: `/film/?s=${r.slug}` }, 'film page'),
+            r.reporter ? h('span', { class: 'meta' }, ` reporter ${r.reporter}`) : null,
             r.details ? h('p', {}, r.details) : null,
+            r.details_omitted ? h('p', { class: 'form-note' }, 'Short record: this reporter had already sent more than 5 reports in an hour, so only the time, reporter, page and reason were kept (no free text).') : null,
             button('Restore the page', () => data.adminReviewReport(r.id, 'restored')), ' ', button('Remove the page', () => data.adminReviewReport(r.id, 'removed')), ' ', button('Dismiss', () => data.adminReviewReport(r.id, 'dismissed'))))) : none('None waiting.')),
           section('Recent messages (dry-run until email is set up)', d.outbox.length ? h('ul', { class: 'ops-list' }, d.outbox.map(o => h('li', {}, `${o.kind}: ${o.subject}`, h('span', { class: 'meta' }, ` ${o.mode === 'live' ? 'sent' : 'not sent (dry run)'}, ${O.ago(o.created_at, now)}`)))) : none('None.')));
       }
