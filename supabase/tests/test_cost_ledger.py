@@ -38,6 +38,13 @@ class CostLedger(core.Base):
     def svc(self):
         return self.db.as_("service")
 
+    def setUp(self):
+        super().setUp()
+        # Ryan's starting limits and the $0 render rate are seeded by the migration (tested on their own); every other test starts from a clean slate.
+        if "seed" not in self._testMethodName:
+            self.db.as_(None).c.execute("delete from public.cost_thresholds")
+            self.db.as_(None).c.execute("delete from public.cost_rates")
+
     def ryan(self):
         return self.db.as_(RYAN)          # (one shared connection: every call must pick its role again)
 
@@ -82,6 +89,27 @@ class CostLedger(core.Base):
                 with self.subTest(who=who, sql=sql[:40]):
                     self.denied(who, sql)
         self.assertEqual(self.admin("select count(*) from public.cost_events"), 0)
+
+    # ---- Ryan's starting decisions, seeded as data
+    def test_seed_ryans_starting_limits_alert_only_and_the_zero_cash_render_rate(self):
+        self.make_ryan_admin()
+        rows = self.db.as_(None).all("select vendor, period, limit_usd::float, warn_pct, enabled from public.cost_thresholds order by period")
+        self.assertEqual(rows, [(None, "day", 5.0, 80, True), (None, "month", 50.0, 80, True)])     # $5 a day and $50 a month, every vendor, warn at 80%
+        self.assertEqual(self.db.as_(None).all("select vendor, kind, unit_usd::float from public.cost_rates"), [("render", "cpu_hour", 0.0)])
+        # alerts only: crossing a limit raises an ops alert and changes nothing else (no function here can pause, block or switch anything off)
+        control_before = self.admin("select to_jsonb(c) from public.control c where id")
+        self.record(ev("big", amount=6, when=f"{self.today()}T16:00:00Z"))
+        self.svc().one("select cost_tick()")
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'cost:%%:over:%%' and resolved_at is null"), 1)
+        self.assertEqual(self.admin("select to_jsonb(c) from public.control c where id"), control_before)          # the kill switches and AI settings are untouched
+        # re-applying the migration's inserts changes nothing (and does not undo a limit Ryan edited)
+        self.ryan().one("select admin_cost_set_threshold(null, 'day', 12, 90)")
+        self.assertEqual(self.admin("select count(*), min(limit_usd)::float from public.cost_thresholds where period = 'day'"), (1, 12.0))
+        # with the $0 rate a render is a KNOWN $0 (not unknown), priced from cpu seconds
+        vid, final = self.finished()
+        self.admin("update public.job_metering set cpu_user_s = 3000, cpu_kernel_s = 600 where job_id = %s returning 1", final)
+        self.svc().one("select cost_tick()")
+        self.assertEqual(float(self.admin("select amount_usd from public.cost_events where vendor = 'render'")), 0.0)
 
     # ---- recording
     def test_events_are_recorded_once_and_unknown_stays_unknown(self):

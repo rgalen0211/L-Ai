@@ -576,7 +576,7 @@ To switch it on (in this order):
 2. **Stripe key:** a **restricted key with Balance: Read** (add "Balance transaction sources: Read" if the first call is refused), as the `STRIPE_SECRET_KEY` secret. Test-mode key first: the function takes the mode from the key's prefix.
 3. **Deploy:** `npx supabase functions deploy cost-sync --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`
 4. **Schedule:** Dashboard > Integrations > Cron > every **hour** > Supabase Edge Function `cost-sync`, with the same `Authorization: Bearer <service key>` header as `ops-tick`. Alarms are evaluated on that run, so they can be up to an hour late.
-5. On `#/admin/ops` > Costs: enter your plans and the render core-hour rate, record costs nothing can see (a domain renewal), and set your limits.
+5. **Seeded by the migration (Ryan, 2026-10-16), editable on `#/admin/ops` > Costs:** limits of **$5 a day and $50 a month across every vendor, warning at 80%, alerts only** (nothing here can block or stop anything), and a **render core-hour rate of $0** (renders on his own PC cost $0 in cash; the cloud rate comes from BUILDER's trial). Still to enter: your plans (Supabase, Resend, Workspace; the Supabase plan is being checked) and costs nothing can see (a domain renewal).
 
 Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring) and `supabase/tests/test_cost_ledger.py` (closed tables, idempotence, rollup, plans, render and storage readings, alarms). Run the SQL tests with `TEMP`, `TMP` and `TMPDIR` on D: (the storage rule).
 

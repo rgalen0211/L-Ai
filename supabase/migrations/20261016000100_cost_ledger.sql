@@ -68,6 +68,16 @@ create unique index cost_thresholds_scope_key on public.cost_thresholds (coalesc
 alter table public.cost_thresholds enable row level security;
 revoke all on table public.cost_thresholds from anon, authenticated, service_role;
 
+-- Ryan's starting decisions (2026-10-16), as data he can change on #/admin/ops: ALERTS ONLY (nothing here can block or stop anything), $5 a day and
+-- $50 a month across every vendor, warning at 80%; and renders on his own PC cost $0 in cash (the cloud rate comes later, from BUILDER's trial).
+insert into public.cost_thresholds (vendor, period, limit_usd, warn_pct)
+  select null, 'day', 5, 80 where not exists (select 1 from public.cost_thresholds where vendor is null and period = 'day');
+insert into public.cost_thresholds (vendor, period, limit_usd, warn_pct)
+  select null, 'month', 50, 80 where not exists (select 1 from public.cost_thresholds where vendor is null and period = 'month');
+insert into public.cost_rates (vendor, kind, unit_usd, note)
+  values ('render', 'cpu_hour', 0, 'Ryan 2026-10-16: $0 in cash for renders on his own PC; the cloud rate comes from BUILDER''s trial')
+  on conflict (vendor, kind) do nothing;
+
 -- The sync function's bookmark (where the Stripe pull got to).
 create table public.cost_sync_state (
   key text primary key check (char_length(key) <= 60),
