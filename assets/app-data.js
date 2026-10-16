@@ -328,6 +328,13 @@
       // Creator beta applications (SQL 20261014000100): Ryan's list, and Approve / Decline. Neither sends anything or moves credits.
       adminCreatorBeta() { return run(client.rpc('admin_creator_beta'), 'Couldn\u2019t load creator applications.'); },
       adminDecideCreator(id, decision) { return run(client.rpc('admin_decide_creator', { p_id: id, p_decision: decision }), 'Couldn\u2019t update that application.'); },
+      // Creator beta flow (SQL 20261016000200): a signed-in person asks for a film; Ryan makes invites and moves requests along. Each is one RPC.
+      filmRequestCost() { return run(client.rpc('film_request_cost'), 'Couldn\u2019t load the price.'); },
+      requestFilm(question, notes) { return run(client.rpc('request_film', { p_question: question, p_notes: notes || '' }), 'Couldn\u2019t send that request.'); },
+      myFilmRequests() { return run(client.from('film_requests').select('id, created_at, question, notes, credits, status, admin_note, delivered_url').order('id', { ascending: false }).limit(30), 'Couldn\u2019t load your film requests.'); },
+      adminFilmRequests() { return run(client.rpc('admin_film_requests'), 'Couldn\u2019t load film requests.'); },
+      adminFilmRequestSet(id, status, note, url) { return run(client.rpc('admin_film_request_set', { p_id: id, p_status: status, p_note: note || '', p_url: url || null }), 'Couldn\u2019t update that request.'); },
+      adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
       adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
       adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },

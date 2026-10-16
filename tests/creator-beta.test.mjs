@@ -251,7 +251,7 @@ test('OPS: #/admin/ops shows the section with Approve and Decline, and still loa
   const src = read('assets/app-library.js');
   assert.match(src, /try \{ cb = await data\.adminCreatorBeta\(\); \} catch \{ cb = null; \}/);
   assert.match(src, /section\(`Creator beta applications \(\$\{cb \? cb\.waiting : 0\}\)`/);
-  assert.match(src, /button\('Approve', \(\) => data\.adminDecideCreator\(a\.id, 'approved'\)\)/);
+  assert.match(src, /button\('Approve only', \(\) => data\.adminDecideCreator\(a\.id, 'approved'\)\)/);                   // (the invite button is tested in creator-flow.test.mjs)
   assert.match(src, /button\('Decline', \(\) => data\.adminDecideCreator\(a\.id, 'declined'\)\)/);
   assert.match(src, /rel: 'noopener noreferrer'/);                                    // their link is theirs: it opens without handing over this page
 });

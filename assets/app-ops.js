@@ -93,6 +93,32 @@
     return `${plural(w, 'application')} waiting. ${Number(cb.approved) || 0} approved, ${Number(cb.declined) || 0} declined so far. Approving sends nothing and grants no credits: reply from your inbox and grant the free beta credits by hand.`;
   }
 
+  // ---- The creator beta flow: film requests (people) and the queue and invites (Ryan). SQL 20261016000200.
+  const REQUEST_STATUS_WORDS = { new: 'Waiting', in_progress: 'In progress', delivered: 'Delivered', declined: 'Declined, your credits were returned' };
+  function checkRequest({ question, notes }) {
+    const q = String(question || '').replace(/\s+/g, ' ').trim();
+    if (q.length < 10) return 'Tell us the question you want answered (at least a few words).';
+    if (q.length > 1000) return 'That question is too long. Please keep it under 1,000 characters.';
+    if (String(notes || '').trim().length > 1000) return 'Keep the notes under 1,000 characters.';
+    return null;
+  }
+  function requestCostLine(cost) {
+    if (cost == null) return 'A film request costs credits.';
+    return `A film request costs ${plural(Number(cost), 'credit')}. If we cannot make it, you get them back.`;
+  }
+  function checkDelivery(url) {
+    return /^https:\/\/\S+$/.test(String(url || '').trim()) && String(url).trim().length <= 500 ? null : 'To mark it delivered, paste the https link to the film.';
+  }
+  // The email Ryan sends with an invite code: a mailto: link, so he reads and sends it himself (nothing is sent for him).
+  function inviteMailto({ name, email, code, credits }) {
+    const subject = 'Your Ryagram creator beta invite';
+    const body = [`Hi ${String(name || '').split(' ')[0] || 'there'},`, '',
+      `You're in. Your invite code is ${code}.`, '',
+      'Go to https://uselai.com/app/, choose "Have an invite code?", and enter the code with this email address. You will get an email to set your password' + (Number(credits) > 0 ? `, and ${plural(Number(credits), 'beta credit')} will be waiting for you.` : '.'), '',
+      'Beta credits are free, in exchange for your feedback. If you talk about or promote Ryagram, or a film you made with it, please say your credits were free.'].join('\n');
+    return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  }
+
   // ---- Costs on the Operations screen (SQL 20261016000100). An unknown cost is never shown as $0.
   const COST_VENDORS = [['stripe', 'Stripe'], ['resend', 'Resend (email)'], ['supabase', 'Supabase'], ['domain', 'Domain'], ['cloud', 'Cloud'], ['anthropic', 'Anthropic (AI editor)'], ['render', 'Rendering'], ['other', 'Other']];
   const vendorWord = v => (COST_VENDORS.find(([id]) => id === v) || [v, v])[1];
@@ -151,5 +177,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, usd, ENDED_WORDS, REASON_WORDS };
+  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
 })();

@@ -562,6 +562,20 @@ To switch it on (in this order):
    ```
 3. Set `creatorBeta: true` in `assets/ryagram-config.js` and push. Until then the form tells people to email ryagram@uselai.com and sends nothing.
 
+## Creator beta flow (branch creator-flow): invite, sign up, credits, request a film
+
+The whole path for a creator on Stripe TEST mode, with Ryan fulfilling each film by hand from his PC until the job runner has a status file:
+
+1. A creator applies on `/ryagram/#creators` (see "Creator beta").
+2. Ryan opens `#/admin/ops` > Creator beta applications and clicks **Approve and make an invite code**. The database makes a single-use code (valid 30 days, stored only as a hash) that carries welcome credits (default 20; change with `select admin_creator_flow_set(<film request credits>, <welcome credits>);`). The code is shown **once**, with an **Email it** link (a `mailto:`: Ryan reads and sends it himself; nothing is sent for him).
+3. The creator enters the code and their email under "Have an invite code?" (needs `inviteSignup: true`, custom SMTP and `redeem-invite`, see "Beta invites"), gets Supabase's invite email, sets a password. When the invite email goes out, `invite_sent` grants the welcome credits ONCE (ledger entry `grant`, `created_by = invite:<redemption>`).
+4. In the app they open **Request a film** (needs `filmRequests: true`): a question and optional notes. A request costs `film_request_credits` (default 10), taken at once in the ledger's spending order; at most 3 open at a time. It appears in Ryan's queue (`Film requests`) and raises one alert (`film_request:<id>`).
+5. Ryan makes the film on his PC, uploads it anywhere with an https link (YouTube unlisted is fine), and clicks **Mark delivered** with that link; the creator sees **Watch your film**. **Decline** returns exactly the credits that request took, from the pools they came from, once. A delivered request keeps its credits spent.
+
+The seam for BUILDER's job runner: `admin_film_request_set(id, status, note, url)` is the ONE place a request changes state. When a runner status file exists, a service-side caller can move requests through it; the screens and the credit rules do not change. (Today it is `is_app_admin()`-gated; a service-role variant is a small addition when the file's format is known: it does not exist yet.)
+
+To switch it on (after the ledger is live and the creator beta is on): apply `migrations/20261016000200_creator_flow.sql` (after `20261003000200_invite_codes.sql`, `20261010000100_ops_readiness.sql`, `20261014000100_creator_beta.sql` and `phase-2b/credits_ledger.sql`), then set `filmRequests: true` and push. The two numbers are **confirmed by Ryan (2026-10-16): 10 credits per film request and 20 welcome credits** (the defaults in `creator_flow_settings`; `admin_creator_flow_set` can still change them later). **The dollar value of a credit is deliberately unset until costmeter has measured real render costs: no screen, table or message in this flow shows or computes a price per credit.**
+
 ## Cost ledger (branch cost-ledger): switching it on
 
 Every $-bearing event in one closed table (`cost_events`), a daily rollup and Ryan's limits on `#/admin/ops` > Costs. Full design, the Stripe test-mode plumbing plan and each vendor's spend-cap steps: `Ryagram-logs\proposals\WEB-COST-LEDGER-AND-TEST-PLAN.md`.
