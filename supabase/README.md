@@ -580,3 +580,11 @@ To switch it on (in this order):
 
 Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring) and `supabase/tests/test_cost_ledger.py` (closed tables, idempotence, rollup, plans, render and storage readings, alarms). Run the SQL tests with `TEMP`, `TMP` and `TMPDIR` on D: (the storage rule).
 
+## Retention purge (branch retention-purge): the Privacy Policy's retention promises
+
+`retention_purge()` deletes what the policy says is deleted, once per New York day, called by the **ops-tick** function every minute (no new schedule, no new function): creator beta applications **12 months after the decision** (with the invite code made for them, which holds their name, and its redemption, which holds their email); help requests **3 years after they were answered**; reports **3 years after they were reviewed**, **except child-safety reports, which are never deleted by this job** (they are kept as legal preservation requirements say: counsel to confirm, then change the rule in the function if it needs a period). Undecided applications, unreviewed reports and unanswered requests are never touched: they still need Ryan.
+
+1. **SQL Editor:** `migrations/20261016000300_retention_purge.sql` (after the ops, creator beta and invite code migrations).
+2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
+3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
+
