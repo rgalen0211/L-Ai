@@ -355,7 +355,11 @@ class Ops(core.Base):
             self.assertTrue(new)
             may_sign_in = {"worker_ping(numeric)", "service_status()", "submit_support(text,text,text,uuid,text)",
                            "report_film_page(text,text,text,text,text)", "admin_review_report(bigint,text)", "admin_ops()",
-                           "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)"}
+                           "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)",
+                           # later migrations' functions for Ryan's screen (each refuses everyone but is_app_admin() inside):
+                           "admin_creator_beta()", "admin_decide_creator(bigint,text)", "admin_cost_rollup(integer)",
+                           "admin_cost_set_threshold(text,text,numeric,integer)", "admin_cost_delete_threshold(bigint)",
+                           "admin_cost_set_plan(text,text,numeric,date,jsonb)", "admin_cost_set_rate(text,text,numeric,text)", "admin_cost_record(text,numeric,date,text)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue

@@ -93,8 +93,62 @@
     return `${plural(w, 'application')} waiting. ${Number(cb.approved) || 0} approved, ${Number(cb.declined) || 0} declined so far. Approving sends nothing and grants no credits: reply from your inbox and grant the free beta credits by hand.`;
   }
 
+  // ---- Costs on the Operations screen (SQL 20261016000100). An unknown cost is never shown as $0.
+  const COST_VENDORS = [['stripe', 'Stripe'], ['resend', 'Resend (email)'], ['supabase', 'Supabase'], ['domain', 'Domain'], ['cloud', 'Cloud'], ['anthropic', 'Anthropic (AI editor)'], ['render', 'Rendering'], ['other', 'Other']];
+  const vendorWord = v => (COST_VENDORS.find(([id]) => id === v) || [v, v])[1];
+  const usd2 = n => {
+    const x = Number(n) || 0;
+    return `$${x !== 0 && Math.abs(x) < 0.01 ? x.toFixed(4) : x.toFixed(2)}`;
+  };
+  function unknownNote(n) {
+    return n > 0 ? `, plus ${plural(n, 'event')} with an unknown cost (not counted)` : '';
+  }
+  function costLine(c) {
+    if (!c) return 'Cost tracking is not set up yet (apply SQL 20261016000100).';
+    const today = (c.days || [])[0] || { total_usd: 0, unknown_events: 0 };
+    const m = c.month || { total_usd: 0, unknown_events: 0 };
+    const t = c.test && c.test.events ? ` Stripe test mode: ${plural(c.test.events, 'event')} (no real money, not counted).` : '';
+    return `Today ${usd2(today.total_usd)} known${unknownNote(today.unknown_events)}. This month ${usd2(m.total_usd)} known${unknownNote(m.unknown_events)}.${t}`;
+  }
+  function usageLine(u) {
+    if (!u) return '';
+    const e = u.emails_today == null ? 'unknown' : String(Math.round(u.emails_today));
+    const s = u.storage_bytes == null ? 'unknown' : `${(u.storage_bytes / 1048576).toFixed(1)} MB`;
+    return `Emails sent today by our own alerts and digests: ${e} (sign-up emails are not counted here; see the Resend dashboard). Stored films, sheets and previews: ${s}.`;
+  }
+  const THRESHOLD_STATUS = { ok: 'under the limit', warn: 'WARNING', over: 'OVER THE LIMIT', off: 'off' };
+  function thresholdLine(t) {
+    const who = t.vendor ? vendorWord(t.vendor) : 'All vendors';
+    const pct = t.limit_usd > 0 ? Math.round((Number(t.spent_usd) / Number(t.limit_usd)) * 100) : 0;
+    return `${who}, per ${t.period}: ${usd2(t.spent_usd)} of ${usd2(t.limit_usd)} (${pct}%), warns at ${t.warn_pct}%: ${THRESHOLD_STATUS[t.status] || t.status}`;
+  }
+  function checkThreshold({ vendor, period, limit, warnPct }) {
+    if (vendor && !COST_VENDORS.some(([id]) => id === vendor)) return 'Choose a vendor, or all vendors.';
+    if (period !== 'day' && period !== 'month') return 'Choose per day or per month.';
+    const l = Number(limit);
+    if (!Number.isFinite(l) || l <= 0 || l > 100000) return 'Enter a limit above $0.';
+    const w = Number(warnPct);
+    if (!Number.isInteger(w) || w < 1 || w > 99) return 'The warning percentage must be a whole number from 1 to 99.';
+    return null;
+  }
+  function checkPlan({ vendor, plan, monthly, startsOn }) {
+    if (!COST_VENDORS.some(([id]) => id === vendor)) return 'Choose a vendor.';
+    if (!String(plan || '').trim() || String(plan).length > 60) return 'Name the plan.';
+    const m = Number(monthly);
+    if (!Number.isFinite(m) || m < 0 || m > 100000 || String(monthly).trim() === '') return 'Enter the monthly price in dollars (0 is allowed).';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(startsOn || ''))) return 'Enter the date the plan starts.';
+    return null;
+  }
+  function checkManualCost({ vendor, amount, on }) {
+    if (!COST_VENDORS.some(([id]) => id === vendor)) return 'Choose a vendor.';
+    const a = Number(amount);
+    if (!Number.isFinite(a) || a < 0 || a > 1000000 || String(amount).trim() === '') return 'Enter the amount in dollars.';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(on || ''))) return 'Enter the date it was charged.';
+    return null;
+  }
+
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, usd, ENDED_WORDS, REASON_WORDS };
+  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, usd, ENDED_WORDS, REASON_WORDS };
 })();
