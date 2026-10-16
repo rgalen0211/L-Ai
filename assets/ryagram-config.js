@@ -14,10 +14,12 @@ window.ryagramConfig = Object.freeze({
   // and control.ai_enabled is true (supabase/README.md, "AI editor").
   aiEditor: false,
   // Show credits (balance, prices, holds) in /app/. Turn on only once the 2B ledger is applied.
-  credits: false,
+  // STRIPE TEST WINDOW (Ryan, 2026-10-16): ON only while Ryan runs the Stripe TEST-mode plumbing test, then reverted (branch stripe-test-window-revert).
+  credits: true,
   // Show the Credits page (packs and plans through Stripe Checkout). Turn on only once the
   // stripe-checkout and stripe-webhook functions are deployed (supabase/README.md, "Stripe").
-  payments: false,
+  // STRIPE TEST WINDOW: see credits above. stripeTestMode below must stay true; tests/stripe-test-window.test.cjs enforces it.
+  payments: true,
   // While Stripe runs with test keys, the Credits page says so and names the test card.
   stripeTestMode: true,
   // Show "Public page" on finished films in /app/. Turn on only once the film-page function is
