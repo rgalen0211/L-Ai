@@ -355,7 +355,9 @@ class Ops(core.Base):
             self.assertTrue(new)
             may_sign_in = {"worker_ping(numeric)", "service_status()", "submit_support(text,text,text,uuid,text)",
                            "report_film_page(text,text,text,text,text)", "admin_review_report(bigint,text)", "admin_ops()",
-                           "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)"}
+                           "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)",
+                           # creator beta: Ryan's list and decisions (each refuses everyone but is_app_admin() inside)
+                           "admin_creator_beta()", "admin_decide_creator(bigint,text)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
