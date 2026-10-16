@@ -1,6 +1,6 @@
 // Every-5-minutes health pass (see tick.ts). NOT DEPLOYED. Deploy after review:
 //   npx supabase functions deploy ops-tick --project-ref <ref> --no-verify-jwt
-// Schedule: Dashboard > Integrations > Cron > every 5 minutes > Supabase Edge Function ops-tick, with the Authorization header
+// Schedule: Dashboard > Integrations > Cron > every MINUTE > Supabase Edge Function ops-tick, with the Authorization header
 // from supabase/README.md. The service-role key is checked inside as the bearer token.
 // Mail: dry-run (ops_outbox table) until OPS_MAIL_MODE=resend plus RESEND_API_KEY and OPS_MAIL_FROM are set as secrets.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
