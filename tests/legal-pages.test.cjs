@@ -147,6 +147,31 @@ test('APPROVE: with everything decided and confirmed it publishes clean pages: n
   for (const s of [...read('privacy-policy.html').matchAll(/<section>.*?<\/section>/gs)].map(m => m[0])) assert.ok(p.includes(s), s.slice(0, 50));
 });
 
+test('APPROVE: --cut removes a statement that is not true yet (sentence and all) instead of confirming it, and refuses a name that is in both lists or in neither draft', { skip: !hasPython }, () => {
+  const dir = scratch();
+  const file = path.join(dir, 'd.json');
+  fs.writeFileSync(file, JSON.stringify(DECISIONS));
+  const rest = REQUIRES.split(',').filter(x => !['ledger-cancel-spent', 'film-pages'].includes(x)).join(',');
+  const base = ['--date', 'October 18, 2026', '--decisions', file, '--requires-ok', rest];
+  const both = run(dir, [...base, '--cut', 'ledger-cancel-spent,film-pages,account-tools']);
+  assert.equal(both.status, 1);
+  assert.match(both.stdout, /named in both --requires-ok and --cut: account-tools/);
+  const nothing = run(dir, [...base, '--cut', 'ledger-cancel-spent,no-such-thing']);
+  assert.equal(nothing.status, 1);
+  assert.match(nothing.stdout, /--cut names no statement in the drafts: no-such-thing/);
+  assert.match(nothing.stdout, /confirm each with --requires-ok: film-pages/);                 // and film-pages is still neither confirmed nor cut
+  const ok = run(dir, [...base, '--cut', 'ledger-cancel-spent,film-pages', '--apply']);
+  assert.equal(ok.status, 0, ok.stdout + ok.stderr);
+  const t = fs.readFileSync(path.join(dir, 'terms/index.html'), 'utf8');
+  const p = fs.readFileSync(path.join(dir, 'privacy-policy.html'), 'utf8');
+  assert.doesNotMatch(t, /A film that has not started being made when you cancel it/);       // the cut Terms statement is gone
+  assert.doesNotMatch(p, /A film is public only if you choose to publish its page/);          // and the cut privacy statement
+  assert.match(t, /You cannot buy credits yet\./);                                          // its neighbours stay
+  assert.match(p, /These are private to your account: other users cannot see them\./);
+  assert.doesNotMatch(t + p, /draft-|DRAFT|noindex|  +<\/p>|<p> /);
+  for (const s of [...read('privacy-policy.html').matchAll(/<section>.*?<\/section>/gs)].map(m => m[0])) assert.ok(p.includes(s), s.slice(0, 50));   // existing text untouched (indentation too)
+});
+
 test('APPROVE: the script never touches git and never writes outside the repository root it is given', () => {
   const src = read('tools/legal-approve.py');
   assert.doesNotMatch(src, /\bgit\b.*subprocess|subprocess|os\.system|shutil\.rmtree/);

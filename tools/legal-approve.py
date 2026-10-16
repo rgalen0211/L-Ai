@@ -1,11 +1,12 @@
 """Publish the Ryagram Terms of Use and the updated Privacy Policy from their drafts, ONLY after Ryan has approved the wording.
 
-    python tools/legal-approve.py --date "October 18, 2026" --decisions decisions.json --requires-ok account-tools,ledger-cancel-spent,... [--apply]
+    python tools/legal-approve.py --date "October 18, 2026" --decisions decisions.json --requires-ok account-tools,... [--cut film-pages,...] [--apply]
 
 Without --apply it only checks and says what it WOULD do (nothing is written). It refuses to go on while:
   * a highlighted decision in a draft has no final wording in --decisions (a JSON file: {"commercial-use": "yes, including commercially", ...}; the
     wording replaces the highlighted text exactly as given), or
-  * a "requires" statement (true only once something is live) is not named in --requires-ok: by naming it Ryan confirms it is true on the day.
+  * a "requires" statement (true only once something is live) is not named in --requires-ok: by naming it Ryan confirms it is true on the day. A statement that is
+    NOT true yet can be left out of the published page with --cut <name> (it is removed, sentence and all) instead of being confirmed.
 On --apply it writes terms/index.html and privacy-policy.html (draft banners, noindex, the draft stylesheet and the highlights removed), adds a
 "Terms of Use" link beside the privacy link in the page footers and a sign-in consent line in the app, deletes legal-drafts/ and the draft stylesheet,
 and can be re-run safely. It never touches git: review the diff and commit it yourself.
@@ -26,13 +27,14 @@ def read(p):
     return (ROOT / p).read_text(encoding='utf-8')
 
 
-def clean(html, decisions, date):
+def clean(html, decisions, date, cut=()):
     html = re.sub(r'<!-- Ryagram (?:Terms of Use|privacy policy): DRAFT.*?-->\n', '', html, flags=re.S)
     html = re.sub(r'  <div class="draft-banner".*?</div>\n', '', html, flags=re.S)
     html = html.replace('<meta name="robots" content="noindex, nofollow">\n', '')
     html = html.replace('<link rel="stylesheet" href="/assets/legal-draft.css">\n', '')
     html = DECISION.sub(lambda m: date if m.group(1) == 'last-updated' else decisions[m.group(1)], html)
-    html = REQUIRES.sub(lambda m: m.group(2), html)
+    html = REQUIRES.sub(lambda m: '' if m.group(1) in cut else m.group(2), html)
+    html = re.sub(r'(\S) {2,}(\S)', r' ', html.replace(' </p>', '</p>').replace('<p> ', '<p>'))     # (only runs of spaces BETWEEN words: indentation is untouched)
     return html
 
 
@@ -64,6 +66,7 @@ def main(argv=None):
     ap.add_argument('--date', help='the "last updated" date as it should read, e.g. "October 18, 2026"')
     ap.add_argument('--decisions', help='JSON file: decision name -> the final wording')
     ap.add_argument('--requires-ok', default='', help='comma-separated "requires" names you confirm are true today')
+    ap.add_argument('--cut', default='', help='comma-separated "requires" names to REMOVE from the page because they are not true yet')
     ap.add_argument('--apply', action='store_true', help='write the files (without it nothing is written)')
     ap.add_argument('--root', help='(tests) a different repository root')
     a = ap.parse_args(argv)
@@ -73,9 +76,16 @@ def main(argv=None):
     terms, privacy = read('legal-drafts/terms.html'), read('legal-drafts/privacy-policy.html')
     decisions = json.loads(Path(a.decisions).read_text(encoding='utf-8')) if a.decisions else {}
     ok = {x.strip() for x in a.requires_ok.split(',') if x.strip()}
+    cut = {x.strip() for x in a.cut.split(',') if x.strip()}
+    both = ok & cut
     open_decisions = sorted({m.group(1) for m in DECISION.finditer(terms + privacy) if m.group(1) != 'last-updated' and not str(decisions.get(m.group(1), '')).strip()})
-    unconfirmed = sorted({m.group(1) for m in REQUIRES.finditer(terms + privacy)} - ok)
+    unconfirmed = sorted({m.group(1) for m in REQUIRES.finditer(terms + privacy)} - ok - cut)
     problems = []
+    if both:
+        problems.append('named in both --requires-ok and --cut: ' + ', '.join(sorted(both)))
+    unknown_cut = sorted(cut - {m.group(1) for m in REQUIRES.finditer(terms + privacy)})
+    if unknown_cut:
+        problems.append('--cut names no statement in the drafts: ' + ', '.join(unknown_cut))
     if not a.date or not a.date.strip():
         problems.append('--date is missing ("last updated" must be a real date)')
     if open_decisions:
@@ -90,7 +100,7 @@ def main(argv=None):
         for p in problems:
             print(' -', p)
         return 1
-    out_terms, out_privacy = clean(terms, decisions, a.date.strip()), clean(privacy, decisions, a.date.strip())
+    out_terms, out_privacy = clean(terms, decisions, a.date.strip(), cut), clean(privacy, decisions, a.date.strip(), cut)
     for name, html in (('terms', out_terms), ('privacy', out_privacy)):
         assert 'draft-' not in html and 'DRAFT' not in html and 'noindex' not in html, name
     linked = link_footers(False)
