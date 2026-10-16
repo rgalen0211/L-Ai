@@ -232,12 +232,94 @@
       const button = (label, work) => h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
         await busy(event.currentTarget, 'Saving\u2026', async () => { try { await work(); await load(); } catch (err) { showError(error, err); } });
       } }, label);
+      // --- Costs: every $ event the ledger holds (Stripe's own fee per charge, plan fees, render cpu cost, storage and email readings, typed invoices),
+      // a daily rollup, the limits Ryan sets, and the forms to state a plan, a rate or a cost. Unknown is shown as unknown, never as $0.
+      const vendorSelect = (id, withAll) => h('select', { id, name: id },
+        withAll ? [h('option', { value: '' }, 'All vendors')] : [],
+        O.COST_VENDORS.map(([v, label]) => h('option', { value: v }, label)));
+      const field = (label, input) => h('label', { class: 'ops-field' }, label, input);
+      const miniForm = (summary, fields, submitLabel, run) => {
+        const fail = errorLine();
+        const submit = h('button', { class: 'button secondary small', type: 'submit' }, submitLabel);
+        const form = h('form', { class: 'ops-form', onsubmit: async event => {
+          event.preventDefault();
+          fail.hidden = true;
+          await busy(submit, 'Saving\u2026', async () => { try { await run(); await load(); } catch (err) { showError(fail, err); } });
+        } }, fields, submit, fail);
+        return h('details', { class: 'ops-details' }, h('summary', {}, summary), form);
+      };
+      function costSection(c, now) {
+        if (!c) return section('Costs', h('p', {}, O.costLine(null)));
+        const num = (id, extra) => h('input', { id, name: id, type: 'number', min: '0', step: 'any', required: true, ...(extra || {}) });
+        const day = id => h('input', { id, name: id, type: 'date', required: true });
+        const thVendor = vendorSelect('cost-th-vendor', true);
+        const thPeriod = h('select', { id: 'cost-th-period' }, h('option', { value: 'day' }, 'per day'), h('option', { value: 'month' }, 'per month'));
+        const thLimit = num('cost-th-limit', { min: '0.01' });
+        const thWarn = num('cost-th-warn', { min: '1', max: '99', step: '1', value: '80' });
+        const plVendor = vendorSelect('cost-pl-vendor', false);
+        const plName = h('input', { id: 'cost-pl-name', name: 'plan', type: 'text', required: true, maxlength: '60', placeholder: 'For example: Pro' });
+        const plMonthly = num('cost-pl-monthly');
+        const plStart = day('cost-pl-start');
+        const plGb = h('input', { id: 'cost-pl-gb', name: 'gb', type: 'number', min: '0', step: 'any', placeholder: 'optional' });
+        const rtCpu = num('cost-rt-cpu');
+        const mcVendor = vendorSelect('cost-mc-vendor', false);
+        const mcAmount = num('cost-mc-amount');
+        const mcDate = day('cost-mc-date');
+        const mcNote = h('input', { id: 'cost-mc-note', name: 'note', type: 'text', maxlength: '300', placeholder: 'For example: uselai.com renewal' });
+        const th = (t, numeric) => h('th', { scope: 'col', class: numeric ? 'num' : null }, t);
+        return section('Costs',
+          h('p', { class: c.thresholds.some(t => t.status === 'over') ? 'app-error' : '' }, O.costLine(c)),
+          h('p', { class: 'form-note' }, O.usageLine(c.usage)),
+          h('table', { class: 'admin-table' },
+            h('thead', {}, h('tr', {}, th('Day'), th('Known total', true), th('By vendor'), th('Unknown', true))),
+            h('tbody', {}, c.days.map(r => h('tr', {}, h('td', {}, r.day), h('td', { class: 'num' }, O.usd2(r.total_usd)),
+              h('td', {}, Object.entries(r.by_vendor || {}).map(([v, n]) => `${O.vendorWord(v)} ${O.usd2(n)}`).join(', ') || '\u2014'),
+              h('td', { class: 'num' }, r.unknown_events ? String(r.unknown_events) : '\u2014'))))),
+          h('p', { class: 'form-note' }, 'This month by vendor: ', Object.entries(c.month.by_vendor || {}).map(([v, n]) => `${O.vendorWord(v)} ${O.usd2(n)}`).join(', ') || 'nothing known yet', '.'),
+          h('h3', {}, 'Limits (you are emailed once when one is reached)'),
+          c.thresholds.length ? h('ul', { class: 'ops-list' }, c.thresholds.map(t => h('li', { class: t.status === 'over' ? 'app-error' : '' }, O.thresholdLine(t), ' ',
+            button('Remove', () => data.adminCostDeleteThreshold(t.id))))) : h('p', { class: 'form-note' }, 'No limits set yet. Nothing alarms until you set one.'),
+          miniForm('Set a limit', [field('Vendor', thVendor), field('Per', thPeriod), field('Limit ($)', thLimit), field('Warn at (%)', thWarn)], 'Save limit', async () => {
+            const input = { vendor: thVendor.value, period: thPeriod.value, limit: thLimit.value, warnPct: thWarn.value };
+            const problem = O.checkThreshold(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostSetThreshold(input.vendor, input.period, Number(input.limit), Number(input.warnPct));
+          }),
+          h('h3', {}, 'Plans you pay for'),
+          c.plans.length ? h('ul', { class: 'ops-list' }, c.plans.map(p => h('li', {}, `${O.vendorWord(p.vendor)}: ${p.plan}, ${O.usd2(p.monthly_usd)} a month since ${p.starts_on}`))) : h('p', { class: 'form-note' }, 'No plans entered. Plan fees stay out of the totals until you enter them.'),
+          miniForm('Enter a plan', [field('Vendor', plVendor), field('Plan', plName), field('Per month ($)', plMonthly), field('Starts on', plStart), field('Storage included (GB)', plGb)], 'Save plan', async () => {
+            const input = { vendor: plVendor.value, plan: plName.value, monthly: plMonthly.value, startsOn: plStart.value };
+            const problem = O.checkPlan(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostSetPlan(input.vendor, input.plan.trim(), Number(input.monthly), input.startsOn, plGb.value ? { storage_gb: Number(plGb.value) } : {});
+          }),
+          h('h3', {}, 'Render cost per core-hour'),
+          h('p', { class: 'form-note' }, c.rates.filter(r => r.vendor === 'render').length ? c.rates.filter(r => r.vendor === 'render').map(r => `${r.kind}: ${O.usd2(r.unit_usd)}${r.note ? ` (${r.note})` : ''}`).join('; ') : 'Not set, so every render\u2019s cost shows as unknown. On your own machine you may know it is $0 in cash; enter that only if you are sure.'),
+          miniForm('Set the render rate', [field('One core-hour costs ($)', rtCpu)], 'Save rate', async () => {
+            const n = Number(rtCpu.value);
+            if (!Number.isFinite(n) || n < 0 || rtCpu.value.trim() === '') throw new Error('Enter the price in dollars (0 is allowed).');
+            await data.adminCostSetRate('render', 'cpu_hour', n, 'stated by Ryan');
+          }),
+          h('h3', {}, 'A cost nothing here can see'),
+          miniForm('Record a cost (an invoice, a renewal)', [field('Vendor', mcVendor), field('Amount ($)', mcAmount), field('Charged on', mcDate), field('Note', mcNote)], 'Record cost', async () => {
+            const input = { vendor: mcVendor.value, amount: mcAmount.value, on: mcDate.value };
+            const problem = O.checkManualCost(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostRecord(input.vendor, Number(input.amount), input.on, mcNote.value.trim());
+          }),
+          h('details', { class: 'ops-details' }, h('summary', {}, 'Latest 15 recorded events'),
+            c.recent.length ? h('ul', { class: 'ops-list' }, c.recent.map(r => h('li', {},
+              `${O.vendorWord(r.vendor)} ${r.kind}: ${r.amount_usd == null ? 'unknown cost' : O.usd2(r.amount_usd)}${r.mode === 'live' ? '' : r.mode === 'test' ? ' (test mode)' : ' (mode unknown)'}`,
+              h('span', { class: 'meta' }, ` ${O.ago(r.occurred_at, now)}`)))) : h('p', { class: 'form-note' }, 'Nothing recorded yet.')));
+      }
       async function load() {
         error.hidden = true;
         let d;
         try { d = await data.adminOps(); } catch (err) { body.replaceChildren(); showError(error, err); return; }
         let cb = null;     // creator applications; null until their SQL is applied (the rest of the screen works without it)
         try { cb = await data.adminCreatorBeta(); } catch { cb = null; }
+        let cost = null;   // the cost ledger; null until its SQL is applied
+        try { cost = await data.adminCostRollup(14); } catch { cost = null; }
         const now = Date.now();
         body.replaceChildren(
           section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
@@ -252,6 +334,7 @@
             d.stripe && d.stripe.items.length ? h('ul', { class: 'ops-list' }, d.stripe.items.map(e => h('li', {},
               h('strong', {}, e.type), h('span', { class: 'meta' }, ` ${e.event_id}, ${O.ago(e.received_at, now)}${e.livemode ? ', LIVE mode' : ', test mode'}`),
               h('p', {}, e.detail || '(no detail recorded)'), button('Mark reviewed', () => data.adminAckStripe(e.event_id))))) : null),
+          costSection(cost, now),
           section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)),
             cb && cb.items.length ? h('ul', { class: 'ops-list' }, cb.items.map(a => h('li', {},
               h('strong', {}, `#${a.id} ${a.name}`), h('span', { class: 'meta' }, ` ${O.CREATOR_KIND_WORDS[a.kind] || a.kind}, ${a.email}, ${O.ago(a.created_at, now)}`),

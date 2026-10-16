@@ -361,6 +361,48 @@
         if (c) c.status = p_decision;
         return { data: null, error: null };
       },
+      // Mock: a made-up cost rollup for #/admin/ops, with working limits, plans, rates and typed costs.
+      admin_cost_rollup({ p_days }) {
+        db.costs = db.costs || { thresholds: [{ id: 1, vendor: 'stripe', period: 'day', limit_usd: 10, warn_pct: 80, enabled: true }], plans: [{ id: 1, vendor: 'supabase', plan: 'Pro', monthly_usd: 25, starts_on: '2026-10-01', ends_on: null, included: { storage_gb: 100 } }],
+                                 rates: [], events: [{ id: 1, vendor: 'stripe', kind: 'stripe_fee', amount_usd: 1.2, mode: 'test' }], nextId: 2 };
+        const c = db.costs, n = Math.min(p_days || 14, 30);
+        const spentToday = { stripe: 8.5, supabase: 0.81 };
+        const days = Array.from({ length: n }, (_, i) => {
+          const d = new Date(Date.UTC(2026, 9, 16) - i * 864e5).toISOString().slice(0, 10);
+          const by_vendor = i === 0 ? spentToday : { supabase: 0.81 };
+          return { day: d, total_usd: Object.values(by_vendor).reduce((a, b) => a + b, 0), unknown_events: i === 0 ? 2 : 0, by_vendor };
+        });
+        const manual = c.events.filter(e => e.kind === 'manual_invoice').reduce((a, e) => a + e.amount_usd, 0);
+        return { data: {
+          today: days[0].day, days, month: { key: '2026-10', total_usd: 9.31 + 12.96 + manual, unknown_events: 2, by_vendor: { stripe: 8.5, supabase: 13.77, ...(manual ? { domain: manual } : {}) } },
+          usage: { emails_today: 3, storage_bytes: 5242880 }, test: { events: 4, total_usd: 3.4 }, unknown_mode: { events: 0, total_usd: 0 },
+          thresholds: c.thresholds.map(t => { const spent = t.vendor ? (spentToday[t.vendor] || 0) : 9.31;
+            return { ...t, spent_usd: spent, status: spent >= t.limit_usd ? 'over' : spent >= t.limit_usd * t.warn_pct / 100 ? 'warn' : 'ok' }; }),
+          plans: c.plans, rates: c.rates,
+          recent: c.events.slice().reverse().slice(0, 15).map(e => ({ occurred_at: '2026-10-16T14:00:00Z', quantity: null, unit: null, ...e })) }, error: null };
+      },
+      admin_cost_set_threshold({ p_vendor, p_period, p_limit_usd, p_warn_pct }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        const hit = c.thresholds.find(t => (t.vendor || null) === (p_vendor || null) && t.period === p_period);
+        if (hit) { hit.limit_usd = p_limit_usd; hit.warn_pct = p_warn_pct; } else c.thresholds.push({ id: c.nextId++, vendor: p_vendor || null, period: p_period, limit_usd: p_limit_usd, warn_pct: p_warn_pct, enabled: true });
+        return { data: 1, error: null };
+      },
+      admin_cost_delete_threshold({ p_id }) { const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs); c.thresholds = c.thresholds.filter(t => t.id !== p_id); return { data: null, error: null }; },
+      admin_cost_set_plan({ p_vendor, p_plan, p_monthly_usd, p_starts_on, p_included }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        c.plans = c.plans.filter(p => p.vendor !== p_vendor).concat({ id: c.nextId++, vendor: p_vendor, plan: p_plan, monthly_usd: p_monthly_usd, starts_on: p_starts_on, ends_on: null, included: p_included });
+        return { data: 1, error: null };
+      },
+      admin_cost_set_rate({ p_vendor, p_kind, p_unit_usd, p_note }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        c.rates = c.rates.filter(r => !(r.vendor === p_vendor && r.kind === p_kind)).concat({ vendor: p_vendor, kind: p_kind, unit_usd: p_unit_usd, note: p_note });
+        return { data: null, error: null };
+      },
+      admin_cost_record({ p_vendor, p_amount_usd, p_on }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        c.events.push({ id: c.nextId++, vendor: p_vendor, kind: 'manual_invoice', amount_usd: p_amount_usd, mode: 'live' });
+        return { data: 1, error: null };
+      },
       admin_ack_stripe() { db.stripeAcked = true; return { data: null, error: null }; },
       admin_answer_support() { db.supportOpen = 0; return { data: null, error: null }; },
       admin_review_report() { return { data: null, error: null }; },
