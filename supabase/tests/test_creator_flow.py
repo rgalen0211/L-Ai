@@ -49,6 +49,14 @@ class CreatorFlow(unittest.TestCase):
     def request(self, who=RYAN, q=QUESTION, notes=""):
         return self.db.as_(who).one("select request_film(%s, %s)", q, notes)
 
+    def test_the_confirmed_numbers_are_the_defaults_and_a_credit_has_no_dollar_value_anywhere_in_the_flow(self):
+        """Ryan 2026-10-16: 10 credits per film request, 20 welcome credits (locked in); the dollar value of a credit stays UNSET until costmeter has measured real costs."""
+        self.assertEqual(tuple(self.admin("select film_request_credits, invite_credits from public.creator_flow_settings")), (10, 20))
+        self.assertEqual(self.db.as_(RYAN).one("select film_request_cost()"), 10)
+        cols = [r[0] for r in self.db.as_(None).all("select column_name from information_schema.columns where table_schema = 'public' and table_name in ('creator_flow_settings', 'film_requests')")]
+        self.assertFalse([c for c in cols if any(w in c for w in ("usd", "price", "cents", "dollar", "value"))], cols)       # nothing here can hold a price per credit
+        self.assertEqual(self.admin("select count(*) from public.creator_flow_settings"), 1)
+
     # ---- approve + invite
     def test_approving_makes_a_single_use_invite_code_that_carries_welcome_credits_and_shows_once(self):
         self.make_ryan_admin()

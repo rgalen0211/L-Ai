@@ -12,11 +12,13 @@
 --     DECLINED request gives exactly those credits back, once. A delivered request keeps them spent. Nothing here can create credits except a decline's refund.
 --   * Nothing is sent to anyone: Ryan emails the code and the film himself. Nothing here costs money.
 
--- ---------------------------------------------------------------- Ryan's two numbers (editable; nothing else reads them)
+-- ---------------------------------------------------------------- Ryan's two numbers: 10 credits a film, 20 welcome credits (confirmed 2026-10-16)
+-- Credits are counted, never priced here: the DOLLAR VALUE of a credit is deliberately UNSET until costmeter has measured real render costs (Ryan, 2026-10-16), so nothing in
+-- this file or in the screens that use it stores, computes or shows a price per credit.
 create table public.creator_flow_settings (
   id boolean primary key default true check (id),
-  film_request_credits int not null default 10 check (film_request_credits between 0 and 1000),     -- what a requested film costs (a suggestion: the top final-render price)
-  invite_credits int not null default 20 check (invite_credits between 0 and 1000)                  -- the welcome credits on a creator's invite (a suggestion)
+  film_request_credits int not null default 10 check (film_request_credits between 0 and 1000),     -- what a requested film costs: 10 credits (CONFIRMED by Ryan, 2026-10-16)
+  invite_credits int not null default 20 check (invite_credits between 0 and 1000)                  -- the welcome credits on a creator's invite: 20 (CONFIRMED by Ryan, 2026-10-16)
 );
 insert into public.creator_flow_settings default values;
 alter table public.creator_flow_settings enable row level security;

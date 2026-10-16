@@ -101,3 +101,36 @@ test('SCREEN: nothing in the flow sends mail, takes payment or calls out: Ryan s
   const src = read('assets/app-library.js') + read('assets/app-ops.js') + read('assets/app-data.js');
   assert.doesNotMatch(src, /resend|smtp|sendMail|inviteUserByEmail|api\.stripe|checkout\.stripe/i);
 });
+
+// ---- Ryan (2026-10-16): 10 credits a film request and 20 welcome credits are LOCKED IN; a credit has NO dollar value yet (until costmeter has measured real render costs)
+test('LOCKED: a film request costs 10 credits and the welcome grant is 20, in the database defaults, the mock and the words on the page', async () => {
+  const sql = read('supabase/migrations/20261016000200_creator_flow.sql');
+  assert.match(sql, /film_request_credits int not null default 10 check/);
+  assert.match(sql, /invite_credits int not null default 20 check/);
+  assert.match(sql, /CONFIRMED by Ryan, 2026-10-16/);
+  assert.equal(await ryagramData(createFakeClient({ credits: 100 })).filmRequestCost(), 10);
+  assert.equal(O.requestCostLine(10), 'A film request costs 10 credits. If we cannot make it, you get them back.');
+  assert.match(read('supabase/README.md'), /confirmed by Ryan \(2026-10-16\): 10 credits per film request and 20 welcome credits/);
+  assert.doesNotMatch(sql + read('supabase/README.md'), /a suggestion/i);                    // no longer "suggestions"
+});
+
+test('NO PRICE PER CREDIT: nothing in the creator flow stores, computes or shows a dollar value for a credit', () => {
+  const sql = read('supabase/migrations/20261016000200_creator_flow.sql');
+  const code = sql.replace(/--.*$/gm, '');                                                  // (the comments may explain the rule; the CODE must not mention a price)
+  for (const word of ['usd', 'dollar', 'cents', 'per_credit', 'credit_value', 'unit_price', 'price']) assert.ok(!code.toLowerCase().includes(word), `the flow's SQL mentions ${word}`);
+  const screens = [read('assets/app-library.js'), read('assets/app-ops.js')].join('\n');
+  const flow = screens.slice(screens.indexOf('async function requestView()'), screens.indexOf('// --- #/admin/ops  Ryan only:'));
+  assert.ok(flow.length > 500);
+  assert.doesNotMatch(flow, /\$\d|price|per credit|dollar|usd|cents/i);     // (no "$5"; the code's own ${...} interpolations are fine)                        // the Request a film page shows credits only
+  const o = read('assets/app-ops.js');
+  const start = o.indexOf('// ---- The creator beta flow'); const flowWords = o.slice(start, o.indexOf('const ENDED_WORDS'));
+  assert.doesNotMatch(flowWords, /\$\d|price|per credit|dollar|usd/i);   // nor the queue and invite wording (the invite mail says credits, never dollars)
+  assert.doesNotMatch(decodeURIComponent(O.inviteMailto({ name: 'A B', email: 'a@b.co', code: 'RYA-AAAA-BBBB', credits: 20 })), /\$|price|dollar|per credit/i);
+  // and no screen anywhere computes a per-credit price from a pack (price / credits)
+  for (const f of ['assets/app-credits.js', 'assets/app-library.js', 'assets/app-ops.js', 'assets/ryagram.js', 'assets/creator-beta.js', 'assets/film.js']) {
+    assert.doesNotMatch(read(f), /price_cents\s*\/\s*[a-z.]*credits|credits\s*\/\s*[a-z.]*price|per[ _-]?credit|\/\s*credit\b|usd[_ ]per/i, f);
+  }
+  for (const f of ['ryagram/index.html', 'film/index.html', 'help/index.html', 'report/index.html']) {
+    if (fs.existsSync(new URL(`../${f}`, import.meta.url))) assert.doesNotMatch(read(f).replace(/<[^>]+>/g, ' '), /per credit|a credit (is|costs)|each credit|credit is worth|\$\s?\d[\d.]*\s*(\/|per|a)\s*credit/i, f);
+  }
+});
