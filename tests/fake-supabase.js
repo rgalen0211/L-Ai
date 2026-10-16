@@ -17,7 +17,7 @@
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [],
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [],
                  account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
@@ -101,6 +101,7 @@
         in(col, vals) { filters.push(r => vals.includes(r[col])); return q; },
         is(col, val) { filters.push(r => (r[col] ?? null) === val); return q; },
         order(col, { ascending = true } = {}) { order = { col, ascending }; return q; },
+        limit() { return q; },
         single() { single = true; return q; },
         then(resolve, reject) { return Promise.resolve().then(exec).then(resolve, reject); }
       };
@@ -360,6 +361,39 @@
         const c = (db.creators || []).find(x => x.id === p_id && x.status === 'new');
         if (c) c.status = p_decision;
         return { data: null, error: null };
+      },
+      // Mock: the creator beta flow. Requests cost 10 credits (taken from the pretend ledger) and a declined one gives them back.
+      film_request_cost() { return { data: 10, error: null }; },
+      request_film({ p_question, p_notes }) {
+        const q = String(p_question || '').replace(/\s+/g, ' ').trim();
+        if (q.length < 10 || q.length > 1000) return fail('Tell us the question you want answered (10 to 1,000 characters).');
+        if (db.film_requests.filter(r => ['new', 'in_progress'].includes(r.status)).length >= 3) return fail('You already have 3 film requests waiting. Wait for one to be delivered first.');
+        if (!ledger || ledger.available < 10) return fail(`Not enough credits: this needs 10, and ${ledger ? Math.max(0, ledger.available) : 0} are available.`);
+        ledger.available -= 10;
+        const row = { id: db.film_requests.length + 1, owner_id: 'u-ryan', created_at: now(), updated_at: now(), question: q, notes: String(p_notes || '').trim(), credits: 10, status: 'new', admin_note: '', delivered_url: null, email: 'creator@example.com' };
+        db.film_requests.push(row);
+        return { data: row.id, error: null };
+      },
+      admin_film_requests() {
+        const open = db.film_requests.filter(r => ['new', 'in_progress'].includes(r.status));
+        return { data: { waiting: open.length, items: open.map(r => ({ ...r })),
+                         recent: db.film_requests.filter(r => ['delivered', 'declined'].includes(r.status)).map(r => ({ id: r.id, email: r.email, question: r.question, status: r.status, delivered_url: r.delivered_url, updated_at: r.updated_at })) }, error: null };
+      },
+      admin_film_request_set({ p_id, p_status, p_note, p_url }) {
+        const r = db.film_requests.find(x => x.id === p_id);
+        if (!r) return fail('No such request.');
+        if (['delivered', 'declined'].includes(r.status)) return fail(`That request is already ${r.status}.`);
+        if (p_status === 'delivered' && !/^https:\/\/\S+$/.test(p_url || '')) return fail('To mark it delivered, give the https link to the film.');
+        if (p_status === 'declined' && ledger) ledger.available += r.credits;
+        Object.assign(r, { status: p_status, admin_note: p_note || '', delivered_url: p_status === 'delivered' ? p_url : null, updated_at: now() });
+        return { data: null, error: null };
+      },
+      admin_creator_invite({ p_id }) {
+        this.admin_creator_beta();
+        const c = db.creators.find(x => x.id === p_id && x.status === 'new');
+        if (!c) return fail('An invite was already made for this application.');
+        c.status = 'approved';
+        return { data: 'RYA-K7M2-9QPX', error: null };
       },
       admin_ack_stripe() { db.stripeAcked = true; return { data: null, error: null }; },
       admin_answer_support() { db.supportOpen = 0; return { data: null, error: null }; },

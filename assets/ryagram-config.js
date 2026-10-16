@@ -47,6 +47,9 @@ window.ryagramConfig = Object.freeze({
   // Send creator beta applications (the form on /ryagram/#creators). Turn on only once SQL 20261014000100 is applied and the creator-beta
   // function is deployed (supabase/README.md, "Creator beta"); until then the form tells people to email.
   creatorBeta: false,
+  // Show "Request a film" in /app/ (the creator beta: people ask, Ryan makes each film by hand). Turn on only once SQL 20261016000200 is applied and
+  // the credits ledger is live (supabase/README.md, "Creator beta flow").
+  filmRequests: false,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.

@@ -357,7 +357,10 @@ class Ops(core.Base):
                            "report_film_page(text,text,text,text,text)", "admin_review_report(bigint,text)", "admin_ops()",
                            "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)",
                            # creator beta: Ryan's list and decisions (each refuses everyone but is_app_admin() inside)
-                           "admin_creator_beta()", "admin_decide_creator(bigint,text)"}
+                           "admin_creator_beta()", "admin_decide_creator(bigint,text)",
+                           # creator flow: a signed-in person asks for a film (the database needs their id); the rest are Ryan's, each refusing everyone else inside
+                           "request_film(text,text)", "film_request_cost()", "admin_creator_invite(bigint,integer)", "admin_film_requests()",
+                           "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
