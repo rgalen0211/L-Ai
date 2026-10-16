@@ -23,7 +23,11 @@ TABLES = ["cost_events", "cost_plans", "cost_rates", "cost_thresholds", "cost_sy
 
 
 def ev(ref, amount=1.5, vendor="stripe", kind="stripe_fee", when="2026-10-16T16:00:00Z", **extra):
-    return {"occurred_at": when, "vendor": vendor, "kind": kind, "amount_usd": amount, "quantity": 10, "unit": "usd_gross", "ref": ref, **extra}
+    """A cost event as the sync function sends it. It says live (livemode true) unless told otherwise; pass livemode=None to leave the flag out entirely."""
+    e = {"occurred_at": when, "vendor": vendor, "kind": kind, "amount_usd": amount, "quantity": 10, "unit": "usd_gross", "ref": ref, "livemode": True, **extra}
+    if e["livemode"] is None and "livemode" in extra:
+        del e["livemode"]
+    return e
 
 
 class CostLedger(core.Base):
@@ -117,7 +121,7 @@ class CostLedger(core.Base):
         self.assertEqual(self.record(ev("txn_1"), ev("txn_2", amount=None)), 0)                     # a repeat adds nothing
         self.assertEqual(self.admin("select count(*) from public.cost_events"), 3)
         self.assertIsNone(self.admin("select amount_usd from public.cost_events where ref = 'txn_2'"))        # NULL, not 0
-        self.assertEqual(self.admin("select livemode from public.cost_events where ref = 'txn_1'"), True)     # real money unless said otherwise
+        self.assertEqual(self.admin("select mode from public.cost_events where ref = 'txn_1'"), "live")        # said live, so live
 
     def test_bad_events_are_refused_whole(self):
         for bad in (ev("a", vendor="paypal"), ev("b", kind="Bad Kind!"), ev("c", amount=-1), ev("", amount=1), ev("d", when="not a time")):
@@ -128,6 +132,35 @@ class CostLedger(core.Base):
             self.svc().one("select cost_record_events('{}'::jsonb)")
         with self.assertRaises(psycopg.Error):
             self.record(*[ev(f"n{i}") for i in range(501)])
+
+    def test_an_event_with_no_live_or_test_flag_is_UNKNOWN_mode_never_live_money_and_never_alarmed(self):
+        """Ryan 2026-10-16: a cost event that arrives WITHOUT a live/test flag is recorded as unknown mode, never defaulted to live."""
+        self.make_ryan_admin()
+        today = self.today()
+        tid = self.ryan().one("select admin_cost_set_threshold(null, 'day', 5, 80)")
+        self.record(ev("m1", amount=500, livemode=None, when=f"{today}T16:00:00Z"),                       # no flag at all
+                    ev("m2", amount=500, livemode="yes", when=f"{today}T16:00:00Z"),                      # not a real boolean
+                    ev("m3", amount=500, livemode="true", when=f"{today}T16:00:00Z"),                     # a string is not a boolean either
+                    ev("m4", amount=500, livemode=0, when=f"{today}T16:00:00Z"),
+                    ev("m5", amount=500, livemode=None, vendor="resend", kind="x_other", when=f"{today}T16:00:00Z"),
+                    ev("ok", amount=1, when=f"{today}T16:00:00Z"))
+        modes = dict(self.db.as_(None).all("select ref, mode from public.cost_events"))
+        self.assertEqual(modes, {"m1": "unknown", "m2": "unknown", "m3": "unknown", "m4": "unknown", "m5": "unknown", "ok": "live"})
+        self.assertEqual(self.admin("select mode from public.cost_events where ref = 'm1'"), "unknown")
+        self.svc().one("select cost_tick()")
+        self.assertEqual(self.admin("select count(*) from public.ops_alerts where key like 'cost:%%' and resolved_at is null"), 0)   # $2,500 of unknown-mode money: no alarm
+        r = self.rollup()
+        self.assertEqual(Decimal(str(r["days"][0]["total_usd"])), Decimal("1"))                           # only the one live dollar counts
+        self.assertEqual(Decimal(str(r["month"]["total_usd"])), Decimal("1"))
+        self.assertEqual((r["unknown_mode"]["events"], float(r["unknown_mode"]["total_usd"])), (5, 2500.0))   # shown apart, labelled
+        self.assertEqual(r["thresholds"][0]["status"], "ok")
+        self.assertEqual({x["mode"] for x in r["recent"]}, {"unknown", "live"})
+        # the same transaction sent once with a flag and once without is two different records (the flag is part of its identity)
+        self.record(ev("m1", amount=500, livemode=True, when=f"{today}T16:00:00Z"))
+        self.assertEqual(self.admin("select count(*) from public.cost_events where ref = 'm1'"), 2)
+        with self.assertRaises(psycopg.Error):
+            self.admin("insert into public.cost_events (occurred_at, vendor, kind, ref, mode) values (now(), 'stripe', 'stripe_fee', 'bad', 'maybe') returning 1")
+        self.assertEqual(self.admin("select column_default from information_schema.columns where table_name = 'cost_events' and column_name = 'mode'"), "'unknown'::text")
 
     # ---- the rollup
     def test_rollup_counts_unknown_separately_never_as_zero_and_keeps_test_money_apart(self):
@@ -166,7 +199,7 @@ class CostLedger(core.Base):
         total = self.admin("select sum(amount_usd) from public.cost_events where vendor = 'supabase' and kind = 'plan_fee'")
         expected = sum(25 / calendar.monthrange((today - datetime.timedelta(days=i)).year, (today - datetime.timedelta(days=i)).month)[1] for i in range(4))
         self.assertAlmostEqual(float(total), expected, places=4)                               # $25 a month, split by the days of each month
-        self.assertTrue(all(r[0] for r in self.db.as_(None).all("select livemode from public.cost_events where kind = 'plan_fee'")))
+        self.assertTrue(all(r[0] for r in self.db.as_(None).all("select mode = 'live' from public.cost_events where kind = 'plan_fee'")))
         self.ryan().one("select admin_cost_set_plan('supabase', 'Team', 599, %s::date, '{}')", today)
         plans = self.ryan().one("select admin_cost_rollup(1)")["plans"]
         self.assertEqual([(p["plan"], p["ends_on"]) for p in plans if p["vendor"] == "supabase"], [("Team", None)])          # the screen lists plans still running
@@ -290,7 +323,7 @@ class CostLedger(core.Base):
             with self.assertRaises(psycopg.Error):
                 d.one(bad)
         d.one("select admin_cost_record('domain', 14.99, current_date, 'uselai.com renewal')")
-        row = self.admin("select vendor, kind, amount_usd, livemode, detail->>'source' from public.cost_events")
+        row = self.admin("select vendor, kind, amount_usd, mode = 'live', detail->>'source' from public.cost_events")
         self.assertEqual((row[0], row[1], float(row[2]), row[3], row[4]), ("domain", "manual_invoice", 14.99, True, "typed by Ryan"))
         self.assertEqual(float(self.rollup()["month"]["by_vendor"]["domain"]), 14.99)
 

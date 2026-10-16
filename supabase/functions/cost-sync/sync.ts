@@ -5,7 +5,7 @@ import { isService, json } from "../_shared/ops_mail.ts";
 
 export interface CostEvent {
   occurred_at: string; vendor: string; kind: string; amount_usd: number | null; quantity: number | null; unit: string;
-  livemode: boolean; ref: string; detail: Record<string, unknown>;
+  livemode?: boolean; ref: string; detail: Record<string, unknown>;      // livemode missing = the database records it as UNKNOWN mode (never live money)
 }
 type Fetch = (url: string, init: { headers: Record<string, string> }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 export interface Deps {
@@ -29,21 +29,23 @@ const MAX_PAGES = 50;
 const BACK_DAYS = 35;
 const OVERLAP_S = 86400;
 
+// Only a RESTRICTED key (rk_...) is accepted: this function reads balance transactions and nothing else, so it must never hold a full secret key (sk_...).
+// Supabase secrets are project-wide: it has its OWN secret, STRIPE_READ_KEY (Balance: Read), separate from the checkout function's key.
 export function stripeMode(key: string | undefined): boolean | null {
-  if (/^(sk|rk)_test_/.test(key ?? "")) return false;
-  if (/^(sk|rk)_live_/.test(key ?? "")) return true;
-  return null;                          // unset or not a Stripe key: never guess the mode
+  if (/^rk_test_/.test(key ?? "")) return false;
+  if (/^rk_live_/.test(key ?? "")) return true;
+  return null;                          // unset, a full secret key, or not a Stripe key: never guess the mode
 }
 
 // A balance transaction becomes a cost event only when Stripe took a fee on it. A refund carries no fee (the original fee is not returned),
 // so it adds nothing here. A fee in a currency other than USD is recorded with an UNKNOWN amount rather than a converted guess.
-export function feeEvent(t: Txn, livemode: boolean): CostEvent | null {
+export function feeEvent(t: Txn, livemode?: boolean): CostEvent | null {
   if (!t || typeof t.id !== "string" || !Number.isFinite(t.fee) || t.fee <= 0) return null;
   const usd = (t.currency ?? "").toLowerCase() === "usd";
   return {
     occurred_at: new Date(t.created * 1000).toISOString(), vendor: "stripe", kind: "stripe_fee",
     amount_usd: usd ? t.fee / 100 : null, quantity: Math.abs(t.amount) / 100, unit: "gross_" + (t.currency ?? "").toLowerCase().slice(0, 3),
-    livemode, ref: t.id,
+    ...(livemode === undefined ? {} : { livemode }), ref: t.id,
     detail: { type: t.type, reporting_category: t.reporting_category ?? null, source: t.source ?? null, gross_cents: t.amount, fee_cents: t.fee, currency: t.currency,
               fee_details: (t.fee_details ?? []).slice(0, 6).map((d) => ({ type: d.type ?? null, description: (d.description ?? "").slice(0, 80), amount: d.amount ?? null })) },
   };
@@ -83,8 +85,8 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (!isService(req, deps.serviceKey)) return json(403, { error: "Not allowed." });
   let stripe: Record<string, unknown>;
   const mode = stripeMode(deps.stripeKey);
-  if (!deps.stripeKey) stripe = { skipped: "STRIPE_SECRET_KEY is not set" };
-  else if (mode === null) stripe = { error: "STRIPE_SECRET_KEY is not a Stripe key" };
+  if (!deps.stripeKey) stripe = { skipped: "STRIPE_READ_KEY is not set" };
+  else if (mode === null) stripe = { error: /^sk_/.test(deps.stripeKey) ? "STRIPE_READ_KEY must be a restricted key (rk_...), not a full secret key" : "STRIPE_READ_KEY is not a restricted Stripe key (rk_test_... or rk_live_...)" };
   else {
     try { stripe = await pullStripe(deps, mode); }
     catch (e) { console.error("cost-sync stripe", (e as Error).message); stripe = { error: (e as Error).message.slice(0, 200) }; }   // the ledger pass below still runs

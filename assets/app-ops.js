@@ -108,7 +108,8 @@
     const today = (c.days || [])[0] || { total_usd: 0, unknown_events: 0 };
     const m = c.month || { total_usd: 0, unknown_events: 0 };
     const t = c.test && c.test.events ? ` Stripe test mode: ${plural(c.test.events, 'event')} (no real money, not counted).` : '';
-    return `Today ${usd2(today.total_usd)} known${unknownNote(today.unknown_events)}. This month ${usd2(m.total_usd)} known${unknownNote(m.unknown_events)}.${t}`;
+    const u = c.unknown_mode && c.unknown_mode.events ? ` ${plural(c.unknown_mode.events, 'event')} came without a live or test flag: not counted as money and never alarmed.` : '';
+    return `Today ${usd2(today.total_usd)} known${unknownNote(today.unknown_events)}. This month ${usd2(m.total_usd)} known${unknownNote(m.unknown_events)}.${t}${u}`;
   }
   function usageLine(u) {
     if (!u) return '';

@@ -309,7 +309,7 @@
           }),
           h('details', { class: 'ops-details' }, h('summary', {}, 'Latest 15 recorded events'),
             c.recent.length ? h('ul', { class: 'ops-list' }, c.recent.map(r => h('li', {},
-              `${O.vendorWord(r.vendor)} ${r.kind}: ${r.amount_usd == null ? 'unknown cost' : O.usd2(r.amount_usd)}${r.livemode ? '' : ' (test mode)'}`,
+              `${O.vendorWord(r.vendor)} ${r.kind}: ${r.amount_usd == null ? 'unknown cost' : O.usd2(r.amount_usd)}${r.mode === 'live' ? '' : r.mode === 'test' ? ' (test mode)' : ' (mode unknown)'}`,
               h('span', { class: 'meta' }, ` ${O.ago(r.occurred_at, now)}`)))) : h('p', { class: 'form-note' }, 'Nothing recorded yet.')));
       }
       async function load() {
