@@ -7,7 +7,7 @@
 --   reap_lost_leases()        the lease-expiry block of claim_next_job, runnable WITHOUT a polling worker.
 --   expire_stale_queue()      while the service is delayed, a job queued longer than ops_settings.queue_timeout_min is cancelled
 --                             (it never started, so the ledger releases its hold: section 3a).
---   ops_alerts / ops_tick()   one row per incident; ops_tick() (run every 5 minutes by the ops-tick Edge Function) returns only
+--   ops_alerts / ops_tick()   one row per incident; ops_tick() (run every MINUTE by the ops-tick Edge Function) returns only
 --                             the alerts that are NEW, so Ryan is told ONCE per incident.
 --   submit_support(...)       help form intake with the job/receipt id attached; honeypot, length caps, rate limits.
 --   report_film_page(...)     takedown/abuse intake; for the serious categories the page is held (hidden) at once, pending review.
@@ -35,6 +35,8 @@ create table public.ops_settings (
   abuse_hide_per_reporter_day int not null default 3,
   backups_expected boolean not null default false,      -- Ryan sets true once the daily backup is installed: then a stale backup alerts
   child_safety_holds_per_hour int not null default 10 check (child_safety_holds_per_hour >= 0),   -- Ryan, 2026-10-12: at most 10 pages auto-hidden an hour, site-wide, for child-safety reports; above it the report is queued and an URGENT alert says the page is NOT hidden
+  urgent_mail_every_min int not null default 15 check (urgent_mail_every_min >= 1),   -- Ryan, 2026-10-14: the FIRST urgent mail at once, then ONE grouped mail this often, nothing dropped
+  report_detail_per_reporter_hour int not null default 5 check (report_detail_per_reporter_hour >= 1),   -- Ryan, 2026-10-14: full details for this many reports per reporter per hour, then a short record
   max_alert_mails_per_day int not null default 20 check (max_alert_mails_per_day >= 1),   -- a flood cannot use up the mail service's free daily allowance
   backup_max_age_hours int not null default 48            -- newest good daily backup older than this = alert (Ryan, 2026-10-10: 2 days)
 );
@@ -146,7 +148,7 @@ language sql security definer set search_path = '' as $$
   update public.ops_alerts set resolved_at = now() where key = p_key and resolved_at is null;
 $$;
 
--- Run every 5 minutes (Edge Function ops-tick, service role). Returns {reaped, expired, new_alerts: [...]}; the caller emails the
+-- Run every minute (Edge Function ops-tick, service role). Returns {reaped, expired, new_alerts: [...]}; the caller emails the
 -- new alerts once and then marks them notified.
 create function public.ops_tick() returns jsonb
 language plpgsql security definer set search_path = '' as $$
@@ -186,6 +188,7 @@ begin
     update public.ops_alerts set detail = ab || ' abuse reports are waiting for review.' where key = 'abuse_waiting' and resolved_at is null;     -- the count stays true
   else perform ryagram_private.ops_clear('abuse_waiting'); end if;
   return jsonb_build_object('rendering', st, 'reaped', reaped, 'expired', expired,
+    'urgent_wait_s', coalesce((select greatest(0, ceil(s.urgent_mail_every_min * 60 - extract(epoch from now() - max(created_at))))::int from public.ops_outbox where kind = 'urgent'), 0),
     'alert_mail_budget', greatest(0, s.max_alert_mails_per_day - (select count(*) from public.ops_outbox
         where kind = 'alert' and (created_at at time zone 'EST5EDT')::date = (now() at time zone 'EST5EDT')::date)),
     'new_alerts', coalesce((select jsonb_agg(jsonb_build_object('key', key, 'detail', detail, 'urgent', key like 'urgent:%') order by key like 'urgent:%' desc, first_seen)
@@ -253,6 +256,7 @@ create table public.abuse_reports (
   reporter_email text not null check (char_length(reporter_email) between 3 and 200 and reporter_email like '%_@_%'),
   version_id uuid, auto_held boolean not null default false,
   reporter_key text,                          -- md5(caller address + day) or the email: for rate limits only; the address itself is never stored
+  details_omitted boolean not null default false,   -- true: a SHORT record (time, reporter, target, reason): this reporter already had the full-detail allowance this hour
   reviewed_at timestamptz, outcome text check (outcome in ('restored', 'removed', 'dismissed'))
 );
 alter table public.abuse_reports enable row level security;
@@ -272,11 +276,13 @@ create trigger film_pages_held before insert or update on public.film_pages
 create function public.report_film_page(p_slug text, p_reason text, p_email text, p_details text default '', p_website text default '')
 returns void
 language plpgsql security definer set search_path = '' as $$
-declare fp public.film_pages; hold boolean; held_today int; id bigint; s public.ops_settings; rk text; ip text; hdr json;
+declare fp public.film_pages; hold boolean; held_today int; id bigint; s public.ops_settings; rk text; ip text; hdr json; prior int; keep boolean;
 begin
   if coalesce(p_website, '') <> '' then
     return;                                                                       -- honeypot
   end if;
+  -- LOW-2 (CC1): one report at a time, so the per-reporter, hourly and hide-cap counts below cannot be raced past by concurrent reports.
+  perform pg_advisory_xact_lock(hashtext('report_film_page'));
   select * into s from public.ops_settings;
   select * into fp from public.film_pages where slug = p_slug;
   if not found then
@@ -311,12 +317,17 @@ begin
     hold := (select count(*) from public.abuse_reports where reason = 'child_safety' and auto_held and created_at > now() - interval '1 hour')
             < s.child_safety_holds_per_hour;
   elsif hold then
-    select count(*) into held_today from public.abuse_reports where reporter_key = rk and auto_held and created_at > now() - interval '1 day';
+    -- LOW-1 (CC1): child-safety holds have their own cap (above) and never use up the ordinary per-reporter or hourly allowance.
+    select count(*) into held_today from public.abuse_reports where reporter_key = rk and auto_held and reason <> 'child_safety' and created_at > now() - interval '1 day';
     hold := held_today < s.abuse_hide_per_reporter_day                            -- griefing guard: a few auto-hides a day per reporter
-            and (select count(*) from public.abuse_reports where auto_held and created_at > now() - interval '1 hour') < 10;   -- and 10 an hour in all
+            and (select count(*) from public.abuse_reports where auto_held and reason <> 'child_safety' and created_at > now() - interval '1 hour') < 10;   -- and 10 an hour in all
   end if;
-  insert into public.abuse_reports (slug, reason, details, reporter_email, reporter_key, version_id, auto_held)
-    values (p_slug, p_reason, coalesce(p_details, ''), trim(p_email), rk, fp.version_id, hold) returning abuse_reports.id into id;
+  -- Ryan (2026-10-14): FULL details for this reporter's first 5 reports in an hour; after that each report is still recorded, as a SHORT record
+  -- (time, reporter, target, reason: no free text). A child-safety report is never refused for it (the caps above do not apply to it).
+  select count(*) into prior from public.abuse_reports where reporter_key = rk and created_at > now() - interval '1 hour';
+  keep := prior < s.report_detail_per_reporter_hour;
+  insert into public.abuse_reports (slug, reason, details, details_omitted, reporter_email, reporter_key, version_id, auto_held)
+    values (p_slug, p_reason, case when keep then coalesce(p_details, '') else '' end, not keep, trim(p_email), rk, fp.version_id, hold) returning abuse_reports.id into id;
   if hold then
     update public.film_pages set held_at = now(), published = false where slug = p_slug;
   end if;
@@ -426,9 +437,10 @@ begin
                             and not exists (select 1 from public.film_pages f where f.slug = r.slug and f.held_at is not null)),
       'holds_this_hour', (select count(*) from public.abuse_reports where reason = 'child_safety' and auto_held and created_at > now() - interval '1 hour'),
       'holds_cap', (select child_safety_holds_per_hour from public.ops_settings)),
-    'abuse', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'created_at', created_at, 'slug', slug, 'reason', reason,
-                                                         'auto_held', auto_held, 'details', left(details, 300)) order by id)
-                         from (select * from public.abuse_reports where reviewed_at is null order by id limit 20) r), '[]'::jsonb));
+    'abuse', coalesce((select jsonb_agg(jsonb_build_object('id', id, 'created_at', created_at, 'slug', slug, 'reason', reason, 'reporter', reporter_email,
+                                                         'auto_held', auto_held, 'details', left(details, 300), 'details_omitted', details_omitted)
+                                        order by (reason = 'child_safety') desc, id desc)
+                         from (select * from public.abuse_reports where reviewed_at is null order by (reason = 'child_safety') desc, id desc limit 20) r), '[]'::jsonb));
 end $$;
 
 -- Ryan marks a ticket answered (he answers from his inbox; this only clears it from the queue and the 48-hour alert).
@@ -618,7 +630,7 @@ end $$;
 create table public.ops_outbox (
   id bigint generated always as identity primary key,
   created_at timestamptz not null default now(),
-  kind text not null check (kind in ('alert', 'digest', 'ack')),
+  kind text not null check (kind in ('alert', 'digest', 'ack', 'urgent')),    -- 'urgent' = child-safety mail: never counted in the daily allowance
   mode text not null check (mode in ('dry_run', 'live')),
   to_addr text not null,
   subject text not null check (char_length(subject) <= 200),
@@ -648,7 +660,7 @@ language plpgsql stable security definer set search_path = '' as $$
 declare items jsonb; recovered jsonb; sup int; ab int; b jsonb := ryagram_private.ai_budget();
 begin
   select coalesce(jsonb_agg(detail order by first_seen), '[]'::jsonb) into items from public.ops_alerts
-    where resolved_at is null and key not like 'support:%' and key not like 'abuse:%';        -- those are counted below, not listed twice
+    where resolved_at is null and key not like 'support:%' and key not like 'abuse:%' and key not like 'urgent:%';        -- those are counted below, not listed twice
   select coalesce(jsonb_agg(detail order by resolved_at), '[]'::jsonb) into recovered
     from public.ops_alerts where resolved_at > now() - interval '26 hours' and key not like 'support:%' and key not like 'abuse:%' and key not like 'urgent:%';
   select count(*) into sup from public.support_requests where answered_at is null;
