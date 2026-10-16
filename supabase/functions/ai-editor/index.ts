@@ -76,6 +76,7 @@ Deno.serve((req) => handle(req, {
     reserveTurn: (owner, sessionId) => rpc("ai_reserve_turn", { p_owner: owner, p_session: sessionId }),
     turnContext: (turnId) => rpc("ai_turn_context", { p_turn: turnId, p_limit: 12 }),
     allowExecution: (turnId) => rpc("ai_allow_execution", { p_turn: turnId }),
+    budgetOk: async (turnId) => (await rpc("ai_budget_ok", { p_turn: turnId })) === true,
     recordUsage: (turnId, usage) => rpc("ai_record_usage", { p_turn: turnId, p_usage: usage }),
     addRuling: (turnId, text) => rpc("ai_add_ruling", { p_turn: turnId, p_text: text }),
     finishTurn: (turnId, status, escalated, toolCalls, userText, replyText, summary) =>

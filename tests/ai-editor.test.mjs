@@ -39,7 +39,7 @@ const use = (name, input = {}) => ({ type: 'tool_use', id: `tu_${++n}`, name, in
 function fakeWorld({ story = { schema: 1, engine: 'sequence', name: 'x', sequence: { clips: [{ kind: 'render', view: 'map', dataset: 'state_obesity_fastfood', start: '2011', end: '2023' }] } },
                      state = 'draft', enabled = true, turnsLeft = 5, execLeft = 5, messageCount = 0, jobs = [] } = {}) {
   const w = {
-    story, sha: 'sha-1', jobs: [...jobs], saved: [], submitted: [], usage: [], finished: [], rulings: [], engine: 'e0a1b2c',
+    paused: false, budgetCalls: 0, story, sha: 'sha-1', jobs: [...jobs], saved: [], submitted: [], usage: [], finished: [], rulings: [], engine: 'e0a1b2c',
     store: {
       async sessionFor(owner, versionId) {
         if (owner === 'worker') throw Object.assign(new Error("The worker account can't use the editor."), { code: '42501' });
@@ -56,6 +56,7 @@ function fakeWorld({ story = { schema: 1, engine: 'sequence', name: 'x', sequenc
                  messages: messageCount ? [{ role: 'user', content: 'earlier' }, { role: 'assistant', content: 'earlier reply' }] : [] };
       },
       async allowExecution() { return execLeft-- > 0; },
+      async budgetOk() { w.budgetCalls++; return w.budgetSeq ? (w.budgetSeq.shift() ?? false) : !w.paused; },
       async recordUsage(turn, u) { w.usage.push(u); return 0.01; },
       async addRuling(turn, t) { w.rulings.push(t); return w.rulings.length; },
       async finishTurn(...args) { w.finished.push(args); }
@@ -276,4 +277,54 @@ test('summaries come often enough that nothing leaves the window unsummarised', 
     assert.ok(covered >= oldestInWindow - 1, `messages ${covered + 1}..${oldestInWindow - 1} were lost at ${count}`);
     if (stored >= HISTORY && stored % EVERY < 2) covered = stored;
   }
+});
+
+test('a spend cap pauses the editor: no Anthropic call is made, the person gets a friendly reply, the cap is asked before each call', async () => {
+  const w = fakeWorld();
+  w.paused = true;
+  const claude = fakeClaude([]);
+  const res = await handle(ask(), deps(w, claude));
+  assert.equal(res.status, 200);
+  const body = await res.json();
+  assert.match(body.reply, /paused for now to keep costs in check/);
+  assert.equal(claude.calls.length, 0);
+  assert.equal(w.finished[0][1], 'done');
+
+  const w2 = fakeWorld();
+  const claude2 = fakeClaude([{ content: [{ type: 'text', text: 'Hello' }], stop_reason: 'end_turn', usage: {} }]);
+  await handle(ask(), deps(w2, claude2));
+  assert.equal(claude2.calls.length, 1);
+  assert.equal(w2.budgetCalls, 1);
+});
+
+test('usage is recorded under the REQUESTED model, whatever name the API sends back, with missing cache counts as 0', async () => {
+  const w = fakeWorld();
+  const c = fakeClaude([{ ...msg([text('Hello')]), model: 'claude-haiku-4-5-20251001', usage: { input_tokens: 10, output_tokens: 5 } }]);
+  await handle(ask(), deps(w, c));
+  assert.equal(w.usage[0].model, 'claude-haiku-4-5');
+  assert.deepEqual([w.usage[0].input_tokens, w.usage[0].output_tokens, w.usage[0].cache_read_input_tokens, w.usage[0].cache_creation_input_tokens], [10, 5, 0, 0]);
+  const w2 = fakeWorld({ messageCount: 14 });                                      // the summary call is recorded under its requested model too
+  const c2 = fakeClaude([{ ...msg([text('Answer.')]), model: 'claude-haiku-4-5-20251001' }, { ...msg([text('A summary.')]), model: 'claude-haiku-4-5-20251001' }]);
+  await handle(ask('next'), deps(w2, c2));
+  assert.deepEqual(w2.usage.map(u => u.model), ['claude-haiku-4-5', 'claude-haiku-4-5']);
+});
+
+test('the spend cap is asked before EVERY call of a turn: a cap reached after round one stops round two', async () => {
+  const w = fakeWorld();
+  w.budgetSeq = [true, false];
+  const c = fakeClaude([msg([use('inspect_project')], 'tool_use'), msg([text('never asked')])]);
+  const body = await (await handle(ask(), deps(w, c))).json();
+  assert.equal(c.calls.length, 1);
+  assert.match(body.reply, /paused for now/);
+  assert.equal(w.budgetCalls, 2);
+});
+
+test('the cap is asked before the SUMMARY call too: paused then means no summary call and the old summary is kept', async () => {
+  const w = fakeWorld({ messageCount: 14 });
+  w.budgetSeq = [true, false];                                                     // allowed for the answer, paused by the summary
+  const c = fakeClaude([msg([text('Answer.')]), msg([text('must not be asked')])]);
+  const res = await handle(ask('next'), deps(w, c));
+  assert.equal(res.status, 200);
+  assert.equal(c.calls.length, 1);
+  assert.equal(w.finished[0][6], null);
 });

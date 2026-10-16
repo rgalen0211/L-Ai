@@ -41,6 +41,9 @@ window.ryagramConfig = Object.freeze({
   // 20261004000300 are applied, purge-uploads is deployed and scheduled, and the worker reads uploads
   // (supabase/README.md, "Uploads").
   uploads: false,
+  // Show the "rendering is delayed" notice and the help form (#/help) in /app/. Turn on only once SQL 20261010000100 is applied
+  // (supabase/README.md, "Hands-off operations").
+  opsTools: false,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.
