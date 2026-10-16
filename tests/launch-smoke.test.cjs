@@ -17,7 +17,7 @@ test('SMOKE: the script\'s own helpers pass their self-test (key safety, balance
 
 test('SMOKE: a live Stripe key is refused outright, secrets come from the environment only and are redacted, and nothing is typed into Checkout unless it says test mode', () => {
   assert.match(src, /that is a LIVE Stripe key: this script only ever uses a test key/);
-  for (const v of ['SMOKE_EMAIL', 'SMOKE_PASSWORD', 'STRIPE_TEST_KEY']) assert.match(src, new RegExp(`os\.environ\.get\('${v}'\)`));
+  for (const v of ['SMOKE_EMAIL', 'SMOKE_PASSWORD', 'STRIPE_TEST_KEY']) assert.ok(src.includes(`os.environ.get('${v}'`), v);
   assert.match(src, /redact\(str\(detail\), self\.secrets\)/);
   assert.match(src, /a card is typed only if it does/);
   assert.match(src, /STOPPING before any card is typed/);
