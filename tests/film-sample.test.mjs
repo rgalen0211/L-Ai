@@ -59,7 +59,7 @@ const PUBLISHED = { title: 'Fast food and obesity', published_at: '2026-10-01T00
 // ---- the sample ----------------------------------------------------------------------------------------------------------------------------------
 test('the sample is the Interstate film with its REAL source and receipt, made by the live allowlist, and carries nothing private', () => {
   assert.equal(sample.sample, true);
-  assert.equal(sample.title, 'The Interstate Highway System');
+  assert.equal(sample.title, 'Rise of the Interstate Highway, 1956–1993');                 // the film's public title
   const d = sample.summary.datasets[0];
   assert.match(d.label, /Interstate network by opening year \(Brooks & Liscow/);
   assert.equal(d.sources[0].url, 'https://doi.org/10.3886/E144281V1');
@@ -90,11 +90,12 @@ test('THE SAMPLE PAGE: title, sample note, poster, "Made with Ryagram · View so
   const r = await renderPage({ search: '?sample=interstate', sampleJson: sample });
   const text = textOf(r.root);
   assert.deepEqual(r.calls, ['/film/samples/interstate.json']);
-  assert.match(text, /The Interstate Highway System/);
+  assert.match(text, /Rise of the Interstate Highway, 1956–1993/);
+  assert.match(text, /Contiguous United States 39,279 Miles Constructed/);                    // the film's own title card line, as its subhead
   assert.match(text, /This is a sample page\./);
   assert.match(text, /Made with Ryagram · View sources/);
   assert.match(text, /Brooks & Liscow \(2023\), Infrastructure Costs, replication package/);
-  assert.match(text, /Engine version9b3d886dee22/);
+  assert.match(text, /Engine versionb17561adead5/);
   assert.match(text, /This pageA sample, to show what a Ryagram film page contains/);
   assert.doesNotMatch(text, /Published/);
   assert.ok(findAll(r.root, n => n.tag === 'img' && n.attrs.src === '/film/samples/interstate-final-frame.jpg').length === 1);
@@ -194,7 +195,7 @@ function appData(responses) {
   } } };
   return { data: w.ryagramData(client), calls };
 }
-const UPLOAD_409 = { error: { code: 'confirm_uploaded', error: 'This film was made from data you uploaded. A public page shows the film and its sources only, never your data. Publish it anyway?' } };
+const UPLOAD_409 = { error: { code: 'confirm_uploaded', error: "This film was drawn from data you uploaded, so anyone with the link will see what it shows — your data's values and pattern, frame by frame. The page lists the film's sources, not your file. Publish it anyway?" } };
 
 test('APP FLOW: public data publishes with ONE request and no question', async () => {
   const { data, calls } = appData([{ data: { slug: SLUG, url: 'u' } }]);
@@ -212,7 +213,7 @@ test('APP FLOW: an upload film asks once with the server\'s words, and only a ye
   const out = await data.publishFilmWithConfirm('v1', title.value, m => { messages.push(m); title.value = 'Changed while the question was open'; return true; });
   assert.equal(out.slug, SLUG);
   assert.equal(messages.length, 1);
-  assert.match(messages[0], /made from data you uploaded.*never your data/);
+  assert.match(messages[0], /drawn from data you uploaded.*frame by frame.*sources, not your file/);
   assert.deepEqual(calls.map(c => [c.body.title, c.body.confirm_uploaded]), [['First title', undefined], ['First title', true]]);
 });
 
@@ -268,4 +269,14 @@ test('focus: #sources moves focus to the sources heading; a failed load (even wi
   const plainLoad = await renderPage({ search: `?s=${SLUG}`, page: PUBLISHED });
   assert.equal(find(plainLoad.root, n => n.attrs.id === 'sources-title').attrs.tabindex, '-1');
   assert.equal(find(plainLoad.root, n => n.tag === 'h1').focused, true);
+});
+
+test('THE SAMPLE IS BUILT FROM THE PUBLIC FILM: its title, final engine, draw date, length, the one real source and a real last-frame poster are served from /film/samples/', () => {
+  assert.ok(fs.existsSync(path.join(root, 'film/samples/interstate.json')));
+  assert.ok(fs.existsSync(path.join(root, 'film/samples/interstate-final-frame.jpg')));
+  assert.equal(sample.title, 'Rise of the Interstate Highway, 1956–1993');                 // the film's public title (youtu.be/UC4j77KYVQ8)
+  assert.deepEqual(sample.summary.film, { seconds: 119.5, width: 1920, height: 1080, fps: 30 });
+  assert.deepEqual(sample.summary.engine, { commit: 'b17561adead5', drawn_at: '2026-10-15' });   // the FINAL film's sidecar, not the 10-10 draft's
+  assert.equal(sample.published_at, null);                                                     // a sample, not a published page
+  assert.equal(sample.summary.datasets[0].sources[0].url, 'https://doi.org/10.3886/E144281V1');
 });

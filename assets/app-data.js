@@ -335,6 +335,13 @@
       adminFilmRequests() { return run(client.rpc('admin_film_requests'), 'Couldn\u2019t load film requests.'); },
       adminFilmRequestSet(id, status, note, url) { return run(client.rpc('admin_film_request_set', { p_id: id, p_status: status, p_note: note || '', p_url: url || null }), 'Couldn\u2019t update that request.'); },
       adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
+      // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
+      adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
+      adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },
+      adminCostDeleteThreshold(id) { return run(client.rpc('admin_cost_delete_threshold', { p_id: id }), 'Couldn\u2019t remove that limit.'); },
+      adminCostSetPlan(vendor, plan, monthly, startsOn, included) { return run(client.rpc('admin_cost_set_plan', { p_vendor: vendor, p_plan: plan, p_monthly_usd: monthly, p_starts_on: startsOn, p_included: included || {} }), 'Couldn\u2019t save that plan.'); },
+      adminCostSetRate(vendor, kind, unitUsd, note) { return run(client.rpc('admin_cost_set_rate', { p_vendor: vendor, p_kind: kind, p_unit_usd: unitUsd, p_note: note || '' }), 'Couldn\u2019t save that rate.'); },
+      adminCostRecord(vendor, amount, on, note) { return run(client.rpc('admin_cost_record', { p_vendor: vendor, p_amount_usd: amount, p_on: on, p_note: note || '' }), 'Couldn\u2019t record that cost.'); },
       adminReviewReport(id, outcome) { return run(client.rpc('admin_review_report', { p_id: id, p_outcome: outcome }), 'Couldn\u2019t update that report.'); },
 
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,

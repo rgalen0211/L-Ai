@@ -154,7 +154,9 @@ test('there is no dataset picker or browse list for users: flags stay off, and t
   const lib = fs.readFileSync(path.join(root, 'assets/app-library.js'), 'utf8');
   assert.doesNotMatch(lib, /tpl-dataset|datasetSelect|catalogBrowser|catalogOn|ryagramCatalog/);
   const selects = [...lib.matchAll(/h\('select',\s*\{\s*id:\s*'([^']+)'/g)].map(m => m[1]);
-  assert.deepEqual(selects, ['wl-days']);                        // the admin period list is the only dropdown
+  // Admin-only reporting periods are the only dropdowns with an id here: the waitlist period and, on #/admin/ops, the cost limit's day/month (the vendor
+  // lists there are built by one helper and hold vendors, never datasets). None of them is a list of data.
+  assert.deepEqual(selects, ['wl-days', 'cost-th-period']);
   const html = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
   assert.doesNotMatch(html, /app-catalog/);                       // the browser never loads the catalog
 });

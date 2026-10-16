@@ -98,8 +98,11 @@ test('SCREEN: the request page and its link exist only behind the filmRequests f
 });
 
 test('SCREEN: nothing in the flow sends mail, takes payment or calls out: Ryan sends the invite and the film himself', () => {
-  const src = read('assets/app-library.js') + read('assets/app-ops.js') + read('assets/app-data.js');
-  assert.doesNotMatch(src, /resend|smtp|sendMail|inviteUserByEmail|api\.stripe|checkout\.stripe/i);
+  const lib = read('assets/app-library.js');
+  const flowScreens = lib.slice(lib.indexOf('async function requestView()'), lib.indexOf('// --- #/admin/ops  Ryan only:')) + lib.slice(lib.indexOf('// --- the invite code just made'), lib.indexOf('// --- Costs: every'));
+  const ops = read('assets/app-ops.js'); const flowWords = ops.slice(ops.indexOf('// ---- The creator beta flow'), ops.indexOf('// ---- Costs on the Operations screen'));
+  const dat = read('assets/app-data.js'); const flowData = dat.slice(dat.indexOf('// Creator beta flow (SQL 20261016000200)'), dat.indexOf('// Cost ledger (SQL 20261016000100)'));
+  for (const part of [flowScreens, flowWords, flowData]) { assert.ok(part.length > 300); assert.doesNotMatch(part, /resend|smtp|sendMail|inviteUserByEmail|api\.stripe|checkout\.stripe/i); }
 });
 
 // ---- Ryan (2026-10-16): 10 credits a film request and 20 welcome credits are LOCKED IN; a credit has NO dollar value yet (until costmeter has measured real render costs)
@@ -123,7 +126,7 @@ test('NO PRICE PER CREDIT: nothing in the creator flow stores, computes or shows
   assert.ok(flow.length > 500);
   assert.doesNotMatch(flow, /\$\d|price|per credit|dollar|usd|cents/i);     // (no "$5"; the code's own ${...} interpolations are fine)                        // the Request a film page shows credits only
   const o = read('assets/app-ops.js');
-  const start = o.indexOf('// ---- The creator beta flow'); const flowWords = o.slice(start, o.indexOf('const ENDED_WORDS'));
+  const start = o.indexOf('// ---- The creator beta flow'); const flowWords = o.slice(start, o.indexOf('// ---- Costs on the Operations screen'));        // (the cost ledger's own wording, right after, is about dollars of COSTS, not credits)
   assert.doesNotMatch(flowWords, /\$\d|price|per credit|dollar|usd/i);   // nor the queue and invite wording (the invite mail says credits, never dollars)
   assert.doesNotMatch(decodeURIComponent(O.inviteMailto({ name: 'A B', email: 'a@b.co', code: 'RYA-AAAA-BBBB', credits: 20 })), /\$|price|dollar|per credit/i);
   // and no screen anywhere computes a per-credit price from a pack (price / credits)

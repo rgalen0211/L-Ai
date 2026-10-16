@@ -576,3 +576,21 @@ The seam for BUILDER's job runner: `admin_film_request_set(id, status, note, url
 
 To switch it on (after the ledger is live and the creator beta is on): apply `migrations/20261016000200_creator_flow.sql` (after `20261003000200_invite_codes.sql`, `20261010000100_ops_readiness.sql`, `20261014000100_creator_beta.sql` and `phase-2b/credits_ledger.sql`), then set `filmRequests: true` and push. The two numbers are **confirmed by Ryan (2026-10-16): 10 credits per film request and 20 welcome credits** (the defaults in `creator_flow_settings`; `admin_creator_flow_set` can still change them later). **The dollar value of a credit is deliberately unset until costmeter has measured real render costs: no screen, table or message in this flow shows or computes a price per credit.**
 
+## Cost ledger (branch cost-ledger): switching it on
+
+Every $-bearing event in one closed table (`cost_events`), a daily rollup and Ryan's limits on `#/admin/ops` > Costs. Full design, the Stripe test-mode plumbing plan and each vendor's spend-cap steps: `Ryagram-logs\proposals\WEB-COST-LEDGER-AND-TEST-PLAN.md`.
+
+- **Unknown is unknown:** `amount_usd` NULL is never added as $0; totals name how many events have an unknown cost. Each event has a `mode`: `live`, `test` (Stripe test mode) or `unknown` (the source gave no live/test flag: never defaulted to live). Only `live` counts as money or toward an alarm; the others are shown apart.
+- **Closed tables:** RLS on, every grant revoked (service role included). Writers are `cost_record_events`, `cost_ingest_render_meter`, `cost_tick`, `cost_sync_get/set` (service role only) and Ryan's `admin_cost_*` functions (`is_app_admin()`).
+- **Sources:** Stripe's own balance transactions (the real fee per charge, read-only, `cost-sync` function), plan fees Ryan states (accrued daily), render cost from `job_metering` cpu seconds (unknown until he states a core-hour rate), a daily stored-bytes and live-email reading, typed costs, and (once BUILDER publishes the format) `renders.jsonl` lines. Sign-up emails and uploaded datasets are NOT counted (UNKNOWN).
+
+To switch it on (in this order):
+
+1. **SQL Editor:** `migrations/20261016000100_cost_ledger.sql`, after `20261010000100_ops_readiness.sql` and the 2A core.
+2. **Stripe key, its OWN secret:** create a NEW **restricted** key (`rk_test_...`, later `rk_live_...`) with **Balance: Read and nothing else** (add "Balance transaction sources: Read" only if the first call is refused), and store it as the secret **`STRIPE_READ_KEY`**. Do NOT reuse `STRIPE_SECRET_KEY`: Supabase secrets are project-wide, so that would hand `cost-sync` the checkout key. `cost-sync` refuses a full `sk_...` key and takes the mode from the `rk_` prefix. A cost event that arrives with no live/test flag is stored as mode `unknown`: shown apart, never counted as money, never alarmed.
+3. **Deploy:** `npx supabase functions deploy cost-sync --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`
+4. **Schedule:** Dashboard > Integrations > Cron > every **hour** > Supabase Edge Function `cost-sync`, with the same `Authorization: Bearer <service key>` header as `ops-tick`. Alarms are evaluated on that run, so they can be up to an hour late.
+5. **Seeded by the migration (Ryan, 2026-10-16), editable on `#/admin/ops` > Costs:** limits of **$5 a day and $50 a month across every vendor, warning at 80%, alerts only** (nothing here can block or stop anything), and a **render core-hour rate of $0** (renders on his own PC cost $0 in cash; the cloud rate comes from BUILDER's trial). Still to enter: your plans (Supabase, Resend, Workspace; the Supabase plan is being checked) and costs nothing can see (a domain renewal).
+
+Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring) and `supabase/tests/test_cost_ledger.py` (closed tables, idempotence, rollup, plans, render and storage readings, alarms). Run the SQL tests with `TEMP`, `TMP` and `TMPDIR` on D: (the storage rule).
+

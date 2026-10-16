@@ -358,6 +358,9 @@ class Ops(core.Base):
                            "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)",
                            # creator beta: Ryan's list and decisions (each refuses everyone but is_app_admin() inside)
                            "admin_creator_beta()", "admin_decide_creator(bigint,text)",
+                           # cost ledger: Ryan's screen and settings (same rule)
+                           "admin_cost_rollup(integer)", "admin_cost_set_threshold(text,text,numeric,integer)", "admin_cost_delete_threshold(bigint)",
+                           "admin_cost_set_plan(text,text,numeric,date,jsonb)", "admin_cost_set_rate(text,text,numeric,text)", "admin_cost_record(text,numeric,date,text)",
                            # creator flow: a signed-in person asks for a film (the database needs their id); the rest are Ryan's, each refusing everyone else inside
                            "request_film(text,text)", "film_request_cost()", "admin_creator_invite(bigint,integer)", "admin_film_requests()",
                            "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)"}
