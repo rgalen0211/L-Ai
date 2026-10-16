@@ -34,7 +34,7 @@ def clean(html, decisions, date, cut=()):
     html = html.replace('<link rel="stylesheet" href="/assets/legal-draft.css">\n', '')
     html = DECISION.sub(lambda m: date if m.group(1) == 'last-updated' else decisions[m.group(1)], html)
     html = REQUIRES.sub(lambda m: '' if m.group(1) in cut else m.group(2), html)
-    html = re.sub(r'(\S) {2,}(\S)', r' ', html.replace(' </p>', '</p>').replace('<p> ', '<p>'))     # (only runs of spaces BETWEEN words: indentation is untouched)
+    html = re.sub(r'(\S) {2,}(\S)', r'\1 \2', html.replace(' </p>', '</p>').replace('<p> ', '<p>'))     # (only runs of spaces BETWEEN words: indentation is untouched)
     return html
 
 
