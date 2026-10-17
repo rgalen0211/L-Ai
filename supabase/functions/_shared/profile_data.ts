@@ -733,10 +733,10 @@ export const SAMPLE_STORY: any = {
       {
         "kind": "render",
         "id": "bars",
-        "dataset": "bls_state_unemployment",
+        "dataset": "cbp_manufacturing_share_state",
         "view": "bars",
-        "start": "2019-01",
-        "end": "2019-12",
+        "start": "2008",
+        "end": "2018",
         "transition": {
           "kind": "crossfade",
           "seconds": 0.6
@@ -777,6 +777,6 @@ export const SAMPLE_PERIODS: string[] = [
   "2011",
   "2017",
   "2023",
-  "2019-06",
+  "2013",
   "2021-06"
 ];

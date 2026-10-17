@@ -441,16 +441,16 @@
        "seconds": 3,
        "fade": 0.2,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "left"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "fade",
         "seconds": 0.3
@@ -539,16 +539,16 @@
        "seconds": 3,
        "fade": 0.4,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "left"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -1004,16 +1004,16 @@
        "seconds": 3,
        "fade": 0.4,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "left"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -1099,16 +1099,16 @@
        "seconds": 3,
        "fade": 0.4,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "left"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -1563,16 +1563,16 @@
        "seconds": 3,
        "fade": 0.0,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "center"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "cut"
        },
@@ -1660,16 +1660,16 @@
        "seconds": 3,
        "fade": 0.4,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "center"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -2131,16 +2131,16 @@
        "seconds": 3,
        "fade": 0.8,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "left"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.8
@@ -2231,16 +2231,16 @@
        "seconds": 3,
        "fade": 0.4,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "left"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -2709,16 +2709,16 @@
        "seconds": 3,
        "fade": 0.4,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "center"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -2807,16 +2807,16 @@
        "seconds": 3,
        "fade": 0.4,
        "headline": "Sample film",
-       "subhead": "State unemployment rate",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
        "align": "center"
       },
       {
        "kind": "render",
        "id": "main",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2022-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -4786,15 +4786,15 @@
       "seconds": 3,
       "fade": 0.4,
       "headline": "Sample film",
-      "subhead": "State unemployment rate"
+      "subhead": "Manufacturing: share of CBP-covered jobs, by state"
      },
      {
       "kind": "render",
       "id": "main",
-      "dataset": "bls_state_unemployment",
+      "dataset": "cbp_manufacturing_share_state",
       "view": "bars",
-      "start": "2019-01",
-      "end": "2022-12",
+      "start": "2008",
+      "end": "2018",
       "transition": {
        "kind": "crossfade",
        "seconds": 0.6
@@ -4884,10 +4884,10 @@
      {
       "kind": "render",
       "id": "bars",
-      "dataset": "bls_state_unemployment",
+      "dataset": "cbp_manufacturing_share_state",
       "view": "bars",
-      "start": "2019-01",
-      "end": "2019-12",
+      "start": "2008",
+      "end": "2018",
       "transition": {
        "kind": "crossfade",
        "seconds": 0.6
@@ -4919,7 +4919,7 @@
    "2011",
    "2017",
    "2023",
-   "2019-06",
+   "2013",
    "2021-06"
   ],
   "compiled": {
@@ -4960,10 +4960,10 @@
       {
        "kind": "render",
        "id": "bars",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2019-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "fade",
         "seconds": 0.3
@@ -5058,10 +5058,10 @@
       {
        "kind": "render",
        "id": "bars",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2019-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -5155,10 +5155,10 @@
       {
        "kind": "render",
        "id": "bars",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2019-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "cut"
        },
@@ -5251,10 +5251,10 @@
       {
        "kind": "render",
        "id": "bars",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2019-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.8
@@ -5350,10 +5350,10 @@
       {
        "kind": "render",
        "id": "bars",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "2019-01",
-       "end": "2019-12",
+       "start": "2008",
+       "end": "2018",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
