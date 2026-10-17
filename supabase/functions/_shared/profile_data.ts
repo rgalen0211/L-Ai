@@ -398,13 +398,13 @@ export const PRESETS: any = {
   "bold-social": {
     "profile_version": 1,
     "name": "bold-social",
-    "title": "Bold social (vertical)",
-    "notes": "1080x1920, dark page, vivid ramp, quick fades. Preview every film before rendering.",
+    "title": "Bold social",
+    "notes": "Dark page, vivid violet-to-yellow ramp, cyan and magenta dots, quick fades. 16:9: a true vertical layout is not built yet (see the canvas warning).",
     "look": {
       "theme": "dark",
       "canvas": [
-        1080,
-        1920
+        1920,
+        1080
       ],
       "fps": 30,
       "page_background": "#0b0b12",
@@ -632,12 +632,12 @@ export const PRESETS: any = {
 export const PRESET_LIST: any[] = [
   {
     "id": "bold-social",
-    "title": "Bold social (vertical)",
-    "summary": "1080x1920, dark page, vivid ramp, quick fades. Preview every film before rendering.",
+    "title": "Bold social",
+    "summary": "Dark page, vivid violet-to-yellow ramp, cyan and magenta dots, quick fades. 16:9: a true vertical layout is not built yet (see the canvas warning).",
     "theme": "dark",
     "canvas": [
-      1080,
-      1920
+      1920,
+      1080
     ],
     "fps": 30,
     "ramp_mode": "solid",
@@ -735,8 +735,8 @@ export const SAMPLE_STORY: any = {
         "id": "bars",
         "dataset": "cbp_manufacturing_share_state",
         "view": "bars",
-        "start": "2008",
-        "end": "2018",
+        "start": "1998",
+        "end": "2008",
         "transition": {
           "kind": "crossfade",
           "seconds": 0.6
@@ -777,6 +777,6 @@ export const SAMPLE_PERIODS: string[] = [
   "2011",
   "2017",
   "2023",
-  "2013",
+  "2003",
   "2021-06"
 ];

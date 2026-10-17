@@ -272,6 +272,11 @@ export function applyProfile(rawProfile: unknown, story: Json, mode: "restyle" |
       warnings.push(`pacing.hold_seconds ${pace.hold_seconds} is below the bar race's own default of ${BAR_RACE.hold_seconds} s per period; rows may not be able to cross that fast and the bar-race checks may fail. Make a contact sheet first.`);
     }
   }
+  // A portrait canvas is accepted by the worker, but the engine has no vertical layout yet.
+  const cv = out.sequence.canvas;
+  if (Array.isArray(cv) && cv[1] > cv[0]) {
+    warnings.push("this canvas is vertical, but the engine has no vertical layout yet: the 16:9 drawing is fitted into the frame with bars above and below, not re-laid-out (DESIGN-VERTICAL.md is a spec, not built). The contact sheet shows the drawing, not the fitted frame.");
+  }
   const pinned = story?.sequence?.style_overrides?.choropleth?.mode;
   const want = look.ramp?.mode;
   if (pinned && want && pinned !== want && !fill) {

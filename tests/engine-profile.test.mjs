@@ -236,7 +236,7 @@ test('preview_profile queues a FREE sample sheet with the compiled story, and ne
   assert.equal(d.calls.previews.length, 1);
   const { story, periods } = d.calls.previews[0];
   assert.equal(story.sequence.theme, 'dark');
-  assert.deepEqual(story.sequence.canvas, [1080, 1920]);
+  assert.deepEqual(story.sequence.canvas, [1920, 1080]);
   assert.equal(story.sequence.clips.length, 4);
   assert.ok(periods.length >= 3 && periods.length <= 5);
   // claims untouched
@@ -264,4 +264,13 @@ test('a saved profile that no longer validates is reported, not previewed', asyn
 
 test('an unknown tool is refused', async () => {
   assert.ok((await runProfileTool('delete_everything', {}, fakeData())).isError);
+});
+
+test('a vertical canvas is warned about (the engine has no vertical layout yet); 16:9 is not', () => {
+  const story = plain(par.samples.map);
+  const tall = { profile_version: 1, name: 'tall', look: { canvas: [1080, 1920] } };
+  assert.ok(applyProfile(tall, story).report.warnings.some(w => /vertical/.test(w)));
+  const wide = { profile_version: 1, name: 'wide', look: { canvas: [1920, 1080] } };
+  assert.ok(!applyProfile(wide, story).report.warnings.some(w => /vertical/.test(w)));
+  assert.ok(Object.values(par.presets).every(p => p.look.canvas?.[1] <= p.look.canvas?.[0]), 'no preset ships vertical');
 });
