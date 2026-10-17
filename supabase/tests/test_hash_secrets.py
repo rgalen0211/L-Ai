@@ -88,5 +88,28 @@ class HashSecrets(core.Base):
         self.assertEqual(self.admin("select reporter_key from public.abuse_reports order by id desc limit 1"), "some.one@x.co")
 
 
+    def test_with_row_level_security_switched_on_the_definer_function_still_reads_the_secret(self):
+        # Ryan applied the migration with Supabase's "Run and enable RLS": RLS on, NO policies. A table's OWNER is not subject to RLS (unless FORCE),
+        # and hash_secret() is security definer, so it runs as the owner. Modelled with a plain owner role (no superuser, no bypassrls), as on Supabase.
+        c = self.db.as_(None).c
+        c.execute("do $$ begin if not exists (select 1 from pg_roles where rolname = 'hs_owner') then create role hs_owner nologin; end if; end $$")        # (roles are cluster-wide; each test has its own database)
+        c.execute("grant usage on schema ryagram_private to hs_owner")
+        c.execute("alter table ryagram_private.hash_secret owner to hs_owner")
+        c.execute("alter function ryagram_private.hash_secret() owner to hs_owner")
+        c.execute("alter table ryagram_private.hash_secret enable row level security")
+        slug = self.publish_many(1)[0]
+        key = self.report_key("203.0.113.9", slug)
+        day = self.admin("select to_char(now() at time zone 'EST5EDT', 'YYYY-MM-DD')")
+        secret = bytes(self.admin("select secret from ryagram_private.hash_secret"))
+        self.assertEqual(key, pyhmac.new(secret, f"report|203.0.113.9|{day}".encode(), hashlib.sha256).hexdigest())      # still a real HMAC, not the email fallback
+        for role in ("anon", "authenticated", "service_role"):                                                         # and RLS did not open the table to anyone
+            with self.assertRaises(psycopg.Error, msg=role):
+                self.db.as_(role).c.execute("select secret from ryagram_private.hash_secret")
+        c = self.db.as_(None).c
+        c.execute("alter table ryagram_private.hash_secret force row level security")                                 # contrast: FORCE would lock the owner out (this is why we do not use it)
+        with self.assertRaises(psycopg.Error):
+            self.db.as_("anon").c.execute("select report_film_page(%s, 'other', 'forced@x.co')", (slug,))
+
+
 if __name__ == "__main__":
     unittest.main()
