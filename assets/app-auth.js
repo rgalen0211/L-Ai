@@ -69,6 +69,16 @@
     history.replaceState(null, '', location.pathname + (query.toString() ? `?${query}` : '') + (hasAuthHash ? '#/' : location.hash));
   }
 
+  // A one-time message (welcome, saved, confirmed): shown, then cleared on the person's next move, so it never greets them again on another page.
+  function sayOnce(message) {
+    say(message);
+    const clear = () => {
+      if (status.textContent === message) say('');
+      window.removeEventListener?.('hashchange', clear);
+    };
+    window.addEventListener?.('hashchange', clear);
+  }
+
   function say(message) {
     status.hidden = !message;
     status.textContent = message || '';
@@ -213,7 +223,7 @@
           if (linkType === 'invite') $('set-password-title').textContent = 'Welcome to Ryagram. Choose your password';
           const { data } = await client.auth.getSession();
           render(data.session);
-          if (DONE[linkType]) say(DONE[linkType]);
+          if (DONE[linkType]) sayOnce(DONE[linkType]);
         }
         go.disabled = false;
         verifying = false;
@@ -325,6 +335,11 @@
       if (!setForm.reportValidity()) return;
       setError.hidden = true;
       const { password, again } = setForm.elements;
+      if (password.value.length < 12) {
+        setError.textContent = 'Use at least 12 characters.';
+        setError.hidden = false;
+        return;
+      }
       if (password.value !== again.value) {
         setError.textContent = 'The two passwords don’t match.';
         setError.hidden = false;
@@ -343,7 +358,7 @@
         recovering = false;
         const { data } = await client.auth.getSession();
         render(data.session);
-        say(linkType === 'invite' ? 'Welcome. Your password is saved.' : 'Your new password is saved.');
+        sayOnce(linkType === 'invite' ? 'Welcome. Your password is saved.' : 'Your new password is saved.');
       } catch {
         setError.textContent = 'Couldn’t reach the server. Check your connection and try again.';
         setError.hidden = false;
