@@ -25,31 +25,50 @@ async function call(method, url, headers, body) {
   return { status: r.status, headers: r.headers, json, text };
 }
 
-// ---- a fresh second user, an app session for it, and an OAuth token for it ----------------------------------------
-const u2 = { email: `door-${crypto.randomBytes(5).toString('hex')}@example.test`, password: crypto.randomBytes(18).toString('base64url') };
-let r = await call('POST', `${URL_}/auth/v1/admin/users`, H(SK), { ...u2, email_confirm: true });
-if (r.status >= 300) { console.error('could not create user 2:', r.status); process.exit(4); }
-const uid2 = r.json.id;
-r = await call('POST', `${URL_}/auth/v1/token?grant_type=password`, H(PK), u2);
-const S = r.json.access_token;
-
+// ---- a fresh user per probe set, each with an app session (S) and an OAuth token (T) ---------------------------------
 const meta = (await call('GET', `${URL_}/.well-known/oauth-authorization-server/auth/v1`, {})).json;
 const REDIRECT = 'http://localhost:8789/cb';
-const reg = await call('POST', meta.registration_endpoint, { 'Content-Type': 'application/json' }, { client_name: 'Doors client', redirect_uris: [REDIRECT], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' });
-const clientId = reg.json.client_id;
-const verifier = crypto.randomBytes(32).toString('base64url');
-const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: REDIRECT, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256', state: 's', scope: 'openid' });
-const az = await call('GET', `${meta.authorization_endpoint}?${q}`, {});
-const authzId = new URL(az.headers.get('location'), URL_).searchParams.get('authorization_id');
-const sb = createClient(URL_, PK, { auth: { persistSession: false, autoRefreshToken: false } });
-await sb.auth.setSession({ access_token: S, refresh_token: (await call('POST', `${URL_}/auth/v1/token?grant_type=password`, H(PK), u2)).json.refresh_token });
-const ap = await sb.auth.oauth.approveAuthorization(authzId);
-const code = new URL(ap.data.redirect_url).searchParams.get('code');
-const tk = await call('POST', meta.token_endpoint, { 'Content-Type': 'application/x-www-form-urlencoded' }, new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: REDIRECT }).toString());
-const T = tk.json.access_token;
-if (!decodeJwt(T).client_id) { console.error('the OAuth token has no client_id: premise broken'); process.exit(5); }
+const made = [];
+async function freshUser() {
+  const u = { email: `door-${crypto.randomBytes(5).toString('hex')}@example.test`, password: crypto.randomBytes(18).toString('base64url') };
+  let r = await call('POST', `${URL_}/auth/v1/admin/users`, H(SK), { ...u, email_confirm: true });
+  if (r.status >= 300) { console.error('could not create a user:', r.status); process.exit(4); }
+  const id = r.json.id; made.push(id);
+  r = await call('POST', `${URL_}/auth/v1/token?grant_type=password`, H(PK), u);
+  const S = r.json.access_token, S_REFRESH = r.json.refresh_token;
+  const reg = await call('POST', meta.registration_endpoint, { 'Content-Type': 'application/json' }, { client_name: 'Doors client', redirect_uris: [REDIRECT], grant_types: ['authorization_code', 'refresh_token'], response_types: ['code'], token_endpoint_auth_method: 'none' });
+  const clientId = reg.json.client_id;
+  const verifier = crypto.randomBytes(32).toString('base64url');
+  const q = new URLSearchParams({ response_type: 'code', client_id: clientId, redirect_uri: REDIRECT, code_challenge: crypto.createHash('sha256').update(verifier).digest('base64url'), code_challenge_method: 'S256', state: 's', scope: 'openid' });
+  const az = await call('GET', `${meta.authorization_endpoint}?${q}`, {});
+  const authzId = new URL(az.headers.get('location'), URL_).searchParams.get('authorization_id');
+  const sb = createClient(URL_, PK, { auth: { persistSession: false, autoRefreshToken: false } });
+  const ss = await sb.auth.setSession({ access_token: S, refresh_token: S_REFRESH });
+  if (ss.error) { await cleanup(); console.error('setSession failed:', ss.error.message); process.exit(6); }
+  await sb.auth.oauth.getAuthorizationDetails(authzId);
+  const ap = await sb.auth.oauth.approveAuthorization(authzId);
+  if (ap.error || !ap.data) { await cleanup(); console.error('approve failed:', ap.error?.message ?? 'no data'); process.exit(7); }
+  const code = new URL(ap.data.redirect_url).searchParams.get('code');
+  const tk = await call('POST', meta.token_endpoint, { 'Content-Type': 'application/x-www-form-urlencoded' }, new URLSearchParams({ grant_type: 'authorization_code', code, code_verifier: verifier, client_id: clientId, redirect_uri: REDIRECT }).toString());
+  return { id, S, T: tk.json.access_token, R: tk.json.refresh_token, clientId, tokenEndpoint: meta.token_endpoint };
+}
+async function cleanup() { for (const id of made) await call('DELETE', `${URL_}/auth/v1/admin/users/${id}`, H(SK)); }
+const UA = await freshUser();   // probed with its app session
+const UB = await freshUser();   // probed with its OAuth token
+const UC = await freshUser();   // the Realtime pair: S inserts, both tokens listen
+const claimsT = decodeJwt(UB.T);
+console.log('OAuth token has client_id:', !!claimsT.client_id, '| aud claim is', JSON.stringify(claimsT.aud), '| role claim is', JSON.stringify(claimsT.role));
 
-const out = { label, at: new Date().toISOString(), auth_endpoints: {}, graphql: {}, realtime: {} };
+const out = { label, at: new Date().toISOString(), claims: {}, rest: {}, auth_endpoints: {}, graphql: {}, realtime: {} };
+// What the two tokens look like, and whether a REFRESHED OAuth token keeps the same shape.
+out.claims.oauth_aud = decodeJwt(UB.T).aud; out.claims.oauth_role = decodeJwt(UB.T).role; out.claims.app_aud = decodeJwt(UA.S).aud;
+const rf = await call('POST', UB.tokenEndpoint, { 'Content-Type': 'application/x-www-form-urlencoded' }, new URLSearchParams({ grant_type: 'refresh_token', refresh_token: UB.R, client_id: UB.clientId }).toString());
+out.claims.refresh_status = rf.status;
+if (rf.status === 200) { const c = decodeJwt(rf.json.access_token); out.claims.refreshed_aud = c.aud; out.claims.refreshed_has_client_id = !!c.client_id; }
+// Can the Ryagram connection functions still be called through PostgREST with each token?
+out.rest.app_session_connect_probe = (await call('POST', `${URL_}/rest/v1/rpc/connect_probe`, H(PK, UA.S), {})).status;
+out.rest.oauth_token_connect_probe = (await call('POST', `${URL_}/rest/v1/rpc/connect_probe`, H(PK, UB.T), {})).status;
+out.rest.oauth_token_table_select = (await call('GET', `${URL_}/rest/v1/proof_notes?select=id`, H(PK, UB.T))).status;
 const ok = (s) => typeof s === 'number' && s >= 200 && s < 300;
 
 // ---- Supabase Auth user endpoints, with each token ---------------------------------------------------------------------
@@ -67,11 +86,11 @@ async function authDoors(who, tok) {
 }
 // Run the OAuth token first: if it can change the password, the app session's own password then is stale, and S is
 // already in hand, so the app-session run still works with its access token.
-out.auth_endpoints.oauth_token = await authDoors('oauth', T);
-out.auth_endpoints.app_session = await authDoors('app', S);
+out.auth_endpoints.app_session = await authDoors('app', UA.S);
+out.auth_endpoints.oauth_token = await authDoors('oauth', UB.T);
 
 // ---- GraphQL --------------------------------------------------------------------------------------------------------------
-for (const [who, tok] of [['app_session', S], ['oauth_token', T]]) {
+for (const [who, tok] of [['app_session', UA.S], ['oauth_token', UB.T]]) {
   const t = await call('POST', `${URL_}/graphql/v1`, H(PK, tok), { query: '{ __typename }' });
   const c = await call('POST', `${URL_}/graphql/v1`, H(PK, tok), { query: '{ proof_notesCollection { edges { node { id } } } }' });
   out.graphql[who] = { typename: t.status, table_collection: c.status, table_collection_errors: Array.isArray(c.json?.errors) ? c.json.errors.length : 0 };
@@ -87,18 +106,18 @@ async function listen(tok, ms = 6000) {
   const ch = c.channel(`probe-${crypto.randomBytes(3).toString('hex')}`).on('postgres_changes', { event: '*', schema: 'public', table: 'proof_notes' }, (p) => got.push(p.eventType));
   await new Promise((res) => { ch.subscribe((st) => { if (st === 'SUBSCRIBED') { subscribed = true; res(); } if (['CHANNEL_ERROR', 'TIMED_OUT', 'CLOSED'].includes(st)) res(); }); setTimeout(res, 5000); });
   await new Promise((res) => setTimeout(res, 500));
-  const insertWith = createClient(URL_, PK, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${S}` } } });
+  const insertWith = createClient(URL_, PK, { auth: { persistSession: false, autoRefreshToken: false }, global: { headers: { Authorization: `Bearer ${UC.S}` } } });
   await insertWith.from('proof_notes').insert({ body: 'rt' });
   await new Promise((res) => setTimeout(res, ms - 1000));
   await c.removeAllChannels(); await c.realtime.disconnect();
   return { subscribed, events_received: got.length };
 }
 try {
-  out.realtime.app_session = await listen(S);
-  out.realtime.oauth_token = await listen(T);
+  out.realtime.app_session = await listen(UC.S);
+  out.realtime.oauth_token = await listen(UC.T);
 } catch (e) { out.realtime.error = String(e.message ?? e).slice(0, 100); }
 
 // ---- tidy: remove user 2 ----------------------------------------------------------------------------------------------------
-await call('DELETE', `${URL_}/auth/v1/admin/users/${uid2}`, H(SK));
+await cleanup();
 fs.writeFileSync(path.join(DIR, `result-doors-${label}.json`), JSON.stringify(out, null, 1));
 console.log(JSON.stringify(out, null, 1));

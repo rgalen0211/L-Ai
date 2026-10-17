@@ -11,7 +11,7 @@ import { createRemoteJWKSet, decodeJwt, decodeProtectedHeader, jwtVerify } from 
 
 const DIR = 'D:/Ryagram-scratch/oauth-proof';
 const label = process.argv[2];
-if (!['hook-on', 'hook-off'].includes(label)) { console.error('usage: proof.mjs hook-on|hook-off'); process.exit(2); }
+if (!/^hook-[a-z0-9-]+$/.test(label ?? '')) { console.error('usage: proof.mjs hook-<name>'); process.exit(2); }
 
 const env = {};
 for (const line of fs.readFileSync(path.join(DIR, '.env'), 'utf8').split(/\r?\n/)) {
