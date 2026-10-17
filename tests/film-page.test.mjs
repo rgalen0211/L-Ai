@@ -168,7 +168,7 @@ test('a film made from the owner\'s upload (every "Don\'t keep my data" project)
   assert.equal(refused.status, 409);
   const body = await refused.json();
   assert.equal(body.code, 'confirm_uploaded');
-  assert.match(body.error, /made from data you uploaded.*never your data/);
+  assert.equal(body.error, "This film was drawn from data you uploaded, so anyone with the link will see what it shows — your data's values and pattern, frame by frame. The page lists the film's sources, not your file. Publish it anyway?");
   assert.deepEqual([published.length, touched.length], [0, 0]);
   for (const wrong of [{ confirm_uploaded: 'true' }, { confirm_uploaded: 1 }, { confirm_uploaded: false }, {}])
     assert.equal((await post(deps, { version_id: V, ...wrong })).status, 409, JSON.stringify(wrong));

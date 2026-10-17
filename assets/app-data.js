@@ -307,6 +307,43 @@
         return run(client.rpc('visits_by_source', { p_days: days }), 'Couldn\u2019t load the visit counts.');
       },
 
+      // Operations (SQL 20261010000100): is rendering alive? Never throws: no answer means no notice.
+      async serviceStatus() {
+        try {
+          const { data, error } = await client.rpc('service_status');
+          return error ? null : data;
+        } catch { return null; }
+      },
+      // The help form. job is the person's own job id (the server attaches its state and error code, never its content);
+      // website is the hidden honeypot field and must stay empty.
+      async submitSupport({ email, topic, message, job, website }) {
+        return run(client.rpc('submit_support', { p_email: email, p_topic: topic, p_message: message, p_job: job || null, p_website: website || '' }),
+          'Couldn\u2019t send that just now. Please try again, or write to ryagram@uselai.com.');
+      },
+
+      // Ryan's Operations screen (SQL 20261010000100): one summary, and the three buttons. Admin only; the functions refuse everyone else.
+      adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
+      adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
+      adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
+      // Creator beta applications (SQL 20261014000100): Ryan's list, and Approve / Decline. Neither sends anything or moves credits.
+      adminCreatorBeta() { return run(client.rpc('admin_creator_beta'), 'Couldn\u2019t load creator applications.'); },
+      adminDecideCreator(id, decision) { return run(client.rpc('admin_decide_creator', { p_id: id, p_decision: decision }), 'Couldn\u2019t update that application.'); },
+      // Creator beta flow (SQL 20261016000200): a signed-in person asks for a film; Ryan makes invites and moves requests along. Each is one RPC.
+      filmRequestCost() { return run(client.rpc('film_request_cost'), 'Couldn\u2019t load the price.'); },
+      requestFilm(question, notes) { return run(client.rpc('request_film', { p_question: question, p_notes: notes || '' }), 'Couldn\u2019t send that request.'); },
+      myFilmRequests() { return run(client.from('film_requests').select('id, created_at, question, notes, credits, status, admin_note, delivered_url').order('id', { ascending: false }).limit(30), 'Couldn\u2019t load your film requests.'); },
+      adminFilmRequests() { return run(client.rpc('admin_film_requests'), 'Couldn\u2019t load film requests.'); },
+      adminFilmRequestSet(id, status, note, url) { return run(client.rpc('admin_film_request_set', { p_id: id, p_status: status, p_note: note || '', p_url: url || null }), 'Couldn\u2019t update that request.'); },
+      adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
+      // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
+      adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
+      adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },
+      adminCostDeleteThreshold(id) { return run(client.rpc('admin_cost_delete_threshold', { p_id: id }), 'Couldn\u2019t remove that limit.'); },
+      adminCostSetPlan(vendor, plan, monthly, startsOn, included) { return run(client.rpc('admin_cost_set_plan', { p_vendor: vendor, p_plan: plan, p_monthly_usd: monthly, p_starts_on: startsOn, p_included: included || {} }), 'Couldn\u2019t save that plan.'); },
+      adminCostSetRate(vendor, kind, unitUsd, note) { return run(client.rpc('admin_cost_set_rate', { p_vendor: vendor, p_kind: kind, p_unit_usd: unitUsd, p_note: note || '' }), 'Couldn\u2019t save that rate.'); },
+      adminCostRecord(vendor, amount, on, note) { return run(client.rpc('admin_cost_record', { p_vendor: vendor, p_amount_usd: amount, p_on: on, p_note: note || '' }), 'Couldn\u2019t record that cost.'); },
+      adminReviewReport(id, outcome) { return run(client.rpc('admin_review_report', { p_id: id, p_outcome: outcome }), 'Couldn\u2019t update that report.'); },
+
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
       // which builds the page's sources from the receipt; stopping is a plain RPC.
       async filmPage(versionId) {

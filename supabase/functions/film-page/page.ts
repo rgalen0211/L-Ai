@@ -66,10 +66,11 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   try {
     const ctx = await deps.publishContext(user.id, versionId);
     // A film made from the owner's own upload (which includes every "Don't keep my data" project) is never public by accident: the owner must say, in
-    // this request, that they know the page will show the film and its sources only, never the data. Nothing is read or written before that.
+    // this request, that they know anyone with the link will see what the film shows (the values and pattern of their data, frame by frame), while the
+    // page lists the film's sources, not their file. Only the publishContext metadata is read before that; the receipt is not read and nothing is written.
     if (ctx.uploaded_data && body.confirm_uploaded !== true) {
       return reply(409, { code: "confirm_uploaded",
-        error: "This film was made from data you uploaded. A public page shows the film and its sources only, never your data. Publish it anyway?" });
+        error: "This film was drawn from data you uploaded, so anyone with the link will see what it shows — your data's values and pattern, frame by frame. The page lists the film's sources, not your file. Publish it anyway?" });
     }
     let receipt: unknown;
     try { receipt = JSON.parse(await deps.readFile(ctx.receipt_path)); }

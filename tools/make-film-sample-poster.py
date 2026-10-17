@@ -1,4 +1,9 @@
-"""Makes the sample film page's poster: the Interstate film's LAST frame (1993, 39,279 miles), drawn by the engine's own drawer from the real scene
+"""SUPERSEDED (2026-10-16): the Interstate film is public, so the sample's poster is now a real frame of the FINAL film: its last map frame, just before the
+close card fades in, taken with
+    ffmpeg -ss 96.8 -i roads-interstate-final.mp4 -frames:v 1 -q:v 2 film/samples/interstate-final-frame.jpg
+and the sample's data with tools/make-film-sample.mjs from the final film's sidecar and story. The text below describes the earlier way (a vector draw from the demo bundle).
+
+Makes the sample film page's poster: the Interstate film's LAST frame (1993, 39,279 miles), drawn by the engine's own drawer from the real scene
 bundle in preview-demo/, as a 1920x1080 JPEG. Needs Chrome (playwright). Not part of the node suite.
 
     python tools/make-film-sample-poster.py

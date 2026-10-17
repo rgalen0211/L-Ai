@@ -28,6 +28,9 @@
   const cta = `/ryagram/?utm_source=film_page&utm_medium=referral&utm_campaign=${encodeURIComponent(sampleName ? `sample_${sampleName}` : SLUG.test(slug) ? slug : 'film')}#waitlist`;
 
   let handledSources = false;                                                  // true once #sources took the focus (so the title does not)
+  const reportLink = document.getElementById('report-link');
+  if (reportLink && SLUG.test(slug)) reportLink.href = `/report/?film=${slug}`;
+
   async function load() {
     if (sampleName) {
       const res = await fetch(`/film/samples/${sampleName}.json`);
