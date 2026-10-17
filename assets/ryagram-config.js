@@ -31,7 +31,7 @@ window.ryagramConfig = Object.freeze({
   accountTools: true,
   // Show "Forgot your password?" on sign-in. Turn on only after the reset-password email template
   // points at /app/?reset={{ .TokenHash }} and custom SMTP is set (supabase/README.md, "Account basics").
-  passwordReset: false,
+  passwordReset: true,
   // Offer the "Industry" template (CBP sector-share bar races, 1998-2023). Turn on only once the
   // worker's dataset allowlist includes the cbp_*_share_state datasets (WORKER-SETUP.ps1).
   industryTemplate: false,

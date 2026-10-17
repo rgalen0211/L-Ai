@@ -5,7 +5,7 @@ You're invited to Ryagram
 You're getting this because you were invited to the Ryagram private beta.
 
 Join Ryagram:
-{{ .SiteURL }}/app/#/auth/confirm?token_hash={{ .TokenHash }}&type=invite
+{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=invite
 
 If you weren't expecting this, you can ignore this email and nothing will happen.
 
