@@ -30,9 +30,6 @@
      "fill": "#16162a",
      "no_data_fill": "#4a4630",
      "outline_width": 1.5
-    },
-    "bars": {
-     "swap_seconds": 0.4
     }
    },
    "pacing": {
@@ -76,9 +73,6 @@
      "fill": "#f6f5f1",
      "no_data_fill": "#e2d7c6",
      "outline_width": 1.5
-    },
-    "bars": {
-     "swap_seconds": 0.5
     }
    },
    "pacing": {
@@ -122,9 +116,6 @@
      "fill": "#f7f7f7",
      "no_data_fill": "#d9d2c3",
      "outline_width": 2.5
-    },
-    "bars": {
-     "swap_seconds": 0.5
     }
    },
    "pacing": {
@@ -167,9 +158,6 @@
      "fill": "#ebe3d3",
      "no_data_fill": "#c9bba0",
      "outline_width": 1.5
-    },
-    "bars": {
-     "swap_seconds": 0.5
     }
    },
    "pacing": {
@@ -216,7 +204,6 @@
      "outline_width": 2.0
     },
     "bars": {
-     "swap_seconds": 0.5,
      "label_width": 190,
      "value_width": 150
     }
@@ -298,9 +285,6 @@
        "fill": "#16162a",
        "no_data_fill": "#4a4630",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.4
       }
      }
     }
@@ -310,7 +294,6 @@
     "sequence.clips.0.fade",
     "sequence.clips.1.transition.kind",
     "sequence.clips.1.transition.seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -391,16 +374,12 @@
        "fill": "#16162a",
        "no_data_fill": "#4a4630",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.4
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -448,8 +427,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "fade",
         "seconds": 0.3
@@ -485,9 +464,6 @@
        "fill": "#16162a",
        "no_data_fill": "#4a4630",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.4
       }
      }
     }
@@ -497,7 +473,6 @@
     "sequence.clips.0.fade",
     "sequence.clips.1.transition.kind",
     "sequence.clips.1.transition.seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -545,8 +520,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -582,16 +557,12 @@
        "fill": "#16162a",
        "no_data_fill": "#4a4630",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.4
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -675,9 +646,6 @@
        "fill": "#16162a",
        "no_data_fill": "#4a4630",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.4
       }
      }
     }
@@ -687,7 +655,6 @@
     "sequence.clips.0.fade",
     "sequence.clips.1.transition.kind",
     "sequence.clips.1.transition.seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -771,16 +738,12 @@
        "fill": "#16162a",
        "no_data_fill": "#4a4630",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.4
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -861,16 +824,12 @@
        "fill": "#f6f5f1",
        "no_data_fill": "#e2d7c6",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -952,16 +911,12 @@
        "fill": "#f6f5f1",
        "no_data_fill": "#e2d7c6",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1009,8 +964,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -1046,16 +1001,12 @@
        "fill": "#f6f5f1",
        "no_data_fill": "#e2d7c6",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1104,8 +1055,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -1141,16 +1092,12 @@
        "fill": "#f6f5f1",
        "no_data_fill": "#e2d7c6",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1234,16 +1181,12 @@
        "fill": "#f6f5f1",
        "no_data_fill": "#e2d7c6",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1328,16 +1271,12 @@
        "fill": "#f6f5f1",
        "no_data_fill": "#e2d7c6",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1417,9 +1356,6 @@
        "fill": "#f7f7f7",
        "no_data_fill": "#d9d2c3",
        "outline_width": 2.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
@@ -1429,7 +1365,6 @@
     "sequence.clips.0.fade",
     "sequence.clips.1.transition.kind",
     "sequence.clips.1.transition.seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1511,16 +1446,12 @@
        "fill": "#f7f7f7",
        "no_data_fill": "#d9d2c3",
        "outline_width": 2.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1568,8 +1499,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "cut"
        },
@@ -1604,9 +1535,6 @@
        "fill": "#f7f7f7",
        "no_data_fill": "#d9d2c3",
        "outline_width": 2.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
@@ -1616,7 +1544,6 @@
     "sequence.clips.0.fade",
     "sequence.clips.1.transition.kind",
     "sequence.clips.1.transition.seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1665,8 +1592,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -1702,16 +1629,12 @@
        "fill": "#f7f7f7",
        "no_data_fill": "#d9d2c3",
        "outline_width": 2.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1794,9 +1717,6 @@
        "fill": "#f7f7f7",
        "no_data_fill": "#d9d2c3",
        "outline_width": 2.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
@@ -1806,7 +1726,6 @@
     "sequence.clips.0.fade",
     "sequence.clips.1.transition.kind",
     "sequence.clips.1.transition.seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1891,16 +1810,12 @@
        "fill": "#f7f7f7",
        "no_data_fill": "#d9d2c3",
        "outline_width": 2.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
    },
    "changed": [
     "sequence.clips.0.align",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -1981,9 +1896,6 @@
        "fill": "#ebe3d3",
        "no_data_fill": "#c9bba0",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      },
      "hold_seconds": 3.0
@@ -1995,7 +1907,6 @@
     "sequence.clips.1.transition.seconds",
     "sequence.fps",
     "sequence.hold_seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -2077,9 +1988,6 @@
        "fill": "#ebe3d3",
        "no_data_fill": "#c9bba0",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      },
      "hold_seconds": 3.0
@@ -2088,7 +1996,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.hold_seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -2136,8 +2043,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.8
@@ -2173,9 +2080,6 @@
        "fill": "#ebe3d3",
        "no_data_fill": "#c9bba0",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      },
      "hold_seconds": 3.0
@@ -2187,7 +2091,6 @@
     "sequence.clips.1.transition.seconds",
     "sequence.fps",
     "sequence.hold_seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -2236,8 +2139,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -2273,9 +2176,6 @@
        "fill": "#ebe3d3",
        "no_data_fill": "#c9bba0",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      },
      "hold_seconds": 3.0
@@ -2284,7 +2184,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.hold_seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -2368,9 +2267,6 @@
        "fill": "#ebe3d3",
        "no_data_fill": "#c9bba0",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      },
      "hold_seconds": 3.0
@@ -2382,7 +2278,6 @@
     "sequence.clips.1.transition.seconds",
     "sequence.fps",
     "sequence.hold_seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -2467,9 +2362,6 @@
        "fill": "#ebe3d3",
        "no_data_fill": "#c9bba0",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      },
      "hold_seconds": 3.0
@@ -2478,7 +2370,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.hold_seconds",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
     "sequence.style_overrides.choropleth.mode",
@@ -2561,7 +2452,6 @@
        "outline_width": 2.0
       },
       "bars": {
-       "swap_seconds": 0.5,
        "label_width": 190,
        "value_width": 150
       }
@@ -2571,7 +2461,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.style_overrides.bars.label_width",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.bars.value_width",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
@@ -2655,7 +2544,6 @@
        "outline_width": 2.0
       },
       "bars": {
-       "swap_seconds": 0.5,
        "label_width": 190,
        "value_width": 150
       }
@@ -2665,7 +2553,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.style_overrides.bars.label_width",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.bars.value_width",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
@@ -2714,8 +2601,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -2753,7 +2640,6 @@
        "outline_width": 2.0
       },
       "bars": {
-       "swap_seconds": 0.5,
        "label_width": 190,
        "value_width": 150
       }
@@ -2763,7 +2649,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.style_overrides.bars.label_width",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.bars.value_width",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
@@ -2812,8 +2697,8 @@
        "id": "main",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -2851,7 +2736,6 @@
        "outline_width": 2.0
       },
       "bars": {
-       "swap_seconds": 0.5,
        "label_width": 190,
        "value_width": 150
       }
@@ -2861,7 +2745,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.style_overrides.bars.label_width",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.bars.value_width",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
@@ -2948,7 +2831,6 @@
        "outline_width": 2.0
       },
       "bars": {
-       "swap_seconds": 0.5,
        "label_width": 190,
        "value_width": 150
       }
@@ -2958,7 +2840,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.style_overrides.bars.label_width",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.bars.value_width",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
@@ -3045,7 +2926,6 @@
        "outline_width": 2.0
       },
       "bars": {
-       "swap_seconds": 0.5,
        "label_width": 190,
        "value_width": 150
       }
@@ -3055,7 +2935,6 @@
    "changed": [
     "sequence.clips.0.align",
     "sequence.style_overrides.bars.label_width",
-    "sequence.style_overrides.bars.swap_seconds",
     "sequence.style_overrides.bars.value_width",
     "sequence.style_overrides.choropleth.high",
     "sequence.style_overrides.choropleth.low",
@@ -3107,9 +2986,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3159,9 +3035,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3212,9 +3085,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3264,9 +3134,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3316,9 +3183,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#f6f5f2",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3368,9 +3232,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3421,9 +3282,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3476,9 +3334,6 @@
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
      },
-     "bars": {
-      "swap_seconds": 0.5
-     },
      "axis": 1
     },
     "pacing": {
@@ -3526,9 +3381,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3578,9 +3430,6 @@
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
      },
-     "bars": {
-      "swap_seconds": 0.5
-     },
      "dataset": 1
     },
     "pacing": {
@@ -3628,9 +3477,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3680,9 +3526,6 @@
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
      },
-     "bars": {
-      "swap_seconds": 0.5
-     },
      "no_data_label": 1
     },
     "pacing": {
@@ -3730,9 +3573,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3782,9 +3622,6 @@
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
      },
-     "bars": {
-      "swap_seconds": 0.5
-     },
      "callouts": 1
     },
     "pacing": {
@@ -3832,9 +3669,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3884,9 +3718,6 @@
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
      },
-     "bars": {
-      "swap_seconds": 0.5
-     },
      "renderer": 1
     },
     "pacing": {
@@ -3934,9 +3765,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -3986,9 +3814,6 @@
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
      },
-     "bars": {
-      "swap_seconds": 0.5
-     },
      "preflight": 1
     },
     "pacing": {
@@ -4036,9 +3861,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4087,9 +3909,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4137,9 +3956,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4187,9 +4003,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4287,9 +4100,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4337,9 +4147,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4387,9 +4194,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4437,9 +4241,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4491,9 +4292,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4541,9 +4339,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4591,9 +4386,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4641,9 +4433,6 @@
       "fill": "#f6f5f1",
       "no_data_fill": "#e2d7c6",
       "outline_width": 1.5
-     },
-     "bars": {
-      "swap_seconds": 0.5
      }
     },
     "pacing": {
@@ -4790,8 +4579,8 @@
       "id": "main",
       "dataset": "cbp_manufacturing_share_state",
       "view": "bars",
-      "start": "1998",
-      "end": "2008",
+      "start": "2003",
+      "end": "2013",
       "transition": {
        "kind": "crossfade",
        "seconds": 0.6
@@ -4883,8 +4672,8 @@
       "id": "bars",
       "dataset": "cbp_manufacturing_share_state",
       "view": "bars",
-      "start": "1998",
-      "end": "2008",
+      "start": "2003",
+      "end": "2013",
       "transition": {
        "kind": "crossfade",
        "seconds": 0.6
@@ -4916,7 +4705,7 @@
    "2011",
    "2017",
    "2023",
-   "2003",
+   "2005",
    "2021-06"
   ],
   "compiled": {
@@ -4959,8 +4748,8 @@
        "id": "bars",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "fade",
         "seconds": 0.3
@@ -5011,9 +4800,6 @@
        "fill": "#16162a",
        "no_data_fill": "#4a4630",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.4
       }
      }
     }
@@ -5057,8 +4843,8 @@
        "id": "bars",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -5109,9 +4895,6 @@
        "fill": "#f6f5f1",
        "no_data_fill": "#e2d7c6",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
@@ -5154,8 +4937,8 @@
        "id": "bars",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "cut"
        },
@@ -5204,9 +4987,6 @@
        "fill": "#f7f7f7",
        "no_data_fill": "#d9d2c3",
        "outline_width": 2.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      }
     }
@@ -5250,8 +5030,8 @@
        "id": "bars",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.8
@@ -5302,9 +5082,6 @@
        "fill": "#ebe3d3",
        "no_data_fill": "#c9bba0",
        "outline_width": 1.5
-      },
-      "bars": {
-       "swap_seconds": 0.5
       }
      },
      "hold_seconds": 3.0
@@ -5349,8 +5126,8 @@
        "id": "bars",
        "dataset": "cbp_manufacturing_share_state",
        "view": "bars",
-       "start": "1998",
-       "end": "2008",
+       "start": "2003",
+       "end": "2013",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -5403,7 +5180,6 @@
        "outline_width": 2.0
       },
       "bars": {
-       "swap_seconds": 0.5,
        "label_width": 190,
        "value_width": 150
       }

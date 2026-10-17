@@ -425,9 +425,6 @@ export const PRESETS: any = {
         "fill": "#16162a",
         "no_data_fill": "#4a4630",
         "outline_width": 1.5
-      },
-      "bars": {
-        "swap_seconds": 0.4
       }
     },
     "pacing": {
@@ -471,9 +468,6 @@ export const PRESETS: any = {
         "fill": "#f6f5f1",
         "no_data_fill": "#e2d7c6",
         "outline_width": 1.5
-      },
-      "bars": {
-        "swap_seconds": 0.5
       }
     },
     "pacing": {
@@ -517,9 +511,6 @@ export const PRESETS: any = {
         "fill": "#f7f7f7",
         "no_data_fill": "#d9d2c3",
         "outline_width": 2.5
-      },
-      "bars": {
-        "swap_seconds": 0.5
       }
     },
     "pacing": {
@@ -562,9 +553,6 @@ export const PRESETS: any = {
         "fill": "#ebe3d3",
         "no_data_fill": "#c9bba0",
         "outline_width": 1.5
-      },
-      "bars": {
-        "swap_seconds": 0.5
       }
     },
     "pacing": {
@@ -611,7 +599,6 @@ export const PRESETS: any = {
         "outline_width": 2.0
       },
       "bars": {
-        "swap_seconds": 0.5,
         "label_width": 190,
         "value_width": 150
       }
@@ -735,8 +722,8 @@ export const SAMPLE_STORY: any = {
         "id": "bars",
         "dataset": "cbp_manufacturing_share_state",
         "view": "bars",
-        "start": "1998",
-        "end": "2008",
+        "start": "2003",
+        "end": "2013",
         "transition": {
           "kind": "crossfade",
           "seconds": 0.6
@@ -777,6 +764,6 @@ export const SAMPLE_PERIODS: string[] = [
   "2011",
   "2017",
   "2023",
-  "2003",
+  "2005",
   "2021-06"
 ];
