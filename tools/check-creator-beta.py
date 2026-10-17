@@ -63,7 +63,10 @@ def main():
                 check('disclose that your credits were free' in text, 'it says any promotion is disclosed')
                 check(page.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'no sideways scroll')
                 nav = page.locator('.rg-navlink')
-                check(nav.count() == 1 and nav.bounding_box()['height'] >= 44, 'the nav link is there and a 44px target')
+                if name == 'phone':
+                    check(nav.count() == 1 and not nav.is_visible(), 'on a phone the header is the brand and one button (the hero leads to the creator beta)')
+                else:
+                    check(nav.count() == 1 and nav.bounding_box()['height'] >= 44, 'the nav link is there and a 44px target')
                 box = page.locator('.rg-top').bounding_box()
                 check(box['height'] < 140, f'the header did not wrap into a tall block ({box["height"]:.0f}px)')
                 page.locator('#creators').scroll_into_view_if_needed()

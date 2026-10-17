@@ -378,20 +378,30 @@ test('the shipped config: the tally is on, the Cloudflare beacon stays off until
 const visibleText = pageHtml.replace(/<(script|style|noscript)[\s\S]*?<\/\1>/g, ' ').replace(/<!--[\s\S]*?-->/g, ' ').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
 const assetSize = rel => fs.statSync(path.join(__dirname, '..', rel.replace(/^\//, ''))).size;
 
-test('the page says what Ryagram does in one line, with the waitlist button, in the hero', () => {
-  assert.match(pageHtml, /<h1 id="hero-title">Type a question\. Get an animated data film\.<\/h1>/);
-  const hero = pageHtml.match(/<section class="rg-wrap rg-hero"[\s\S]*?<\/section>/)[0];
-  assert.match(hero, /<a class="rg-btn" href="#waitlist">Join the waitlist<\/a>/);
+test('LANDING: the hero is the headline, one sentence, a short muted loop of the Interstate film, and ONE call to action to the creator beta (phone order: words, film, button)', () => {
+  assert.match(pageHtml, /<h1 id="hero-title">You have a question\. Ryagram makes the data answer it\.<\/h1>/);
   assert.equal([...pageHtml.matchAll(/<h1[ >]/g)].length, 1);
+  const hero = pageHtml.match(/<section class="rg-wrap rg-hero"[\s\S]*?<\/section>/)[0];
+  assert.deepEqual([...hero.matchAll(/class="rg-btn"[^>]*>([^<]*)</g)].map(m => m[1]), ['Join the creator beta']);        // exactly ONE button
+  assert.match(hero, /<a class="rg-btn" href="#creators">Join the creator beta<\/a>/);
+  const order = ['rg-hero-copy', 'rg-hero-film', 'rg-hero-cta'].map(c => hero.indexOf(`class="${c}"`));
+  assert.ok(order[0] > -1 && order[0] < order[1] && order[1] < order[2], 'words, then the film, then the button');
+  const v = hero.match(/<video class="rg-loop rg-hero-loop"[^>]*>/)[0];
+  for (const attr of ['muted', 'loop', 'playsinline', 'poster="/assets/ryagram-hero-interstate.jpg"', 'width="960"', 'height="540"']) assert.ok(v.includes(attr), attr);
+  assert.doesNotMatch(v, /autoplay/);                                           // ryagram-loops.js starts it while visible, and never for reduced motion
+  assert.match(v, /aria-label="[^"]{40,}"/);
+  assert.match(hero, /<source src="\/assets\/ryagram-hero-interstate\.mp4" type="video\/mp4">/);
+  assert.match(hero, /href="https:\/\/youtu\.be\/UC4j77KYVQ8"[^>]*rel="noopener"/);
+  assert.ok(assetSize('/assets/ryagram-hero-interstate.mp4') < 1.5e6, 'the hero loop stays small enough for a phone');
+  assert.ok(assetSize('/assets/ryagram-hero-interstate.jpg') < 120e3);
+  const bytes = fs.readFileSync(path.join(__dirname, '../assets/ryagram-hero-interstate.mp4'));
+  assert.equal(bytes.subarray(4, 8).toString(), 'ftyp');                         // a real MP4
+  assert.match(pageHtml, /<link rel="preload" as="image" href="\/assets\/ryagram-hero-interstate\.jpg">/);
 });
 
-test('the walkthrough is a muted, looping, inline video with a poster and a text version', () => {
-  const v = pageHtml.match(/<video class="rg-walk"[^>]*>/)[0];
-  for (const attr of ['autoplay', 'muted', 'loop', 'playsinline', 'poster="/assets/ryagram-walkthrough-poster.jpg"', 'aria-describedby="walk-words"']) assert.ok(v.includes(attr), attr);
-  assert.match(pageHtml, /<source src="\/assets\/ryagram-walkthrough\.mp4" type="video\/mp4">/);
-  assert.match(pageHtml, /id="walk-words"/);
-  assert.ok(assetSize('/assets/ryagram-walkthrough.mp4') < 2.5e6, 'the tour stays small enough for a phone');
-  assert.ok(assetSize('/assets/ryagram-walkthrough-poster.jpg') < 80e3);
+test('LANDING: the app tour is not on the page (it shows features that are not live yet); its files and their checks stay for later', () => {
+  assert.doesNotMatch(pageHtml, /ryagram-walkthrough|class="rg-walk"|walk-words/);
+  for (const f of ['ryagram-walkthrough.mp4', 'ryagram-walkthrough-poster.jpg']) assert.ok(assetSize(`/assets/${f}`) > 1000, f);
 });
 
 test('every showcase loop is small, and every file the page names exists', () => {
@@ -408,16 +418,29 @@ test('the Compilation Maker section is an illustration with public-domain words,
   assert.match(sec, /public-domain words \(Lincoln, 1863\)/);
 });
 
-test('how it works is three steps, one checks line (no strip), and the release line Ryan gave', () => {
+test('LANDING: how it works is three steps of what the beta really does, one checks line (no strip), and the private-beta line with both ways in', () => {
   const how = pageHtml.match(/<section id="how"[\s\S]*?<\/section>/)[0];
-  assert.equal([...how.matchAll(/<h3>/g)].length, 3);
-  assert.match(how, /<p class="rg-release">Private beta opening soon\. Join the waitlist and we'll tell you\.<\/p>/);
+  assert.deepEqual([...how.matchAll(/<h3>([^<]*)<\/h3>/g)].map(m => m[1]), ['Ask', 'We draw it', 'You get it, checked']);
+  assert.match(how, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">apply now<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\.<\/p>/);
   assert.doesNotMatch(pageHtml, /\[RELEASE DATE\]/);
   const checks = [...pageHtml.matchAll(/<p class="rg-checks">([^<]*)<\/p>/g)];
   assert.equal(checks.length, 1);                                              // ONE line
   assert.match(checks[0][1], /^Every film is checked against its data before you get it: /);
   assert.doesNotMatch(pageHtml, /check-list|checks-strip|rg-strip-checks|Correctness checks/);   // and no strip or section
-  assert.match(pageHtml, /<h1 id="hero-title">Type a question\. Get an animated data film\.<\/h1>/);   // the hero line stays
+});
+
+test('LANDING: the sections run hero, films, how it works, creator beta, waitlist, then the coming-soon compilation maker; non-creators are pointed at the waitlist', () => {
+  const at = id => pageHtml.indexOf(id === 'hero' ? 'class="rg-wrap rg-hero"' : `<section id="${id}"`);
+  const order = ['hero', 'films', 'how', 'creators', 'waitlist', 'compilation'].map(at);
+  assert.ok(order.every(i => i > -1), JSON.stringify(order));
+  assert.deepEqual([...order].sort((x, y) => x - y), order);
+  assert.match(pageHtml.match(/<section id="creators"[\s\S]*?<\/section>/)[0], /Not a creator\? <a href="#waitlist">Join the waitlist<\/a> instead\./);
+});
+
+test('LANDING: no claim the product cannot back yet: nothing about an editor, speed, self-serve sign-up, free trials or prices outside the one creator-beta terms paragraph', () => {
+  assert.doesNotMatch(publicText, /\b(editor|instant|instantly|minutes|self[- ]serve|sign up now|free trial|try it free|pricing|prices?|cheap|AI[- ]powered|powered by AI|unlimited|guarantee[sd]?)\b/i);
+  assert.doesNotMatch(publicText.replace(/Applying doesn't guarantee a place; we reply by email\./, ''), /guarantee/i);
+  assert.doesNotMatch(visibleText, /\$\d/);
 });
 
 test('the operator is L\'Ai, LLC everywhere it is named; Ryagram pages, the policy and the app give ryagram@, the main pages ryan.galen@', () => {
