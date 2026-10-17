@@ -6,6 +6,8 @@ a{color:var(--brand-deep)}
 header{border-bottom:1px solid var(--line)}
 .nav{min-height:86px;display:flex;align-items:center;justify-content:space-between;gap:24px}
 .brand{display:flex;align-items:center;gap:18px;text-decoration:none}
+/* Ryagram pages: the word Ryagram sits on the wordmark's baseline (bottom-aligned), not vertically centred beside it */
+.brand[aria-label="Ryagram"]{align-items:baseline}
 .wordmark{font-family:'Noto Serif Display',Georgia,serif;font-weight:100;color:var(--brand);font-size:3.35rem;line-height:.9;letter-spacing:-.045em;white-space:nowrap}
 .brand-copy,.header-note{color:var(--muted);font-size:.8rem;line-height:1.35}
 .audit-layout{display:grid;grid-template-columns:.95fr 1.05fr;gap:36px 48px;padding-top:48px;padding-bottom:56px;align-items:start}

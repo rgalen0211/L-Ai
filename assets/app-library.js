@@ -579,6 +579,8 @@
       // Back from Stripe: the webhook grants the credits, usually within seconds. Look a few times.
       let thanks = null;
       if (paidCode) {
+        // Shown ONCE, on the return from Checkout: drop ?paid=... from the address now (no hashchange fires), so a reload or a later visit shows no stale thanks.
+        try { history.replaceState(null, '', location.pathname + location.search + '#/credits'); } catch { /* the banner just stays until the next visit */ }
         thanks = h('p', { class: 'form-note credit-thanks', role: 'status' },
           `Thanks. Stripe has your payment for ${C.offerName(paidCode)}; the credits appear here once Stripe confirms it, usually within a minute.`);
         let tries = 0;
