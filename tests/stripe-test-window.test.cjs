@@ -32,3 +32,9 @@ test('TEST WINDOW: the checkout function still refuses live keys and the databas
   assert.match(sql, /live_ok boolean not null default false/);
   assert.match(sql, /refused_live/);
 });
+
+test('TEST WINDOW: the Credits page carries the exact label Ryan asked for next to the pack prices, outside mock mode', () => {
+  const src = fs.readFileSync(path.join(__dirname, '../assets/app-library.js'), 'utf8');
+  assert.ok(src.includes("'Test mode — prices are placeholders, no real charge.'"));
+  assert.match(src, /testMode && !window\.ryagramMock \? h\('p', \{ class: 'form-note credit-test-label' \}/);
+});

@@ -618,6 +618,7 @@
         h('h1', { tabindex: '-1' }, 'Credits'),
         balance, thanks,
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
+        testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,
         current || plan ? h('div', { class: 'plan-now' },
           current ? h('p', {}, current) : null,
           h('button', { class: 'button secondary small', type: 'button',
