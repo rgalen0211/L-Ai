@@ -4355,6 +4355,100 @@
    "accepted": false
   },
   {
+   "name": "steps 2",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": 2
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "steps 3",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": 3
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": true
+  },
+  {
    "name": "steps auto",
    "profile": {
     "profile_version": 1,

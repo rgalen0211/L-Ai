@@ -103,7 +103,7 @@ export const PROFILE_SCHEMA: any = {
                 },
                 {
                   "type": "integer",
-                  "minimum": 1,
+                  "minimum": 3,
                   "maximum": 9
                 }
               ]
