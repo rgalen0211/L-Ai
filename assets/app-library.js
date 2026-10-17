@@ -50,6 +50,7 @@
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
@@ -69,6 +70,7 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
@@ -182,7 +184,8 @@
       const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list, help];
+      const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -222,6 +225,50 @@
       ];
     }
 
+    // --- #/request  a creator asks for a film: the question, what it costs, and where each request stands (Ryan makes it by hand for now)
+    async function requestView() {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const done = h('p', { class: 'form-note', role: 'status', hidden: true });
+      const cost = h('p', { class: 'form-note' }, O.requestCostLine(null));
+      const balance = h('p', { class: 'credit-balance form-note' }, creditsOn() ? 'Loading credits\u2026' : '');
+      const question = h('textarea', { id: 'rq-question', name: 'question', rows: '4', required: true, minlength: '10', maxlength: '1000', placeholder: 'For example: Did cities that legalized duplexes build more homes within five years?' });
+      const notes = h('textarea', { id: 'rq-notes', name: 'notes', rows: '3', maxlength: '1000', placeholder: 'Anything that helps: the years, the places, the data you have in mind' });
+      const send = h('button', { class: 'button primary', type: 'submit' }, 'Send request');
+      const list = h('div', { class: 'request-list' });
+      async function reload() {
+        const [rows, c, bal] = await Promise.all([data.myFilmRequests().catch(() => []), data.filmRequestCost().catch(() => null), creditsOn() ? data.creditBalances().catch(() => null) : null]);
+        cost.textContent = O.requestCostLine(c);
+        if (bal) balance.replaceChildren(window.ryagramCredits.balanceLine(bal));
+        list.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
+          h('strong', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}`), h('span', { class: 'meta' }, ` ${date(r.created_at)}, ${r.credits} credits`),
+          h('p', {}, r.question),
+          r.admin_note ? h('p', { class: 'form-note' }, `Note: ${r.admin_note}`) : null,
+          r.status === 'delivered' && r.delivered_url ? h('p', {}, h('a', { href: r.delivered_url, rel: 'noopener noreferrer', target: '_blank' }, 'Watch your film')) : null)))
+          : h('p', { class: 'form-note' }, 'No requests yet.'));
+      }
+      const form = h('form', { class: 'contact-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true; done.hidden = true;
+        const problem = O.checkRequest({ question: question.value, notes: notes.value });
+        if (problem) { showError(error, new Error(problem)); return; }
+        await busy(send, 'Sending\u2026', async () => {
+          try {
+            const id = await data.requestFilm(question.value.trim(), notes.value.trim());
+            question.value = ''; notes.value = '';
+            done.textContent = `Request #${id} sent. You can follow it below; the film appears here when it is ready.`;
+            done.hidden = false;
+            await reload();
+          } catch (err) { showError(error, err); }
+        });
+      } }, h('label', { for: 'rq-question' }, 'The question you want answered'), question,
+           h('label', { for: 'rq-notes' }, 'Notes (optional)'), notes, send, error);
+      await reload();
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Request a film'),
+              h('p', { class: 'form-note' }, 'Tell us the question you want data to answer. We make the film and send it back here. This is a private beta, so each one is made by hand.'),
+              balance, cost, form, done, h('h2', {}, 'Your requests'), list];
+    }
+
     // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
     async function opsAdminView(onStop) {
       const O = window.ryagramOps;
@@ -232,12 +279,126 @@
       const button = (label, work) => h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
         await busy(event.currentTarget, 'Saving\u2026', async () => { try { await work(); await load(); } catch (err) { showError(error, err); } });
       } }, label);
+      // --- the invite code just made (shown ONCE: the database keeps only its hash) with a mailto: link, so Ryan reads and sends the email himself
+      let invited = null;
+      function invitePanel() {
+        if (!invited) return null;
+        const { name, email, code } = invited;
+        return h('div', { class: 'invite-panel', role: 'status' },
+          h('p', {}, h('strong', {}, `Invite code for ${name}: `), h('code', {}, code), '  (shown once; copy it now)'),
+          h('p', {}, h('a', { class: 'button secondary small', href: O.inviteMailto({ name, email, code, credits: null }) }, `Email it to ${email}`), ' ',
+            button('Done', async () => { invited = null; })));
+      }
+      // --- the film request queue: what creators asked for, to make by hand and then mark delivered (with the film's https link) or decline (credits go back)
+      function queueSection(q, now) {
+        if (!q) return section('Film requests', h('p', {}, 'Film requests are not set up yet (apply SQL 20261016000200).'));
+        return section(`Film requests (${q.waiting})`,
+          h('p', {}, q.waiting ? `${q.waiting} request${q.waiting === 1 ? '' : 's'} to make. Make each film on your PC, upload it, then paste its https link here.` : 'No requests waiting.'),
+          q.items.length ? h('ul', { class: 'ops-list' }, q.items.map(r => {
+            const url = h('input', { id: `fr-url-${r.id}`, type: 'url', placeholder: 'https:// link to the finished film', maxlength: '500' });
+            const note = h('input', { id: `fr-note-${r.id}`, type: 'text', placeholder: 'Note to the creator (optional)', maxlength: '500' });
+            return h('li', {},
+              h('strong', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}`), h('span', { class: 'meta' }, ` ${r.email || 'unknown'}, ${r.credits} credits, ${O.ago(r.created_at, now)}`),
+              h('p', {}, 'Question: ', r.question), r.notes ? h('p', {}, 'Notes: ', r.notes) : null,
+              h('div', { class: 'ops-form' }, h('label', { class: 'ops-field' }, 'Film link', url), h('label', { class: 'ops-field' }, 'Note', note)),
+              r.status === 'new' ? button('Start', () => data.adminFilmRequestSet(r.id, 'in_progress', note.value, null)) : null, ' ',
+              button('Mark delivered', async () => { const problem = O.checkDelivery(url.value); if (problem) throw new Error(problem); await data.adminFilmRequestSet(r.id, 'delivered', note.value, url.value.trim()); }), ' ',
+              button(`Decline (returns ${r.credits} credits)`, () => data.adminFilmRequestSet(r.id, 'declined', note.value, null)));
+          })) : null,
+          q.recent.length ? h('details', { class: 'ops-details' }, h('summary', {}, 'Last 10 finished'),
+            h('ul', { class: 'ops-list' }, q.recent.map(r => h('li', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}: ${r.question}`,
+              r.delivered_url ? [' ', h('a', { href: r.delivered_url, rel: 'noopener noreferrer', target: '_blank' }, 'film')] : null)))) : null);
+      }
+      // --- Costs: every $ event the ledger holds (Stripe's own fee per charge, plan fees, render cpu cost, storage and email readings, typed invoices),
+      // a daily rollup, the limits Ryan sets, and the forms to state a plan, a rate or a cost. Unknown is shown as unknown, never as $0.
+      const vendorSelect = (id, withAll) => h('select', { id, name: id },
+        withAll ? [h('option', { value: '' }, 'All vendors')] : [],
+        O.COST_VENDORS.map(([v, label]) => h('option', { value: v }, label)));
+      const field = (label, input) => h('label', { class: 'ops-field' }, label, input);
+      const miniForm = (summary, fields, submitLabel, run) => {
+        const fail = errorLine();
+        const submit = h('button', { class: 'button secondary small', type: 'submit' }, submitLabel);
+        const form = h('form', { class: 'ops-form', onsubmit: async event => {
+          event.preventDefault();
+          fail.hidden = true;
+          await busy(submit, 'Saving\u2026', async () => { try { await run(); await load(); } catch (err) { showError(fail, err); } });
+        } }, fields, submit, fail);
+        return h('details', { class: 'ops-details' }, h('summary', {}, summary), form);
+      };
+      function costSection(c, now) {
+        if (!c) return section('Costs', h('p', {}, O.costLine(null)));
+        const num = (id, extra) => h('input', { id, name: id, type: 'number', min: '0', step: 'any', required: true, ...(extra || {}) });
+        const day = id => h('input', { id, name: id, type: 'date', required: true });
+        const thVendor = vendorSelect('cost-th-vendor', true);
+        const thPeriod = h('select', { id: 'cost-th-period' }, h('option', { value: 'day' }, 'per day'), h('option', { value: 'month' }, 'per month'));
+        const thLimit = num('cost-th-limit', { min: '0.01' });
+        const thWarn = num('cost-th-warn', { min: '1', max: '99', step: '1', value: '80' });
+        const plVendor = vendorSelect('cost-pl-vendor', false);
+        const plName = h('input', { id: 'cost-pl-name', name: 'plan', type: 'text', required: true, maxlength: '60', placeholder: 'For example: Pro' });
+        const plMonthly = num('cost-pl-monthly');
+        const plStart = day('cost-pl-start');
+        const plGb = h('input', { id: 'cost-pl-gb', name: 'gb', type: 'number', min: '0', step: 'any', placeholder: 'optional' });
+        const rtCpu = num('cost-rt-cpu');
+        const mcVendor = vendorSelect('cost-mc-vendor', false);
+        const mcAmount = num('cost-mc-amount');
+        const mcDate = day('cost-mc-date');
+        const mcNote = h('input', { id: 'cost-mc-note', name: 'note', type: 'text', maxlength: '300', placeholder: 'For example: uselai.com renewal' });
+        const th = (t, numeric) => h('th', { scope: 'col', class: numeric ? 'num' : null }, t);
+        return section('Costs',
+          h('p', { class: c.thresholds.some(t => t.status === 'over') ? 'app-error' : '' }, O.costLine(c)),
+          h('p', { class: 'form-note' }, O.usageLine(c.usage)),
+          h('table', { class: 'admin-table' },
+            h('thead', {}, h('tr', {}, th('Day'), th('Known total', true), th('By vendor'), th('Unknown', true))),
+            h('tbody', {}, c.days.map(r => h('tr', {}, h('td', {}, r.day), h('td', { class: 'num' }, O.usd2(r.total_usd)),
+              h('td', {}, Object.entries(r.by_vendor || {}).map(([v, n]) => `${O.vendorWord(v)} ${O.usd2(n)}`).join(', ') || '\u2014'),
+              h('td', { class: 'num' }, r.unknown_events ? String(r.unknown_events) : '\u2014'))))),
+          h('p', { class: 'form-note' }, 'This month by vendor: ', Object.entries(c.month.by_vendor || {}).map(([v, n]) => `${O.vendorWord(v)} ${O.usd2(n)}`).join(', ') || 'nothing known yet', '.'),
+          h('h3', {}, 'Limits (you are emailed once when one is reached)'),
+          c.thresholds.length ? h('ul', { class: 'ops-list' }, c.thresholds.map(t => h('li', { class: t.status === 'over' ? 'app-error' : '' }, O.thresholdLine(t), ' ',
+            button('Remove', () => data.adminCostDeleteThreshold(t.id))))) : h('p', { class: 'form-note' }, 'No limits set yet. Nothing alarms until you set one.'),
+          miniForm('Set a limit', [field('Vendor', thVendor), field('Per', thPeriod), field('Limit ($)', thLimit), field('Warn at (%)', thWarn)], 'Save limit', async () => {
+            const input = { vendor: thVendor.value, period: thPeriod.value, limit: thLimit.value, warnPct: thWarn.value };
+            const problem = O.checkThreshold(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostSetThreshold(input.vendor, input.period, Number(input.limit), Number(input.warnPct));
+          }),
+          h('h3', {}, 'Plans you pay for'),
+          c.plans.length ? h('ul', { class: 'ops-list' }, c.plans.map(p => h('li', {}, `${O.vendorWord(p.vendor)}: ${p.plan}, ${O.usd2(p.monthly_usd)} a month since ${p.starts_on}`))) : h('p', { class: 'form-note' }, 'No plans entered. Plan fees stay out of the totals until you enter them.'),
+          miniForm('Enter a plan', [field('Vendor', plVendor), field('Plan', plName), field('Per month ($)', plMonthly), field('Starts on', plStart), field('Storage included (GB)', plGb)], 'Save plan', async () => {
+            const input = { vendor: plVendor.value, plan: plName.value, monthly: plMonthly.value, startsOn: plStart.value };
+            const problem = O.checkPlan(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostSetPlan(input.vendor, input.plan.trim(), Number(input.monthly), input.startsOn, plGb.value ? { storage_gb: Number(plGb.value) } : {});
+          }),
+          h('h3', {}, 'Render cost per core-hour'),
+          h('p', { class: 'form-note' }, c.rates.filter(r => r.vendor === 'render').length ? c.rates.filter(r => r.vendor === 'render').map(r => `${r.kind}: ${O.usd2(r.unit_usd)}${r.note ? ` (${r.note})` : ''}`).join('; ') : 'Not set, so every render\u2019s cost shows as unknown. On your own machine you may know it is $0 in cash; enter that only if you are sure.'),
+          miniForm('Set the render rate', [field('One core-hour costs ($)', rtCpu)], 'Save rate', async () => {
+            const n = Number(rtCpu.value);
+            if (!Number.isFinite(n) || n < 0 || rtCpu.value.trim() === '') throw new Error('Enter the price in dollars (0 is allowed).');
+            await data.adminCostSetRate('render', 'cpu_hour', n, 'stated by Ryan');
+          }),
+          h('h3', {}, 'A cost nothing here can see'),
+          miniForm('Record a cost (an invoice, a renewal)', [field('Vendor', mcVendor), field('Amount ($)', mcAmount), field('Charged on', mcDate), field('Note', mcNote)], 'Record cost', async () => {
+            const input = { vendor: mcVendor.value, amount: mcAmount.value, on: mcDate.value };
+            const problem = O.checkManualCost(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostRecord(input.vendor, Number(input.amount), input.on, mcNote.value.trim());
+          }),
+          h('details', { class: 'ops-details' }, h('summary', {}, 'Latest 15 recorded events'),
+            c.recent.length ? h('ul', { class: 'ops-list' }, c.recent.map(r => h('li', {},
+              `${O.vendorWord(r.vendor)} ${r.kind}: ${r.amount_usd == null ? 'unknown cost' : O.usd2(r.amount_usd)}${r.mode === 'live' ? '' : r.mode === 'test' ? ' (test mode)' : ' (mode unknown)'}`,
+              h('span', { class: 'meta' }, ` ${O.ago(r.occurred_at, now)}`)))) : h('p', { class: 'form-note' }, 'Nothing recorded yet.')));
+      }
       async function load() {
         error.hidden = true;
         let d;
         try { d = await data.adminOps(); } catch (err) { body.replaceChildren(); showError(error, err); return; }
         let cb = null;     // creator applications; null until their SQL is applied (the rest of the screen works without it)
         try { cb = await data.adminCreatorBeta(); } catch { cb = null; }
+        let fr = null;     // the film request queue; null until SQL 20261016000200 is applied
+        try { fr = await data.adminFilmRequests(); } catch { fr = null; }
+        let cost = null;   // the cost ledger; null until its SQL is applied
+        try { cost = await data.adminCostRollup(14); } catch { cost = null; }
         const now = Date.now();
         body.replaceChildren(
           section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
@@ -252,12 +413,15 @@
             d.stripe && d.stripe.items.length ? h('ul', { class: 'ops-list' }, d.stripe.items.map(e => h('li', {},
               h('strong', {}, e.type), h('span', { class: 'meta' }, ` ${e.event_id}, ${O.ago(e.received_at, now)}${e.livemode ? ', LIVE mode' : ', test mode'}`),
               h('p', {}, e.detail || '(no detail recorded)'), button('Mark reviewed', () => data.adminAckStripe(e.event_id))))) : null),
-          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)),
+          queueSection(fr, now),
+          costSection(cost, now),
+          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)), invitePanel(),
             cb && cb.items.length ? h('ul', { class: 'ops-list' }, cb.items.map(a => h('li', {},
               h('strong', {}, `#${a.id} ${a.name}`), h('span', { class: 'meta' }, ` ${O.CREATOR_KIND_WORDS[a.kind] || a.kind}, ${a.email}, ${O.ago(a.created_at, now)}`),
               h('p', {}, 'Makes: ', a.makes, ' \u00b7 ', h('a', { href: a.link, rel: 'noopener noreferrer', target: '_blank' }, a.link)),
               h('p', {}, 'Question: ', a.question),
-              button('Approve', () => data.adminDecideCreator(a.id, 'approved')), ' ', button('Decline', () => data.adminDecideCreator(a.id, 'declined'))))) : null),
+              button('Approve and make an invite code', async () => { const code = await data.adminCreatorInvite(a.id, null); invited = { name: a.name, email: a.email, code }; }), ' ',
+              button('Approve only', () => data.adminDecideCreator(a.id, 'approved')), ' ', button('Decline', () => data.adminDecideCreator(a.id, 'declined'))))) : null),
           section(`Help requests (${d.support_open})`, d.support.length ? h('ul', { class: 'ops-list' }, d.support.map(q => h('li', {},
             h('strong', {}, `#${q.id} ${q.topic}`), h('span', { class: 'meta' }, ` ${q.email}, ${O.ago(q.created_at, now)}${q.job_id ? `, film job ${q.job_id} (${q.job_state}${q.job_error_code ? `, ${q.job_error_code}` : ''})` : ''}`),
             h('p', {}, q.message), button('Mark answered', () => data.adminAnswerSupport(q.id))))) : none('None waiting.')),

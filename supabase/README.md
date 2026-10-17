@@ -81,7 +81,7 @@ the meantime; the database hides them. Deploy it once (CLI:
 `supabase functions deploy purge-partial-uploads`, or Dashboard → Edge Functions),
 then schedule it hourly: Dashboard → Integrations → Cron → new job → Supabase Edge
 Function `purge-partial-uploads`, with the header `Authorization: Bearer <service
-role key>`. It refuses any other caller and touches only what the database lists.
+role key>`. It refuses any other caller and touches only what the database lists. (On this project that key is the new-style `sb_secret_...` one, see the ops readiness section for the Vault-based cron SQL.)
 
 ## AI editor (branch ai-editor): switching it on
 
@@ -519,7 +519,16 @@ Design and audit: `Ryagram-logs/proposals/WEB-OPS-READINESS.md`. Nothing below i
 
 1. Apply `migrations/20261010000100_ops_readiness.sql` (after the AI editor, film pages and app_admins migrations). It also replaces `ai_reserve_turn` with the capped version and adds `control.ai_daily_usd_cap` ($5), `ai_monthly_usd_cap` ($60) and `ai_project_cap_usd` ($5): tune them in the Table Editor on the `control` row.
 2. Redeploy `ai-editor` (it now asks `ai_budget_ok` before every Anthropic call). Deploy `ops-tick` and `ops-digest` the same way as `purge-uploads` (`--no-verify-jwt`).
-3. Dashboard > Integrations > Cron: `ops-tick` every MINUTE (a child-safety report's first email goes out within a minute); `ops-digest` daily at 13:00 UTC. Same Authorization header as the purge jobs.
+3. Schedule by SQL with `pg_cron` + `pg_net`: `ops-tick` every MINUTE (a child-safety report's first email goes out within a minute), `ops-digest` daily at 13:00 UTC. **Key:** the functions' `SUPABASE_SERVICE_ROLE_KEY` is the new-style `sb_secret_...` key, not the legacy `eyJ...` JWT (that one gets 403 from `isService()`). Save the `sb_secret_...` key in Vault as `service_role_key` and read it in the job:
+   ```sql
+   select cron.schedule('ops-tick', '* * * * *', $$ select net.http_post(
+     url := 'https://<project-ref>.supabase.co/functions/v1/ops-tick',
+     headers := jsonb_build_object('Content-Type', 'application/json',
+       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'service_role_key')),
+     body := '{}'::jsonb) $$);
+   -- ops-digest: the same with '0 13 * * *' and /functions/v1/ops-digest
+   ```
+   Verify: `select status_code, content, created from net._http_response order by created desc limit 5;` shows 200 (403 = wrong key type or missing Vault secret).
 4. Mail is DRY-RUN by default: every alert and digest is written to the `ops_outbox` table (Table Editor) and nothing is sent. **Secrets already set (Ryan, 2026-10-10): `RESEND_API_KEY` and `OPS_MAIL_FROM`; the Resend domain is verified (DKIM and SPF).** `OPS_MAIL_MODE` is still unset, so it stays in dry-run. **Going live = set the secret `OPS_MAIL_MODE=resend`, but only after CC1 has approved ops-readiness, the SQL is applied and the `ops-tick` and `ops-digest` functions are deployed and scheduled.** Anything missing keeps it in dry-run. (Supabase's own Auth emails use the same Resend account through custom SMTP, set separately in Authentication > Emails.)
 5. WORKER adds one `worker_ping(free_gb)` call per minute. Until then rendering status is `unknown` and no worker alert is raised.
 6. Merge `.github/workflows/ops-ping.yml` only after step 1.
@@ -561,4 +570,44 @@ To switch it on (in this order):
    npx supabase functions deploy creator-beta --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
    ```
 3. Set `creatorBeta: true` in `assets/ryagram-config.js` and push. Until then the form tells people to email ryagram@uselai.com and sends nothing.
+
+## Creator beta flow (branch creator-flow): invite, sign up, credits, request a film
+
+The whole path for a creator on Stripe TEST mode, with Ryan fulfilling each film by hand from his PC until the job runner has a status file:
+
+1. A creator applies on `/ryagram/#creators` (see "Creator beta").
+2. Ryan opens `#/admin/ops` > Creator beta applications and clicks **Approve and make an invite code**. The database makes a single-use code (valid 30 days, stored only as a hash) that carries welcome credits (default 20; change with `select admin_creator_flow_set(<film request credits>, <welcome credits>);`). The code is shown **once**, with an **Email it** link (a `mailto:`: Ryan reads and sends it himself; nothing is sent for him).
+3. The creator enters the code and their email under "Have an invite code?" (needs `inviteSignup: true`, custom SMTP and `redeem-invite`, see "Beta invites"), gets Supabase's invite email, sets a password. When the invite email goes out, `invite_sent` grants the welcome credits ONCE (ledger entry `grant`, `created_by = invite:<redemption>`).
+4. In the app they open **Request a film** (needs `filmRequests: true`): a question and optional notes. A request costs `film_request_credits` (default 10), taken at once in the ledger's spending order; at most 3 open at a time. It appears in Ryan's queue (`Film requests`) and raises one alert (`film_request:<id>`).
+5. Ryan makes the film on his PC, uploads it anywhere with an https link (YouTube unlisted is fine), and clicks **Mark delivered** with that link; the creator sees **Watch your film**. **Decline** returns exactly the credits that request took, from the pools they came from, once. A delivered request keeps its credits spent.
+
+The seam for BUILDER's job runner: `admin_film_request_set(id, status, note, url)` is the ONE place a request changes state. When a runner status file exists, a service-side caller can move requests through it; the screens and the credit rules do not change. (Today it is `is_app_admin()`-gated; a service-role variant is a small addition when the file's format is known: it does not exist yet.)
+
+To switch it on (after the ledger is live and the creator beta is on): apply `migrations/20261016000200_creator_flow.sql` (after `20261003000200_invite_codes.sql`, `20261010000100_ops_readiness.sql`, `20261014000100_creator_beta.sql` and `phase-2b/credits_ledger.sql`), then set `filmRequests: true` and push. The two numbers are **confirmed by Ryan (2026-10-16): 10 credits per film request and 20 welcome credits** (the defaults in `creator_flow_settings`; `admin_creator_flow_set` can still change them later). **The dollar value of a credit is deliberately unset until costmeter has measured real render costs: no screen, table or message in this flow shows or computes a price per credit.**
+
+## Cost ledger (branch cost-ledger): switching it on
+
+Every $-bearing event in one closed table (`cost_events`), a daily rollup and Ryan's limits on `#/admin/ops` > Costs. Full design, the Stripe test-mode plumbing plan and each vendor's spend-cap steps: `Ryagram-logs\proposals\WEB-COST-LEDGER-AND-TEST-PLAN.md`.
+
+- **Unknown is unknown:** `amount_usd` NULL is never added as $0; totals name how many events have an unknown cost. Each event has a `mode`: `live`, `test` (Stripe test mode) or `unknown` (the source gave no live/test flag: never defaulted to live). Only `live` counts as money or toward an alarm; the others are shown apart.
+- **Closed tables:** RLS on, every grant revoked (service role included). Writers are `cost_record_events`, `cost_ingest_render_meter`, `cost_tick`, `cost_sync_get/set` (service role only) and Ryan's `admin_cost_*` functions (`is_app_admin()`).
+- **Sources:** Stripe's own balance transactions (the real fee per charge, read-only, `cost-sync` function), plan fees Ryan states (accrued daily), render cost from `job_metering` cpu seconds (unknown until he states a core-hour rate), a daily stored-bytes and live-email reading, typed costs, and (once BUILDER publishes the format) `renders.jsonl` lines. Sign-up emails and uploaded datasets are NOT counted (UNKNOWN).
+
+To switch it on (in this order):
+
+1. **SQL Editor:** `migrations/20261016000100_cost_ledger.sql`, after `20261010000100_ops_readiness.sql` and the 2A core.
+2. **Stripe key, its OWN secret:** create a NEW **restricted** key (`rk_test_...`, later `rk_live_...`) with **Balance: Read and nothing else** (add "Balance transaction sources: Read" only if the first call is refused), and store it as the secret **`STRIPE_READ_KEY`**. Do NOT reuse `STRIPE_SECRET_KEY`: Supabase secrets are project-wide, so that would hand `cost-sync` the checkout key. `cost-sync` refuses a full `sk_...` key and takes the mode from the `rk_` prefix. A cost event that arrives with no live/test flag is stored as mode `unknown`: shown apart, never counted as money, never alarmed.
+3. **Deploy:** `npx supabase functions deploy cost-sync --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`
+4. **Schedule:** every **hour** (`0 * * * *`) with `cron.schedule` + `net.http_post` to `/functions/v1/cost-sync`, the same Vault-based `sb_secret_...` pattern as `ops-tick` (step 3 of the ops readiness section). Alarms are evaluated on that run, so they can be up to an hour late.
+5. **Seeded by the migration (Ryan, 2026-10-16), editable on `#/admin/ops` > Costs:** limits of **$5 a day and $50 a month across every vendor, warning at 80%, alerts only** (nothing here can block or stop anything), and a **render core-hour rate of $0** (renders on his own PC cost $0 in cash; the cloud rate comes from BUILDER's trial). Still to enter: your plans (Supabase, Resend, Workspace; the Supabase plan is being checked) and costs nothing can see (a domain renewal).
+
+Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring) and `supabase/tests/test_cost_ledger.py` (closed tables, idempotence, rollup, plans, render and storage readings, alarms). Run the SQL tests with `TEMP`, `TMP` and `TMPDIR` on D: (the storage rule).
+
+## Retention purge (branch retention-purge): the Privacy Policy's retention promises
+
+`retention_purge()` deletes what the policy says is deleted, once per New York day, called by the **ops-tick** function every minute (no new schedule, no new function): creator beta applications **12 months after the decision** (with the invite code made for them, which holds their name, and its redemption, which holds their email); help requests **3 years after they were answered**; reports **3 years after they were reviewed**, **except child-safety reports, which are never deleted by this job** (they are kept as legal preservation requirements say: counsel to confirm, then change the rule in the function if it needs a period). Undecided applications, unreviewed reports and unanswered requests are never touched: they still need Ryan.
+
+1. **SQL Editor:** `migrations/20261016000300_retention_purge.sql` (after the ops, creator beta and invite code migrations).
+2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
+3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
 

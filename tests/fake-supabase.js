@@ -17,7 +17,7 @@
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [],
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [],
                  account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
@@ -101,6 +101,7 @@
         in(col, vals) { filters.push(r => vals.includes(r[col])); return q; },
         is(col, val) { filters.push(r => (r[col] ?? null) === val); return q; },
         order(col, { ascending = true } = {}) { order = { col, ascending }; return q; },
+        limit() { return q; },
         single() { single = true; return q; },
         then(resolve, reject) { return Promise.resolve().then(exec).then(resolve, reject); }
       };
@@ -360,6 +361,81 @@
         const c = (db.creators || []).find(x => x.id === p_id && x.status === 'new');
         if (c) c.status = p_decision;
         return { data: null, error: null };
+      },
+      // Mock: the creator beta flow. Requests cost 10 credits (taken from the pretend ledger) and a declined one gives them back.
+      film_request_cost() { return { data: 10, error: null }; },
+      request_film({ p_question, p_notes }) {
+        const q = String(p_question || '').replace(/\s+/g, ' ').trim();
+        if (q.length < 10 || q.length > 1000) return fail('Tell us the question you want answered (10 to 1,000 characters).');
+        if (db.film_requests.filter(r => ['new', 'in_progress'].includes(r.status)).length >= 3) return fail('You already have 3 film requests waiting. Wait for one to be delivered first.');
+        if (!ledger || ledger.available < 10) return fail(`Not enough credits: this needs 10, and ${ledger ? Math.max(0, ledger.available) : 0} are available.`);
+        ledger.available -= 10;
+        const row = { id: db.film_requests.length + 1, owner_id: 'u-ryan', created_at: now(), updated_at: now(), question: q, notes: String(p_notes || '').trim(), credits: 10, status: 'new', admin_note: '', delivered_url: null, email: 'creator@example.com' };
+        db.film_requests.push(row);
+        return { data: row.id, error: null };
+      },
+      admin_film_requests() {
+        const open = db.film_requests.filter(r => ['new', 'in_progress'].includes(r.status));
+        return { data: { waiting: open.length, items: open.map(r => ({ ...r })),
+                         recent: db.film_requests.filter(r => ['delivered', 'declined'].includes(r.status)).map(r => ({ id: r.id, email: r.email, question: r.question, status: r.status, delivered_url: r.delivered_url, updated_at: r.updated_at })) }, error: null };
+      },
+      admin_film_request_set({ p_id, p_status, p_note, p_url }) {
+        const r = db.film_requests.find(x => x.id === p_id);
+        if (!r) return fail('No such request.');
+        if (['delivered', 'declined'].includes(r.status)) return fail(`That request is already ${r.status}.`);
+        if (p_status === 'delivered' && !/^https:\/\/\S+$/.test(p_url || '')) return fail('To mark it delivered, give the https link to the film.');
+        if (p_status === 'declined' && ledger) ledger.available += r.credits;
+        Object.assign(r, { status: p_status, admin_note: p_note || '', delivered_url: p_status === 'delivered' ? p_url : null, updated_at: now() });
+        return { data: null, error: null };
+      },
+      admin_creator_invite({ p_id }) {
+        this.admin_creator_beta();
+        const c = db.creators.find(x => x.id === p_id && x.status === 'new');
+        if (!c) return fail('An invite was already made for this application.');
+        c.status = 'approved';
+        return { data: 'RYA-K7M2-9QPX', error: null };
+      },
+      // Mock: a made-up cost rollup for #/admin/ops, with working limits, plans, rates and typed costs.
+      admin_cost_rollup({ p_days }) {
+        db.costs = db.costs || { thresholds: [{ id: 1, vendor: 'stripe', period: 'day', limit_usd: 10, warn_pct: 80, enabled: true }], plans: [{ id: 1, vendor: 'supabase', plan: 'Pro', monthly_usd: 25, starts_on: '2026-10-01', ends_on: null, included: { storage_gb: 100 } }],
+                                 rates: [], events: [{ id: 1, vendor: 'stripe', kind: 'stripe_fee', amount_usd: 1.2, mode: 'test' }], nextId: 2 };
+        const c = db.costs, n = Math.min(p_days || 14, 30);
+        const spentToday = { stripe: 8.5, supabase: 0.81 };
+        const days = Array.from({ length: n }, (_, i) => {
+          const d = new Date(Date.UTC(2026, 9, 16) - i * 864e5).toISOString().slice(0, 10);
+          const by_vendor = i === 0 ? spentToday : { supabase: 0.81 };
+          return { day: d, total_usd: Object.values(by_vendor).reduce((a, b) => a + b, 0), unknown_events: i === 0 ? 2 : 0, by_vendor };
+        });
+        const manual = c.events.filter(e => e.kind === 'manual_invoice').reduce((a, e) => a + e.amount_usd, 0);
+        return { data: {
+          today: days[0].day, days, month: { key: '2026-10', total_usd: 9.31 + 12.96 + manual, unknown_events: 2, by_vendor: { stripe: 8.5, supabase: 13.77, ...(manual ? { domain: manual } : {}) } },
+          usage: { emails_today: 3, storage_bytes: 5242880 }, test: { events: 4, total_usd: 3.4 }, unknown_mode: { events: 0, total_usd: 0 },
+          thresholds: c.thresholds.map(t => { const spent = t.vendor ? (spentToday[t.vendor] || 0) : 9.31;
+            return { ...t, spent_usd: spent, status: spent >= t.limit_usd ? 'over' : spent >= t.limit_usd * t.warn_pct / 100 ? 'warn' : 'ok' }; }),
+          plans: c.plans, rates: c.rates,
+          recent: c.events.slice().reverse().slice(0, 15).map(e => ({ occurred_at: '2026-10-16T14:00:00Z', quantity: null, unit: null, ...e })) }, error: null };
+      },
+      admin_cost_set_threshold({ p_vendor, p_period, p_limit_usd, p_warn_pct }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        const hit = c.thresholds.find(t => (t.vendor || null) === (p_vendor || null) && t.period === p_period);
+        if (hit) { hit.limit_usd = p_limit_usd; hit.warn_pct = p_warn_pct; } else c.thresholds.push({ id: c.nextId++, vendor: p_vendor || null, period: p_period, limit_usd: p_limit_usd, warn_pct: p_warn_pct, enabled: true });
+        return { data: 1, error: null };
+      },
+      admin_cost_delete_threshold({ p_id }) { const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs); c.thresholds = c.thresholds.filter(t => t.id !== p_id); return { data: null, error: null }; },
+      admin_cost_set_plan({ p_vendor, p_plan, p_monthly_usd, p_starts_on, p_included }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        c.plans = c.plans.filter(p => p.vendor !== p_vendor).concat({ id: c.nextId++, vendor: p_vendor, plan: p_plan, monthly_usd: p_monthly_usd, starts_on: p_starts_on, ends_on: null, included: p_included });
+        return { data: 1, error: null };
+      },
+      admin_cost_set_rate({ p_vendor, p_kind, p_unit_usd, p_note }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        c.rates = c.rates.filter(r => !(r.vendor === p_vendor && r.kind === p_kind)).concat({ vendor: p_vendor, kind: p_kind, unit_usd: p_unit_usd, note: p_note });
+        return { data: null, error: null };
+      },
+      admin_cost_record({ p_vendor, p_amount_usd, p_on }) {
+        const c = (this.admin_cost_rollup({ p_days: 1 }), db.costs);
+        c.events.push({ id: c.nextId++, vendor: p_vendor, kind: 'manual_invoice', amount_usd: p_amount_usd, mode: 'live' });
+        return { data: 1, error: null };
       },
       admin_ack_stripe() { db.stripeAcked = true; return { data: null, error: null }; },
       admin_answer_support() { db.supportOpen = 0; return { data: null, error: null }; },

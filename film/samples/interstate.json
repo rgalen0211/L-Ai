@@ -1,6 +1,6 @@
 {
   "sample": true,
-  "title": "The Interstate Highway System",
+  "title": "Rise of the Interstate Highway, 1956–1993",
   "summary": {
     "headline": "The Interstate Highway System",
     "subhead": "Contiguous United States 39,279 Miles Constructed, 1956–1993",
@@ -21,7 +21,7 @@
           }
         ],
         "method": "39,520 one-mile Interstate segments, each drawn in the year it opened, over a provisional base of segments with no opening year.",
-        "retrieved": "2026-10-10",
+        "retrieved": "2026-10-15",
         "values_are": "partly derived",
         "derivations": [
           {
@@ -46,8 +46,8 @@
       "fps": 30
     },
     "engine": {
-      "commit": "9b3d886dee22",
-      "drawn_at": "2026-10-10"
+      "commit": "b17561adead5",
+      "drawn_at": "2026-10-15"
     }
   },
   "published_at": null,

@@ -8,6 +8,7 @@ export interface Deps {
   serviceKey: string;
   tick(): Promise<{ rendering: string; reaped: number; expired: number; alert_mail_budget: number; urgent_wait_s?: number; new_alerts: { key: string; detail: string; urgent?: boolean }[] }>;
   markNotified(keys: string[]): Promise<number>;
+  purge?(): Promise<unknown>;       // the retention purge (does real work once a day; a failure here never stops the tick)
   sender: Sender;
 }
 
@@ -55,5 +56,10 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       console.error("alert not sent; will retry next tick", (e as Error).message);
     }
   }
-  return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, urgent_held: urgentHeld, notified, held, mode: deps.sender.mode });
+  let purged: unknown;
+  if (deps.purge) {
+    try { purged = await deps.purge(); } catch (e) { console.error("retention_purge failed", (e as Error).message); purged = { error: true }; }
+  }
+  return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, urgent_held: urgentHeld, notified, held, mode: deps.sender.mode,
+                     ...(deps.purge ? { purged } : {}) });
 }

@@ -24,6 +24,11 @@ Deno.serve((req) => handle(req, {
     if (error) throw new Error(error.message);
     return data;
   },
+  async purge() {
+    const { data, error } = await db.rpc("retention_purge");
+    if (error) throw new Error(error.message);
+    return data;
+  },
   async markNotified(keys) {
     const { data, error } = await db.rpc("ops_mark_notified", { p_keys: keys });
     if (error) throw new Error(error.message);

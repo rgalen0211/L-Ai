@@ -182,3 +182,26 @@ test('URGENT mail lists up to 100 reports and says how many more are on #/admin/
   assert.equal(marked[0].length, 130);                                            // all 130 are marked notified: the mail told Ryan about them
 });
 
+
+// ---- the retention purge rides on the minute tick (it does real work once a day, in the database)
+test('PURGE: the tick calls the retention purge and reports what it did; a failing purge never stops the tick or its mail', async () => {
+  const o = outbox(); const marked = [];
+  const calls = [];
+  const base = { serviceKey: 'secret', sender: dryRunSender(o), markNotified: async k => { marked.push(k); return k.length; },
+                 tick: async () => ({ rendering: 'ok', reaped: 0, expired: 0, alert_mail_budget: 20, new_alerts: [{ key: 'urgent:child_safety:1', detail: 'URGENT: child-safety report #1', urgent: true }] }) };
+  const ok = await (await tick(req(), { ...base, purge: async () => { calls.push(1); return { skipped: false, applications: 2 }; } })).json();
+  assert.deepEqual([calls.length, ok.purged, ok.urgent], [1, { skipped: false, applications: 2 }, 1]);
+  const quiet = console.error; console.error = () => {};
+  const bad = await (await tick(req(), { ...base, purge: async () => { throw new Error('db down'); } })).json();
+  console.error = quiet;
+  assert.deepEqual([bad.purged, bad.urgent], [{ error: true }, 1]);                  // the urgent mail still went out
+  const none = await (await tick(req(), base)).json();
+  assert.equal('purged' in none, false);                                              // no purge dependency, no field (older callers see the same answer as before)
+});
+
+test('PURGE: index.ts wires retention_purge into ops-tick and nothing else calls it', async () => {
+  const fs = await import('node:fs');
+  const idx = fs.readFileSync(new URL('../supabase/functions/ops-tick/index.ts', import.meta.url), 'utf8');
+  assert.match(idx, /db\.rpc\("retention_purge"\)/);
+  for (const f of ['ops-digest/index.ts', 'cost-sync/index.ts', 'creator-beta/index.ts']) assert.doesNotMatch(fs.readFileSync(new URL(`../supabase/functions/${f}`, import.meta.url), 'utf8'), /retention_purge/);
+});
