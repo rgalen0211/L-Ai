@@ -119,6 +119,41 @@
     return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
+  // ---- Funnel on the Operations screen (SQL 20261017000400): counts per step, conversion between steps, by source and by week.
+  // The first two steps are VISITS (anonymous); every other step counts each account once. The chain below is the order people go through.
+  const FUNNEL_LABELS = { landing_view: 'Saw the landing page', signup_started: 'Started signing up', signup_done: 'Signed up', first_project: 'Made a first project', contact_sheet: 'Made a contact sheet',
+    preview: 'Made a preview', film_requested: 'Requested a film', film_delivered: 'Film delivered', purchase: 'Bought credits', subscription_start: 'Started a plan', subscription_cancel: 'Cancelled a plan',
+    return_7d: 'Came back after 7 days', return_30d: 'Came back after 30 days' };
+  const FUNNEL_CHAIN = ['landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'film_requested', 'film_delivered', 'purchase'];
+  const FUNNEL_SIDE = ['subscription_start', 'subscription_cancel', 'return_7d', 'return_30d'];          // judged against people who signed up
+  const FUNNEL_KEY = ['landing_view', 'signup_done', 'first_project', 'film_requested', 'purchase'];     // the columns of the by-source and by-week tables
+  const pct = (n, d) => (d > 0 ? `${Math.round((n / d) * 1000) / 10}%` : '\u2014');
+  function funnelRows(f) {
+    if (!f || !Array.isArray(f.steps)) return [];
+    const by = Object.fromEntries(f.steps.map(s => [s.event, s.total]));
+    const rows = [];
+    FUNNEL_CHAIN.forEach((event, i) => rows.push({ event, label: FUNNEL_LABELS[event], total: by[event] || 0,
+      fromPrevious: i ? pct(by[event] || 0, by[FUNNEL_CHAIN[i - 1]] || 0) : '', fromFirst: i ? pct(by[event] || 0, by.landing_view || 0) : '' }));
+    for (const event of FUNNEL_SIDE) rows.push({ event, label: FUNNEL_LABELS[event], total: by[event] || 0, fromPrevious: pct(by[event] || 0, by.signup_done || 0), fromFirst: '', side: true });
+    return rows;
+  }
+  function funnelBySource(f) {
+    if (!f || !Array.isArray(f.steps)) return [];
+    const step = e => f.steps.find(s => s.event === e) || { by_source: {} };
+    const sources = [...new Set(FUNNEL_KEY.flatMap(e => Object.keys(step(e).by_source || {})))];
+    return sources.map(src => {
+      const counts = Object.fromEntries(FUNNEL_KEY.map(e => [e, (step(e).by_source || {})[src] || 0]));
+      return { source: src, counts, signupRate: pct(counts.signup_done, counts.landing_view) };
+    }).sort((a, b) => (b.counts.landing_view + b.counts.signup_done) - (a.counts.landing_view + a.counts.signup_done) || a.source.localeCompare(b.source));
+  }
+  function funnelByWeek(f) {
+    if (!f || !Array.isArray(f.steps)) return [];
+    const step = e => f.steps.find(s => s.event === e) || { by_week: {} };
+    return [...(f.weeks || [])].reverse().map(week => ({ week, counts: Object.fromEntries(FUNNEL_KEY.map(e => [e, (step(e).by_week || {})[week] || 0])) }));
+  }
+  const funnelLine = f => (f ? 'Visits (the first two steps) are counted each time; every other step counts each account once, the first time it happens. Source = the link\u2019s utm_source, else the referring site, else direct.'
+                            : 'Funnel tracking is not set up yet (apply SQL 20261017000400).');
+
   // ---- Costs on the Operations screen (SQL 20261016000100). An unknown cost is never shown as $0.
   const COST_VENDORS = [['stripe', 'Stripe'], ['resend', 'Resend (email)'], ['supabase', 'Supabase'], ['domain', 'Domain'], ['cloud', 'Cloud'], ['anthropic', 'Anthropic (AI editor)'], ['render', 'Rendering'], ['other', 'Other']];
   const vendorWord = v => (COST_VENDORS.find(([id]) => id === v) || [v, v])[1];
@@ -177,5 +212,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
+  window.ryagramOps = { FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
 })();
