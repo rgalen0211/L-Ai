@@ -58,7 +58,7 @@ class EngineProfiles(core.Base):
                            ("ramp", "breaks"), ("bars", "axis"), ("reserved", "sources"), ("transition", "x")):
             spec = copy.deepcopy(GOOD)
             node = {"top": spec, "look": spec["look"], "ramp": spec["look"]["ramp"],
-                    "bars": spec["look"]["bars"], "reserved": spec.setdefault("reserved", {}),
+                    "bars": spec["look"].setdefault("bars", {}), "reserved": spec.setdefault("reserved", {}),
                     "transition": spec["pacing"]["transition"]}[where]
             node[key] = 1
             self.denied(RYAN, "select public.set_engine_profile(%s::jsonb, false)", json.dumps(spec))
