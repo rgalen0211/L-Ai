@@ -5,10 +5,12 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { createRequire } from 'node:module';
+import { createHmac } from 'node:crypto';
 import { handle, callerAddress, callerKey } from '../supabase/functions/creator-beta/apply.ts';
 
 const require = createRequire(import.meta.url);
 const { createFakeClient } = require('./fake-supabase.js');
+const SECRET = 'test-secret-not-real-0123456789';
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const ORIGIN = 'https://uselai.com';
 const GOOD = { name: 'Maya Ortiz', email: 'maya@example.com', kind: 'youtuber', makes: 'Weekly explainers on housing', link: 'https://www.youtube.com/@maya',
@@ -16,7 +18,7 @@ const GOOD = { name: 'Maya Ortiz', email: 'maya@example.com', kind: 'youtuber', 
 
 function world({ fail } = {}) {
   const applied = [];
-  const deps = { allowedOrigins: [ORIGIN, 'https://www.uselai.com'], apply: async a => { if (fail) throw fail; applied.push(a); return applied.length; } };
+  const deps = { allowedOrigins: [ORIGIN, 'https://www.uselai.com'], hashSecret: SECRET, apply: async a => { if (fail) throw fail; applied.push(a); return applied.length; } };
   return { deps, applied };
 }
 const post = (deps, body, { origin = ORIGIN, method = 'POST', raw, extra = {} } = {}) =>
@@ -92,13 +94,27 @@ test('PER-CALLER: the address comes from cf-connecting-ip, else the LAST x-forwa
 });
 
 test('PER-CALLER: the key is a 64-hex hash that never contains the address, differs by address and by (New York) day, and is empty with no address', async () => {
-  const a = await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), new Date('2026-10-14T16:00:00Z'));
+  const a = await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), SECRET, new Date('2026-10-14T16:00:00Z'));
   assert.match(a, /^[0-9a-f]{64}$/);
   assert.ok(!a.includes('203'));
-  assert.equal(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), new Date('2026-10-14T20:00:00Z')));        // same day, same key
-  assert.notEqual(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.8' }), new Date('2026-10-14T16:00:00Z')));    // another address
-  assert.notEqual(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), new Date('2026-10-15T16:00:00Z')));    // another day
-  assert.equal(await callerKey(new Headers({}), new Date()), '');
+  assert.equal(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), SECRET, new Date('2026-10-14T20:00:00Z')));        // same day, same key
+  assert.notEqual(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.8' }), SECRET, new Date('2026-10-14T16:00:00Z')));    // another address
+  assert.notEqual(a, await callerKey(new Headers({ 'cf-connecting-ip': '203.0.113.7' }), SECRET, new Date('2026-10-15T16:00:00Z')));    // another day
+  assert.equal(await callerKey(new Headers({}), SECRET, new Date()), '');
+});
+
+test('PER-CALLER: the key is a real HMAC under the secret: it equals an independent HMAC, differs with another secret, and no secret is refused, never unsalted', async () => {
+  const h = new Headers({ 'cf-connecting-ip': '203.0.113.7' }); const at = new Date('2026-10-14T16:00:00Z');
+  const key = await callerKey(h, SECRET, at);
+  assert.equal(key, createHmac('sha256', SECRET).update('creator-beta|203.0.113.7|2026-10-14').digest('hex'));
+  assert.notEqual(key, await callerKey(h, SECRET + 'x', at));                                  // another secret: another key (so a stolen table cannot be tried against all addresses)
+  const bare = (await import('node:crypto')).createHash('sha256').update('creator-beta|203.0.113.7|2026-10-14').digest('hex');
+  assert.notEqual(key, bare);                                                                    // no longer the bare hash CC1 showed to be reversible
+  await assert.rejects(callerKey(h, '', at), /no hash secret/);
+  assert.equal(await callerKey(new Headers({}), '', at), '');                                   // no address: nothing to hash, so no secret needed
+  const { deps, applied } = world(); deps.hashSecret = '';
+  const res = await post(deps, GOOD, { extra: { 'cf-connecting-ip': '203.0.113.7' } });
+  assert.equal(res.status, 500); assert.deepEqual(applied, []);                                // an address with no secret: refused, nothing stored
 });
 
 test('PER-CALLER: the function passes the hashed key to the database, and the spammer\u2019s forged first hop does not change it', async () => {
