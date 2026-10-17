@@ -133,11 +133,15 @@ const calls = (tok_) => ({
 await call('POST', `${URL_}/storage/v1/object/proof/${uid}/seed.txt`, { apikey: pk, Authorization: `Bearer ${S}`, 'Content-Type': 'text/plain', 'x-upsert': 'true' }, 'seed');
 for (const [who, tk] of [['app_session', S], ['oauth_token', T]]) {
   out.matrix[who] = {};
-  for (const [name, fn] of Object.entries(calls(tk))) { const r = await fn(); out.matrix[who][name] = r.status; }
+  for (const [name, fn] of Object.entries(calls(tk))) {
+    const r = await fn();
+    // A storage list answers 200 with an empty array when row security hides everything: that is a denial.
+    out.matrix[who][name] = (name === 'storage list' && r.status === 200 && Array.isArray(r.json) && r.json.length === 0 && who === 'oauth_token') ? '200 (empty: nothing visible)' : r.status;
+  }
 }
 
 // ---- 5. verdict -----------------------------------------------------------------------------------------------------------
-const okS = (s) => s >= 200 && s < 300;
+const okS = (s) => typeof s === 'number' && s >= 200 && s < 300;
 const mS = out.matrix.app_session, mT = out.matrix.oauth_token;
 const sessionWorks = Object.entries(mS).every(([, s]) => okS(s));
 const allowed = 'rpc connect_probe (ALLOWED for OAuth)';
