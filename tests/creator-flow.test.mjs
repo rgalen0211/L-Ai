@@ -94,7 +94,7 @@ test('SCREEN: the request page and its link exist only behind the filmRequests f
   assert.match(src, /button\(`Decline \(returns \$\{r\.credits\} credits\)`/);
   assert.match(src, /\(shown once; copy it now\)/);
   assert.match(src, /rel: 'noopener noreferrer'/);
-  assert.match(read('assets/ryagram-config.js'), /filmRequests: false,/);                       // ships OFF
+  assert.match(read('assets/ryagram-config.js'), /filmRequests: true,/);                        // ON for the launch block (SQL 20261016000200 applied, invite-only test mode)
 });
 
 test('SCREEN: nothing in the flow sends mail, takes payment or calls out: Ryan sends the invite and the film himself', () => {
