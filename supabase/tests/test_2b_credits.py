@@ -296,14 +296,14 @@ class Ledger(unittest.TestCase):
 
     def test_persistent_failure_releases_and_keeps_metering(self):
         _, job = self.final("paired", grant=10)
-        for attempt in (1, 2, 3):
+        for attempt in (1, 2):                       # retry once: two attempts in all (Ryan, 2026-10-17; PIPE-1)
             w = self.db.as_(WORKER)
             self.assertEqual(w.one("select id from claim_next_job()"), job)
             w.one("select write_metering(%s, %s, '{\"wall_s\": 12.5}')", job, attempt)
             self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job)
         self.assertEqual(self.admin("select state, error_class from jobs where id = %s", job), ("failed", "infrastructure"))
         self.assertEqual(self.available(), 10)
-        self.assertEqual(self.admin("select count(*), sum(wall_s) from job_metering where job_id = %s", job), (3, 37.5))
+        self.assertEqual(self.admin("select count(*), sum(wall_s) from job_metering where job_id = %s", job), (2, 25.0))
 
     def test_cancel_releases(self):
         _, job = self.final("paired", grant=10)

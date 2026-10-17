@@ -299,13 +299,13 @@ class Core(Base):
     def test_lost_worker_retries_then_fails(self):
         _, vid = self.project_with_version()
         job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
-        for attempt in (1, 2, 3):
+        for attempt in (1, 2):                       # retry once: two attempts in all (Ryan, 2026-10-17; PIPE-1)
             self.assertEqual(self.claim(), job)
             self.db.as_(None).one("update jobs set lease_expires_at = now() - interval '1 second' where id = %s returning 1", job)
         self.assertIsNone(self.claim())
         self.assertEqual(self.db.as_(None).one("select state, attempt, error_class from jobs where id = %s", job),
-                         ("failed", 3, "infrastructure"))
-        self.assertEqual(self.db.as_(None).one("select count(*) from job_metering where job_id = %s and error_code = 'worker_lost'", job), 3)
+                         ("failed", 2, "infrastructure"))
+        self.assertEqual(self.db.as_(None).one("select count(*) from job_metering where job_id = %s and error_code = 'worker_lost'", job), 2)
 
     def test_crash_is_retried_but_gate_failure_and_timeout_are_not(self):
         _, vid = self.project_with_version()
@@ -408,11 +408,10 @@ class Core(Base):
         self.assertGreater(queued, created)                                      # reset on hand-back
         self.assertEqual(self.claim(), job)
         self.assertLess(admin("select extract(epoch from claimed_at - queued_at) from jobs where id = %s", job), 5)
+        # retry once (Ryan, 2026-10-17; PIPE-1): a lost lease on attempt 2 is the end -- failed, not re-queued
         admin("update jobs set lease_expires_at = now() - interval '1 second' where id = %s returning 1", job)
-        before = admin("select queued_at from jobs where id = %s", job)
-        self.assertEqual(self.claim(WORKER2), job)                               # reclaimed and re-claimed as attempt 3
-        self.assertGreaterEqual(admin("select queued_at from jobs where id = %s", job), before)
-        self.assertEqual(admin("select state, attempt from jobs where id = %s", job), ("claimed", 3))
+        self.assertIsNone(self.claim(WORKER2))
+        self.assertEqual(admin("select state, attempt from jobs where id = %s", job), ("failed", 2))
 
     def partial_upload(self):
         """A preview cancelled mid-upload, leaving one registered, uploaded file."""
