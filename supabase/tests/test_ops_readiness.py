@@ -363,7 +363,9 @@ class Ops(core.Base):
                            "admin_cost_set_plan(text,text,numeric,date,jsonb)", "admin_cost_set_rate(text,text,numeric,text)", "admin_cost_record(text,numeric,date,text)",
                            # creator flow: a signed-in person asks for a film (the database needs their id); the rest are Ryan's, each refusing everyone else inside
                            "request_film(text,text)", "film_request_cost()", "admin_creator_invite(bigint,integer)", "admin_invite_person(text,integer)", "admin_film_requests()",
-                           "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)"}
+                           "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)",
+                           # engine profiles: the only write path to a person's own look; checks the key tree inside
+                           "set_engine_profile(jsonb,boolean)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
