@@ -283,11 +283,22 @@
       let invited = null;
       function invitePanel() {
         if (!invited) return null;
-        const { name, email, code } = invited;
+        const { name, email, code, credits } = invited;
         return h('div', { class: 'invite-panel', role: 'status' },
           h('p', {}, h('strong', {}, `Invite code for ${name}: `), h('code', {}, code), '  (shown once; copy it now)'),
-          h('p', {}, h('a', { class: 'button secondary small', href: O.inviteMailto({ name, email, code, credits: null }) }, `Email it to ${email}`), ' ',
+          h('p', {}, h('a', { class: 'button secondary small', href: O.inviteMailto({ name, email, code, credits: credits == null ? null : credits }) }, `Email it to ${email}`), ' ',
             button('Done', async () => { invited = null; })));
+      }
+      // --- Invite someone: a friend Ryan names before the public form is live. The address is used ONLY for the mailto: link; the database gets the name and the credits.
+      function invitePersonForm() {
+        const name = h('input', { id: 'ip-name', name: 'name', type: 'text', required: true, maxlength: '100', autocomplete: 'off' });
+        const email = h('input', { id: 'ip-email', name: 'email', type: 'email', required: true, maxlength: '320', autocomplete: 'off' });
+        const credits = h('input', { id: 'ip-credits', name: 'credits', type: 'number', min: '0', max: '1000', step: '1', placeholder: 'the usual welcome credits' });
+        return miniForm('Invite someone', [field('Their name', name), field('Their email (stays in your mail program)', email), field('Welcome credits (optional)', credits)], 'Make an invite code', async () => {
+          const c = credits.value.trim() === '' ? null : Number(credits.value);
+          const code = await data.adminInvitePerson(name.value, c);
+          invited = { name: name.value.trim(), email: email.value.trim(), code, credits: c };
+        });
       }
       // --- the film request queue: what creators asked for, to make by hand and then mark delivered (with the film's https link) or decline (credits go back)
       function queueSection(q, now) {
@@ -415,7 +426,7 @@
               h('p', {}, e.detail || '(no detail recorded)'), button('Mark reviewed', () => data.adminAckStripe(e.event_id))))) : null),
           queueSection(fr, now),
           costSection(cost, now),
-          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)), invitePanel(),
+          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)), invitePanel(), invitePersonForm(),
             cb && cb.items.length ? h('ul', { class: 'ops-list' }, cb.items.map(a => h('li', {},
               h('strong', {}, `#${a.id} ${a.name}`), h('span', { class: 'meta' }, ` ${O.CREATOR_KIND_WORDS[a.kind] || a.kind}, ${a.email}, ${O.ago(a.created_at, now)}`),
               h('p', {}, 'Makes: ', a.makes, ' \u00b7 ', h('a', { href: a.link, rel: 'noopener noreferrer', target: '_blank' }, a.link)),
