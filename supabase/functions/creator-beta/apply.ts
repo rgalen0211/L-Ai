@@ -3,6 +3,7 @@
 //   POST { name, email, kind, makes, link, question, website? }   from uselai.com only
 export interface Deps {
   allowedOrigins: string[];
+  hashSecret: string;                  // CALLER_HASH_SECRET (or, failing that, the service key): the caller key is an HMAC under it, never a bare hash
   apply(a: { name: string; email: string; kind: string; makes: string; link: string; question: string; website: string; caller: string }): Promise<number>;
 }
 
@@ -19,13 +20,18 @@ export function callerAddress(headers: Headers): string {
   return hops.length ? hops[hops.length - 1] : "";
 }
 
-// A hex sha-256 of the address and the New York day: the database never sees the address, and the key changes every day.
-export async function callerKey(headers: Headers, now = new Date()): Promise<string> {
+// A hex HMAC-SHA256 of the address and the New York day under a server-held secret (CC1, 2026-10-16: a bare hash of an IPv4 address can be reversed by
+// trying all 2^32 addresses; with the secret it cannot, and the secret is never stored with the rows). The database never sees the address, and the
+// key changes every day. No address gives "" (no per-caller limit, only the site cap); an address with NO secret is an error, never an unsalted hash.
+export async function callerKey(headers: Headers, secret: string, now = new Date()): Promise<string> {
   const ip = callerAddress(headers).slice(0, 100);
   if (!ip) return "";
+  if (!secret) throw new Error("creator-beta: no hash secret is set");
   const day = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
-  const bytes = new TextEncoder().encode(`creator-beta|${ip}|${day}`);
-  return [...new Uint8Array(await crypto.subtle.digest("SHA-256", bytes))].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(`creator-beta|${ip}|${day}`)));
+  return [...mac].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 const statusOf = (e: unknown) => {
@@ -60,7 +66,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   }
   const website = typeof body.website === "string" ? body.website : "";
   try {
-    await deps.apply({ name: a.name, email: a.email, kind: a.kind, makes: a.makes, link: a.link, question: a.question, website, caller: await callerKey(req.headers) });
+    await deps.apply({ name: a.name, email: a.email, kind: a.kind, makes: a.makes, link: a.link, question: a.question, website, caller: await callerKey(req.headers, deps.hashSecret) });
     return reply(200, { ok: true });
   } catch (e) {
     const status = statusOf(e);

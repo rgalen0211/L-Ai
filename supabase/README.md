@@ -569,6 +569,10 @@ To switch it on (in this order):
    ```
    npx supabase functions deploy creator-beta --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
    ```
+   **Address hashes use a secret (2026-10-17).** The per-caller key is an HMAC-SHA256 of the address and the day, keyed with the Edge secret `CALLER_HASH_SECRET`
+   (any long random string; if it is not set the function uses the project's own service key, so there is never an unsalted hash; an address with no secret at all
+   is refused). The abuse reporter key is made the same way in SQL from a random secret in the closed table `ryagram_private.hash_secret`
+   (`migrations/20261017000100_hash_secrets.sql`, after `20261010000100_ops_readiness.sql`). Rotating either secret only resets that day's limits.
 3. Set `creatorBeta: true` in `assets/ryagram-config.js` and push. Until then the form tells people to email ryagram@uselai.com and sends nothing.
 
 ## Creator beta flow (branch creator-flow): invite, sign up, credits, request a film

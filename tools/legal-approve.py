@@ -81,6 +81,9 @@ def main(argv=None):
     open_decisions = sorted({m.group(1) for m in DECISION.finditer(terms + privacy) if m.group(1) != 'last-updated' and not str(decisions.get(m.group(1), '')).strip()})
     unconfirmed = sorted({m.group(1) for m in REQUIRES.finditer(terms + privacy)} - ok - cut)
     problems = []
+    marked = sorted(k for k in decisions if k.startswith('_DRAFT'))                  # e.g. "_DRAFT_FOR_COUNSEL": the wording is a draft until counsel has signed it off and the key is deleted
+    if marked and a.apply:
+        problems.append('the decisions file is marked ' + ', '.join(marked) + ': counsel has not signed it off. Delete that key from the file once they have, then run again')
     if both:
         problems.append('named in both --requires-ok and --cut: ' + ', '.join(sorted(both)))
     unknown_cut = sorted(cut - {m.group(1) for m in REQUIRES.finditer(terms + privacy)})
@@ -93,6 +96,8 @@ def main(argv=None):
     if unconfirmed:
         problems.append('statements that are true only once something is live; confirm each with --requires-ok: ' + ', '.join(unconfirmed))
     for name, text in decisions.items():
+        if name.startswith('_DRAFT'):
+            continue
         if re.search(r'[\[\]<>]', str(text)) or 'TODO' in str(text):
             problems.append(f'decision "{name}" still looks like a placeholder: {text!r}')
     if problems:
@@ -104,6 +109,8 @@ def main(argv=None):
     for name, html in (('terms', out_terms), ('privacy', out_privacy)):
         assert 'draft-' not in html and 'DRAFT' not in html and 'noindex' not in html, name
     linked = link_footers(False)
+    if marked:
+        print('NOTE: the decisions file is marked ' + ', '.join(marked) + ' (--apply will refuse until that key is deleted).')
     print(('WROTE' if a.apply else 'WOULD WRITE') + ': terms/index.html, privacy-policy.html; links added to: ' + (', '.join(linked) or '(already linked)'))
     if a.apply:
         (ROOT / 'terms').mkdir(exist_ok=True)

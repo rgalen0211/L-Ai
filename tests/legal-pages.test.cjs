@@ -105,6 +105,21 @@ test('APPROVE: every confirmation is required one by one, and a placeholder is n
   assert.ok(!fs.existsSync(path.join(dir, 'terms')));
 });
 
+test('APPROVE: a decisions file marked _DRAFT_FOR_COUNSEL can be dry-run but --apply refuses until the key is deleted', { skip: !hasPython }, () => {
+  const dir = scratch();
+  const file = path.join(dir, 'd.json');
+  fs.writeFileSync(file, JSON.stringify({ _DRAFT_FOR_COUNSEL: 'DRAFT FOR COUNSEL: not final', ...DECISIONS }));
+  const dry = run(dir, ['--date', 'October 18, 2026', '--decisions', file, '--requires-ok', REQUIRES]);
+  assert.equal(dry.status, 0);
+  assert.match(dry.stdout, /marked _DRAFT_FOR_COUNSEL/);
+  const apply = run(dir, ['--date', 'October 18, 2026', '--decisions', file, '--requires-ok', REQUIRES, '--apply']);
+  assert.equal(apply.status, 1);
+  assert.match(apply.stdout, /counsel has not signed it off/);
+  assert.ok(!fs.existsSync(path.join(dir, 'terms')));
+  fs.writeFileSync(file, JSON.stringify(DECISIONS));
+  assert.equal(run(dir, ['--date', 'October 18, 2026', '--decisions', file, '--requires-ok', REQUIRES, '--apply']).status, 0);
+});
+
 test('APPROVE: a dry run (no --apply) says what it would do and writes nothing', { skip: !hasPython }, () => {
   const dir = scratch();
   const file = path.join(dir, 'd.json');
