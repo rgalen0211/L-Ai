@@ -25,9 +25,11 @@
   // checked when the page opens: the person presses a button, and only then does verifyOtp run. An email scanner that opens the link (even one that runs
   // scripts) therefore cannot spend it. Links already sent as /app/?reset=<hash> and /app/?invite=<hash> work the same way.
   // Other ways to arrive: #/auth/expired (the root site forwards any #error=... there), a raw #error=/#error_code= (a link Supabase itself rejected), and
-  // a raw #access_token=...&refresh_token=... (a link Supabase already verified; nothing is left to spend). Templates: supabase/email-templates/.
+  // a raw #access_token=...&refresh_token=... (a link Supabase already verified). That one would SIGN THE PERSON IN from the address bar, so a crafted link
+  // could put someone into another account: it waits behind the same button, which says 'Continue as <email>'. Templates: supabase/email-templates/.
   const query = new URLSearchParams(location.search);
   const TOKEN = /^[A-Za-z0-9_-]{10,200}$/;
+  const JWT = /^[A-Za-z0-9_-]{10,2000}\.[A-Za-z0-9_-]{10,2000}\.[A-Za-z0-9_-]{0,2000}$/;       // an access token is a JWT: three dot-separated parts
   const AUTH_TYPES = ['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email'];
   let linkType = query.has('invite') ? 'invite' : query.has('reset') ? 'recovery' : null;
   let linkToken = linkType && TOKEN.test(query.get(linkType === 'invite' ? 'invite' : 'reset') || '')
@@ -36,6 +38,7 @@
   const rawHash = authHash ? null : new URLSearchParams((location.hash || '').replace(/^#\/?/, ''));
   let expiredMode = false;
   let implicitSession = null;
+  let implicitEmail = '';
   if (authHash && authHash[1] === 'expired') {
     expiredMode = true;
   } else if (authHash) {
@@ -46,12 +49,20 @@
     if (!linkToken) expiredMode = true;                                    // a link with a damaged token is as good as an expired one
   } else if (rawHash && (rawHash.has('error') || rawHash.has('error_code'))) {
     expiredMode = true;
-  } else if (rawHash && TOKEN.test(rawHash.get('access_token') || '') && TOKEN.test(rawHash.get('refresh_token') || '')) {
-    implicitSession = { access_token: rawHash.get('access_token'), refresh_token: rawHash.get('refresh_token') };
+  } else if (rawHash && rawHash.has('access_token')) {
+    const okShape = JWT.test(rawHash.get('access_token') || '') && TOKEN.test(rawHash.get('refresh_token') || '');
+    if (okShape) implicitSession = { access_token: rawHash.get('access_token'), refresh_token: rawHash.get('refresh_token') };
     linkType = AUTH_TYPES.includes(rawHash.get('type')) ? rawHash.get('type') : 'magiclink';
+    // Whose account this would sign into, read from the token for DISPLAY only (Supabase checks the signature when the button is pressed).
+    try {
+      if (!okShape) throw new Error('not a token');
+      const claims = JSON.parse(decodeURIComponent(escape(atob(rawHash.get('access_token').split('.')[1].replace(/-/g, '+').replace(/_/g, '/')))));
+      implicitEmail = typeof claims.email === 'string' && claims.email.length <= 320 ? claims.email : '';
+    } catch { implicitEmail = ''; }
+    if (!implicitEmail) { implicitSession = null; expiredMode = true; }          // a token we cannot name is never taken
   }
   const hasAuthHash = !!(authHash || expiredMode || implicitSession);
-  let pendingLink = !!linkToken;                                            // waiting for the person to press the button
+  let pendingLink = !!linkToken || !!implicitSession;                                            // waiting for the person to press the button
   if (query.has('reset') || query.has('invite') || hasAuthHash) {
     query.delete('reset');
     query.delete('invite');
@@ -112,7 +123,12 @@
     function showAuthLink() {
       if (unmount) { unmount(); unmount = null; }
       library.hidden = true; signIn.hidden = true; setPassword.hidden = true; account.hidden = true; authExpired.hidden = true;
-      const [title, text, go] = LINK_WORDS[linkType] || LINK_WORDS.email;
+      let [title, text, go] = LINK_WORDS[linkType] || LINK_WORDS.email;
+      if (implicitSession) {                                                      // this link would sign the person in: say as whom, and let them refuse
+        title = 'Sign in to Ryagram';
+        text = `This link will sign you in as ${implicitEmail}. If that is not your account, close this page.`;
+        go = `Continue as ${implicitEmail}`;
+      }
       $('auth-link-title').textContent = title;
       $('auth-link-text').textContent = text;
       $('auth-link-go').textContent = go;
@@ -163,7 +179,7 @@
       else showSignIn();
     }
 
-    if (linkToken) {
+    if (linkToken || implicitSession) {
       const FAILED = {
         invite: 'That invite link has expired or was already used. If you set a password, sign in; if not, ask for a new invite.',
         recovery: 'That reset link has expired or was already used. Ask for a new one below.',
@@ -181,7 +197,9 @@
         go.disabled = true;
         let otpError = null;
         try {
-          ({ error: otpError } = await client.auth.verifyOtp({ token_hash: linkToken, type: linkType }));
+          ({ error: otpError } = implicitSession
+            ? await client.auth.setSession(implicitSession)
+            : await client.auth.verifyOtp({ token_hash: linkToken, type: linkType }));
         } catch { otpError = { message: 'network' }; }
         pendingLink = false;
         if (otpError) {
@@ -199,16 +217,6 @@
         }
         go.disabled = false;
         verifying = false;
-      });
-    }
-
-    // A link Supabase already verified (the default template's redirect): there is nothing left to spend, so take the session.
-    if (implicitSession) {
-      client.auth.setSession(implicitSession).then(async ({ error: sessionError }) => {
-        if (sessionError) { expiredMode = true; render(null); return; }
-        recovering = linkType === 'invite' || linkType === 'recovery';
-        const { data } = await client.auth.getSession();
-        render(data.session);
       });
     }
 

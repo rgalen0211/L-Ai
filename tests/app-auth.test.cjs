@@ -68,7 +68,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
   };
   if (library) window.supabase = { createClient: (url, key, opts) => { calls.created = { url, key, opts }; return client; } };
   vm.runInNewContext(code, { document: { getElementById: id => els[id], createElement: () => ({}), body: { append: x => appended.push(x) } }, window,
-                            location: { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location }, history, URLSearchParams, setTimeout: fn => fn() });
+                            location: { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location }, history, URLSearchParams, atob, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
   return { els, button, calls, window, appended, emit: async s => { authListener('X', s); await flush(); },
            submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut(),
@@ -340,19 +340,50 @@ test('expired route: #/auth/expired (where the root site forwards any #error=) a
   }
 });
 
-test('a link Supabase already verified (#access_token=...&refresh_token=...) is taken as a session, with no button and no verifyOtp', async () => {
-  const h = harness({ location: { hostname: 'uselai.com', search: '', hash: '#access_token=ACCESStoken_0123456789&refresh_token=REFRESHtoken_0123456789&type=recovery' } });
-  assert.deepEqual(h.calls.replaced, ['/app/#/']);
+// a token whose payload names an account (the signature is Supabase's to check, on the button press)
+const jwt = email => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(email == null ? { sub: 'x' } : { email, sub: 'x' })).toString('base64url')}.c2lnbmF0dXJl`;
+const verifiedAt = (email, type = 'recovery') => ({ hostname: 'uselai.com', search: '', hash: `#access_token=${jwt(email)}&refresh_token=REFRESHtoken_0123456789&type=${type}` });
+
+test('a link Supabase already verified (#access_token=...): NOTHING signs in from the address bar; the button says which account, and only pressing it takes the session', async () => {
+  const h = harness({ location: verifiedAt('maya@example.com') });
+  assert.deepEqual(h.calls.replaced, ['/app/#/']);                                     // the tokens leave the address bar at once
   await h.emit(null);
   await h.flush();
-  assert.deepEqual(plain(h.calls.setSession), { access_token: 'ACCESStoken_0123456789', refresh_token: 'REFRESHtoken_0123456789' });
+  assert.equal(h.calls.setSession, undefined);                                         // opening the link (or being sent here by a crafted one) signs nobody in
   assert.equal(h.calls.verify.length, 0);
-  await h.emit({ user: { email: 'ryan@example.com' } });
-  assert.equal(h.els['set-password'].hidden, false);                                  // a recovery session still picks a password first
-  const bad = harness({ location: { hostname: 'uselai.com', search: '', hash: '#access_token=ACCESStoken_0123456789&refresh_token=REFRESHtoken_0123456789&type=magiclink' },
-                        setSession: () => ({ error: { message: 'bad' } }) });
-  await bad.flush();
+  assert.equal(h.els['auth-link'].hidden, false);
+  assert.equal(h.els['sign-in'].hidden, true);
+  assert.match(h.els['auth-link-text'].textContent, /sign you in as maya@example\.com\. If that is not your account/);
+  assert.equal(h.els['auth-link-go'].textContent, 'Continue as maya@example.com');
+  await h.click();
+  assert.deepEqual(plain(h.calls.setSession), { access_token: jwt('maya@example.com'), refresh_token: 'REFRESHtoken_0123456789' });
+  assert.equal(h.calls.verify.length, 0);
+  await h.emit({ user: { email: 'maya@example.com' } });
+  assert.equal(h.els['set-password'].hidden, false);                                   // a recovery session still picks a password first
+  const magic = harness({ location: verifiedAt('maya@example.com', 'magiclink') });
+  await magic.emit(null); await magic.click(); await magic.emit({ user: { email: 'maya@example.com' } });
+  assert.equal(magic.els.library.hidden, false);
+  assert.equal(magic.els['set-password'].hidden, true);
+});
+
+test('a link Supabase already verified: a token that names no account is never taken, a rejected session lands on the expired screen', async () => {
+  for (const email of [null, '']) {
+    const h = harness({ location: verifiedAt(email) });
+    await h.emit(null); await h.flush();
+    assert.equal(h.calls.setSession, undefined, String(email));
+    assert.equal(h.els['auth-expired'].hidden, false, String(email));
+  }
+  const junk = harness({ location: { hostname: 'uselai.com', search: '', hash: '#access_token=ACCESStoken_0123456789&refresh_token=REFRESHtoken_0123456789&type=magiclink' } });
+  await junk.emit(null);
+  assert.equal(junk.calls.setSession, undefined);                                      // not even a JWT: expired screen, nothing taken
+  assert.equal(junk.els['auth-expired'].hidden, false);
+  const bad = harness({ location: verifiedAt('maya@example.com'), setSession: () => ({ error: { message: 'bad' } }) });
+  await bad.emit(null); await bad.click();
   assert.equal(bad.els['auth-expired'].hidden, false);
+  const hostile = harness({ location: verifiedAt('<img src=x onerror=alert(1)>@x.co') });          // the account name is shown as text, never as HTML
+  await hostile.emit(null);
+  assert.ok(!/innerHTML/.test(code));
+  assert.equal(hostile.els['auth-link-go'].textContent, 'Continue as <img src=x onerror=alert(1)>@x.co');
 });
 
 test('the sign-in page has "Forgot your password?" in the shipped config (passwordReset on)', () => {

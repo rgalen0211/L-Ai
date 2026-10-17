@@ -50,7 +50,7 @@ run it until Phase 2B is approved; it goes after the files above.
 
 - **Authentication → Sign In / Providers → Email:** enabled. Turn **off**
   "Allow new users to sign up". Only accounts made in the dashboard can sign in.
-- **Authentication → URL Configuration → Site URL:** `https://uselai.com/app/`
+- **Authentication → URL Configuration → Site URL:** `https://uselai.com` (the bare origin, no `/app/`: the email templates add `/app/#/auth?...` themselves, and a Site URL ending in `/app/` makes every link `/app//app/`)
 
 ## Accounts
 
