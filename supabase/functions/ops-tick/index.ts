@@ -29,6 +29,15 @@ Deno.serve((req) => handle(req, {
     if (error) throw new Error(error.message);
     return data;
   },
+  async orders() {
+    const { data, error } = await db.rpc("render_orders_tick");
+    if (error) throw new Error(error.message);
+    return data;
+  },
+  async removeArtifacts(paths) {
+    const { error } = await db.storage.from("ryagram-artifacts").remove(paths);
+    if (error) throw new Error(error.message);
+  },
   async markNotified(keys) {
     const { data, error } = await db.rpc("ops_mark_notified", { p_keys: keys });
     if (error) throw new Error(error.message);
