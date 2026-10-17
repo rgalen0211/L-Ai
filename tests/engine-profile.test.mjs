@@ -135,7 +135,7 @@ function treeOf(node) {
 }
 
 test('the migration\'s key tree is the schema\'s key tree (no drift)', () => {
-  const sql = fs.readFileSync(new URL('../supabase/migrations/20261017000200_engine_profiles.sql', import.meta.url), 'utf8');
+  const sql = fs.readFileSync(new URL('../supabase/migrations/20261017000300_engine_profiles.sql', import.meta.url), 'utf8');
   const m = sql.match(/select '(\{[\s\S]*?\})'::jsonb/);
   assert.ok(m, 'profile_tree not found');
   assert.deepEqual(JSON.parse(m[1]), treeOf(PROFILE_SCHEMA));

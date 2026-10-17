@@ -1,4 +1,4 @@
-"""Engine profiles (migrations/20261017000200_engine_profiles.sql).
+"""Engine profiles (migrations/20261017000300_engine_profiles.sql).
 
 Same harness as test_2a_core.py:
     pgvenv/Scripts/python -m unittest supabase/tests/test_engine_profiles.py -v
