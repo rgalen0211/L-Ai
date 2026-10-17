@@ -12,8 +12,8 @@ const w = {};
 vm.runInNewContext(src, { window: w });
 const cfg = w.ryagramConfig;
 
-test('LAUNCH FLAGS: the four switches for the launch block are on', () => {
-  for (const k of ['opsTools', 'accountTools', 'inviteSignup', 'filmRequests']) assert.equal(cfg[k], true, k);
+test('LAUNCH FLAGS: the five switches for the launch block are on', () => {
+  for (const k of ['opsTools', 'accountTools', 'inviteSignup', 'filmRequests', 'creatorBeta']) assert.equal(cfg[k], true, k);
 });
 
 test('LAUNCH FLAGS: the switches that are not part of the block stay off', () => {

@@ -46,7 +46,7 @@ window.ryagramConfig = Object.freeze({
   opsTools: true,
   // Send creator beta applications (the form on /ryagram/#creators). Turn on only once SQL 20261014000100 is applied and the creator-beta
   // function is deployed (supabase/README.md, "Creator beta"); until then the form tells people to email.
-  creatorBeta: false,
+  creatorBeta: true,
   // Show "Request a film" in /app/ (the creator beta: people ask, Ryan makes each film by hand). Turn on only once SQL 20261016000200 is applied and
   // the credits ledger is live (supabase/README.md, "Creator beta flow").
   filmRequests: true,

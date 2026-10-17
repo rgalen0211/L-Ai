@@ -228,8 +228,8 @@ test('FORM: the function’s 422/429 sentence is shown; any other failure or a d
   assert.equal(drop.button.disabled, false);
 });
 
-test('FORM: creatorBeta ships OFF in the config (Ryan switches it on after the SQL and the function are live)', () => {
-  assert.match(read('assets/ryagram-config.js'), /creatorBeta: false,/);
+test('FORM: creatorBeta is ON in the config (launch block: SQL applied, function deployed, Terms and Privacy published)', () => {
+  assert.match(read('assets/ryagram-config.js'), /creatorBeta: true,/);
 });
 
 // ---- Ryan's Operations section -----------------------------------------------------------------------------------------------------------------------

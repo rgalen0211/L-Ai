@@ -54,6 +54,11 @@ def main():
                 errors = []
                 page.on('pageerror', lambda e: errors.append(str(e)))
                 page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
+                posted = []
+                def fake_function(route):                                  # the function is intercepted: nothing real is ever sent
+                    posted.append(route.request.post_data)
+                    route.fulfill(status=200, content_type='application/json', body='{"ok":true}', headers={'access-control-allow-origin': '*'})
+                page.route('**/functions/v1/creator-beta', fake_function)
                 page.goto(f'{BASE}/ryagram/', wait_until='load')
                 text = page.inner_text('#creators')
                 check('Creator beta' in text, 'the section is on the page')
@@ -80,8 +85,8 @@ def main():
                 page.click('#creator-form button[type=submit]')
                 page.wait_for_timeout(400)
                 msg = page.inner_text('#creator-status')
-                check('open soon' in msg and 'ryagram@uselai.com' in msg, f'switched off: it says to email, not "thanks" ({msg[:60]!r})')
-                check(not sent, 'and nothing was sent')
+                check(msg.startswith('Thanks, we have your application.'), f'switched ON (launch block): it says thanks ({msg[:60]!r})')
+                check(len(posted) == 1 and 'Maya Ortiz' in posted[0] and '"website":""' in posted[0], 'exactly one application went to the (intercepted) function, with the empty honeypot')
                 check(page.evaluate("document.activeElement.id") == 'creator-status', 'the message takes focus (screen readers hear it)')
                 page.screenshot(path=str(OUT / f'creator-{name}-filled.png'))
                 check(not errors, f'no console errors {errors}')
