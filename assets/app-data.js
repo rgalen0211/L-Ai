@@ -337,6 +337,21 @@
       adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
+      // The guided builder (the guided-builder function: ENGINE's compileFilm and the listable catalog). A refusal carries every reason in .errors.
+      async builderCall(body) {
+        const { data, error } = await client.functions.invoke('guided-builder', { body });
+        if (error) {
+          let payload = null;
+          try { payload = await error.context.json(); } catch { payload = null; }
+          const err = new Error(payload?.error || (payload?.errors || []).join(' ') || 'Couldn\u2019t reach the film builder. Try again in a minute.');
+          if (payload?.errors) err.errors = payload.errors;
+          throw err;
+        }
+        return data;
+      },
+      builderCatalog() { return api.builderCall({ action: 'catalog' }); },
+      builderDescribe(id) { return api.builderCall({ action: 'describe', dataset: id }); },
+      builderCompile(request) { return api.builderCall({ action: 'compile', request }); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
       adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
       adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },

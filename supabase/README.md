@@ -620,3 +620,11 @@ Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring
 2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
 3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
 
+## Guided builder: "Make a film step by step" (branch guided-builder, stacked on ENGINE's engine-profiles)
+
+`#/build` (library link "Make a film step by step"; behind `guidedBuilder: false` until the function is deployed): dataset -> measure -> years -> film type -> look -> title -> review, then a project with the compiled story and a FREE contact sheet. Source and licence are shown as soon as a dataset is picked and again on the review; the raw story is behind "Advanced".
+
+- **Server side:** `supabase/functions/guided-builder/` (`builder.ts`, `index.ts`) is the only thing the page talks to: `catalog` (the entries a person may be shown: listable by RULINGS 2026-10-17 AND usable on the installed worker, each with source and licence), `describe` (one dataset: measures, coverage, method changes, full licence; an unlisted dataset is "not available", the same as an unknown one) and `compile` (ENGINE's `compileFilm`, which checks the story against the worker's own schema; every refusal reason comes back at once, HTTP 422). App sessions only: a connected AI's token (client_id) is refused. Deploy: `npx supabase functions deploy guided-builder --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt` (the person's JWT is checked inside; no secrets).
+- **No rules in the page:** assets/ never imports `film.ts` or the catalog; `tests/builder.test.mjs` fails if it does. A refusal's sentence points back at its step ("Fix it"). The look step offers the person's own looks (Your look) when that feature is present.
+- **Not on this page:** no paid render, no price, no per-credit figure; places cannot be subset (the engine says so); the dataset flags `catalog` / `catalogComingSoon` stay off (this page lists nothing to anyone who is not signed in).
+- Tests: `tests/guided-builder.test.mjs` (6), `tests/builder.test.mjs` (9), real Chrome `tools/check-builder.py`.

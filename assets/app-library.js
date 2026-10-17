@@ -50,6 +50,8 @@
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
+  const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
@@ -70,6 +72,7 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
@@ -149,6 +152,10 @@
       try { await work(); } finally { button.disabled = false; button.textContent = was; }
     }
 
+    // The guided builder (assets/app-builder.js): built once, with this page's helpers.
+    let builderCache = null;
+    const builderUi = () => builderCache || (builderCache = window.ryagramBuilder.create({ h, data, busy, showError, errorLine, date }));
+
     // --- #/  all projects
     async function libraryView() {
       const projects = await data.listProjects();
@@ -184,8 +191,9 @@
       const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
+      const buildLink = builderOn() ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, requestLink, adminLinks, form, list, help];
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, buildLink, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
