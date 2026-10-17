@@ -2,9 +2,10 @@
 //
 //   compileFilm({ dataset, film_type, title, measure?, years?, subtitle?, look? })  ->  { story, report }
 //
-// SERVER ONLY, for Ryagram's AI and CONNECT's connect_* wrappers. There is no dataset picker or browse list for
-// users (Ryan, 2026-10-04): searchCatalog and describeDataset exist for the server-side caller, and nothing in
-// assets/ may import this file (tests/film-compile.test.mjs checks).
+// SERVER ONLY, for Ryagram's AI and CONNECT's connect_* wrappers: searchCatalog and describeDataset serve the
+// server-side caller, and nothing in assets/ may import this file (tests/film-compile.test.mjs checks). RULINGS
+// 2026-10-17 lets the guided builder list datasets to signed-in, invited users with source and licence shown; that
+// listing is WEB's front end and is built on the public catalog, not on this module.
 //
 // What it does, in order, refusing with EVERY reason it finds rather than the first:
 //   1. the request has a closed set of keys, each bounded;
