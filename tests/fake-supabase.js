@@ -684,6 +684,12 @@
           return { error: null };
         },
         async resetPasswordForEmail(email, options) { log.push({ reset: email, options }); return { data: {}, error: null }; },
+        async setSession({ access_token }) {
+          if (!access_token || !access_token.includes('.')) return { error: { message: 'Invalid session' } };
+          session = { user: { id: 'u-ryan', email: 'maya@example.com' } };
+          for (const cb of authListeners) cb('SIGNED_IN', session);
+          return { data: { session }, error: null };
+        },
         async verifyOtp({ token_hash, type }) {
           const ok = (type === 'recovery' && token_hash === 'mock-reset-token') || (type === 'invite' && token_hash === 'mock-invite-token')
             || (['signup', 'magiclink', 'email_change', 'email'].includes(type) && token_hash === `mock-${type}-token`);

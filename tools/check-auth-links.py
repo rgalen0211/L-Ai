@@ -87,6 +87,17 @@ def main():
                 page.wait_for_selector('#auth-expired:not([hidden])', timeout=20000)
                 check(page.url.endswith('/app/#/') or '/app/' in page.url, f'the root forwarded to the app ({page.url})')
                 check('error' not in page.url, 'and the error text is not left in the address')
+                # 3b. a session fragment (a link Supabase already verified) signs nobody in from the address bar: the button names the account first
+                import base64, json
+                payload = base64.urlsafe_b64encode(json.dumps({'email': 'maya@example.com', 'sub': 'x'}).encode()).decode().rstrip('=')
+                page.goto(f'{BASE}/app/?mock#access_token=eyJhbGciOiJIUzI1NiJ9.{payload}.c2lnbmF0dXJl&refresh_token=REFRESHtoken_0123456789&type=magiclink', wait_until='load')
+                page.wait_for_selector('#auth-link:not([hidden])', timeout=20000)
+                check('Continue as maya@example.com' in page.inner_text('#auth-link-go'), 'a session link shows "Continue as <email>"')
+                check(page.locator('#library').is_hidden() and page.evaluate('location.hash') == '#/', 'nobody is signed in yet, and the tokens left the address')
+                page.screenshot(path=str(OUT / f'session-{name}.png'))
+                page.click('#auth-link-go')
+                page.wait_for_selector('#library:not([hidden])', timeout=10000)
+                check(True, 'pressing it signs in')
                 # 4. the sign-in page offers Forgot your password
                 page.goto(f'{BASE}/app/?mock', wait_until='load')
                 page.evaluate("document.getElementById('sign-out') && document.getElementById('sign-out').click()")
