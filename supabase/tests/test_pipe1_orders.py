@@ -37,20 +37,11 @@ def setUpModule():
     credits.setUpModule()
 
 
-def regrant_upload_policies(db):
-    """The harness applies phase-2b/credits_ledger.sql AFTER every migration, and its 'revoke execute on all functions in
-    schema ryagram_private' also takes away 20261004000200's grants that the storage upload policy calls -- so a worker
-    upload fails here. Put them back as that migration left them (the live order of application is CC1's to confirm)."""
-    db.as_(None).c.execute("grant execute on function ryagram_private.upload_slot_ok(text), "
-                           "ryagram_private.worker_may_read_upload(text) to authenticated")
-
-
 class Orders(unittest.TestCase):
     tearDown = credits.Ledger.tearDown
 
     def setUp(self):
         credits.Ledger.setUp(self)
-        regrant_upload_policies(self.db)
         self.admin("update ops_settings set auto_render = false returning 1")     # the live default (the shared template turns it on)
     admin, denied, grant = credits.Ledger.admin, credits.Ledger.denied, credits.Ledger.grant
 
@@ -456,7 +447,6 @@ class MustFail(unittest.TestCase):
                               "('test_standard', 'standard', 'test'), ('test_path', 'path', 'test'), ('test_flows', 'flows', 'test')")
                 t = Orders(scenario)
                 t.db = core.Db(credits._server.get_uri(database=db))
-                regrant_upload_policies(t.db)
                 t.db.as_(None).c.execute("update ops_settings set auto_render = false")
                 caught = None
                 try:
