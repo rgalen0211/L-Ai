@@ -22,7 +22,7 @@ test('every template: Ryagram name, one short reason, a visible button AND the f
     assert.match(html, /You(?:'|’)re getting this because/, name);                                 // why they got it
     assert.equal((html.match(/You(?:'|’)re getting this because/g) || []).length, 1, name);
     assert.match(html, /<a href="[^"]+" style="display:inline-block;background:#1b6f63[^>]*>[^<]+<\/a>/, name);   // a button
-    const hrefs = html.match(/<a href="([^"]+auth\/confirm[^"]+)"/g) || [];
+    const hrefs = html.match(/<a href="([^"]+auth\?token_hash[^"]+)"/g) || [];
     assert.equal(hrefs.length, 1, name);
     assert.ok(html.split(hrefs[0].slice(9, -1)).length === 3, name + ': the same link is also printed in full');     // button + plain text = 2 occurrences
     assert.match(html, /Ryagram is operated by L'Ai, LLC\./, name);
@@ -33,15 +33,15 @@ test('every template: Ryagram name, one short reason, a visible button AND the f
   }
 });
 
-test('every link goes through our own domain to the app route with the right type: {{ .SiteURL }}/app/#/auth/confirm?token_hash={{ .TokenHash }}&type=<type>', () => {
+test('every link goes through our own domain to the app route with the right type: {{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=<type>', () => {
   for (const [name, type] of Object.entries(TEMPLATES)) {
     const html = read(name + '.html');
-    const links = html.match(/\{\{ \.SiteURL \}\}\/app\/#\/auth\/confirm\?token_hash=\{\{ \.TokenHash \}\}&amp;type=[a-z_]+/g);
+    const links = html.match(/\{\{ \.SiteURL \}\}\/app\/#\/auth\?token_hash=\{\{ \.TokenHash \}\}&amp;type=[a-z_]+/g);
     assert.equal(links.length, 2, name);
     for (const l of links) assert.ok(l.endsWith('type=' + type), `${name}: ${l}`);
     assert.doesNotMatch(html, /ConfirmationURL|\.RedirectTo/, name);                                               // not the supabase.co link
     const text = read(name + '.txt');
-    assert.equal((text.match(/\{\{ \.SiteURL \}\}\/app\/#\/auth\/confirm\?token_hash=\{\{ \.TokenHash \}\}&type=[a-z_]+/g) || []).length, 1, name);
+    assert.equal((text.match(/\{\{ \.SiteURL \}\}\/app\/#\/auth\?token_hash=\{\{ \.TokenHash \}\}&type=[a-z_]+/g) || []).length, 1, name);
     assert.ok(text.includes(`&type=${type}\n`), name);
     for (const v of (html + text).match(/\{\{[^}]*\}\}/g)) assert.match(v, /^\{\{ \.(SiteURL|TokenHash|Email|NewEmail) \}\}$/, `${name}: ${v}`);
   }
@@ -67,5 +67,5 @@ test('the plain-text part says the same as the HTML part: same reason, button wo
 test('the app understands every type the templates send (end to end in the auth harness lives in app-auth.test.cjs)', () => {
   const auth = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app-auth.js'), 'utf8');
   for (const type of Object.values(TEMPLATES)) assert.ok(auth.includes(`'${type}'`), type);
-  assert.match(auth, /#\\\/auth\\\/confirm/);
+  assert.match(auth, /#\/auth\?token_hash=<hash>/);
 });

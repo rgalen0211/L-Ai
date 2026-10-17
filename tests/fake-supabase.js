@@ -395,6 +395,13 @@
         c.status = 'approved';
         return { data: 'RYA-K7M2-9QPX', error: null };
       },
+      admin_invite_person({ p_name, p_credits }) {
+        const n = String(p_name || '').replace(/\s+/g, ' ').trim();
+        if (!n || n.length > 100) return fail('Give the person’s name (up to 100 characters).');
+        if (p_credits != null && (p_credits < 0 || p_credits > 1000)) return fail('Welcome credits must be 0 to 1,000.');
+        db.personInvites = (db.personInvites || 0) + 1;
+        return { data: `RYA-P${db.personInvites}XX-9QPX`, error: null };
+      },
       // Mock: a made-up cost rollup for #/admin/ops, with working limits, plans, rates and typed costs.
       admin_cost_rollup({ p_days }) {
         db.costs = db.costs || { thresholds: [{ id: 1, vendor: 'stripe', period: 'day', limit_usd: 10, warn_pct: 80, enabled: true }], plans: [{ id: 1, vendor: 'supabase', plan: 'Pro', monthly_usd: 25, starts_on: '2026-10-01', ends_on: null, included: { storage_gb: 100 } }],
