@@ -51,6 +51,7 @@ class Orders(unittest.TestCase):
     def setUp(self):
         credits.Ledger.setUp(self)
         regrant_upload_policies(self.db)
+        self.admin("update ops_settings set auto_render = false returning 1")     # the live default (the shared template turns it on)
     admin, denied, grant = credits.Ledger.admin, credits.Ledger.denied, credits.Ledger.grant
 
     # ---------------------------------------------------------------- helpers
@@ -106,7 +107,9 @@ class Orders(unittest.TestCase):
                              f"{job} {state}: a release exactly when it did not complete")
             if caps:
                 captured += quoted
-        self.assertEqual(GRANT - self.available(who), captured, "balance change = captured quotes")
+            elif quoted > 0 and state not in ("complete", "failed", "cancelled", "editorial_action_required"):
+                captured += quoted                   # still held (waiting or running): out of the balance until settled
+        self.assertEqual(GRANT - self.available(who), captured, "balance change = captured + still-held quotes")
 
     # ---------------------------------------------------------------- scenarios (also run on the MUST-FAIL databases)
     def scenario_full_run_twice(self):
@@ -196,6 +199,34 @@ class Orders(unittest.TestCase):
         self.assertEqual(self.order_row(oid), ("failed", "crash"))
         self.assertEqual(self.available(), GRANT)
         self.assert_ledger_rules()
+
+    def scenario_direct_final_refused_while_auto_off(self):
+        """CC1 review of d27146e (HIGH): with auto_render OFF the app's direct path (public.submit_job final_render) is REFUSED
+        -- nothing queued, nothing held; request_final_render puts it in Ryan's queue, held. With auto_render ON it works."""
+        self.make_ryan_admin()
+        self.grant(GRANT, who=OTHER)
+        vid = credits.Ledger.version(self, "map", who=OTHER)
+        sheet = credits.Ledger.submit(self, vid, "contact_sheet", who=OTHER)
+        self.work(self.claim(), ["contact_sheet"])
+        prev = credits.Ledger.submit(self, vid, "preview", who=OTHER)
+        self.work(self.claim(), ["preview"])
+        jobs = self.admin("select count(*) from jobs")
+        with self.assertRaises(psycopg.Error) as e:
+            credits.Ledger.submit(self, vid, "final_render", sheet, prev, who=OTHER)
+        self.assertIn("request_final_render", str(e.exception))
+        self.assertEqual(self.admin("select count(*) from jobs"), jobs, "nothing queued by the direct path")
+        self.assertIsNone(self.claim())
+        self.assertEqual(self.available(), GRANT, "nothing held by the direct path")
+        oid = self.db.as_(OTHER).one("select id from request_final_render(%s, 'film-dirc-0001')", prev)
+        self.assertEqual(self.order_row(oid), ("awaiting_approval", None))
+        self.assertEqual(self.available(), GRANT - MAP_PRICE)
+        # a second final for the same version, by the direct path with auto ON, is refused while one waits
+        self.admin("update ops_settings set auto_render = true returning 1")
+        self.denied(OTHER, "select id from submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.assert_ledger_rules()
+
+    def test_direct_final_refused_while_auto_off(self):
+        self.scenario_direct_final_refused_while_auto_off()
 
     # ---------------------------------------------------------------- the scenarios as tests
     def test_full_run_twice(self):
@@ -387,6 +418,9 @@ MUTANTS = {
     "hold_at_queue_removed": (credits.LEDGER, [
         ("  if coalesce(need, 0) = 0 then\n    return null;\n  end if;",
          "  if coalesce(need, 0) = 0 or new.state = 'awaiting_approval' then\n    return null;\n  end if;")], "scenario_full_run_twice"),
+    "direct_final_skips_the_queue": (MIGRATION, [
+        ("  if p_job_type = 'final_render' and not (select auto_render from public.ops_settings where id) then",
+         "  if false then")], "scenario_direct_final_refused_while_auto_off"),
     "expiry_skipped": (MIGRATION, [
         ("awaiting_since < now() - make_interval(days => n_days)", "awaiting_since < now() - make_interval(days => n_days) and false")],
         "scenario_expiry_releases"),
@@ -423,6 +457,7 @@ class MustFail(unittest.TestCase):
                 t = Orders(scenario)
                 t.db = core.Db(credits._server.get_uri(database=db))
                 regrant_upload_policies(t.db)
+                t.db.as_(None).c.execute("update ops_settings set auto_render = false")
                 caught = None
                 try:
                     getattr(t, scenario)()

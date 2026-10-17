@@ -45,6 +45,9 @@ def setUpModule():
         c.execute("insert into auth.users (id, email) values (%s,'ryan@x'),(%s,'other@x'),(%s,'worker@x'),(%s,'worker2@x')",
                   (RYAN, OTHER, WORKER, WORKER2))
         c.execute("insert into public.workers (user_id, name) values (%s, 'ryan-pc'), (%s, 'spare')", (WORKER, WORKER2))
+        # PIPE-1: these suites test the 2A/2B mechanics, written before render orders, where a final is claimable at once --
+        # the auto_render ON behaviour. test_pipe1_orders.py sets it OFF (the live default) and covers Ryan's queue.
+        c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")   # and no daily cap
         c.execute("insert into public.credit_dataset_shapes (dataset, shape, noted_by) values "
                   "('test_standard', 'standard', 'test'), ('test_path', 'path', 'test'), ('test_flows', 'flows', 'test')")
 

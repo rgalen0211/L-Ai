@@ -57,7 +57,7 @@ create table public.render_stages (
   stage public.render_stage not null,
   idempotency_key text not null,                  -- '<order key>:<stage>'
   state public.stage_state not null default 'waiting',
-  job_id uuid unique references public.jobs (id) on delete restrict,
+  job_id uuid references public.jobs (id) on delete restrict,   -- one job per stage; see the index below
   credits_quoted int not null default 0 check (credits_quoted >= 0),
   awaiting_since timestamptz,
   admin_decided_by uuid, admin_decided_at timestamptz,
@@ -67,6 +67,11 @@ create table public.render_stages (
   unique (order_id, stage), unique (owner_id, idempotency_key)
 );
 create index render_stages_waiting_idx on public.render_stages (awaiting_since) where state = 'awaiting_approval';
+-- A job belongs to ONE order's own stage. An order made from an existing finished sheet and preview (request_final) only
+-- REFERS to them ('<key>:<stage>:adopted'), so a new request may adopt the same preview after a failed, declined or
+-- expired one (the app could always retry a failed final). CC1 review of d27146e.
+create unique index render_stages_job_once on public.render_stages (job_id)
+  where job_id is not null and idempotency_key not like '%:adopted';
 
 create table public.render_deliveries (
   id uuid primary key default gen_random_uuid(),
@@ -262,6 +267,9 @@ begin
   return result;
 end $$;
 
+-- The app's direct path (CC1 review of d27146e, HIGH): while auto_render is OFF a full render is REFUSED here, so the
+-- app's Render button can't skip Ryan's queue; it calls request_final_render, which queues the render for his approval
+-- with its credits held. With auto_render ON the direct path works as before. Every paid job checks the daily cap.
 create or replace function public.submit_job(
   p_version_id uuid,
   p_job_type public.job_type,
@@ -270,9 +278,20 @@ create or replace function public.submit_job(
   p_preview_job_id uuid default null)
 returns public.jobs
 language plpgsql security definer set search_path = '' as $$
+declare
+  me uuid := ryagram_private.require_signed_in();
+  j public.jobs;
 begin
-  return ryagram_private.submit_job_for(ryagram_private.require_signed_in(), p_version_id, p_job_type, p_params,
-                                        p_sheet_job_id, p_preview_job_id);
+  if p_job_type = 'final_render' and not (select auto_render from public.ops_settings where id) then
+    raise exception 'Full renders are approved before they start: use request_final_render, which queues this one for approval with its credits held.'
+      using errcode = '42501';
+  end if;
+  j := ryagram_private.submit_job_for(me, p_version_id, p_job_type, p_params, p_sheet_job_id, p_preview_job_id);
+  if coalesce((to_jsonb(j) ->> 'credits_quoted')::int, 0) > 0
+     and ryagram_private.credits_last_24h(me) > ryagram_private.daily_cap(me) then
+    raise exception 'daily_cap: you have reached today''s credit limit. Try again tomorrow.' using errcode = 'PTCAP';
+  end if;
+  return j;
 end $$;
 
 create or replace function public.cancel_job(p_job_id uuid)
@@ -821,12 +840,13 @@ begin
   if not found then
     raise exception 'That preview is not yours, or not finished.' using errcode = '22023';
   end if;
-  if exists (select 1 from public.render_stages where job_id = p.id) then
-    raise exception 'That preview already has a full-render request. Make a new preview to ask again.' using errcode = '42501';
+  if exists (select 1 from public.render_stages rs join public.render_orders r on r.id = rs.order_id
+             where rs.job_id = p.id and rs.stage = 'preview' and r.state in ('running', 'awaiting_approval', 'delivered')) then
+    raise exception 'That preview already has a full-render request waiting, running or delivered.' using errcode = '42501';
   end if;
   select * into s from public.jobs
     where owner_id = p_owner and version_id = p.version_id and job_type = 'contact_sheet' and state = 'complete'
-      and story_sha256 = p.story_sha256 and not exists (select 1 from public.render_stages r where r.job_id = jobs.id)
+      and story_sha256 = p.story_sha256
     order by ended_at desc nulls last limit 1;
   if not found then
     raise exception 'That preview has no finished contact sheet for the same story.' using errcode = '22023';
