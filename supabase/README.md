@@ -620,3 +620,13 @@ Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring
 2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
 3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
 
+## Your look: the profile editor (branch profile-editor, stacked on ENGINE's engine-profiles)
+
+`#/looks` (account page > Your look; behind `lookEditor: false` until `20261017000300_engine_profiles.sql` is applied and `engine-profiles` is merged): a person picks a preset, tweaks a look, sees an approximate **quick look** and a real **sample sheet**, and saves it as their default. Spec: ENGINE's `proposals/ENGINE-WEB-PROFILE-EDITOR-SPEC.md`.
+
+- **The rules are the engine's, not ours.** `assets/profile-core.js` is generated from `_shared/profile.ts` + `profile_data.ts` by `node tools/make-profile-core.mjs` (types stripped, same code); `tests/profile-core.test.mjs` fails if the committed file is not what the generator builds and replays the engine's fixtures through it. After ENGINE regenerates its files, re-run the generator and commit. The database's `set_engine_profile()` is the backstop; the server's answer counts.
+- **Saving:** `data.saveLook` calls `set_engine_profile(spec, makeDefault)`; reads and deletes are RLS on `engine_profiles`. Errors from the database are shown verbatim.
+- **Sample sheet:** a free `contact_sheet` job on the person's own project **Profile preview (sample)** (created on first use, reused after), with the engine's sample story (`applyProfile(look, SAMPLE_STORY)`) and `SAMPLE_PERIODS`; never a final render. It shows the look the person had when they pressed the button; the button is off while a sheet for the same look text (a hash) runs. The page says "checks passed" only when the job completed; a failed check shows the engine's own sentence (`ryagramJobs.problem`).
+- **On a film:** a template that builds a film is styled with the default look first ("Using your look: <name>"); **Apply my look** on a version shows the changed look fields in words, then makes a NEW version (never edits in place).
+- **Not built:** the Quick look is a client-side mock labelled approximate; fonts/motion/brand are stored but "not applied yet" (the engine does not use them).
+- Tests: `tests/looks.test.mjs` (a new engine knob with no control fails it), real Chrome `tools/check-looks.py`.

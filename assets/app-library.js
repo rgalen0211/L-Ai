@@ -50,6 +50,8 @@
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  // "Your look" (the profile editor) shows once SQL 20261017000300 is applied (lookEditor: true), or in mock mode.
+  const looksOn = () => window.ryagramConfig?.lookEditor === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
@@ -70,6 +72,9 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
+        else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'clean-light', onStop);
+        else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
@@ -149,6 +154,10 @@
       try { await work(); } finally { button.disabled = false; button.textContent = was; }
     }
 
+    // "Your look" (assets/app-looks.js): built once, with this page's helpers.
+    let looksCache = null;
+    const looksUi = () => looksCache || (looksCache = window.ryagramLooks.create({ h, data, busy, showError, errorLine, date }));
+
     // --- #/  all projects
     async function libraryView() {
       const projects = await data.listProjects();
@@ -184,8 +193,9 @@
       const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
+      const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, requestLink, adminLinks, form, list, help];
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, requestLink, looksLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -520,7 +530,9 @@
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, 'Your account'),
         email ? h('p', { class: 'meta' }, `Signed in as ${email}`) : null,
-        h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm)
+        h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm),
+        looksOn() ? h('section', { class: 'account-section', 'aria-labelledby': 'acct-look' }, h('h2', { id: 'acct-look' }, 'Your look'),
+          h('p', { class: 'form-note' }, 'How your films look and move: colours, shape, pacing. New films start with your default look.'), h('p', {}, h('a', { class: 'button secondary', href: '#/looks' }, 'Edit your look'))) : null
       ];
       if (!accountToolsOn()) return sections;
 
@@ -764,13 +776,17 @@
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
       }) : null;
+      const lookApply = looksOn() && !locked ? await looksUi().applyPanel(project, v, locked, newId => { location.hash = `#/v/${newId}`; }) : null;
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
         if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
+        const styled = looksOn() ? await looksUi().withDefaultLook(built) : { story: built, used: null, warnings: [] };
+        built = styled.story;
         const result = await data.saveStory(v.id, built);
         v.story_spec = built;
         story.value = JSON.stringify(built, null, 2);
-        saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.';
+        saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.'
+          + (styled.used ? ` Using your look: ${styled.used} (change it under Your look).` : '') + (styled.warnings.length ? ` Note: ${styled.warnings.join(' ')}` : '');
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
         return true;
@@ -800,6 +816,7 @@
         sources.el,
         uploads?.el,
         picker,
+        lookApply,
         chat,
         storyForm,
         jobs.el,
