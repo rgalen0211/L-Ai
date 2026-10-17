@@ -21,7 +21,11 @@ unit and role, the geography, known gaps, methodology breaks, the engine's notes
 pinned style for datasets that need one, and the worker's story schema vendored from
 <engine>/ryagram/worker/story.schema.json (its source path and sha256 are in the file header, so drift is
 visible). It is built from the SAME filtered rows as the two outputs above, so it cannot list a dataset they
-do not. Without the flag this script behaves exactly as before. The detail file is never written under
+do not. Without the flag this script behaves as before, except that every dataset declared by the engine's
+ingested loader is excluded by rule (a person's own ingested files and sources are never in a catalog, listable or
+not). With --detail-out the engine is read from its COMMITTED tree (a git archive of HEAD), never the working tree, so
+the same commit gives the same file on any machine and an untracked or ingested file cannot reach a catalog. The
+detail file is never written under
 assets/: it is for server-side callers. (RULINGS 2026-10-17 now lets the guided builder LIST datasets to
 signed-in, invited users with source and licence shown; that listing is WEB's front end and uses the public
 catalog, not this file.)
@@ -155,6 +159,42 @@ def write_seed(path, commit, rows):
     Path(path).write_text('\n'.join(lines) + '\n', encoding='utf-8', newline='\n')
 
 
+def committed_tree(engine):
+    """A temporary export of the engine's committed tree (HEAD), or `engine` itself when it is not a git checkout.
+
+    Untracked and ignored files, and uncommitted edits, are not in a `git archive`, so they cannot reach the catalog.
+    """
+    import io
+    import tarfile
+    import tempfile
+    probe = subprocess.run(['git', '-C', engine, 'rev-parse', '--git-dir'], capture_output=True, text=True)
+    if probe.returncode != 0:
+        return engine
+    tar = subprocess.run(['git', '-C', engine, 'archive', '--format=tar', 'HEAD', 'ryagram'], capture_output=True)
+    if tar.returncode != 0:
+        sys.exit('gen-catalog: could not export the engine commit: ' + tar.stderr.decode('utf-8', 'replace')[:300])
+    out = tempfile.mkdtemp(prefix='gen-catalog-engine-')
+    with tarfile.open(fileobj=io.BytesIO(tar.stdout)) as t:
+        try:
+            t.extractall(out, filter='data')            # no absolute paths, links or device files
+        except TypeError:                                # Python before 3.12 has no filter argument
+            t.extractall(out)
+    return out
+
+
+def ingested_ids():
+    """The ids declared by the engine's INGESTED loader (a person's own ingested files and URL sources).
+
+    They are never in a catalog, listable or not: a search must not be able to show that one exists. In a committed tree
+    there are none (manifests are not tracked), so this is the second guard for a run over a working tree.
+    """
+    try:
+        from ryagram.maprace.datasets import ingested
+    except Exception:                                    # the loader is absent: nothing was ingested
+        return set()
+    return {s.id for s in getattr(ingested, 'DATASETS', [])}
+
+
 def story_measure(m):
     """The worker story's `measure` setting a catalog measure maps to, or None when a story cannot choose it."""
     return {'banded': 'rate', 'counted': 'count'}.get(m.get('role') or '')
@@ -250,10 +290,18 @@ def main():
     ap.add_argument('--detail-out', default='', help='also write the server-only detail (see the header)')
     ap.add_argument('--commit', default='', help="the engine commit (an exported tree has no .git)")
     a = ap.parse_args()
-    sys.path.insert(0, a.engine)
-    from ryagram.maprace import datasets as D            # the engine's own registry
+    engine = a.engine
     commit = a.commit or subprocess.run(['git', '-C', a.engine, 'rev-parse', '--short=12', 'HEAD'],
                                         capture_output=True, text=True).stdout.strip() or 'unknown'
+    if a.detail_out:
+        # THE SAME COMMIT GIVES THE SAME FILE ON ANY MACHINE: read the engine from the committed tree, never from the
+        # working tree. A checkout also holds untracked files (an ingested manifest is exactly where a person's own data
+        # lives) and local edits; none of that may reach a catalog. A path that is not a git checkout (an exported tree)
+        # is used as it is.
+        engine = committed_tree(a.engine)
+    sys.path.insert(0, engine)
+    from ryagram.maprace import datasets as D            # the engine's own registry
+    ingested = ingested_ids()
     allow, nxt = read_setup(a.setup)
     # Windows the app already knows are good (tested templates); read from the app's own file.
     tpl = (ROOT / 'assets' / 'app-templates.js').read_text(encoding='utf-8')
@@ -263,7 +311,7 @@ def main():
     seed = []
     detail = []
     for d in D.listing():
-        if EXCLUDE.search(d['id']) or d.get('synthetic') or d.get('shape') not in PUBLIC_SHAPES:
+        if EXCLUDE.search(d['id']) or d['id'] in ingested or d.get('synthetic') or d.get('shape') not in PUBLIC_SHAPES:
             continue
         views = [v for v in d.get('views', []) if v in APP_VIEWS]
         if d.get('entity_kind') == 'plain':
@@ -303,7 +351,7 @@ def main():
     if a.detail_out:
         detail.sort(key=lambda e: (e['group'], e['family'] or '', e['title'].lower()))
         Path(a.detail_out).write_text(
-            detail_text(commit, detail, Path(a.engine) / 'ryagram' / 'worker' / 'story.schema.json'),
+            detail_text(commit, detail, Path(engine) / 'ryagram' / 'worker' / 'story.schema.json'),
             encoding='utf-8', newline='\n')
     counts = {s: sum(1 for e in entries if e['status'] == s) for s in ('usable', 'next', 'later')}
     print(f'{len(entries)} datasets from engine {commit}: {counts}')

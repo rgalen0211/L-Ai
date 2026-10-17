@@ -51,11 +51,17 @@ export function slug(text: string): string {
   return s || "ryagram-film";
 }
 
-const byId = (cat: Json[]) => new Map(cat.map((e) => [e.id as string, e]));
+/** Who is asking. A caller acting for a PERSON (CONNECT, the guided builder, Ryagram's AI) sees only entries that may be
+ *  listed (RULINGS 2026-10-17): a personal, local, ingested or non-public-licence dataset is not merely hidden from a
+ *  list, it does not exist to that caller (search, describe and compile all answer "not in the catalog"). 'system' is for
+ *  internal tooling and tests and must be asked for by name. The default is the safe one. */
+export type Audience = "person" | "system";
+const visible = (e: Json, audience: Audience = "person") => audience === "system" || e.listable === true;
+const byId = (cat: Json[], audience: Audience = "person") => new Map(cat.filter((e) => visible(e, audience)).map((e) => [e.id as string, e]));
 
 /** What a server-side caller can say about a dataset. Not a user-facing list. */
-export function describeDataset(id: string, catalog: Json[] = CATALOG): Json | null {
-  const e = byId(catalog).get(id);
+export function describeDataset(id: string, opts: { audience?: Audience } = {}, catalog: Json[] = CATALOG): Json | null {
+  const e = byId(catalog, opts.audience).get(id);
   if (!e) return null;
   return {
     id: e.id, title: e.title, status: e.status, listable: e.listable, publisher: e.publisher, url: e.url, licence_short: e.licence_short,
@@ -66,14 +72,14 @@ export function describeDataset(id: string, catalog: Json[] = CATALOG): Json | n
   };
 }
 
-/** Datasets whose id, title or measure contains every word of the query; usable ones first. `listableOnly` keeps to
- *  the entries RULINGS 2026-10-17 lets a person see (see catalog_rules.ts). */
-export function searchCatalog(query: string, opts: { usableOnly?: boolean; listableOnly?: boolean; limit?: number } = {}, catalog: Json[] = CATALOG): Json[] {
+/** Datasets whose id, title or measure contains every word of the query; usable ones first. For a person (the default)
+ *  only entries RULINGS 2026-10-17 lets them see (catalog_rules.ts). */
+export function searchCatalog(query: string, opts: { usableOnly?: boolean; limit?: number; audience?: Audience } = {}, catalog: Json[] = CATALOG): Json[] {
   const words = String(query ?? "").toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
   const rank = { usable: 0, next: 1, later: 2 } as Record<string, number>;
   return catalog
     .filter((e) => (!opts.usableOnly || e.status === "usable"))
-    .filter((e) => (!opts.listableOnly || e.listable === true))
+    .filter((e) => visible(e, opts.audience))
     .filter((e) => {
       const hay = `${e.id} ${e.title} ${e.measures.map((m: Json) => m.label).join(" ")} ${e.topic}`.toLowerCase();
       return words.every((w) => hay.includes(w));
@@ -149,7 +155,7 @@ export type FilmReport = {
   look: { applied: boolean; changed: string[]; not_applied: string[] };
 };
 
-export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json } = {}): { story: Json; report: FilmReport } {
+export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json; audience?: Audience } = {}): { story: Json; report: FilmReport } {
   const catalog = opts.catalog ?? CATALOG, schema = opts.storySchema ?? STORY_SCHEMA;
   const errs: string[] = [];
   if (req === null || typeof req !== "object" || Array.isArray(req)) throw new FilmError(["the request must be an object"]);
@@ -170,7 +176,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   const subtitle = text("subtitle", 320, false);
 
   // ---- dataset and film type
-  const entry = typeof req.dataset === "string" ? byId(catalog).get(req.dataset) : undefined;
+  const entry = typeof req.dataset === "string" ? byId(catalog, opts.audience).get(req.dataset) : undefined;
   if (typeof req.dataset !== "string" || !req.dataset) errs.push("dataset: required (an id from the catalog)");
   else if (!entry) errs.push(`dataset: '${String(req.dataset).slice(0, 64)}' is not in the catalog; use searchCatalog`);
   else if (entry.status !== "usable") {

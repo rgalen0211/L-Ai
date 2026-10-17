@@ -265,31 +265,100 @@ test('the worker\'s own validate_story accepts every story this function returns
   assert.match(r.stdout, /checked \d+ refused 0/);
 });
 
+// The engine checkout may hold untracked files (an ingested manifest is where a person's own data lives) and CRLF is
+// what a normal Windows checkout makes of LF text. Both are handled: the test exports the COMMIT, and compares text
+// with line endings normalised.
+const lf = buf => Buffer.from(buf.toString('utf8').replace(/\r\n/g, '\n'), 'utf8');
+function exportCommit(dest) {
+  fs.mkdirSync(dest, { recursive: true });
+  const tf = path.join(dest, 'engine.tar');
+  const tar = spawnSync('git', ['-C', ENGINE, 'archive', '--format=tar', '-o', tf, 'HEAD', 'ryagram'], { encoding: 'utf8' });
+  assert.equal(tar.status, 0, String(tar.stderr));
+  // Python's tarfile, not a system tar: a Windows path such as C:/x is read by GNU tar as a remote host.
+  const code = ['import sys,tarfile', 't=tarfile.open(sys.argv[1])', 'try:', '    t.extractall(sys.argv[2], filter="data")',
+    'except TypeError:', '    t.extractall(sys.argv[2])'].join(String.fromCharCode(10));
+  const x = run(python, ['-I', '-c', code, tf, dest]);
+  assert.equal(x.status, 0, x.stderr);
+  fs.rmSync(tf);
+  return dest;
+}
+
 test('the committed catalog_data.ts equals a fresh regeneration; the public outputs are byte-identical to the previous script',
   { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-'));
+  const tree = exportCommit(path.join(tmp, 'engine'));          // the same commit, whatever the checkout holds
+  const commit = run('git', ['-C', ENGINE, 'rev-parse', '--short=12', 'HEAD']).stdout.trim();
   const mk = name => { for (const d of ['tools', 'assets', 'supabase']) fs.mkdirSync(path.join(tmp, name, d), { recursive: true });
     fs.copyFileSync(path.join(root, 'assets', 'app-templates.js'), path.join(tmp, name, 'assets', 'app-templates.js')); return path.join(tmp, name); };
   const A = mk('A'), B = mk('B');
-  // The previous script (origin/main's) must write the same two public files as this one does without the flag.
-  const prev = run('git', ['-C', root, 'show', 'origin/main:tools/gen-catalog.py']);
   fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(A, 'tools', 'gen-catalog.py'));
   fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(B, 'tools', 'gen-catalog.py'));
-  const args = (dir, extra) => [path.join(dir, 'tools', 'gen-catalog.py'), '--engine', ENGINE, '--setup', SETUP, '--commit', CATALOG_ENGINE, '--out', path.join(dir, 'assets', 'app-catalog-data.js'), ...extra];
+  const args = (dir, extra) => [path.join(dir, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--commit', commit, '--out', path.join(dir, 'assets', 'app-catalog-data.js'), ...extra];
   assert.equal(run(python, args(A, [])).status, 0);
   assert.equal(run(python, args(B, ['--detail-out', path.join(B, 'catalog_data.ts')])).status, 0);
-  assert.ok(fs.readFileSync(path.join(A, 'assets', 'app-catalog-data.js')).equals(fs.readFileSync(path.join(B, 'assets', 'app-catalog-data.js'))), 'public catalog differs with the flag');
-  assert.ok(fs.readFileSync(path.join(A, 'supabase', 'catalog_sources_seed.sql')).equals(fs.readFileSync(path.join(B, 'supabase', 'catalog_sources_seed.sql'))), 'seed differs with the flag');
-  const committed = fs.readFileSync(path.join(root, 'supabase', 'functions', '_shared', 'catalog_data.ts'));
-  assert.ok(committed.equals(fs.readFileSync(path.join(B, 'catalog_data.ts'))), 'catalog_data.ts is stale: regenerate it with tools/gen-catalog.py --detail-out');
+  assert.ok(lf(fs.readFileSync(path.join(A, 'assets', 'app-catalog-data.js'))).equals(lf(fs.readFileSync(path.join(B, 'assets', 'app-catalog-data.js')))), 'public catalog differs with the flag');
+  assert.ok(lf(fs.readFileSync(path.join(A, 'supabase', 'catalog_sources_seed.sql'))).equals(lf(fs.readFileSync(path.join(B, 'supabase', 'catalog_sources_seed.sql')))), 'seed differs with the flag');
+  const committed = lf(fs.readFileSync(path.join(root, 'supabase', 'functions', '_shared', 'catalog_data.ts')));
+  assert.ok(committed.equals(lf(fs.readFileSync(path.join(B, 'catalog_data.ts')))), 'catalog_data.ts is stale: regenerate it with tools/gen-catalog.py --detail-out');
+  // the previous script (origin/main's) writes the same two public files as this one without the flag
+  const prev = run('git', ['-C', root, 'show', 'origin/main:tools/gen-catalog.py']);
   if (prev.status === 0 && !/--detail-out/.test(prev.stdout)) {
     const P = mk('P');
     fs.writeFileSync(path.join(P, 'tools', 'gen-catalog.py'), prev.stdout);
     assert.equal(run(python, args(P, [])).status, 0);
-    assert.ok(fs.readFileSync(path.join(P, 'assets', 'app-catalog-data.js')).equals(fs.readFileSync(path.join(A, 'assets', 'app-catalog-data.js'))), 'public catalog differs from the previous script');
-    assert.ok(fs.readFileSync(path.join(P, 'supabase', 'catalog_sources_seed.sql')).equals(fs.readFileSync(path.join(A, 'supabase', 'catalog_sources_seed.sql'))), 'seed differs from the previous script');
+    assert.ok(lf(fs.readFileSync(path.join(P, 'assets', 'app-catalog-data.js'))).equals(lf(fs.readFileSync(path.join(A, 'assets', 'app-catalog-data.js')))), 'public catalog differs from the previous script');
+    assert.ok(lf(fs.readFileSync(path.join(P, 'supabase', 'catalog_sources_seed.sql'))).equals(lf(fs.readFileSync(path.join(A, 'supabase', 'catalog_sources_seed.sql')))), 'seed differs from the previous script');
   } else {
     console.log('note: origin/main already has --detail-out (or is not available), so the previous-script comparison was not made');
+  }
+  fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('MUST-FAIL: an untracked INGESTED dataset in the engine checkout never reaches a catalog (privacy and determinism)',
+  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, () => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-ing-'));
+  const repo = exportCommit(path.join(tmp, 'checkout'));
+  const git = (...a) => run('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...a]);
+  assert.equal(git('init', '-q').status, 0);
+  assert.equal(git('add', '-A').status, 0);
+  assert.equal(git('commit', '-q', '-m', 'engine').status, 0);
+  // a person's own ingested file: a manifest that is NOT committed
+  const manifests = path.join(repo, 'ryagram', 'maprace', 'datasets', 'ingested', 'manifests');
+  fs.mkdirSync(manifests, { recursive: true });
+  const probe = 'zz_untracked_probe';
+  fs.writeFileSync(path.join(manifests, `${probe}.json`), JSON.stringify({
+    manifest_version: 1, id: probe, label: 'Probe, a persons own file (local)', topic: 'Local', cadence: 'annual', sheet: '',
+    notes: 'untracked ingested probe', saved_at: '2026-10-17T00:00:00+00:00',
+    mapping: { place_index: 0, period_index: 1, value_indexes: [2], geography: 'us_states', entity_kind: 'geographic', cadence: 'annual',
+      melt_wide: false, wide_prefix: '', measure_names: { 2: 'Spend' }, banded_index: 2, counted_index: null },
+    source: { kind: 'local', origin: 'probe.csv', format: 'csv', retrieved: '2026-10-17', size: 1, local: true }, file: 'samples/probe.csv',
+    provenance: { local: true, file_name: 'probe.csv', publisher: '', license: 'Public domain', source_line: 'Source: local file', retrieved: '2026-10-17',
+      match_rate: null, mapping: { place_column: 'a', period_column: 'b', value_column: 'c', geography: 'us_states', melted_wide: false }, rows_in: 1, rows_used: 1 },
+    measures: [{ id: 'amount', label: 'Spend', unit: 'USD', role: 'banded' }] }));
+  // CONTROL: the probe is real. The engine, imported from the working tree, lists it.
+  const listing = 'import sys,json\nsys.path.insert(0, sys.argv[1])\nfrom ryagram.maprace import datasets as D\nprint(json.dumps([d["id"] for d in D.listing()]))';
+  const ids = run(python, ['-I', '-c', listing, repo]);
+  assert.equal(ids.status, 0, ids.stderr);
+  assert.ok(JSON.parse(ids.stdout).includes(probe), 'control: the untracked manifest must be visible to the engine for this test to mean anything');
+  const gen = (extra, outDir) => {
+    for (const d of ['assets', 'supabase', 'tools']) fs.mkdirSync(path.join(outDir, d), { recursive: true });
+    fs.copyFileSync(path.join(root, 'assets', 'app-templates.js'), path.join(outDir, 'assets', 'app-templates.js'));
+    fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(outDir, 'tools', 'gen-catalog.py'));
+    return run(python, [path.join(outDir, 'tools', 'gen-catalog.py'), '--engine', repo, '--setup', SETUP, '--out', path.join(outDir, 'assets', 'app-catalog-data.js'), ...extra]);
+  };
+  // 1. the detail run reads the COMMIT: the probe is absent from every output
+  const d1 = path.join(tmp, 'detail');
+  const r1 = gen(['--detail-out', path.join(d1, 'catalog_data.ts')], d1);
+  assert.equal(r1.status, 0, r1.stderr);
+  for (const f of [path.join(d1, 'catalog_data.ts'), path.join(d1, 'assets', 'app-catalog-data.js'), path.join(d1, 'supabase', 'catalog_sources_seed.sql')]) {
+    assert.ok(!fs.readFileSync(f, 'utf8').includes(probe), `${f} contains the untracked ingested dataset`);
+  }
+  // 2. even a run over the WORKING tree (no detail flag) excludes it, by the ingested rule
+  const d2 = path.join(tmp, 'plain');
+  const r2 = gen([], d2);
+  assert.equal(r2.status, 0, r2.stderr);
+  for (const f of [path.join(d2, 'assets', 'app-catalog-data.js'), path.join(d2, 'supabase', 'catalog_sources_seed.sql')]) {
+    assert.ok(!fs.readFileSync(f, 'utf8').includes(probe), `${f} contains the ingested dataset (working-tree run)`);
   }
   fs.rmSync(tmp, { recursive: true, force: true });
 });
@@ -307,7 +376,7 @@ test('every catalog entry carries a listable flag that the rule re-derives, and 
   const listed = CATALOG.filter(e => e.listable);
   assert.ok(listed.length >= 20, `only ${listed.length} listable`);
   assert.ok(listableEntries({ usableOnly: true }).every(e => e.status === 'usable' && e.listable));
-  assert.ok(searchCatalog('', { listableOnly: true, limit: 25 }).every(h => CATALOG.find(e => e.id === h.id).listable));
+  assert.ok(searchCatalog('', { limit: 25 }).every(h => CATALOG.find(e => e.id === h.id).listable));
 });
 
 test('MUST-FAIL: a personal, synthetic-named or non-public-licence entry marked listable is caught, whichever way the flag is wrong', () => {
@@ -337,4 +406,26 @@ test('MUST-FAIL: a personal, synthetic-named or non-public-licence entry marked 
   for (const lic of ['U.S. Government work, public domain', 'Public domain (17 USC 105), U.S. Census Bureau', 'CC BY 4.0', 'CC0 1.0']) {
     assert.equal(classifyListable({ id: 'x', licence: lic })[0], true, lic);
   }
+});
+
+function refused2(req, catalog) { try { compileFilm(req, { catalog }); return null; } catch (e) { assert.ok(e instanceof FilmError); return e.errors; } }
+
+test('MUST-FAIL: a caller acting for a person never sees a non-listable entry, by search, describe or compile; the system audience must ask by name', () => {
+  const base = plain(CATALOG.find(e => e.listable && e.status === 'usable'));
+  const hidden = { ...base, id: 'zz_hidden_probe', title: 'Hidden probe dataset', listable: false, listable_why: 'personal' };
+  const cat = [...CATALOG, hidden];
+  assert.deepEqual(searchCatalog('hidden probe', {}, cat), [], 'search must not reveal it');
+  assert.deepEqual(searchCatalog('zz_hidden_probe', { usableOnly: true, limit: 25 }, cat), []);
+  assert.equal(describeDataset('zz_hidden_probe', {}, cat), null, 'describe must not reveal it');
+  const req = { dataset: 'zz_hidden_probe', film_type: hidden.film_types[0], title: 'x' };
+  const asked = refused2(req, cat);
+  assert.match(asked.join(), /is not in the catalog/);
+  const unknown = refused2({ ...req, dataset: 'zz_no_such_dataset' }, cat);
+  assert.deepEqual(asked.map(x => x.replace('zz_hidden_probe', '#')), unknown.map(x => x.replace('zz_no_such_dataset', '#')), 'a hidden dataset answers exactly like an unknown one (no existence leak)');
+  // the system audience, asked for by name, does see it (internal tooling only)
+  assert.equal(searchCatalog('hidden probe', { audience: 'system' }, cat).length, 1);
+  assert.ok(describeDataset('zz_hidden_probe', { audience: 'system' }, cat));
+  // control: a listable entry is visible to a person
+  assert.ok(describeDataset(base.id, {}, cat));
+  assert.ok(searchCatalog(base.title.split(' ')[0], {}, cat).length);
 });
