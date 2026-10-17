@@ -15,6 +15,7 @@ import { CATALOG, STORY_SCHEMA, STORY_SCHEMA_SHA256, CATALOG_ENGINE } from '../s
 import { compileFilm, describeDataset, searchCatalog, FilmError, FILM_TYPES } from '../supabase/functions/_shared/film.ts';
 import { checkAgainst } from '../supabase/functions/_shared/schema_check.ts';
 import { DATASETS } from '../supabase/functions/_shared/templates.ts';
+import { classifyListable, listableEntries, listableProblems } from '../supabase/functions/_shared/catalog_rules.ts';
 import { validateProfile } from '../supabase/functions/_shared/profile.ts';
 import { PRESETS } from '../supabase/functions/_shared/profile_data.ts';
 
@@ -291,4 +292,49 @@ test('the committed catalog_data.ts equals a fresh regeneration; the public outp
     console.log('note: origin/main already has --detail-out (or is not available), so the previous-script comparison was not made');
   }
   fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+// ------------------------------------------------------------------------------------------ who may be listed (RULINGS 2026-10-17)
+
+test('every catalog entry carries a listable flag that the rule re-derives, and every listable entry shows source and licence', () => {
+  assert.deepEqual(listableProblems(), []);
+  for (const e of CATALOG) {
+    assert.equal(typeof e.listable, 'boolean', e.id);
+    assert.ok(e.listable_why, e.id);
+    assert.deepEqual(classifyListable(e), [e.listable, e.listable_why], e.id);
+    if (e.listable) assert.ok(e.publisher && e.licence && e.licence_short, `${e.id} must show a source and a licence`);
+  }
+  const listed = CATALOG.filter(e => e.listable);
+  assert.ok(listed.length >= 20, `only ${listed.length} listable`);
+  assert.ok(listableEntries({ usableOnly: true }).every(e => e.status === 'usable' && e.listable));
+  assert.ok(searchCatalog('', { listableOnly: true, limit: 25 }).every(h => CATALOG.find(e => e.id === h.id).listable));
+});
+
+test('MUST-FAIL: a personal, synthetic-named or non-public-licence entry marked listable is caught, whichever way the flag is wrong', () => {
+  const base = plain(CATALOG.find(e => e.listable && e.status === 'usable'));
+  assert.deepEqual(listableProblems([base]), [], 'control: a public-domain entry marked listable is sound');
+  const bad = {
+    'personal data by id': { id: 'ryan_spending_flows', licence: 'Private' },
+    'personal data by licence word': { licence: 'Personal data, not for sharing' },
+    'a fixture by id': { id: 'example_corp_costs', licence: 'Synthetic' },
+    'non-commercial licence': { licence: 'CC BY-NC 4.0' },
+    'no-derivatives licence': { licence: 'CC BY-ND 4.0' },
+    'all rights reserved': { licence: 'All rights reserved by the publisher' },
+    'an unrecognised licence': { licence: 'Custom terms, ask the publisher' },
+    'an empty licence': { licence: '' },
+  };
+  for (const [name, patch] of Object.entries(bad)) {
+    const e = { ...base, ...patch, listable: true, listable_why: 'public domain' };
+    assert.ok(listableProblems([e]).length, `${name}: marked listable must fail`);
+    assert.deepEqual(listableEntries({}, [e]), [], `${name}: a catalog that fails its rule lists nothing`);
+  }
+  // the other direction: a public-domain entry wrongly marked NOT listable is also a mismatch
+  assert.ok(listableProblems([{ ...base, listable: false, listable_why: 'personal' }]).length);
+  // a listable entry that shows no source or no licence fails rule 5
+  assert.ok(listableProblems([{ ...base, publisher: '' }]).length);
+  assert.ok(listableProblems([{ ...base, licence_short: '' }]).length);
+  // and the rule says yes where it should
+  for (const lic of ['U.S. Government work, public domain', 'Public domain (17 USC 105), U.S. Census Bureau', 'CC BY 4.0', 'CC0 1.0']) {
+    assert.equal(classifyListable({ id: 'x', licence: lic })[0], true, lic);
+  }
 });

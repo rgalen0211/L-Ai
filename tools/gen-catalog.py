@@ -160,9 +160,34 @@ def story_measure(m):
     return {'banded': 'rate', 'counted': 'count'}.get(m.get('role') or '')
 
 
+#: RULINGS 2026-10-17 (Ryan): a dataset may be LISTED to people only if it is not personal and its licence allows
+#: showing derived visuals publicly. The rule is decided here, from the registry's own licence text, and re-derived by
+#: supabase/functions/_shared/catalog_rules.ts (tests compare the two). Unknown or restrictive licences are NOT listable:
+#: the default is no. Terms: public domain, U.S. Government work, 17 USC 105, CC0, or CC BY (any version) with no NC or ND.
+PERSONAL_LICENCE = re.compile(r'\b(private|personal)\b', re.I)
+PUBLIC_LICENCE = re.compile(r'public domain|17 USC 105|U\.S\. Government works?|\bCC0\b|\bCC BY\b', re.I)
+RESTRICTED_LICENCE = re.compile(r'\bCC BY[- ](NC|ND)|non-?commercial|no ?derivatives?|all rights reserved|not for (public|redistribution)', re.I)
+
+
+def listable_of(d):
+    """(listable, why): personal and synthetic data are never listed; otherwise only a recognised open licence is."""
+    lic = re.sub(r'\s+', ' ', d.get('license') or '').strip()
+    if EXCLUDE.search(d['id']) or PERSONAL_LICENCE.search(lic):
+        return False, 'personal'
+    if d.get('synthetic'):
+        return False, 'synthetic'
+    if RESTRICTED_LICENCE.search(lic):
+        return False, 'licence restricts public use'
+    if PUBLIC_LICENCE.search(lic):
+        return True, 'public domain' if re.search(r'public domain|17 USC 105|U\.S\. Government', lic, re.I) else 'open licence'
+    return False, 'licence not recognised'
+
+
 def detail_entry(d, status, window, title, short, family, views):
     ms = d.get('measures') or []
+    listable, why = listable_of(d)
     return {
+        'listable': listable, 'listable_why': why,
         'id': d['id'], 'title': title, 'short': short, 'group': group_of(d), 'family': family, 'status': status,
         'publisher': d.get('source') or '', 'source_line': d.get('source_line') or '',
         'url': d.get('url') if str(d.get('url') or '').startswith('https://') else '',

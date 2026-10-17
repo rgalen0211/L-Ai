@@ -58,7 +58,7 @@ export function describeDataset(id: string, catalog: Json[] = CATALOG): Json | n
   const e = byId(catalog).get(id);
   if (!e) return null;
   return {
-    id: e.id, title: e.title, status: e.status, publisher: e.publisher, url: e.url, licence_short: e.licence_short,
+    id: e.id, title: e.title, status: e.status, listable: e.listable, publisher: e.publisher, url: e.url, licence_short: e.licence_short,
     geography: e.geography, period: e.period, default_window: e.window,
     measures: e.measures.map((m: Json) => ({ id: m.id, label: m.label, unit: m.unit, selectable: m.story_measure !== null })),
     film_types: e.film_types, known_gaps: e.known_gaps, methodology_breaks: e.methodology_breaks,
@@ -66,12 +66,14 @@ export function describeDataset(id: string, catalog: Json[] = CATALOG): Json | n
   };
 }
 
-/** Datasets whose id, title or measure contains every word of the query. Server side only; usable ones first. */
-export function searchCatalog(query: string, opts: { usableOnly?: boolean; limit?: number } = {}, catalog: Json[] = CATALOG): Json[] {
+/** Datasets whose id, title or measure contains every word of the query; usable ones first. `listableOnly` keeps to
+ *  the entries RULINGS 2026-10-17 lets a person see (see catalog_rules.ts). */
+export function searchCatalog(query: string, opts: { usableOnly?: boolean; listableOnly?: boolean; limit?: number } = {}, catalog: Json[] = CATALOG): Json[] {
   const words = String(query ?? "").toLowerCase().split(/\s+/).filter(Boolean).slice(0, 8);
   const rank = { usable: 0, next: 1, later: 2 } as Record<string, number>;
   return catalog
     .filter((e) => (!opts.usableOnly || e.status === "usable"))
+    .filter((e) => (!opts.listableOnly || e.listable === true))
     .filter((e) => {
       const hay = `${e.id} ${e.title} ${e.measures.map((m: Json) => m.label).join(" ")} ${e.topic}`.toLowerCase();
       return words.every((w) => hay.includes(w));
