@@ -153,14 +153,17 @@ function form({ config, fetchImpl, values = {}, website = '' } = {}) {
   const elements = Object.fromEntries(Object.entries(v).map(([k, value]) => [k, { value }]));
   elements.website = { value: website };
   const f = { elements, querySelector: s => (s === '.creator-fields' ? fields : button), addEventListener: (t, fn) => { listeners[t] = fn; }, setAttribute() {}, removeAttribute() {} };
+  status.append = (...parts) => { status.textContent += parts.map(p => (typeof p === 'string' ? p : `${p.textContent} <${p.href}>`)).join(''); };
+  const hero = { textContent: 'Join the creator beta', href: '#creators' };
   const requests = [];
   const window = { ryagramConfig: config };
   vm.runInNewContext(read('assets/creator-beta.js'), {
-    window, document: { getElementById: id => ({ 'creator-form': f, 'creator-status': status })[id] },
+    window, document: { getElementById: id => ({ 'creator-form': f, 'creator-status': status })[id],
+                        querySelector: s => (s === '.rg-hero-cta a.rg-btn' ? hero : null), createElement: () => ({}) },
     fetch: (url, opts) => { requests.push({ url, opts }); return (fetchImpl || (async () => ({ ok: true, status: 200 })))(url, opts); },
     AbortController, setTimeout, clearTimeout, Object, JSON, String, Promise
   });
-  return { submit: () => listeners.submit({ preventDefault() {} }), requests, status, fields, button, window };
+  return { submit: () => (listeners.submit ? listeners.submit({ preventDefault() {} }) : undefined), listeners, hero, requests, status, fields, button, window };
 }
 const ON = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test', creatorBeta: true };
 
@@ -191,14 +194,27 @@ test('FORM: a good submit posts trimmed JSON to the creator-beta function with t
   assert.equal(f.button.disabled, false);
 });
 
-test('FORM: until it is switched on (creatorBeta false, or no project) NOTHING is sent and the person is told to email', async () => {
-  for (const config of [{ ...ON, creatorBeta: false }, { creatorBeta: true }, {}]) {
+test('FORM OFF (Ryan, 2026-10-17): with creatorBeta not on there is no form to fill in -- the hero button and the form\'s place ask for an invite by email, and nothing is ever sent', async () => {
+  for (const config of [{ ...ON, creatorBeta: false }, {}]) {
     const f = form({ config });
+    assert.equal(f.fields.hidden, true);
+    assert.equal(f.listeners.submit, undefined);
     await f.submit();
     assert.equal(f.requests.length, 0);
-    assert.match(f.status.textContent, /ryagram@uselai\.com/);
-    assert.equal(f.fields.hidden, false);
+    assert.equal(f.status.hidden, false);
+    assert.match(f.status.textContent, /open soon.*request an invite.*ryagram@uselai\.com <mailto:ryagram@uselai\.com\?subject=Ryagram%20invite%20request>/);
+    assert.equal(f.hero.textContent, 'Email to request an invite');
+    assert.equal(f.hero.href, 'mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request');
   }
+});
+
+test('FORM ON, no project configured: the form shows, NOTHING is sent and the person is told to email; the hero button is untouched', async () => {
+  const f = form({ config: { creatorBeta: true } });
+  assert.equal(f.fields.hidden, false);
+  await f.submit();
+  assert.equal(f.requests.length, 0);
+  assert.match(f.status.textContent, /ryagram@uselai\.com/);
+  assert.equal(f.hero.textContent, 'Join the creator beta');
 });
 
 test('FORM: a bad entry is caught before any request; a filled honeypot looks successful and sends nothing', async () => {
