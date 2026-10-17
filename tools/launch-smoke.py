@@ -32,13 +32,17 @@ from pathlib import Path
 
 CARD = {'number': '4242 4242 4242 4242', 'expiry': '12 / 34', 'cvc': '123', 'name': 'Smoke Test', 'zip': '10001'}
 HEADLINE = 'You have a question. Ryagram makes the data answer it.'
+# The hero button follows the creatorBeta switch (Ryan, 2026-10-17): 'Join the creator beta' when the form is on, 'Email to request an invite'
+# while it is off. check_pages reads the switch from the live page and expects the matching words.
+CREATOR_CTA = '<creator call to action>'
+CREATOR_CTA_ON, CREATOR_CTA_OFF = 'Join the creator beta', 'Email to request an invite'
 VIEWPORTS = (('desktop', dict(viewport={'width': 1280, 'height': 900})),
              ('phone', dict(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True)))
 
 # (path, what it is, required?, text it must show, text it must NOT show, request failures that are normal on this page)
 PAGES = [
     ('/', "L'Ai home", True, [], [], []),
-    ('/ryagram/', 'Ryagram landing page', True, [HEADLINE, 'Join the creator beta', 'Rise of the Interstate Highway'], ['DRAFT FOR RYAN', 'TODO', 'undefined', 'null'], []),
+    ('/ryagram/', 'Ryagram landing page', True, [HEADLINE, CREATOR_CTA, 'Rise of the Interstate Highway'], ['DRAFT FOR RYAN', 'TODO', 'undefined', 'null'], []),
     ('/film/?sample=interstate', 'the Interstate sample film page', False, ['Rise of the Interstate Highway', 'Sources and method', 'Make your own data film'], ['DRAFT FOR RYAN'], []),
     ('/film/?s=AAAAAAAAAAAAAAAAAAAAAA', 'an unknown film page says "No film here"', True, ['No film here'], [], ['/functions/v1/film-page']),
     ('/app/', 'the app sign-in screen', True, ['Sign in'], [], []),
@@ -169,7 +173,10 @@ def check_pages(run, pw_browser, base):
                     continue
                 run.check('pages', f'{label}: loads (HTTP {status})', status == 200, f'HTTP {status}', required)
                 text = page.inner_text('body')
+                on = bool(page.evaluate('!!(window.ryagramConfig && window.ryagramConfig.creatorBeta === true)')) if CREATOR_CTA in must else None
                 for t in must:
+                    if t == CREATOR_CTA:
+                        t = CREATOR_CTA_ON if on else CREATOR_CTA_OFF
                     run.check('pages', f'{label}: shows "{t[:50]}"', t in text, 'text missing', required)
                 for t in must_not:
                     run.check('pages', f'{label}: does not show "{t[:30]}"', t not in text and t not in page.content(), 'found on the page', required)
