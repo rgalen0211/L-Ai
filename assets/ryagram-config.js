@@ -28,7 +28,7 @@ window.ryagramConfig = Object.freeze({
   // Show the data choice and "Delete your account" on the account page. Turn on only once SQL
   // 0900 is applied and delete-account is deployed (supabase/README.md, "Account basics").
   // Changing a password works without it.
-  accountTools: false,
+  accountTools: true,
   // Show "Forgot your password?" on sign-in. Turn on only after the reset-password email template
   // points at /app/?reset={{ .TokenHash }} and custom SMTP is set (supabase/README.md, "Account basics").
   passwordReset: false,
@@ -38,20 +38,20 @@ window.ryagramConfig = Object.freeze({
   // Show "Have an invite code?" on sign-in. Turn on only once custom SMTP is set, the invite email
   // template points at /app/?invite={{ .TokenHash }}, and redeem-invite is deployed
   // (supabase/README.md, "Beta invites").
-  inviteSignup: false,
+  inviteSignup: true,
   // Show "Your own data" (spreadsheet upload) on a version in /app/. Turn on only once SQL 20261004000200 and
   // 20261004000300 are applied, purge-uploads is deployed and scheduled, and the worker reads uploads
   // (supabase/README.md, "Uploads").
   uploads: false,
   // Show the "rendering is delayed" notice and the help form (#/help) in /app/. Turn on only once SQL 20261010000100 is applied
   // (supabase/README.md, "Hands-off operations").
-  opsTools: false,
+  opsTools: true,
   // Send creator beta applications (the form on /ryagram/#creators). Turn on only once SQL 20261014000100 is applied and the creator-beta
   // function is deployed (supabase/README.md, "Creator beta"); until then the form tells people to email.
   creatorBeta: false,
   // Show "Request a film" in /app/ (the creator beta: people ask, Ryan makes each film by hand). Turn on only once SQL 20261016000200 is applied and
   // the credits ledger is live (supabase/README.md, "Creator beta flow").
-  filmRequests: false,
+  filmRequests: true,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.

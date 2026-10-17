@@ -54,9 +54,9 @@ test('service status never throws (no SQL yet = no notice); the help form sends 
   assert.equal(await mock.submitSupport({ email: 'a@b.co', topic: 'other', message: 'hello there', website: 'spam' }), 0);
 });
 
-test('the notice and help form are OFF in the shipped config until the SQL is applied', () => {
+test('the notice and help form are ON in the shipped config (launch block 2026-10-17: SQL 20261010000100 is applied)', () => {
   const src = fs.readFileSync(path.join(__dirname, '..', 'assets', 'ryagram-config.js'), 'utf8');
-  assert.match(src, /opsTools: false/);
+  assert.match(src, /opsTools: true/);
 });
 
 const C = load('app-credits.js').ryagramCredits;
