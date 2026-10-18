@@ -13,7 +13,7 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
   const tool = TOOL_BY_NAME.get(name);
   const finish = async (r: ToolResult, result: CallLog["result"], code: string): Promise<ToolResult> => {
     try {
-      await policy.log({ userId: principal.userId, clientId: principal.clientId, tool: tool ? name : "unknown",
+      await policy.log(principal, { tool: tool ? name : "unknown",
         credits: r.credits ?? 0, result, code, failedChecks: r.failedChecks ?? 0 });
     } catch { /* a failed log write never changes what the person sees */ }
     return r;
@@ -30,7 +30,7 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
   }
 
   try {
-    if (!(await policy.hit(principal, `calls:${principal.clientId}`, LIMITS.callsPerMinutePerClient, 60))) {
+    if (!(await policy.hit(principal, "calls", LIMITS.callsPerMinutePerClient, 60))) {
       return refused("Too many calls in the last minute. Wait a minute and continue.", "rate");
     }
     if (tool.ladder && !(await policy.hit(principal, "ladder", LIMITS.ladderPerHourPerUser, 3600))) {

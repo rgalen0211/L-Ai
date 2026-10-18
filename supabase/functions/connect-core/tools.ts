@@ -248,7 +248,7 @@ const jobStatus: ToolDef = {
 
 const filmLink: ToolDef = {
   name: "get_film_link", title: "Links to results", scope: "read", readOnly: true,
-  description: "Short-lived (15 minute) links to a project's finished contact sheet, preview and film. Give them to the person; do not store them.",
+  description: "Where to see a project's finished contact sheet, preview and film. Links may be short-lived or may point at the person's own Ryagram page, where they sign in to watch. Give them to the person; do not store them.",
   inputSchema: obj({ project_id: uuid, job_id: { ...uuid } }, ["project_id"]),
   async run(a, ctx) {
     const pv = await projectVersion(ctx, String(a.project_id));
@@ -258,7 +258,8 @@ const filmLink: ToolDef = {
     }
     const links = await ctx.data.links(pv.versionId, (a.job_id as string | undefined) ?? null);
     if (!links.length) return ok("Nothing is finished yet for this project. Use make_contact_sheet or make_preview, then job_status.", { links: [] });
-    return ok(links.map((l) => `${l.kind}: ${l.url} (valid ${Math.round(l.expires_in_s / 60)} minutes)`).join("\n"), { links });
+    return ok(links.map((l) => l.expires_in_s > 0 ? `${l.kind}: ${l.url} (valid ${Math.round(l.expires_in_s / 60)} minutes)`
+      : `Open ${l.url} and sign in to see the finished results in Ryagram.`).join("\n"), { links });
   },
 };
 

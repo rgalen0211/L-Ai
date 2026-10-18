@@ -7,8 +7,9 @@ import type { Job, UserData } from "../ai-editor/tools.ts";
 
 export type Scope = "read" | "write" | "render_free" | "render_final";
 
-/** Who is calling: the person the OAuth token was issued for, and the registered client it was issued to. */
-export interface Principal { userId: string; clientId: string }
+/** Who is calling. The real server knows only the token's hash: the database resolves the person and client from it on every call, and no
+ *  function takes an owner id. userId and clientId exist only in the in-memory stand-in used by tests. */
+export interface Principal { tokenHash: string; userId?: string; clientId?: string }
 
 /** An invited account's consent for one client. Scopes live in OUR table, not in the token. */
 export interface Grant { scopes: Scope[] }
@@ -21,12 +22,12 @@ export interface Policy {
   hit(p: Principal, bucket: string, max: number, windowSeconds: number): Promise<boolean>;
   /** The final-render switch (control row). Off unless Ryan turns it on. */
   finalRendersEnabled(): Promise<boolean>;
-  log(e: CallLog): Promise<void>;
+  log(p: Principal, e: CallLog): Promise<void>;
 }
 
 /** One row per tool call. No arguments, no story text, no tokens. */
 export interface CallLog {
-  userId: string; clientId: string; tool: string;
+  tool: string;
   credits: number;                      // credits the call held or would have held (0 for free)
   result: "ok" | "refused" | "error";
   code: string;                         // short machine reason: ok | no_grant | scope | rate | payload | args | checks_failed | needs_confirm | ...
@@ -38,7 +39,9 @@ export interface Quote { credits: number; free: boolean; available: number }
 export interface Link { kind: string; url: string; expires_in_s: number }
 
 /** What the tools need from the database, ALWAYS as the signed-in person (RLS / connect_* functions). */
-export interface Data extends UserData {
+export interface Data extends Omit<UserData, "submitJob"> {
+  /** A final render also names the contact sheet and preview it stands on (the database re-checks the ladder). */
+  submitJob(versionId: string, jobType: string, params: Record<string, unknown>, sheetId?: string, previewId?: string): Promise<{ id: string; state: string }>;
   whoami(): Promise<{ label: string; available: number; held: number }>;
   listProjects(): Promise<ProjectRow[]>;
   createProject(title: string): Promise<{ id: string; title: string; version_id: string; number: number }>;

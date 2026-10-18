@@ -44,7 +44,7 @@ export class FakeWorld {
         const k = `${p.userId}|${bucket}`; const c = (this.counters.get(k) ?? 0) + 1; this.counters.set(k, c); return c <= max;
       },
       finalRendersEnabled: async () => this.finals,
-      log: async (e) => { this.logs.push(e); },
+      log: async (_p, e) => { this.logs.push(e); },
     };
   }
   verifyToken = async (t: string) => this.tokens.get(t) ?? null;

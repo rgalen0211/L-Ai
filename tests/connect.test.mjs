@@ -16,8 +16,8 @@ import { build, TEMPLATES } from '../supabase/functions/_shared/templates.ts';
 import storySchema from '../supabase/functions/_shared/story.schema.json' with { type: 'json' };
 
 const compile = makeCompile(Ajv2020);
-const A = { userId: 'u-alice', clientId: 'client-claude' };
-const B = { userId: 'u-bob', clientId: 'client-claude' };
+const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
+const B = { tokenHash: 'h-bob', userId: 'u-bob', clientId: 'client-claude' };
 
 function world({ finals = false, credits = 100 } = {}) {
   const w = new FakeWorld();
@@ -136,7 +136,7 @@ test('another person\'s project and job look like they do not exist', async () =
 test('not invited, revoked, or missing scope: refused on every call, nothing cached', async () => {
   const { call, w } = world();
   w.addUser('u-carol', 'carol@example.test');
-  const C = { userId: 'u-carol', clientId: 'client-claude' };
+  const C = { tokenHash: 'h-carol', userId: 'u-carol', clientId: 'client-claude' };
   assert.equal((await call(C, 'whoami_and_credits', {})).code, 'no_grant');
   assert.equal((await call(A, 'whoami_and_credits', {})).isError, undefined);
   w.revoke(A.userId, A.clientId);
@@ -146,7 +146,7 @@ test('not invited, revoked, or missing scope: refused on every call, nothing cac
   assert.equal((await call(A, 'create_project', { title: 'x' })).code, 'scope');
   assert.equal((await call(A, 'make_preview', { project_id: '00000000-0000-4000-8000-000000000001' })).code, 'scope');
   // a client that was never consented for THIS user
-  assert.equal((await call({ userId: A.userId, clientId: 'other-client' }, 'whoami_and_credits', {})).code, 'no_grant');
+  assert.equal((await call({ tokenHash: 'h-x', userId: A.userId, clientId: 'other-client' }, 'whoami_and_credits', {})).code, 'no_grant');
 });
 
 test('the AI cannot add arguments that skip, waive or override anything', async () => {
@@ -284,7 +284,7 @@ test('every call is logged with user, tool, credits and result, and no request t
   assert.equal(w.logs[1].code, 'checks_failed'); assert.ok(w.logs[1].failedChecks > 0);
   const dump = JSON.stringify(w.logs);
   assert.doesNotMatch(dump, /SECRET-TITLE-123|schema/);
-  assert.deepEqual(Object.keys(w.logs[0]).sort(), ['clientId', 'code', 'credits', 'failedChecks', 'result', 'tool', 'userId']);
+  assert.deepEqual(Object.keys(w.logs[0]).sort(), ['code', 'credits', 'failedChecks', 'result', 'tool']);   // who is resolved in SQL from the token, never sent by us
 });
 
 test('errors never carry tokens or internals', () => {

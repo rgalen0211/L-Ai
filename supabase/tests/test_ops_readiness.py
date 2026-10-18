@@ -363,7 +363,11 @@ class Ops(core.Base):
                            "admin_cost_set_plan(text,text,numeric,date,jsonb)", "admin_cost_set_rate(text,text,numeric,text)", "admin_cost_record(text,numeric,date,text)",
                            # creator flow: a signed-in person asks for a film (the database needs their id); the rest are Ryan's, each refusing everyone else inside
                            "request_film(text,text)", "film_request_cost()", "admin_creator_invite(bigint,integer)", "admin_film_requests()",
-                           "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)"}
+                           "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)",
+                           # connect your own AI: the person's own consent and settings (each refuses a token that carries client_id and
+                           # anyone who is not signed in) and Ryan's two admin switches (each refuses everyone but is_app_admin() inside)
+                           "connect_consent_check(uuid)", "connect_consent_decide(uuid,boolean,text[])", "my_connected_ais()", "disconnect_ai(text)",
+                           "admin_set_connect_access(text,boolean)", "admin_connect_allowlist_set(text,text,text,boolean)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue

@@ -28,7 +28,7 @@ const mutants = [
   ['MCP does not cap the request size', D + 'mcp.ts', 'if (raw.length > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });\n  let msg', 'let msg'],
   ['story size cap removed', D + 'story_check.ts', 'if (size > LIMITS.maxStoryBytes)', 'if (false)'],
   ['unknown dataset allowed', D + 'story_check.ts', 'typeof c.dataset === "string" && !DATASETS[c.dataset]', 'false'],
-  ['calls are not logged', D + 'dispatch.ts', 'await policy.log({', 'void ({'],
+  ['calls are not logged', D + 'dispatch.ts', 'await policy.log(principal, {', 'void ({'],
 ];
 
 let missed = 0;
