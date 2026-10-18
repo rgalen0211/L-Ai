@@ -187,7 +187,29 @@
     return { value: [a, b] };
   }
 
-  window.ryagramJobs = {
+  // Render orders (a full render is requested, then waits for approval, renders and is delivered).
+  const ORDER_WORDS = { running: 'Rendering', awaiting_approval: 'Waiting for approval', delivered: 'Delivered', previewed: 'Previewed', failed: 'Failed', declined: 'Not approved',
+                        cancelled: 'Cancelled', expired: 'Expired', editorial_action_required: 'Stopped by a check' };
+  // One sentence for the person, from render_order_status().
+  function orderLine(st) {
+    if (!st) return '';
+    const fin = (st.stages || []).find(s => s.stage === 'final_render') || {};
+    const held = fin.credits_quoted > 0 ? ` ${fin.credits_quoted} credit${fin.credits_quoted === 1 ? '' : 's'} ${st.state === 'awaiting_approval' || st.state === 'running' ? 'are held' : 'were held'}.` : '';
+    switch (st.state) {
+      case 'awaiting_approval': return `Your full render is waiting for approval. We approve each one by hand for now.${held} They come back if it is not approved.`;
+      case 'running': return `Your full render is on its way.${held}`;
+      case 'delivered': return st.delivery && !st.delivery.deleted ? `Your film is ready, kept for 30 days (until ${String(st.delivery.expires_at).slice(0, 10)}).` : 'Your film was kept for 30 days and has been deleted.';
+      case 'declined': return `The full render was not approved, so nothing was rendered and your credits were returned.`;
+      case 'expired': return 'The full render was not approved in time, so it was cancelled and your credits were returned.';
+      case 'cancelled': return 'You cancelled the full render. Your credits were returned.';
+      case 'editorial_action_required': return 'Ryagram\u2019s checks stopped this render. Change the story, then make a new preview. Your credits were returned.';
+      case 'failed': return 'The full render failed. Your credits were returned. You can request it again.';
+      default: return ORDER_WORDS[st.state] || st.state;
+    }
+  }
+  const orderOpen = state => state === 'running' || state === 'awaiting_approval';
+
+  window.ryagramJobs = { ORDER_WORDS, orderLine, orderOpen,
     TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();
