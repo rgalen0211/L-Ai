@@ -26,7 +26,7 @@
     return set.length ? set : offered.includes('read') ? ['read'] : [];
   }
   const UNKNOWN_ADDRESS = 'An address Ryagram does not recognise';
-  const scopeWord = id => SCOPE_WORDS[id] || `Use the tool called ${String(id).slice(0, 40)}`;
+  const scopeWord = id => (Object.hasOwn(SCOPE_WORDS, id) && SCOPE_WORDS[id]) || `Use the tool called ${String(id).slice(0, 40)}`;       // an assistant can ask for any name, even "constructor"
   // The page follows the server's answer ONLY if it goes to the address it showed (exact start, same scheme and host): a changed destination is an error, never followed.
   function safeRedirect(shown, target) {
     try {
