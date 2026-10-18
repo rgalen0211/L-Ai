@@ -3,6 +3,10 @@
     pgvenv/Scripts/python tools/connect_stage.py --dry-run     # list what would run
     pgvenv/Scripts/python tools/connect_stage.py               # apply what has not been applied yet
     pgvenv/Scripts/python tools/connect_stage.py --seed        # also: allowlist rows, the connect test account's invitation
+    pgvenv/Scripts/python tools/connect_stage.py --reapply-connect   # drop every connect object and apply the (changed) connect migration again
+
+--reapply-connect is for the NON-LIVE project only: the connect migration is edited in place while it is unmerged, so staging is rebuilt from it.
+It deletes the connect tables (clients, tokens, grants, allowlist...) and recreates them; the role connect_runner and its login are kept.
 
 Reads D:\\Ryagram-scratch\\oauth-proof\\.env  (SUPABASE_URL, SUPABASE_DB_URL, SUPABASE_SECRET_KEY). Never prints a value from it.
 REFUSES to run against the live project (jxtkfishqfxuptwjzczz, or whatever supabase/.temp/project-ref says).
@@ -44,6 +48,7 @@ def files():
 def main():
     dry = "--dry-run" in sys.argv
     seed = "--seed" in sys.argv
+    reapply = "--reapply-connect" in sys.argv
     e = env()
     url, db = e.get("SUPABASE_URL", ""), e.get("SUPABASE_DB_URL", "")
     try:
@@ -66,6 +71,18 @@ def main():
         return 2
     with psycopg.connect(db, autocommit=True, connect_timeout=15) as c:
         c.execute("create table if not exists public._connect_stage_applied (name text primary key, at timestamptz default now())")
+        if reapply:
+            c.execute("""do $$ declare r record; begin
+                for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                         where (n.nspname = 'public' and (p.proname like 'connect\\_%' or p.proname in ('my_connected_ais', 'disconnect_ai', 'admin_set_connect_access', 'admin_connect_allowlist_set')))
+                            or (n.nspname = 'ryagram_private' and p.proname like 'connect\\_%') loop
+                  execute 'drop function ' || r.sig || ' cascade'; end loop;
+                for r in select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace
+                         where n.nspname = 'public' and c.relkind = 'r' and c.relname like 'connect\\_%' loop
+                  execute 'drop table public.' || quote_ident(r.relname) || ' cascade'; end loop;
+              end $$""")
+            c.execute("delete from public._connect_stage_applied where name like '%connect_ai.sql'")
+            print("dropped the connect objects")
         done = {r[0] for r in c.execute("select name from public._connect_stage_applied")}
         for p in files():
             name = p.relative_to(ROOT).as_posix()

@@ -107,8 +107,14 @@ def main():
             # 3. exchange the code, then use the tools
             code = to.split("code=")[1].split("&")[0]
             access, refresh = "rga_" + secrets.token_urlsafe(32), "rgr_" + secrets.token_urlsafe(32)
-            wrong = run_as_runner("select public.connect_exchange_code(%s,%s,%s,%s,%s,%s)", h(code), client, URI, "x" * 43, h(access), h(refresh))[0]
+            # a wrong verifier burns the code it was tried on (OAuth 2.1), so it is tried on a code of its own
+            req2 = str(run_as_runner("select public.connect_begin_authorization(%s,%s,'st',%s,'S256','read write render_free',null)", client, URI, challenge)[0])
+            _, d2 = rest(e, "POST", "/rest/v1/rpc/connect_consent_decide", {"p_request": req2, "p_approve": True, "p_scopes": ["read", "write", "render_free"]}, jwt)
+            code2 = d2["redirect_to"].split("code=")[1].split("&")[0]
+            wrong = run_as_runner("select public.connect_exchange_code(%s,%s,%s,%s,%s,%s)", h(code2), client, URI, "x" * 43, h(access), h(refresh))[0]
             check("a wrong PKCE verifier is refused", wrong == {"error": "invalid_grant"})
+            again = run_as_runner("select public.connect_exchange_code(%s,%s,%s,%s,%s,%s)", h(code2), client, URI, verifier, h(access), h(refresh))[0]
+            check("and the code it was tried on is spent", again == {"error": "invalid_grant"})
             tokens = run_as_runner("select public.connect_exchange_code(%s,%s,%s,%s,%s,%s)", h(code), client, URI, verifier, h(access), h(refresh))[0]
             check("the right verifier gives tokens with the granted scopes", tokens.get("scope") == "read write render_free", str(tokens)[:80])
             A = h(access)

@@ -34,7 +34,7 @@ const CFG = ${JSON.stringify({ url: env.SUPABASE_URL, key: env.SUPABASE_PUBLISHA
 const sb = supabase.createClient(CFG.url, CFG.key, { auth: { persistSession: false } });
 const app = document.getElementById('app');
 const req = new URLSearchParams(location.search).get('request') || '';
-const WORDS = { read: 'See your projects, films and credit balance', write: 'Create projects and change your film stories', render_free: 'Make contact sheets and previews (free)' };
+const WORDS = { read: 'See your projects, films and credit balance', write: 'Create projects and change your film stories', render_free: 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram' };
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 function signIn(msg) {
   app.innerHTML = '<p>Sign in with the Ryagram test account.</p>' + (msg ? '<p class="warn">' + esc(msg) + '</p>' : '') +
@@ -52,10 +52,12 @@ async function decide() {
   if (!d.allowed) { app.innerHTML = '<p class="warn">' + esc(d.reason) + '</p>'; return; }
   const boxes = d.offered_scopes.filter((s) => d.requested_scopes.includes(s)).map((s) =>
     '<label><input type="checkbox" checked data-s="' + esc(s) + '"> ' + esc(WORDS[s] || s) + '</label><br>').join('');
-  app.innerHTML = '<p><strong>' + esc(d.client_name) + '</strong> wants to act as your Ryagram account.</p>' +
-    '<p class="muted">It will send you back to:</p><p class="host">' + esc(d.redirect_host) + '</p><p class="muted">' + esc(d.redirect_uri) + '</p>' +
+  // The label comes from Ryan's allowlist for this return address; the name is whatever the assistant called itself, so it is shown small and second.
+  app.innerHTML = '<p class="host">' + esc(d.redirect_label) + '</p><p>wants to act as your Ryagram account.</p>' +
+    '<p class="muted">It calls itself: ' + esc(d.client_name) + '</p>' +
+    '<p class="muted">It will send you back to:</p><p><strong>' + esc(d.redirect_host) + '</strong></p><p class="muted">' + esc(d.redirect_uri) + '</p>' +
     '<p>It will be able to:</p>' + boxes +
-    '<p class="muted">Tools that spend credits ask you first. You can disconnect it any time.</p>' +
+    '<p class="muted">It cannot spend your credits. You can disconnect it any time.</p>' +
     '<button class="go" id="yes">Allow</button> <button id="no">Deny</button>';
   const go = async (approve) => {
     const scopes = [...document.querySelectorAll('input[data-s]')].filter((b) => b.checked).map((b) => b.dataset.s);
