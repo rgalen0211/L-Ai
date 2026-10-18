@@ -1,7 +1,7 @@
 // The tools. ONE registry; the MCP face and the REST face both serve exactly this list, through dispatch.ts.
 // A tool's arguments are data from an untrusted client: no argument skips, waives or overrides a check, and
 // nothing a client sends reaches a path, a command line or an SQL string except as a validated value.
-import storySchema from "../_shared/story.schema.json" with { type: "json" };
+import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { ladder } from "../ai-editor/tools.ts";
 import { untrusted } from "../ai-editor/prompt.ts";

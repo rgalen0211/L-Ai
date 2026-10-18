@@ -13,7 +13,7 @@ import { handleRest, openApi } from '../supabase/functions/connect-core/rest.ts'
 import { checkStory } from '../supabase/functions/connect-core/story_check.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
 import { build, TEMPLATES } from '../supabase/functions/_shared/templates.ts';
-import storySchema from '../supabase/functions/_shared/story.schema.json' with { type: 'json' };
+import storySchema from '../supabase/functions/_shared/story_schema.ts';
 
 const compile = makeCompile(Ajv2020);
 const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
@@ -355,4 +355,14 @@ test('REST: openapi lists every tool; calls use the same gate; 401 without a tok
   const revoked = await (await handleRest(new Request(base + '/v1/tools/whoami_and_credits', { method: 'POST', headers: { authorization: 'Bearer tok-alice' }, body: '{}' }), '/v1/tools/whoami_and_credits', deps, base)).json();
   assert.equal(revoked.isError, true);
   assert.equal((await handleRest(new Request(base + '/v1/tools/../x', { method: 'POST', headers: { authorization: 'Bearer tok-alice' } }), '/v1/tools/../x', deps, base)).status, 404);
+});
+
+test('the plain schema module equals the vendored worker export, and no function code uses JSON import attributes (the platform bundler)', async () => {
+  const vendored = JSON.parse((await import('node:fs')).readFileSync('supabase/functions/_shared/story.schema.json', 'utf8'));
+  assert.deepEqual(storySchema, vendored);
+  const { readdirSync, readFileSync, statSync } = await import('node:fs');
+  const walk = (d) => readdirSync(d).flatMap((f) => (statSync(`${d}/${f}`).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]));
+  for (const f of walk('supabase/functions/connect').concat(walk('supabase/functions/connect-core'))) {
+    if (f.endsWith('.ts')) assert.doesNotMatch(readFileSync(f, 'utf8'), /with\s*\{\s*type:\s*['"]json['"]|assert\s*\{\s*type:\s*['"]json['"]/, f);
+  }
 });
