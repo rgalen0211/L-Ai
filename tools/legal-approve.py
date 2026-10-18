@@ -45,9 +45,7 @@ def link_footers(apply):
         if not path.exists():
             continue
         s = path.read_text(encoding='utf-8')
-        if '/terms/' in s:
-            continue
-        s2 = re.sub(r'(<footer[^>]*>.*?)(<a href="/privacy-policy\.html">Privacy Policy</a>)', r'\1<a href="/terms/">Terms of Use</a>\2', s, count=1, flags=re.S)   # the FOOTER's privacy link only
+        s2 = s if '/terms/' in s else re.sub(r'(<footer[^>]*>.*?)(<a href="/privacy-policy\.html">Privacy Policy</a>)', r'\1<a href="/terms/">Terms of Use</a>\2', s, count=1, flags=re.S)   # the FOOTER's privacy link only
         if p == 'app/index.html':
             s2 = s2.replace('<p class="form-intro">Ryagram is invite-only for now.</p>',
                             '<p class="form-intro">Ryagram is invite-only for now.</p>\n    <p class="form-note">By joining you agree to the <a href="/terms/">Terms of Use</a> and the <a href="/privacy-policy.html">Privacy Policy</a>.</p>', 1)
