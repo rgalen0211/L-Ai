@@ -6,8 +6,8 @@ Registers a throwaway client, signs the test account in through the API (no pass
 exactly as the consent page does, exchanges the code, then checks what a real assistant relies on to stay connected without a daily login:
   - /token returns a refresh_token and expires_in; the registration says the client may use the refresh_token grant
   - the access token works; a refresh returns a NEW access token AND a NEW refresh token, and the new access token works
-  - the refresh does not extend the 30 days (absolute), which this prints from the database as a read-only query
-  - a refresh with a different client_id is refused; a second use of an old refresh token is refused AND kills the whole family
+  - every refresh slides the 30 days (the newest refresh token always has about 30 days left)
+  - a refresh with a different client_id is refused; the same old refresh token again within 60 s gets a fresh pair (retry grace); after 60 s it is refused AND kills the whole family
   - the family can be disconnected and then nothing works
 Prints no token, code or password. Cleans up after itself (the throwaway client's grant is disconnected).
 """
@@ -120,11 +120,26 @@ check(st == 400 and (bad or {}).get("error") == "invalid_grant", "a refresh with
 st, t3 = token(grant_type="refresh_token", refresh_token=t2["refresh_token"], client_id=cid)
 check(st == 200 and t3.get("refresh_token"), "the right client can still refresh after a wrong-client attempt (a stranger cannot burn your token)")
 
-# --- reuse of an old refresh token revokes the family
+# --- retry grace: the SAME old refresh token again within 60 s is a repeat (lost answer / two requests at once), not theft
+st, again = token(grant_type="refresh_token", refresh_token=t1["refresh_token"], client_id=cid)
+check(st == 200 and again.get("refresh_token") and again.get("access_token"), "the same refresh token presented again within 60 seconds gets a fresh pair (retry grace)")
+check(whoami(again["access_token"]) == 200 and whoami(t3["access_token"]) == 200, "and both live pairs work")
+
+# --- sliding 30 days, read from the proof database (read-only query; no secret printed)
+import psycopg
+dburl = ""
+for line in open(ENV, encoding="utf-8").read().splitlines():
+    if line.strip().startswith("SUPABASE_DB_URL"):
+        dburl = line.partition("=")[2].strip().strip("\"'")
+with psycopg.connect(dburl, autocommit=True, prepare_threshold=None) as c:
+    days = c.execute("select max(extract(epoch from (refresh_expires_at - now())) / 86400) from public.connect_tokens where client_id = %s", (cid,)).fetchone()[0]
+    check(29.9 < float(days) <= 30.01, f"the newest refresh token has about 30 days left ({float(days):.2f}): every refresh slides it")
+    # age the spent token past the grace (test data on the proof project only), then reuse it
+    c.execute("update public.connect_tokens set refresh_used_at = now() - interval '61 seconds' where refresh_hash = %s", (hashlib.sha256(t1["refresh_token"].encode()).hexdigest(),))
 st, reuse = token(grant_type="refresh_token", refresh_token=t1["refresh_token"], client_id=cid)
-check(st == 400 and (reuse or {}).get("error") == "invalid_grant", "re-using an OLD refresh token is refused")
-check(whoami(t3["access_token"]) == 401, "and that revokes the whole family: the newest access token stops too")
-st, dead = token(grant_type="refresh_token", refresh_token=t3["refresh_token"], client_id=cid)
+check(st == 400 and (reuse or {}).get("error") == "invalid_grant", "after the 60 seconds, re-using an OLD refresh token is refused")
+check(whoami(t3["access_token"]) == 401 and whoami(again["access_token"]) == 401, "and that revokes the whole family: every access token stops")
+st, dead = token(grant_type="refresh_token", refresh_token=again["refresh_token"], client_id=cid)
 check(st == 400, "and the newest refresh token is dead as well (the assistant must sign in again, as designed)")
 
 # --- clean up: disconnect the throwaway client's grant

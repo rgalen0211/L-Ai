@@ -308,12 +308,18 @@ end $$;
 
 create function public.connect_refresh(p_refresh_hash text, p_client_id text, p_access_hash text, p_new_refresh_hash text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
-declare t public.connect_tokens; bad jsonb := jsonb_build_object('error', 'invalid_grant');
+declare t public.connect_tokens; bad jsonb := jsonb_build_object('error', 'invalid_grant'); grace boolean := false;
 begin
   if not ryagram_private.connect_on() then return bad; end if;
   select * into t from public.connect_tokens where refresh_hash = p_refresh_hash for update;
   if not found or t.client_id is distinct from p_client_id then return bad; end if;
-  if t.refresh_used_at is not null or t.revoked_at is not null then   -- reuse of a rotated or revoked token: kill the whole family
+  -- RETRY GRACE (Ryan's OK 2026-10-18): the SAME refresh token presented again within 60 seconds of the refresh that spent it is a repeat of that
+  -- refresh (the answer was lost on the way, or two requests raced), not theft; it gets a fresh pair in the same family. It never applies once the
+  -- family has been killed (a row revoked without having been rotated), and every check below still runs.
+  if t.refresh_used_at is not null and t.refresh_used_at > now() - interval '60 seconds'
+     and not exists (select 1 from public.connect_tokens x where x.family_id = t.family_id and x.revoked_at is not null and x.refresh_used_at is null) then
+    grace := true;
+  elsif t.refresh_used_at is not null or t.revoked_at is not null then   -- reuse of a rotated or revoked token: kill the whole family
     update public.connect_tokens set revoked_at = now() where family_id = t.family_id and revoked_at is null;
     return bad;
   end if;
@@ -321,9 +327,13 @@ begin
      or not exists (select 1 from public.connect_grants g where g.owner_id = t.owner_id and g.client_id = t.client_id and g.revoked_at is null) then
     return bad;
   end if;
-  update public.connect_tokens set refresh_used_at = now(), revoked_at = now() where id = t.id;      -- the old pair is spent
+  if not grace then
+    update public.connect_tokens set refresh_used_at = now(), revoked_at = now() where id = t.id;      -- the old pair is spent
+  end if;
+  -- SLIDING LIFETIME (Ryan's OK 2026-10-18): every refresh gives the new refresh token 30 more days. A connection ends only when the person
+  -- disconnects it, an administrator ends it, or it goes unused for 30 days.
   insert into public.connect_tokens (family_id, owner_id, client_id, scopes, access_hash, access_expires_at, refresh_hash, refresh_expires_at)
-    values (t.family_id, t.owner_id, t.client_id, t.scopes, p_access_hash, now() + interval '1 hour', p_new_refresh_hash, t.refresh_expires_at);
+    values (t.family_id, t.owner_id, t.client_id, t.scopes, p_access_hash, now() + interval '1 hour', p_new_refresh_hash, now() + interval '30 days');
   return jsonb_build_object('scope', array_to_string(t.scopes, ' '), 'expires_in', 3600);
 end $$;
 
