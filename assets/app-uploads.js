@@ -100,5 +100,8 @@
     return next;
   }
 
-  window.ryagramUploads = { EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
+  // BYOD audit: the words for a file that cannot be mapped (its years run across the columns), with the shape that works.
+  const WIDE_HELP = 'This file has its years across the columns (one column per year). Ryagram needs one row for each place and year, like the example above: a place column, a year column, and a column of values. In a spreadsheet program you can reshape it (in Excel: Data, Get & Transform, Unpivot), save it as .csv, and upload it again.';
+  const EXAMPLE = { head: ['State', 'Year', 'Median rent'], rows: [['Alabama', '2015', '1,100'], ['Alabama', '2016', '1,150'], ['Alaska', '2015', '1,400']] };
+  window.ryagramUploads = { WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
 })();

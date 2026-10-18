@@ -43,6 +43,9 @@ window.ryagramConfig = Object.freeze({
   // 20261004000300 are applied, purge-uploads is deployed and scheduled, and the worker reads uploads
   // (supabase/README.md, "Uploads").
   uploads: false,
+  // The guide for people bringing their own spreadsheet (BYOD audit 2026-10-18): a starter film made from the upload when the story is blank, a pointer to it from the top of the
+  // version page, an example of a good file, and plain words for a file with its years across the columns. Needs uploads: true. Off until Ryan has seen it.
+  byodGuide: false,
   // Show the "rendering is delayed" notice and the help form (#/help) in /app/. Turn on only once SQL 20261010000100 is applied
   // (supabase/README.md, "Hands-off operations").
   opsTools: true,

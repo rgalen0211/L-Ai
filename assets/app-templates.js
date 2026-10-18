@@ -122,7 +122,7 @@
     const title = cleanText(headline, 160) || cleanText(info.headline, 160) || cleanText(info.label, 160);
     return assemble({ datasetId: info.id, label: info.label, start: info.start, end: info.end, view: info.view,
                       settings: info.settings, style: info.style, hold: info.hold, title,
-                      note: 'Started from the data catalog. Edit the headline, the years (start and end) or the view, then make a contact sheet.' });
+                      note: info.note || 'Started from the data catalog. Edit the headline, the years (start and end) or the view, then make a contact sheet.' });
   }
 
   // A story is "blank" when there is nothing to lose by replacing it.

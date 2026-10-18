@@ -108,6 +108,9 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .choices{margin:12px 0;padding:0;border:0}
 .choice{display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;cursor:pointer}
 .choice input{margin-top:4px}
+/* BYOD audit: a radio or tick box is a small control (the global input rule had made it full width and 44 px tall, which pushed its words off to the far side) */
+.choice input[type=radio],.choice input[type=checkbox]{width:20px;height:20px;min-height:20px;flex:none;margin:2px 0 0}
+.byod-hint{margin:10px 0}.byod-hint summary{cursor:pointer;min-height:40px;display:flex;align-items:center;font-weight:700}.byod-example{border-collapse:collapse;margin:8px 0;font-size:.9rem}.byod-example th,.byod-example td{border:1px solid var(--line);padding:4px 10px;text-align:left}.byod-pointer{margin:10px 0 0}
 .choice-text{display:block;color:var(--muted);font-size:.92rem}
 .button.danger{background:#9b2c2c;border-color:#9b2c2c;color:#fff}
 .account-danger p{max-width:60ch}

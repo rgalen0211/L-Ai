@@ -47,6 +47,7 @@
   // Public film pages show once the film-page function is deployed (filmPages: true), or in mock mode.
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
+  const byodGuideOn = () => (window.ryagramConfig?.uploads === true && window.ryagramConfig?.byodGuide === true) || !!window.ryagramMock;
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
@@ -809,8 +810,13 @@
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
       const sources = sourcesPanel(v, !locked);
       // Using an upload as this film's data points the story's render clips at it (v1: one uploaded dataset per film).
-      const uploads = uploadsOn() ? uploadsPanel(v, !locked, async ref => {
-        const built = window.ryagramUploads.useInStory(v.story_spec, ref);
+      const uploads = uploadsOn() ? uploadsPanel(v, !locked, async (ref, ds) => {
+        let built = window.ryagramUploads.useInStory(v.story_spec, ref);
+        // BYOD guide: a blank story gets a starter film made from the upload (a title and one clip for the data), so the person is never left at a dead end.
+        if (!built && byodGuideOn() && window.ryagramTemplates.isBlank(v.story_spec)) {
+          const per = ds?.ingest_report?.periods;
+          if (per?.first && per?.last) built = window.ryagramTemplates.buildFor({ id: ref, label: ds.filename_label || ds.name || 'Your data', start: String(per.first), end: String(per.last), view: 'map', note: 'Started from your own data. Edit the headline, the years (start and end) or the view, then make a contact sheet.' }, project.title);
+        }
         if (!built) throw new Error('Add a render clip to the story first, then use your data in it.');
         const result = await data.saveStory(v.id, built);
         v.story_spec = built;
@@ -819,6 +825,15 @@
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
       }) : null;
+      // BYOD guide: a line near the top for people who want their own spreadsheet (the upload sits in the folded Advanced panel at the bottom, which a new person does not look in).
+      let advanced = null;
+      const byodPointer = uploads && byodGuideOn() && !locked
+        ? h('p', { class: 'form-note byod-pointer' }, 'Have your own spreadsheet? ', h('button', { class: 'link-button', type: 'button', onclick: () => {
+          if (!advanced) return;
+          advanced.open = true;
+          advanced.scrollIntoView({ block: 'start' });
+          document.getElementById('upload-file')?.focus();
+        } }, 'Use your own data')) : null;
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
         if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
@@ -853,13 +868,14 @@
             : null),
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
         picker,
+        byodPointer,
         saved,                                      // "Template applied and saved ...": shown here, not inside the folded story file
         chat,
         sources.el,
         jobs.el,
         files.el,
         // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
-        h('details', { class: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
+        advanced = h('details', { class: 'advanced-panel', id: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
           h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
           uploads?.el, storyForm)
       ];
@@ -958,7 +974,7 @@
         const report = ds.ingest_report;
         const mapping = U.draft(report);
         if (!mapping) {
-          return h('p', { class: 'form-note app-error', role: 'alert' }, U.problem(null, report));
+          return h('p', { class: 'form-note app-error', role: 'alert' }, byodGuideOn() ? U.WIDE_HELP : U.problem(null, report));
         }
         const cols = report.columns;
         const shown = (c) => `${U.text(c.header) || `Column ${c.index + 1}`}${c.sample?.length ? ` (${c.sample.slice(0, 3).map(U.text).join(', ')})` : ''}`;
@@ -1031,13 +1047,13 @@
         } }, 'Delete');
         const use = c.key === 'ready' && editable && !inUse ? h('button', { class: 'button small', type: 'button', onclick: async () => {
           await busy(use, 'Adding\u2026', async () => {
-            try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref)); v.dataset_id = ds.id; await refresh(); }
+            try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref, ds)); v.dataset_id = ds.id; await refresh(); }
             catch (err) { showError(error, err); }
           });
         } }, 'Use in this film') : null;
         const edit = c.key === 'ready' ? h('button', { class: 'link-button', type: 'button', onclick: () => { open = open === ds.id ? null : ds.id; draw(); } }, 'See the columns') : null;
         return h('li', { class: 'upload-card' },
-          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: `state state-upload-${c.key}` }, c.label),
+          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: `state state-upload-${c.key}` }, byodGuideOn() && c.key === 'check' && !U.draft(ds.ingest_report) ? 'Needs a different layout' : c.label),
           h('p', { class: 'meta' }, [bytes(ds.bytes), ds.ext ? ds.ext.toUpperCase() : '', ds.retention === 'dont_keep' ? 'Deleted after your final film' : 'Kept until you delete it'].filter(Boolean).join(' \u00b7 '),
             inUse ? ' \u00b7 In use in this film' : ''),
           c.key === 'reading' ? h('p', { class: 'form-note', role: 'status' }, 'We\u2019re reading it. This usually takes under a minute.') : null,
@@ -1047,10 +1063,19 @@
           h('div', { class: 'actions-row' }, use, edit, c.key === 'deleting' ? null : del));
       }
 
+      // What a good file looks like (BYOD guide): the shape, as a small table.
+      function exampleBox() {
+        const X = U.EXAMPLE;
+        return h('details', { class: 'byod-hint' }, h('summary', {}, 'What should my file look like?'),
+          h('p', { class: 'form-note' }, 'One row for each place and year: a column for the place, a column for the year, and a column of values. Places are U.S. states or U.S. counties.'),
+          h('table', { class: 'byod-example' }, h('thead', {}, h('tr', {}, X.head.map(t => h('th', {}, t)))), h('tbody', {}, X.rows.map(r => h('tr', {}, r.map(t => h('td', {}, t)))))));
+      }
+
       function draw() {
         el.replaceChildren(...[
           h('h2', { id: 'uploads-title' }, 'Your own data'),
           h('p', { class: 'form-note' }, 'Upload a spreadsheet with one row per U.S. state or county and year. Only you can see it. You can delete it at any time.'),
+          byodGuideOn() ? exampleBox() : null,
           editable ? form : null,
           error,
           list.length ? h('ul', { class: 'upload-cards' }, list.map(card)) : null].filter(Boolean));
