@@ -859,6 +859,15 @@ class LiveFiles(core.Base):
         c.execute("alter publication supabase_realtime add table public.lookalike2")
         _, rows = self.run_file("01_after_migration_check.sql")
         bad = {r[0] for r in rows if r[1] is not True}
+        # the day someone adds a policy on realtime.messages (a private channel), the check says so
+        c.execute("create schema if not exists realtime")
+        c.execute("create table realtime.messages (id int primary key, topic text)")
+        c.execute("alter table realtime.messages enable row level security")
+        _, rows2 = self.run_file("01_after_migration_check.sql")
+        self.assertNotIn("realtime.messages has NO policy", " ".join(r[0] for r in rows2 if r[1] is not True))     # a table with no policy passes
+        c.execute("create policy private_channels on realtime.messages for select to authenticated using (true)")
+        _, rows2 = self.run_file("01_after_migration_check.sql")
+        self.assertTrue(any(r[0].startswith("realtime.messages has NO policy") and r[1] is not True for r in rows2))
         self.assertIn("every connect_no_oauth_select policy is RESTRICTIVE (none is permissive) and at least one exists", bad)
         self.assertIn("every published realtime table has the restrictive client_id policy", bad)
 
