@@ -19,7 +19,7 @@ test('SIGN-IN: a person with no invite is not left at a dead end: waitlist, emai
 test('HEADER AND FOOTER: Help and Account are words in the header; Help and Contact are in the app footer', () => {
   const html = read('app/index.html');
   assert.match(html, /<a class="app-nav-link" href="\/help\/">Help<\/a><a class="app-nav-link" href="#\/account">Account<\/a><a id="account-email"/);
-  assert.match(html, /<footer class="app-foot">[\s\S]*<a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">ryagram@uselai\.com<\/a>/);
+  assert.match(html, /<footer class="app-foot">[\s\S]*<a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">Contact: ryagram@uselai\.com<\/a>/);
   assert.match(read('assets/app.css'), /\.app-nav-link\{[^}]*min-height:40px/);
 });
 
@@ -74,4 +74,10 @@ test('ROUND 2: back links are comfortable to tap, the first loading line has a s
   const lib = read('assets/app-library.js');
   assert.ok(lib.includes("h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'"));
   assert.ok(lib.includes("'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'"));
+});
+
+test('FOOTER (Ryan Q26, 2026-10-18): the app footer says "Contact: ryagram@uselai.com" as one link, between Help and Terms of Use', () => {
+  const foot = read('app/index.html').match(/<footer class="app-foot">[\s\S]*?<\/footer>/)[0];
+  assert.ok(foot.includes('<a href="/help/">Help</a><a href="mailto:ryagram@uselai.com">Contact: ryagram@uselai.com</a><a href="/terms/">Terms of Use</a>'));
+  assert.equal((foot.match(/ryagram@uselai\.com/g) || []).length, 2, 'the address is the link target and its label, nothing else');
 });
