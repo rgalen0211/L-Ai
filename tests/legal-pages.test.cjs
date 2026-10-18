@@ -27,13 +27,21 @@ test('DRAFTS: both are marked as drafts for Ryan, noindex, with the draft styles
   assert.ok(fs.existsSync(path.join(root, 'assets/legal-draft.css')));
 });
 
-test('DRAFTS: nothing on the site links to a draft or to /terms/ yet (approval adds the links)', () => {
-  const pages = ['index.html', 'ryagram/index.html', 'app/index.html', 'film/index.html', 'help/index.html', 'report/index.html', 'privacy-policy.html', 'thank-you.html', 'workflow-audit/index.html'];
-  for (const p of pages) {
-    if (!fs.existsSync(path.join(root, p))) continue;
-    assert.doesNotMatch(read(p), /legal-drafts|href="\/terms\/?"/, p);
+test('SHELLS: Terms and AI-content pages exist as clearly marked placeholders (no legal wording), are noindex, and every Ryagram footer links them; nothing links to a draft', () => {
+  for (const p of ['ryagram/index.html', 'app/index.html', 'film/index.html', 'help/index.html', 'report/index.html', 'preview-demo/index.html', 'privacy-policy.html']) {
+    const foot = read(p).match(/<footer[\s\S]*?<\/footer>/)[0];
+    assert.match(foot, /<a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html"[^>]*>Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a>/, p);
+    assert.doesNotMatch(read(p), /legal-drafts/, p);
   }
-  assert.ok(!fs.existsSync(path.join(root, 'terms')), 'no published terms page exists before approval');
+  for (const name of ['terms', 'ai-content']) {
+    const html = read(`${name}/index.html`);
+    assert.match(html, new RegExp(`data-legal-shell="${name}"`));
+    assert.match(html, /<meta name="robots" content="noindex, nofollow">/);
+    assert.match(html, /<p class="shell-banner" role="note"><strong>DRAFT\. Pending legal review\.<\/strong> This page is a placeholder\./);
+    assert.doesNotMatch(html, /<script|governed by|liable|liability|warrant|indemnif|you agree/i, 'a shell carries no legal wording');
+    assert.ok(html.replace(/<[^>]+>/g, ' ').split(/\s+/).length < 140, 'a shell is short');
+  }
+  assert.match(read('assets/help.css'), /\.shell-banner\{/);
 });
 
 test('DRAFTS: the privacy draft is the live policy UNCHANGED plus new sections: every existing section is there word for word', () => {
@@ -191,4 +199,19 @@ test('APPROVE: the script never touches git and never writes outside the reposit
   const src = read('tools/legal-approve.py');
   assert.doesNotMatch(src, /\bgit\b.*subprocess|subprocess|os\.system|shutil\.rmtree/);
   assert.match(src, /It never touches git/);
+});
+
+test('SHELLS: approval replaces the Terms shell with the real page (no shell marker or banner left) and keeps the footer link and the sign-in consent lines', { skip: !hasPython }, () => {
+  const dir = scratch();
+  fs.mkdirSync(path.join(dir, 'terms'));
+  fs.copyFileSync(path.join(root, 'terms/index.html'), path.join(dir, 'terms/index.html'));
+  const file = path.join(dir, 'd.json');
+  fs.writeFileSync(file, JSON.stringify(DECISIONS));
+  const r = run(dir, ['--date', 'October 18, 2026', '--decisions', file, '--requires-ok', REQUIRES, '--apply']);
+  assert.equal(r.status, 0, r.stdout + r.stderr);
+  const t = fs.readFileSync(path.join(dir, 'terms/index.html'), 'utf8');
+  assert.doesNotMatch(t, /data-legal-shell|shell-banner|Pending legal review/);
+  const app = fs.readFileSync(path.join(dir, 'app/index.html'), 'utf8');
+  assert.equal((app.match(/<footer[\s\S]*?<\/footer>/)[0].match(/href="\/terms\/"/g) || []).length, 1, 'the footer link is not doubled');
+  assert.match(app, /By joining you agree to the <a href="\/terms\/">Terms of Use<\/a>/);
 });
