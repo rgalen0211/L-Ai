@@ -207,7 +207,14 @@ test('render-proof finding: a hatching look on EVERY county-level map is refused
     assert.match(refused({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }).join(), /too small to hatch/, e.id);
     assert.equal(refused({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }), null, `control: a solid look compiles on ${e.id}`);
   }
+  for (const e of counties) {
+    const s = compileFilm({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }).story;
+    assert.equal(s.sequence.style_overrides.choropleth.continuous, true, `${e.id}: a solid look on a county map is drawn as continuous colour (a banded one fails the 90 percent motion count)`);
+    assert.equal(s.sequence.style_overrides.choropleth.mode, 'solid', e.id);
+  }
   const states = usable.find(e => e.geography.id === 'us_states' && e.film_types.includes('map'));
+  const st = compileFilm({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }).story;
+  assert.notEqual(st.sequence.style_overrides.choropleth.continuous, true, 'control: a state map is NOT forced continuous');
   assert.equal(refused({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }), null, 'control: a state map takes a hatching look');
   const bars = counties.find(e => e.film_types.includes('bars') && !e.style);
   assert.equal(refused({ dataset: bars.id, film_type: 'bars', title: 'x', look: PRESETS['wtds-classic'] }), null, 'a bar film does not hatch, so the look is fine there');

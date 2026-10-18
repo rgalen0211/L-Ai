@@ -161,7 +161,7 @@
     }
    },
    "pacing": {
-    "hold_seconds": 3.0,
+    "hold_seconds": 2.0,
     "transition": {
      "kind": "crossfade",
      "seconds": 0.8
@@ -1898,7 +1898,7 @@
        "outline_width": 1.5
       }
      },
-     "hold_seconds": 3.0
+     "hold_seconds": 2.0
     }
    },
    "changed": [
@@ -1990,7 +1990,7 @@
        "outline_width": 1.5
       }
      },
-     "hold_seconds": 3.0
+     "hold_seconds": 2.0
     }
    },
    "changed": [
@@ -2082,7 +2082,7 @@
        "outline_width": 1.5
       }
      },
-     "hold_seconds": 3.0
+     "hold_seconds": 2.0
     }
    },
    "changed": [
@@ -2106,7 +2106,9 @@
     "sequence.style_overrides.text.muted",
     "sequence.theme"
    ],
-   "warnings": []
+   "warnings": [
+    "pacing.hold_seconds 2 is below the bar race's own default of 3 s per period; rows may not be able to cross that fast and the bar-race checks may fail. Make a contact sheet first."
+   ]
   },
   {
    "preset": "warm-documentary",
@@ -2178,7 +2180,7 @@
        "outline_width": 1.5
       }
      },
-     "hold_seconds": 3.0
+     "hold_seconds": 2.0
     }
    },
    "changed": [
@@ -2198,7 +2200,9 @@
     "sequence.style_overrides.state.outline_width",
     "sequence.style_overrides.text.muted"
    ],
-   "warnings": []
+   "warnings": [
+    "pacing.hold_seconds 2 is below the bar race's own default of 3 s per period; rows may not be able to cross that fast and the bar-race checks may fail. Make a contact sheet first."
+   ]
   },
   {
    "preset": "warm-documentary",
@@ -2269,7 +2273,7 @@
        "outline_width": 1.5
       }
      },
-     "hold_seconds": 3.0
+     "hold_seconds": 2.0
     }
    },
    "changed": [
@@ -2364,7 +2368,7 @@
        "outline_width": 1.5
       }
      },
-     "hold_seconds": 3.0
+     "hold_seconds": 2.0
     }
    },
    "changed": [
@@ -4594,7 +4598,7 @@
    ],
    "fps": 24,
    "ramp_mode": "solid",
-   "hold_seconds": 3.0
+   "hold_seconds": 2.0
   },
   {
    "id": "wtds-classic",
@@ -5177,7 +5181,7 @@
        "outline_width": 1.5
       }
      },
-     "hold_seconds": 3.0
+     "hold_seconds": 2.0
     }
    },
    "wtds-classic": {

@@ -337,8 +337,16 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
     if ((entry.style?.choropleth?.continuous || (countyLevel && req.film_type === "map")) && req.look?.look?.ramp?.mode === "hatch") {
       throw new FilmError(["look: this dataset is drawn as continuous colour (its areas are too small to hatch); use a look whose ramp mode is 'solid'"]);
     }
+    // A solid look on a county map is drawn as CONTINUOUS colour: counties are too small to class into a few bands, and a
+    // banded solid county map is judged by the 90 percent frame count (the render proof measured 29 to 53 percent kept, a
+    // fail) while the continuous map passes the half-second windows (50 of 50). So the look is applied with continuous on.
+    let lookToApply = req.look;
+    if (countyLevel && req.film_type === "map" && req.look?.look?.ramp && req.look.look.ramp.continuous === undefined) {
+      lookToApply = JSON.parse(JSON.stringify(req.look));
+      lookToApply.look.ramp.continuous = true;
+    }
     try {
-      const r = applyProfile(req.look, story, "restyle");
+      const r = applyProfile(lookToApply, story, "restyle");
       story = r.story;
       // A dataset's pinned style (county areas are drawn as continuous colour) must survive the look. A look may restate the
       // same value, but one that CHANGES a pinned key (continuous false, mode hatch) would silently undo it (BUILDER LOW-7).
