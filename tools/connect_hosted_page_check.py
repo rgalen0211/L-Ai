@@ -89,23 +89,30 @@ def authorize_location(url):
     return ""
 
 
-def new_request(client_name):
+_REGISTERED = {}
+
+
+def new_request(client_name, callback=CALLBACK, scope="read write render_free"):
     """Register a client, start an authorization, return everything the page and the exchange need."""
-    st, reg = http_json("POST", f"{FN}/register", {"client_name": client_name, "redirect_uris": [CALLBACK], "token_endpoint_auth_method": "none"})
-    assert st == 201, f"register {st}"
+    key = (client_name, callback)       # /register is limited to 10 an hour per caller: register each distinct client once per run
+    if key not in _REGISTERED:
+        st, reg = http_json("POST", f"{FN}/register", {"client_name": client_name, "redirect_uris": [callback], "token_endpoint_auth_method": "none"})
+        assert st == 201, f"register {st} (the limiter allows 10 an hour; wait and rerun)"
+        _REGISTERED[key] = reg
+    reg = _REGISTERED[key]
     verifier = secrets.token_urlsafe(48)[:64]
     challenge = base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
     state = "st-" + secrets.token_hex(6)
-    q = urllib.parse.urlencode({"response_type": "code", "client_id": reg["client_id"], "redirect_uri": CALLBACK, "state": state, "code_challenge": challenge,
-                                "code_challenge_method": "S256", "scope": "read write render_free", "resource": f"{FN}/mcp"})
+    q = urllib.parse.urlencode({"response_type": "code", "client_id": reg["client_id"], "redirect_uri": callback, "state": state, "code_challenge": challenge,
+                                "code_challenge_method": "S256", "scope": scope, "resource": f"{FN}/mcp"})
     loc = authorize_location(f"{FN}/authorize?{q}")
     rid = urllib.parse.parse_qs(urllib.parse.urlsplit(loc).query).get("request", [None])[0]
     assert rid, f"no request id in {loc[:60]}"
     return {"client_id": reg["client_id"], "request": rid, "verifier": verifier, "state": state}
 
 
-def exchange(req, code):
-    return http_json("POST", f"{FN}/token", {"grant_type": "authorization_code", "code": code, "client_id": req["client_id"], "redirect_uri": CALLBACK,
+def exchange(req, code, callback=CALLBACK):
+    return http_json("POST", f"{FN}/token", {"grant_type": "authorization_code", "code": code, "client_id": req["client_id"], "redirect_uri": callback,
                                              "code_verifier": req["verifier"]}, form=True)
 
 
@@ -260,6 +267,36 @@ def main():
                 p.goto(f"{base}/app/#/connect/consent?request=nope", wait_until="load")
                 p.wait_for_selector("#np-title", timeout=30000)
                 check(p.get_by_role("button", name="Approve").count() == 0, "a malformed request id is not the consent page")
+                ctx.close()
+                # ---- F. a hostile name is text, never markup; control and bidi characters are refused when the assistant registers
+                evil = '<img src=x onerror="window.__pwned=1"><b>Ryagram Staff</b>'
+                req = new_request(evil)
+                went = []
+                ctx, p, errors = page_for(opts, went)
+                p.goto(f"{base}/app/#/connect/consent?request={req['request']}", wait_until="load")
+                p.wait_for_selector('button:has-text("Approve")', timeout=30000)
+                check(p.evaluate("window.__pwned") is None and p.locator("main img, main b").count() == 0, "markup in the assistant's name is shown as text and runs nothing")
+                check(evil in p.inner_text(".consent-calls-itself"), "the name appears only in the small 'It calls itself' line")
+                check(p.locator(".consent-who").inner_text().startswith("Connect Claude to Ryagram"), "the big heading is the label Ryan controls, not the assistant's name")
+                ctx.close()
+                for bad in () if name != "desktop" else ("Cl" + chr(0x202e) + "aude", "Claude" + chr(7), "Cla" + chr(0x200b) + "ude"):
+                    st, _r = http_json("POST", f"{FN}/register", {"client_name": bad, "redirect_uris": [CALLBACK], "token_endpoint_auth_method": "none"})
+                    check(st == 400, f"registering a name with a control, bidi or zero-width character is refused ({st})")
+                # ---- G. a program on this computer: the label says so, whatever it calls itself; only the shown loopback address is followed
+                LOOP = "http://127.0.0.1:53124/callback"
+                req = new_request("Claude", callback=LOOP, scope="read")
+                went = []
+                ctx, p, errors = page_for(opts, went)
+                p.route("http://127.0.0.1:53124/**", lambda route: (went.append(route.request.url), route.fulfill(status=200, content_type="text/html", body="<p>local</p>")))
+                p.goto(f"{base}/app/#/connect/consent?request={req['request']}", wait_until="load")
+                p.wait_for_selector('button:has-text("Approve")', timeout=30000)
+                check(p.locator(".consent-who").inner_text().startswith("Connect A program on this computer to Ryagram"), "a loopback address is introduced as 'A program on this computer', not as 'Claude'")
+                check("It calls itself: Claude" in p.inner_text("main") and LOOP in p.inner_text("main"), "its own name 'Claude' is small and second, and the exact loopback address is shown")
+                shown = p.locator(".consent-scopes input[type=checkbox]").count()
+                check(shown == 1, f"it asked for read only and the page offers exactly that one thing ({shown} boxes)")
+                p.get_by_role("button", name="Approve").click()
+                p.wait_for_url("http://127.0.0.1:53124/**", timeout=20000)
+                check(went and went[0].startswith(LOOP + "?code=") and "iss=" in went[0], "Approve goes to exactly the loopback address shown, with a code and iss")
                 ctx.close()
             b.close()
     finally:
