@@ -213,6 +213,36 @@
         const { error } = await client.auth.updateUser({ password });
         if (error) throw new Error(error.message || 'Couldn’t change the password.');
       },
+      // Supabase Auth sends a confirmation link to the NEW address; the address changes only when it is pressed.
+      async changeEmail(email) {
+        const { error } = await client.auth.updateUser({ email });
+        if (error) throw new Error(error.message || 'Couldn’t start the email change.');
+      },
+      // Everything the person can read as themselves (row-level security returns only their own rows). A table that can't be read becomes { error } so the file says so.
+      async collectMyData() {
+        const read = async (table, columns, order) => {
+          try {
+            let q = client.from(table).select(columns);
+            if (order) q = q.order(order, { ascending: true });
+            const { data, error } = await q;
+            if (error) return { error: error.message || 'not readable' };
+            return data || [];
+          } catch (err) { return { error: String(err?.message || err) }; }
+        };
+        const names = {
+          projects: ['projects', '*', 'created_at'],
+          versions: ['versions', '*', 'created_at'],
+          jobs: ['jobs', JOB_COLUMNS, 'created_at'],
+          film_requests: ['film_requests', 'id, created_at, question, notes, credits, status, admin_note, delivered_url', 'id'],
+          render_orders: ['render_orders', 'id, state, want, error_code, created_at, ended_at, version_id', 'created_at'],
+          credit_balances: ['credit_balances', '*'],
+          credit_ledger: ['credit_ledger', '*', 'created_at'],
+          account_settings: ['account_settings', '*']
+        };
+        const out = {};
+        for (const [key, [table, columns, order]] of Object.entries(names)) out[key] = await read(table, columns, order);
+        return out;
+      },
       async uploadRetention() {
         const rows = await run(client.from('account_settings').select('upload_retention'), 'Couldn’t load your settings.');
         return rows[0]?.upload_retention || 'keep';
