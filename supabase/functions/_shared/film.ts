@@ -330,7 +330,11 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   let look = { applied: false, changed: [] as string[], not_applied: [] as string[] };
   if (req.look !== undefined && req.look !== null) {
     // A dataset the engine draws as continuous colour (county areas are too small to hatch) cannot take a hatching look.
-    if (entry.style?.choropleth?.continuous && req.look?.look?.ramp?.mode === "hatch") {
+    // Found by the render proof (2026-10-18): only bps_county_permits was pinned, so a hatching look on any other county dataset
+    // compiled and then failed texture_carrying_capacity (12% of counties cannot carry a pattern). Any county-level geography
+    // is refused for hatching, pinned or not.
+    const countyLevel = ["us_counties", "tx_counties"].includes(entry.geography?.id);
+    if ((entry.style?.choropleth?.continuous || (countyLevel && req.film_type === "map")) && req.look?.look?.ramp?.mode === "hatch") {
       throw new FilmError(["look: this dataset is drawn as continuous colour (its areas are too small to hatch); use a look whose ramp mode is 'solid'"]);
     }
     try {

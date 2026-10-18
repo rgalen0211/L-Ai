@@ -181,7 +181,7 @@ test('the look is applied by the profile compiler and changes ONLY look fields (
   for (const e of [...usable.slice(0, 6), ...usable.filter(x => x.style)]) {
     const base = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'Look test' });
     for (const id of Object.keys(PRESETS)) {
-      if (e.style?.choropleth?.continuous && PRESETS[id].look?.ramp?.mode === 'hatch') {
+      if ((e.style?.choropleth?.continuous || (/counties/.test(e.geography.id) && e.film_types[0] === 'map')) && PRESETS[id].look?.ramp?.mode === 'hatch') {
         assert.match(refused({ dataset: e.id, film_type: e.film_types[0], title: 'Look test', look: PRESETS[id] }).join(), /too small to hatch/, `${e.id} ${id}`);
         continue;
       }
@@ -198,6 +198,19 @@ test('the look is applied by the profile compiler and changes ONLY look fields (
       assert.ok(styled.report.look.changed.every(p => /^sequence\.(theme|canvas|fps|hold_seconds|style_overrides\.|clips\.\d+\.(transition|fade|align))/.test(p)), styled.report.look.changed.join());
     }
   }
+});
+
+test('render-proof finding: a hatching look on EVERY county-level map is refused (only one dataset was pinned, so the rest compiled and failed texture_carrying_capacity)', () => {
+  const counties = usable.filter(e => /counties/.test(e.geography.id) && e.film_types.includes('map'));
+  assert.ok(counties.length > 20, 'many usable county datasets');
+  for (const e of counties) {
+    assert.match(refused({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }).join(), /too small to hatch/, e.id);
+    assert.equal(refused({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }), null, `control: a solid look compiles on ${e.id}`);
+  }
+  const states = usable.find(e => e.geography.id === 'us_states' && e.film_types.includes('map'));
+  assert.equal(refused({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }), null, 'control: a state map takes a hatching look');
+  const bars = counties.find(e => e.film_types.includes('bars') && !e.style);
+  assert.equal(refused({ dataset: bars.id, film_type: 'bars', title: 'x', look: PRESETS['wtds-classic'] }), null, 'a bar film does not hatch, so the look is fine there');
 });
 
 test('a bad look is refused with the profile reasons, prefixed; a look cannot carry a claim', () => {
