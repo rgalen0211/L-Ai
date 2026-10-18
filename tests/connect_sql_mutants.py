@@ -85,6 +85,8 @@ MUTANTS = [
     ("refresh retry grace never ends", "t.refresh_used_at is not null and t.refresh_used_at > now() - interval '60 seconds'", "t.refresh_used_at is not null"),
     ("refresh retry grace still applies after the family was killed", "and not exists (select 1 from public.connect_tokens x where x.family_id = t.family_id and x.revoked_at is not null and x.refresh_used_at is null) then", "then"),
     ("refresh no longer slides the 30 days", "now() + interval '1 hour', p_new_refresh_hash, now() + interval '30 days');", "now() + interval '1 hour', p_new_refresh_hash, t.refresh_expires_at);"),
+    ("refresh retry grace can be used any number of times", "interval '60 seconds' and t.grace_used_at is null", "interval '60 seconds'"),
+    ("refresh retry grace is never marked as used", "set grace_used_at = now() where id = t.id;", "set grace_used_at = null where id = t.id;"),
     ("the realtime check ignores what the policy tests", "= 'selectauth.jwt->>''client_id''isnull')", "like '%client_id%')"),
     ("the realtime check ignores which role the policy is for", "\n                        and (pol.polroles = '{0}'::pg_catalog.oid[] or 'authenticated'::pg_catalog.regrole::pg_catalog.oid = any (pol.polroles))", ""),
     ("the realtime check ignores whether the policy is restrictive", "and not pol.polpermissive and pol.polcmd in ('r', '*')", "and pol.polcmd in ('r', '*')"),

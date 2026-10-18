@@ -360,6 +360,16 @@ class Connect(core.Base):
         out = self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n2), h(r2))
         self.assertEqual(out["expires_in"], 3600)
         self.runner().one("select connect_list_projects(%s)", h(n1)); self.runner().one("select connect_list_projects(%s)", h(n2))
+        # ONCE per spent token: a SECOND repeat inside the 60 s is reuse, refused, and it kills the family (no parallel chain can grow from a replay)
+        n3, r3 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n3), h(r3)), {"error": "invalid_grant"})
+        self.runner(); self.fails("select connect_list_projects(%s)", h(n1), code="PT401"); self.runner(); self.fails("select connect_list_projects(%s)", h(n2), code="PT401")
+        self.runner(); self.fails("select connect_list_projects(%s)", h(n3), code="PT401")
+        client, a, ref = self.connect(ALICE)           # a new connection to carry on with the remaining checks
+        n1, r1 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n1), h(r1))
+        n2, r2 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n2), h(r2))          # its one grace
         # the grace never reaches past 60 s: aged, the same token is reuse and kills the family (both pairs)
         self.db.as_(None).c.execute("update public.connect_tokens set refresh_used_at = now() - interval '61 seconds' where refresh_hash = %s", (h(ref),))
         self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("7" * 64), h("8" * 64)), bad)
@@ -368,6 +378,12 @@ class Connect(core.Base):
         self.db.as_(None).c.execute("update public.connect_tokens set refresh_used_at = now() where refresh_hash = %s", (h(ref),))
         self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("9" * 64), h("a" * 64)), bad)
         self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(r1), client, h("b" * 64), h("c" * 64)), bad)
+        # a killed family gets no grace even though this token has not used its one retry: a child row revoked without having been rotated is the kill marker
+        client4, a4, ref4 = self.connect(ALICE)
+        n4, r4 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref4), client4, h(n4), h(r4))
+        self.db.as_(None).c.execute("update public.connect_tokens set revoked_at = now() where refresh_hash = %s", (h(r4),))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref4), client4, h("5" * 64), h("6" * 64)), bad)
         # the grace still needs the right client, a live grant and an enabled person
         client2, a2, ref2 = self.connect(ALICE)
         self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref2), client2, h("d" * 64), h("e" * 64))

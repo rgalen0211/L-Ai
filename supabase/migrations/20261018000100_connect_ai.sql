@@ -86,6 +86,7 @@ create table public.connect_tokens (                       -- opaque tokens, sto
   refresh_hash text not null unique check (refresh_hash ~ '^[0-9a-f]{64}$'),
   refresh_expires_at timestamptz not null,
   refresh_used_at timestamptz,
+  grace_used_at timestamptz,                -- set when the 60-second retry grace was spent on this (already rotated) token: the grace is ONCE per token
   created_at timestamptz not null default now(),
   last_used_at timestamptz,
   revoked_at timestamptz);
@@ -314,9 +315,10 @@ begin
   select * into t from public.connect_tokens where refresh_hash = p_refresh_hash for update;
   if not found or t.client_id is distinct from p_client_id then return bad; end if;
   -- RETRY GRACE (Ryan's OK 2026-10-18): the SAME refresh token presented again within 60 seconds of the refresh that spent it is a repeat of that
-  -- refresh (the answer was lost on the way, or two requests raced), not theft; it gets a fresh pair in the same family. It never applies once the
-  -- family has been killed (a row revoked without having been rotated), and every check below still runs.
-  if t.refresh_used_at is not null and t.refresh_used_at > now() - interval '60 seconds'
+  -- refresh (the answer was lost on the way, or two requests raced), not theft; it gets a fresh pair in the same family, ONCE per spent token (a second
+  -- repeat is reuse and kills the family, so a replay cannot grow parallel chains). It never applies once the family has been killed (a row revoked
+  -- without having been rotated), and every check below still runs.
+  if t.refresh_used_at is not null and t.refresh_used_at > now() - interval '60 seconds' and t.grace_used_at is null
      and not exists (select 1 from public.connect_tokens x where x.family_id = t.family_id and x.revoked_at is not null and x.refresh_used_at is null) then
     grace := true;
   elsif t.refresh_used_at is not null or t.revoked_at is not null then   -- reuse of a rotated or revoked token: kill the whole family
@@ -329,6 +331,8 @@ begin
   end if;
   if not grace then
     update public.connect_tokens set refresh_used_at = now(), revoked_at = now() where id = t.id;      -- the old pair is spent
+  else
+    update public.connect_tokens set grace_used_at = now() where id = t.id;                          -- and its one retry is used
   end if;
   -- SLIDING LIFETIME (Ryan's OK 2026-10-18): every refresh gives the new refresh token 30 more days. A connection ends only when the person
   -- disconnects it, an administrator ends it, or it goes unused for 30 days.
