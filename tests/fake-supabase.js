@@ -507,6 +507,10 @@
         const allowed = { contact_sheet: ['periods'], preview: ['window_s'], final_render: [] }[type];
         const bad = Object.keys(params).find(k => !allowed.includes(k));
         if (bad) return fail(`Unknown parameter "${bad}" for ${type}.`);
+        // The SQL's own rule (2a_core, again in pipe1_orders): 3 to 5 strings, each exactly four digits. The mock used to accept anything, so a bad sample period set passed every test.
+        if ('periods' in params && !(Array.isArray(params.periods) && params.periods.length >= 3 && params.periods.length <= 5 && params.periods.every(p => typeof p === 'string' && /^[0-9]{4}$/.test(p)))) {
+          return fail('periods must be 3 to 5 years like "2016".');
+        }
         if (type === 'preview' && !params.window_s) {
           return fail('A preview needs window_s: [start, end] in seconds, at most 10 seconds long.');
         }

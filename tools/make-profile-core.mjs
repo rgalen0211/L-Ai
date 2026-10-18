@@ -6,6 +6,8 @@
 // fixtures through it. The server's answer still counts: set_engine_profile is the backstop.
 //
 //     node tools/make-profile-core.mjs            writes assets/profile-core.js
+//
+// Needs Node 22.13 or later (it uses module.stripTypeScriptTypes). Older Node: "stripTypeScriptTypes is not a function".
 import fs from 'node:fs';
 import { createHash } from 'node:crypto';
 import { stripTypeScriptTypes } from 'node:module';
