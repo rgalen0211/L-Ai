@@ -56,3 +56,10 @@ test('VERSION PAGE: the ready-made films and the editor come first, then sources
   assert.match(ret, /uploads\?\.el, storyForm\)/);
   for (const keep of ['sources.el', 'uploads?.el', 'picker', 'chat', 'storyForm', 'jobs.el', 'files.el']) assert.ok(ret.includes(keep), keep);       // nothing was dropped, only moved or folded
 });
+
+test('STORY SAVE: the "Saved" message also appears beside the Save story button (inside the folded form), not only above it', () => {
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /saved\.textContent = savedHere\.textContent = 'Saved\. Earlier sheets and previews were of the old story/);
+  assert.match(lib, /story, locked \? null : save, savedHere, error\);/);
+  assert.match(lib, /saved\.textContent = '';\n\s+savedHere\.textContent = '';/, 'both are cleared on the next save');
+});

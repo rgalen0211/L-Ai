@@ -752,6 +752,7 @@
       const locked = !EDITABLE.includes(v.state);
       const error = errorLine();
       const saved = h('p', { class: 'form-note', role: 'status' });
+      const savedHere = h('p', { class: 'form-note', role: 'status' });          // the same confirmation, beside the Save story button inside the folded form
 
       const newVersion = async event => {
         await busy(event.currentTarget, 'Copying…', async () => {
@@ -774,6 +775,7 @@
         event.preventDefault();
         error.hidden = true;
         saved.textContent = '';
+        savedHere.textContent = '';
         let parsed;
         try { parsed = JSON.parse(story.value); } catch (err) {
           showError(error, new Error(`That isn’t valid JSON: ${err.message}`));
@@ -786,7 +788,7 @@
         await busy(save, 'Saving…', async () => {
           try {
             const result = await data.saveStory(v.id, parsed);
-            saved.textContent = 'Saved. Earlier sheets and previews were of the old story, so the final render needs new ones.';
+            saved.textContent = savedHere.textContent = 'Saved. Earlier sheets and previews were of the old story, so the final render needs new ones.';
             jobs.storyChanged(result.story_sha256);
             sources.refresh();
           } catch (err) { showError(error, err); }
@@ -796,7 +798,7 @@
         h('p', { id: 'story-help', class: 'form-note' }, locked
           ? `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()} and can’t change. Make a new version from it to keep working.`
           : 'The story file this version renders from. The render worker checks it in full before drawing anything.'),
-        story, locked ? null : save, error);
+        story, locked ? null : save, savedHere, error);
 
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
       const sources = sourcesPanel(v, !locked);
