@@ -44,6 +44,12 @@ test('REFUSALS: every fault in a joined list is put into words (not only the fir
   assert.equal(p(null), '');
   const many = p(Array.from({ length: 8 }, (_, i) => `$: unknown key 'k${i}'`).join('; '));
   assert.match(many, /And 3 more: open “Get help with this”\.$/);
+  assert.equal((two.match(/pick a ready-made film/g) || []).length, 1, 'the advice is said once, at the end');
+  assert.ok(two.endsWith('start again.'));
+  const ids = JSON.stringify(Array.from({ length: 83 }, (_, i) => `dataset_${i}`));
+  const long = p(`$.sequence.clips[1].dataset: "x" is not one of ${ids}`);
+  assert.doesNotMatch(long, /[\[\]"]|dataset_\d/, 'a long choice list is omitted, never printed with brackets');
+  assert.match(long, /Pick one of the ready-made choices instead\./);
   const job = { state: 'failed', error_class: 'invalid_input', error_detail: GOLDEN.twoUnknown };
   assert.doesNotMatch(J.problem(job), /\$|unknown key/);
   assert.equal(J.rawDetail(job), GOLDEN.twoUnknown);
