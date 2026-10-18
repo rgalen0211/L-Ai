@@ -162,3 +162,17 @@ test('there is no dataset picker or browse list for users: flags stay off, and t
   const html = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
   assert.doesNotMatch(html, /app-catalog/);                       // the browser never loads the catalog
 });
+
+test('HONEST STATUS (CC1 HIGH-1, app side): only a measured dataset is Ready; an unmeasured one says it is not checked, a failed one says it is not available; neither is offered or counted as ready', () => {
+  const e = (id, status, group = 'housing') => ({ id, status, group, title: id, short: id, blurb: '', source: '', level: '' });
+  const entries = [e('a', 'usable'), e('b', 'next'), e('c', 'later')];
+  assert.deepEqual(entries.map(K.statusLabel), ['Ready', 'Not checked yet', 'Not available yet']);
+  assert.equal(K.statusNote(entries[0]), '');
+  assert.match(K.statusNote(entries[1]), /has not yet checked that a film from this data moves smoothly, so you cannot make one yet\./);
+  assert.match(K.statusNote(entries[2]), /did not pass Ryagram.s checks yet, so you cannot make one yet\./);
+  for (const w of [K.statusLabel(entries[1]), K.statusNote(entries[1]), K.statusLabel(entries[2]), K.statusNote(entries[2])]) assert.doesNotMatch(w, /\bReady\b|Coming soon|soon/i, w);
+  assert.deepEqual(K.visible(entries).map(x => x.id), ['a'], 'by default only the measured one is shown');
+  const g = K.layout(entries, { soon: true }).find(x => x.key === 'housing');
+  assert.equal(g.ready, 1, 'only the measured one counts as ready');
+  assert.equal(g.total, 3);
+});
