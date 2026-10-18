@@ -292,6 +292,42 @@ test('the committed catalog_data.ts equals a fresh regeneration; the public outp
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
+test('the motion record (WORKER): a dataset measured motion=fail is NOT usable; an unmeasured or off-list line stops the generator',
+  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-motion-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const tree = exportCommit(path.join(tmp, 'engine'));
+  const ids = fs.readFileSync(ALLOW, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
+  const line = (id, m = 'pass') => `${id} motion=${m} paced=none engine=ba0e116 measured=2026-10-18`;
+  const gen = (name, recordLines) => {
+    const d = path.join(tmp, name);
+    for (const x of ['tools', 'assets', 'supabase']) fs.mkdirSync(path.join(d, x), { recursive: true });
+    fs.copyFileSync(path.join(root, 'assets', 'app-templates.js'), path.join(d, 'assets', 'app-templates.js'));
+    fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(d, 'tools', 'gen-catalog.py'));
+    const rec = path.join(d, 'motion.txt');
+    fs.writeFileSync(rec, recordLines.join('\n') + '\n');
+    const r = run(python, [path.join(d, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--allowlist', ALLOW, '--listing', LISTING,
+      '--commit', CATALOG_ENGINE, '--motion', rec, '--out', path.join(d, 'assets', 'app-catalog-data.js')]);
+    return { r, pub: r.status === 0 ? fs.readFileSync(path.join(d, 'assets', 'app-catalog-data.js'), 'utf8') : '' };
+  };
+  const statusOf = (pub, id) => { const m = new RegExp(`"id": "${id}",[\\s\\S]*?"status": "([a-z]+)"`).exec(pub); return m && m[1]; };
+  const listableUsable = usable.filter(e => e.listable).map(e => e.id);
+  const target = listableUsable[0], other = listableUsable[1];
+  const control = gen('ctl', ids.map(i => line(i)));
+  assert.equal(control.r.status, 0, control.r.stderr);
+  assert.equal(statusOf(control.pub, target), 'usable', 'CONTROL: all measured pass -> the target stays usable');
+  const planted = gen('fail', ids.map(i => line(i, i === target ? 'fail' : 'pass')));
+  assert.equal(planted.r.status, 0, planted.r.stderr);
+  assert.notEqual(statusOf(planted.pub, target), 'usable', 'MUST-FAIL: a motion=fail dataset must not be usable');
+  assert.equal(statusOf(planted.pub, other), 'usable', 'and the others are untouched');
+  const unmeasured = gen('missing', ids.filter(i => i !== target).map(i => line(i)));
+  assert.notEqual(unmeasured.r.status, 0, 'MUST-FAIL: an allowlisted dataset with no motion line stops the generator');
+  assert.match(unmeasured.r.stderr, /no motion line/);
+  assert.notEqual(gen('extra', [...ids.map(i => line(i)), line('not_on_the_allowlist')]).r.status, 0, 'MUST-FAIL: a line for an id off the allowlist is refused');
+  assert.notEqual(gen('twice', [...ids.map(i => line(i)), line(target)]).r.status, 0, 'MUST-FAIL: two lines for one id are refused');
+  assert.notEqual(gen('junk', [...ids.map(i => line(i)), 'cbp_x motion=maybe paced=none engine=ba0e116 measured=2026-10-18']).r.status, 0, 'MUST-FAIL: an unparseable line is refused');
+});
+
 test('MUST-FAIL: an untracked INGESTED dataset in the engine checkout never reaches a catalog (privacy and determinism)',
   { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-ing-'));
