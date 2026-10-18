@@ -43,26 +43,28 @@ test('fixtures, private data and shapes the app cannot build are not in the cata
 test('"ready" is exactly the installed worker allowlist, and every ready dataset can be priced and built', () => {
   assert.deepEqual(plain(usable.map(e => e.id).sort()), plain([...D.allow].sort()));
   for (const id of D.allow) assert.ok(D.entries.some(e => e.id === id), `allowlisted ${id} is missing from the catalog`);
-  for (const id of Object.keys(D.next)) assert.equal(D.entries.find(e => e.id === id)?.status, 'next', id);
+  for (const id of Object.keys(D.next)) assert.equal(D.entries.find(e => e.id === id)?.status, D.allow.includes(id) ? 'usable' : 'next', id);       // a candidate already on the allowlist is usable, never 'next'
   // credit_quote refuses a dataset with no shape row (supabase/phase-2b/credits_ledger.sql).
   const sql = fs.readFileSync(path.join(root, 'supabase/phase-2b/credits_ledger.sql'), 'utf8');
   const seeded = new Set([...sql.matchAll(/\('([a-z0-9_]+)', 'standard'/g)].map(m => m[1]));
   const sectors = [...sql.match(/unnest\(array\[((?:'[a-z_]+',?\s*)+)\]\) sector/)[1].matchAll(/'([a-z_]+)'/g)].map(m => m[1]);
   const suffixes = [...sql.match(/unnest\(array\[((?:'_[a-z_]+',?\s*)+)\]\) suffix/)[1].matchAll(/'(_[a-z_]+)'/g)].map(m => m[1]);
   for (const s of sectors) for (const x of suffixes) seeded.add(`cbp_${s}${x}`);
-  for (const e of usable) {
-    assert.ok(seeded.has(e.id), `${e.id} has no credit_dataset_shapes row`);
-    assert.ok(e.window && e.window.length === 2, `${e.id} needs a ready-made period`);
-  }
+  // The installed worker's allowlist grew from 23 to 83 (tests/catalog-usable.test.mjs). These five are on it but have NO credit_dataset_shapes row, so credit_quote would
+  // refuse them: a pricing decision for CC1 (the shape comes from the engine's DatasetSpec.shape; WEB does not guess it). Add their rows to supabase/phase-2b/credits_ledger.sql
+  // and DELETE the id from this list; a NEW usable dataset without a row fails here.
+  const UNPRICED = ['bps_county_unit_share_1', 'bps_county_unit_share_2to4', 'bps_county_unit_share_5plus', 'bps_us_unit_mix', 'fhwa_hm212'];
+  assert.deepEqual(plain(usable.map(e => e.id).filter(id => !seeded.has(id)).sort()), plain([...UNPRICED].sort()), 'usable datasets with no credit_dataset_shapes row');
+  for (const e of usable) assert.ok(e.window && e.window.length === 2, `${e.id} needs a ready-made period`);
 });
 
-test('when WORKER-SETUP.ps1 is on this machine, the catalog lists are its lists', t => {
+test('the catalog\'s usable list is the COMMITTED worker allowlist export (supabase/functions/_shared/worker_allowlist.txt), and, when WORKER-SETUP.ps1 is here, \'next\' is its candidates', t => {
+  const ids = fs.readFileSync(path.join(root, 'supabase/functions/_shared/worker_allowlist.txt'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.trim().split(/\s+/)[0]);
+  assert.deepEqual(plain([...D.allow].sort()), plain([...ids].sort()), 'regenerate: python tools/gen-catalog.py --allowlist supabase/functions/_shared/worker_allowlist.txt ...');
   const f = 'C:/Users/Ryan/Ryagram-logs/proposals/WORKER-SETUP.ps1';
-  if (!fs.existsSync(f)) return t.skip('WORKER-SETUP.ps1 not on this machine');
+  if (!fs.existsSync(f)) return t.skip('WORKER-SETUP.ps1 not on this machine (the usable check above ran from the committed file)');
   const text = fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '');
-  const allow = [...text.match(/\$AllowToml\s*=\s*@'\s*([\s\S]*?)\s*'@/)[1].matchAll(/'([a-z0-9_]+)'/g)].map(m => m[1]);
   const next = [...text.match(/\$UpdateCandidates\s*=\s*\[ordered\]@\{([\s\S]*?)\n\}/)[1].matchAll(/^\s*'([a-z0-9_]+)'\s*=\s*'/gm)].map(m => m[1]);
-  assert.deepEqual(plain([...D.allow].sort()), plain([...allow].sort()), 'regenerate: python tools/gen-catalog.py');
   assert.deepEqual(plain(Object.keys(D.next).sort()), plain([...next].sort()), 'regenerate: python tools/gen-catalog.py');
 });
 
@@ -89,10 +91,11 @@ test('sector rows sit under one family heading, search narrows, and nothing is i
   assert.equal(share.title, 'Share of jobs by industry, by state');
   assert.equal(share.items.length, 18);
   assert.ok(share.items.some(e => e.short === 'Manufacturing'));
-  assert.equal(K.visible(D.entries, { text: 'manufacturing' }).length, 1);                  // ready only
-  assert.ok(K.visible(D.entries, { soon: true, text: 'manufacturing' }).length > 1);
+  const manufacturing = ['cbp_manufacturing_employment', 'cbp_manufacturing_establishments', 'cbp_manufacturing_share', 'cbp_manufacturing_share_state'];
+  assert.deepEqual(plain(K.visible(D.entries, { text: 'manufacturing' }).map(e => e.id).sort()), plain(manufacturing));          // ready only: all four are on the worker's allowlist
+  assert.equal(K.visible(D.entries, { soon: true, text: 'manufacturing' }).length, 4);
   assert.equal(K.visible(D.entries, { text: 'zzzz nothing' }).length, 0);
-  assert.equal(K.visible(D.entries, { text: 'census manufacturing' }).length, 1);            // words are ANDed
+  assert.equal(K.visible(D.entries, { text: 'census manufacturing' }).length, 4);            // words are ANDed
 });
 
 test('every ready dataset builds a valid story on every offered view, in the worker schema shape', () => {
