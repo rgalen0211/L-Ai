@@ -217,7 +217,7 @@ def story_measure(m):
 #: word (INTERNAL, BY-SA, non-commercial, no derivatives, all rights reserved, "not public", private, personal, confidential,
 #: proprietary, or a licence that is private or personal) is an error, and so is a `true` whose licence names no open licence. catalog_rules.ts re-checks the same
 #: two guards on the generated data (tests).
-TRIPWIRE = re.compile(r'\bINTERNAL\b|BY-SA|share-?alike|\bBY-NC\b|\bBY-ND\b|non-?commercial|no ?derivatives?|all rights reserved|'
+TRIPWIRE = re.compile(r'\bINTERNAL\b|BY[\s\-\u2010-\u2015]*SA\b|share[\s\-\u2010-\u2015]*alike|attribution[\s\-\u2010-\u2015]*share|\bODbL\b|open database licen[cs]e|\bBY-NC\b|\bBY-ND\b|non-?commercial|no ?derivatives?|all rights reserved|'
                       r'not for (public|redistribution)|\bnot\s+(a\s+)?public\b|confidential|proprietary', re.I)
 #: In the LICENCE text only (prose such as "private-sector" or "personal income" is ordinary): a private or personal licence.
 PRIVATE_LICENCE = re.compile(r'^\s*(private|personal|local file)\b|\b(private|personal)\s+(data|dataset|use|file)\b', re.I)

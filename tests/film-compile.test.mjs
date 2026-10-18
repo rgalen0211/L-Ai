@@ -17,13 +17,18 @@ import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError,
 import { checkAgainst } from '../supabase/functions/_shared/schema_check.ts';
 import { DATASETS } from '../supabase/functions/_shared/templates.ts';
 import { listableEntries, listableProblems, publicLeaks } from '../supabase/functions/_shared/catalog_rules.ts';
-import { validateProfile } from '../supabase/functions/_shared/profile.ts';
+import { validateProfile, ProfileError } from '../supabase/functions/_shared/profile.ts';
+import { contradiction } from '../supabase/functions/_shared/catalog_rules.ts';
 import { PRESETS } from '../supabase/functions/_shared/profile_data.ts';
 
 const root = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..');
 const plain = x => JSON.parse(JSON.stringify(x));
+const refusedProfile = p => { try { validateProfile(p); return null; } catch (e) { assert.ok(e instanceof ProfileError); return e.errors; } };
 const refused = (req, opts) => { try { compileFilm(req, opts); return null; } catch (e) { assert.ok(e instanceof FilmError, String(e)); return e.errors; } };
 const usable = CATALOG.filter(e => e.status === 'usable');
+// Rules about a dataset's SHAPE (geography, film types, method breaks) are tested on every listable dataset with its status forced to usable:
+// the motion gate leaves only the measured ones usable, and these rules do not depend on that.
+const ALL_USABLE = CATALOG.map(e => ({ ...e, status: 'usable' }));
 const ENGINE = process.env.RYAGRAM_ENGINE, SETUP = process.env.RYAGRAM_SETUP;
 const python = process.env.PYTHON || 'python';
 const ALLOW = path.join(root, 'supabase', 'functions', '_shared', 'worker_allowlist.txt');
@@ -139,7 +144,8 @@ test('MUST-FAIL: every way to ask for something the engine cannot honestly draw 
     'a dataset the worker is not set up for': [{ ...ok, dataset: CATALOG.find(x => x.status !== 'usable').id }, /not usable yet/],
     'private data': [{ ...ok, dataset: 'ryan_anything' }, /not in the catalog/],
     'an unknown film type': [{ ...ok, film_type: 'pie' }, /is not one of/],
-    'a film type the dataset does not offer': [{ ...ok, dataset: CATALOG.find(x => x.status === 'usable' && !x.film_types.includes('paired')).id, film_type: 'paired' }, /is not offered/],
+    'a film type the dataset does not offer (a NON-paired type: fhwa_hm212 is a line-only dataset, asked for a map)': [{ ...ok, dataset: 'fhwa_hm212', film_type: 'map' }, /'map' is not offered for fhwa_hm212; it offers line/, { catalog: ALL_USABLE }],
+    'a paired film (its own refusal)': [{ ...ok, film_type: 'paired' }, /'paired' is not offered: a paired film needs keyframes_per_year/],
     'a subset of places': [{ ...ok, places: ['TX', 'CA'] }, /subset of places is not supported/],
     'a blank title': [{ ...ok, title: '   ' }, /must not be blank/],
     'a missing title': [{ dataset: ok.dataset, film_type: ok.film_type }, /title: required/],
@@ -150,8 +156,8 @@ test('MUST-FAIL: every way to ask for something the engine cannot honestly draw 
     'a no-data label': [{ ...ok, no_data_label: 'zero' }, /unknown key/],
     'a non-object': [null, /must be an object/],
   };
-  for (const [name, [req, re]] of Object.entries(cases)) {
-    const errs = refused(req);
+  for (const [name, [req, re, opts]] of Object.entries(cases)) {
+    const errs = refused(req, opts);
     assert.ok(errs, `${name} should be refused`);
     assert.match(errs.join(' | '), re, name);
   }
@@ -166,16 +172,17 @@ test('a title with line-breaking text is flattened to one line; ordinary punctua
   assert.match(story.name, /^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/);
 });
 
-test('a window that crosses a method change warns and records it in the notes', () => {
-  const e = usable.find(x => x.methodology_breaks.length && x.methodology_breaks.some(b => b.period > x.period.from.slice(0, b.period.length)));
-  assert.ok(e, 'some usable dataset has a method change inside its coverage');
-  const b = e.methodology_breaks.find(x => x.period > e.period.from.slice(0, x.period.length));
-  const to = e.period.to || e.period.from;
-  const r = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'Across a break', years: { start: e.period.from, end: to.length === 4 && b.period.length === 4 ? to : to } });
-  if (r.report.window.start < b.period.padEnd(r.report.window.start.length, '0') && r.report.window.end >= b.period) {
-    assert.ok(r.report.warnings.some(w => w.includes(b.period)), 'warned');
-    assert.ok(r.story.notes.includes(b.period), 'recorded');
-  }
+test('a window that crosses a method change warns and records it in the notes (unconditional: the dataset and the window are chosen to cross)', () => {
+  const O = { catalog: ALL_USABLE };
+  const e = ALL_USABLE.find(x => x.listable && x.id === 'bps_us_unit_mix');
+  assert.ok(e && e.methodology_breaks.some(b => b.period === '2023'), 'bps_us_unit_mix has a method change at 2023');
+  const crossing = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'Across a break', years: { start: '2018', end: '2024' } }, O);
+  assert.ok(crossing.report.window.start < '2023' && crossing.report.window.end >= '2023', 'the window crosses 2023');
+  assert.ok(crossing.report.warnings.some(w => w.includes('2023')), 'warned');
+  assert.ok(crossing.story.notes.includes('2023'), 'recorded');
+  // CONTROL: a window that stops before the change is not warned about it
+  const before = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'Before the break', years: { start: '2015', end: '2020' } }, O);
+  assert.ok(!before.report.warnings.some(w => /2023/.test(w)), 'a window before the break is not warned');
 });
 
 // ------------------------------------------------------------------------------------------ the look
@@ -249,6 +256,69 @@ test('render-proof finding: a hatching look on EVERY county-level map is refused
   assert.equal(refused({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }, O), null, 'control: a state map takes a hatching look');
   const bars = counties.find(e => e.film_types.includes('bars') && !e.style);
   assert.equal(refused({ dataset: bars.id, film_type: 'bars', title: 'x', look: PRESETS['wtds-classic'] }, O), null, 'a bar film does not hatch, so the look is fine there');
+});
+
+test('HIGH-2: a look sent as JSON TEXT gets every county rule too (parsed and validated first); MED-4: a banded county look is refused', () => {
+  const O = { catalog: ALL_USABLE };
+  const county = ALL_USABLE.find(e => e.listable && e.id === 'cbp_arts_establishments');
+  const req = look => ({ dataset: county.id, film_type: 'map', title: 'x', look });
+  // MUST-FAIL: the hatching look as a STRING was compiled with mode hatch before the fix
+  assert.match(refused(req(JSON.stringify(PRESETS['wtds-classic'])), O).join(), /too small to hatch/, 'a string look is refused like an object look');
+  assert.match(refused(req(JSON.stringify(PRESETS['print-mono'])), O).join(), /too small to hatch/);
+  // the conversion and its notice reach a string look too
+  const r = compileFilm(req(JSON.stringify(PRESETS['clean-light'])), O);
+  assert.equal(r.story.sequence.style_overrides.choropleth.continuous, true, 'a string look is drawn continuous on a county map');
+  assert.deepEqual(r.report.look.converted, [COUNTY_CONTINUOUS_NOTICE]);
+  // CONTROL: the same string look on a state map is untouched
+  const state = ALL_USABLE.find(e => e.listable && e.geography.id === 'us_states' && e.film_types.includes('map'));
+  assert.equal(compileFilm({ dataset: state.id, film_type: 'map', title: 'x', look: JSON.stringify(PRESETS['wtds-classic']) }, O).story.sequence.style_overrides.choropleth.mode, 'hatch');
+  // an invalid string look is refused with the profile's reasons, prefixed
+  assert.match(refused(req('{not json'), O).join(), /look: profile is not valid JSON/);
+  assert.match(refused(req(JSON.stringify({ ...PRESETS['clean-light'], axis: 1 })), O).join(), /look: .*unknown key 'axis'/);
+  // MED-4: continuous false on a solid county look would be drawn banded with no notice
+  const banded = plain(PRESETS['clean-light']);
+  banded.look.ramp.continuous = false;
+  assert.match(refused(req(banded), O).join(), /a county map is drawn as continuous colour/, 'object form');
+  assert.match(refused(req(JSON.stringify(banded)), O).join(), /a county map is drawn as continuous colour/, 'string form');
+  assert.equal(refused({ dataset: state.id, film_type: 'map', title: 'x', look: banded }, O), null, 'control: a state map may ask for bands');
+  const barsFilm = ALL_USABLE.find(e => e.listable && /counties/.test(e.geography.id) && e.film_types.includes('bars') && !e.style);
+  assert.equal(refused({ dataset: barsFilm.id, film_type: 'bars', title: 'x', look: banded }, O), null, 'control: a bar film does not draw the ramp');
+});
+
+test('MED-3: inherited keys (constructor, __proto__, hasOwnProperty, toString) are unknown keys, as in Python; LOWs: title length in code points, years must be text', () => {
+  for (const key of ['constructor', '__proto__', 'hasOwnProperty', 'toString', 'valueOf']) {
+    const p = JSON.parse(`{"profile_version":1,"name":"x","${key}":{"a":1}}`);
+    assert.ok(Object.keys(p).includes(key), `${key} is an own key of the parsed profile`);
+    assert.match((refusedProfile(p) ?? []).join(), new RegExp(`unknown key '${key}'`), key);
+    const nested = JSON.parse(`{"profile_version":1,"name":"x","look":{"${key}":1}}`);
+    assert.match((refusedProfile(nested) ?? []).join(), new RegExp(`unknown key '${key}'`), `look.${key}`);
+  }
+  assert.equal(refusedProfile({ profile_version: 1, name: 'ok' }), null, 'control');
+  const e = usable[0];
+  const emoji = '\u{1F600}'.repeat(100);              // 100 code points, 200 UTF-16 units
+  assert.equal(refused({ dataset: e.id, film_type: e.film_types[0], title: emoji }), null, '100 emoji are 100 characters, under the 160 limit');
+  assert.match(refused({ dataset: e.id, film_type: e.film_types[0], title: '\u{1F600}'.repeat(161) }).join(), /longer than 160/, 'MUST-FAIL: 161 emoji are too long');
+  assert.match(refused({ dataset: e.id, film_type: e.film_types[0], title: 'x', years: { start: ['2019'] } }).join(), /expected a year or month as text/, 'MUST-FAIL: an array is not a year');
+  assert.match(refused({ dataset: e.id, film_type: e.film_types[0], title: 'x', years: { end: { a: 1 } } }).join(), /expected a year or month as text/);
+});
+
+test('the BY-SA backstop (TypeScript and Python patterns) catches every spelling; ordinary prose is not caught', () => {
+  const spellings = ['CC BY-SA 4.0', 'CC BY SA 4.0', 'CC BY\u2013SA 4.0', 'CC BY\u2011SA 4.0', 'Creative Commons Attribution-ShareAlike', 'Attribution Share Alike',
+    'Share-Alike', 'an ODbL overlay', 'Open Database Licence', 'Open Database License 1.0'];
+  const fine = ['U.S. Government work, public domain. The Census Bureau asks that the source be cited.', 'Public domain, 17 USC 105', 'CC BY 4.0', 'Sourced by Sarah, a statistician', 'Distributed by SAS'];
+  for (const text of spellings) assert.ok(contradiction({ id: 'x', licence: `Public domain. ${text}`, notes: '' }), `TS: ${text}`);
+  for (const text of fine) assert.equal(contradiction({ id: 'x', licence: `Public domain. ${text}`, notes: '' }), null, `TS control: ${text}`);
+  const py = run(python, ['-c', [
+    'import importlib.util,json,sys',
+    `spec=importlib.util.spec_from_file_location('g', ${JSON.stringify(path.join(root, 'tools', 'gen-catalog.py'))})`,
+    'm=importlib.util.module_from_spec(spec); sys.argv=["g"]; spec.loader.exec_module(m)',
+    'bad=json.loads(sys.stdin.readline()); ok=json.loads(sys.stdin.readline())',
+    'print(json.dumps([[t, bool(m.TRIPWIRE.search("Public domain. "+t))] for t in bad]+[[t, bool(m.TRIPWIRE.search(t))] for t in ok]))'].join('\n')],
+    { input: JSON.stringify(spellings) + '\n' + JSON.stringify(fine) + '\n', env: { ...process.env, PYTHONIOENCODING: 'utf-8' } });
+  assert.equal(py.status, 0, py.stderr);
+  const got = JSON.parse(py.stdout);
+  for (const [t, hit] of got.slice(0, spellings.length)) assert.equal(hit, true, `Python: ${t}`);
+  for (const [t, hit] of got.slice(spellings.length)) assert.equal(hit, false, `Python control: ${t}`);
 });
 
 test('a bad look is refused with the profile reasons, prefixed; a look cannot carry a claim', () => {
@@ -504,6 +574,12 @@ test('MUST-FAIL: every way a `listable: true` can contradict its own text is cau
   const planted = {
     'CC BY-SA in the licence (Ryan\'s ruling)': { licence: 'U.S. Government work, public domain. Seat figures: Wikipedia, CC BY-SA 4.0.' },
     'CC BY-SA written share-alike': { licence: 'Creative Commons Attribution Share-Alike 4.0, public domain base' },
+    'CC BY SA with spaces': { licence: 'U.S. Government work, public domain. Seat figures: CC BY SA 4.0.' },
+    'Attribution Share Alike (two words)': { licence: 'Creative Commons Attribution Share Alike 4.0, public domain base' },
+    'CC BY-SA with an en dash': { licence: 'U.S. Government work, public domain. Seat figures: CC BY–SA 4.0.' },
+    'CC BY-SA with a non-breaking hyphen': { licence: 'U.S. Government work, public domain. Seat figures: CC BY‑SA 4.0.' },
+    'an ODbL share-alike overlay': { licence: 'U.S. Government work, public domain, with an ODbL overlay for the boundary layer' },
+    'Open Database License written out': { licence: 'Public domain. Boundaries under the Open Database Licence' },
     'INTERNAL in the notes (the qcew case)': { notes: 'A frozen table, pinned. INTERNAL.' },
     'Not public domain (BUILDER MED-4)': { licence: 'Not public domain' },
     'licensed for internal use only (BUILDER MED-4)': { licence: 'Public domain data, licensed for internal use only' },
@@ -670,7 +746,7 @@ test('MUST-FAIL (LOW-7): a look that would undo a dataset\'s pinned style is ref
   const e = CATALOG.find(x => x.style && x.status === 'usable');
   const mk = ramp => ({ profile_version: 1, name: 'x', look: { ramp } });
   const ask = look => refused({ dataset: e.id, film_type: e.film_types[0], title: 'x', look });
-  assert.match(ask(mk({ continuous: false, steps: 3 })).join(), /choropleth continuous = true.*would change it to false/);
+  assert.match(ask(mk({ continuous: false, steps: 3 })).join(), /a county map is drawn as continuous colour.*leave .continuous. unset or true/);
   assert.match(ask(mk({ mode: 'hatch' })).join(), /too small to hatch/);
   assert.equal(ask(mk({ continuous: true, mode: 'solid' })), null, 'control: restating the pin is fine');
   assert.equal(ask(mk({ steps: 5 })), null, 'control: steps alone do not undo it');

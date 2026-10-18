@@ -51,12 +51,12 @@ function shape(node: Json, v: Json, path: string, errs: string[]): void {
       if (v === null || typeof v !== "object" || Array.isArray(v)) { errs.push(`${here}: expected an object`); return; }
       const props = node.properties ?? {};
       for (const k of Object.keys(v)) {
-        if (!(k in props)) {
+        if (!Object.hasOwn(props, k)) {
           errs.push(`${here}: unknown key '${k.slice(0, 40)}' (this object accepts: ${Object.keys(props).sort().join(", ")})`);
         }
       }
-      for (const k of node.required ?? []) if (!(k in v)) errs.push(`${here}: missing '${k}'`);
-      for (const [k, sub] of Object.entries(props)) if (k in v) shape(sub, v[k], path ? `${path}.${k}` : k, errs);
+      for (const k of node.required ?? []) if (!Object.hasOwn(v, k)) errs.push(`${here}: missing '${k}'`);
+      for (const [k, sub] of Object.entries(props)) if (Object.hasOwn(v, k)) shape(sub, v[k], path ? `${path}.${k}` : k, errs);
       return;
     }
     case "string": {
@@ -84,6 +84,8 @@ function shape(node: Json, v: Json, path: string, errs: string[]): void {
 }
 
 // Measured 2026-10-18 (see compile.py): a hatched map held longer than this per period can fail the strict motion check.
+/** Python's format(x, "g"): six significant digits, no trailing zeros (so 3.0 prints 3 and 2.50 prints 2.5, the same on both sides). */
+const g = (x: number) => String(parseFloat(Number(x).toPrecision(6)));
 const MAP_HOLD_WARN_ABOVE = 2;
 
 export function checkShape(profile: Json): string[] {
@@ -272,11 +274,11 @@ export function applyProfile(rawProfile: unknown, story: Json, mode: "restyle" |
   if (pace.hold_seconds && !(fill && story?.sequence?.hold_seconds)) {
     const shown = clips.filter((c: Json) => c.kind === "render" && BAR_RACE.views.includes(c.view) && !c.hold_seconds);
     if (shown.length && pace.hold_seconds < BAR_RACE.hold_seconds) {
-      warnings.push(`pacing.hold_seconds ${pace.hold_seconds} is below the bar race's own default of ${BAR_RACE.hold_seconds} s per period; rows may not be able to cross that fast and the bar-race checks may fail. Make a contact sheet first.`);
+      warnings.push(`pacing.hold_seconds ${g(pace.hold_seconds)} is below the bar race's own default of ${g(BAR_RACE.hold_seconds)} s per period; rows may not be able to cross that fast and the bar-race checks may fail. Make a contact sheet first.`);
     }
     const mapShown = clips.filter((c: Json) => c.kind === "render" && c.view === "map" && !c.hold_seconds);
     if (mapShown.length && pace.hold_seconds > MAP_HOLD_WARN_ABOVE) {
-      warnings.push(`pacing.hold_seconds ${pace.hold_seconds} is above ${MAP_HOLD_WARN_ABOVE} s per period on a map film. Measured on the obesity map, a hatched map held 3 s per period kept 83% of its frames moving, 2.5 s kept 89% and 2 s kept 91%, against the strict motion check's 90% floor, so a long hold can fail it. Make a contact sheet first.`);
+      warnings.push(`pacing.hold_seconds ${g(pace.hold_seconds)} is above ${g(MAP_HOLD_WARN_ABOVE)} s per period on a map film. Measured on the obesity map, a hatched map held 3 s per period kept 83% of its frames moving, 2.5 s kept 89% and 2 s kept 91%, against the strict motion check's 90% floor, so a long hold can fail it. Make a contact sheet first.`);
     }
   }
   // A portrait canvas is accepted by the worker, but the engine has no vertical layout yet.
