@@ -77,6 +77,12 @@
       emit('jobs', job);
     }
 
+    // The auto_render setting: the database default is OFF, but the mock keeps its older default (ON) unless the seed or ?autorender=off says otherwise; the admin switch then wins.
+    function autoRenderNow() {
+      if (typeof db.autoRenderSet === 'boolean') return db.autoRenderSet;
+      return !(seed.autoRender === false || (typeof location !== 'undefined' && /[?&]autorender=off/.test(location.search || '')));
+    }
+
     function query(table) {
       if (table === 'credit_balances' || table === 'job_accounting') {
         if (!ledger) return { select: () => ({ then: r => r({ data: null, error: { message: `relation ${table} does not exist` } }) }) };
@@ -342,6 +348,7 @@
           outbox: [{ id: 1, created_at: ago(20), kind: 'digest', mode: 'dry_run', subject: 'Ryagram daily: 1 thing needs you' }],
           backups: { expected: true, last_daily_ok: ago(600), last_daily_bytes: 5242880, last_restore_test: ago(14400), last_restore_ok: true },
           open_alerts: [{ key: 'support:1', detail: 'New support request #1 (render)', since: ago(30) }],
+          orders: { auto_render: autoRenderNow(), default_credits_per_day: 20, awaiting_approval: db.render_orders.filter(o => o.state === 'awaiting_approval').length },
           support_open: db.supportOpen ?? 1,
           support: (db.supportOpen ?? 1) ? [{ id: 1, created_at: ago(30), topic: 'render', email: 'sam@example.com', job_id: 'job-9', job_state: 'failed', job_error_code: 'worker_lost', message: 'My preview failed twice.' }] : [],
           stripe: db.stripeAcked ? { available: true, open: 0, items: [] } : { available: true, open: 1, items: [{ event_id: 'evt_mock1', type: 'checkout.session.completed', detail: 'Paid for an unknown pack: pack_x.', received_at: ago(90), livemode: false }] },
@@ -394,6 +401,25 @@
         if (!c) return fail('An invite was already made for this application.');
         c.status = 'approved';
         return { data: 'RYA-K7M2-9QPX', error: null };
+      },
+      // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.
+      admin_set_auto_render({ p_on }) {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        db.autoRenderSet = p_on === true;
+        return { data: p_on === true, error: null };
+      },
+      admin_user_caps() {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        db.userCaps = db.userCaps || [{ owner_id: 'u-sam', email: 'sam@example.com', credits_per_day: 30, updated_at: now(), used_last_24h: 12 }];
+        return { data: structuredClone(db.userCaps), error: null };
+      },
+      admin_set_user_cap({ p_owner, p_credits_per_day }) {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        rpcs.admin_user_caps();
+        if (p_credits_per_day !== null && (!Number.isInteger(p_credits_per_day) || p_credits_per_day < 0)) return fail('A cap is 0 or more credits a day.');
+        db.userCaps = db.userCaps.filter(c => c.owner_id !== p_owner);
+        if (p_credits_per_day !== null) db.userCaps.push({ owner_id: p_owner, email: p_owner === 'u-ryan' ? 'creator@example.com' : `${p_owner}@example.com`, credits_per_day: p_credits_per_day, updated_at: now(), used_last_24h: 0 });
+        return { data: null, error: null };
       },
       // Mock of the render approval queue (PIPE-1): waiting orders are the ones request_final_render made while auto_render was off. Admin only (seed.nonAdmin makes it refuse).
       admin_render_queue() {
@@ -497,7 +523,7 @@
         if (!sheet) return fail('That preview has no finished contact sheet for the same story.');
         const order = { id: id(), owner_id: 'u-ryan', idempotency_key: p_idempotency_key, source: 'app', want: 'final', project_id: db.versions.find(v => v.id === preview.version_id)?.project_id, version_id: preview.version_id,
                         preview_job_id: preview.id, state: 'awaiting_approval', error_code: null, created_at: now(), ended_at: null, stages: [{ stage: 'final_render', state: 'awaiting_approval', credits_quoted: 10, error_code: null, job_id: null }], delivery: null };
-        const autoOff = seed.autoRender === false || (typeof location !== 'undefined' && /[?&]autorender=off/.test(location.search || ''));     // ?autorender=off in mock mode
+        const autoOff = !autoRenderNow();
         if (!autoOff) {
           const r = rpcs.submit_job({ p_version_id: preview.version_id, p_job_type: 'final_render', p_params: {}, p_sheet_job_id: sheet.id, p_preview_job_id: preview.id });
           if (r.error) return r;
