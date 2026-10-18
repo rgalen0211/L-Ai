@@ -4,7 +4,7 @@
 -- WHAT IS KEPT. One row per funnel step reached, with the account that reached it (when there is one) and how that account first found us:
 --   utm_source / utm_medium / utm_campaign (typed in the link) and the referrer's DOMAIN (youtube.com): nothing else, no address, no browser details, no cookie.
 --   * landing_view, signup_started: anonymous (no account yet). Recorded by funnel_anon(), which anyone may call, only ever adds one row, and stops at 5,000 an hour.
---   * signup_done (first confirmed email), first_project, contact_sheet, preview, film_requested, film_delivered, purchase, subscription_start, subscription_cancel:
+--   * signup_done (first confirmed email), first_project, contact_sheet, preview, render_ordered (a full render was requested and accepted: public.render_orders, want final), render_approved (Ryan approved it: render_stages.admin_decided_at), film_requested, film_delivered, purchase, subscription_start, subscription_cancel:
 --     written by TRIGGERS on the tables where those things really happen, so the page cannot invent or skip them.
 --   * return_7d, return_30d: the person opens the app 7 / 30 or more days after signing up (funnel_return_visit()).
 -- Each account counts once per step (the first time), except purchase and subscription_*, which repeat.
@@ -16,7 +16,7 @@
 create table public.funnel_events (
   id bigint generated always as identity primary key,
   at timestamptz not null default now(),
-  event text not null check (event in ('landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'film_requested', 'film_delivered',
+  event text not null check (event in ('landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'render_ordered', 'render_approved', 'film_requested', 'film_delivered',
                                        'purchase', 'subscription_start', 'subscription_cancel', 'return_7d', 'return_30d')),
   user_id uuid references auth.users (id) on delete set null,
   utm_source text not null default '' check (utm_source ~ '^[a-z0-9._-]{0,60}$'),
@@ -117,6 +117,13 @@ begin
   elsif tg_table_name = 'jobs' then
     if new.job_type::text = 'contact_sheet' then perform ryagram_private.funnel_log('contact_sheet', new.owner_id);
     elsif new.job_type::text = 'preview' then perform ryagram_private.funnel_log('preview', new.owner_id); end if;
+  elsif tg_table_name = 'render_orders' then
+    if new.want::text = 'final' then perform ryagram_private.funnel_log('render_ordered', new.owner_id); end if;
+  elsif tg_table_name = 'render_stages' then
+    -- approval = Ryan's decision stamp appearing on a final render that is not declined or expired (the approve branch stamps it while the stage still awaits; a decline closes the stage in the same update)
+    if new.stage::text = 'final_render' and old.admin_decided_at is null and new.admin_decided_at is not null and new.state::text not in ('declined', 'expired') then
+      perform ryagram_private.funnel_log('render_approved', new.owner_id);
+    end if;
   elsif tg_table_name = 'film_requests' then
     if tg_op = 'INSERT' then perform ryagram_private.funnel_log('film_requested', new.owner_id);
     elsif new.status = 'delivered' and old.status is distinct from 'delivered' then perform ryagram_private.funnel_log('film_delivered', new.owner_id); end if;
@@ -144,7 +151,7 @@ declare t record; done text := '';
 begin
   for t in select * from (values
       ('public.projects', 'after insert', ''), ('public.jobs', 'after insert', ''), ('public.film_requests', 'after insert or update', ''),
-      ('public.credit_ledger', 'after insert', ''), ('public.stripe_subscriptions', 'after insert or update', ''),
+      ('public.render_orders', 'after insert', ''), ('public.render_stages', 'after update', ''), ('public.credit_ledger', 'after insert', ''), ('public.stripe_subscriptions', 'after insert or update', ''),
       ('auth.users', 'after insert or update of email_confirmed_at', '')) as v(tbl, ev, x) loop
     if to_regclass(t.tbl) is not null then
       begin
@@ -179,7 +186,7 @@ begin
            coalesce(nullif(utm_source, ''), nullif(referrer_domain, ''), 'direct') as src
       from public.funnel_events where at >= since),
   steps(ord, event) as (values (1, 'landing_view'), (2, 'signup_started'), (3, 'signup_done'), (4, 'first_project'), (5, 'contact_sheet'), (6, 'preview'),
-                               (7, 'film_requested'), (8, 'film_delivered'), (9, 'purchase'), (10, 'subscription_start'), (11, 'subscription_cancel'), (12, 'return_7d'), (13, 'return_30d')),
+                               (7, 'render_ordered'), (8, 'render_approved'), (9, 'film_requested'), (10, 'film_delivered'), (11, 'purchase'), (12, 'subscription_start'), (13, 'subscription_cancel'), (14, 'return_7d'), (15, 'return_30d')),
   tot as (select event, count(distinct who) n from ev group by event),
   wkly as (select event, wk, count(distinct who) n from ev group by event, wk),
   srcs as (select event, src, count(distinct who) n from ev group by event, src)

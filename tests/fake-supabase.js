@@ -400,7 +400,7 @@
         const n = Math.min(Math.max(p_weeks || 8, 1), 52);
         const base = new Date('2026-10-12T00:00:00Z');
         const weeks = Array.from({ length: Math.min(n, 8) }, (_, i) => new Date(base.getTime() - (Math.min(n, 8) - 1 - i) * 7 * 864e5).toISOString().slice(0, 10));
-        const totals = { landing_view: 400, signup_started: 60, signup_done: 40, first_project: 30, contact_sheet: 24, preview: 12, film_requested: 6, film_delivered: 4, purchase: 2, subscription_start: 1, subscription_cancel: 0, return_7d: 15, return_30d: 7 };
+        const totals = { landing_view: 400, signup_started: 60, signup_done: 40, first_project: 30, contact_sheet: 24, preview: 12, render_ordered: 9, render_approved: 7, film_requested: 6, film_delivered: 4, purchase: 2, subscription_start: 1, subscription_cancel: 0, return_7d: 15, return_30d: 7 };
         const steps = Object.entries(totals).map(([event, total]) => ({ event, total,
           by_week: Object.fromEntries(weeks.map((w, i) => [w, Math.round(total / weeks.length) + (i % 2)])),
           by_source: { youtube: Math.round(total * 0.6), direct: Math.round(total * 0.25), 'reddit.com': Math.round(total * 0.15) } }));
