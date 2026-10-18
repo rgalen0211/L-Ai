@@ -234,8 +234,12 @@ export type FilmReport = {
   method_notes: string[];
   gaps: Json;
   warnings: string[];
-  look: { applied: boolean; changed: string[]; not_applied: string[] };
+  look: { applied: boolean; changed: string[]; not_applied: string[]; converted: string[] };
 };
+
+// What a person is told, in this sentence, whenever their look is shown differently from how it is written: surfaced in the compile
+// result (warnings and look.converted) so the looks page and the contact sheet can show it BEFORE a credit is spent.
+export const COUNTY_CONTINUOUS_NOTICE = "Your look uses solid colours; on a county map they are shown as a continuous ramp, not as a few bands, because counties are too small to class into bands and a banded county map does not visibly move.";
 
 export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json; audience?: Audience; today?: Today } = {}): { story: Json; report: FilmReport } {
   const catalog = opts.catalog ?? CATALOG, schema = opts.storySchema ?? STORY_SCHEMA;
@@ -327,7 +331,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   };
 
   // ---- the look: same compiler and diff guard as profiles
-  let look = { applied: false, changed: [] as string[], not_applied: [] as string[] };
+  let look = { applied: false, changed: [] as string[], not_applied: [] as string[], converted: [] as string[] };
   if (req.look !== undefined && req.look !== null) {
     // A dataset the engine draws as continuous colour (county areas are too small to hatch) cannot take a hatching look.
     // Found by the render proof (2026-10-18): only bps_county_permits was pinned, so a hatching look on any other county dataset
@@ -341,9 +345,11 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
     // banded solid county map is judged by the 90 percent frame count (the render proof measured 29 to 53 percent kept, a
     // fail) while the continuous map passes the half-second windows (50 of 50). So the look is applied with continuous on.
     let lookToApply = req.look;
+    const converted: string[] = [];
     if (countyLevel && req.film_type === "map" && req.look?.look?.ramp && req.look.look.ramp.continuous === undefined) {
       lookToApply = JSON.parse(JSON.stringify(req.look));
       lookToApply.look.ramp.continuous = true;
+      converted.push(COUNTY_CONTINUOUS_NOTICE);
     }
     try {
       const r = applyProfile(lookToApply, story, "restyle");
@@ -356,7 +362,8 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
         throw new FilmError([`look: this dataset is drawn with ${undone.map((k) => `choropleth ${k} = ${JSON.stringify(pin[k])}`).join(" and ")} (its areas are too small to hatch or to class into a few bands); this look would change it to ${undone.map((k) => JSON.stringify(got[k])).join(" and ")}. Use a look that leaves it alone`]);
       }
       warnings.push(...r.report.warnings);
-      look = { applied: true, changed: r.report.changed, not_applied: r.report.not_applied };
+      warnings.push(...converted);
+      look = { applied: true, changed: r.report.changed, not_applied: r.report.not_applied, converted };
     } catch (e) {
       if (e instanceof ProfileError) throw new FilmError(e.errors.map((x) => `look: ${x}`));
       throw e;

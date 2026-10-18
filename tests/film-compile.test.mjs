@@ -13,7 +13,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { CATALOG, STORY_SCHEMA, STORY_SCHEMA_SHA256, CATALOG_ENGINE } from '../supabase/functions/_shared/catalog_data.ts';
-import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError, FILM_TYPES } from '../supabase/functions/_shared/film.ts';
+import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError, FILM_TYPES, COUNTY_CONTINUOUS_NOTICE } from '../supabase/functions/_shared/film.ts';
 import { checkAgainst } from '../supabase/functions/_shared/schema_check.ts';
 import { DATASETS } from '../supabase/functions/_shared/templates.ts';
 import { listableEntries, listableProblems, publicLeaks } from '../supabase/functions/_shared/catalog_rules.ts';
@@ -212,9 +212,21 @@ test('render-proof finding: a hatching look on EVERY county-level map is refused
     assert.equal(s.sequence.style_overrides.choropleth.continuous, true, `${e.id}: a solid look on a county map is drawn as continuous colour (a banded one fails the 90 percent motion count)`);
     assert.equal(s.sequence.style_overrides.choropleth.mode, 'solid', e.id);
   }
+  // The person is TOLD, in the compile result, before anything is rendered or paid for.
+  for (const e of counties) {
+    const r = compileFilm({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] });
+    assert.deepEqual(r.report.look.converted, [COUNTY_CONTINUOUS_NOTICE], `${e.id}: the conversion is named in look.converted`);
+    assert.ok(r.report.warnings.includes(COUNTY_CONTINUOUS_NOTICE), `${e.id}: and in warnings, where the looks page and the sheet read it`);
+  }
+  assert.match(COUNTY_CONTINUOUS_NOTICE, /continuous ramp, not as a few bands/);
+  const noLook = compileFilm({ dataset: counties[0].id, film_type: 'map', title: 'x' });
+  assert.ok(!noLook.report.warnings.includes(COUNTY_CONTINUOUS_NOTICE) && noLook.report.look.converted.length === 0, 'control: no look, no notice');
   const states = usable.find(e => e.geography.id === 'us_states' && e.film_types.includes('map'));
-  const st = compileFilm({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }).story;
-  assert.notEqual(st.sequence.style_overrides.choropleth.continuous, true, 'control: a state map is NOT forced continuous');
+  const stRes = compileFilm({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] });
+  const st = stRes.story;
+  assert.notEqual(st.sequence.style_overrides.choropleth.continuous, true, 'control: a state map is NOT forced continuous: it keeps its bands');
+  assert.equal(st.sequence.style_overrides.choropleth.mode, 'solid');
+  assert.ok(!stRes.report.warnings.includes(COUNTY_CONTINUOUS_NOTICE) && stRes.report.look.converted.length === 0, 'control: a state map is not told about a conversion that did not happen');
   assert.equal(refused({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }), null, 'control: a state map takes a hatching look');
   const bars = counties.find(e => e.film_types.includes('bars') && !e.style);
   assert.equal(refused({ dataset: bars.id, film_type: 'bars', title: 'x', look: PRESETS['wtds-classic'] }), null, 'a bar film does not hatch, so the look is fine there');
