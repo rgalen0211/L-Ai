@@ -122,11 +122,11 @@
   // ---- Funnel on the Operations screen (SQL 20261017000900): counts per step, conversion between steps, by source and by week.
   // The first two steps are VISITS (anonymous); every other step counts each account once. The chain below is the order people go through.
   const FUNNEL_LABELS = { landing_view: 'Saw the landing page', signup_started: 'Started signing up', signup_done: 'Signed up', first_project: 'Made a first project', contact_sheet: 'Made a contact sheet',
-    preview: 'Made a preview', film_requested: 'Requested a film', film_delivered: 'Film delivered', purchase: 'Bought credits', subscription_start: 'Started a plan', subscription_cancel: 'Cancelled a plan',
+    preview: 'Made a preview', render_ordered: 'Ordered a full render', render_approved: 'Full render approved', film_requested: 'Requested a film', film_delivered: 'Film delivered', purchase: 'Bought credits', subscription_start: 'Started a plan', subscription_cancel: 'Cancelled a plan',
     return_7d: 'Came back after 7 days', return_30d: 'Came back after 30 days' };
-  const FUNNEL_CHAIN = ['landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'film_requested', 'film_delivered', 'purchase'];
+  const FUNNEL_CHAIN = ['landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'render_ordered', 'render_approved', 'film_requested', 'film_delivered', 'purchase'];
   const FUNNEL_SIDE = ['subscription_start', 'subscription_cancel', 'return_7d', 'return_30d'];          // judged against people who signed up
-  const FUNNEL_KEY = ['landing_view', 'signup_done', 'first_project', 'film_requested', 'purchase'];     // the columns of the by-source and by-week tables
+  const FUNNEL_KEY = ['landing_view', 'signup_done', 'first_project', 'render_ordered', 'purchase'];     // the columns of the by-source and by-week tables
   const pct = (n, d) => (d > 0 ? `${Math.round((n / d) * 1000) / 10}%` : '\u2014');
   function funnelRows(f) {
     if (!f || !Array.isArray(f.steps)) return [];

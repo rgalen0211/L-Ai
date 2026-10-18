@@ -94,13 +94,13 @@ test('NEVER IN THE WAY: blocked storage and a throwing client change nothing for
 });
 
 // ---- Ryan's numbers
-const STEPS = ['landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'film_requested', 'film_delivered', 'purchase', 'subscription_start', 'subscription_cancel', 'return_7d', 'return_30d'];
+const STEPS = ['landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'render_ordered', 'render_approved', 'film_requested', 'film_delivered', 'purchase', 'subscription_start', 'subscription_cancel', 'return_7d', 'return_30d'];
 const O = (() => { const window = {}; vm.runInNewContext(read('assets/app-ops.js'), { window }); return window.ryagramOps; })();
 const funnel = (totals, extra = {}) => ({ weeks: ['2026-10-05', '2026-10-12'], steps: STEPS.map(e => ({ event: e, total: totals[e] || 0, by_week: (extra.week || {})[e] || {}, by_source: (extra.source || {})[e] || {} })) });
 
 test('FUNNEL ROWS: people per step, conversion from the step before and from the first step; the side steps are judged against signups; nothing divides by zero', () => {
-  const rows = O.funnelRows(funnel({ landing_view: 200, signup_started: 50, signup_done: 40, first_project: 30, contact_sheet: 20, preview: 10, film_requested: 5, film_delivered: 4, purchase: 2, return_7d: 10 }));
-  assert.equal(rows.length, 13);
+  const rows = O.funnelRows(funnel({ landing_view: 200, signup_started: 50, signup_done: 40, first_project: 30, contact_sheet: 20, preview: 10, render_ordered: 8, render_approved: 6, film_requested: 5, film_delivered: 4, purchase: 2, return_7d: 10 }));
+  assert.equal(rows.length, 15);
   assert.deepEqual([rows[0].fromPrevious, rows[0].fromFirst], ['', '']);
   assert.deepEqual([rows[1].fromPrevious, rows[1].fromFirst], ['25%', '25%']);
   assert.deepEqual([rows[3].label, rows[3].total, rows[3].fromPrevious, rows[3].fromFirst], ['Made a first project', 30, '75%', '15%']);
@@ -156,4 +156,17 @@ test('SQL: the table, the policies and the retention are what the privacy line s
   assert.match(sql, /for select to authenticated using \(public\.is_app_admin\(\)\)/);
   assert.match(sql, /delete from public\.funnel_events where at < now\(\) - interval '13 months'/);
   assert.doesNotMatch(sql.replace(/--.*$/gm, ''), /\bip\b|user_agent|email text|cookie/i);                  // no address, browser details or email column
+});
+
+test('RENDER STEPS: render_ordered and render_approved are in the migration (constraint, triggers, install list, Ryan view), in the chain after the preview, and the by-source/by-week tables use render_ordered as the first order', () => {
+  const sql = read('supabase/migrations/20261017000900_funnel_events.sql');
+  assert.match(sql, /'preview', 'render_ordered', 'render_approved', 'film_requested'/);
+  assert.match(sql, /tg_table_name = 'render_orders' then\s+if new\.want::text = 'final' then perform ryagram_private\.funnel_log\('render_ordered', new\.owner_id\)/);
+  assert.match(sql, /tg_table_name = 'render_stages' then[\s\S]*old\.admin_decided_at is null and new\.admin_decided_at is not null and new\.state::text not in \('declined', 'expired'\)[\s\S]*funnel_log\('render_approved', new\.owner_id\)/);
+  assert.match(sql, /\('public\.render_orders', 'after insert', ''\), \('public\.render_stages', 'after update', ''\)/);
+  assert.match(sql, /\(7, 'render_ordered'\), \(8, 'render_approved'\)/);
+  const chain = O.FUNNEL_CHAIN;
+  assert.deepEqual(plain(chain.slice(chain.indexOf('preview'), chain.indexOf('preview') + 3)), ['preview', 'render_ordered', 'render_approved']);
+  assert.ok(O.FUNNEL_KEY.includes('render_ordered') && !O.FUNNEL_KEY.includes('film_requested'));
+  assert.equal(O.FUNNEL_LABELS.render_ordered, 'Ordered a full render');
 });
