@@ -15,9 +15,28 @@
   const isActive = job => ACTIVE.includes(job.state);
   const versionTakesJobs = versionState => !LOCKED_VERSION.includes(versionState);
 
+  // The worker's refusal text is for engineers ("$.outro: unknown key 'outro'"). plainDetail turns the ones we know into a sentence a person can act on, and drops text that still
+  // looks like code; the raw text is kept (rawDetail) and shown only behind "Get help with this".
+  const LOOKS_LIKE_CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|\b[a-z]+_[a-z_]+\b/;
+  function plainDetail(raw) {
+    const text = String(raw == null ? '' : raw).trim();
+    if (!text) return '';
+    const path = p => { const parts = String(p || '').replace(/^\$\.?/, '').split(/[.\[\]]+/).filter(Boolean); return parts.length ? ` (in ${parts.join(' > ')})` : ''; };
+    let m = /^(\$[^:]*):\s*unknown key '([^']+)'/i.exec(text);
+    if (m) return `The story has a setting Ryagram doesn\u2019t recognise: \u201c${m[2]}\u201d${path(m[1])}. Remove it, or pick a ready-made film and start again.`;
+    m = /^(\$[^:]*):\s*(?:missing|required) (?:key )?'?([^']*)'?/i.exec(text);
+    if (m) return `The story is missing a required setting${m[2] ? `: \u201c${m[2]}\u201d` : ''}${path(m[1])}.`;
+    m = /^(\$[^:]*):\s*(?:expected|must be|should be)\b/i.exec(text);
+    if (m) return `A setting has the wrong kind of value${path(m[1])}. Check it against a ready-made film.`;
+    if (/^\$/.test(text) || LOOKS_LIKE_CODE.test(text)) return '';
+    return text.length > 200 ? `${text.slice(0, 197)}\u2026` : text;
+  }
+  const rawDetail = job => String((job && job.error_detail) || '').trim();
+
   // One sentence for a finished job that did not complete, by error class.
   function problem(job) {
-    const detail = job.error_detail ? ` ${job.error_detail}` : '';
+    const plain = plainDetail(job.error_detail);
+    const detail = plain ? ` ${plain}` : '';
     if (job.state === 'cancelled') return 'Cancelled.';
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       return `Ryagram’s checks stopped this render.${detail} Change the story, then make a new preview.`;
@@ -123,7 +142,10 @@
       fraction: c ? c.done / c.total : null,
       // An estimate, so "~", and never "under a minute": it reads ~1 min at the least.
       eta: eta == null ? UNKNOWN : `~${duration(Math.max(60, eta))} left in this step`,
-      running: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : UNKNOWN
+      running: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : UNKNOWN,
+      // When the worker has told us none of stage, count or ETA, three dashes say nothing: show "Working" and how long it has been.
+      working: !(d && STAGES[d.stage]) && !c && eta == null,
+      elapsed: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : (job.created_at && Number.isFinite(Date.parse(job.created_at)) && nowMs >= Date.parse(job.created_at) ? duration((nowMs - Date.parse(job.created_at)) / 1000) : '')
     };
   }
 
@@ -210,6 +232,6 @@
   const orderOpen = state => state === 'running' || state === 'awaiting_approval';
 
   window.ryagramJobs = { ORDER_WORDS, orderLine, orderOpen,
-    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
+    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();

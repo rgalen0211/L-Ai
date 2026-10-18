@@ -102,6 +102,10 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .share-link{overflow-wrap:anywhere;font-weight:700}
 .share-panel label{display:block;margin-top:12px}
 .app-account a{color:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* A button that is off for a reason shows the not-allowed cursor (the reason is its tooltip); the wait cursor is only for a button that is busy */
+.button[data-locked]:disabled{cursor:not-allowed}
+.job-progress .working{margin:6px 0;font-weight:700}
+.job-help{margin:6px 0}.job-help summary{cursor:pointer;min-height:40px;display:flex;align-items:center}.job-help code{display:block;white-space:pre-wrap;word-break:break-word;margin:6px 0}
 .link-button{padding:0;border:0;background:none;color:var(--brand-deep);font:inherit;text-decoration:underline;cursor:pointer}
 .account-section{margin:28px 0;padding-top:20px;border-top:1px solid var(--line)}
 .account-section h2{margin:0 0 10px;font-size:1.2rem}

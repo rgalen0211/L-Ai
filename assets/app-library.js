@@ -1343,7 +1343,7 @@
           shown.push(h('li', {}, h('strong', {}, `${J.ORDER_WORDS[st.state] || st.state} `), h('span', { class: 'meta' }, `${date(o.created_at)}. `), J.orderLine(st), ' ', actions));
         }
         openOrders = rows.some(o => J.orderOpen(o.state));
-        orderBox.replaceChildren(shown.length ? h('ul', { class: 'order-list' }, shown) : null);
+        orderBox.replaceChildren(...(shown.length ? [h('ul', { class: 'order-list' }, shown)] : []));      // (replaceChildren(null) would print the word "null")
       }
 
       function syncControls() {
@@ -1352,27 +1352,37 @@
         lockedNote.hidden = takes;
         lockedNote.textContent = `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()}, so it can’t take new jobs.`;
         const busyType = type => jobs.some(j => j.job_type === type && J.isActive(j));
+        const why = { sheet: '', preview: '', final: '' };                 // why a button is off: its tooltip, and the not-allowed cursor
         sheetButton.disabled = busyType('contact_sheet');
+        if (sheetButton.disabled) why.sheet = 'A contact sheet is already being made.';
         previewButton.disabled = busyType('preview');
+        if (previewButton.disabled) why.preview = 'A preview is already being made.';
         const ladder = J.ladder(jobs, storySha, engine);
         finalButton.disabled = !ladder.ready || busyType('final_render');
+        if (!ladder.ready) why.final = ladder.missing || 'Make a contact sheet and a preview of this story first.';
+        else if (busyType('final_render')) why.final = 'A full render is already being made.';
         finalNote.textContent = ladder.ready
           ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. ${ordersOn() ? 'Clicking requests the full render: while we approve them by hand it waits, with your credits held, and they come back if it is not approved.' : 'Clicking is your approval.'}`
           : ladder.missing;
         if (creditsOn()) {
+          const whyKey = (button, reason) => { const k = button === sheetButton ? 'sheet' : button === previewButton ? 'preview' : 'final'; if (!why[k]) why[k] = reason; };      // (an earlier reason, such as no sheet yet, is the truer one)
           const label = (button, base, type) => {
             const q = quotes[type];
             button.textContent = q && !q.error ? `${base} · ${C.priceLabel(q)}` : base;
             const can = q && !q.error ? C.affordable(q) : { ok: true };
-            if (!can.ok) button.disabled = true;
+            if (!can.ok) { button.disabled = true; whyKey(button, q?.error ? q.error : can.reason); }
             return q?.error ? q.error : can.ok ? '' : can.reason;
           };
           const sheetWhy = label(sheetButton, 'Make contact sheet', 'contact_sheet');
           const previewWhy = label(previewButton, 'Make preview', 'preview');
           const finalWhy = label(finalButton, 'Render final film', 'final_render');
-          if (quotes.final_render?.error) finalButton.disabled = true;
+          if (quotes.final_render?.error) { finalButton.disabled = true; if (!why.final) why.final = quotes.final_render.error; }
           if (finalWhy && ladder.ready) finalNote.textContent = finalWhy;
           balanceNote.textContent = [balance ? `Credits: ${C.balanceLine(balance)}.` : '', sheetWhy, previewWhy].filter(Boolean).join(' ');
+        }
+        for (const [button, key] of [[sheetButton, 'sheet'], [previewButton, 'preview'], [finalButton, 'final']]) {
+          if (button.disabled) { button.dataset.locked = 'true'; button.title = why[key] || button.title || 'Not available right now.'; }
+          else { delete button.dataset.locked; button.removeAttribute('title'); }
         }
       }
 
@@ -1390,8 +1400,10 @@
         const row = (k, v) => [h('dt', {}, k), h('dd', {}, v)];
         return h('div', { class: 'job-progress' },
           bar,
-          h('dl', { class: 'progress-fields' },
-            row('Stage', p.stage), row(p.countLabel, p.count), row('ETA', p.eta), row('Running for', p.running)),
+          p.working
+            ? h('p', { class: 'working' }, p.elapsed ? `Working\u2026 ${p.elapsed}` : 'Working\u2026')
+            : h('dl', { class: 'progress-fields' },
+              row('Stage', p.stage), row(p.countLabel, p.count), row('ETA', p.eta), row('Running for', p.running)),
           !j.progress_detail && j.progress_note ? h('p', { class: 'form-note' }, j.progress_note) : null);
       }
 
@@ -1425,7 +1437,11 @@
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
               }, 'Try again') : null,
           creditsOn() && failed ? returnedLine(j, note) : null,
-          opsOn() && failed && j.state !== 'cancelled' ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Get help with this') : null);
+          failed && j.state !== 'cancelled' && (J.rawDetail(j) || opsOn())
+            ? h('details', { class: 'job-help' }, h('summary', {}, 'Get help with this'),
+                J.rawDetail(j) ? h('p', { class: 'form-note' }, 'What the render machine reported, in its own words:') : null,
+                J.rawDetail(j) ? h('code', {}, J.rawDetail(j)) : null,
+                opsOn() ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Send this to us') : null) : null);
       }
 
       function draw() {
