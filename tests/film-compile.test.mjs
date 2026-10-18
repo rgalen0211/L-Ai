@@ -181,7 +181,7 @@ test('the look is applied by the profile compiler and changes ONLY look fields (
   for (const e of [...usable.slice(0, 6), ...usable.filter(x => x.style)]) {
     const base = compileFilm({ dataset: e.id, film_type: e.film_types[0], title: 'Look test' });
     for (const id of Object.keys(PRESETS)) {
-      if (e.style?.choropleth?.continuous && PRESETS[id].look?.ramp?.mode === 'hatch') {
+      if ((e.style?.choropleth?.continuous || (/counties/.test(e.geography.id) && e.film_types[0] === 'map')) && PRESETS[id].look?.ramp?.mode === 'hatch') {
         assert.match(refused({ dataset: e.id, film_type: e.film_types[0], title: 'Look test', look: PRESETS[id] }).join(), /too small to hatch/, `${e.id} ${id}`);
         continue;
       }
@@ -198,6 +198,26 @@ test('the look is applied by the profile compiler and changes ONLY look fields (
       assert.ok(styled.report.look.changed.every(p => /^sequence\.(theme|canvas|fps|hold_seconds|style_overrides\.|clips\.\d+\.(transition|fade|align))/.test(p)), styled.report.look.changed.join());
     }
   }
+});
+
+test('render-proof finding: a hatching look on EVERY county-level map is refused (only one dataset was pinned, so the rest compiled and failed texture_carrying_capacity)', () => {
+  const counties = usable.filter(e => /counties/.test(e.geography.id) && e.film_types.includes('map'));
+  assert.ok(counties.length > 20, 'many usable county datasets');
+  for (const e of counties) {
+    assert.match(refused({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }).join(), /too small to hatch/, e.id);
+    assert.equal(refused({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }), null, `control: a solid look compiles on ${e.id}`);
+  }
+  for (const e of counties) {
+    const s = compileFilm({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }).story;
+    assert.equal(s.sequence.style_overrides.choropleth.continuous, true, `${e.id}: a solid look on a county map is drawn as continuous colour (a banded one fails the 90 percent motion count)`);
+    assert.equal(s.sequence.style_overrides.choropleth.mode, 'solid', e.id);
+  }
+  const states = usable.find(e => e.geography.id === 'us_states' && e.film_types.includes('map'));
+  const st = compileFilm({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] }).story;
+  assert.notEqual(st.sequence.style_overrides.choropleth.continuous, true, 'control: a state map is NOT forced continuous');
+  assert.equal(refused({ dataset: states.id, film_type: 'map', title: 'x', look: PRESETS['wtds-classic'] }), null, 'control: a state map takes a hatching look');
+  const bars = counties.find(e => e.film_types.includes('bars') && !e.style);
+  assert.equal(refused({ dataset: bars.id, film_type: 'bars', title: 'x', look: PRESETS['wtds-classic'] }), null, 'a bar film does not hatch, so the look is fine there');
 });
 
 test('a bad look is refused with the profile reasons, prefixed; a look cannot carry a claim', () => {
@@ -290,6 +310,42 @@ test('the committed catalog_data.ts equals a fresh regeneration; the public outp
   const committed = lf(fs.readFileSync(path.join(root, 'supabase', 'functions', '_shared', 'catalog_data.ts')));
   assert.ok(committed.equals(lf(fs.readFileSync(path.join(B, 'catalog_data.ts')))), 'catalog_data.ts is stale: regenerate it with tools/gen-catalog.py --detail-out');
   fs.rmSync(tmp, { recursive: true, force: true });
+});
+
+test('the motion record (WORKER): a dataset measured motion=fail is NOT usable; an unmeasured or off-list line stops the generator',
+  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, (t) => {
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-motion-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));
+  const tree = exportCommit(path.join(tmp, 'engine'));
+  const ids = fs.readFileSync(ALLOW, 'utf8').split(/\r?\n/).map(s => s.trim()).filter(s => s && !s.startsWith('#'));
+  const line = (id, m = 'pass') => `${id} motion=${m} paced=none engine=ba0e116 measured=2026-10-18`;
+  const gen = (name, recordLines) => {
+    const d = path.join(tmp, name);
+    for (const x of ['tools', 'assets', 'supabase']) fs.mkdirSync(path.join(d, x), { recursive: true });
+    fs.copyFileSync(path.join(root, 'assets', 'app-templates.js'), path.join(d, 'assets', 'app-templates.js'));
+    fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(d, 'tools', 'gen-catalog.py'));
+    const rec = path.join(d, 'motion.txt');
+    fs.writeFileSync(rec, recordLines.join('\n') + '\n');
+    const r = run(python, [path.join(d, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--allowlist', ALLOW, '--listing', LISTING,
+      '--commit', CATALOG_ENGINE, '--motion', rec, '--out', path.join(d, 'assets', 'app-catalog-data.js')]);
+    return { r, pub: r.status === 0 ? fs.readFileSync(path.join(d, 'assets', 'app-catalog-data.js'), 'utf8') : '' };
+  };
+  const statusOf = (pub, id) => { const m = new RegExp(`"id": "${id}",[\\s\\S]*?"status": "([a-z]+)"`).exec(pub); return m && m[1]; };
+  const listableUsable = usable.filter(e => e.listable).map(e => e.id);
+  const target = listableUsable[0], other = listableUsable[1];
+  const control = gen('ctl', ids.map(i => line(i)));
+  assert.equal(control.r.status, 0, control.r.stderr);
+  assert.equal(statusOf(control.pub, target), 'usable', 'CONTROL: all measured pass -> the target stays usable');
+  const planted = gen('fail', ids.map(i => line(i, i === target ? 'fail' : 'pass')));
+  assert.equal(planted.r.status, 0, planted.r.stderr);
+  assert.notEqual(statusOf(planted.pub, target), 'usable', 'MUST-FAIL: a motion=fail dataset must not be usable');
+  assert.equal(statusOf(planted.pub, other), 'usable', 'and the others are untouched');
+  const unmeasured = gen('missing', ids.filter(i => i !== target).map(i => line(i)));
+  assert.notEqual(unmeasured.r.status, 0, 'MUST-FAIL: an allowlisted dataset with no motion line stops the generator');
+  assert.match(unmeasured.r.stderr, /no motion line/);
+  assert.notEqual(gen('extra', [...ids.map(i => line(i)), line('not_on_the_allowlist')]).r.status, 0, 'MUST-FAIL: a line for an id off the allowlist is refused');
+  assert.notEqual(gen('twice', [...ids.map(i => line(i)), line(target)]).r.status, 0, 'MUST-FAIL: two lines for one id are refused');
+  assert.notEqual(gen('junk', [...ids.map(i => line(i)), 'cbp_x motion=maybe paced=none engine=ba0e116 measured=2026-10-18']).r.status, 0, 'MUST-FAIL: an unparseable line is refused');
 });
 
 test('MUST-FAIL: an untracked INGESTED dataset in the engine checkout never reaches a catalog (privacy and determinism)',
