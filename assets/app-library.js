@@ -65,7 +65,7 @@
       const hash = location.hash;
       const stops = [];
       const onStop = fn => stops.push(fn);
-      if (!root.childElementCount) root.replaceChildren(h('p', { class: 'form-intro' }, 'Loading…'));
+      if (!root.childElementCount) root.replaceChildren(h('p', { class: 'form-intro loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'));
       let view;
       try {
         let m;
@@ -1506,6 +1506,7 @@
       const el = h('section', { class: 'jobs-panel', 'aria-labelledby': 'jobs-title' },
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
+        h('p', { class: 'form-note' }, 'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'),
         controls, balanceNote, lockedNote, error, listEl);
 
       return {

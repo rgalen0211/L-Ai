@@ -63,3 +63,13 @@ test('STORY SAVE: the "Saved" message also appears beside the Save story button 
   assert.match(lib, /story, locked \? null : save, savedHere, error\);/);
   assert.match(lib, /saved\.textContent = '';\n\s+savedHere\.textContent = '';/, 'both are cleared on the next save');
 });
+
+test('ROUND 2: back links are comfortable to tap, the first loading line has a spinner (still under reduced motion), and the Render panel says in words what a contact sheet, preview and final film are', () => {
+  const css = read('assets/app.css');
+  assert.match(css, /\.back\{display:inline-flex;align-items:center;min-height:40px/);
+  assert.match(css, /\.spinner\{[^}]*animation:spin/);
+  assert.match(css, /@media \(prefers-reduced-motion:reduce\)\{\.spinner\{animation:none\}\}/);
+  const lib = read('assets/app-library.js');
+  assert.ok(lib.includes("h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'"));
+  assert.ok(lib.includes("'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'"));
+});
