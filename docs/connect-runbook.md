@@ -16,7 +16,7 @@ role `connect_runner`, which can act as a person whenever it holds a live token.
 Run the login file again with a new password and update `CONNECT_DB_URL`. The old one stops working at once.
 
 ## Checked by a test
-`tests/connect.test.mjs` fails if any file in the repo contains `alter role connect_runner ... password '<anything but the placeholder>'`, or a
+`tests/connect-tools.test.mjs` fails if any file in the repo contains `alter role connect_runner ... password '<anything but the placeholder>'`, or a
 `postgresql://` connection string with a password in it.
 
 ## What the first real run taught us (2026-10-18, proof project) - read this before deploying
