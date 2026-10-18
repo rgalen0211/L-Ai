@@ -58,7 +58,7 @@ test('DRAFTS: the open decisions and the "requires" statements are exactly the o
   assert.deepEqual(names(terms, 'decision').sort(), ['commercial-use', 'creator-beta-terms', 'governing-law', 'last-updated', 'liability-cap']);
   assert.deepEqual(names(privacy, 'decision').sort(), ['application-retention', 'last-updated', 'report-retention']);
   assert.deepEqual([...new Set(names(both, 'requires'))].sort(),
-    ['account-tools', 'backups-pro', 'creator-beta-live', 'film-pages', 'film-requests', 'ledger-cancel-spent', 'ops-tools', 'resend-email', 'stripe-test-mode', 'visit-counting']);
+    ['account-tools', 'backups-pro', 'creator-beta-live', 'film-pages', 'film-requests', 'funnel-tracking', 'ledger-cancel-spent', 'ops-tools', 'resend-email', 'stripe-test-mode', 'visit-counting']);
 });
 
 test('DRAFTS: what is not built or not live is NOT in the text: no uploads, AI, Find data, compilation, marks, per-item delete, prices or purchases', () => {
@@ -82,7 +82,7 @@ function scratch() {
   return dir;
 }
 const run = (dir, args) => spawnSync('python', [path.join(root, 'tools/legal-approve.py'), '--root', dir, ...args], { encoding: 'utf-8' });
-const REQUIRES = 'account-tools,backups-pro,creator-beta-live,film-pages,film-requests,ledger-cancel-spent,ops-tools,resend-email,stripe-test-mode,visit-counting';
+const REQUIRES = 'account-tools,backups-pro,creator-beta-live,film-pages,film-requests,funnel-tracking,ledger-cancel-spent,ops-tools,resend-email,stripe-test-mode,visit-counting';
 const DECISIONS = { 'commercial-use': 'yes, including commercially,', 'creator-beta-terms': 'We may ask for a short written note after each film.', 'liability-cap': 'US$100',
                     'governing-law': 'These terms are governed by the laws of New York.', 'application-retention': 'We keep applications for 12 months.', 'report-retention': 'We keep reports for 12 months.' };
 

@@ -375,6 +375,19 @@
       adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
+      // Funnel (SQL 20261017000900): Ryan's counts per step, by week and by source. Admin only.
+      // The raw funnel events of the last N days, read as Ryan (the table's own admin-only policy): for the by-day page. Paged, newest first.
+      async adminFunnelEvents(days) {
+        const since = new Date(Date.now() - Math.min(Math.max(days || 14, 1), 60) * 864e5).toISOString();
+        const rows = [];
+        for (let from = 0; from < 50000; from += 1000) {
+          const page = await run(client.from('funnel_events').select('at, event').gte('at', since).order('at', { ascending: false }).range(from, from + 999), 'Couldn\u2019t load the funnel.');
+          rows.push(...page);
+          if (page.length < 1000) return { rows, truncated: false };
+        }
+        return { rows, truncated: true };
+      },
+      adminFunnel(weeks) { return run(client.rpc('admin_funnel', { p_weeks: weeks || 8 }), 'Couldn\u2019t load the funnel.'); },
       // Render orders (PIPE-1, SQL 20261017000500/600): a full render is REQUESTED, never inserted. While auto_render is off the order waits for Ryan's approval with the credits held.
       requestFinalRender(previewJobId, key) { return run(client.rpc('request_final_render', { p_preview_job: previewJobId, p_idempotency_key: key }), 'Couldn\u2019t request the full render.'); },
       listOrders(versionId) { return run(client.from('render_orders').select('id, state, want, error_code, created_at, ended_at, version_id').eq('version_id', versionId).order('created_at', { ascending: false }), 'Couldn\u2019t load the render requests.'); },
