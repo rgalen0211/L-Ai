@@ -556,7 +556,7 @@ export const PRESETS: any = {
       }
     },
     "pacing": {
-      "hold_seconds": 3.0,
+      "hold_seconds": 2.0,
       "transition": {
         "kind": "crossfade",
         "seconds": 0.8
@@ -667,7 +667,7 @@ export const PRESET_LIST: any[] = [
     ],
     "fps": 24,
     "ramp_mode": "solid",
-    "hold_seconds": 3.0
+    "hold_seconds": 2.0
   },
   {
     "id": "wtds-classic",
