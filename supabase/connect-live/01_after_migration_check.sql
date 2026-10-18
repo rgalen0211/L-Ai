@@ -14,12 +14,14 @@ union all select 'connect_runner exists, is not a superuser and has no table pri
        and (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
              where n.nspname = 'public' and c.relkind in ('r', 'v', 'm', 'S', 'p', 'f')
                and has_table_privilege('connect_runner', c.oid, 'select,insert,update,delete,truncate,references,trigger')) = 0
+-- Counts only what the role can really CALL: a function in a schema it has no USAGE on cannot be reached, and a trigger or event-trigger function can only
+-- be run by the database as a trigger (Supabase's own public.rls_auto_enable is one, executable by everyone), never called by a person or a login.
 union all select 'connect_runner can call exactly 22 functions, all connect_*, and only in the public schema',
        (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-         where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
+         where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
            and n.nspname not in ('pg_catalog', 'information_schema')) = 22
        and (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-             where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
+             where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
                and n.nspname not in ('pg_catalog', 'information_schema') and not (n.nspname = 'public' and p.proname like 'connect\_%')) = 0
 union all select 'signed-in people cannot call the tool or authorization-server functions',
        not has_function_privilege('authenticated', 'public.connect_whoami(text)', 'EXECUTE')

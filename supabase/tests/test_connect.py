@@ -798,7 +798,7 @@ def callable_by_runner(d):
     rows = d.all("""select p.oid::regprocedure::text
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                     where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE')
-                      and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
+                      and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
                       and n.nspname not in ('pg_catalog', 'information_schema')""")
     # regprocedure leaves the schema off when it is on the search path, so put it back
     return sorted(r[0] if "." in r[0].split("(")[0] else "public." + r[0] for r in rows)
@@ -1016,6 +1016,39 @@ class LiveFiles(core.Base):
         with self.db.as_(None).c.cursor() as cur:                                                    # an address nobody has changes nothing
             cur.execute(src)
             self.assertEqual(cur.fetchall()[0], (0, 0, 0))
+
+    def test_runner_function_rows_ignore_trigger_functions_and_unreachable_schemas_but_count_a_callable_one(self):
+        # Q15b: live had Supabase's own public.rls_auto_enable (an event-trigger function, executable by everyone) and the live check counted it.
+        ROW = "connect_runner can call exactly 22 functions"
+        row = lambda: [r[1] for r in self.run_file("01_after_migration_check.sql")[1] if r[0].startswith(ROW)]
+        health = lambda: [r for r in self.run_file("05_daily_health.sql")[1] if r[0].startswith("connect_runner: functions it can call")][0]
+        report = lambda: [(r[0], r[1]) for r in self.run_file("04_runner_privilege_report.sql")[1]]
+        self.assertEqual(row(), [True])
+        c = self.db.as_(None).c
+        # (a) PUBLIC-executable trigger and event-trigger functions in public: NOT counted
+        c.execute("create function public.fake_trg() returns trigger language plpgsql as $$ begin return null; end $$")
+        c.execute("create function public.fake_evt() returns event_trigger language plpgsql as $$ begin null; end $$")
+        c.execute("grant execute on function public.fake_trg(), public.fake_evt() to public")
+        self.assertTrue(c.execute("select has_function_privilege('connect_runner', 'public.fake_trg()', 'EXECUTE') and has_function_privilege('connect_runner', 'public.fake_evt()', 'EXECUTE')").fetchone()[0])
+        self.assertEqual(row(), [True])
+        self.assertEqual(health()[2], "ok")
+        rows = report()
+        self.assertNotIn(("function execute", "public.fake_trg()"), rows)
+        self.assertIn(("trigger function it may execute (cannot be called directly: listed so nothing is hidden)", "public.fake_trg()"), rows)       # still listed, honestly labelled
+        self.assertEqual(sum(1 for k, _ in rows if k == "function execute"), 22)
+        # (b) a PUBLIC-executable function in a schema where the role has no USAGE: NOT counted
+        c.execute("create schema zz_nouse")
+        c.execute("create function zz_nouse.hidden() returns int language sql as $$ select 1 $$")
+        c.execute("grant execute on function zz_nouse.hidden() to public")
+        self.assertFalse(c.execute("select has_schema_privilege('connect_runner', 'zz_nouse', 'USAGE')").fetchone()[0])
+        self.assertEqual(row(), [True])
+        self.assertEqual(health()[2], "ok")
+        # (c) a callable non-connect function in public IS counted: the row goes false, the health row says act, the report lists it as a function
+        c.execute("create function public.callable_extra() returns int language sql as $$ select 1 $$")
+        c.execute("grant execute on function public.callable_extra() to public")
+        self.assertEqual(row(), [False])
+        self.assertEqual(health()[2], "act")
+        self.assertIn(("function execute", "public.callable_extra()"), report())
 
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")
