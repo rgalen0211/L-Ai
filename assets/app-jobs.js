@@ -31,11 +31,14 @@
     if (!f) return fault.trim() && !LOOKS_LIKE_CODE.test(fault) ? fault.trim().slice(0, 200) : '';
     const at = where(f[1]), msg = f[2].trim();
     let m;
-    if ((m = /^unknown key '([^']+)'/i.exec(msg))) return `The story has a setting Ryagram doesn’t recognise: “${m[1]}”${at}. Remove it, or pick a ready-made film and start again.`;
+    if ((m = /^unknown key '([^']+)'/i.exec(msg))) return `The story has a setting Ryagram doesn’t recognise: “${m[1]}”${at}.`;
     if ((m = /^(?:missing|required)(?: key)? '?([^']*)'?/i.exec(msg))) return `The story is missing a required setting${m[1] ? `: “${m[1]}”` : ''}${at}.`;
     if ((m = /^(.+?) is not on this worker.s dataset allowlist/i.exec(msg))) return `The dataset “${unquote(m[1])}”${at} can’t be drawn here. Pick a dataset from the catalog.`;
     if ((m = /^(.+?) is not offered for (\S+) on this worker \(offered: ([^)]*)\)/i.exec(msg))) return `${unquote(m[2])} can’t be drawn as ${unquote(m[1])}${at}. It can be drawn as: ${m[3].trim()}.`;
-    if ((m = /^(.+?) is not one of (.+)$/i.exec(msg))) return `The value “${unquote(m[1])}”${at} isn’t an allowed choice here. Allowed: ${m[2].replace(/["“”]/g, '').trim()}.`;
+    if ((m = /^(.+?) is not one of (.+)$/i.exec(msg))) {
+      const choices = m[2].replace(/[\[\]"“”']/g, '').split(',').map(x => x.trim()).filter(Boolean);
+      return `The value “${unquote(m[1])}”${at} isn’t an allowed choice here. ${choices.length && choices.length <= 6 ? `Allowed: ${choices.join(', ')}.` : 'Pick one of the ready-made choices instead.'}`;
+    }
     if (/^(?:expected|must be|should be)\b/i.test(msg)) return `A setting${at} has the wrong kind of value. Check it against a ready-made film.`;
     return `Something in the story${at} wasn’t accepted.`;
   }
@@ -46,7 +49,8 @@
     const out = [];
     for (const f of faults) { const s = plainFault(f); if (s && !out.includes(s)) out.push(s); }
     if (!out.length) return text.startsWith('$') || LOOKS_LIKE_CODE.test(text) ? UNREADABLE : text.slice(0, 200);
-    const shown = out.slice(0, 5).join(' ');
+    const advice = faults.some(f => /unknown key/i.test(f)) ? ' Remove the setting(s) above, or pick a ready-made film and start again.' : '';       // said once, not after every fault
+    const shown = out.slice(0, 5).join(' ') + advice;
     return out.length > 5 ? `${shown} And ${out.length - 5} more: open “Get help with this”.` : shown;
   }
   const rawDetail = job => String((job && job.error_detail) || '').trim();
