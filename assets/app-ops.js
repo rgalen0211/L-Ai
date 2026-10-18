@@ -119,11 +119,78 @@
     return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
+  // ---- Funnel on the Operations screen (SQL 20261017000900): counts per step, conversion between steps, by source and by week.
+  // The first two steps are VISITS (anonymous); every other step counts each account once. The chain below is the order people go through.
+  const FUNNEL_LABELS = { landing_view: 'Saw the landing page', signup_started: 'Started signing up', signup_done: 'Signed up', first_project: 'Made a first project', contact_sheet: 'Made a contact sheet',
+    preview: 'Made a preview', render_ordered: 'Ordered a full render', render_approved: 'Full render approved', film_requested: 'Requested a film', film_delivered: 'Film delivered', purchase: 'Bought credits', subscription_start: 'Started a plan', subscription_cancel: 'Cancelled a plan',
+    return_7d: 'Came back after 7 days', return_30d: 'Came back after 30 days' };
+  const FUNNEL_CHAIN = ['landing_view', 'signup_started', 'signup_done', 'first_project', 'contact_sheet', 'preview', 'render_ordered', 'render_approved', 'film_requested', 'film_delivered', 'purchase'];
+  const FUNNEL_SIDE = ['subscription_start', 'subscription_cancel', 'return_7d', 'return_30d'];          // judged against people who signed up
+  const FUNNEL_KEY = ['landing_view', 'signup_done', 'first_project', 'render_ordered', 'purchase'];     // the columns of the by-source and by-week tables
+  const pct = (n, d) => (d > 0 ? `${Math.round((n / d) * 1000) / 10}%` : '\u2014');
+  function funnelRows(f) {
+    if (!f || !Array.isArray(f.steps)) return [];
+    const by = Object.fromEntries(f.steps.map(s => [s.event, s.total]));
+    const rows = [];
+    FUNNEL_CHAIN.forEach((event, i) => rows.push({ event, label: FUNNEL_LABELS[event], total: by[event] || 0,
+      fromPrevious: i ? pct(by[event] || 0, by[FUNNEL_CHAIN[i - 1]] || 0) : '', fromFirst: i ? pct(by[event] || 0, by.landing_view || 0) : '' }));
+    for (const event of FUNNEL_SIDE) rows.push({ event, label: FUNNEL_LABELS[event], total: by[event] || 0, fromPrevious: pct(by[event] || 0, by.signup_done || 0), fromFirst: '', side: true });
+    return rows;
+  }
+  // By day (#/admin/funnel): the raw events counted per step per day, in the same Eastern day the weekly view uses. Pure, so it is tested without a screen.
+  const DAY_STEPS = ['landing_view', 'signup_done', 'first_project', 'preview', 'render_ordered', 'render_approved', 'purchase'];
+  const DAY_LABELS = { landing_view: 'Visits', signup_done: 'Signed up', first_project: 'First project', preview: 'First preview', render_ordered: 'First order (full render requested)', render_approved: 'Approved', purchase: 'Bought credits' };
+  const easternDay = (iso, tz = 'America/New_York') => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+  function funnelDaily(events, { days = 14, now = Date.now() } = {}) {
+    const list = [];
+    for (let i = 0; i < days; i += 1) list.push(easternDay(now - i * 864e5));
+    const byDay = Object.fromEntries(list.map(d => [d, Object.fromEntries(DAY_STEPS.map(s => [s, 0]))]));
+    const totals = Object.fromEntries(DAY_STEPS.map(s => [s, 0]));
+    for (const e of events || []) {
+      if (!DAY_STEPS.includes(e.event)) continue;
+      const d = easternDay(e.at);
+      if (!byDay[d]) continue;
+      byDay[d][e.event] += 1; totals[e.event] += 1;
+    }
+    return { days: list.map(d => ({ day: d, counts: byDay[d] })), totals, steps: DAY_STEPS };
+  }
+  function funnelDailyLine(d) {
+    const t = d.totals;
+    return `Over these days: ${t.signup_done} signed up, ${t.preview} made a first preview (${pct(t.preview, t.signup_done)} of signups), ${t.render_ordered} ordered a full render (${pct(t.render_ordered, t.signup_done)}), ${t.render_approved} approved, ${t.purchase} bought credits.`;
+  }
+  function funnelBySource(f) {
+    if (!f || !Array.isArray(f.steps)) return [];
+    const step = e => f.steps.find(s => s.event === e) || { by_source: {} };
+    const sources = [...new Set(FUNNEL_KEY.flatMap(e => Object.keys(step(e).by_source || {})))];
+    return sources.map(src => {
+      const counts = Object.fromEntries(FUNNEL_KEY.map(e => [e, (step(e).by_source || {})[src] || 0]));
+      return { source: src, counts, signupRate: pct(counts.signup_done, counts.landing_view) };
+    }).sort((a, b) => (b.counts.landing_view + b.counts.signup_done) - (a.counts.landing_view + a.counts.signup_done) || a.source.localeCompare(b.source));
+  }
+  function funnelByWeek(f) {
+    if (!f || !Array.isArray(f.steps)) return [];
+    const step = e => f.steps.find(s => s.event === e) || { by_week: {} };
+    return [...(f.weeks || [])].reverse().map(week => ({ week, counts: Object.fromEntries(FUNNEL_KEY.map(e => [e, (step(e).by_week || {})[week] || 0])) }));
+  }
+  const funnelLine = f => (f ? 'Visits (the first two steps) are counted each time; every other step counts each account once, the first time it happens. Source = the link\u2019s utm_source, else the referring site, else direct.'
+                            : 'Funnel tracking is not set up yet (apply SQL 20261017000900).');
   // ---- Render approvals (PIPE-1, SQL 20261017000600): the full renders waiting for Ryan, oldest first.
   const RENDER_SOURCE_WORDS = { app: 'from the app', connect: 'from a connected AI' };
   function renderQueueLine(rows) {
     const n = (rows || []).length;
     return n ? `${plural(n, 'full render')} waiting for your approval, oldest first. Approving starts the render; declining returns the person\u2019s credits.` : 'No full renders are waiting for approval.';
+  }
+  // Auto-render and caps (queue item 3). A cap is a whole number of credits a day, 0 or more; empty means "use the default" (the database deletes the row).
+  const autoRenderLine = on => on ? 'Auto-render is ON: full renders start at once, with no approval.' : 'Auto-render is OFF: every full render waits here for your approval, with the credits held.';
+  function checkCap(text) {
+    const t = String(text == null ? '' : text).trim();
+    if (t === '') return { value: null };
+    if (!/^\d{1,6}$/.test(t)) return { error: 'A cap is a whole number of credits a day, 0 or more. Leave it empty to use the default.' };
+    return { value: Number(t) };
+  }
+  function capLine(c) {
+    const used = Number(c.used_last_24h) || 0;
+    return `${c.email || 'an account'}: ${used} of ${c.credits_per_day} credit${c.credits_per_day === 1 ? '' : 's'} used in the last 24 hours`;
   }
   function renderWhen(r, now) {
     const left = Math.round((Date.parse(r.expires_at) - now) / 3600000);
@@ -189,5 +256,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
+  window.ryagramOps = { autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
 })();
