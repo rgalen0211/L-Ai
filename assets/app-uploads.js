@@ -46,10 +46,19 @@
     return { key: 'reading', label: 'Reading…' };
   }
 
-  // The mapping the person starts from: what the reader guessed. Null when the file has its years across the columns.
-  function draft(report) {
+  // Wide files (Q6, ENGINE's interface of 12:36, agreed): the worker melts the file in memory and reports the LONG columns; report.wide_groups lists the year-column groups (one is melted) and
+  // report.wide_chosen the default. The page then asks the person to confirm 'These columns are years' and sends melt_wide + wide_prefix with the usual mapping. An old report with guess.wide and
+  // no wide_groups keeps the refusal. Behind byodGuide (the caller decides).
+  const WIDE_TICK = 'These columns are years';
+  const wideGroups = report => (report?.guess?.wide === true && Array.isArray(report.wide_groups) ? report.wide_groups.filter(g => g && typeof g === 'object' && typeof g.prefix === 'string').slice(0, 8) : []);
+  const wideOffered = report => wideGroups(report).length > 0;
+  const groupLabel = g => `${text(g.prefix) || 'The year columns'}: ${text(g.first)} to ${text(g.last)} (${Number(g.count) || 0} years)`;
+  const chosenPrefix = report => { const gs = wideGroups(report); return gs.some(g => g.prefix === report.wide_chosen) ? report.wide_chosen : (gs[0] ? gs[0].prefix : ''); };
+
+  // The mapping the person starts from: what the reader guessed. Null when the file has its years across the columns (unless the wide step is on and offered).
+  function draft(report, opts = {}) {
     const g = report?.guess;
-    if (!g || g.wide) return null;
+    if (!g || (g.wide && !(opts.wide && wideOffered(report)))) return null;
     const cols = Array.isArray(report.columns) ? report.columns : [];
     const names = {};
     for (const i of g.value_indexes || []) names[String(i)] = text(cols[i]?.header).slice(0, 80) || `Value ${i + 1}`;
@@ -57,6 +66,7 @@
                 geography: g.geography || 'us_states', cadence: g.cadence || 'annual', measure_names: names };
     if (m.value_indexes.length) m.banded_index = m.value_indexes[0];
     if (Number.isInteger(report.state_column_index)) m.state_index = report.state_column_index;
+    if (g.wide) { m.melt_wide = false; m.wide_prefix = chosenPrefix(report); }          // the person ticks 'These columns are years'
     return m;
   }
 
@@ -64,6 +74,7 @@
   function problem(m, report) {
     const n = Array.isArray(report?.columns) ? report.columns.length : 0;
     if (!m) return 'This file has its years across the columns. Put the years in one column, with one row per place and year, and upload it again.';
+    if (report?.guess?.wide && wideOffered(report) && m.melt_wide !== true) return `Tick \u201c${WIDE_TICK}\u201d to go on.`;
     if (!Number.isInteger(m.place_index) || !Number.isInteger(m.period_index)) return 'Choose which column is the place and which is the period.';
     if (!['us_states', 'us_counties'].includes(m.geography)) return 'Choose whether the places are U.S. states or counties.';
     if (!['annual', 'monthly'].includes(m.cadence)) return 'Choose whether the periods are yearly or monthly.';
@@ -88,6 +99,7 @@
     if (m.banded_index != null && m.value_indexes.includes(m.banded_index)) out.banded_index = m.banded_index;
     if (m.state_index != null) out.state_index = m.state_index;
     if (m.geography === 'us_counties' && m.state && m.state_index == null) out.state = m.state;
+    if (m.melt_wide === true) { out.melt_wide = true; out.wide_prefix = typeof m.wide_prefix === 'string' ? m.wide_prefix.slice(0, 40) : ''; }
     return out;
   }
 
@@ -144,5 +156,5 @@
     const p = cleanProvenance(raw);
     return provenanceCard(p).concat(p.link ? [`Link: ${p.link}`] : []);
   }
-  window.ryagramUploads = { descriptionLines, safeLink, LICENCES, PLACEHOLDER, AS_SUPPLIED, ATTESTATION, FIELD_MAX, cleanProvenance, provenanceProblem, provenanceCard, WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
+  window.ryagramUploads = { WIDE_TICK, wideGroups, wideOffered, groupLabel, descriptionLines, safeLink, LICENCES, PLACEHOLDER, AS_SUPPLIED, ATTESTATION, FIELD_MAX, cleanProvenance, provenanceProblem, provenanceCard, WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
 })();
