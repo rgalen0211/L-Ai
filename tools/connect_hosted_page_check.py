@@ -297,6 +297,7 @@ def main():
                 p.get_by_role("button", name="Approve").click()
                 p.wait_for_url("http://127.0.0.1:53124/**", timeout=20000)
                 check(went and went[0].startswith(LOOP + "?code=") and "iss=" in went[0], "Approve goes to exactly the loopback address shown, with a code and iss")
+                http_json("POST", f"{URL}/rest/v1/rpc/disconnect_ai", {"p_client_id": req["client_id"]}, headers={"apikey": KEY, "Authorization": "Bearer " + json.loads(SESSION)["access_token"]})     # leave no grant behind named like a real assistant
                 ctx.close()
             b.close()
     finally:
