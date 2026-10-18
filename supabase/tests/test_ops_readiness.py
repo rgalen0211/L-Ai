@@ -372,7 +372,12 @@ class Ops(core.Base):
                            "submit_render_order(jsonb,text,order_want,text)", "request_final_render(uuid,text)",
                            "render_order_status(uuid)", "cancel_render_order(uuid)",
                            "admin_set_auto_render(boolean)", "admin_render_queue()", "admin_render_decide(uuid,boolean,text)",
-                           "admin_user_caps()", "admin_set_user_cap(uuid,integer)"}
+                           "admin_user_caps()", "admin_set_user_cap(uuid,integer)",
+                           # connect your own AI: the person's own consent and settings (each refuses a token that carries client_id and
+                           # anyone who is not signed in) and Ryan's two admin switches (each refuses everyone but is_app_admin() inside)
+                           "connect_consent_check(uuid)", "connect_consent_decide(uuid,boolean,text[])", "my_connected_ais()", "disconnect_ai(text)",
+                           "admin_set_connect_access(text,boolean)", "admin_connect_allowlist_set(text,text,text,boolean)",
+                           "admin_connect_set_enabled(boolean)", "admin_connect_revoke_all()"}
             for fn in new:
                 if fn in may_sign_in:
                     continue

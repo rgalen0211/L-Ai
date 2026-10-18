@@ -53,7 +53,7 @@ window.ryagramConfig = Object.freeze({
   // the credits ledger is live (supabase/README.md, "Creator beta flow").
   filmRequests: true,
   // Send full renders through request_final_render (the approval queue). Turn on only once SQL 20261017000500 and 20261017000600 (PIPE-1) are applied; until then the old direct path is used.
-  renderOrders: false,
+  renderOrders: true,
   // Connecting an AI (Claude, ChatGPT): the consent page (#/connect/consent) and Account > Connected AIs. Turn on only once CONNECT's SQL (20261018000100_connect_ai.sql) is applied and the
   // connect function is deployed (supabase/README.md, "Connecting an AI").
   connectAi: false,

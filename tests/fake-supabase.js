@@ -420,6 +420,22 @@
       },
       my_connected_ais() { return { data: structuredClone(db.connected || []), error: null }; },
       disconnect_ai({ p_client_id }) { db.connected = (db.connected || []).filter(c => c.client_id !== p_client_id); return { data: null, error: null }; },
+      // Mock of the render approval queue (PIPE-1): waiting orders are the ones request_final_render made while auto_render was off. Admin only (seed.nonAdmin makes it refuse).
+      admin_render_queue() {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        const rows = db.render_orders.filter(o => o.state === 'awaiting_approval').map(o => ({ stage_id: `f${o.id.slice(1)}`, order_id: o.id, owner_id: o.owner_id, owner_email: 'creator@example.com',
+          film_title: db.projects.find(p => p.id === o.project_id)?.title || 'A film', credits_held: o.stages[0].credits_quoted, requested_at: o.created_at, expires_at: new Date(Date.parse(o.created_at) + 7 * 864e5).toISOString(), source: o.source }));
+        return { data: rows, error: null };
+      },
+      admin_render_decide({ p_stage, p_approve, p_note }) {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        const o = db.render_orders.find(x => `f${x.id.slice(1)}` === p_stage);
+        if (!o) return fail('Request not found.');
+        if (o.state !== 'awaiting_approval') return fail(`This request is no longer waiting (${o.state}).`);
+        if (p_approve && seed.capReached) return fail('daily_cap: this person has reached their daily credit cap; approve later or decline.');
+        o.state = p_approve ? 'running' : 'declined'; o.stages[0].state = p_approve ? 'queued' : 'declined'; o.ended_at = p_approve ? null : now(); o.admin_note = p_note || null;
+        return { data: { id: p_stage, state: o.stages[0].state }, error: null };
+      },
       admin_invite_person({ p_name, p_credits }) {
         const n = String(p_name || '').replace(/\s+/g, ' ').trim();
         if (!n || n.length > 100) return fail('Give the person’s name (up to 100 characters).');
