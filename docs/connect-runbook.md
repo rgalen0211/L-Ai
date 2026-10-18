@@ -15,6 +15,12 @@ role `connect_runner`, which can act as a person whenever it holds a live token.
 ## If a password may have been seen
 Run the login file again with a new password and update `CONNECT_DB_URL`. The old one stops working at once.
 
+## Before running any test: `npm ci` first
+A fresh checkout has no `node_modules`. Run `npm ci` once in the repository root (it installs exactly the versions in `package-lock.json`: 
+`ajv` 8.17.1, `@modelcontextprotocol/sdk` 1.32.1 and `@supabase/supabase-js` 2.117.2, all devDependencies, nothing ships), then `node --test tests/*.test.mjs` 
+and `node tools/connect_predeploy_check.mjs`. Without it the Ajv, MCP-client and tool tests fail on a missing module. Use `npm ci`, not `npm install`: 
+it never changes the lock file.
+
 ## Checked by a test
 `tests/connect-tools.test.mjs` fails if any file in the repo contains `alter role connect_runner ... password '<anything but the placeholder>'`, or a
 `postgresql://` connection string with a password in it.
