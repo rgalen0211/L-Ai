@@ -38,7 +38,8 @@ test('WORDS: CONNECT\'s scope ids in plain words; an unknown id is shown as what
   assert.equal(C.scopeWord('read'), 'See your projects, films and credit balance');
   assert.equal(C.scopeWord('write'), 'Create projects and change your film stories');
   assert.equal(C.scopeWord('render_free'), 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram.');
-  assert.match(C.scopeWord('render_final'), /spends credits, and it asks you first/);
+  assert.equal('render_final' in C.SCOPE_WORDS, false, 'no wording for a full-render scope: a connection cannot spend credits');
+  assert.equal(C.scopeWord('render_final'), 'Use the tool called render_final');
   assert.equal(C.scopeWord('mystery'), 'Use the tool called mystery');
   assert.deepEqual(plain(C.ALWAYS), ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.']);
   assert.equal(C.hostOf('https://claude.ai/api/mcp/auth_callback'), 'claude.ai');
@@ -78,7 +79,7 @@ test('DATA: check, decide (once), list and disconnect go through CONNECT\'s four
 
 test('PAGE SOURCE: names the app, shows the exact destination and its host, lists what it can do, says a connection cannot spend credits, puts the return-address label first and the AI own name small, has Approve and Deny, and sends nothing on load', () => {
   const src = read('assets/app-connect.js');
-  for (const text of ["`Connect ${who} to Ryagram?`", "const who = c.redirect_label || c.client_name || 'an AI';", "'It calls itself: ', c.client_name", "'Where you will be sent'", "h('code', {}, c.redirect_uri)", 'c.redirect_host', "'What it will be able to do'", "'Always true'",
+  for (const text of ["`Connect ${who} to Ryagram?`", "const who = c.redirect_label || UNKNOWN_ADDRESS;", "'It calls itself: ', c.client_name", "'Where you will be sent'", "h('code', {}, c.redirect_uri)", 'c.redirect_host', "'What it will be able to do'", "'Always true'",
                       'It cannot spend your credits.', "'Approve'", "'Deny'", 'Untick anything you do not want to allow.', 'If that is not where you expect to go back to, press Deny.']) assert.ok(src.includes(text), text);
   const view = src.slice(src.indexOf('async function consentView'), src.indexOf('// ---- the account page'));
   assert.equal([...view.matchAll(/data\.connectConsentDecide\(/g)].length, 1);                                        // one decide call, inside the button handler
@@ -112,7 +113,7 @@ test('LABEL: the return-address label is shown first and large, the AI\'s own na
   const src = read('assets/app-connect.js');
   const view = src.slice(src.indexOf('async function consentView'), src.indexOf('// ---- the account page'));
   assert.ok(view.indexOf("'consent-who'") < view.indexOf("'It calls itself: '"), 'label heading comes before the self-chosen name');
-  assert.match(view, /c\.redirect_label && c\.client_name \? h\('p', \{ class: 'form-note consent-calls-itself' \}, 'It calls itself: ', c\.client_name\) : ''/);
+  assert.match(view, /c\.client_name \? h\('p', \{ class: 'form-note consent-calls-itself' \}, 'It calls itself: ', c\.client_name\) : ''/);
   assert.doesNotMatch(src, /Tools that spend credits/);
   assert.match(read('assets/app.css'), /\.consent-who\{font-size:clamp/);
   const c = await win.ryagramData(createFakeClient()).connectConsentCheck(GOOD);
@@ -133,4 +134,19 @@ test('EXPIRY: the page says when the sign-in ends, warns at 5 minutes, and says 
   const src = read('assets/app-connect.js');
   assert.ok(src.includes('approve.disabled = true; approve.title = EXPIRED;'));
   assert.ok(src.includes('expiryLine, h(\'div\', { class: \'actions-row\' }, approve, deny), error]'));
+});
+
+test('SCOPES SHOWN (CONNECT review F1): the boxes are what the assistant ASKED for and Ryagram OFFERS, read if it asked for nothing; the heading is never the assistant\'s own name (L2); no full-render wording (L1)', () => {
+  const offered = ['read', 'write', 'render_free'];
+  assert.deepEqual(plain(C.shownScopes({ offered_scopes: offered, requested_scopes: ['read'] })), ['read']);
+  assert.deepEqual(plain(C.shownScopes({ offered_scopes: offered, requested_scopes: ['read', 'write', 'render_free'] })), offered);
+  assert.deepEqual(plain(C.shownScopes({ offered_scopes: offered, requested_scopes: ['write', 'render_final', 'write'] })), ['write'], 'only offered ones, once each');
+  assert.deepEqual(plain(C.shownScopes({ offered_scopes: offered, requested_scopes: [] })), ['read'], 'nothing asked: the function defaults to read');
+  assert.deepEqual(plain(C.shownScopes({ offered_scopes: offered })), ['read']);
+  assert.deepEqual(plain(C.shownScopes({ offered_scopes: offered, requested_scopes: ['render_final'] })), ['read'], 'asked only for something not offered: read');
+  assert.deepEqual(plain(C.shownScopes({ offered_scopes: ['write'], requested_scopes: [] })), [], 'read not offered: nothing invented');
+  const src = read('assets/app-connect.js');
+  assert.ok(src.includes('const scopes = shownScopes(c);') && !src.includes('c.offered_scopes || []'), 'the boxes come from shownScopes');
+  assert.ok(!/redirect_label \|\| c\.client_name/.test(src), 'the assistant\'s own name is never promoted to the heading');
+  assert.equal(C.UNKNOWN_ADDRESS, 'An address Ryagram does not recognise');
 });
