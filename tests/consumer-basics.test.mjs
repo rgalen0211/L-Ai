@@ -10,7 +10,8 @@ test('SIGN-IN: a person with no invite is not left at a dead end: waitlist, emai
   const html = read('app/index.html');
   const p = html.slice(html.indexOf('<p class="form-note sign-in-help">'), html.indexOf('</p>', html.indexOf('<p class="form-note sign-in-help">')));
   assert.match(p, /No invite yet\? <a href="\/ryagram\/#waitlist">Join the waitlist<\/a>/);
-  assert.match(p, /<a href="mailto:ryagram@uselai\.com\?subject=Ryagram%20invite%20request">email us to ask for an invite<\/a>/);
+  assert.doesNotMatch(p, /mailto:/, 'no new mail address until Ryan has confirmed it receives mail');
+  assert.match(p, /<a href="\/ryagram\/#waitlist">Join the waitlist<\/a> to ask for an invite\./);
   assert.match(p, /Trouble signing in\? <a href="\/help\/">Get help<\/a>/);
   assert.ok(read('ryagram/index.html').includes('id="waitlist"'), 'the waitlist anchor it points at exists');
 });
@@ -18,7 +19,7 @@ test('SIGN-IN: a person with no invite is not left at a dead end: waitlist, emai
 test('HEADER AND FOOTER: Help and Account are words in the header; Help and Contact are in the app footer', () => {
   const html = read('app/index.html');
   assert.match(html, /<a class="app-nav-link" href="\/help\/">Help<\/a><a class="app-nav-link" href="#\/account">Account<\/a><a id="account-email"/);
-  assert.match(html, /<footer class="app-foot">[\s\S]*<a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">Contact: ryagram@uselai\.com<\/a>/);
+  assert.match(html, /<footer class="app-foot">[\s\S]*<a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">ryagram@uselai\.com<\/a>/);
   assert.match(read('assets/app.css'), /\.app-nav-link\{[^}]*min-height:40px/);
 });
 
@@ -36,7 +37,8 @@ test('404: a branded not-found page with absolute paths (it is shown at any dept
     assert.ok(/^(https?:|mailto:|\/)/.test(href), `a relative path would break at depth: ${href}`);
   }
   for (const link of ['/ryagram/', '/app/', '/help/', '/']) assert.ok(html.includes(`href="${link}"`), link);
-  assert.match(html, /mailto:ryagram@uselai\.com/);
+  assert.doesNotMatch(html, /uselai\.com/, 'the 404 page adds no mail address until Ryan has confirmed it receives mail');
+  assert.match(html, /<a href="\/help\/">help pages<\/a> have answers and a way to ask us/);
 });
 
 test('EMPTY LIBRARY AND CREDITS: the first screen says what a project is and what to do, and what credits are for', () => {
