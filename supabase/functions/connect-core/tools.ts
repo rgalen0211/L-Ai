@@ -5,6 +5,7 @@ import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStory } from "./story_check.ts";
+import { PROFILE_TOOL_DEFS } from "./profile_tools.ts";
 import { LIMITS, type Data, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -235,5 +236,5 @@ const filmLink: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, contactSheet, preview, fullRender, jobStatus, filmLink];
+export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, contactSheet, preview, fullRender, jobStatus, filmLink, ...PROFILE_TOOL_DEFS];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

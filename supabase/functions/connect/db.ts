@@ -91,6 +91,12 @@ export class ConnectDb {
         return done.length ? [{ kind: "open_in_ryagram", url: self.appUrl, expires_in_s: 0 }] : [];
       },
     };
+    d.profiles = {
+      list: () => self.fn("connect_list_profiles", ["text"], [h]),
+      get: (name) => self.fn("connect_get_profile", ["text", "text"], [h, name]),
+      save: (spec, makeDefault) => self.fn("connect_set_profile", ["text", "jsonb", "boolean"], [h, spec, makeDefault]),
+      preview: (story, periods) => self.fn("connect_profile_sample_preview", ["text", "jsonb", "text[]"], [h, story, periods]),
+    };
     return d;
   }
 }

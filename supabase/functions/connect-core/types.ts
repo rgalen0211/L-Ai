@@ -50,6 +50,13 @@ export interface Data extends Omit<UserData, "submitJob"> {
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
   jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null }) | null>;
   links(versionId: string, jobId: string | null): Promise<Link[]>;
+  /** ENGINE's look-and-flow profiles (supabase/functions/_shared/profile_tools.ts). Every call is the signed-in person's own. */
+  profiles?: {
+    list(): Promise<{ name: string; title: string | null; based_on: string | null; is_default: boolean; updated_at: string }[]>;
+    get(name: string | null): Promise<{ spec: Record<string, unknown>; is_default: boolean } | null>;
+    save(spec: Record<string, unknown>, makeDefault: boolean): Promise<{ name: string }>;
+    preview(story: Record<string, unknown>, periods: string[]): Promise<{ job_id: string; project_id: string }>;
+  };
 }
 
 export interface Deps {

@@ -7,7 +7,8 @@ import type { CallLog, Data, Grant, Link, Policy, Principal, ProjectRow, Quote, 
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null };
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
-interface FUser { label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number> }
+interface FProfile { spec: Record<string, unknown>; is_default: boolean; updated_at: string }
+interface FUser { profiles: Map<string, FProfile>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -29,7 +30,7 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map() };
+    const u: FUser = { profiles: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map() };
     this.users.set(userId, u);
     return u;
   }
@@ -126,6 +127,34 @@ export class FakeWorld {
       },
       links: async (vid, jid): Promise<Link[]> => u().jobs.filter((j) => j.version_id === vid && j.state === "complete" && (!jid || j.id === jid))
         .map((j) => ({ kind: j.job_type, url: `https://fake.ryagram.invalid/${j.id}?sig=test`, expires_in_s: 900 })),
+      profiles: {
+        list: async () => [...u().profiles.entries()].map(([name, p]) => ({ name, title: (p.spec.title as string) ?? null, based_on: (p.spec.based_on as string) ?? null, is_default: p.is_default, updated_at: p.updated_at })),
+        get: async (name) => {
+          const m = u().profiles;
+          if (name === null) { const d = [...m.values()].find((p) => p.is_default); return d ? { spec: d.spec, is_default: true } : null; }
+          const p = m.get(name); return p ? { spec: p.spec, is_default: p.is_default } : null;
+        },
+        save: async (spec, makeDefault) => {
+          const m = u().profiles; const name = String(spec.name);
+          if (!m.has(name) && m.size >= 20) throw err("at most 20 profiles per person", "54000");
+          if (makeDefault) for (const p of m.values()) p.is_default = false;
+          m.set(name, { spec, is_default: makeDefault || (m.get(name)?.is_default ?? false), updated_at: new Date().toISOString() });
+          return { name };
+        },
+        preview: async (story, periods) => {
+          const user = u();
+          let proj = user.projects.find((p) => p.title === "Profile preview (sample)");
+          if (!proj) { proj = { id: id(), title: "Profile preview (sample)", created_at: new Date().toISOString(), updated_at: new Date().toISOString() }; user.projects.push(proj);
+                       user.versions.push({ id: id(), project_id: proj.id, number: 1, state: "draft", story_spec: {}, story_sha256: sha({}) }); }
+          const v = user.versions.filter((x) => x.project_id === proj!.id).sort((a, b) => b.number - a.number)[0];
+          const running = user.jobs.find((j) => j.version_id === v.id && j.job_type === "contact_sheet" && ["queued", "running"].includes(j.state));
+          if (running) return { job_id: running.id, project_id: proj.id };
+          v.story_spec = story; v.story_sha256 = sha(story);
+          const j: FJob = { id: id(), job_type: "contact_sheet", state: "queued", attempt: 1, created_at: new Date().toISOString(), story_sha256: v.story_sha256, engine_commit: null,
+            error_class: null, error_code: null, error_detail: null, version_id: v.id, project_id: proj.id, params: { periods }, steps: 0, credits: 0, progress: null };
+          user.jobs.push(j); return { job_id: j.id, project_id: proj.id };
+        },
+      },
     };
   }
 }

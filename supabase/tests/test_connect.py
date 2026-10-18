@@ -686,6 +686,63 @@ class Connect(core.Base):
         late = self.app(ALICE).one("select connect_consent_check(%s)", req)
         self.assertFalse(late["allowed"]); self.assertEqual(late["reason"], "This sign-in request has expired. Start again from your assistant.")
 
+    # ---------------------------------------------------------------------------------- ENGINE's profiles through the connect functions
+    SPEC = '{"profile_version": 1, "name": "my-look", "title": "My look"}'
+
+    def test_profile_functions_are_the_apps_rules_for_the_persons_own_data(self):
+        _, a, _ = self.connect(ALICE); _, b, _ = self.connect(BOB)
+        r = self.runner()
+        self.assertEqual(r.one("select connect_list_profiles(%s)", h(a)), [])
+        self.assertIsNone(r.one("select connect_get_profile(%s, null)", h(a)))
+        self.assertEqual(r.one("select connect_set_profile(%s, %s::jsonb, true)", h(a), self.SPEC), {"name": "my-look"})
+        listed = r.one("select connect_list_profiles(%s)", h(a))
+        self.assertEqual([(p["name"], p["is_default"]) for p in listed], [("my-look", True)])
+        got = r.one("select connect_get_profile(%s, null)", h(a))
+        self.assertEqual(got["spec"]["title"], "My look"); self.assertTrue(got["is_default"])
+        self.assertEqual(r.one("select connect_get_profile(%s, 'my-look')", h(a))["spec"]["name"], "my-look")
+        self.assertIsNone(r.one("select connect_get_profile(%s, 'nobody-has-this')", h(a)))
+        self.assertIsNone(r.one("select connect_get_profile(%s, '../etc')", h(a)))                     # a malformed name is just absent
+        self.assertEqual(r.one("select connect_list_profiles(%s)", h(b)), [])                         # Bob sees none of Alice's
+        self.assertIsNone(r.one("select connect_get_profile(%s, 'my-look')", h(b)))
+
+    def test_profile_save_is_the_engines_own_check_and_needs_the_write_scope(self):
+        _, a, _ = self.connect(ALICE)
+        r = self.runner()
+        for bad in ('{"profile_version": 1, "name": "x", "data": {"rows": [1]}}', '{"profile_version": 2, "name": "x"}', '{"profile_version": 1}', '[]'):
+            self.fails("select connect_set_profile(%s, %s::jsonb, false)", h(a), bad, code="22023")      # a field the profile does not have, a wrong version, no name, not an object
+        for i in range(20):
+            r.one("select connect_set_profile(%s, %s::jsonb, false)", h(a), '{"profile_version": 1, "name": "p%s"}' % i)
+        self.fails("select connect_set_profile(%s, %s::jsonb, false)", h(a), '{"profile_version": 1, "name": "one-too-many"}', code="54000")
+        _, ro, _ = self.connect(BOB, scopes=("read",))
+        self.fails("select connect_set_profile(%s, %s::jsonb, false)", h(ro), self.SPEC, code="PT403")
+        self.fails("select connect_profile_sample_preview(%s, '{}'::jsonb, array['2011','2015','2020'])", h(ro), code="PT403")
+
+    def test_profile_sample_preview_makes_one_project_one_sheet_and_never_a_second(self):
+        _, a, _ = self.connect(ALICE)
+        r = self.runner()
+        story = '{"schema": 1, "engine": "sequence", "name": "sample", "sequence": {}}'
+        first = r.one("select connect_profile_sample_preview(%s, %s::jsonb, array['2011','2015','2020'])", h(a), story)
+        again = r.one("select connect_profile_sample_preview(%s, %s::jsonb, array['2011','2015','2020'])", h(a), story)
+        self.assertEqual(first["job_id"], again["job_id"]); self.assertEqual(first["project_id"], again["project_id"])
+        d = self.db.as_(None)
+        self.assertEqual(d.one("select count(*) from public.projects where title = 'Profile preview (sample)'"), 1)
+        self.assertEqual(d.one("select count(*) from public.jobs"), 1)
+        self.assertEqual(d.one("select job_type::text from public.jobs"), "contact_sheet")
+        self.fails("select connect_profile_sample_preview(%s, '[]'::jsonb, array['2011','2015','2020'])", h(a), code="22023")
+        # once the sheet is finished the next preview works on a new version, and a costing job would be refused like any other
+        d.c.execute("update public.jobs set state = 'complete'")
+        d.c.execute("update public.versions set state = 'complete'")
+        third = self.runner().one("select connect_profile_sample_preview(%s, %s::jsonb, array['2011','2015','2020'])", h(a), story)
+        self.assertNotEqual(third["job_id"], first["job_id"])
+        self.assertEqual(self.db.as_(None).one("select max(number) from public.versions"), 2)
+
+    def test_profile_functions_refuse_when_switched_off_and_for_an_unknown_token(self):
+        _, a, _ = self.connect(ALICE)
+        for sql in ("select connect_list_profiles(%s)", "select connect_get_profile(%s, null)"):
+            self.runner(); self.fails(sql, "0" * 64, code="PT401")
+        self.db.as_(None).c.execute("update public.connect_flags set connections_enabled = false")
+        self.runner(); self.fails("select connect_list_profiles(%s)", h(a), code="PT403")
+
     def test_purge_removes_old_rows_only(self):
         _, a, _ = self.connect(ALICE)
         d = self.db.as_(None)
@@ -699,7 +756,8 @@ class Connect(core.Base):
 
 # Everything connect_runner may CALL, exactly. A function is callable only with EXECUTE and USAGE on its schema, so this is computed over
 # every schema the role has USAGE on (pg_catalog and information_schema hold the built-ins every role has, set_config among them).
-EXPECTED_CALLABLE = ['connect_anon_hit(text, text, integer, integer)', 'connect_begin_authorization(text, text, text, text, text, text, text, text)', 'connect_create_project(text, text)', 'connect_create_version(text, uuid, uuid)', 'connect_current_engine(text)', 'connect_current_version(text, uuid)', 'connect_exchange_code(text, text, text, text, text, text)', 'connect_final_enabled()', 'connect_get_version(text, uuid)', 'connect_hit(text, text, integer, integer)', 'connect_job(text, uuid)', 'connect_list_projects(text)', 'connect_list_versions(text, uuid)', 'connect_log(text, text, integer, text, text, integer)', 'connect_quote(text, uuid, text)', 'connect_refresh(text, text, text, text)', 'connect_register_client(text, text[])', 'connect_revoke(text)', 'connect_save_story(text, uuid, jsonb)', 'connect_scopes(text)', 'connect_submit_job(text, uuid, text, jsonb, uuid, uuid)', 'connect_whoami(text)']
+EXPECTED_CALLABLE = ['connect_anon_hit(text, text, integer, integer)', 'connect_begin_authorization(text, text, text, text, text, text, text, text)', 'connect_create_project(text, text)', 'connect_create_version(text, uuid, uuid)', 'connect_current_engine(text)', 'connect_current_version(text, uuid)', 'connect_exchange_code(text, text, text, text, text, text)', 'connect_final_enabled()', 'connect_get_version(text, uuid)', 'connect_hit(text, text, integer, integer)', 'connect_job(text, uuid)', 'connect_list_projects(text)', 'connect_list_versions(text, uuid)', 'connect_log(text, text, integer, text, text, integer)', 'connect_quote(text, uuid, text)', 'connect_refresh(text, text, text, text)', 'connect_register_client(text, text[])', 'connect_revoke(text)', 'connect_save_story(text, uuid, jsonb)', 'connect_scopes(text)', 'connect_submit_job(text, uuid, text, jsonb, uuid, uuid)', 'connect_whoami(text)', 'connect_list_profiles(text)', 'connect_get_profile(text, text)', 'connect_set_profile(text, jsonb, boolean)',
+ 'connect_profile_sample_preview(text, jsonb, text[])']
 
 
 def callable_by_runner(d):
@@ -825,7 +883,7 @@ class LiveFiles(core.Base):
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")
         self.assertEqual(cols, ["kind", "name"])
-        self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 22)
+        self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 26)
         self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
 
     def test_allowlist_file_turns_loopback_off_and_lists_only_exact_addresses(self):

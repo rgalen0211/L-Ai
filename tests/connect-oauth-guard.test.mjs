@@ -9,6 +9,7 @@ import { handle as deleteAccount } from '../supabase/functions/delete-account/re
 import { handle as stripeCheckout } from '../supabase/functions/stripe-checkout/checkout.ts';
 import { handle as filmPage } from '../supabase/functions/film-page/page.ts';
 import { handle as aiEditor } from '../supabase/functions/ai-editor/editor.ts';
+import { handle as deliveryUrl } from '../supabase/functions/get-delivery-url/deliver.ts';
 
 const FUNCS = path.resolve('supabase/functions');
 const b64 = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
@@ -47,6 +48,7 @@ const cases = [
   ['stripe-checkout', stripeCheckout, { price_code: 'x' }],
   ['film-page (publish)', filmPage, { version_id: '11111111-1111-4111-8111-111111111111' }],
   ['ai-editor', aiEditor, { version_id: '11111111-1111-4111-8111-111111111111', message: 'hi' }],
+  ['get-delivery-url', deliveryUrl, { delivery_id: '11111111-1111-4111-8111-111111111111' }],
 ];
 for (const [name, handle, body] of cases) {
   test(`${name} answers 401 to an AI token and never reaches its other dependencies`, async () => {
@@ -67,7 +69,7 @@ for (const [name, handle, body] of cases) {
 }
 
 // Every function directory has a recorded decision. A new function fails this test until someone classifies it.
-const USER_TOKEN = ['ai-editor', 'delete-account', 'film-page', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
+const USER_TOKEN = ['ai-editor', 'delete-account', 'film-page', 'get-delivery-url', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
 const NO_USER_TOKEN = ['cost-sync', 'creator-beta', 'ops-digest', 'ops-tick', 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-webhook'];
 const NOT_USER_FUNCTIONS = ['_shared', 'connect', 'connect-core'];                        // connect has its own verifier (requires client_id)
 

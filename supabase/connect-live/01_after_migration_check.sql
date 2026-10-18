@@ -14,10 +14,10 @@ union all select 'connect_runner exists, is not a superuser and has no table pri
        and (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
              where n.nspname = 'public' and c.relkind in ('r', 'v', 'm', 'S', 'p', 'f')
                and has_table_privilege('connect_runner', c.oid, 'select,insert,update,delete,truncate,references,trigger')) = 0
-union all select 'connect_runner can call exactly 22 functions, all connect_*, and only in the public schema',
+union all select 'connect_runner can call exactly 26 functions, all connect_*, and only in the public schema',
        (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
          where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
-           and n.nspname not in ('pg_catalog', 'information_schema')) = 22
+           and n.nspname not in ('pg_catalog', 'information_schema')) = 26
        and (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
              where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
                and n.nspname not in ('pg_catalog', 'information_schema') and not (n.nspname = 'public' and p.proname like 'connect\_%')) = 0
