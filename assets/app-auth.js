@@ -407,6 +407,7 @@
 
     $('sign-out').addEventListener('click', async () => {
       await client.auth.signOut();
+      sayOnce('You have signed out.');
     });
   }
 })();

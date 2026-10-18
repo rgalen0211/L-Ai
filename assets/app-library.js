@@ -178,7 +178,7 @@
             h('span', { class: 'meta' },
               p.latest ? [`r${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
                        : `No versions · updated ${date(p.updated_at)}`))))
-        : h('p', { class: 'form-intro' }, 'No projects yet. Name one above and it starts as r1.');
+        : h('p', { class: 'form-intro' }, 'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
@@ -189,7 +189,9 @@
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, requestLink, adminLinks, form, list, help];
+      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
+              credits, creditsNote, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -794,7 +796,7 @@
         h('p', { id: 'story-help', class: 'form-note' }, locked
           ? `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()} and can’t change. Make a new version from it to keep working.`
           : 'The story file this version renders from. The render worker checks it in full before drawing anything.'),
-        story, locked ? null : save, saved, error);
+        story, locked ? null : save, error);
 
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
       const sources = sourcesPanel(v, !locked);
@@ -842,13 +844,16 @@
               } }, 'Archive this version')
             : null),
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
-        sources.el,
-        uploads?.el,
         picker,
+        saved,                                      // "Template applied and saved ...": shown here, not inside the folded story file
         chat,
-        storyForm,
+        sources.el,
         jobs.el,
-        files.el
+        files.el,
+        // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
+        h('details', { class: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
+          h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
+          uploads?.el, storyForm)
       ];
     }
 
