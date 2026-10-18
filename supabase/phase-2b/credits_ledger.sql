@@ -126,6 +126,15 @@ from unnest(array['mining', 'utilities', 'construction', 'manufacturing', 'whole
                   'information', 'finance', 'real_estate', 'professional', 'management', 'admin_support',
                   'education', 'health_care', 'arts', 'accommodation_food', 'other_services']) sector
 cross join unnest(array['_establishments', '_employment', '_share', '_share_state']) suffix;
+-- Five more datasets on the installed worker's allowlist (WEB found them unpriced, 2026-10-17): ENGINE read
+-- DatasetSpec.shape from Ryagram main -- all five 'areas', so 'standard' by the 2026-09-28 rule (Ryan, 2026-10-17).
+-- Also in migrations/20261017000800_dataset_shapes.sql, for a database where this file was applied before them.
+insert into public.credit_dataset_shapes (dataset, shape, noted_by) values
+  ('bps_county_unit_share_1', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('bps_county_unit_share_2to4', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('bps_county_unit_share_5plus', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('bps_us_unit_mix', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('fhwa_hm212', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape');
 
 -- Free-preview allowance, tunable without code.
 create table public.credit_rules (
