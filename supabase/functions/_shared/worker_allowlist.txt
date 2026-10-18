@@ -1,8 +1,5 @@
 # count: 83
-# worker.toml [datasets].allow, engine d8b9cff, read 2026-10-17 by WORKER (D:/RyagramWorker/config/worker.toml).
-# One dataset id per line; '#' lines and blank lines are comments. A dataset is added to the worker only after its cache
-# coverage was measured offline against the worker's own cache (WORKER-SETUP.ps1 rules). tools/gen-catalog.py --allowlist
-# reads this file: 'usable' in the catalog means 'listed here'. Regenerate the catalog whenever this changes.
+# worker.toml [datasets].allow, engine ba0e116, read 2026-10-17 by WORKER
 bls_state_unemployment
 bps_county_permits
 bps_county_unit_share_1
@@ -84,7 +81,6 @@ cbp_wholesale_employment
 cbp_wholesale_establishments
 cbp_wholesale_share
 cbp_wholesale_share_state
-# fhwa_hm212 is offered in the line view only (worker.toml [datasets.views]); WORKER's export wrote it as 'fhwa_hm212   views: line'.
-#views fhwa_hm212 line
 fhwa_hm212
 state_obesity_fastfood
+#views fhwa_hm212 line
