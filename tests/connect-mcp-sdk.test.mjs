@@ -80,6 +80,7 @@ test('a spec-following MCP client discovers, registers, signs in, and calls tool
     const back = new URL(await r.as.decide(consent.searchParams.get('request'), true));
     assert.equal(back.origin + back.pathname, CALLBACK);
     assert.equal(back.searchParams.get('state'), p.mem.state);
+    assert.equal(back.searchParams.get('iss'), `${r.base}/functions/v1/connect`);         // RFC 9207
     await t1.finishAuth(back.searchParams.get('code'));
     assert.match(p.mem.tokens.access_token, /^rga_/); assert.ok(p.mem.tokens.refresh_token);
     // a fresh connection with the saved tokens

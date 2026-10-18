@@ -3,7 +3,7 @@
 export interface AuthStore {
   registerClient(name: string, redirectUris: string[]): Promise<string>;
   beginAuthorization(a: { clientId: string; redirectUri: string; state: string | null; codeChallenge: string; method: string | null;
-                          scope: string | null; resource: string | null }): Promise<string>;
+                          scope: string | null; resource: string | null; issuer: string }): Promise<string>;
   exchangeCode(a: { codeHash: string; clientId: string; redirectUri: string; verifier: string; accessHash: string; refreshHash: string }): Promise<Record<string, unknown>>;
   refresh(a: { refreshHash: string; clientId: string; accessHash: string; newRefreshHash: string }): Promise<Record<string, unknown>>;
   revoke(hash: string): Promise<void>;

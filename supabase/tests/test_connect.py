@@ -597,6 +597,48 @@ class Connect(core.Base):
         self.assertEqual(d.one("select count(*) from public.connect_clients where client_id = %s", stale), 0)
         self.assertEqual(d.one("select count(*) from public.connect_clients where client_id = %s", client), 1)    # a client with a grant is kept
 
+    def test_every_published_table_is_guarded_and_a_table_published_later_is_flagged_then_repaired(self):
+        admin = lambda sql, *a: self.db.as_(None).one(sql, *a)
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [])      # the migration guarded jobs and versions
+        pubs = {r[0] for r in self.db.as_(None).all("select tablename from pg_publication_tables where pubname = 'supabase_realtime'")}
+        self.assertTrue({"jobs", "versions"} <= pubs)
+        # behaviour: the app session still sees its own job rows; a JWT carrying client_id sees none (Realtime evaluates the same row security)
+        _, a, _ = self.connect(ALICE)
+        r = self.runner()
+        pid = r.one("select connect_create_project(%s, 'Realtime')", h(a))["id"]
+        vid = r.one("select connect_current_version(%s, %s)", h(a), pid)
+        r.one("select connect_save_story(%s, %s, %s::jsonb)", h(a), vid, STORY)
+        r.one("select connect_submit_job(%s, %s, 'contact_sheet', '{}'::jsonb, null, null)", h(a), vid)
+        self.assertEqual(self.app(ALICE).one("select count(*) from public.jobs"), 1)
+        self.app(ALICE, '{"sub": "%s", "role": "authenticated", "client_id": "some-oauth-client"}' % ALICE)
+        self.assertEqual(self.db.one("select count(*) from public.jobs"), 0)
+        self.assertEqual(self.db.one("select count(*) from public.versions"), 0)
+        # a table published later without the policy is listed ...
+        self.db.as_(None).c.execute("create table public.late_published (id int primary key, owner_id uuid)")
+        self.db.as_(None).c.execute("alter table public.late_published enable row level security")
+        self.db.as_(None).c.execute("alter publication supabase_realtime add table public.late_published")
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [("public", "late_published")])
+        # ... and the repair guards it, once
+        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 1)
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [])
+        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 0)
+        # the runner and the app roles cannot call the guard functions
+        self.runner(); self.fails("select ryagram_private.connect_guard_published_tables()")
+        self.app(ALICE); self.fails("select * from ryagram_private.connect_unguarded_published_tables()")
+
+    def test_rfc_9207_the_issuer_is_added_to_both_redirects_and_must_be_an_https_address(self):
+        client = self.register()
+        iss = "https://ref.supabase.co/functions/v1/connect"
+        req = self.runner().one("select connect_begin_authorization(%s,%s,'st',%s,'S256','read',null,%s)", client, URI, s256(VER), iss)
+        url = self.app(ALICE).one("select connect_consent_decide(%s, true, array['read'])", req)["redirect_to"]
+        self.assertTrue(url.startswith(URI + "?code="))
+        self.assertTrue(url.endswith("&state=st&iss=https%3A%2F%2Fref.supabase.co%2Ffunctions%2Fv1%2Fconnect"), url)
+        req2 = self.runner().one("select connect_begin_authorization(%s,%s,'st',%s,'S256','read',null,%s)", client, URI, s256(VER), iss)
+        deny = self.app(ALICE).one("select connect_consent_decide(%s, false, null)", req2)["redirect_to"]
+        self.assertEqual(deny, URI + "?error=access_denied&state=st&iss=https%3A%2F%2Fref.supabase.co%2Ffunctions%2Fv1%2Fconnect")
+        for bad in ("http://ref.supabase.co/x", "https://a b.example/", "javascript:alert(1)", "https://x/" + "a" * 300):
+            self.runner(); self.fails("select connect_begin_authorization(%s,%s,'st',%s,'S256','read',null,%s)", client, URI, s256(VER), bad)
+
     def test_purge_removes_old_rows_only(self):
         _, a, _ = self.connect(ALICE)
         d = self.db.as_(None)

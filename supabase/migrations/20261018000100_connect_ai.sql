@@ -56,6 +56,7 @@ create table public.connect_requests (                     -- an authorization w
   code_challenge text not null check (code_challenge ~ '^[A-Za-z0-9_-]{43}$'),   -- S256 of a 32-byte verifier; never "plain"
   scopes text[] not null,
   resource text,
+  issuer text check (issuer ~ '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$' and char_length(issuer) <= 300),   -- RFC 9207: added to the redirect as iss
   created_at timestamptz not null default now(),
   expires_at timestamptz not null default now() + interval '10 minutes',
   decided_at timestamptz);
@@ -238,7 +239,7 @@ begin
 end $$;
 
 create function public.connect_begin_authorization(p_client_id text, p_redirect_uri text, p_state text, p_code_challenge text,
-                                                    p_method text, p_scope text, p_resource text) returns uuid
+                                                    p_method text, p_scope text, p_resource text, p_issuer text default null) returns uuid
 language plpgsql security definer set search_path = '' as $$
 declare c public.connect_clients; want text[]; id uuid;
 begin
@@ -256,8 +257,8 @@ begin
   -- Asking for nothing we know means the least we have: read.
   want := array(select s from unnest(want) s where s = any (ryagram_private.connect_offered_scopes()));
   if cardinality(want) = 0 then want := array['read']; end if;
-  insert into public.connect_requests (client_id, redirect_uri, state, code_challenge, scopes, resource)
-    values (p_client_id, p_redirect_uri, left(p_state, 512), p_code_challenge, want, left(p_resource, 300)) returning connect_requests.id into id;
+  insert into public.connect_requests (client_id, redirect_uri, state, code_challenge, scopes, resource, issuer)
+    values (p_client_id, p_redirect_uri, left(p_state, 512), p_code_challenge, want, left(p_resource, 300), p_issuer) returning connect_requests.id into id;
   return id;
 end $$;
 
@@ -353,7 +354,8 @@ begin
   if not ryagram_private.connect_uri_ok(r.redirect_uri) then
     raise exception 'This assistant''s return address is not on Ryagram''s allowed list.' using errcode = '42501'; end if;
   if not coalesce(p_approve, false) then
-    return jsonb_build_object('redirect_to', r.redirect_uri || sep || 'error=access_denied' || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end);
+    return jsonb_build_object('redirect_to', r.redirect_uri || sep || 'error=access_denied' || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end
+                                              || case when r.issuer is null then '' else '&iss=' || ryagram_private.connect_pct(r.issuer) end);
   end if;
   if not ryagram_private.connect_uri_ok(r.redirect_uri) or exists (select 1 from public.app_admins where user_id = me)
      or not ryagram_private.connect_person_ok(me) then
@@ -365,7 +367,8 @@ begin
   code := replace(gen_random_uuid()::text || gen_random_uuid()::text, '-', '');
   insert into public.connect_codes (code_hash, owner_id, client_id, redirect_uri, code_challenge, scopes)
     values (encode(sha256(convert_to(code, 'UTF8')), 'hex'), me, r.client_id, r.redirect_uri, r.code_challenge, got);
-  return jsonb_build_object('redirect_to', r.redirect_uri || sep || 'code=' || code || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end);
+  return jsonb_build_object('redirect_to', r.redirect_uri || sep || 'code=' || code || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end
+                                            || case when r.issuer is null then '' else '&iss=' || ryagram_private.connect_pct(r.issuer) end);
 end $$;
 
 create function public.my_connected_ais()
@@ -640,6 +643,38 @@ begin
   return jsonb_build_object('requests', a, 'codes', b, 'tokens', c, 'calls', d);
 end $$;
 
+
+-- ----------------------------------------------------------------------------------------------- Realtime guard (defence in depth)
+-- Realtime sends row changes to a subscriber under that subscriber's own row-level security. A connect token is not a JWT and cannot subscribe,
+-- but a Supabase-issued OAuth token (it carries client_id) could if the OAuth server is ever switched on. So EVERY table in the realtime
+-- publication gets a RESTRICTIVE select policy that denies any JWT carrying client_id. New tables are published by migrations, and a table
+-- published later without this policy is listed by connect_unguarded_published_tables(); the test suite fails on a non-empty list, and
+-- connect_guard_published_tables() repairs it (run it from the SQL Editor).
+create function ryagram_private.connect_unguarded_published_tables() returns table (schema_name text, table_name text)
+language sql stable security definer set search_path = '' as $$
+  select p.schemaname::text, p.tablename::text from pg_catalog.pg_publication_tables p
+   where p.pubname = 'supabase_realtime'
+     and not exists (select 1 from pg_catalog.pg_policy pol join pg_catalog.pg_class c on c.oid = pol.polrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+                      where n.nspname = p.schemaname and c.relname = p.tablename and pol.polname = 'connect_no_oauth_select'
+                        and not pol.polpermissive and pol.polcmd in ('r', '*'))
+$$;
+
+create function ryagram_private.connect_guard_published_tables() returns int
+language plpgsql security definer set search_path = '' as $$
+declare r record; n int := 0;
+begin
+  for r in select * from ryagram_private.connect_unguarded_published_tables() loop
+    execute format('alter table %I.%I enable row level security', r.schema_name, r.table_name);
+    execute format('drop policy if exists connect_no_oauth_select on %I.%I', r.schema_name, r.table_name);
+    execute format('create policy connect_no_oauth_select on %I.%I as restrictive for select to authenticated using ((select auth.jwt() ->> %L) is null)',
+                   r.schema_name, r.table_name, 'client_id');
+    n := n + 1;
+  end loop;
+  return n;
+end $$;
+revoke all on function ryagram_private.connect_unguarded_published_tables(), ryagram_private.connect_guard_published_tables() from public, anon, authenticated, connect_runner;
+select ryagram_private.connect_guard_published_tables();
+
 -- --------------------------------------------------------------------------------------------------- grants
 -- Nothing is callable by anyone until granted here. connect_runner gets the AS and tool functions; the app session gets
 -- the consent, settings and admin functions; connect_purge is for the dashboard / service role only.
@@ -647,7 +682,7 @@ revoke all on function ryagram_private.connect_pct(text), ryagram_private.connec
   ryagram_private.connect_person_ok(uuid), ryagram_private.connect_actor(text, text), ryagram_private.connect_app_session() from public, anon, authenticated, connect_runner;
 
 revoke all on function
-  public.connect_register_client(text, text[]), public.connect_begin_authorization(text, text, text, text, text, text, text),
+  public.connect_register_client(text, text[]), public.connect_begin_authorization(text, text, text, text, text, text, text, text),
   public.connect_exchange_code(text, text, text, text, text, text), public.connect_refresh(text, text, text, text), public.connect_revoke(text),
   public.connect_scopes(text), public.connect_hit(text, text, int, int), public.connect_anon_hit(text, text, int, int), public.connect_log(text, text, int, text, text, int),
   public.connect_final_enabled(), public.connect_whoami(text), public.connect_list_projects(text), public.connect_create_project(text, text),
@@ -659,7 +694,7 @@ revoke all on function
   from public, anon, authenticated, connect_runner;
 
 grant execute on function
-  public.connect_register_client(text, text[]), public.connect_begin_authorization(text, text, text, text, text, text, text),
+  public.connect_register_client(text, text[]), public.connect_begin_authorization(text, text, text, text, text, text, text, text),
   public.connect_exchange_code(text, text, text, text, text, text), public.connect_refresh(text, text, text, text), public.connect_revoke(text),
   public.connect_scopes(text), public.connect_hit(text, text, int, int), public.connect_anon_hit(text, text, int, int), public.connect_log(text, text, int, text, text, int),
   public.connect_final_enabled(), public.connect_whoami(text), public.connect_list_projects(text), public.connect_create_project(text, text),

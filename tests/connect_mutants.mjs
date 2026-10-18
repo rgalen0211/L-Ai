@@ -34,6 +34,7 @@ const mutants = [
   ['the resource (RFC 8707) is not checked', D + 'oauth.ts', 'if (resource && resource !== `${d.baseUrl}/mcp` && resource !== d.baseUrl) return text', 'if (false) return text'],
   ['no per-caller limit on the open endpoints', D + 'oauth.ts', 'if (!ok) return json(429', 'if (false) return json(429'],
   ['the caller key uses the FIRST forwarded address', D + 'oauth.ts', 'hops[hops.length - 1]', 'hops[0]'],
+  ['the issuer is not passed for the redirect (RFC 9207)', D + 'oauth.ts', ', issuer: d.baseUrl });', ", issuer: 'https://x.invalid' });"],
   ['a missing grant_type is not refused', D + 'oauth.ts', 'if (!grant) return json(400', 'if (false) return json(400'],
   ['the OpenID-shaped discovery document is not served', D + 'oauth.ts', 'route.startsWith("/.well-known/openid-configuration")', 'route.startsWith("/.well-known/openid-configuration-off")'],
   ['the token endpoint returns the token in the clear to the store', D + 'oauth.ts', 'accessHash: aHash, refreshHash: rHash', 'accessHash: access, refreshHash: refresh'],

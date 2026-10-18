@@ -35,8 +35,8 @@ export class ConnectDb {
   authStore(): AuthStore {
     return {
       registerClient: (name, uris) => this.fn<string>("connect_register_client", ["text", "text[]"], [name, uris]),
-      beginAuthorization: (a) => this.fn<string>("connect_begin_authorization", ["text", "text", "text", "text", "text", "text", "text"],
-        [a.clientId, a.redirectUri, a.state, a.codeChallenge, a.method, a.scope, a.resource]),
+      beginAuthorization: (a) => this.fn<string>("connect_begin_authorization", ["text", "text", "text", "text", "text", "text", "text", "text"],
+        [a.clientId, a.redirectUri, a.state, a.codeChallenge, a.method, a.scope, a.resource, a.issuer]),
       exchangeCode: (a) => this.fn("connect_exchange_code", ["text", "text", "text", "text", "text", "text"],
         [a.codeHash, a.clientId, a.redirectUri, a.verifier, a.accessHash, a.refreshHash]),
       refresh: (a) => this.fn("connect_refresh", ["text", "text", "text", "text"], [a.refreshHash, a.clientId, a.accessHash, a.newRefreshHash]),

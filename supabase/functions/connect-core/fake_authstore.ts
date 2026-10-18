@@ -11,7 +11,7 @@ const dberr = (m: string) => Object.assign(new Error(m), { code: "PT400" });
 export class FakeAuthStore {
   allowed = new Set<string>();
   clients = new Map<string, { name: string; uris: string[] }>();
-  requests = new Map<string, { client: string; uri: string; state: string | null; challenge: string; scopes: string[] }>();
+  requests = new Map<string, { client: string; uri: string; state: string | null; challenge: string; scopes: string[]; issuer: string }>();
   codes = new Map<string, { owner: Principal; client: string; uri: string; challenge: string; used: boolean; scopes: string[] }>();
   refreshes = new Map<string, { owner: Principal; client: string; used: boolean; scopes: string[] }>();
   n = 0;
@@ -32,7 +32,7 @@ export class FakeAuthStore {
         if (!c.uris.includes(a.redirectUri)) throw dberr("invalid_redirect_uri");
         if (a.method !== "S256" || !/^[A-Za-z0-9_-]{43}$/.test(a.codeChallenge)) throw dberr("invalid_request");
         const id = "00000000-0000-4000-8000-" + String(++this.n).padStart(12, "0");
-        this.requests.set(id, { client: a.clientId, uri: a.redirectUri, state: a.state, challenge: a.codeChallenge, scopes: ["read", "write", "render_free"] });
+        this.requests.set(id, { client: a.clientId, uri: a.redirectUri, state: a.state, challenge: a.codeChallenge, scopes: ["read", "write", "render_free"], issuer: a.issuer });
         return id;
       },
       exchangeCode: async (a) => {
@@ -65,7 +65,7 @@ export class FakeAuthStore {
     const r = this.requests.get(requestId);
     if (!r) throw new Error("unknown request");
     const sep = r.uri.includes("?") ? "&" : "?";
-    const st = r.state === null ? "" : "&state=" + encodeURIComponent(r.state);
+    const st = (r.state === null ? "" : "&state=" + encodeURIComponent(r.state)) + "&iss=" + encodeURIComponent(r.issuer);
     if (!approve) return `${r.uri}${sep}error=access_denied${st}`;
     const code = crypto.randomUUID() + crypto.randomUUID();
     const hash = Array.from(new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(code))), (b) => b.toString(16).padStart(2, "0")).join("");

@@ -27,6 +27,7 @@ const dbErr = (message, code) => Object.assign(new Error(message), { code });
 test('metadata: S256 only, public clients only, endpoints under the function', () => {
   const m = authorizationServerMetadata(BASE);
   assert.deepEqual(m.code_challenge_methods_supported, ['S256']);
+  assert.equal(m.authorization_response_iss_parameter_supported, true);
   assert.deepEqual(m.token_endpoint_auth_methods_supported, ['none']);
   assert.equal(m.registration_endpoint, BASE + '/register'); assert.equal(m.issuer, BASE);
 });
@@ -62,6 +63,7 @@ test('authorize sends the browser to the consent page with the request id; error
   assert.equal(r.status, 302);
   assert.equal(r.headers.get('location'), CONSENT + '11111111-1111-4111-8111-111111111111');
   assert.equal(st.calls[0][1].method, 'S256'); assert.equal(st.calls[0][1].state, 's1');
+  assert.equal(st.calls[0][1].issuer, BASE);                                          // RFC 9207: the redirect will say who answered
   const bad = store({ beginAuthorization: async () => { throw dbErr('invalid_redirect_uri', 'PT400'); } });
   const e = await handleOAuth(new Request(BASE + '/authorize?' + q), '/authorize', deps(bad));
   assert.equal(e.status, 400); assert.equal(e.headers.get('location'), null);                       // never redirected to an unvalidated address

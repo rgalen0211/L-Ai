@@ -49,6 +49,7 @@ export const authorizationServerMetadata = (base: string) => ({
   response_types_supported: ["code"],
   grant_types_supported: ["authorization_code", "refresh_token"],
   code_challenge_methods_supported: ["S256"],
+  authorization_response_iss_parameter_supported: true,           // RFC 9207: the redirect carries iss = this issuer
   token_endpoint_auth_methods_supported: ["none"],
   revocation_endpoint_auth_methods_supported: ["none"],
   scopes_supported: SCOPES,
@@ -141,7 +142,7 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
     try {
       const id = await store.beginAuthorization({
         clientId: u.get("client_id") ?? "", redirectUri: u.get("redirect_uri") ?? "", state: u.get("state"), codeChallenge: u.get("code_challenge") ?? "",
-        method: u.get("code_challenge_method"), scope: u.get("scope"), resource: u.get("resource") });
+        method: u.get("code_challenge_method"), scope: u.get("scope"), resource: u.get("resource"), issuer: d.baseUrl });
       return new Response(null, { status: 302, headers: { Location: d.consentUrl + encodeURIComponent(id), ...NO_STORE } });
     } catch (e) {
       // Never redirect an error to an address that has not been validated: show it here instead.

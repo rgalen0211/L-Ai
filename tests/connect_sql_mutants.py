@@ -77,6 +77,10 @@ MUTANTS = [
     ("consent_check does not notice a redirect that left the list", "elsif not ryagram_private.connect_uri_ok(r.redirect_uri) then why :=", "elsif false then why :="),
     ("connect_runner is given the purge function", "  public.admin_connect_allowlist_set(text, text, text, boolean) to authenticated;", "  public.admin_connect_allowlist_set(text, text, text, boolean) to authenticated;\ngrant execute on function public.connect_purge() to connect_runner;"),
     ("the charge is not re-checked after the job is created (check-then-act race)", "  if coalesce((to_jsonb(j) ->> 'credits_quoted')::int, 0) > 0 then\n    raise exception", "  if false then\n    raise exception"),
+    ("iss is left off the redirect that carries the code", "'code=' || code || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end\n                                            || case when r.issuer is null then '' else '&iss=' || ryagram_private.connect_pct(r.issuer) end);",
+     "'code=' || code || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end);"),
+    ("the realtime guard is not applied to the published tables", "select ryagram_private.connect_guard_published_tables();\n", ""),
+    ("the realtime check ignores whether the policy is restrictive", "and not pol.polpermissive and pol.polcmd in ('r', '*'))", "and pol.polcmd in ('r', '*'))"),
     ("a helper function with no revoke (only the realistic-defaults test sees it)", "-- --------------------------------------------------------------------------------------------------- grants\n",
      "create function public.helper_without_revoke() returns int language sql as $$ select 1 $$;\n-- grants\n"),
 ]
