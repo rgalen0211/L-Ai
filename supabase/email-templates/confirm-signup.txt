@@ -5,7 +5,7 @@ Confirm your email
 You're getting this because someone used {{ .Email }} to create a Ryagram account.
 
 Confirm my email:
-{{ .SiteURL }}/app/#/auth/confirm?token_hash={{ .TokenHash }}&type=signup
+{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=signup
 
 If that wasn't you, you can ignore this email.
 

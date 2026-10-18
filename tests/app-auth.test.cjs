@@ -12,7 +12,7 @@ function el(extra = {}) {
 
 function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'sb_publishable_x' }, signIn, library = true,
                   location = { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/', origin: 'https://uselai.com' },
-                  verifyOtp, updateUser, resetPassword, invoke } = {}) {
+                  verifyOtp, updateUser, resetPassword, invoke, setSession } = {}) {
   const listeners = {};
   const button = el();
   const form = {
@@ -31,6 +31,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
   const resetForm = miniForm('reset', { email: { value: '', focus() {} } });
   const setForm = miniForm('setPassword', { password: { value: '' }, again: { value: '' } });
   const inviteForm = miniForm('invite', { code: { value: '', focus() {} }, email: { value: '' } });
+  const expiredForm = miniForm('expired', { email: { value: '', focus() {} } });
   const forgot = el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(type, fn) { listeners.forgot = fn; } });
   const appended = [];
   const els = {
@@ -39,7 +40,10 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     forgot, 'reset-form': resetForm, 'reset-note': el(), 'set-password': el(), 'set-password-form': setForm,
     'set-password-error': el(), 'set-password-title': el(), 'forgot-row': el(),
     'invite-row': el(), 'have-invite': el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { listeners.haveInvite = fn; } }),
-    'invite-form': inviteForm, 'invite-note': el()
+    'invite-form': inviteForm, 'invite-note': el(),
+    'auth-link': el(), 'auth-link-title': el(), 'auth-link-text': el(), 'auth-link-go': el({ addEventListener(t, fn) { listeners.authGo = fn; } }),
+    'auth-expired': el(), 'auth-expired-title': el(), 'auth-expired-form': expiredForm, 'auth-expired-note': el(),
+    'auth-expired-back': el({ addEventListener(t, fn) { listeners.back = fn; } })
   };
   const calls = { created: null, signIn: [], signOut: 0, mounts: 0, unmounts: 0, verify: [], update: [], reset: [], replaced: [], invoked: [] };
   let authListener;
@@ -51,26 +55,30 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
       verifyOtp: async args => { calls.verify.push(args); return verifyOtp ? verifyOtp(args) : { error: null }; },
       updateUser: async args => { calls.update.push(args); return updateUser ? updateUser(args) : { error: null }; },
       resetPasswordForEmail: async (email, opts) => { calls.reset.push({ email, opts }); return resetPassword ? resetPassword() : { error: null }; },
+      setSession: async args => { calls.setSession = args; return setSession ? setSession(args) : { error: null }; },
       getSession: async () => ({ data: { session: { user: { email: 'ryan@example.com' } } } })
     },
     functions: { invoke: async (name, opts) => { calls.invoked.push({ name, body: opts.body }); return invoke ? invoke(opts) : { data: { message: 'sent' }, error: null }; } }
   };
   const history = { replaceState: (a, b, url) => { calls.replaced.push(url); } };
+  const hashFns = [];
   const window = {
+    addEventListener(t, fn) { hashFns.push(fn); }, removeEventListener(t, fn) { const i = hashFns.indexOf(fn); if (i >= 0) hashFns.splice(i, 1); },
     ryagramConfig: config,
     ryagramData: c => ({ client: c }),
     ryagramLibrary: { mount(root, data) { calls.mounts++; calls.mountedWith = { root, data }; return () => { calls.unmounts++; }; } }
   };
   if (library) window.supabase = { createClient: (url, key, opts) => { calls.created = { url, key, opts }; return client; } };
   vm.runInNewContext(code, { document: { getElementById: id => els[id], createElement: () => ({}), body: { append: x => appended.push(x) } }, window,
-                            location: { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location }, history, URLSearchParams, setTimeout: fn => fn() });
+                            location: { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location }, history, URLSearchParams, atob, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
-  return { els, button, calls, window, appended, emit: async s => { authListener('X', s); await flush(); },
+  return { els, button, calls, window, appended, fireHash: () => [...hashFns].forEach(f => f()), hashFns, emit: async s => { authListener('X', s); await flush(); },
            submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut(),
            forgot: () => listeners.forgot(), resetForm, setForm,
            requestReset: () => listeners.reset({ preventDefault() {} }), inviteForm,
            redeem: () => listeners.invite({ preventDefault() {} }), haveInvite: () => listeners.haveInvite(), savePassword: () => listeners.setPassword({ preventDefault() {} }),
-           flush };
+           click: async () => { await listeners.authGo(); await flush(); }, resend: () => listeners.expired({ preventDefault() {} }), back: () => listeners.back(),
+           expiredForm, flush };
 }
 
 test('the page only ever uses the public URL and publishable key', () => {
@@ -165,11 +173,20 @@ test('forgot password: one answer whether or not the account exists, back to /ap
   assert.match(limited.els['reset-note'].textContent, /Too many/);
 });
 
-test('a reset link: token leaves the address bar, is checked once, and a new password comes before the library', async () => {
+test('a reset link: the token leaves the address bar, NOTHING is checked until the person presses the button, then a new password comes before the library', async () => {
   const h = harness({ location: { hostname: 'uselai.com', search: '?reset=abcDEF123_-xyz', hash: '#/' } });
   assert.deepEqual(h.calls.replaced, ['/app/#/']);                                  // token gone from the URL at once
+  await h.emit(null);
+  assert.equal(h.calls.verify.length, 0);                                           // opening the link (a scanner, a preview) spends nothing
+  assert.equal(h.els['auth-link'].hidden, false);
+  assert.equal(h.els['sign-in'].hidden, true);
+  assert.match(h.els['auth-link-title'].textContent, /Reset your password/);
+  assert.equal(h.els['auth-link-go'].textContent, 'Choose a new password');
+  await h.click();
   assert.deepEqual(JSON.parse(JSON.stringify(h.calls.verify)), [{ token_hash: 'abcDEF123_-xyz', type: 'recovery' }]);
+  await h.click();                                                                  // a second press while/after: the page keeps one verification going at a time
   await h.emit({ user: { email: 'ryan@example.com' } });                            // signed in by the link
+  assert.equal(h.els['auth-link'].hidden, true);
   assert.equal(h.els['set-password'].hidden, false);
   assert.equal(h.els.library.hidden, true);
   assert.equal(h.calls.mounts, 0);
@@ -188,8 +205,10 @@ test('a reset link: token leaves the address bar, is checked once, and a new pas
   assert.equal(h.setForm.elements.password.value, '');
 
   const stale = harness({ location: { hostname: 'uselai.com', search: '?reset=expiredtoken123' }, verifyOtp: () => ({ error: { message: 'expired' } }) });
-  await stale.flush();
+  await stale.emit(null);
+  await stale.click();
   assert.match(stale.els['app-status'].textContent, /expired or was already used/);
+  assert.equal(stale.els['auth-expired'].hidden, false);                             // and the screen to ask for a new one
   const junk = harness({ location: { hostname: 'uselai.com', search: '?reset=<script>' } });
   assert.equal(junk.calls.verify.length, 0);                                         // not a token: ignored, still removed
   assert.equal(junk.calls.replaced.length, 1);
@@ -214,37 +233,51 @@ test('invite codes: hidden until the invite email is set up; a code and email go
   assert.equal(bad.els['invite-note'].textContent, 'That code isn’t valid.');
 });
 
-test('an invite link: token checked as an invite, removed from the URL, password chosen before the library', async () => {
+test('an invite link: checked as an invite only when the button is pressed, removed from the URL, password chosen before the library', async () => {
   const h = harness({ location: { hostname: 'uselai.com', search: '?invite=inviteTOKEN_123-x', hash: '#/' } });
   assert.deepEqual(h.calls.replaced, ['/app/#/']);
+  await h.emit(null);
+  assert.equal(h.calls.verify.length, 0);
+  assert.match(h.els['auth-link-title'].textContent, /Welcome to Ryagram/);
+  await h.click();
   assert.deepEqual(JSON.parse(JSON.stringify(h.calls.verify)), [{ token_hash: 'inviteTOKEN_123-x', type: 'invite' }]);
   assert.match(h.els['set-password-title'].textContent, /Welcome to Ryagram/);
   await h.emit({ user: { email: 'new@example.com' } });
   assert.equal(h.els['set-password'].hidden, false);
   assert.equal(h.calls.mounts, 0);
   const stale = harness({ location: { hostname: 'uselai.com', search: '?invite=expiredinvite1' }, verifyOtp: () => ({ error: { message: 'expired' } }) });
-  await stale.flush();
+  await stale.emit(null);
+  await stale.click();
   assert.match(stale.els['app-status'].textContent, /invite link has expired/);
 });
 
-// ---- Auth emails link through our own domain: /app/#/auth/confirm?token_hash=...&type=... (deliverability) ----
-const confirmAt = (type, token = 'tokenHASH_1234567890-x') => ({ hostname: 'uselai.com', search: '', hash: `#/auth/confirm?token_hash=${token}&type=${type}` });
+// ---- Auth emails link through our own domain: /app/#/auth?token_hash=...&type=... (deliverability); the token is spent only when the person presses the button ----
+const confirmAt = (type, token = 'tokenHASH_1234567890-x', route = 'auth') => ({ hostname: 'uselai.com', search: '', hash: `#/${route}?token_hash=${token}&type=${type}` });
 const plain = v => JSON.parse(JSON.stringify(v));
 
-test('confirm route, every type: verifyOtp gets exactly {token_hash, type}, and the token leaves the address bar at once', async () => {
-  for (const type of ['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email']) {
-    const h = harness({ location: confirmAt(type) });
-    assert.deepEqual(plain(h.calls.verify), [{ token_hash: 'tokenHASH_1234567890-x', type }], type);
-    assert.deepEqual(h.calls.replaced, ['/app/#/'], type);                       // fragment replaced before anything else runs
+test('confirm route, every type: the page waits for the button; then verifyOtp gets exactly {token_hash, type}; the token left the address bar at once (both route spellings)', async () => {
+  for (const route of ['auth', 'auth/confirm']) {
+    for (const type of ['signup', 'invite', 'magiclink', 'recovery', 'email_change', 'email']) {
+      const h = harness({ location: confirmAt(type, undefined, route) });
+      assert.deepEqual(h.calls.replaced, ['/app/#/'], type);                       // fragment replaced before anything else runs
+      await h.emit(null);
+      assert.deepEqual(plain(h.calls.verify), [], type);                           // opening the link spends nothing
+      assert.equal(h.els['auth-link'].hidden, false, type);
+      assert.equal(h.els['sign-in'].hidden, true, type);
+      await h.click();
+      assert.deepEqual(plain(h.calls.verify), [{ token_hash: 'tokenHASH_1234567890-x', type }], type);
+    }
   }
 });
 
-test('confirm route: signup, magic link and email change go straight to the library; recovery and invite choose a password first', async () => {
+test('confirm route: after the button, signup, magic link and email change go to the library; recovery and invite choose a password first', async () => {
   const user = { user: { email: 'ryan@example.com' } };
   for (const [type, say] of [['signup', /email is confirmed/], ['magiclink', null], ['email', null], ['email_change', /email address is updated/]]) {
     const h = harness({ location: confirmAt(type) });
-    await h.flush();
+    await h.emit(null);
+    await h.click();
     await h.emit(user);
+    assert.equal(h.els['auth-link'].hidden, true, type);
     assert.equal(h.els['set-password'].hidden, true, type);
     assert.equal(h.els.library.hidden, false, type);
     assert.equal(h.calls.mounts, 1, type);
@@ -252,48 +285,184 @@ test('confirm route: signup, magic link and email change go straight to the libr
   }
   for (const type of ['recovery', 'invite']) {
     const h = harness({ location: confirmAt(type) });
-    await h.flush();
+    await h.emit(null);
+    await h.click();
     await h.emit(user);
     assert.equal(h.els['set-password'].hidden, false, type);
     assert.equal(h.calls.mounts, 0, type);
   }
   const inv = harness({ location: confirmAt('invite') });
+  await inv.emit(null);
+  await inv.click();
   assert.match(inv.els['set-password-title'].textContent, /Welcome to Ryagram/);
 });
 
-test('confirm route: an expired or used link says so in words for each type, and never leaves the page stuck', async () => {
+test('confirm route: an expired or used link says so in words for each type, shows the ask-for-a-new-link screen, and never leaves the page stuck', async () => {
   const expected = { signup: /confirmation link has expired/, invite: /invite link has expired/, magiclink: /sign-in link has expired/,
                      recovery: /reset link has expired/, email_change: /Start the email change again/, email: /link has expired/ };
   for (const [type, re] of Object.entries(expected)) {
     const h = harness({ location: confirmAt(type), verifyOtp: () => ({ error: { message: 'expired' } }) });
-    await h.flush();
+    await h.emit(null);
+    await h.click();
     assert.match(h.els['app-status'].textContent, re, type);
     assert.equal(h.els['set-password'].hidden, true, type);
+    assert.equal(h.els['auth-expired'].hidden, false, type);
+    assert.equal(h.els['auth-link'].hidden, true, type);
+  }
+  const net = harness({ location: confirmAt('recovery'), verifyOtp: () => { throw new Error('offline'); } });
+  await net.emit(null);
+  await net.click();
+  assert.equal(net.els['auth-expired'].hidden, false);                               // a dropped connection is not a stuck button
+});
+
+test('expired screen: a new link is asked for with the same answer for every email, a 429 is said in words, and Back returns to sign-in', async () => {
+  const h = harness({ location: confirmAt('recovery'), verifyOtp: () => ({ error: { message: 'expired' } }) });
+  await h.emit(null);
+  await h.click();
+  h.expiredForm.elements.email.value = ' ryan@example.com ';
+  await h.resend();
+  assert.deepEqual(plain(h.calls.reset), [{ email: 'ryan@example.com', opts: { redirectTo: 'https://uselai.com/app/' } }]);
+  assert.match(h.els['auth-expired-note'].textContent, /If that email has a Ryagram account, a new link is on its way/);
+  const limited = harness({ location: confirmAt('recovery'), verifyOtp: () => ({ error: { message: 'expired' } }), resetPassword: () => ({ error: { status: 429 } }) });
+  await limited.emit(null); await limited.click(); await limited.resend();
+  assert.match(limited.els['auth-expired-note'].textContent, /Too many/);
+  await h.back();
+  await h.flush();
+  assert.equal(h.els['auth-expired'].hidden, true);
+});
+
+test('expired route: #/auth/expired (where the root site forwards any #error=) and a raw #error= both show the screen, with nothing verified', async () => {
+  for (const hash of ['#/auth/expired', '#error=access_denied&error_code=otp_expired&error_description=Email+link+is+invalid+or+has+expired']) {
+    const h = harness({ location: { hostname: 'uselai.com', search: '', hash } });
+    assert.deepEqual(h.calls.replaced, ['/app/#/'], hash);                            // the error is not left in the address bar
+    await h.emit(null);
+    assert.equal(h.els['auth-expired'].hidden, false, hash);
+    assert.equal(h.els['sign-in'].hidden, true, hash);
+    assert.equal(h.calls.verify.length, 0, hash);
   }
 });
 
-test('confirm route: an unknown type or a junk token is ignored (no verify call), still removed from the address bar', () => {
+// a token whose payload names an account (the signature is Supabase's to check, on the button press)
+const jwt = email => `eyJhbGciOiJIUzI1NiJ9.${Buffer.from(JSON.stringify(email == null ? { sub: 'x' } : { email, sub: 'x' })).toString('base64url')}.c2lnbmF0dXJl`;
+const verifiedAt = (email, type = 'recovery') => ({ hostname: 'uselai.com', search: '', hash: `#access_token=${jwt(email)}&refresh_token=REFRESHtoken_0123456789&type=${type}` });
+
+test('a link Supabase already verified (#access_token=...): NOTHING signs in from the address bar; the button says which account, and only pressing it takes the session', async () => {
+  const h = harness({ location: verifiedAt('maya@example.com') });
+  assert.deepEqual(h.calls.replaced, ['/app/#/']);                                     // the tokens leave the address bar at once
+  await h.emit(null);
+  await h.flush();
+  assert.equal(h.calls.setSession, undefined);                                         // opening the link (or being sent here by a crafted one) signs nobody in
+  assert.equal(h.calls.verify.length, 0);
+  assert.equal(h.els['auth-link'].hidden, false);
+  assert.equal(h.els['sign-in'].hidden, true);
+  assert.match(h.els['auth-link-text'].textContent, /sign you in as maya@example\.com\. If that is not your account/);
+  assert.equal(h.els['auth-link-go'].textContent, 'Continue as maya@example.com');
+  await h.click();
+  assert.deepEqual(plain(h.calls.setSession), { access_token: jwt('maya@example.com'), refresh_token: 'REFRESHtoken_0123456789' });
+  assert.equal(h.calls.verify.length, 0);
+  await h.emit({ user: { email: 'maya@example.com' } });
+  assert.equal(h.els['set-password'].hidden, false);                                   // a recovery session still picks a password first
+  const magic = harness({ location: verifiedAt('maya@example.com', 'magiclink') });
+  await magic.emit(null); await magic.click(); await magic.emit({ user: { email: 'maya@example.com' } });
+  assert.equal(magic.els.library.hidden, false);
+  assert.equal(magic.els['set-password'].hidden, true);
+});
+
+test('a link Supabase already verified: a token that names no account is never taken, a rejected session lands on the expired screen', async () => {
+  for (const email of [null, '']) {
+    const h = harness({ location: verifiedAt(email) });
+    await h.emit(null); await h.flush();
+    assert.equal(h.calls.setSession, undefined, String(email));
+    assert.equal(h.els['auth-expired'].hidden, false, String(email));
+  }
+  const junk = harness({ location: { hostname: 'uselai.com', search: '', hash: '#access_token=ACCESStoken_0123456789&refresh_token=REFRESHtoken_0123456789&type=magiclink' } });
+  await junk.emit(null);
+  assert.equal(junk.calls.setSession, undefined);                                      // not even a JWT: expired screen, nothing taken
+  assert.equal(junk.els['auth-expired'].hidden, false);
+  const bad = harness({ location: verifiedAt('maya@example.com'), setSession: () => ({ error: { message: 'bad' } }) });
+  await bad.emit(null); await bad.click();
+  assert.equal(bad.els['auth-expired'].hidden, false);
+  const hostile = harness({ location: verifiedAt('<img src=x onerror=alert(1)>@x.co') });          // the account name is shown as text, never as HTML
+  await hostile.emit(null);
+  assert.ok(!/innerHTML/.test(code));
+  assert.equal(hostile.els['auth-link-go'].textContent, 'Continue as <img src=x onerror=alert(1)>@x.co');
+});
+
+test('the sign-in page has "Forgot your password?" in the shipped config (passwordReset on)', () => {
+  assert.match(fs.readFileSync(path.join(__dirname, '../assets/ryagram-config.js'), 'utf8'), /passwordReset: true,/);
+});
+
+test('confirm route: an unknown type or a junk token is not verified, still removed from the address bar, and lands on the expired screen', async () => {
   for (const loc of [confirmAt('admin'), confirmAt('recovery', '<script>'), confirmAt('recovery', 'short'), { hostname: 'uselai.com', search: '', hash: '#/auth/confirm?type=recovery' },
-                     { hostname: 'uselai.com', search: '', hash: '#/auth/confirm' }]) {
+                     { hostname: 'uselai.com', search: '', hash: '#/auth/confirm' }, { hostname: 'uselai.com', search: '', hash: '#/auth' }]) {
     const h = harness({ location: loc });
     assert.equal(h.calls.verify.length, 0, loc.hash);
     assert.deepEqual(h.calls.replaced, ['/app/#/'], loc.hash);
+    await h.emit(null);
+    assert.equal(h.els['auth-expired'].hidden, false, loc.hash);
   }
   const other = harness({ location: { hostname: 'uselai.com', search: '', hash: '#/p/some-project' } });       // ordinary routes are untouched
   assert.equal(other.calls.verify.length, 0);
   assert.equal(other.calls.replaced.length, 0);
 });
 
-test('links already sent (?reset= and ?invite=) still work after the new route exists', () => {
+test('links already sent (?reset= and ?invite=) still work after the new route exists (also behind the button)', async () => {
   const r = harness({ location: { hostname: 'uselai.com', search: '?reset=abcDEF123_-xyz', hash: '#/' } });
+  await r.emit(null); await r.click();
   assert.deepEqual(plain(r.calls.verify), [{ token_hash: 'abcDEF123_-xyz', type: 'recovery' }]);
   const i = harness({ location: { hostname: 'uselai.com', search: '?invite=inviteTOKEN_123-x', hash: '#/' } });
+  await i.emit(null); await i.click();
   assert.deepEqual(plain(i.calls.verify), [{ token_hash: 'inviteTOKEN_123-x', type: 'invite' }]);
 });
 
-test('the app sends the token to Supabase over its own client only: no other network call is made for a confirm link', () => {
+test('the app sends the token to Supabase over its own client only: no other network call is made for a confirm link', async () => {
   const h = harness({ location: confirmAt('signup') });
+  await h.emit(null); await h.click();
   assert.equal(h.calls.invoked.length, 0);
   assert.equal(h.calls.signIn.length, 0);
   assert.equal(h.appended.length, 0);
+});
+
+test('the page has the link and expired panels, with a real button and no inline script (CSP)', () => {
+  assert.match(html, /<section id="auth-link" class="app-panel" hidden/);
+  assert.match(html, /<button class="button primary" id="auth-link-go" type="button">/);
+  assert.match(html, /<section id="auth-expired" class="app-panel" hidden/);
+  assert.match(html, /id="auth-expired-form"/);
+  assert.doesNotMatch(html, /<script>[^<]/);
+});
+
+test('WELCOME ONCE: the welcome and "saved" messages clear on the person’s next move and do not come back; a different message is never cleared by it', async () => {
+  const h = harness({ location: { hostname: 'uselai.com', search: '?invite=inviteTOKEN_123-x', hash: '#/' } });
+  await h.emit(null); await h.click();
+  await h.emit({ user: { email: 'new@example.com' } });
+  h.setForm.elements.password.value = 'a-long-new-password';
+  h.setForm.elements.again.value = 'a-long-new-password';
+  await h.savePassword();
+  await h.flush();
+  assert.equal(h.els['app-status'].textContent, 'Welcome. Your password is saved.');
+  assert.equal(h.hashFns.length, 1);
+  h.fireHash();                                                                       // the person goes somewhere
+  assert.equal(h.els['app-status'].textContent, '');
+  assert.equal(h.hashFns.length, 0);                                                  // and the listener is gone: nothing greets them again
+  const c = harness({ location: confirmAt('signup') });
+  await c.emit(null); await c.click();
+  assert.match(c.els['app-status'].textContent, /email is confirmed/);
+  c.els['app-status'].textContent = 'Something else happened.';                      // a later, different message
+  c.fireHash();
+  assert.equal(c.els['app-status'].textContent, 'Something else happened.');
+});
+
+test('PASSWORD LENGTH: the set-password screen refuses fewer than 12 characters in words, before anything is sent', async () => {
+  const h = harness({ location: { hostname: 'uselai.com', search: '?reset=abcDEF123_-xyz', hash: '#/' } });
+  await h.emit(null); await h.click();
+  await h.emit({ user: { email: 'ryan@example.com' } });
+  h.setForm.elements.password.value = 'elevenchars';
+  h.setForm.elements.again.value = 'elevenchars';
+  await h.savePassword();
+  assert.equal(h.els['set-password-error'].textContent, 'Use at least 12 characters.');
+  assert.equal(h.calls.update.length, 0);
+  h.setForm.elements.password.value = 'twelve-chars';
+  h.setForm.elements.again.value = 'twelve-chars';
+  await h.savePassword();
+  assert.equal(h.calls.update.length, 1);
 });
