@@ -84,9 +84,3 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
     default: return rpcError(msg.id, -32601, `Method not found: ${String(msg.method).slice(0, 60)}`);
   }
 }
-
-/** RFC 9728 document. `authorization_servers` is the Supabase Auth issuer. */
-export const protectedResourceMetadata = (resource: string, issuer: string) => ({
-  resource, authorization_servers: [issuer], bearer_methods_supported: ["header"],
-  resource_name: "Ryagram", resource_documentation: "https://uselai.com/help/",
-});

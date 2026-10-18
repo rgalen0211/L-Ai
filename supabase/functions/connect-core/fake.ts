@@ -48,6 +48,10 @@ export class FakeWorld {
     };
   }
   verifyToken = async (t: string) => this.tokens.get(t) ?? null;
+  /** Tokens issued by the fake authorization server are known by hash, as in the database. */
+  hashes = new Map<string, Principal>();
+  issueHash(hash: string, owner: Principal, _scopes: string[]) { this.hashes.set(hash, { ...owner, tokenHash: hash }); }
+  verifyHashed = async (hash: string) => this.hashes.get(hash) ?? null;
 
   data(userId: string): Data {
     const u = () => { const x = this.users.get(userId); if (!x) throw err("Sign in first.", "PT401"); return x; };

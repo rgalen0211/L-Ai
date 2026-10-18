@@ -8,7 +8,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { TOOLS, friendlyError } from '../supabase/functions/connect-core/tools.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
-import { handleMcp, protectedResourceMetadata } from '../supabase/functions/connect-core/mcp.ts';
+import { handleMcp } from '../supabase/functions/connect-core/mcp.ts';
 import { handleRest, openApi } from '../supabase/functions/connect-core/rest.ts';
 import { checkStory } from '../supabase/functions/connect-core/story_check.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
@@ -349,21 +349,16 @@ test('MCP: malformed, batched, oversized and wrong-method requests', async () =>
 test('REST: openapi lists every tool; calls use the same gate; 401 without a token', async () => {
   const { deps, w } = faces();
   const base = 'https://x.test/functions/v1/connect';
-  const spec = await (await handleRest(new Request(base + '/openapi.json'), '/openapi.json', deps, base, 'https://iss.test/auth/v1')).json();
+  const spec = await (await handleRest(new Request(base + '/openapi.json'), '/openapi.json', deps, base)).json();
   assert.equal(spec.openapi, '3.1.0');
   assert.deepEqual(Object.keys(spec.paths).sort(), TOOLS.map((t) => `/v1/tools/${t.name}`).sort());
   assert.equal(spec.paths['/v1/tools/set_story'].post['x-openai-isConsequential'], true);
-  const r = await handleRest(new Request(base + '/v1/tools/whoami_and_credits', { method: 'POST', headers: { authorization: 'Bearer tok-alice' }, body: '{}' }), '/v1/tools/whoami_and_credits', deps, base, '');
+  const r = await handleRest(new Request(base + '/v1/tools/whoami_and_credits', { method: 'POST', headers: { authorization: 'Bearer tok-alice' }, body: '{}' }), '/v1/tools/whoami_and_credits', deps, base);
   const body = await r.json(); assert.equal(body.isError, false); assert.match(body.text, /Credits/);
-  const no = await handleRest(new Request(base + '/v1/tools/whoami_and_credits', { method: 'POST', body: '{}' }), '/v1/tools/whoami_and_credits', deps, base, '');
+  const no = await handleRest(new Request(base + '/v1/tools/whoami_and_credits', { method: 'POST', body: '{}' }), '/v1/tools/whoami_and_credits', deps, base);
   assert.equal(no.status, 401);
   w.revoke(A.userId, A.clientId);
-  const revoked = await (await handleRest(new Request(base + '/v1/tools/whoami_and_credits', { method: 'POST', headers: { authorization: 'Bearer tok-alice' }, body: '{}' }), '/v1/tools/whoami_and_credits', deps, base, '')).json();
+  const revoked = await (await handleRest(new Request(base + '/v1/tools/whoami_and_credits', { method: 'POST', headers: { authorization: 'Bearer tok-alice' }, body: '{}' }), '/v1/tools/whoami_and_credits', deps, base)).json();
   assert.equal(revoked.isError, true);
-  assert.equal((await handleRest(new Request(base + '/v1/tools/../x', { method: 'POST', headers: { authorization: 'Bearer tok-alice' } }), '/v1/tools/../x', deps, base, '')).status, 404);
-});
-
-test('protected resource metadata names the authorization server', () => {
-  const m = protectedResourceMetadata('https://x.test/mcp', 'https://ref.supabase.co/auth/v1');
-  assert.deepEqual(m.authorization_servers, ['https://ref.supabase.co/auth/v1']);
+  assert.equal((await handleRest(new Request(base + '/v1/tools/../x', { method: 'POST', headers: { authorization: 'Bearer tok-alice' } }), '/v1/tools/../x', deps, base)).status, 404);
 });

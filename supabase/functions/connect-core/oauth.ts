@@ -46,6 +46,15 @@ export const authorizationServerMetadata = (base: string) => ({
   scopes_supported: SCOPES,
   service_documentation: "https://uselai.com/",
 });
+/** The same server described the OpenID way, because clients that follow the MCP discovery order for an issuer with a path try
+ *  `<issuer>/.well-known/openid-configuration` and Supabase routes nothing else to us. Ryagram issues no ID tokens and has no userinfo;
+ *  the OpenID-required fields below are present only so those clients accept the document. `openid` is not a scope we grant. */
+export const openIdShapedMetadata = (base: string) => ({
+  ...authorizationServerMetadata(base),
+  jwks_uri: `${base}/.well-known/jwks.json`,
+  subject_types_supported: ["public"],
+  id_token_signing_alg_values_supported: ["RS256"],
+});
 export const protectedResourceDoc = (base: string) => ({
   resource: `${base}/mcp`, authorization_servers: [base], bearer_methods_supported: ["header"],
   scopes_supported: SCOPES, resource_name: "Ryagram", resource_documentation: "https://uselai.com/",
@@ -74,6 +83,8 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
   if (req.method === "GET" && route.startsWith("/.well-known/oauth-authorization-server")) return json(200, authorizationServerMetadata(d.baseUrl));
+  if (req.method === "GET" && route.startsWith("/.well-known/openid-configuration")) return json(200, openIdShapedMetadata(d.baseUrl));
+  if (req.method === "GET" && route === "/.well-known/jwks.json") return json(200, { keys: [] });             // we sign no tokens
   if (req.method === "GET" && route.startsWith("/.well-known/oauth-protected-resource")) return json(200, protectedResourceDoc(d.baseUrl));
 
   if (route === "/register" && req.method === "POST") {

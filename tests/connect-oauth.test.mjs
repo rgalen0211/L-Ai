@@ -143,5 +143,5 @@ test('every SQL function the server names exists in the migration, and none take
 test('the function entry holds no Supabase key and reads only its own settings', () => {
   const src = fs.readFileSync('supabase/functions/connect/index.ts', 'utf8');
   assert.doesNotMatch(src, /SERVICE_ROLE|service_role|ANON_KEY|SUPABASE_URL|getUser|createClient/);
-  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL']);
+  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_PUBLIC_URL']);
 });

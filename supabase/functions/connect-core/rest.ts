@@ -12,7 +12,7 @@ import { LIMITS } from "./types.ts";
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
 
-export function openApi(baseUrl: string, issuer: string): Record<string, unknown> {
+export function openApi(baseUrl: string): Record<string, unknown> {
   const paths: Record<string, unknown> = {};
   for (const t of TOOLS) {
     paths[`/v1/tools/${t.name}`] = { post: {
@@ -35,13 +35,15 @@ export function openApi(baseUrl: string, issuer: string): Record<string, unknown
       schemas: { ToolResult: { type: "object", required: ["text", "isError"], properties: {
         text: { type: "string" }, isError: { type: "boolean" }, data: { type: "object", additionalProperties: true } } } },
       securitySchemes: { ryagramOAuth: { type: "oauth2", flows: { authorizationCode: {
-        authorizationUrl: `${issuer}/oauth/authorize`, tokenUrl: `${issuer}/oauth/token`, scopes: { "openid": "Sign in" } } } } },
+        authorizationUrl: `${baseUrl}/authorize`, tokenUrl: `${baseUrl}/token`, refreshUrl: `${baseUrl}/token`,
+        scopes: { read: "See your projects, films and credit balance", write: "Create projects and change your film stories",
+                  render_free: "Make contact sheets and previews" } } } } },
     },
   };
 }
 
-export async function handleRest(req: Request, route: string, deps: McpDeps, baseUrl: string, issuer: string): Promise<Response> {
-  if (route === "/openapi.json" && req.method === "GET") return json(200, openApi(baseUrl, issuer), { "Cache-Control": "public, max-age=300" });
+export async function handleRest(req: Request, route: string, deps: McpDeps, baseUrl: string): Promise<Response> {
+  if (route === "/openapi.json" && req.method === "GET") return json(200, openApi(baseUrl), { "Cache-Control": "no-store" });
 
   const m = /^\/v1\/tools(?:\/([a-z0-9_]+))?$/.exec(route);
   if (!m) return json(404, { error: "Not found." });
