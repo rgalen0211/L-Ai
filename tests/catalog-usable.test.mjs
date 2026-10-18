@@ -28,19 +28,18 @@ test('EXPORT: the committed allowlist is well formed: a "# count: N" header equa
   assert.match(text, /^# worker\.toml \[datasets\]\.allow, engine [0-9a-f]{7,}, read \d{4}-\d{2}-\d{2} by WORKER/m);
 });
 
-test('COUNTS: the public catalog and the server catalog each have exactly as many usable datasets as the allowlist, and the SAME ones', () => {
-  assert.equal(pubUsable.length, ids.length, `public catalog has ${pubUsable.length} usable, the allowlist ${ids.length}`);
-  assert.equal(srvUsable.length, ids.length, `server catalog has ${srvUsable.length} usable, the allowlist ${ids.length}`);
-  assert.deepEqual(plain(pubUsable), plain([...ids].sort()));
+test('COUNTS: usable is the allowlist THROUGH the engine motion gate (a subset of it), the public and the server catalog list the SAME usable ones, and the gate holds some back', () => {
+  assert.ok(pubUsable.every(id => ids.includes(id)), 'a usable dataset is always on the allowlist');
+  assert.ok(pubUsable.length > 0 && pubUsable.length < ids.length, `public catalog has ${pubUsable.length} usable of the allowlist's ${ids.length}`);
   assert.deepEqual(plain(srvUsable), plain(pubUsable));
   assert.deepEqual(plain([...pub.allow].sort()), plain([...ids].sort()), 'the public file\'s own allow list');
 });
 
-test('NOTHING STALE: every allowlisted id is in the catalog, no usable entry is off the allowlist, and nothing off it is "next" for a dataset that is already usable', () => {
+test('NOTHING STALE: every allowlisted id is in the catalog, no usable entry is off the allowlist, and nothing off it is usable', () => {
   const missing = ids.filter(id => !registry.has(id));
   assert.deepEqual(plain(missing), [], `allowlisted but not in the catalog (stale export or a filtered dataset): ${missing.join(', ')}`);
   assert.deepEqual(plain(pubUsable.filter(id => !ids.includes(id))), []);
-  for (const e of pub.entries) if (ids.includes(e.id)) assert.equal(e.status, 'usable', e.id);
+  for (const e of pub.entries) if (ids.includes(e.id)) assert.ok(['usable', 'next', 'later'].includes(e.status), e.id);                   // on the allowlist: usable only through the motion gate, else it waits (next = not measured, later = failed)
   for (const e of pub.entries) if (!ids.includes(e.id)) assert.notEqual(e.status, 'usable', e.id);
 });
 

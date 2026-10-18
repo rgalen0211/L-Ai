@@ -20,7 +20,7 @@
 // What it will NOT do, and says so: choose a subset of places (the story format has no place filter; bar and
 // line views choose the top N by value), hold or hide a gap, or touch the scale. The engine owns those.
 import { CATALOG, STORY_SCHEMA } from "./catalog_data.ts";
-import { applyProfile, ProfileError } from "./profile.ts";
+import { applyProfile, ProfileError, validateProfile } from "./profile.ts";
 import { checkAgainst } from "./schema_check.ts";
 
 type Json = any;
@@ -147,6 +147,7 @@ function resolveYears(entry: Json, years: Json, today: Today | undefined, errs: 
   for (const which of ["start", "end"] as const) {
     let v = raw[which];
     if (v === null || v === undefined || v === "") continue;
+    if (typeof v !== "string" && typeof v !== "number") { errs.push(`years.${which}: expected a year or month as text`); continue; }
     v = String(v);
     // A year is accepted for a monthly series: it means that year's first (start) or last (end) month.
     if (cad === "monthly" && /^[0-9]{4}$/.test(v)) v = which === "start" ? `${v}-01` : `${v}-12`;
@@ -260,8 +261,9 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
     if (BAD_TEXT.test(v)) { errs.push(`${key}: contains control or invisible characters`); return ""; }
     const t = v.replace(/\s+/g, " ").trim();
     if (!t && required) errs.push(`${key}: must not be blank`);
-    if (t.length > max) errs.push(`${key}: longer than ${max} characters`);
-    return t.slice(0, max);
+    const cps = Array.from(t);                       // code points, as the worker counts them (an emoji is one)
+    if (cps.length > max) errs.push(`${key}: longer than ${max} characters`);
+    return cps.slice(0, max).join("");
   };
   const title = text("title", 160, true);
   const subtitle = text("subtitle", 320, false);
@@ -337,21 +339,37 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   // ---- the look: same compiler and diff guard as profiles
   let look = { applied: false, changed: [] as string[], not_applied: [] as string[], converted: [] as string[] };
   if (req.look !== undefined && req.look !== null) {
+    // PARSE AND VALIDATE THE LOOK FIRST (CC1 HIGH-2): a look can arrive as JSON text (the AI path sends profile_json), and every
+    // rule below reads its fields, so they must read the validated object, never the raw argument.
+    let lookObj: Json;
+    try {
+      lookObj = validateProfile(req.look);
+    } catch (e) {
+      if (e instanceof ProfileError) throw new FilmError(e.errors.map((x) => `look: ${x}`));
+      throw e;
+    }
     // A dataset the engine draws as continuous colour (county areas are too small to hatch) cannot take a hatching look.
     // Found by the render proof (2026-10-18): only bps_county_permits was pinned, so a hatching look on any other county dataset
     // compiled and then failed texture_carrying_capacity (12% of counties cannot carry a pattern). Any county-level geography
-    // is refused for hatching, pinned or not.
+    // is refused for hatching, pinned or not. Only a MAP film draws the choropleth; a bar or line film ignores the ramp.
     const countyLevel = ["us_counties", "tx_counties"].includes(entry.geography?.id);
-    if ((entry.style?.choropleth?.continuous || (countyLevel && req.film_type === "map")) && req.look?.look?.ramp?.mode === "hatch") {
+    const mapFilm = req.film_type === "map";
+    const ramp = lookObj?.look?.ramp;
+    if (mapFilm && (entry.style?.choropleth?.continuous || countyLevel) && ramp?.mode === "hatch") {
       throw new FilmError(["look: this dataset is drawn as continuous colour (its areas are too small to hatch); use a look whose ramp mode is 'solid'"]);
+    }
+    // A county map asked to be BANDED (continuous: false) is the map the render proof measured failing the 90 percent frame count
+    // (29 to 53 percent kept): refused with the reason, like a look that undoes a pinned style (CC1 MED-4).
+    if (mapFilm && countyLevel && ramp?.continuous === false) {
+      throw new FilmError(["look: a county map is drawn as continuous colour (counties are too small to class into a few bands, and a banded county map does not visibly move); leave 'continuous' unset or true"]);
     }
     // A solid look on a county map is drawn as CONTINUOUS colour: counties are too small to class into a few bands, and a
     // banded solid county map is judged by the 90 percent frame count (the render proof measured 29 to 53 percent kept, a
     // fail) while the continuous map passes the half-second windows (50 of 50). So the look is applied with continuous on.
-    let lookToApply = req.look;
+    let lookToApply = lookObj;
     const converted: string[] = [];
-    if (countyLevel && req.film_type === "map" && req.look?.look?.ramp && req.look.look.ramp.continuous === undefined) {
-      lookToApply = JSON.parse(JSON.stringify(req.look));
+    if (countyLevel && mapFilm && ramp && ramp.continuous === undefined) {
+      lookToApply = JSON.parse(JSON.stringify(lookObj));
       lookToApply.look.ramp.continuous = true;
       converted.push(COUNTY_CONTINUOUS_NOTICE);
     }
@@ -360,7 +378,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
       story = r.story;
       // A dataset's pinned style (county areas are drawn as continuous colour) must survive the look. A look may restate the
       // same value, but one that CHANGES a pinned key (continuous false, mode hatch) would silently undo it (BUILDER LOW-7).
-      const pin = entry.style?.choropleth ?? {}, got = story.sequence.style_overrides?.choropleth ?? {};
+      const pin = mapFilm ? (entry.style?.choropleth ?? {}) : {}, got = story.sequence.style_overrides?.choropleth ?? {};
       const undone = Object.keys(pin).filter((k) => got[k] !== pin[k]);
       if (undone.length) {
         throw new FilmError([`look: this dataset is drawn with ${undone.map((k) => `choropleth ${k} = ${JSON.stringify(pin[k])}`).join(" and ")} (its areas are too small to hatch or to class into a few bands); this look would change it to ${undone.map((k) => JSON.stringify(got[k])).join(" and ")}. Use a look that leaves it alone`]);
@@ -369,7 +387,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
       // Measured 2026-10-18 (cbp_arts_establishments, continuous county map): 1 s per year leaves 2 of 50 half-second windows still;
       // 2 s per year leaves 76 of 100 still. A slow hold on a county map is therefore mostly shortened by pacing, to 0.4 s.
       const hold = story.sequence?.hold_seconds;
-      if (countyLevel && req.film_type === "map" && typeof hold === "number" && hold > COUNTY_SLOW_HOLD_ABOVE) converted.push(countySlowPacingNotice(hold));
+      if (countyLevel && mapFilm && typeof hold === "number" && hold > COUNTY_SLOW_HOLD_ABOVE) converted.push(countySlowPacingNotice(hold));
       warnings.push(...converted);
       look = { applied: true, changed: r.report.changed, not_applied: r.report.not_applied, converted };
     } catch (e) {

@@ -14,7 +14,7 @@ export const LISTING_CLASSES = ["us-gov-public-domain", "open-licence", "not-lis
 
 const EXCLUDE_ID = /(^example_corp_|_fixture(_|$)|^ryan_)/;
 // A restriction word in the licence or the notes: a dataset carrying one is never listable.
-const TRIPWIRE = /\bINTERNAL\b|BY-SA|share-?alike|\bBY-NC\b|\bBY-ND\b|non-?commercial|no ?derivatives?|all rights reserved|not for (public|redistribution)|\bnot\s+(a\s+)?public\b|confidential|proprietary/i;
+const TRIPWIRE = /\bINTERNAL\b|BY[\s\-\u2010-\u2015]*SA\b|share[\s\-\u2010-\u2015]*alike|attribution[\s\-\u2010-\u2015]*share|\bODbL\b|open database licen[cs]e|\bBY-NC\b|\bBY-ND\b|non-?commercial|no ?derivatives?|all rights reserved|not for (public|redistribution)|\bnot\s+(a\s+)?public\b|confidential|proprietary/i;
 // In the LICENCE only (prose such as "private-sector" or "personal income" is ordinary): a private or personal licence.
 const PRIVATE_LICENCE = /^\s*(private|personal|local file)\b|\b(private|personal)\s+(data|dataset|use|file)\b/i;
 const OPEN_LICENCE = /public domain|17 USC 105|U\.S\. Government works?|\bCC0\b|\bCC BY\b/i;
