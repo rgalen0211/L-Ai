@@ -322,6 +322,9 @@
       },
 
       // Ryan's Operations screen (SQL 20261010000100): one summary, and the three buttons. Admin only; the functions refuse everyone else.
+      // The approval queue for full renders (PIPE-1): admin only (the database refuses everyone else). Decide = approve (starts the render) or decline (returns the credits).
+      adminRenderQueue() { return run(client.rpc('admin_render_queue'), 'Couldn\u2019t load the render requests.'); },
+      adminRenderDecide(stage, approve, note) { return run(client.rpc('admin_render_decide', { p_stage: stage, p_approve: approve === true, p_note: note ? String(note).slice(0, 500) : null }), 'Couldn\u2019t record that decision.'); },
       adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
       adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
       adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
