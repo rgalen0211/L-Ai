@@ -173,7 +173,7 @@ test('A FILM MADE FROM THE OWNER\'S UPLOAD names only "the maker\'s own data": n
 
 test('the film page file loads the sample and the page script, under a policy that allows only its own files and the project\'s storage', () => {
   const html = read('film/index.html');
-  assert.match(html, /film\.js\?v=20261013a/);
+  assert.match(html, /film\.js\?v=20261018a/);
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.match(csp, /script-src 'self'(;|$)/);
   assert.match(csp, /connect-src 'self' https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co/);
