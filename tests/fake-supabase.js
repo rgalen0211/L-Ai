@@ -20,7 +20,7 @@
   function mockFunnelEvents() {
     const out = [];
     const plan = { landing_view: [30, 24, 28, 31, 22, 40, 35, 26, 20, 18], signup_done: [4, 3, 3, 5, 2, 6, 5, 3, 2, 2], first_project: [3, 2, 3, 4, 2, 5, 4, 2, 1, 1],
-                   preview: [1, 1, 2, 2, 1, 3, 2, 1, 1, 0], film_requested: [0, 1, 1, 1, 0, 1, 1, 0, 0, 0], purchase: [0, 0, 1, 0, 0, 1, 0, 0, 0, 0] };
+                   preview: [1, 1, 2, 2, 1, 3, 2, 1, 1, 0], render_ordered: [0, 1, 1, 1, 0, 1, 1, 0, 0, 0], render_approved: [0, 1, 1, 0, 0, 1, 0, 0, 0, 0], purchase: [0, 0, 1, 0, 0, 1, 0, 0, 0, 0] };
     for (const [event, counts] of Object.entries(plan)) {
       counts.forEach((n, ago) => { for (let i = 0; i < n; i += 1) out.push({ id: out.length + 1, at: new Date(Date.now() - ago * 864e5 - (i + 1) * 60000).toISOString(), event }); });
     }

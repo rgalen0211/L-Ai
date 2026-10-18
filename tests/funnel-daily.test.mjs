@@ -19,17 +19,17 @@ test('DAYS: events are counted per step per EASTERN day (a late-evening UTC even
   const ev = (at, event) => ({ at, event });
   const d = O.funnelDaily([
     ev('2026-10-17T13:00:00Z', 'signup_done'), ev('2026-10-17T14:00:00Z', 'signup_done'), ev('2026-10-17T14:30:00Z', 'preview'),
-    ev('2026-10-17T02:00:00Z', 'film_requested'),                                    // 22:00 on the 16th in New York
+    ev('2026-10-17T02:00:00Z', 'render_ordered'),                                    // 22:00 on the 16th in New York
     ev('2026-10-15T12:00:00Z', 'purchase'), ev('2026-10-15T12:00:00Z', 'landing_view'),
     ev('2026-10-01T12:00:00Z', 'signup_done'),                                       // outside the window
     ev('2026-10-17T12:00:00Z', 'return_7d')                                          // not a column here
   ], { days: 3, now });
   assert.deepEqual(plain(d.days.map(x => x.day)), ['2026-10-17', '2026-10-16', '2026-10-15']);
-  assert.deepEqual(plain(d.days[0].counts), { landing_view: 0, signup_done: 2, first_project: 0, preview: 1, film_requested: 0, purchase: 0 });
-  assert.equal(d.days[1].counts.film_requested, 1);
+  assert.deepEqual(plain(d.days[0].counts), { landing_view: 0, signup_done: 2, first_project: 0, preview: 1, render_ordered: 0, render_approved: 0, purchase: 0 });
+  assert.equal(d.days[1].counts.render_ordered, 1);
   assert.deepEqual(plain([d.days[2].counts.purchase, d.days[2].counts.landing_view]), [1, 1]);
-  assert.deepEqual(plain(d.totals), { landing_view: 1, signup_done: 2, first_project: 0, preview: 1, film_requested: 1, purchase: 1 });
-  assert.match(O.funnelDailyLine(d), /2 signed up, 1 made a first preview \(50% of signups\), 1 asked for a film \(50%\), 1 bought credits\./);
+  assert.deepEqual(plain(d.totals), { landing_view: 1, signup_done: 2, first_project: 0, preview: 1, render_ordered: 1, render_approved: 0, purchase: 1 });
+  assert.match(O.funnelDailyLine(d), /2 signed up, 1 made a first preview \(50% of signups\), 1 ordered a full render \(50%\), 0 approved, 1 bought credits\./);
   assert.match(O.funnelDailyLine(O.funnelDaily([], { days: 2, now })), /0 signed up, 0 made a first preview \(— of signups\)/);
 });
 

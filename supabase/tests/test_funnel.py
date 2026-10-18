@@ -93,6 +93,37 @@ class Funnel(unittest.TestCase):
         self.assertEqual(self.names(RYAN).count("subscription_start"), 1)
         self.assertEqual(self.names(RYAN).count("subscription_cancel"), 1)       # cancel at period end, then it really ends: ONE cancel, not two
 
+    def test_render_ordered_and_render_approved_come_from_the_order_tables(self):
+        """Ryan 2026-10-18: the first order is render_ordered (a full render requested and accepted); render_approved is Ryan's approval, never a decline."""
+        def order(owner, want, key):
+            project = self.project(owner)
+            version = self.admin("insert into public.versions (project_id, owner_id, number) values (%s, %s, 1) returning id", project, owner)
+            oid = self.admin("insert into public.render_orders (owner_id, idempotency_key, source, want, project_id, version_id, story_sha256) values (%s, %s, 'app', %s, %s, %s, repeat('a', 64)) returning id",
+                             owner, key, want, project, version)
+            return oid, self.admin("insert into public.render_stages (order_id, owner_id, stage, idempotency_key, state, credits_quoted, awaiting_since) "
+                                   "values (%s, %s, 'final_render', %s, 'awaiting_approval', 10, now()) returning id", oid, owner, key + ":final_render")
+        order(RYAN, "preview", "key-preview-0001")                               # a preview-only order is not an order for a film
+        self.assertNotIn("render_ordered", self.names(RYAN))
+        oid, stage = order(RYAN, "final", "key-final-00001")
+        self.assertEqual(self.names(RYAN).count("render_ordered"), 1)
+        order(RYAN, "final", "key-final-00002")                                  # a second order: the first order is already counted
+        self.assertEqual(self.names(RYAN).count("render_ordered"), 1)
+        self.admin("update public.render_stages set admin_note = 'looking' where id = %s returning 1", stage)
+        self.assertNotIn("render_approved", self.names(RYAN))                    # a note is not a decision
+        self.admin("update public.render_stages set admin_decided_by = %s, admin_decided_at = now() where id = %s returning 1", RYAN, stage)     # what admin_render_decide(approve) does first
+        self.assertEqual(self.names(RYAN).count("render_approved"), 1)
+        self.admin("update public.render_stages set state = 'running' where id = %s returning 1", stage)
+        self.assertEqual(self.names(RYAN).count("render_approved"), 1)
+        # a decline stamps the decision AND closes the stage in the same update: not an approval
+        _, declined = order(OTHER, "final", "key-final-00003")
+        self.assertEqual(self.names(OTHER), ["first_project", "render_ordered"])
+        self.admin("update public.render_stages set state = 'declined', admin_decided_by = %s, admin_decided_at = now() where id = %s returning 1", RYAN, declined)
+        self.assertNotIn("render_approved", self.names(OTHER))
+        # Ryan's view lists both steps
+        self.make_ryan_admin()
+        steps = [x["event"] for x in self.db.as_(RYAN).one("select admin_funnel(4)")["steps"]]
+        self.assertEqual(steps[5:8], ["preview", "render_ordered", "render_approved"])
+
     def test_signup_done_is_the_first_confirmed_email_once(self):
         a, b, c = (str(uuid.uuid4()) for _ in range(3))
         self.admin("insert into auth.users (id, email) values (%s, 'a@example.com') returning 1", a)

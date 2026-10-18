@@ -138,8 +138,8 @@
     return rows;
   }
   // By day (#/admin/funnel): the raw events counted per step per day, in the same Eastern day the weekly view uses. Pure, so it is tested without a screen.
-  const DAY_STEPS = ['landing_view', 'signup_done', 'first_project', 'preview', 'film_requested', 'purchase'];
-  const DAY_LABELS = { landing_view: 'Visits', signup_done: 'Signed up', first_project: 'First project', preview: 'First preview', film_requested: 'First order (film asked for)', purchase: 'Bought credits' };
+  const DAY_STEPS = ['landing_view', 'signup_done', 'first_project', 'preview', 'render_ordered', 'render_approved', 'purchase'];
+  const DAY_LABELS = { landing_view: 'Visits', signup_done: 'Signed up', first_project: 'First project', preview: 'First preview', render_ordered: 'First order (full render requested)', render_approved: 'Approved', purchase: 'Bought credits' };
   const easternDay = (iso, tz = 'America/New_York') => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
   function funnelDaily(events, { days = 14, now = Date.now() } = {}) {
     const list = [];
@@ -156,7 +156,7 @@
   }
   function funnelDailyLine(d) {
     const t = d.totals;
-    return `Over these days: ${t.signup_done} signed up, ${t.preview} made a first preview (${pct(t.preview, t.signup_done)} of signups), ${t.film_requested} asked for a film (${pct(t.film_requested, t.signup_done)}), ${t.purchase} bought credits.`;
+    return `Over these days: ${t.signup_done} signed up, ${t.preview} made a first preview (${pct(t.preview, t.signup_done)} of signups), ${t.render_ordered} ordered a full render (${pct(t.render_ordered, t.signup_done)}), ${t.render_approved} approved, ${t.purchase} bought credits.`;
   }
   function funnelBySource(f) {
     if (!f || !Array.isArray(f.steps)) return [];
