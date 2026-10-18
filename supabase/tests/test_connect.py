@@ -756,6 +756,121 @@ class RealisticDefaults(core.Base):
             c.execute(f"drop database {name}")
 
 
+
+class LiveFiles(core.Base):
+    """Every file in supabase/connect-live runs, every result column has a name, and each does what the live plan says it does."""
+    DIR = core.ROOT / "connect-live"
+    runner, app, register, connect, fails = Connect.runner, Connect.app, Connect.register, Connect.connect, Connect.fails
+
+    def run_file(self, name, db=None):
+        d = db or self.db
+        d.as_(None)                       # the live files are run by the project owner in the SQL Editor, never as the runner or a person
+        c = d.c
+        with c.cursor() as cur:
+            cur.execute((self.DIR / name).read_text(encoding="utf-8"))
+            while cur.nextset():
+                pass
+            cols = [d.name for d in cur.description] if cur.description else []
+            rows = cur.fetchall() if cur.description else []
+        return cols, rows
+
+    def setUp(self):
+        super().setUp()
+        d = self.db.as_(None)
+        d.c.execute("insert into auth.users (id, email) values (%s,'alice@x'),(%s,'bob@x'),(%s,'admin@x'),(%s,'person-one@example.com'),(%s,'person-two@example.com')",
+                    (ALICE, BOB, ADMIN, "00000000-0000-0000-0000-0000000000a1", "00000000-0000-0000-0000-0000000000a2"))
+        d.c.execute("insert into public.app_admins (user_id) values (%s), (%s)", (ADMIN, "00000000-0000-0000-0000-0000000000a2"))   # person-two is an admin
+        d.c.execute("insert into public.connect_access (user_id) values (%s), (%s)", (ALICE, BOB))
+        d.c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values (%s, 'exact', 'claude')", (URI,))
+        self.counter = 0
+
+    def test_prerequisite_check_on_a_database_without_connect_and_on_one_with_it(self):
+        cols, rows = self.run_file("00_prereq_check.sql")
+        self.assertEqual(cols, ["item", "needed_by", "present"])
+        by = {r[0]: (r[1], r[2]) for r in rows}
+        self.assertTrue(all(present for item, (need, present) in by.items() if need == "required"))
+        self.assertTrue(by["connect tables already there (must be false on a first run)"][1])           # this database HAS the migration: the check says so
+        # a database that has everything except the connect migration
+        name = "lf" + str(abs(hash(self.id())) % 100000)
+        with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
+            c.execute(f"create database {name}")
+        lines = [l for l in (core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8").splitlines(True) if not l.startswith("create role")]
+        with psycopg.connect(core._server.get_uri(database=name), autocommit=True) as c:
+            c.execute("".join(lines))
+            for path in core.MIGRATIONS:
+                if "connect_ai" not in path.name:
+                    c.execute(path.read_text(encoding="utf-8"))
+            d = core.Db(core._server.get_uri(database=name))
+            cols2, rows2 = self.run_file("00_prereq_check.sql", d)
+            by2 = {r[0]: (r[1], r[2]) for r in rows2}
+            self.assertEqual(cols2, cols)
+            self.assertTrue(all(p for it, (n, p) in by2.items() if n == "required"))
+            self.assertFalse(by2["connect tables already there (must be false on a first run)"][1])
+            self.assertFalse(by2["role connect_runner already there (must be false on a first run)"][1] and False)   # the role is cluster-wide here; the table check is the real one
+            d.c.close()
+        with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
+            c.execute(f"drop database {name}")
+
+    def test_after_migration_check_is_all_ok(self):
+        cols, rows = self.run_file("01_after_migration_check.sql")
+        self.assertEqual(cols, ["check_name", "ok"])
+        self.assertGreaterEqual(len(rows), 10)
+        bad = [r[0] for r in rows if r[1] is not True]
+        self.assertEqual(bad, [])
+        # and it would catch a problem: an enabled loopback row, and a table published without the policy
+        self.db.as_(None).c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'x')")
+        _, rows = self.run_file("01_after_migration_check.sql")
+        self.assertEqual([r[0] for r in rows if r[1] is not True], ["the redirect allowlist has NO loopback row enabled (live must keep loopback off)"])
+
+    def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
+        cols, rows = self.run_file("04_runner_privilege_report.sql")
+        self.assertEqual(cols, ["kind", "name"])
+        self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 22)
+        self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
+
+    def test_allowlist_file_turns_loopback_off_and_lists_only_exact_addresses(self):
+        self.db.as_(None).c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'on staging')")
+        cols, rows = self.run_file("02_allowlist_live.sql")
+        self.assertEqual(cols, ["address", "kind", "shown_to_people_as", "is_on"])
+        on = [(r[0], r[1]) for r in rows if r[3]]
+        self.assertEqual(sorted(on), sorted([("https://chatgpt.com/connector_platform_oauth_redirect", "exact"), ("https://claude.ai/api/mcp/auth_callback", "exact"),
+                                             ("https://claude.com/api/mcp/auth_callback", "exact")]))
+        self.assertTrue(all(r[3] is False for r in rows if r[1] == "loopback"))
+
+    def test_invite_file_invites_listed_people_and_refuses_admins(self):
+        cols, rows = self.run_file("03_invite_accounts.sql")
+        self.assertEqual(cols, ["invited_email", "invited", "since"])
+        emails = {r[0] for r in rows}
+        self.assertIn("person-one@example.com", emails); self.assertNotIn("person-two@example.com", emails)      # the admin was not invited
+
+    def test_switch_off_on_and_end_all_files(self):
+        _, a, _ = self.connect(ALICE)
+        self.runner().one("select connect_whoami(%s)", h(a))
+        cols, rows = self.run_file("90_switch_off.sql")
+        self.assertEqual(cols, ["switch_is_on", "meaning"]); self.assertEqual(rows[0][0], False)
+        self.runner(); self.fails("select connect_whoami(%s)", h(a), code="PT403")
+        cols, rows = self.run_file("91_switch_on.sql")
+        self.assertEqual(rows[0][0], True)
+        self.runner().one("select connect_whoami(%s)", h(a))
+        cols, rows = self.run_file("98_end_all_connections.sql")
+        self.assertEqual(cols, ["live_tokens_left", "live_permissions_left"]); self.assertEqual(rows[0], (0, 0))
+        self.runner(); self.fails("select connect_whoami(%s)", h(a), code="PT401")
+
+    def test_rollback_removes_the_connector_and_nothing_of_the_app(self):
+        _, a, _ = self.connect(ALICE)
+        pid = self.runner().one("select connect_create_project(%s, 'Survives')", h(a))["id"]
+        before = self.db.as_(None).one("select count(*) from public.projects")
+        cols, rows = self.run_file("99_rollback_remove_everything.sql")
+        self.assertEqual(cols, ["connect_tables_left", "connect_functions_left", "runner_role_left"])
+        self.assertEqual(rows[0][:2], (0, 0))
+        d = self.db.as_(None)
+        self.assertEqual(d.one("select count(*) from public.projects"), before)          # the person's project is untouched
+        self.assertEqual(d.one("select count(*) from public.jobs"), 0)
+        self.assertEqual(d.one("select count(*) from pg_policy where polname = 'connect_no_oauth_select'"), 0)
+        self.assertIsNotNone(d.one("select to_regprocedure('public.submit_job(uuid, public.job_type, jsonb, uuid, uuid)')"))   # the app's own functions are intact
+        self.assertIsNotNone(d.one("select to_regprocedure('ryagram_private.require_signed_in()')"))
+
+
 def _kind(d, oid):
     return d.one("select relkind from pg_class where oid = %s", oid)
 

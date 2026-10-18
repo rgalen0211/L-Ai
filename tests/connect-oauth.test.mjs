@@ -240,3 +240,20 @@ test('jsonb and array parameters are cast from text in SQL, so the driver can ne
   assert.match(seen[0][0], /\$3::text::jsonb/);
   assert.match(seen[2][0], /\$2::text::text\[\]/);
 });
+
+// ------------------------------------------------------------------------------------------------ the pre-flight cannot touch live by accident
+import { spawnSync } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+test('the end-to-end pre-flight refuses the live project unless Ryan said yes, read-only, with an env file outside every repo', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'e2e-guard-'));
+  const inside = path.join(dir, 'oauth-proof'); fs.mkdirSync(inside);
+  const env = (d) => { const f = path.join(d, '.env'); fs.writeFileSync(f, 'SUPABASE_URL=https://jxtkfishqfxuptwjzczz.supabase.co\nSUPABASE_PUBLISHABLE_KEY=not-a-key\n'); return f; };
+  const run = (extra) => spawnSync(process.execPath, ['tools/connect_e2e.mjs'], { encoding: 'utf8', timeout: 20000, env: { ...process.env, CONNECT_E2E_ACCOUNT: path.join(dir, 'none.json'), ...extra } });
+  const good = env(dir);
+  assert.equal(run({ CONNECT_E2E_ENVFILE: good }).status, 3);                                                                       // no opt-in
+  assert.equal(run({ CONNECT_E2E_ENVFILE: good, CONNECT_E2E_ALLOW_LIVE: 'ryan-said-yes' }).status, 3);                              // not read-only
+  assert.equal(run({ CONNECT_E2E_ENVFILE: good, CONNECT_E2E_ALLOW_LIVE: 'yes', CONNECT_E2E_READONLY: '1' }).status, 3);             // wrong word
+  assert.equal(run({ CONNECT_E2E_ENVFILE: env(inside), CONNECT_E2E_ALLOW_LIVE: 'ryan-said-yes', CONNECT_E2E_READONLY: '1' }).status, 3);   // an env file kept with the proof files
+  fs.rmSync(dir, { recursive: true, force: true });
+});

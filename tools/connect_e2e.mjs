@@ -10,13 +10,22 @@ import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { build, TEMPLATES } from '../supabase/functions/_shared/templates.ts';
 
+// LIVE use (only when Ryan has said yes, in chat): point at an env file and an invited TEST account that live OUTSIDE every repo, and set
+//   CONNECT_E2E_ALLOW_LIVE=ryan-said-yes   CONNECT_E2E_ENVFILE=<path>   CONNECT_E2E_ACCOUNT=<path>   CONNECT_E2E_READONLY=1
+// READONLY skips every step that would create data (no project, no story, no sheet). Without all of these the live project is refused.
+const live = /jxtkfishqfxuptwjzczz/;
+const ENVFILE = process.env.CONNECT_E2E_ENVFILE ?? 'D:/Ryagram-scratch/oauth-proof/.env';
+const ACCOUNT = process.env.CONNECT_E2E_ACCOUNT ?? 'D:/Ryagram-scratch/oauth-proof/connect-test-account.json';
+const READONLY = process.env.CONNECT_E2E_READONLY === '1';
 const env = {};
-for (const line of fs.readFileSync('D:/Ryagram-scratch/oauth-proof/.env', 'utf8').split(/\r?\n/)) {
+for (const line of fs.readFileSync(ENVFILE, 'utf8').split(/\r?\n/)) {
   const m = /^\s*(SUPABASE_URL|SUPABASE_PUBLISHABLE_KEY)\s*=\s*(.*?)\s*$/.exec(line);
   if (m) env[m[1]] = m[2].replace(/^["']|["']$/g, '');
 }
-if (/jxtkfishqfxuptwjzczz/.test(env.SUPABASE_URL)) { console.error('REFUSED: live project'); process.exit(3); }
-const acct = JSON.parse(fs.readFileSync('D:/Ryagram-scratch/oauth-proof/connect-test-account.json', 'utf8'));
+if (live.test(env.SUPABASE_URL) && !(process.env.CONNECT_E2E_ALLOW_LIVE === 'ryan-said-yes' && READONLY && !ENVFILE.includes('L-Ai') && !ENVFILE.includes('oauth-proof'))) {
+  console.error('REFUSED: live project (needs CONNECT_E2E_ALLOW_LIVE=ryan-said-yes, CONNECT_E2E_READONLY=1 and an env file outside every repo)'); process.exit(3);
+}
+const acct = JSON.parse(fs.readFileSync(ACCOUNT, 'utf8'));
 const BASE = process.env.CONNECT_BASE ?? (env.SUPABASE_URL.replace(/\/+$/, '') + '/functions/v1/connect');
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
 let failed = 0;
@@ -81,8 +90,10 @@ check('whoami_and_credits', !r.isError && text(r).includes('Credits available'),
 r = await call('get_story_schema', {});
 check('get_story_schema returns rules and the schema', !r.isError && text(r).includes('Engine rules') && !!r.structuredContent?.schema);
 const title = 'Pre-flight ' + Math.random().toString(36).slice(2, 7);
+let pid = null, jid = null;
+if (!READONLY) {
 r = await call('create_project', { title });
-const pid = r.structuredContent?.project_id;
+pid = r.structuredContent?.project_id;
 check('create_project', !r.isError && !!pid, text(r).slice(0, 120));
 r = await call('list_projects', {});
 check('list_projects shows it', text(r).includes(pid ?? 'x'));
@@ -92,12 +103,18 @@ const t = TEMPLATES[0];
 r = await call('set_story', { project_id: pid, story: build(t.id, t.datasets[0], 'Pre-flight film') });
 check('set_story saves a valid story', !r.isError && r.structuredContent?.saved === true, text(r).slice(0, 160));
 r = await call('make_contact_sheet', { project_id: pid });
-const jid = r.structuredContent?.job_id;
+jid = r.structuredContent?.job_id;
 check('make_contact_sheet queues a job (nothing renders on this project: no worker)', !r.isError && !!jid, text(r).slice(0, 160));
 r = await call('make_contact_sheet', { project_id: pid });
 check('asking twice does not queue a second one', r.structuredContent?.started === false && r.structuredContent?.job_id === jid);
 r = await call('job_status', { job_id: jid });
 check('job_status says it is waiting in the queue', !r.isError && /queue/.test(text(r)), text(r).slice(0, 120));
+} else {
+  // READ-ONLY (live): nothing is created. A project that is not ours must look absent, and a bad story to it is refused before anything is checked or saved.
+  pid = '00000000-0000-4000-8000-0000000000ff'; jid = pid;
+  r = await call('set_story', { project_id: pid, story: { schema: 2 } });
+  check('a project that is not yours looks absent', r.isError === true && /not found/.test(text(r)));
+}
 r = await call('request_full_render', { project_id: pid, preview_job_id: jid, confirm: true });
 check('request_full_render is refused, with the reason in words, whatever confirm says', r.isError === true && /cannot be started from an AI connection/.test(text(r)) && /Render final film/.test(text(r)), text(r).slice(0, 120));
 const fr = tools.find((t) => t.name === 'request_full_render');

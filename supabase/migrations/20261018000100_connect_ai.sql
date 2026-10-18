@@ -20,6 +20,9 @@
 -- The role's login and password are set by the person who owns the project, from a file that lives OUTSIDE every repo
 -- (D:\Ryagram-scratch\secrets-staging\connect_runner_login.sql, runbook in docs/connect-runbook.md): a password is never in a migration, a repo or a chat.
 
+-- ONE TRANSACTION: if any statement fails, nothing of this file is left behind.
+begin;
+
 -- ------------------------------------------------------------------------------------------------------ role
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'connect_runner') then
@@ -750,3 +753,5 @@ grant execute on function
 grant execute on function public.connect_consent_check(uuid), public.connect_consent_decide(uuid, boolean, text[]),
   public.my_connected_ais(), public.disconnect_ai(text), public.admin_set_connect_access(text, boolean),
   public.admin_connect_allowlist_set(text, text, text, boolean), public.admin_connect_set_enabled(boolean), public.admin_connect_revoke_all() to authenticated;
+
+commit;

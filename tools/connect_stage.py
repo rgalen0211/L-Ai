@@ -90,9 +90,13 @@ def main():
                 print("skip   ", name)
                 continue
             try:
-                with c.transaction():
-                    c.execute(p.read_text(encoding="utf-8"))
-                    c.execute("insert into public._connect_stage_applied (name) values (%s)", (name,))
+                text = p.read_text(encoding="utf-8")
+                if re.search(r"^begin;\s*$", text, re.M):         # the file wraps itself in begin/commit
+                    c.execute(text)
+                else:
+                    with c.transaction():
+                        c.execute(text)
+                c.execute("insert into public._connect_stage_applied (name) values (%s)", (name,))
                 print("applied", name)
             except psycopg.Error as err:
                 print("FAILED ", name, "-", str(err).splitlines()[0][:200])
