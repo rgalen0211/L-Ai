@@ -702,7 +702,9 @@ language sql stable security definer set search_path = '' as $$
    where p.pubname = 'supabase_realtime'
      and not exists (select 1 from pg_catalog.pg_policy pol join pg_catalog.pg_class c on c.oid = pol.polrelid join pg_catalog.pg_namespace n on n.oid = c.relnamespace
                       where n.nspname = p.schemaname and c.relname = p.tablename and pol.polname = 'connect_no_oauth_select'
-                        and not pol.polpermissive and pol.polcmd in ('r', '*'))
+                        and not pol.polpermissive and pol.polcmd in ('r', '*')
+                        and (pol.polroles = '{0}'::pg_catalog.oid[] or 'authenticated'::pg_catalog.regrole::pg_catalog.oid = any (pol.polroles))
+                        and pg_catalog.pg_get_expr(pol.polqual, pol.polrelid) like '%client_id%')
 $$;
 
 create function ryagram_private.connect_guard_published_tables() returns int

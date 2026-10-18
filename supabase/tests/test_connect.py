@@ -629,11 +629,23 @@ class Connect(core.Base):
         c = self.db.as_(None).c
         c.execute("create table public.lookalike (id int primary key, owner_id uuid)")
         c.execute("alter table public.lookalike enable row level security")
-        c.execute("create policy connect_no_oauth_select on public.lookalike as permissive for select to authenticated using (true)")
+        c.execute("create policy connect_no_oauth_select on public.lookalike as permissive for select to authenticated using ((select auth.jwt() ->> 'client_id') is null)")
         c.execute("alter publication supabase_realtime add table public.lookalike")
         self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [("public", "lookalike")])
         self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 1)
         self.assertEqual(admin("select count(*) from pg_policy where polname = 'connect_no_oauth_select' and polpermissive"), 0)
+        # a restrictive policy of that name that does NOT test client_id (using true), or that is for another role, is no guard either
+        c.execute("create table public.weak1 (id int primary key)")
+        c.execute("alter table public.weak1 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.weak1 as restrictive for select to authenticated using (true)")
+        c.execute("alter publication supabase_realtime add table public.weak1")
+        c.execute("create table public.weak2 (id int primary key)")
+        c.execute("alter table public.weak2 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.weak2 as restrictive for select to anon using ((select auth.jwt() ->> 'client_id') is null)")
+        c.execute("alter publication supabase_realtime add table public.weak2")
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables() order by 2"), [("public", "weak1"), ("public", "weak2")])
+        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 2)
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [])
         # the runner and the app roles cannot call the guard functions
         self.runner(); self.fails("select ryagram_private.connect_guard_published_tables()")
         self.app(ALICE); self.fails("select * from ryagram_private.connect_unguarded_published_tables()")
@@ -837,7 +849,7 @@ class LiveFiles(core.Base):
         c = self.db.as_(None).c
         c.execute("create table public.lookalike2 (id int primary key)")
         c.execute("alter table public.lookalike2 enable row level security")
-        c.execute("create policy connect_no_oauth_select on public.lookalike2 as permissive for select to authenticated using (true)")
+        c.execute("create policy connect_no_oauth_select on public.lookalike2 as permissive for select to authenticated using ((select auth.jwt() ->> 'client_id') is null)")
         c.execute("alter publication supabase_realtime add table public.lookalike2")
         _, rows = self.run_file("01_after_migration_check.sql")
         bad = {r[0] for r in rows if r[1] is not True}
