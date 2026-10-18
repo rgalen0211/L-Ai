@@ -9,7 +9,7 @@
 //   CONNECT_PUBLIC_URL    (optional but recommended) https://<ref>.supabase.co/functions/v1/connect  pins the issuer address
 // There is NO Supabase key here: not the service role, not the anon key. The function never reads a Supabase JWT.
 import postgres from "npm:postgres@3.4.5";
-import Ajv2020 from "npm:ajv@8.17.1/dist/2020";
+import Ajv2020 from "npm:ajv@8.17.1/dist/2020.js";
 import { makeCompile } from "../connect-core/ajv_adapter.ts";
 import { sha256hex, json } from "../connect-core/oauth.ts";
 import { handleRequest } from "../connect-core/router.ts";

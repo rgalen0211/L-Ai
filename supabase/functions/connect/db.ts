@@ -19,7 +19,9 @@ export class ConnectDb {
   constructor(q: Query, appUrl: string) { this.q = q; this.appUrl = appUrl; }
 
   private async fn<T = unknown>(name: string, types: string[], args: unknown[]): Promise<T> {
-    const ph = types.map((t, i) => `$${i + 1}::${t}`).join(", ");
+    // jsonb and array parameters travel as TEXT and are cast in SQL. If the driver is told the parameter is jsonb it JSON-encodes a string a second time
+    // (a story arrived as a JSON string, found against the real database), so the driver is never asked to know those types.
+    const ph = types.map((t, i) => (t === "jsonb" || t.endsWith("[]") ? `$${i + 1}::text::${t}` : `$${i + 1}::${t}`)).join(", ");
     const rows = await this.q(`select public.${name}(${ph}) as r`, args.map(wire));
     return rows[0]?.r as T;
   }

@@ -17,7 +17,7 @@ for (const line of fs.readFileSync('D:/Ryagram-scratch/oauth-proof/.env', 'utf8'
 }
 if (/jxtkfishqfxuptwjzczz/.test(env.SUPABASE_URL)) { console.error('REFUSED: live project'); process.exit(3); }
 const acct = JSON.parse(fs.readFileSync('D:/Ryagram-scratch/oauth-proof/connect-test-account.json', 'utf8'));
-const BASE = env.SUPABASE_URL.replace(/\/+$/, '') + '/functions/v1/connect';
+const BASE = process.env.CONNECT_BASE ?? (env.SUPABASE_URL.replace(/\/+$/, '') + '/functions/v1/connect');
 const CALLBACK = 'https://claude.ai/api/mcp/auth_callback';
 let failed = 0;
 const check = (name, ok, extra = '') => { console.log((ok ? 'PASS  ' : 'FAIL  ') + name + (ok ? '' : `  [${extra}]`)); if (!ok) failed++; };
@@ -35,7 +35,7 @@ const provider = {
 
 // 0. what an unauthenticated probe sees, and the discovery documents
 const probe = await fetch(BASE + '/mcp', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"jsonrpc":"2.0","id":1,"method":"ping"}' });
-check('an unauthenticated call gets 401 with the resource_metadata pointer', probe.status === 401 && /resource_metadata="https:\/\/[^"]+\/\.well-known\/oauth-protected-resource"/.test(probe.headers.get('www-authenticate') ?? ''), `${probe.status} ${probe.headers.get('www-authenticate')}`);
+check('an unauthenticated call gets 401 with the resource_metadata pointer', probe.status === 401 && /resource_metadata="https?:\/\/[^"]+\/\.well-known\/oauth-protected-resource"/.test(probe.headers.get('www-authenticate') ?? ''), `${probe.status} ${probe.headers.get('www-authenticate')}`);
 const oidc = await fetch(BASE + '/.well-known/openid-configuration');
 check('the OpenID-shaped metadata is served under the function (the only discovery URL that reaches it)', oidc.status === 200, String(oidc.status));
 const root = await fetch(new URL('/.well-known/oauth-authorization-server/functions/v1/connect', BASE));

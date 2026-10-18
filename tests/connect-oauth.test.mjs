@@ -219,3 +219,18 @@ test('our own token prefixes are scrubbed from error text too', async () => {
     assert.doesNotMatch(friendlyError(Object.assign(new Error('bad ' + t), { code: '42501' })), /rg[arc]_/);
   }
 });
+
+test('jsonb and array parameters are cast from text in SQL, so the driver can never encode them twice', async () => {
+  const seen = [];
+  const db = new ConnectDb(async (sql, params) => { seen.push([sql, params]); return [{ r: { id: 'x' } }]; }, 'https://uselai.com/app/');
+  const p = { tokenHash: 'a'.repeat(64) };
+  await db.data(p).saveStory('11111111-1111-4111-8111-111111111111', { schema: 1 });
+  await db.data(p).submitJob('11111111-1111-4111-8111-111111111111', 'preview', { window_s: [0, 5] });
+  await db.authStore().registerClient('Claude', ['https://claude.ai/api/mcp/auth_callback']);
+  for (const [sql] of seen) {
+    assert.doesNotMatch(sql, /::jsonb|::text\[\]/.test(sql) && !/::text::(jsonb|text\[\])/.test(sql) ? /^$/ : /^never matches$/, sql);
+    assert.ok(!/\$\d+::(jsonb|text\[\])/.test(sql), sql);
+  }
+  assert.match(seen[0][0], /\$3::text::jsonb/);
+  assert.match(seen[2][0], /\$2::text::text\[\]/);
+});
