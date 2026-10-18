@@ -35,3 +35,11 @@ test('UNLISTED: no page of the site links to it yet', () => {
   }
   assert.doesNotMatch(read('assets/app-library.js'), /connect-ai/);
 });
+
+test('LIMITS: free previews only (within a daily limit), no full renders, and the footer carries Terms and AI content like the other Ryagram pages', () => {
+  assert.match(page, /use your free previews, within a daily limit\./);
+  assert.doesNotMatch(page, /short previews, which are free/);
+  assert.match(page, /<strong>It cannot start a full render\.<\/strong> Full renders are always started by you, in Ryagram\./);
+  const foot = page.match(/<footer[\s\S]*?<\/footer>/)[0];
+  assert.match(foot, /<a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a>/);
+});
