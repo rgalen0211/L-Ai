@@ -314,6 +314,7 @@
         const input = h('input', { type: 'text', inputmode: 'numeric', maxlength: '6', size: '6', placeholder: 'credits a day', 'aria-label': `Daily cap for ${r.owner_email || 'this person'}` });
         const btn = h('button', { class: 'button secondary small', type: 'button' }, 'Set daily cap');
         btn.addEventListener('click', async () => {
+          if (!input.value.trim()) { showError(error, new Error('Type how many credits a day first.')); return; }          // an empty box would delete the cap
           const checked = O.checkCap(input.value);
           if (checked.error) { showError(error, new Error(checked.error)); return; }
           error.hidden = true;
@@ -330,13 +331,13 @@
         switchBox.replaceChildren(h('p', { class: s.on ? 'form-note switch-on' : 'form-note' }, O.autoRenderLine(s.on)),
           h('button', { class: `button ${s.on ? 'secondary' : 'primary'} small`, type: 'button', id: 'auto-render-toggle', onclick: async event => {
             const turningOn = !s.on;
-            if (turningOn && !confirm('Turn auto-render ON? Every full render will start at once, without your approval. Daily caps still apply.')) return;
+            if (turningOn && !confirm('Turn auto-render ON? New full renders will start at once, without your approval. Requests already waiting stay waiting and still need your decision. Daily caps still apply.')) return;
             error.hidden = true;
             await busy(event.currentTarget, 'Saving\u2026', async () => {
               try { await data.adminSetAutoRender(turningOn); await loadSwitch(); await load(); } catch (err) { showError(error, err); }
             });
           } }, s.on ? 'Turn auto-render off' : 'Turn auto-render on'),
-          s.defaultCap == null ? null : h('p', { class: 'form-note' }, `Everyone without their own cap gets ${s.defaultCap} credit${s.defaultCap === 1 ? '' : 's'} a day.`));
+          s.defaultCap == null ? '' : h('p', { class: 'form-note' }, `Everyone without their own cap gets ${s.defaultCap} credit${s.defaultCap === 1 ? '' : 's'} a day.`));
       }
       async function loadCaps() {
         let caps;
@@ -354,7 +355,7 @@
             const btn = h('button', { class: 'button secondary small', type: 'button' }, 'Save');
             btn.addEventListener('click', () => save(c.owner_id, input.value, btn, loadCaps));
             return h('li', {}, h('span', { class: 'meta' }, O.capLine(c)), h('div', { class: 'inline-row' }, input, ' ', btn));
-          })) : h('p', { class: 'form-note' }, 'Nobody has their own cap yet. Set one from a waiting request below.'));
+          })) : h('p', { class: 'form-note' }, 'Nobody has their own cap yet. Set one from a waiting request above.'));
       }
       await Promise.all([loadSwitch(), loadCaps(), load()]);
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Render approvals'),
