@@ -442,6 +442,32 @@ class Connect(core.Base):
                        language sql as $$ select 'preview_free'::text, 0, true, 10 $$""")
         self.assertEqual(self.runner().one("select connect_submit_job(%s, %s, 'preview', %s::jsonb, null, null)", h(a), vid, '{"window_s": [0, 5]}')["state"], "queued")
 
+    def test_a_charge_that_appears_between_the_quote_and_the_job_is_refused_and_rolled_back(self):
+        _, a, _ = self.connect(ALICE)
+        r = self.runner()
+        pid = r.one("select connect_create_project(%s, 'Race')", h(a))["id"]
+        vid = r.one("select connect_current_version(%s, %s)", h(a), pid)
+        r.one("select connect_save_story(%s, %s, %s::jsonb)", h(a), vid, STORY)
+        d = self.db.as_(None)
+        # the quote the connection sees says free ...
+        d.c.execute("""create or replace function public.credit_quote(p_version_id uuid, p_job_type public.job_type)
+                       returns table (price_code text, credits int, free_preview boolean, available int)
+                       language sql as $$ select 'preview_free'::text, 0, true, 10 $$""")
+        # ... but by the time the job is inserted the app's own pricing has changed its mind (another call took the last free preview):
+        # the job row is stamped with a charge. Model that with a trigger standing in for the ledger's jobs_quote.
+        self.db.as_(None).c.execute("alter table public.jobs add column if not exists credits_quoted int")
+        self.db.as_(None).c.execute("""create function public.test_race_stamp() returns trigger language plpgsql as $$
+                                       begin new.credits_quoted := 1; return new; end $$""")
+        self.db.as_(None).c.execute("create trigger test_race before insert on public.jobs for each row execute function public.test_race_stamp()")
+        e = self.fails("select connect_submit_job(%s, %s, 'preview', %s::jsonb, null, null)", h(a), vid, '{"window_s": [0, 5]}', code="42501")
+        self.assertIn("would cost credits", str(e))
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.jobs"), 0)          # the insert was rolled back with the refusal
+        self.db.as_(None).c.execute("drop trigger test_race on public.jobs")
+        self.db.as_(None).c.execute("""create function public.test_race_stamp0() returns trigger language plpgsql as $$
+                                       begin new.credits_quoted := 0; return new; end $$""")
+        self.db.as_(None).c.execute("create trigger test_race before insert on public.jobs for each row execute function public.test_race_stamp0()")
+        self.assertEqual(self.runner().one("select connect_submit_job(%s, %s, 'preview', %s::jsonb, null, null)", h(a), vid, '{"window_s": [0, 5]}')["state"], "queued")
+
     def test_consent_shows_the_label_ryan_controls_and_refuses_hostile_client_names(self):
         for bad in ("Cla\u202eude", "Claude\u200b", "Cla\nude", "x" * 81, ""):
             self.fails("select connect_register_client(%s, array[%s])", bad, URI, code="PT400")

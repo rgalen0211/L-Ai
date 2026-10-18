@@ -76,6 +76,7 @@ MUTANTS = [
     ("consent request expiry is not checked at decide", "if not found or r.decided_at is not null or r.expires_at < now() then\n    raise exception 'This sign-in request has expired.", "if not found or r.decided_at is not null then\n    raise exception 'This sign-in request has expired."),
     ("consent_check does not notice a redirect that left the list", "elsif not ryagram_private.connect_uri_ok(r.redirect_uri) then why :=", "elsif false then why :="),
     ("connect_runner is given the purge function", "  public.admin_connect_allowlist_set(text, text, text, boolean) to authenticated;", "  public.admin_connect_allowlist_set(text, text, text, boolean) to authenticated;\ngrant execute on function public.connect_purge() to connect_runner;"),
+    ("the charge is not re-checked after the job is created (check-then-act race)", "  if coalesce((to_jsonb(j) ->> 'credits_quoted')::int, 0) > 0 then\n    raise exception", "  if false then\n    raise exception"),
     ("a helper function with no revoke (only the realistic-defaults test sees it)", "-- --------------------------------------------------------------------------------------------------- grants\n",
      "create function public.helper_without_revoke() returns int language sql as $$ select 1 $$;\n-- grants\n"),
 ]

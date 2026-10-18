@@ -591,6 +591,13 @@ begin
     raise exception 'This would cost credits. Credits can only be spent from the Ryagram app for now; start it there.' using errcode = '42501';
   end if;
   select * into j from public.submit_job(p_version, p_job_type::public.job_type, coalesce(p_params, '{}'::jsonb));   -- the app's function, as the owner
+  -- The check above is a look before the act: two calls at once can both be quoted as free when only one free preview is left, and the second
+  -- is then charged. So look at what the job was ACTUALLY charged (the app's own trigger fills credits_quoted inside submit_job); if it is
+  -- above zero, raise: this runs in the same transaction, so the job and its hold are rolled back with it. (to_jsonb because the column
+  -- exists only once the credits ledger is installed.)
+  if coalesce((to_jsonb(j) ->> 'credits_quoted')::int, 0) > 0 then
+    raise exception 'This would cost credits. Credits can only be spent from the Ryagram app for now; start it there.' using errcode = '42501';
+  end if;
   return jsonb_build_object('id', j.id, 'state', j.state);
 end $$;
 
