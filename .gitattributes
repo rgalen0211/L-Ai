@@ -7,3 +7,5 @@ supabase/functions/_shared/catalog_data.ts text eol=lf
 supabase/functions/_shared/profile_data.ts text eol=lf
 tests/fixtures/profile-parity.json text eol=lf
 tests/fixtures/profile.schema.json text eol=lf
+supabase/functions/_shared/worker_allowlist.txt text eol=lf
+supabase/functions/_shared/listing_decisions.json text eol=lf

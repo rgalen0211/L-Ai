@@ -10,7 +10,7 @@
 // what they could do by hand. The profile has no field for data, scale, sources or checks; see
 // profile.ts. A tool result is DATA to the caller's AI: the profile text a person saved is
 // returned inside <untrusted> markers, never as instructions.
-import { SAMPLE_PERIODS, SAMPLE_STORY } from "./profile_data.ts";
+import { SAMPLE_SHEET_PERIODS, SAMPLE_STORY } from "./profile_data.ts";
 import {
   applyProfile, forkPreset, getPreset, listPresets, MAX_PROFILES_PER_USER, ProfileError, profileSchema,
   validateProfile,
@@ -116,7 +116,7 @@ export async function runProfileTool(name: string, input: Record<string, unknown
       try { ({ story, report } = applyProfile(profile, SAMPLE_STORY)); } catch (e) { return { text: errorText(e), isError: true }; }
       if (!(await data.allowExecution())) return { text: "The hourly limit for starting sheets is reached. Try again later.", isError: true };
       try {
-        const job = await data.submitSamplePreview(story, SAMPLE_PERIODS);
+        const job = await data.submitSamplePreview(story, SAMPLE_SHEET_PERIODS);
         const warn = report.warnings.length ? ` Notes: ${report.warnings.join(" ")}` : "";
         const res = report.not_applied.length ? ` ${NOT_APPLIED_NOTE}` : "";
         return { text: `Contact sheet queued (job ${job.job_id}). It shows a map, a bar race and a line chart in this look, and runs the same checks as a film; a failed check is reported, never hidden.${warn}${res}` };

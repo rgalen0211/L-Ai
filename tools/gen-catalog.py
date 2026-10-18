@@ -50,8 +50,9 @@ PUBLIC_SHAPES = ('areas',)                                   # flows, lines and 
 #: Datasets whose frame needs a style the engine would not choose itself. MUST equal the `style` of the same
 #: dataset in supabase/functions/_shared/templates.ts DATASETS (tests/film-compile.test.mjs checks).
 STYLE_PINS = {'bps_county_permits': {'choropleth': {'mode': 'solid', 'continuous': True}}}
-#: The film types the guided builder offers: the app's tested templates.
-FILM_TYPES = ('map', 'bars', 'line', 'paired')
+#: The film types the guided builder offers: the app's tested templates that need no per-story measurement. `paired` is NOT here:
+#: a paired story must carry keyframes_per_year measured for that story (Ryan, 2026-09-28), which takes minutes of rendering.
+FILM_TYPES = ('map', 'bars', 'line')
 LEVELS = {'us_states': 'U.S. states', 'us_counties': 'U.S. counties', 'tx_counties': 'Texas counties'}
 
 
@@ -201,34 +202,63 @@ def story_measure(m):
     return {'banded': 'rate', 'counted': 'count'}.get(m.get('role') or '')
 
 
-#: RULINGS 2026-10-17 (Ryan): a dataset may be LISTED to people only if it is not personal and its licence allows
-#: showing derived visuals publicly. The rule is decided here, from the registry's own licence text, and re-derived by
-#: supabase/functions/_shared/catalog_rules.ts (tests compare the two). Unknown or restrictive licences are NOT listable:
-#: the default is no. Terms: public domain, U.S. Government work, 17 USC 105, CC0, or CC BY (any version) with no NC or ND.
-PERSONAL_LICENCE = re.compile(r'\b(private|personal)\b', re.I)
-PUBLIC_LICENCE = re.compile(r'public domain|17 USC 105|U\.S\. Government works?|\bCC0\b|\bCC BY\b', re.I)
-RESTRICTED_LICENCE = re.compile(r'\bCC BY[- ](NC|ND)|non-?commercial|no ?derivatives?|all rights reserved|not for (public|redistribution)', re.I)
+#: RULINGS 2026-10-17 (Ryan): a dataset may be LISTED to people only if it is not personal and its licence allows showing
+#: derived visuals publicly; CC BY-SA, in whole or in part, is NOT listable in v1 (Ryan, 2026-10-17, with a must-fail).
+#:
+#: `listable` is a FIELD, DECIDED PER DATASET in supabase/functions/_shared/listing_decisions.json (who and why recorded),
+#: not a regex over the registry's prose. A new dataset with no decision is an ERROR, never listed by default. Two guards
+#: read the prose to CATCH a wrong decision, never to make one: a `listable: true` whose licence or notes trip a restriction
+#: word (INTERNAL, BY-SA, non-commercial, no derivatives, all rights reserved, "not public", private, personal, confidential,
+#: proprietary, or a licence that is private or personal) is an error, and so is a `true` whose licence names no open licence. catalog_rules.ts re-checks the same
+#: two guards on the generated data (tests).
+TRIPWIRE = re.compile(r'\bINTERNAL\b|BY-SA|share-?alike|\bBY-NC\b|\bBY-ND\b|non-?commercial|no ?derivatives?|all rights reserved|'
+                      r'not for (public|redistribution)|\bnot\s+(a\s+)?public\b|confidential|proprietary', re.I)
+#: In the LICENCE text only (prose such as "private-sector" or "personal income" is ordinary): a private or personal licence.
+PRIVATE_LICENCE = re.compile(r'^\s*(private|personal|local file)\b|\b(private|personal)\s+(data|dataset|use|file)\b', re.I)
+OPEN_LICENCE = re.compile(r'public domain|17 USC 105|U\.S\. Government works?|\bCC0\b|\bCC BY\b', re.I)
+LISTING_CLASSES = ('us-gov-public-domain', 'open-licence', 'not-listable')
 
 
-def listable_of(d):
-    """(listable, why): personal and synthetic data are never listed; otherwise only a recognised open licence is."""
+def read_listing(path):
+    """The per-dataset listing decisions: {id: {'listable': bool, 'class': str, 'why': str}}."""
+    raw = json.loads(Path(path).read_text(encoding='utf-8-sig'))
+    out = {}
+    for i, dec in (raw.get('decisions') or {}).items():
+        if not re.fullmatch(r'[a-z0-9_]{1,64}', i):
+            sys.exit(f'gen-catalog: {path}: {i!r} is not a dataset id')
+        if not isinstance(dec.get('listable'), bool) or dec.get('class') not in LISTING_CLASSES or not str(dec.get('why') or '').strip():
+            sys.exit(f'gen-catalog: {path}: the decision for {i} needs listable (true or false), a class from {LISTING_CLASSES} and a why')
+        if dec['listable'] == (dec['class'] == 'not-listable'):
+            sys.exit(f'gen-catalog: {path}: the decision for {i} says listable={dec["listable"]} with class {dec["class"]}')
+        out[i] = {'listable': dec['listable'], 'class': dec['class'], 'why': ' '.join(str(dec['why']).split())}
+    return out
+
+
+def listing_for(d, decisions):
+    """(listable, class, why) for one registry dataset, from its DECISION, checked against its own prose."""
+    i = d['id']
     lic = re.sub(r'\s+', ' ', d.get('license') or '').strip()
-    if EXCLUDE.search(d['id']) or PERSONAL_LICENCE.search(lic):
-        return False, 'personal'
-    if d.get('synthetic'):
-        return False, 'synthetic'
-    if RESTRICTED_LICENCE.search(lic):
-        return False, 'licence restricts public use'
-    if PUBLIC_LICENCE.search(lic):
-        return True, 'public domain' if re.search(r'public domain|17 USC 105|U\.S\. Government', lic, re.I) else 'open licence'
-    return False, 'licence not recognised'
+    notes = re.sub(r'\s+', ' ', d.get('notes') or '').strip()
+    if EXCLUDE.search(i) or d.get('synthetic'):
+        return False, 'not-listable', 'personal, fixture or synthetic data is never listed'
+    dec = decisions.get(i)
+    if dec is None:
+        sys.exit(f'gen-catalog: no listing decision for {i}: add it to listing_decisions.json (listable true or false, with a why); '
+                 f'a dataset is never listed by default')
+    if dec['listable']:
+        hit = TRIPWIRE.search(lic + ' ' + notes) or PRIVATE_LICENCE.search(lic)
+        if hit:
+            sys.exit(f'gen-catalog: {i} is decided listable but its licence or notes say {hit.group(0)!r}: fix the decision or the text')
+        if not OPEN_LICENCE.search(lic):
+            sys.exit(f'gen-catalog: {i} is decided listable but its licence names no open licence: {lic[:80]!r}')
+    return dec['listable'], dec['class'], dec['why']
 
 
-def detail_entry(d, status, window, title, short, family, views):
+def detail_entry(d, status, window, title, short, family, views, decisions):
     ms = d.get('measures') or []
-    listable, why = listable_of(d)
+    listable, lclass, why = listing_for(d, decisions)
     return {
-        'listable': listable, 'listable_why': why,
+        'listable': listable, 'listable_class': lclass, 'listable_why': why,
         'id': d['id'], 'title': title, 'short': short, 'group': group_of(d), 'family': family, 'status': status,
         'publisher': d.get('source') or '', 'source_line': d.get('source_line') or '',
         'url': d.get('url') if str(d.get('url') or '').startswith('https://') else '',
@@ -252,13 +282,15 @@ def detail_entry(d, status, window, title, short, family, views):
 
 def detail_text(commit, entries, schema_path):
     """The exact text of catalog_data.ts: plain data, ASCII only, stable order. Pure, so a test can regenerate it."""
-    raw = Path(schema_path).read_bytes()
+    # LINE-ENDING PROOF: the hash is of the file with CRLF turned into LF, so it is the same whether the engine tree was read
+    # from an LF checkout, a CRLF checkout (core.autocrlf) or a git archive (BUILDER LOW-8).
+    raw = Path(schema_path).read_bytes().replace(bytes([13, 10]), bytes([10]))
     schema = json.loads(raw.decode('utf-8'))
     sha = hashlib.sha256(raw).hexdigest()
     dump = lambda v: json.dumps(v, indent=1, ensure_ascii=True)
     return (
         "// GENERATED by tools/gen-catalog.py --detail-out, do not edit. Regenerate: see the header of that script.\n"
-        "// Engine %s. Story schema vendored from ryagram/worker/story.schema.json, sha256 %s.\n"
+        "// Engine %s. Story schema vendored from ryagram/worker/story.schema.json, sha256 %s (of the LF-normalised file).\n"
         "// SERVER ONLY: never copy this under assets/. It is the internal list Ryagram's AI and the guided builder's\n"
         "// server function choose from. (RULINGS 2026-10-17 lets a front end list datasets to invited users with source\n"
         "// and licence shown; that is a separate, public-catalog change, not this file.)\n"
@@ -319,6 +351,7 @@ def read_setup(path):
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--engine', required=True)
+    ap.add_argument('--listing', required=True, help='the per-dataset listing decisions (listing_decisions.json): who may be LISTED')
     ap.add_argument('--setup', required=True, help="WORKER-SETUP.ps1: only its UpdateCandidates are read (the `next` list)")
     ap.add_argument('--allowlist', required=True, help="the committed export of the installed worker's allowlist (one id per line)")
     ap.add_argument('--out', default=str(ROOT / 'assets' / 'app-catalog-data.js'))
@@ -338,6 +371,7 @@ def main():
     from ryagram.maprace import datasets as D            # the engine's own registry
     ingested = ingested_ids()
     allow, restricted = read_allowlist(a.allowlist)
+    decisions = read_listing(a.listing)
     nxt = read_setup(a.setup)
     registry_ids = {d['id'] for d in D.listing()}
     stale = [i for i in allow if i not in registry_ids]
@@ -374,7 +408,7 @@ def main():
         seed.append({'id': d['id'], 'title': title, 'publisher': d.get('source') or '', 'url': (d.get('url') or '') if str(d.get('url') or '').startswith('https://') else '',
                      'coverage': coverage_text(d), 'licence_short': short_licence(d.get('license')),
                      'licence_full': re.sub(r'\s+', ' ', d.get('license') or '').strip(), 'runnable': status == 'usable'})
-        detail.append(detail_entry(d, status, window, title, short, family, views))
+        detail.append(detail_entry(d, status, window, title, short, family, views, decisions))
         entries.append({
             'id': d['id'], 'title': title, 'short': short, 'blurb': blurb(d), 'source': d.get('source') or '', 'url': d.get('url') or '',
             'group': group_of(d), 'family': family, 'status': status,
