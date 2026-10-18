@@ -64,3 +64,12 @@ test('what is sent has only the keys the database accepts', () => {
   assert.deepEqual([c.state, c.banded_index, 'junk' in c], ['TX', 3, false]);
   assert.equal('state' in U.clean({ ...m, geography: 'us_counties', state_index: 3, value_indexes: [2] }), false);
 });
+
+test('INHERITED KEYS (the MED-3 class): a state called constructor, __proto__ or toString is not a U.S. state', () => {
+  const r = report();
+  const base = () => plain(U.draft(r));
+  assert.equal(U.problem({ ...base(), geography: 'us_counties', state_index: null, state: 'TX' }, r), '', 'control: a real state passes');
+  for (const bad of ['constructor', '__proto__', 'toString', 'hasOwnProperty', 'valueOf']) {
+    assert.equal(U.problem({ ...base(), geography: 'us_counties', state_index: null, state: bad }, r), 'That isn’t a U.S. state.', bad);
+  }
+});
