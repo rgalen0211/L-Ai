@@ -30,6 +30,8 @@ union all select 'every published realtime table has the restrictive client_id p
 union all select 'every connect_no_oauth_select policy is RESTRICTIVE (none is permissive) and at least one exists',
        not exists (select 1 from pg_policy where polname = 'connect_no_oauth_select' and polpermissive)
        and exists (select 1 from pg_policy where polname = 'connect_no_oauth_select' and not polpermissive)
+union all select 'realtime.messages has NO policy (a private channel needs one to be allowed; this app uses only public table-change channels)',
+       not exists (select 1 from pg_policy where polrelid = to_regclass('realtime.messages'))
 union all select 'the master switch row exists and is currently ON (turn it off with 90_switch_off.sql)',
        (select connections_enabled from public.connect_flags where id)
 union all select 'full renders from a connection are off',
