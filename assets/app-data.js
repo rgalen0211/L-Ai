@@ -310,6 +310,11 @@
         await run(client.rpc('finish_upload', { p_dataset: slot.dataset_id }), 'Couldn’t finish the upload.');
         return slot.dataset_id;
       },
+      // S5 (proposed SQL set_dataset_provenance; see the MAILBOX post): who published the data, the licence or permission, the unit and the attestation. Refuses until that SQL exists.
+      setUploadProvenance(datasetId, p) {
+        return run(client.rpc('set_dataset_provenance', { p_dataset: datasetId, p_publisher: p.publisher, p_link: p.link || null, p_licence: p.licence, p_licence_note: p.licence_note || null, p_unit: p.unit, p_decimals: p.decimals, p_attested: p.attested === true }),
+          'Couldn\u2019t save where this data comes from.');
+      },
       confirmMapping(datasetId, mapping) {
         return run(client.rpc('confirm_dataset_mapping', { p_dataset: datasetId, p_mapping: mapping }), 'Couldn’t save that.');
       },

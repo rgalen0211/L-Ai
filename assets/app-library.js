@@ -970,6 +970,25 @@
         h('label', { class: 'choice' }, rights, h('span', {}, 'I have the right to use this data.')),
         send);
 
+      // Where the data comes from (S5). Every word marked PLACEHOLDER is draft wording; the person's answers are kept in `prov` and shown back as the closing card will read.
+      function provenanceFields(prov) {
+        const card = h('ul', { class: 'prov-card', 'aria-live': 'polite' });
+        const draw = () => card.replaceChildren(...U.provenanceCard(prov).map(l => h('li', {}, l)));
+        const text = (id, label, key, hint) => { const i = h('input', { id, type: 'text', maxlength: String(U.FIELD_MAX[key]), autocomplete: 'off', oninput: () => { prov[key] = i.value; draw(); } }); return h('div', { class: 'field' }, h('label', { for: id }, label), i, hint ? h('p', { class: 'form-note' }, hint) : null); };
+        const lic = h('select', { 'aria-label': 'What lets you use it', onchange: () => { prov.licence = lic.value; note.hidden = prov.licence !== 'other'; draw(); } }, h('option', { value: '' }, 'Choose\u2026'), U.LICENCES.map(([k, t]) => h('option', { value: k }, t)));
+        const note = h('div', { class: 'field', hidden: true }, h('label', { for: 'prov-licence-note' }, 'Describe it'), h('input', { id: 'prov-licence-note', type: 'text', maxlength: String(U.FIELD_MAX.licence_note), oninput: e => { prov.licence_note = e.target.value; draw(); } }));
+        const dec = h('select', { 'aria-label': 'Decimals to show', onchange: () => { prov.decimals = Number(dec.value); } }, [0, 1, 2, 3].map(n => h('option', { value: String(n) }, `${n} decimal place${n === 1 ? '' : 's'}`)));
+        const ok = h('input', { id: 'prov-attest', type: 'checkbox', onchange: () => { prov.attested = ok.checked; } });
+        draw();
+        return h('fieldset', { class: 'prov-fields' }, h('legend', {}, 'Where does this data come from?'),
+          h('p', { class: 'form-note prov-placeholder' }, `${U.PLACEHOLDER} Your film will show its source, and say the figures are yours.`),
+          text('prov-publisher', 'Who published or owns it', 'publisher'), text('prov-link', 'A link or a short description (optional)', 'link'),
+          h('label', { class: 'field' }, h('span', {}, 'What lets you use it'), lic), note,
+          text('prov-unit', 'What the numbers are in (dollars, percent, people\u2026)', 'unit'), h('label', { class: 'field' }, h('span', {}, 'Decimals to show'), dec),
+          h('label', { class: 'choice' }, ok, h('span', {}, U.ATTESTATION, ' ', h('span', { class: 'meta' }, U.PLACEHOLDER))),
+          h('p', { class: 'form-note' }, 'This is how the closing card of your film will read:'), card);
+      }
+
       function mappingForm(ds) {
         const report = ds.ingest_report;
         const mapping = U.draft(report);
@@ -1020,19 +1039,26 @@
             return h('div', { class: 'value-row' }, h('label', { class: 'choice' }, box, h('span', {}, shown(c))), name);
           }));
         drawCounty();
+        // S5 scaffold (byodGuide): who published it, the licence or permission, the unit, and the attestation. PLACEHOLDER wording (Ryan's final wording is RYAN-QUEUE Q5).
+        const prov = { publisher: '', link: '', licence: '', licence_note: '', unit: '', decimals: 0, attested: false };
+        const provBox = byodGuideOn() ? provenanceFields(prov) : null;
         const confirmBtn = h('button', { class: 'button', type: 'button', onclick: async () => {
           note.hidden = true;
           const problem = U.problem(mapping, report);
           if (problem) return showError(note, new Error(problem));
+          if (provBox) { const pp = U.provenanceProblem(prov); if (pp) return showError(note, new Error(pp)); }
           await busy(confirmBtn, 'Saving\u2026', async () => {
-            try { await data.confirmMapping(ds.id, U.clean(mapping)); await refresh(); } catch (err) { showError(note, err); }
+            try {
+              if (provBox) await data.setUploadProvenance(ds.id, U.cleanProvenance(prov));
+              await data.confirmMapping(ds.id, U.clean(mapping)); await refresh();
+            } catch (err) { showError(note, err); }
           });
         } }, 'These are right');
         const rows = report.rows;
         const per = report.periods;
         return h('div', { class: 'mapping-form' },
           h('p', { class: 'form-note' }, `We found ${rows.toLocaleString()} rows${per ? `, ${per.first} to ${per.last}` : ''}. Check what each column means. Only you can see these values.`),
-          select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values,
+          select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values, provBox,
           h('div', { class: 'actions-row' }, confirmBtn), note);
       }
 

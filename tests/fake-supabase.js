@@ -274,12 +274,24 @@
         Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved' });
         return { data: null, error: null };
       },
+      // Mock of the PROPOSED set_dataset_provenance (S5). With seed.requireProvenance a dataset cannot be used in a film without it (the real rule would be the database's).
+      set_dataset_provenance({ p_dataset, p_publisher, p_link, p_licence, p_licence_note, p_unit, p_decimals, p_attested }) {
+        const ds = mine(p_dataset);
+        if (!ds) return fail('Dataset not found.');
+        if (!String(p_publisher || '').trim()) return fail('Say who published or owns this data.');
+        if (!['public_domain', 'open_licence', 'permission', 'own_data', 'other'].includes(p_licence)) return fail('Say what lets you use it.');
+        if (!String(p_unit || '').trim()) return fail('Say what the numbers are in.');
+        if (p_attested !== true) return fail('Confirm you may publish charts of this data.');
+        ds.provenance = { publisher: p_publisher, link: p_link, licence: p_licence, licence_note: p_licence_note, unit: p_unit, decimals: p_decimals, attested_at: now() };
+        return { data: null, error: null };
+      },
       attach_upload_to_version({ p_version, p_dataset }) {
         const v = db.versions.find(x => x.id === p_version);
         const ds = mine(p_dataset);
         if (!v || !ds) return fail('Dataset not found.');
         if (!EDITABLE.includes(v.state)) return fail(`This version is ${v.state} and can't change its data. Make a new version.`);
         if (ds.status !== 'approved') return fail('Confirm what the columns mean before using this data.');
+        if (seed.requireProvenance && !ds.provenance) return fail('Say where this data comes from before using it in a film.');
         v.dataset_id = ds.id;
         const p = ds.ingest_report.periods;
         const coverage = [ds.geography === 'us_counties' ? 'U.S. counties' : 'U.S. states', p ? `${p.first} to ${p.last}` : null, ds.mapping.cadence].filter(Boolean).join(', ');
