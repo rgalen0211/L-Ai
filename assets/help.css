@@ -20,3 +20,5 @@
 .report-form .hp-field{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
 .report-error{color:#8a2f25;margin:0}
 .report-done{padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
+/* Legal page shells: a plain banner that says the page is a placeholder pending legal review */
+.shell-banner{margin:0 0 20px;padding:12px 14px;border:2px solid var(--line,#8a7a5a);border-radius:10px;background:rgba(255,214,102,.12)}
