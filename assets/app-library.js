@@ -53,6 +53,7 @@
   // Full renders go through request_final_render (and its approval queue) once SQL 20261017000500/600 are applied (renderOrders: true), or in mock mode.
   const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
+  const funnelOn = () => window.ryagramConfig?.funnelTracking === true || !!window.ryagramMock;
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
@@ -78,6 +79,7 @@
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
+        else if (funnelOn() && hash === '#/admin/funnel' && await data.isAppAdmin()) view = await funnelAdminView(onStop);
         else if (ordersOn() && hash === '#/admin/renders' && await data.isAppAdmin()) view = await rendersAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
@@ -185,7 +187,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
@@ -284,6 +286,31 @@
     }
 
     // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
+    // --- #/admin/funnel  Ryan only, read-only: people at each step, day by day (signups, first preview, first order). Behind the funnelTracking flag; nothing here changes anything.
+    async function funnelAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const out = h('div', {}, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      let days = 14;
+      async function load() {
+        let got;
+        try { got = await data.adminFunnelEvents(days); } catch (err) { out.replaceChildren(); showError(error, err); return; }
+        error.hidden = true;
+        const d = O.funnelDaily(got.rows, { days });
+        out.replaceChildren(
+          h('p', {}, [7, 14, 30].map(n => h('button', { class: `button secondary small${n === days ? ' is-chosen' : ''}`, type: 'button', 'aria-pressed': String(n === days), onclick: async () => { days = n; await load(); } }, `${n} days`)), ' '),
+          h('p', { class: 'form-note' }, O.funnelDailyLine(d)),
+          got.truncated ? h('p', { class: 'form-note' }, 'Very busy: only the newest 50,000 events were counted.') : '',
+          h('table', { class: 'admin-table funnel-days' }, h('thead', {}, h('tr', {}, h('th', {}, 'Day (Eastern)'), d.steps.map(s => h('th', { class: 'num' }, O.DAY_LABELS[s])))),
+            h('tbody', {}, d.days.map(r => h('tr', {}, h('td', {}, r.day), d.steps.map(s => h('td', { class: 'num' }, String(r.counts[s]))))),
+              h('tr', { class: 'funnel-total' }, h('th', {}, 'Total'), d.steps.map(s => h('th', { class: 'num' }, String(d.totals[s])))))),
+          h('p', { class: 'form-note' }, 'Visits are counted each time; every other step counts an account once, the first time it happens. This page only reads.'));
+      }
+      await load();
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Funnel by day'),
+        h('p', { class: 'form-note' }, 'Signups \u2192 first preview \u2192 first order, counted day by day from our own database. No third-party tools.'), out, error];
+    }
+
     // --- #/admin/renders  Ryan only: the full renders waiting for approval. Approve starts the render; Decline returns the credits. Redrawn after each call returns.
     async function rendersAdminView(onStop) {
       const O = window.ryagramOps;

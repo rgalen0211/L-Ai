@@ -16,9 +16,20 @@
     `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#354247"/>` +
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
+  // Made-up funnel events over the last ten days (relative to now), for #/admin/funnel in mock mode.
+  function mockFunnelEvents() {
+    const out = [];
+    const plan = { landing_view: [30, 24, 28, 31, 22, 40, 35, 26, 20, 18], signup_done: [4, 3, 3, 5, 2, 6, 5, 3, 2, 2], first_project: [3, 2, 3, 4, 2, 5, 4, 2, 1, 1],
+                   preview: [1, 1, 2, 2, 1, 3, 2, 1, 1, 0], film_requested: [0, 1, 1, 1, 0, 1, 1, 0, 0, 0], purchase: [0, 0, 1, 0, 0, 1, 0, 0, 0, 0] };
+    for (const [event, counts] of Object.entries(plan)) {
+      counts.forEach((n, ago) => { for (let i = 0; i < n; i += 1) out.push({ id: out.length + 1, at: new Date(Date.now() - ago * 864e5 - (i + 1) * 60000).toISOString(), event }); });
+    }
+    return out;
+  }
+
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], render_orders: [],
-                 account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
+                 account_settings: [], funnel_events: mockFunnelEvents(), version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -91,13 +102,15 @@
         return q;
       }
       const filters = [];
-      let op = 'select', payload = null, single = false, order = null;
+      let op = 'select', payload = null, single = false, order = null, window_ = null;
       const q = {
         select() { return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
         upsert(row) { op = 'upsert'; payload = row; return q; },         // one row per person (account_settings)
         update(row) { op = 'update'; payload = row; return q; },
         eq(col, val) { filters.push(r => r[col] === val); return q; },
+        gte(col, val) { filters.push(r => String(r[col]) >= String(val)); return q; },
+        range(a, b) { window_ = [a, b]; return q; },
         in(col, vals) { filters.push(r => vals.includes(r[col])); return q; },
         is(col, val) { filters.push(r => (r[col] ?? null) === val); return q; },
         order(col, { ascending = true } = {}) { order = { col, ascending }; return q; },
@@ -139,6 +152,7 @@
         if (order) {
           result = [...result].sort((a, b) => (a[order.col] < b[order.col] ? -1 : a[order.col] > b[order.col] ? 1 : 0) * (order.ascending ? 1 : -1));
         }
+        if (window_) result = result.slice(window_[0], window_[1] + 1);
         result = structuredClone(result);
         if (single) {
           return result.length === 1 ? { data: result[0], error: null }

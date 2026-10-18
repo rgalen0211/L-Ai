@@ -137,6 +137,27 @@
     for (const event of FUNNEL_SIDE) rows.push({ event, label: FUNNEL_LABELS[event], total: by[event] || 0, fromPrevious: pct(by[event] || 0, by.signup_done || 0), fromFirst: '', side: true });
     return rows;
   }
+  // By day (#/admin/funnel): the raw events counted per step per day, in the same Eastern day the weekly view uses. Pure, so it is tested without a screen.
+  const DAY_STEPS = ['landing_view', 'signup_done', 'first_project', 'preview', 'film_requested', 'purchase'];
+  const DAY_LABELS = { landing_view: 'Visits', signup_done: 'Signed up', first_project: 'First project', preview: 'First preview', film_requested: 'First order (film asked for)', purchase: 'Bought credits' };
+  const easternDay = (iso, tz = 'America/New_York') => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(iso));
+  function funnelDaily(events, { days = 14, now = Date.now() } = {}) {
+    const list = [];
+    for (let i = 0; i < days; i += 1) list.push(easternDay(now - i * 864e5));
+    const byDay = Object.fromEntries(list.map(d => [d, Object.fromEntries(DAY_STEPS.map(s => [s, 0]))]));
+    const totals = Object.fromEntries(DAY_STEPS.map(s => [s, 0]));
+    for (const e of events || []) {
+      if (!DAY_STEPS.includes(e.event)) continue;
+      const d = easternDay(e.at);
+      if (!byDay[d]) continue;
+      byDay[d][e.event] += 1; totals[e.event] += 1;
+    }
+    return { days: list.map(d => ({ day: d, counts: byDay[d] })), totals, steps: DAY_STEPS };
+  }
+  function funnelDailyLine(d) {
+    const t = d.totals;
+    return `Over these days: ${t.signup_done} signed up, ${t.preview} made a first preview (${pct(t.preview, t.signup_done)} of signups), ${t.film_requested} asked for a film (${pct(t.film_requested, t.signup_done)}), ${t.purchase} bought credits.`;
+  }
   function funnelBySource(f) {
     if (!f || !Array.isArray(f.steps)) return [];
     const step = e => f.steps.find(s => s.event === e) || { by_source: {} };
@@ -223,5 +244,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
+  window.ryagramOps = { DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
 })();
