@@ -146,3 +146,8 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .app-main p.meta + p.meta{margin-top:10px}.admin-links{line-height:2}
 .advanced-panel{margin:28px 0;border:1px solid var(--line);border-radius:12px;padding:6px 16px}.advanced-panel>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
 .app-main .form-note + p.meta{margin-top:12px}
+/* Consumer audit round 2: comfortable back links, and a loading line that moves (still, for people who ask for less motion) */
+.back{display:inline-flex;align-items:center;min-height:40px;padding:6px 0;margin-bottom:6px}
+.loading{display:flex;align-items:center;gap:10px}.spinner{width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--brand-deep);border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
