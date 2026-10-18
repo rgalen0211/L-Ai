@@ -73,7 +73,7 @@
   // The count a job row carries right now, or null: a stage with a positive total and a done.
   function countOf(job) {
     const d = job && job.progress_detail && typeof job.progress_detail === 'object' ? job.progress_detail : null;
-    if (!d || !STAGES[d.stage]) return null;
+    if (!d || !Object.hasOwn(STAGES, d.stage)) return null;
     const done = Number(d.done), total = Number(d.total);
     if (d.total == null || !(total > 0) || d.done == null || !(done >= 0)) return null;
     return { stage: d.stage, done: Math.min(done, total), total, unit: d.unit === 'clips' ? 'clips' : 'frames' };
@@ -117,7 +117,7 @@
     const secs = (nowMs - started) / 1000;
     const eta = c ? etaSeconds(samples.filter(x => x.stage === c.stage && x.total === c.total), nowMs) : null;
     return {
-      stage: d && STAGES[d.stage] ? STAGES[d.stage] : UNKNOWN,
+      stage: d && Object.hasOwn(STAGES, d.stage) ? STAGES[d.stage] : UNKNOWN,
       countLabel: c && c.unit === 'clips' ? 'Clips' : 'Frames',
       count: c ? `${c.done.toLocaleString('en-US')} / ${c.total.toLocaleString('en-US')}` : UNKNOWN,
       fraction: c ? c.done / c.total : null,
