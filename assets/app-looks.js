@@ -365,7 +365,7 @@
         try { story = P.applyProfile(profile, P.SAMPLE_STORY).story; } catch (err) { showError(error, new Error((err.errors || [err.message]).join(' '))); return; }
         sheetButton.disabled = true;
         try {
-          const queued = await data.lookSheet(story, P.SAMPLE_PERIODS);
+          const queued = await data.lookSheet(story, P.SAMPLE_SHEET_PERIODS);
           sheet = { hash: hashProfile(profile), versionId: queued.versionId, running: true, timer: null };
           sheetOut.replaceChildren(h('p', { class: 'form-note' }, `Sample sheet queued. ${SHEET_NOTE}`));
           redraw();

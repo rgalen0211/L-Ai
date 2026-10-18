@@ -4780,10 +4780,10 @@
      {
       "kind": "render",
       "id": "line",
-      "dataset": "bls_state_unemployment",
+      "dataset": "cbp_retail_share_state",
       "view": "line",
-      "start": "2021-01",
-      "end": "2022-12",
+      "start": "1998",
+      "end": "2002",
       "transition": {
        "kind": "crossfade",
        "seconds": 0.6
@@ -4796,11 +4796,10 @@
    }
   },
   "periods": [
-   "2011",
-   "2017",
-   "2023",
+   "2000",
    "2005",
-   "2021-06"
+   "2017",
+   "2023"
   ],
   "compiled": {
    "bold-social": {
@@ -4856,10 +4855,10 @@
       {
        "kind": "render",
        "id": "line",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_retail_share_state",
        "view": "line",
-       "start": "2021-01",
-       "end": "2022-12",
+       "start": "1998",
+       "end": "2002",
        "transition": {
         "kind": "fade",
         "seconds": 0.3
@@ -4951,10 +4950,10 @@
       {
        "kind": "render",
        "id": "line",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_retail_share_state",
        "view": "line",
-       "start": "2021-01",
-       "end": "2022-12",
+       "start": "1998",
+       "end": "2002",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6
@@ -5044,10 +5043,10 @@
       {
        "kind": "render",
        "id": "line",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_retail_share_state",
        "view": "line",
-       "start": "2021-01",
-       "end": "2022-12",
+       "start": "1998",
+       "end": "2002",
        "transition": {
         "kind": "cut"
        },
@@ -5138,10 +5137,10 @@
       {
        "kind": "render",
        "id": "line",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_retail_share_state",
        "view": "line",
-       "start": "2021-01",
-       "end": "2022-12",
+       "start": "1998",
+       "end": "2002",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.8
@@ -5234,10 +5233,10 @@
       {
        "kind": "render",
        "id": "line",
-       "dataset": "bls_state_unemployment",
+       "dataset": "cbp_retail_share_state",
        "view": "line",
-       "start": "2021-01",
-       "end": "2022-12",
+       "start": "1998",
+       "end": "2002",
        "transition": {
         "kind": "crossfade",
         "seconds": 0.6

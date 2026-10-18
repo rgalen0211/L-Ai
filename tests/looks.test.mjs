@@ -116,15 +116,15 @@ test('SAMPLE SHEET: it runs on the person\'s own "Profile preview (sample)" proj
   const client = createFakeClient();
   const data = win.ryagramData(client);
   const story = P.applyProfile(P.getPreset('clean-light'), P.SAMPLE_STORY).story;
-  const q = await data.lookSheet(story, P.SAMPLE_PERIODS);
+  const q = await data.lookSheet(story, P.SAMPLE_SHEET_PERIODS);
   assert.ok(q.versionId);
   const job = client.db.jobs[0];
   assert.equal(job.job_type, 'contact_sheet');
-  assert.deepEqual(plain(job.params), { periods: plain(P.SAMPLE_PERIODS) });
+  assert.deepEqual(plain(job.params), { periods: plain(P.SAMPLE_SHEET_PERIODS) });
   assert.equal(client.db.projects[0].title, 'Profile preview (sample)');
   assert.deepEqual(plain(client.db.versions[0].story_spec), plain(story));
   client.db.jobs[0].state = 'complete';
-  const q2 = await data.lookSheet(story, P.SAMPLE_PERIODS);                                                 // the same project is reused, not a second one
+  const q2 = await data.lookSheet(story, P.SAMPLE_SHEET_PERIODS);                                                 // the same project is reused, not a second one
   assert.equal(client.db.projects.length, 1);
   assert.ok(q2.versionId);
   assert.ok(!client.db.jobs.some(j => j.job_type === 'final_render'));

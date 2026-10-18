@@ -9,7 +9,7 @@ import {
   applyProfile, assertLookOnly, checkColours, checkShape, forkPreset, getPreset, listPresets, ProfileError,
   validateProfile, MAX_PROFILES_PER_USER,
 } from '../supabase/functions/_shared/profile.ts';
-import { PROFILE_SCHEMA, SAMPLE_STORY } from '../supabase/functions/_shared/profile_data.ts';
+import { PROFILE_SCHEMA, SAMPLE_PERIODS, SAMPLE_SHEET_PERIODS, SAMPLE_STORY } from '../supabase/functions/_shared/profile_data.ts';
 import { PROFILE_TOOLS, runProfileTool } from '../supabase/functions/_shared/profile_tools.ts';
 
 const par = JSON.parse(fs.readFileSync(new URL('./fixtures/profile-parity.json', import.meta.url), 'utf8'));
@@ -273,4 +273,24 @@ test('a vertical canvas is warned about (the engine has no vertical layout yet);
   const wide = { profile_version: 1, name: 'wide', look: { canvas: [1920, 1080] } };
   assert.ok(!applyProfile(wide, story).report.warnings.some(w => /vertical/.test(w)));
   assert.ok(Object.values(par.presets).every(p => p.look.canvas?.[1] <= p.look.canvas?.[0]), 'no preset ships vertical');
+});
+
+test('SAMPLE_SHEET_PERIODS: 3 to 5 four-digit years inside the sample span, each view drawn once (the only list a sample sheet takes)', () => {
+  assert.ok(SAMPLE_SHEET_PERIODS.length >= 3 && SAMPLE_SHEET_PERIODS.length <= 5);
+  assert.equal(new Set(SAMPLE_SHEET_PERIODS).size, SAMPLE_SHEET_PERIODS.length);
+  const clips = SAMPLE_STORY.sequence.clips.filter(c => c.kind === 'render');
+  const lo = Math.min(...clips.map(c => Number(c.start.slice(0, 4)))), hi = Math.max(...clips.map(c => Number(c.end.slice(0, 4))));
+  const drawnBy = new Set();
+  for (const p of SAMPLE_SHEET_PERIODS) {
+    assert.match(p, /^[0-9]{4}$/, `${p} must be a four-digit year`);
+    assert.ok(Number(p) >= lo && Number(p) <= hi, `${p} is outside the span ${lo} to ${hi}`);
+    const owner = clips.find(c => Number(c.start.slice(0, 4)) <= Number(p) && Number(p) <= Number(c.end.slice(0, 4)));
+    assert.ok(owner, `${p} is shown by no clip`);
+    drawnBy.add(owner.id);
+  }
+  for (const c of clips) assert.ok(drawnBy.has(c.id), `the ${c.id} view would not appear on the sheet`);
+  assert.deepEqual(SAMPLE_PERIODS, SAMPLE_SHEET_PERIODS, 'the old name is an alias of the new list');
+  // MUST-FAIL: the list that the sample sheet refused (a month, and a year no longer inside any distinct clip) fails the same rules
+  const refusedList = ['2005', '2021-06'];
+  assert.ok(refusedList.some(p => !/^[0-9]{4}$/.test(p)));
 });
