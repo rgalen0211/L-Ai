@@ -236,7 +236,7 @@ test('live progress: every field is "—" until the data gives it; never a made-
   const job = (detail, extra = {}) => ({ state: 'running', started_at: '2026-10-03T09:56:00Z', progress_detail: detail, ...extra });
   // Nothing yet: claimed, no detail, no start time.
   assert.deepEqual(plain(J.progressView({ state: 'claimed', progress_detail: null }, now)),
-    { stage: D, countLabel: 'Frames', count: D, fraction: null, eta: D, running: D });
+    { stage: D, countLabel: 'Frames', count: D, fraction: null, eta: D, running: D, working: true, elapsed: '' });
   // A stage with no count (the data build, encoding): the stage, and dashes for the rest.
   let p = J.progressView(job({ stage: 'starting' }), now);
   assert.deepEqual([p.stage, p.count, p.eta, p.running], ['Building the data', D, D, '4 min']);
