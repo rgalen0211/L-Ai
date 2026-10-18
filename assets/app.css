@@ -155,3 +155,5 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .loading{display:flex;align-items:center;gap:10px}.spinner{width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--brand-deep);border-radius:50%;animation:spin .9s linear infinite}
 @keyframes spin{to{transform:rotate(360deg)}}
 @media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+/* Funnel on #/admin/ops: the wide tables scroll sideways inside themselves on a phone instead of squeezing every word */
+.funnel-sources,.funnel-weeks{display:block;overflow-x:auto;max-width:100%}.funnel-sources th,.funnel-weeks th{min-width:84px}.funnel-sources td:first-child,.funnel-weeks td:first-child{white-space:nowrap}.funnel-side td{color:var(--muted)}
