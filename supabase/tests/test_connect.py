@@ -922,6 +922,83 @@ class LiveFiles(core.Base):
         self.assertIn("every connect_no_oauth_select policy is RESTRICTIVE (none is permissive) and at least one exists", bad)
         self.assertIn("every published realtime table has the restrictive client_id policy", bad)
 
+    def test_daily_health_query_is_read_only_named_and_says_act_when_something_is_wrong(self):
+        d = self.db.as_(None)
+        d.c.execute("set default_transaction_read_only = on")                     # the file must run in a read-only session: it changes nothing
+        try:
+            cols, rows = self.run_file("05_daily_health.sql")
+        finally:
+            d.c.execute("set default_transaction_read_only = off")
+        self.assertEqual(cols, ["check_name", "value", "status", "what_to_do"])
+        self.assertGreaterEqual(len(rows), 14)
+        self.assertTrue(all(r[2] in ("ok", "look", "act") and r[0] and r[3] for r in rows))
+        status = lambda rows, start: [r[2] for r in rows if r[0].startswith(start)]
+        # a fresh install: nothing needs doing
+        self.assertEqual([r[0] for r in rows if r[2] == "act"], [])
+                # something goes wrong in each of the ways the query must notice
+        c = self.db.as_(None).c
+        c.execute("update public.connect_flags set full_render_enabled = true")
+        c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'x') on conflict (redirect_uri) do update set enabled = true")
+        c.execute("create table public.health_late (id int primary key)")
+        c.execute("alter table public.health_late enable row level security")
+        c.execute("alter publication supabase_realtime add table public.health_late")
+        c.execute("create schema if not exists realtime")
+        c.execute("create table if not exists realtime.messages (id int primary key)")
+        c.execute("alter table realtime.messages enable row level security")
+        c.execute("create policy private_channels on realtime.messages for select to authenticated using (true)")
+        c.execute("grant select on public.connect_flags to connect_runner")
+        for i in range(12):
+            c.execute("insert into public.connect_calls (tool, result, code) values ('set_story', 'error', 'boom')")
+        _, rows = self.run_file("05_daily_health.sql")
+        acts = [r[0] for r in rows if r[2] == "act"]
+        for needle in ("full renders from a connection", "realtime tables WITHOUT", "policies on realtime.messages", "redirect addresses that are loopback",
+                       "connect_runner: functions it can call", "errors in 24 hours: set_story / boom"):
+            self.assertTrue(any(a.startswith(needle) for a in acts), (needle, acts))
+        self.assertEqual(rows[0][2], "act")                                          # the worst come first
+        # the master switch off is a 'look', not an alarm
+        c.execute("update public.connect_flags set connections_enabled = false")
+        _, rows = self.run_file("05_daily_health.sql")
+        self.assertEqual(status(rows, "master switch"), ["look"])
+
+    def test_purge_last_run_file_reads_pg_cron(self):
+        c = self.db.as_(None).c
+        self.assertRaises(Exception, self.run_file, "05b_purge_last_run.sql")            # no pg_cron here: it says so by failing, as documented
+        c.execute("create schema cron")
+        c.execute("create table cron.job (jobid bigint primary key, schedule text, command text)")
+        c.execute("create table cron.job_run_details (runid serial primary key, jobid bigint, start_time timestamptz, status text)")
+        run = lambda: self.run_file("05b_purge_last_run.sql")
+        cols, rows = run()
+        self.assertEqual(cols, ["job_id", "schedule", "last_success_at", "last_run_status", "last_run_at", "status", "what_to_do"])
+        self.assertEqual([r[5] for r in rows], ["look"])                                  # no job at all
+        c.execute("insert into cron.job values (1, '0 3 * * *', 'select public.connect_purge();')")
+        self.assertEqual([r[5] for r in run()[1]], ["look"])                              # scheduled, never ran
+        c.execute("insert into cron.job_run_details (jobid, start_time, status) values (1, now() - interval '40 hours', 'succeeded')")
+        self.assertEqual([r[5] for r in run()[1]], ["act"])                               # last success over 36 hours ago
+        c.execute("insert into cron.job_run_details (jobid, start_time, status) values (1, now() - interval '2 hours', 'failed')")
+        self.assertEqual([r[5] for r in run()[1]], ["act"])                               # a failed run is not a success
+        c.execute("insert into cron.job_run_details (jobid, start_time, status) values (1, now() - interval '1 hour', 'succeeded')")
+        self.assertEqual([r[5] for r in run()[1]], ["ok"])
+
+    def test_who_is_connected_and_end_one_persons_connections_files(self):
+        _, a, _ = self.connect(ALICE)
+        _, b, _ = self.connect(BOB)
+        email = self.db.as_(None).one("select email from auth.users where id = %s", ALICE)
+        cols, rows = self.run_file("06_who_is_connected.sql")
+        self.assertEqual(cols, ["person", "assistant_calls_itself", "may_do", "connected_at", "last_used_at"])
+        self.assertTrue(any(r[0] == email for r in rows))
+        src = (self.DIR / "97_end_one_persons_connections.sql").read_text(encoding="utf-8")
+        self.assertIn("PERSON@EXAMPLE.COM", src)
+        d = self.db.as_(None)
+        with d.c.cursor() as cur:
+            cur.execute(src.replace("PERSON@EXAMPLE.COM", email))
+            self.assertEqual([x.name for x in cur.description], ["people_found", "tokens_ended", "permissions_ended"])
+            self.assertEqual(cur.fetchall()[0], (1, 1, 1))
+        self.runner(); self.fails("select connect_whoami(%s)", h(a), code="PT401")                 # Alice's connection is over ...
+        self.runner().one("select connect_whoami(%s)", h(b))                                       # ... Bob's is untouched
+        with self.db.as_(None).c.cursor() as cur:                                                    # an address nobody has changes nothing
+            cur.execute(src)
+            self.assertEqual(cur.fetchall()[0], (0, 0, 0))
+
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")
         self.assertEqual(cols, ["kind", "name"])
