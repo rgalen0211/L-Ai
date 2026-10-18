@@ -27,6 +27,9 @@ union all select 'signed-in people cannot call the tool or authorization-server 
        and not has_function_privilege('anon', 'public.connect_register_client(text, text[])', 'EXECUTE')
 union all select 'every published realtime table has the restrictive client_id policy',
        (select count(*) from ryagram_private.connect_unguarded_published_tables()) = 0
+union all select 'every connect_no_oauth_select policy is RESTRICTIVE (none is permissive) and at least one exists',
+       not exists (select 1 from pg_policy where polname = 'connect_no_oauth_select' and polpermissive)
+       and exists (select 1 from pg_policy where polname = 'connect_no_oauth_select' and not polpermissive)
 union all select 'the master switch row exists and is currently ON (turn it off with 90_switch_off.sql)',
        (select connections_enabled from public.connect_flags where id)
 union all select 'full renders from a connection are off',
