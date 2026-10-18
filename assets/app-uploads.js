@@ -72,7 +72,7 @@
     if (ints.some(i => !Number.isInteger(i) || i < 0 || i >= n)) return 'One of the chosen columns isn’t in the file.';
     if (new Set(ints).size !== ints.length) return 'Each column can only be used for one thing.';
     if (m.geography === 'us_counties' && m.state_index == null && !m.state) return 'County names need a state. Choose the state, or the column that has it.';
-    if (m.state && !STATES[m.state]) return 'That isn’t a U.S. state.';
+    if (m.state && !Object.hasOwn(STATES, m.state)) return 'That isn’t a U.S. state.';
     for (const i of m.value_indexes) {
       const name = m.measure_names?.[String(i)];
       if (typeof name !== 'string' || !name.trim() || name.length > 80) return 'Each value column’s name needs 1 to 80 characters.';
