@@ -4,7 +4,7 @@ Ryagram has one server address. Every guide below uses the same one:
 
     <CONNECT_URL>      (filled in at launch; for example https://<project>.supabase.co/functions/v1/connect/mcp)
 
-You need a Ryagram account that Ryan has invited. The first time an assistant connects, a Ryagram page asks you to sign in and shows who is asking and what they may do. Press Allow only if the address shown matches the assistant you are using. You can disconnect any time on your Ryagram settings page.
+You need a Ryagram account that Ryan has invited (ordinary accounts and admin accounts cannot be connected). The first time an assistant connects, a Ryagram page asks you to sign in and shows who is asking: the name Ryagram knows it by, in large type, then the name it calls itself, then the web address it will send you back to. Press Allow only if the name and address match the assistant you are using. You can disconnect any time on your Ryagram settings page, and the assistant is cut off on its very next call.
 
 | Assistant | Works? | Guide |
 |---|---|---|
@@ -20,4 +20,4 @@ You need a Ryagram account that Ryan has invited. The first time an assistant co
 
 Nothing here has been signed in to yet. Ryan runs the live tests; each guide has a "Known unknowns" list that he fills in.
 
-What the AI can do once connected: see your credits, list and create projects, check and save a story, make a contact sheet and a short preview, check progress, and give you links to the results. Tools that cost credits say so first and need your OK. Starting the full film render is switched off unless Ryan enables it (then it is queued for his approval).
+What the AI can do once connected: see your credits, list and create projects, check and save a story (every failed check is listed in plain words), make a contact sheet and a short preview, check progress, and point you to the results in Ryagram. **It cannot spend your credits.** Contact sheets and previews are free; if one would ever cost credits, the AI is refused and you start it yourself in the Ryagram app. Starting the full film render is not possible from a connection yet.
