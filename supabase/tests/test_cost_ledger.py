@@ -88,8 +88,8 @@ class CostLedger(core.Base):
                 self.denied(who, sql)
         for who in ("anon", OTHER, "service"):                                 # and only Ryan can use the screen's functions
             for sql in ("select admin_cost_rollup(7)", "select admin_cost_set_threshold('stripe', 'day', 5, 80)", "select admin_cost_delete_threshold(1)",
-                        "select admin_cost_set_plan('supabase', 'Pro', 25, current_date, '{}')", "select admin_cost_set_rate('render', 'cpu_hour', 0.04, '')",
-                        "select admin_cost_record('domain', 12, current_date, 'x')"):
+                        "select admin_cost_set_plan('supabase', 'Pro', 25, (now() at time zone 'EST5EDT')::date, '{}')", "select admin_cost_set_rate('render', 'cpu_hour', 0.04, '')",
+                        "select admin_cost_record('domain', 12, (now() at time zone 'EST5EDT')::date, 'x')"):
                 with self.subTest(who=who, sql=sql[:40]):
                     self.denied(who, sql)
         self.assertEqual(self.admin("select count(*) from public.cost_events"), 0)
@@ -204,8 +204,8 @@ class CostLedger(core.Base):
         plans = self.ryan().one("select admin_cost_rollup(1)")["plans"]
         self.assertEqual([(p["plan"], p["ends_on"]) for p in plans if p["vendor"] == "supabase"], [("Team", None)])          # the screen lists plans still running
         self.assertEqual(str(self.admin("select ends_on from public.cost_plans where plan = 'Pro'")), str(today - datetime.timedelta(days=1)))   # Pro ended the day before
-        for bad in ("select admin_cost_set_plan('paypal', 'x', 1, current_date, '{}')", "select admin_cost_set_plan('stripe', '', 1, current_date, '{}')",
-                    "select admin_cost_set_plan('stripe', 'x', -1, current_date, '{}')", "select admin_cost_set_plan('stripe', 'x', 1, null, '{}')"):
+        for bad in ("select admin_cost_set_plan('paypal', 'x', 1, (now() at time zone 'EST5EDT')::date, '{}')", "select admin_cost_set_plan('stripe', '', 1, (now() at time zone 'EST5EDT')::date, '{}')",
+                    "select admin_cost_set_plan('stripe', 'x', -1, (now() at time zone 'EST5EDT')::date, '{}')", "select admin_cost_set_plan('stripe', 'x', 1, null, '{}')"):
             with self.assertRaises(psycopg.Error):
                 self.ryan().one(bad)
 
@@ -252,7 +252,7 @@ class CostLedger(core.Base):
         row = self.admin("select amount_usd, quantity, unit from public.cost_events where kind = 'storage_gauge'")
         self.assertIsNone(row[0])                                                             # no plan stated: the price is UNKNOWN
         self.assertEqual((int(row[1]), row[2]), (stored, "bytes"))
-        self.db.as_(RYAN).one("select admin_cost_set_plan('supabase', 'Pro', 25, current_date, '{\"storage_gb\": 100}')")
+        self.db.as_(RYAN).one("select admin_cost_set_plan('supabase', 'Pro', 25, (now() at time zone 'EST5EDT')::date, '{\"storage_gb\": 100}')")
         self.svc().one("select cost_tick()")
         self.assertEqual(float(self.admin("select amount_usd from public.cost_events where kind = 'storage_gauge'")), 0.0)    # well inside 100 GB: known, $0
         self.assertEqual(self.admin("select count(*) from public.cost_events where kind = 'storage_gauge'"), 1)               # one gauge row per day, updated
@@ -318,11 +318,11 @@ class CostLedger(core.Base):
         d = self.ryan()
         for bad in ("select admin_cost_set_threshold('stripe', 'week', 5, 80)", "select admin_cost_set_threshold('stripe', 'day', 0, 80)",
                     "select admin_cost_set_threshold('stripe', 'day', 5, 100)", "select admin_cost_set_threshold('paypal', 'day', 5, 80)",
-                    "select admin_cost_record('domain', -5, current_date, '')", "select admin_cost_record('domain', 5, current_date + 30, '')",
-                    "select admin_cost_record('paypal', 5, current_date, '')", "select admin_cost_set_rate('render', 'Bad Kind', 1, '')"):
+                    "select admin_cost_record('domain', -5, (now() at time zone 'EST5EDT')::date, '')", "select admin_cost_record('domain', 5, (now() at time zone 'EST5EDT')::date + 30, '')",
+                    "select admin_cost_record('paypal', 5, (now() at time zone 'EST5EDT')::date, '')", "select admin_cost_set_rate('render', 'Bad Kind', 1, '')"):
             with self.assertRaises(psycopg.Error):
                 d.one(bad)
-        d.one("select admin_cost_record('domain', 14.99, current_date, 'uselai.com renewal')")
+        d.one("select admin_cost_record('domain', 14.99, (now() at time zone 'EST5EDT')::date, 'uselai.com renewal')")
         row = self.admin("select vendor, kind, amount_usd, mode = 'live', detail->>'source' from public.cost_events")
         self.assertEqual((row[0], row[1], float(row[2]), row[3], row[4]), ("domain", "manual_invoice", 14.99, True, "typed by Ryan"))
         self.assertEqual(float(self.rollup()["month"]["by_vendor"]["domain"]), 14.99)

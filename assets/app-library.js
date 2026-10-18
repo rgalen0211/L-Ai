@@ -185,7 +185,7 @@
             h('span', { class: 'meta' },
               p.latest ? [`r${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
                        : `No versions · updated ${date(p.updated_at)}`))))
-        : h('p', { class: 'form-intro' }, 'No projects yet. Name one above and it starts as r1.');
+        : h('p', { class: 'form-intro' }, 'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
@@ -196,7 +196,9 @@
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, requestLink, adminLinks, form, list, help];
+      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
+              credits, creditsNote, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -218,7 +220,7 @@
             totals.length ? h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col' }, 'From'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
               h('tbody', {}, totals.map(r => h('tr', {}, h('td', {}, A.campaignLabel(r.campaign)), h('td', {}, r.utm_source || '\u2014'),
-                                                     h('td', { class: 'num' }, String(r.signups)))))) : null,
+                                                     h('td', { class: 'num' }, String(r.signups)))))) : '',
             ...(rows.length ? [h('h2', {}, 'By day'), h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Day'), h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
               h('tbody', {}, rows.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', {}, A.campaignLabel(r.campaign)),
@@ -313,7 +315,7 @@
             } }, label);
             return h('li', {}, h('strong', {}, r.film_title || 'A film'), h('span', { class: 'meta' }, ` ${r.owner_email || 'an account'}, ${O.RENDER_SOURCE_WORDS[r.source] || r.source}, ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} held`),
               h('p', { class: 'form-note' }, O.renderWhen(r, now)), h('div', { class: 'inline-row' }, n, ' ', decide(true, 'Approve', 'Approving\u2026'), ' ', decide(false, 'Decline', 'Declining\u2026')));
-          })) : null);
+          })) : '');
       }
       await load();
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Render approvals'),
@@ -529,7 +531,7 @@
             days.length ? h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, th('Day'), th('Visits', true), th('Signups', true), th('Signup rate', true))),
               h('tbody', {}, days.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', { class: 'num' }, String(r.visits)),
-                                          h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : null);
+                                          h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : '');
         } catch (err) { body.replaceChildren(); showError(error, err); }
       }
       range.addEventListener('change', load);
@@ -572,8 +574,15 @@
         email ? h('p', { class: 'meta' }, `Signed in as ${email}`) : null,
         h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm)
       ];
+      let helpSection = null;
+      if (window.ryagramAccount) {
+        const acct = window.ryagramAccount.create({ h, data, busy, showError, errorLine });
+        sections.splice(4, 0, await acct.changeEmailSection(email));
+        sections.push(acct.exportSection(email));
+        helpSection = acct.helpSection();
+      }
       if (connectOn()) sections.push(await connectUi().connectedSection());
-      if (!accountToolsOn()) return sections;
+      if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.
       const choiceNote = h('p', { class: 'form-note', role: 'status' });
@@ -618,6 +627,7 @@
         h('h2', { id: 'acct-delete' }, 'Delete your account'),
         h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
         delForm));
+      if (helpSection) sections.push(helpSection);
       return sections;
     }
 
@@ -802,7 +812,7 @@
         h('p', { id: 'story-help', class: 'form-note' }, locked
           ? `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()} and can’t change. Make a new version from it to keep working.`
           : 'The story file this version renders from. The render worker checks it in full before drawing anything.'),
-        story, locked ? null : save, saved, error);
+        story, locked ? null : save, error);
 
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
       const sources = sourcesPanel(v, !locked);
@@ -850,13 +860,16 @@
               } }, 'Archive this version')
             : null),
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
-        sources.el,
-        uploads?.el,
         picker,
+        saved,                                      // "Template applied and saved ...": shown here, not inside the folded story file
         chat,
-        storyForm,
+        sources.el,
         jobs.el,
-        files.el
+        files.el,
+        // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
+        h('details', { class: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
+          h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
+          uploads?.el, storyForm)
       ];
     }
 
@@ -1351,7 +1364,7 @@
           shown.push(h('li', {}, h('strong', {}, `${J.ORDER_WORDS[st.state] || st.state} `), h('span', { class: 'meta' }, `${date(o.created_at)}. `), J.orderLine(st), ' ', actions));
         }
         openOrders = rows.some(o => J.orderOpen(o.state));
-        orderBox.replaceChildren(shown.length ? h('ul', { class: 'order-list' }, shown) : null);
+        orderBox.replaceChildren(...(shown.length ? [h('ul', { class: 'order-list' }, shown)] : []));      // (replaceChildren(null) would print the word "null")
       }
 
       function syncControls() {

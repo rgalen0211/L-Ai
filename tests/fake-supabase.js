@@ -18,7 +18,7 @@
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], render_orders: [],
-                 account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
+                 account_settings: [], credit_ledger: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -778,8 +778,13 @@
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { data: { session }, error: null };
         },
-        async updateUser({ password }) {
+        async updateUser({ password, email }) {
           if (!session) return { error: { message: 'Auth session missing!' } };
+          if (email !== undefined) {
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { error: { message: 'Unable to validate email address: invalid format' } };
+            log.push({ emailChangeRequested: email });
+            return { data: { user: session.user }, error: null };
+          }
           if (!password || password.length < 12) return { error: { message: 'Password should be at least 12 characters.' } };
           log.push({ passwordChanged: true });
           return { data: { user: session.user }, error: null };
