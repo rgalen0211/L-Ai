@@ -16,9 +16,9 @@ const plain = x => JSON.parse(JSON.stringify(x));
 const GOOD = { publisher: 'Census Bureau', link: 'https://example.gov/rents', licence: 'public_domain', licence_note: '', unit: 'dollars', decimals: 0, attested: true };
 
 test('CLEAN: fields are trimmed, control and invisible characters removed, lengths capped, a made-up licence or decimals is dropped', () => {
-  const c = U.cleanProvenance({ publisher: `  Census${String.fromCharCode(0x202e)} Bureau${String.fromCharCode(0)} `, link: 'x'.repeat(999), licence: 'made_up', licence_note: ' n ', unit: '  dollars  ', decimals: 9, attested: 'yes' });
+  const c = U.cleanProvenance({ publisher: `  Census${String.fromCharCode(0x202e)} Bureau${String.fromCharCode(0)} `, link: 'not a web link', licence: 'made_up', licence_note: ' n ', unit: '  dollars  ', decimals: 9, attested: 'yes' });
   assert.equal(c.publisher, 'Census Bureau');
-  assert.equal(c.link.length, 300);
+  assert.equal(c.link, '', 'a link that is not a plain http(s) address is dropped');
   assert.equal(c.licence, '');
   assert.equal(c.decimals, 0);
   assert.equal(c.attested, false, 'only true is an attestation');
@@ -37,7 +37,7 @@ test('PROBLEMS: each missing piece is named in words, in the order a person fill
 
 test('CARD PREVIEW: the lines the closing card will carry, including the as-supplied label (draft wording)', () => {
   const lines = U.provenanceCard(GOOD);
-  assert.deepEqual(plain(lines), ['Source: Census Bureau (https://example.gov/rents)', 'Licence or permission: Public domain', 'Unit: dollars', 'Figures as supplied by the film’s maker; not checked by Ryagram.']);
+  assert.deepEqual(plain(lines), ['Source: Census Bureau', 'Licence or permission: Public domain', 'Unit: dollars', 'Figures as supplied by the film’s maker; not checked by Ryagram.']);
   assert.equal(U.AS_SUPPLIED, lines[3]);
   assert.match(U.provenanceCard({ ...GOOD, licence: 'other', licence_note: 'Owner emailed me' })[1], /^Licence or permission: Owner emailed me$/);
   assert.match(U.provenanceCard({})[0], /Source: —/);
@@ -76,4 +76,20 @@ test('FLAG AND GATING: only with byodGuide, "These are right" needs a complete p
   const dataSrc = read('assets/app-data.js');
   assert.ok(dataSrc.includes("client.rpc('set_dataset_provenance', { p_dataset: datasetId, p_publisher: p.publisher, p_link: p.link || null, p_licence: p.licence, p_licence_note: p.licence_note || null, p_unit: p.unit, p_decimals: p.decimals, p_attested: p.attested === true })"));
   assert.match(read('assets/ryagram-config.js'), /byodGuide: false,/);
+});
+
+test('LINKS NEVER ON THE CARD (CC1 review, brand rule 028667d): the card lines carry the publisher only; the link is in the description lines, only as a plain http(s) address; javascript:, data: and the like are refused', () => {
+  const card = U.provenanceCard(GOOD).join(' | ');
+  assert.doesNotMatch(card, /https?:|example\.gov/, 'no link on any frame');
+  assert.ok(U.descriptionLines(GOOD).includes('Link: https://example.gov/rents'));
+  assert.ok(!U.descriptionLines({ ...GOOD, link: '' }).some(l => l.startsWith('Link:')));
+  for (const bad of ['javascript:alert(1)', 'data:text/html;base64,AAAA', 'ftp://example.com/a', '//example.com', 'https://exa mple.com', 'https://x.com/"onmouseover=', 'see the Census website']) {
+    assert.equal(U.safeLink(bad), '', bad);
+    assert.match(U.provenanceProblem({ ...GOOD, link: bad }), /web address starting with http:\/\/ or https:\/\//, bad);
+  }
+  assert.equal(U.safeLink('HTTPS://example.gov/a?b=1'), 'HTTPS://example.gov/a?b=1');
+  assert.equal(U.provenanceProblem({ ...GOOD, link: '' }), '');
+  const lib = read('assets/app-library.js');
+  assert.ok(lib.includes('A web link to the data (optional; it goes in the video description, never on the film itself)'));
+  assert.ok(lib.includes('Decimals to show (films do not use this yet)'));
 });

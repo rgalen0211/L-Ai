@@ -113,14 +113,19 @@
   const ATTESTATION = 'I may publish charts of this data.';                                                    // PLACEHOLDER
   const FIELD_MAX = { publisher: 200, link: 300, licence_note: 200, unit: 40 };
   const clip = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+  // A link goes in the video DESCRIPTION only (brand rule 028667d: no link on any frame, a link on a frame is a phishing surface), and only as a plain http(s) address: javascript:, data: and the like are refused.
+  const WEB_LINK = /^https?:\/\/[^\s<>"']{1,290}$/i;
+  const safeLink = v => { const t = clip(v, FIELD_MAX.link); return WEB_LINK.test(t) ? t : ''; };
+  const linkTyped = v => clip(v, FIELD_MAX.link) !== '';
   function cleanProvenance(p) {
     p = p || {};
-    return { publisher: clip(p.publisher, FIELD_MAX.publisher), link: clip(p.link, FIELD_MAX.link), licence: LICENCES.some(([k]) => k === p.licence) ? p.licence : '',
+    return { publisher: clip(p.publisher, FIELD_MAX.publisher), link: safeLink(p.link), licence: LICENCES.some(([k]) => k === p.licence) ? p.licence : '',
              licence_note: clip(p.licence_note, FIELD_MAX.licence_note), unit: clip(p.unit, FIELD_MAX.unit), decimals: [0, 1, 2, 3].includes(Number(p.decimals)) ? Number(p.decimals) : 0, attested: p.attested === true };
   }
   function provenanceProblem(raw) {
     const p = cleanProvenance(raw);
     if (!p.publisher) return 'Say who published or owns this data.';
+    if (linkTyped(raw && raw.link) && !p.link) return 'A link must be a web address starting with http:// or https://, or left empty.';
     if (!p.licence) return 'Say what lets you use it: public domain, an open licence, permission, your own data, or something else.';
     if (p.licence === 'other' && !p.licence_note) return 'Describe what lets you use this data.';
     if (!p.unit) return 'Say what the numbers are in (for example dollars, percent, people).';
@@ -131,8 +136,13 @@
   function provenanceCard(raw) {
     const p = cleanProvenance(raw);
     const lic = (LICENCES.find(([k]) => k === p.licence) || [])[1] || '';
-    return [`Source: ${p.publisher || '\u2014'}${p.link ? ` (${p.link})` : ''}`, `Licence or permission: ${p.licence === 'other' ? p.licence_note : lic.replace(/ \(.*\)$/, '')}${p.licence === 'other' || !p.licence_note ? '' : ` (${p.licence_note})`}`,
+    return [`Source: ${p.publisher || '\u2014'}`, `Licence or permission: ${p.licence === 'other' ? p.licence_note : lic.replace(/ \(.*\)$/, '')}${p.licence === 'other' || !p.licence_note ? '' : ` (${p.licence_note})`}`,
             `Unit: ${p.unit || '\u2014'}`, AS_SUPPLIED];
   }
-  window.ryagramUploads = { LICENCES, PLACEHOLDER, AS_SUPPLIED, ATTESTATION, FIELD_MAX, cleanProvenance, provenanceProblem, provenanceCard, WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
+  // What goes in the video DESCRIPTION (the card above carries no link). PLACEHOLDER wording; the engine and worker draw the real description.
+  function descriptionLines(raw) {
+    const p = cleanProvenance(raw);
+    return provenanceCard(p).concat(p.link ? [`Link: ${p.link}`] : []);
+  }
+  window.ryagramUploads = { descriptionLines, safeLink, LICENCES, PLACEHOLDER, AS_SUPPLIED, ATTESTATION, FIELD_MAX, cleanProvenance, provenanceProblem, provenanceCard, WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
 })();

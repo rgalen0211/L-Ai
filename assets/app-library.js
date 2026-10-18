@@ -982,9 +982,9 @@
         draw();
         return h('fieldset', { class: 'prov-fields' }, h('legend', {}, 'Where does this data come from?'),
           h('p', { class: 'form-note prov-placeholder' }, `${U.PLACEHOLDER} Your film will show its source, and say the figures are yours.`),
-          text('prov-publisher', 'Who published or owns it', 'publisher'), text('prov-link', 'A link or a short description (optional)', 'link'),
+          text('prov-publisher', 'Who published or owns it', 'publisher'), text('prov-link', 'A web link to the data (optional; it goes in the video description, never on the film itself)', 'link'),
           h('label', { class: 'field' }, h('span', {}, 'What lets you use it'), lic), note,
-          text('prov-unit', 'What the numbers are in (dollars, percent, people\u2026)', 'unit'), h('label', { class: 'field' }, h('span', {}, 'Decimals to show'), dec),
+          text('prov-unit', 'What the numbers are in (dollars, percent, people\u2026)', 'unit'), h('label', { class: 'field' }, h('span', {}, 'Decimals to show (films do not use this yet)'), dec),
           h('label', { class: 'choice' }, ok, h('span', {}, U.ATTESTATION, ' ', h('span', { class: 'meta' }, U.PLACEHOLDER))),
           h('p', { class: 'form-note' }, 'This is how the closing card of your film will read:'), card);
       }
