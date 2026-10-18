@@ -8,8 +8,9 @@ can't build yet, each marked with the worker's state:
 
   usable  on the INSTALLED worker's allowlist: the COMMITTED export supabase/functions/_shared/worker_allowlist.txt
           (--allowlist), never a machine-local read
-          With --motion (WORKER's committed motion record, one line per allowlisted id) a dataset measured motion=fail is
-          NOT usable (it becomes `later`): its default film fails the strict motion check even after pacing (Ryan 2026-10-17).
+          AND passing the MOTION GATE (--motion, REQUIRED): WORKER's committed motion record says pass or na, or Ryan named
+          a skip dataset, or it is in the baseline (usable on main before the gate). No line = next, skip = next, fail = later
+          (Ryan 2026-10-17: a default film that does not pass the strict motion check after pacing is not usable).
   next    measured by WORKER and arriving with the next worker update ($UpdateCandidates)
   later   registered by the engine, not measured for the worker's cache yet
 
@@ -340,18 +341,19 @@ def read_allowlist(path):
     return ids, views
 
 
-MOTION_LINE = re.compile(r'^([a-z0-9_]{1,64}) motion=(pass|fail|na) paced=(\S+) engine=([0-9a-f]{7,40}) measured=(\d{4}-\d{2}-\d{2})$')
+MOTION_LINE = re.compile(r'^([a-z0-9_]{1,64}) motion=(pass|fail|skip|na) paced=(\S+) engine=([0-9a-f]{7,40}) measured=(\d{4}-\d{2}-\d{2})$')
 
 
 def read_motion(path, allow):
     """WORKER's measured motion record, COMMITTED beside the allowlist (RULINGS 2026-10-17: a dataset whose default film still
-    fails the strict motion check after pacing is not usable). One line per allowlisted dataset:
+    fails the strict motion check after pacing is not usable). At most one line per allowlisted dataset:
 
-        <id> motion=pass|fail|na paced=<years or none> engine=<commit> measured=<date>
+        <id> motion=pass|fail|skip|na paced=<years or none> engine=<commit> measured=<date>
 
-    `na` = the check does not apply to that film (not a windowed map and not measured); `paced` lists the years pacing shortened
-    ("none" if none). Refused here, not later: a line that does not parse, an id twice, an id that is not on the allowlist, and
-    an allowlisted id with NO line (a dataset nobody measured must not become usable by omission). Returns {id: (motion, paced)}."""
+    pass = every clip measured and passed; skip = some clip was not measured (a skip is NOT a pass); fail; na = nothing to
+    measure (with a reason in WORKER's report). A MISSING line is allowed here and means NOT MEASURED: that dataset is not usable
+    (see usable_by_motion). Refused here: a line that does not parse, an id twice, an id that is not on the allowlist.
+    Returns {id: (motion, paced)}."""
     rec = {}
     for n, raw in enumerate(Path(path).read_text(encoding='utf-8-sig').splitlines(), 1):
         line = raw.strip()
@@ -366,10 +368,39 @@ def read_motion(path, allow):
         if i not in allow:
             sys.exit(f'gen-catalog: {path}:{n}: {i} is not on the allowlist')
         rec[i] = (m.group(2), m.group(3))
-    missing = [i for i in allow if i not in rec]
-    if missing:
-        sys.exit(f'gen-catalog: {path} has no motion line for {len(missing)} allowlisted dataset(s): ' + ', '.join(missing[:8]))
     return rec
+
+
+def read_id_list(path, what):
+    """One dataset id per line, `#` comments: the baseline (usable on main before the gate) or the skips Ryan named."""
+    ids = []
+    for n, raw in enumerate(Path(path).read_text(encoding='utf-8-sig').splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        if not re.fullmatch(r'[a-z0-9_]{1,64}', line):
+            sys.exit(f'gen-catalog: {path}:{n}: {line!r} is not a dataset id ({what})')
+        ids.append(line)
+    if len(set(ids)) != len(ids):
+        sys.exit(f'gen-catalog: {path} lists an id twice ({what})')
+    return ids
+
+
+def usable_by_motion(i, motion, baseline, skip_named):
+    """(usable, status_if_not): THE MOTION GATE. Ryan's ruling (RULINGS 5b16d78): a dataset whose default film does not pass the
+    strict motion check after pacing is not usable. An allowlisted dataset is usable only if
+      * its motion line says pass (or na: nothing to measure), or
+      * it says skip and Ryan NAMED the dataset (skip_named), or
+      * it has NO line but is in the BASELINE: usable on main before this gate existed, grandfathered, not measured under pacing.
+    Everything else is not usable: no line -> next (never usable by omission); skip -> next; fail -> later."""
+    m = motion.get(i)
+    if m is None:
+        return (i in baseline), 'next'
+    if m[0] in ('pass', 'na'):
+        return True, 'next'
+    if m[0] == 'skip':
+        return (i in skip_named), 'next'
+    return False, 'later'
 
 
 def read_setup(path):
@@ -391,7 +422,9 @@ def main():
     ap.add_argument('--listing', required=True, help='the per-dataset listing decisions (listing_decisions.json): who may be LISTED')
     ap.add_argument('--setup', required=True, help="WORKER-SETUP.ps1: only its UpdateCandidates are read (the `next` list)")
     ap.add_argument('--allowlist', required=True, help="the committed export of the installed worker's allowlist (one id per line)")
-    ap.add_argument('--motion', default='', help="WORKER's committed motion record: a dataset measured motion=fail is NOT usable")
+    ap.add_argument('--motion', required=True, help="WORKER's committed motion record: REQUIRED. Usable needs a pass/na line (or the baseline or a skip Ryan named)")
+    ap.add_argument('--motion-baseline', required=True, help='datasets usable on main before the motion gate (grandfathered, not measured under pacing)')
+    ap.add_argument('--motion-skip-ok', required=True, help='skip datasets Ryan NAMED as usable (empty until he names one)')
     ap.add_argument('--out', default=str(ROOT / 'assets' / 'app-catalog-data.js'))
     ap.add_argument('--detail-out', default='', help='also write the server-only detail (see the header)')
     ap.add_argument('--commit', default='', help="the engine commit (an exported tree has no .git)")
@@ -409,7 +442,9 @@ def main():
     from ryagram.maprace import datasets as D            # the engine's own registry
     ingested = ingested_ids()
     allow, restricted = read_allowlist(a.allowlist)
-    motion = read_motion(a.motion, allow) if a.motion else None
+    motion = read_motion(a.motion, allow)
+    baseline = set(read_id_list(a.motion_baseline, 'baseline'))
+    skip_named = set(read_id_list(a.motion_skip_ok, 'skip named by Ryan'))
     decisions = read_listing(a.listing)
     nxt = read_setup(a.setup)
     registry_ids = {d['id'] for d in D.listing()}
@@ -434,8 +469,10 @@ def main():
         if not views:
             continue
         status = 'usable' if d['id'] in allow else 'next' if d['id'] in nxt else 'later'   # usable = on the worker's allowlist
-        if status == 'usable' and motion is not None and motion[d['id']][0] == 'fail':
-            status = 'later'          # its default film fails the strict motion check even after pacing: not usable (Ryan)
+        if status == 'usable':
+            ok, not_status = usable_by_motion(d['id'], motion, baseline, skip_named)
+            if not ok:
+                status = not_status       # unmeasured or skip -> next; fail -> later (its default film does not pass the strict check)
         window = known.get(d['id']) or ((d['available_from'], d['available_to'])
                                         if d.get('available_from') and d.get('available_to') else None)
         measure = ((d.get('measures') or [{}])[0]).get('label') or ''

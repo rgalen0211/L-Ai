@@ -1,0 +1,2 @@
+# Datasets whose motion record says SKIP (some clip not measured) that RYAN has NAMED as usable anyway. Empty: a skip is not a pass.
+# One dataset id per line, with the date and who said so in a comment above it.
