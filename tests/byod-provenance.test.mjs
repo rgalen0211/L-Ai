@@ -16,7 +16,7 @@ const plain = x => JSON.parse(JSON.stringify(x));
 const GOOD = { publisher: 'Census Bureau', link: 'https://example.gov/rents', licence: 'public_domain', licence_note: '', unit: 'dollars', decimals: 0, attested: true };
 
 test('CLEAN: fields are trimmed, control and invisible characters removed, lengths capped, a made-up licence or decimals is dropped', () => {
-  const c = U.cleanProvenance({ publisher: '  Census‮ Bureau\u0000 ', link: 'x'.repeat(999), licence: 'made_up', licence_note: ' n ', unit: '  dollars  ', decimals: 9, attested: 'yes' });
+  const c = U.cleanProvenance({ publisher: `  Census${String.fromCharCode(0x202e)} Bureau${String.fromCharCode(0)} `, link: 'x'.repeat(999), licence: 'made_up', licence_note: ' n ', unit: '  dollars  ', decimals: 9, attested: 'yes' });
   assert.equal(c.publisher, 'Census Bureau');
   assert.equal(c.link.length, 300);
   assert.equal(c.licence, '');
