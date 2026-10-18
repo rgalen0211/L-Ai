@@ -354,13 +354,18 @@
       async lookSheet(story, periods) {
         const TITLE = 'Profile preview (sample)';
         const projects = await api.listProjects();
-        let project = projects.find(p => p.title === TITLE && !p.archived_at);
-        let version = null;
-        if (project) {
-          const all = (await api.getProject(project.id)).versions;
+        // Only OUR sample project is reused and overwritten: its latest story carries the sample story's name. A person's own project that happens to share the title is never touched.
+        let project = null, version = null;
+        for (const cand of projects.filter(p => p.title === TITLE && !p.archived_at)) {
+          const all = (await api.getProject(cand.id)).versions;
           const last = all[all.length - 1];
-          version = last && window.ryagramJobs.versionTakesJobs(last.state) ? last : await api.createVersion(project.id, null);
-        } else {
+          if (last && last.story_spec && last.story_spec.name === story.name) {
+            project = cand;
+            version = window.ryagramJobs.versionTakesJobs(last.state) ? last : await api.createVersion(cand.id, null);
+            break;
+          }
+        }
+        if (!project) {
           const made = await api.createProject(TITLE);
           project = made.project; version = made.version;
         }

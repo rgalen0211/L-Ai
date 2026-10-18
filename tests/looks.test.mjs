@@ -169,3 +169,36 @@ test('FLAG: the editor ships OFF (lookEditor: false) until the engine branch is 
   assert.match(lib, /const lookApply = looksOn\(\) && !locked/);
   assert.ok(read('app/index.html').indexOf('profile-core.js') < read('app/index.html').indexOf('app-looks.js') && read('app/index.html').indexOf('app-looks.js') < read('app/index.html').indexOf('app-library.js'));
 });
+
+test('SAMPLE SHEET PERIODS (CC1 MED-1): what lookSheet sends passes the SQL rule the fake now applies (3 to 5 four-digit years), lies inside the sample story, and a bad set is refused', async () => {
+  const periods = plain(P.SAMPLE_SHEET_PERIODS);
+  assert.ok(periods.length >= 3 && periods.length <= 5 && periods.every(p => /^[0-9]{4}$/.test(p)), periods.join());
+  const years = P.SAMPLE_STORY.sequence.clips.filter(c => c.start && c.end).flatMap(c => [Number(c.start), Number(c.end)]);
+  assert.ok(periods.every(p => Number(p) >= Math.min(...years) && Number(p) <= Math.max(...years)), 'inside the sample story\'s own span');
+  const client = createFakeClient();
+  const data = win.ryagramData(client);
+  const story = P.applyProfile(P.getPreset('clean-light'), P.SAMPLE_STORY).story;
+  await data.lookSheet(story, P.SAMPLE_SHEET_PERIODS);                                                      // accepted
+  client.db.jobs[0].state = 'complete';
+  for (const bad of [['2011', '2017', '2023', '2005', '2021-06'], ['2011', '2017'], ['2011', '2012', '2013', '2014', '2015', '2016'], [2011, 2017, 2023]]) {
+    await assert.rejects(data.lookSheet(story, bad), /periods must be 3 to 5 years like "2016"\./, JSON.stringify(bad));        // the old set would have failed live
+    client.db.jobs.filter(j => j.state !== 'complete').forEach(j => { j.state = 'complete'; });
+  }
+});
+
+test('SAMPLE PROJECT (CC1 LOW-2): only our own sample project is reused; a person\'s project that happens to share the title keeps its story', async () => {
+  const client = createFakeClient();
+  const data = win.ryagramData(client);
+  const mine = await data.createProject('Profile preview (sample)');
+  const own = { schema: 1, name: 'my real film', engine: 'sequence', sequence: { canvas: [1920, 1080], fps: 30, theme: 'light', clips: [] } };
+  await data.saveStory(mine.version.id, own);
+  const story = P.applyProfile(P.getPreset('clean-light'), P.SAMPLE_STORY).story;
+  const q = await data.lookSheet(story, P.SAMPLE_SHEET_PERIODS);
+  assert.notEqual(q.projectId, mine.project.id, 'a new sample project was made');
+  assert.equal(client.db.projects.length, 2);
+  assert.deepEqual(plain(client.db.versions.find(v => v.id === mine.version.id).story_spec), own, 'the person\'s story is untouched');
+  client.db.jobs.forEach(j => { j.state = 'complete'; });
+  const again = await data.lookSheet(story, P.SAMPLE_SHEET_PERIODS);
+  assert.equal(again.projectId, q.projectId, 'the second sheet reuses our sample project');
+  assert.equal(client.db.projects.length, 2);
+});
