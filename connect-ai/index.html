@@ -21,7 +21,7 @@
 <main class="container help-main" id="main" data-connect-guide="draft">
   <p class="shell-banner" role="note"><strong>DRAFT. Not published.</strong> The connector address below is a placeholder until Ryagram's connection is switched on. Nothing here works yet.</p>
   <h1>Connect your AI to Ryagram</h1>
-  <p class="help-intro">If you use an AI assistant such as Claude or ChatGPT, you can let it work with your Ryagram account: ask it to start a film, save its story, make a contact sheet or a short preview, and check progress. You stay in charge, and you can disconnect it at any time.</p>
+  <p class="help-intro">If you use an AI assistant such as Claude or ChatGPT, you can let it work with your Ryagram account: ask it to start a project, save its story, make a contact sheet or a short preview, and check progress. You stay in charge, and you can disconnect it at any time.</p>
 
   <h2>What you need</h2>
   <ul>
@@ -34,6 +34,7 @@
   <ul>
     <li>It can see your projects and credit balance, create projects, check and save a film's story, and make contact sheets and use your free previews, within a daily limit.</li>
     <li><strong>It cannot start a full render.</strong> Full renders are always started by you, in Ryagram.</li>
+    <li><strong>It cannot change your account</strong> (your email, password or settings) or delete anything for you.</li>
     <li><strong>It cannot spend your credits.</strong> If something would cost credits, your AI is refused and you start it yourself in Ryagram.</li>
     <li>The first time it connects, a Ryagram page asks you to sign in and shows the name Ryagram knows the assistant by, the name it calls itself, and the web address it will send you back to. Press Allow only if these match the assistant you are using.</li>
   </ul>
@@ -45,7 +46,6 @@
     <li>Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
     <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
   </ol>
-  <p class="form-note">On Team and Enterprise plans only an owner or admin can add a connector; each member then connects for themselves.</p>
 
   <h2>Claude Code</h2>
   <ol>
@@ -54,19 +54,19 @@
   </ol>
 
   <h2>ChatGPT</h2>
-  <p>This works <strong>only on plans that allow custom MCP connectors</strong>. At the time of writing that is confirmed for Business, Enterprise and Edu workspaces; we have not confirmed it for Free, Plus or Pro. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan; use the Ryagram app directly.</p>
+  <p>This works <strong>only on plans that allow custom MCP connectors</strong>. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan; use the Ryagram app directly.</p>
   <ol>
     <li>In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code>, and choose OAuth for authentication.</li>
     <li>Accept the notice about custom servers, then Create and Connect. Sign in to Ryagram, check the address, and press Allow.</li>
     <li>ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.</li>
   </ol>
-  <p class="form-note">Do not use a Custom GPT with Actions for this: OpenAI is retiring custom GPTs in December 2026.</p>
+  <p class="form-note">Use the connector option above, not a Custom GPT.</p>
 
   <h2>Other assistants</h2>
   <p>Google Gemini, Microsoft Copilot Studio, Grok, Perplexity and Mistral Le Chat can add an outside tool in some plans; step-by-step guides for them are coming. Some assistants, such as Meta AI, the DeepSeek app and the consumer Microsoft Copilot, cannot add an outside tool at all. The Ryagram app has its own built-in editor that works without any connection.</p>
 
   <h2>Disconnecting</h2>
-  <p>In Ryagram, open Account, then Connected AIs, and press Disconnect. The assistant stops working with your account straight away. A sign-in request lasts 30 minutes; if it runs out, start again from your assistant.</p>
+  <p>To stop an assistant, remove the Ryagram connector in that assistant's own settings. [DRAFT: Ryagram's own Disconnect button, under Account, arrives with connections.] A sign-in request lasts 30 minutes; if it runs out, start again from your assistant.</p>
 
   <p>Questions: see the <a href="/help/">help pages</a>.</p>
 </main>

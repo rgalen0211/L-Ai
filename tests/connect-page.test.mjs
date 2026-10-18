@@ -23,17 +23,26 @@ test('CONTENT: ChatGPT only where the plan allows custom MCP connectors; it cann
   assert.match(page, /works <strong>only on plans that allow custom MCP connectors<\/strong>/);
   assert.match(page, /<strong>It cannot spend your credits\.<\/strong>/);
   assert.match(page, /the name Ryagram knows the assistant by, the name it calls itself, and the web address it will send you back to/);
-  assert.match(page, /Account, then Connected AIs, and press Disconnect/);
+  assert.match(page, /remove the Ryagram connector in that assistant's own settings/);
+  assert.doesNotMatch(page, /Connected AIs/, 'the Connected AIs list does not exist until connect-consent ships, so this page must not point at it');
   assert.match(page, /A sign-in request lasts 30 minutes/);
-  assert.match(page, /Custom GPT with Actions/);
+  assert.match(page, /not a Custom GPT/);
+  assert.match(page, /ask it to start a project/);
+  assert.match(page, /<strong>It cannot change your account<\/strong>/);
+  assert.doesNotMatch(page, /Team and Enterprise|confirmed for Business|retiring custom GPTs|December 2026/, 'facts about other companies stay out until each has a source (asked CONNECT)');
   for (const h of ['Claude (claude.ai, Claude Desktop, phone)', 'Claude Code', 'ChatGPT', 'Other assistants', 'Disconnecting']) assert.ok(page.includes(`<h2>${h}</h2>`), h);
 });
 
-test('UNLISTED: no page of the site links to it yet', () => {
-  for (const p of ['index.html', 'ryagram/index.html', 'app/index.html', 'help/index.html', 'film/index.html', 'report/index.html', 'privacy-policy.html']) {
-    if (fs.existsSync(path.join(root, p))) assert.doesNotMatch(read(p), /connect-ai/, p);
-  }
-  assert.doesNotMatch(read('assets/app-library.js'), /connect-ai/);
+test('UNLISTED: no page and no script of the site links to it yet (every .html file and every assets/*.js, not a fixed list)', () => {
+  const files = [];
+  const walk = d => { for (const e of fs.readdirSync(path.join(root, d), { withFileTypes: true })) {
+    if (['node_modules', '.git', 'supabase', 'tests', 'tools'].includes(e.name)) continue;
+    const rel = path.posix.join(d, e.name);
+    if (e.isDirectory()) walk(rel); else if (/\.(html|js)$/.test(e.name)) files.push(rel);
+  } };
+  walk('.');
+  assert.ok(files.length > 30, files.length);
+  for (const f of files) if (f !== 'connect-ai/index.html') assert.doesNotMatch(read(f), /connect-ai/, f);
 });
 
 test('LIMITS: free previews only (within a daily limit), no full renders, and the footer carries Terms and AI content like the other Ryagram pages', () => {
