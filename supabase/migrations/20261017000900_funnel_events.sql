@@ -4,7 +4,7 @@
 -- WHAT IS KEPT. One row per funnel step reached, with the account that reached it (when there is one) and how that account first found us:
 --   utm_source / utm_medium / utm_campaign (typed in the link) and the referrer's DOMAIN (youtube.com): nothing else, no address, no browser details, no cookie.
 --   * landing_view, signup_started: anonymous (no account yet). Recorded by funnel_anon(), which anyone may call, only ever adds one row, and stops at 5,000 an hour.
---   * signup_done (first confirmed email), first_project, contact_sheet, preview, render_ordered (a full render was requested and accepted: public.render_orders, want final), render_approved (Ryan approved it: render_stages.admin_decided_at), film_requested, film_delivered, purchase, subscription_start, subscription_cancel:
+--   * signup_done (first confirmed email), first_project, contact_sheet, preview, render_ordered (a full render was REQUESTED: an order row was made in public.render_orders with want final; it may still be declined, expire or fail, so this counts requests, not renders that ran), render_approved (Ryan approved it: render_stages.admin_decided_at), film_requested, film_delivered, purchase, subscription_start, subscription_cancel:
 --     written by TRIGGERS on the tables where those things really happen, so the page cannot invent or skip them.
 --   * return_7d, return_30d: the person opens the app 7 / 30 or more days after signing up (funnel_return_visit()).
 -- Each account counts once per step (the first time), except purchase and subscription_*, which repeat.
