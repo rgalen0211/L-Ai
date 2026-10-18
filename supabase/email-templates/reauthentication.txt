@@ -1,0 +1,16 @@
+Ryagram
+
+Confirm it's you
+
+You're getting this because a change to the Ryagram account {{ .Email }} needs a code to confirm it's you.
+
+Your code: {{ .Token }}
+
+Type it into Ryagram where it asked for a code. It works once and only for a short time. Never share it with anyone.
+
+If that wasn't you, you can ignore this email.
+
+--
+Ryagram is operated by L'Ai, LLC.
+Questions: ryagram@uselai.com
+https://uselai.com/ryagram/

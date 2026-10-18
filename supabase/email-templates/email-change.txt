@@ -5,7 +5,7 @@ Confirm your new email address
 You're getting this because someone asked to change the email address on a Ryagram account from {{ .Email }} to {{ .NewEmail }}.
 
 Confirm the change:
-{{ .SiteURL }}/app/#/auth/confirm?token_hash={{ .TokenHash }}&type=email_change
+{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=email_change
 
 If you didn't ask for this, you can ignore this email and nothing will change.
 

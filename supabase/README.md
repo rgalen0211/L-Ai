@@ -50,7 +50,7 @@ run it until Phase 2B is approved; it goes after the files above.
 
 - **Authentication → Sign In / Providers → Email:** enabled. Turn **off**
   "Allow new users to sign up". Only accounts made in the dashboard can sign in.
-- **Authentication → URL Configuration → Site URL:** `https://uselai.com/app/`
+- **Authentication → URL Configuration → Site URL:** `https://uselai.com` (the bare origin, no `/app/`: the email templates add `/app/#/auth?...` themselves, and a Site URL ending in `/app/` makes every link `/app//app/`)
 
 ## Accounts
 
@@ -272,7 +272,9 @@ The Auth emails (invite, reset password, confirm) are edited in the Supabase das
 Ryagram is operated by L'Ai, LLC. Questions: ryagram@uselai.com
 ```
 
-**Auth emails link through our own domain (2026-10-11):** every template's link is `{{ .SiteURL }}/app/#/auth/confirm?token_hash={{ .TokenHash }}&type=<type>` (`signup`, `invite`, `magiclink`, `recovery`, `email_change`). The app checks the token itself (`verifyOtp`) and removes it from the address bar; links already sent as `/app/?reset=` or `/app/?invite=` keep working. Five ready-to-paste templates (HTML, matching plain text, subject) are in `supabase/email-templates/`; paste them in Supabase > Authentication > Emails **only after this route is deployed**. Steps: `Ryagram-logs/proposals/WEB-AUTH-EMAIL-TEMPLATES.md`.
+**Auth links are spent by a button (2026-10-17):** opening a link (a mail scanner, a preview) spends nothing; `/app/` shows one button and only pressing it runs `verifyOtp`. An expired link shows "That link has expired" with a resend box; the home page and `/ryagram/` forward `#error=...` (or an already-verified `#access_token=...`) to the app (`assets/auth-forward.js`); `passwordReset` is on. Dashboard steps: `Ryagram-logs/proposals/WEB-AUTH-LINKS-FIX-STEPS.md`.
+
+**Auth emails link through our own domain (2026-10-11):** every template's link is `{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=<type>` (`signup`, `invite`, `magiclink`, `recovery`, `email_change`). The app checks the token itself (`verifyOtp`) and removes it from the address bar; links already sent as `/app/?reset=` or `/app/?invite=` keep working. Six ready-to-paste templates (HTML, matching plain text, subject) are in `supabase/email-templates/` (the sixth, `reauthentication`, carries a one-time CODE, `{{ .Token }}`, not a link: Authentication > Emails > Reauthentication; Supabase sends it only when an action asks to confirm it's you, for example a password change while "Secure password change" is on); paste them in Supabase > Authentication > Emails **only after this route is deployed**. Steps: `Ryagram-logs/proposals/WEB-AUTH-EMAIL-TEMPLATES.md`.
 
 (Ryan, 2026-10-07: the operator is L'Ai, LLC, and Ryagram's pages, policy and app give ryagram@uselai.com. The sender address below is a separate setting: it stays the Google Workspace mailbox until a Send-As for ryagram@ is set up.)
 
@@ -589,6 +591,9 @@ The seam for BUILDER's job runner: `admin_film_request_set(id, status, note, url
 
 To switch it on (after the ledger is live and the creator beta is on): apply `migrations/20261016000200_creator_flow.sql` (after `20261003000200_invite_codes.sql`, `20261010000100_ops_readiness.sql`, `20261014000100_creator_beta.sql` and `phase-2b/credits_ledger.sql`), then set `filmRequests: true` and push. The two numbers are **confirmed by Ryan (2026-10-16): 10 credits per film request and 20 welcome credits** (the defaults in `creator_flow_settings`; `admin_creator_flow_set` can still change them later). **The dollar value of a credit is deliberately unset until costmeter has measured real render costs: no screen, table or message in this flow shows or computes a price per credit.**
 
+
+**Invite someone (2026-10-17, `migrations/20261017000200_invite_someone.sql`, after `20261016000300_retention_purge.sql`).** `#/admin/ops` > Creator beta applications > **Invite someone**: Ryan types a friend's name (and, if he wants, welcome credits; blank = the usual 20) and their email. The database gets only the name and the credits (`admin_invite_person(name, credits)`, admin only): it makes a single-use code valid 30 days, labelled `invite: <name>`, that grants the welcome credits when the person signs up (`invite_sent`, once). The code is shown ONCE with an **Email it** link (a `mailto:` built in the browser from the address Ryan typed: the address is never sent to the database until the person redeems). Retention: `retention_purge()` (replaced in this migration) deletes such a code, and with it the redemption that holds the email, 12 months after it was last used, or 12 months after it expired if nobody used it. The Privacy draft says so.
+
 ## Cost ledger (branch cost-ledger): switching it on
 
 Every $-bearing event in one closed table (`cost_events`), a daily rollup and Ryan's limits on `#/admin/ops` > Costs. Full design, the Stripe test-mode plumbing plan and each vendor's spend-cap steps: `Ryagram-logs\proposals\WEB-COST-LEDGER-AND-TEST-PLAN.md`.
@@ -615,3 +620,6 @@ Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring
 2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
 3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
 
+## Render approvals: #/admin/renders (branch admin-renders)
+
+While `auto_render` is off a full render waits for Ryan. `admin_render_decide` needs an APP session (`require_admin()`), so it cannot be used from the SQL editor; `#/admin/renders` (admin only, behind `renderOrders`; link "Render approvals" among the admin links in the library) lists `admin_render_queue()` (film, who, credits held, when asked, when it expires, from the app or a connected AI) with **Approve** (starts the render) and **Decline** (confirm, optional note, returns the credits), and redraws after each call returns. The daily-cap refusal is shown to Ryan in the database's own sentence and leaves the request waiting (declining is still possible). The auto_render switch and per-user caps are not on this page yet (they come with the connector pages). Tests: `tests/render-approvals.test.mjs` (5), real Chrome `tools/check-render-approvals.py`.

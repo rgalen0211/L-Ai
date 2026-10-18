@@ -9,6 +9,10 @@ export interface Deps {
   tick(): Promise<{ rendering: string; reaped: number; expired: number; alert_mail_budget: number; urgent_wait_s?: number; new_alerts: { key: string; detail: string; urgent?: boolean }[] }>;
   markNotified(keys: string[]): Promise<number>;
   purge?(): Promise<unknown>;       // the retention purge (does real work once a day; a failure here never stops the tick)
+  // render orders (PIPE-1): finals waiting for Ryan longer than approval_days are expired (their holds released), and
+  // deliveries past their 30 days are marked deleted; their film objects are removed here (SQL can't remove stored files)
+  orders?(): Promise<{ approvals_expired: number; delete_objects: string[] }>;
+  removeArtifacts?(paths: string[]): Promise<void>;
   sender: Sender;
 }
 
@@ -60,6 +64,18 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (deps.purge) {
     try { purged = await deps.purge(); } catch (e) { console.error("retention_purge failed", (e as Error).message); purged = { error: true }; }
   }
+  let orders: unknown;
+  if (deps.orders) {
+    try {
+      const o = await deps.orders();
+      const paths = (o.delete_objects ?? []).filter((x) => typeof x === "string" && x.length > 0);
+      let removed = 0;
+      if (paths.length && deps.removeArtifacts) {
+        for (let i = 0; i < paths.length; i += 100) { await deps.removeArtifacts(paths.slice(i, i + 100)); removed += Math.min(100, paths.length - i); }
+      }
+      orders = { approvals_expired: o.approvals_expired, films_removed: removed };
+    } catch (e) { console.error("render_orders_tick failed", (e as Error).message); orders = { error: true }; }
+  }
   return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, urgent_held: urgentHeld, notified, held, mode: deps.sender.mode,
-                     ...(deps.purge ? { purged } : {}) });
+                     ...(deps.purge ? { purged } : {}), ...(deps.orders ? { orders } : {}) });
 }
