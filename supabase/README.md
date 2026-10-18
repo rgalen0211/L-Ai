@@ -620,3 +620,6 @@ Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring
 2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
 3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
 
+## Render approvals: #/admin/renders (branch admin-renders)
+
+While `auto_render` is off a full render waits for Ryan. `admin_render_decide` needs an APP session (`require_admin()`), so it cannot be used from the SQL editor; `#/admin/renders` (admin only, behind `renderOrders`; link "Render approvals" among the admin links in the library) lists `admin_render_queue()` (film, who, credits held, when asked, when it expires, from the app or a connected AI) with **Approve** (starts the render) and **Decline** (confirm, optional note, returns the credits), and redraws after each call returns. The daily-cap refusal is shown to Ryan in the database's own sentence and leaves the request waiting (declining is still possible). The auto_render switch and per-user caps are not on this page yet (they come with the connector pages). Tests: `tests/render-approvals.test.mjs` (5), real Chrome `tools/check-render-approvals.py`.
