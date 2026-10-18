@@ -37,10 +37,10 @@ test('FOLLOW ONLY WHAT WAS SHOWN: the page goes to the answer only if it starts 
 test('WORDS: CONNECT\'s scope ids in plain words; an unknown id is shown as what it is, never hidden; "always true" says the three things Ryan asked for', () => {
   assert.equal(C.scopeWord('read'), 'See your projects, films and credit balance');
   assert.equal(C.scopeWord('write'), 'Create projects and change your film stories');
-  assert.equal(C.scopeWord('render_free'), 'Make contact sheets and previews (free)');
+  assert.equal(C.scopeWord('render_free'), 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram.');
   assert.match(C.scopeWord('render_final'), /spends credits, and it asks you first/);
   assert.equal(C.scopeWord('mystery'), 'Use the tool called mystery');
-  assert.deepEqual(plain(C.ALWAYS), ['Your AI acts as your Ryagram account.', 'Tools that spend credits will ask you first.', 'You can disconnect it any time: Account, then Connected AIs.']);
+  assert.deepEqual(plain(C.ALWAYS), ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.']);
   assert.equal(C.hostOf('https://claude.ai/api/mcp/auth_callback'), 'claude.ai');
   assert.equal(C.hostOf('nope'), '');
   assert.equal(C.callsLine(1), 'used 1 time in the last 30 days');
@@ -76,10 +76,10 @@ test('DATA: check, decide (once), list and disconnect go through CONNECT\'s four
   assert.equal(deny.db.connected, undefined, 'a denial connects nothing');
 });
 
-test('PAGE SOURCE: names the app, shows the exact destination and its host, lists what it can do, says credit-spending tools ask first, has Approve and Deny, and sends nothing on load', () => {
+test('PAGE SOURCE: names the app, shows the exact destination and its host, lists what it can do, says a connection cannot spend credits, puts the return-address label first and the AI own name small, has Approve and Deny, and sends nothing on load', () => {
   const src = read('assets/app-connect.js');
-  for (const text of ["`Connect ${c.client_name || 'an AI'} to Ryagram?`", "'Where you will be sent'", "h('code', {}, c.redirect_uri)", 'c.redirect_host', "'What it will be able to do'", "'Always true'",
-                      'Tools that spend credits will ask you first.', "'Approve'", "'Deny'", 'Untick anything you do not want to allow.', 'If that is not where you expect to go back to, press Deny.']) assert.ok(src.includes(text), text);
+  for (const text of ["`Connect ${who} to Ryagram?`", "const who = c.redirect_label || c.client_name || 'an AI';", "'It calls itself: ', c.client_name", "'Where you will be sent'", "h('code', {}, c.redirect_uri)", 'c.redirect_host', "'What it will be able to do'", "'Always true'",
+                      'It cannot spend your credits.', "'Approve'", "'Deny'", 'Untick anything you do not want to allow.', 'If that is not where you expect to go back to, press Deny.']) assert.ok(src.includes(text), text);
   const view = src.slice(src.indexOf('async function consentView'), src.indexOf('// ---- the account page'));
   assert.equal([...view.matchAll(/data\.connectConsentDecide\(/g)].length, 1);                                        // one decide call, inside the button handler
   assert.match(view, /const decide = async \(button, yes\) => \{[\s\S]*data\.connectConsentDecide[\s\S]*\};\s*approve\.addEventListener\('click'/);
@@ -106,4 +106,15 @@ test('WIRING AND FLAG: the route and the account section exist only behind conne
   const src = read('assets/app-connect.js');
   assert.match(src, /confirm\(`Disconnect \$\{r\.client_name \|\| 'this AI'\}\? It stops working with your account straight away\.`\)/);
   assert.match(src, /await data\.disconnectAi\(r\.client_id\); await draw\(\);/);
+});
+
+test('LABEL: the return-address label is shown first and large, the AI\'s own name small after "It calls itself:" and only as text; the free-previews line says a connection cannot spend credits', async () => {
+  const src = read('assets/app-connect.js');
+  const view = src.slice(src.indexOf('async function consentView'), src.indexOf('// ---- the account page'));
+  assert.ok(view.indexOf("'consent-who'") < view.indexOf("'It calls itself: '"), 'label heading comes before the self-chosen name');
+  assert.match(view, /c\.redirect_label && c\.client_name \? h\('p', \{ class: 'form-note consent-calls-itself' \}, 'It calls itself: ', c\.client_name\) : ''/);
+  assert.doesNotMatch(src, /Tools that spend credits/);
+  assert.match(read('assets/app.css'), /\.consent-who\{font-size:clamp/);
+  const c = await win.ryagramData(createFakeClient()).connectConsentCheck(GOOD);
+  assert.equal(c.redirect_label, 'Claude');
 });

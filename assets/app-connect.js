@@ -1,7 +1,7 @@
 // Connecting an AI to a Ryagram account: the hosted consent page (#/connect/consent?request=<id>) and the account page's "Connected AIs" list with Disconnect.
 //
 // The authorization server is CONNECT's (the connect Edge Function and the connect_* SQL); this page is only where the SIGNED-IN PERSON decides. It shows who is asking (the app's
-// name), the EXACT address the person will be sent back to, what the AI will be able to do, and that tools which spend credits ask first. Nothing is sent before a button is pressed.
+// name), the EXACT address the person will be sent back to, what the AI will be able to do, and that a connection cannot spend credits. Nothing is sent before a button is pressed.
 // The page never sees a token or a code: connect_consent_decide returns the address to go to, and the page follows it only if it starts with the address it showed.
 // Everything from the server goes in as text nodes, never as HTML.
 (() => {
@@ -10,10 +10,10 @@
   const SCOPE_WORDS = {
     read: 'See your projects, films and credit balance',
     write: 'Create projects and change your film stories',
-    render_free: 'Make contact sheets and previews (free)',
+    render_free: 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram.',
     render_final: 'Ask for full renders (this spends credits, and it asks you first)'
   };
-  const ALWAYS = ['Your AI acts as your Ryagram account.', 'Tools that spend credits will ask you first.', 'You can disconnect it any time: Account, then Connected AIs.'];
+  const ALWAYS = ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.'];
   const NOT_ALLOWED = 'This AI can’t be connected.';
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
@@ -49,6 +49,9 @@
                 h('p', { class: 'form-note' }, 'Nothing was connected. You can close this page.')];
       }
       const error = errorLine();
+      // redirect_label is the label RYAN controls for the return address (or 'A program on this computer'): it is who the person is trusting, so it comes first.
+      // client_name is whatever the assistant chose to call itself: untrusted, shown small and only as text.
+      const who = c.redirect_label || c.client_name || 'an AI';
       const scopes = c.offered_scopes || [];
       const spending = new Set(c.credit_scopes || []);
       const boxes = scopes.map(id => h('input', { type: 'checkbox', id: `cs-${id.replace(/[^a-z0-9]/gi, '-')}`, value: id, checked: true }));
@@ -69,8 +72,9 @@
       };
       approve.addEventListener('click', () => decide(approve, true));
       deny.addEventListener('click', () => decide(deny, false));
-      return [back, h('h1', { tabindex: '-1' }, `Connect ${c.client_name || 'an AI'} to Ryagram?`),
-        h('p', { class: 'form-intro' }, `${c.client_name || 'This AI'} is asking to work with your Ryagram account.`),
+      return [back, h('h1', { tabindex: '-1', class: 'consent-who' }, `Connect ${who} to Ryagram?`),
+        h('p', { class: 'form-intro' }, `${c.redirect_label || c.client_name || 'This AI'} is asking to work with your Ryagram account.`),
+        c.redirect_label && c.client_name ? h('p', { class: 'form-note consent-calls-itself' }, 'It calls itself: ', c.client_name) : '',
         h('section', { class: 'consent-where' }, h('h2', {}, 'Where you will be sent'), h('p', {}, 'After you choose, you go back to:'),
           h('p', { class: 'consent-uri' }, h('strong', {}, c.redirect_host || hostOf(c.redirect_uri)), h('br'), h('code', {}, c.redirect_uri)),
           h('p', { class: 'form-note' }, 'If that is not where you expect to go back to, press Deny.')),
@@ -102,7 +106,7 @@
       }
       await draw();
       return h('section', { class: 'account-section', 'aria-labelledby': 'acct-ais' }, h('h2', { id: 'acct-ais' }, 'Connected AIs'),
-        h('p', { class: 'form-note' }, 'An AI you connect acts as your Ryagram account. Tools that spend credits ask you first. Disconnecting stops it at once.'), list, error);
+        h('p', { class: 'form-note' }, 'An AI you connect acts as your Ryagram account. It cannot spend your credits. Disconnecting stops it at once.'), list, error);
     }
 
     return { consentView, connectedSection };

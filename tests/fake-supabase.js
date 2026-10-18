@@ -402,7 +402,7 @@
         if (!(p_request in known)) return { data: { allowed: false, reason: 'That request was not found. Start again from the AI.' }, error: null };
         if (p_request.endsWith('bb')) return { data: { allowed: false, reason: 'This account can\u2019t connect an AI.' }, error: null };
         if (p_request.endsWith('cc')) return { data: { allowed: false, reason: 'That request has expired. Start again from the AI.' }, error: null };
-        return { data: { allowed: true, reason: null, client_name: 'Claude', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', redirect_host: 'claude.ai', requested_scopes: ['read', 'write', 'render_free'],
+        return { data: { allowed: true, reason: null, client_name: 'Claude', redirect_label: 'Claude', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', redirect_host: 'claude.ai', requested_scopes: ['read', 'write', 'render_free'],
                          offered_scopes: ['read', 'write', 'render_free'], credit_scopes: [], invited: true, expires_at: new Date(Date.now() + 600000).toISOString() }, error: null };
       },
       connect_consent_decide({ p_request, p_approve, p_scopes }) {
