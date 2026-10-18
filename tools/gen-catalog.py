@@ -1,12 +1,13 @@
 """Generate assets/app-catalog-data.js: the app's dataset catalog, from the ENGINE's own registry.
 
-    python tools/gen-catalog.py --engine <engine checkout> --setup <WORKER-SETUP.ps1>
+    python tools/gen-catalog.py --engine <engine checkout> --setup <WORKER-SETUP.ps1> \n        --allowlist supabase/functions/_shared/worker_allowlist.txt
 
 The catalog is generated, never typed (two hand-kept lists drift): every dataset the engine
 registers (ryagram.maprace.datasets.listing()), minus fixtures, private data and shapes the app
 can't build yet, each marked with the worker's state:
 
-  usable  on the INSTALLED worker's allowlist (WORKER-SETUP.ps1, $AllowToml)
+  usable  on the INSTALLED worker's allowlist: the COMMITTED export supabase/functions/_shared/worker_allowlist.txt
+          (--allowlist), never a machine-local read
   next    measured by WORKER and arriving with the next worker update ($UpdateCandidates)
   later   registered by the engine, not measured for the worker's cache yet
 
@@ -269,23 +270,57 @@ def detail_text(commit, entries, schema_path):
         "export const STORY_SCHEMA: any = %s;\n" % (commit, sha, json.dumps(commit), json.dumps(sha), dump(entries), dump(schema)))
 
 
+def read_allowlist(path):
+    """The installed worker's allowlist, from a COMMITTED export (supabase/functions/_shared/worker_allowlist.txt).
+
+    One dataset id per line; blank lines and `#` lines are comments. If a `# count: N` header is present it must equal the
+    number of ids (a hand edit or a truncated export fails here, not later). A `#views <id> <view,view>` line records a
+    view restriction the worker enforces (worker.toml [datasets.views]); the catalog then offers only those views.
+    """
+    ids, count, views = [], None, {}
+    for n, raw in enumerate(Path(path).read_text(encoding='utf-8-sig').splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith('#'):
+            m = re.match(r'#\s*count:\s*(\d+)\s*$', line)
+            if m:
+                count = int(m.group(1))
+            v = re.match(r'#views\s+([a-z0-9_]{1,64})\s+([a-z,]+)\s*$', line)      # a view restriction the worker enforces
+            if v:
+                views[v.group(1)] = [x for x in v.group(2).split(',') if x]
+            continue
+        if not re.fullmatch(r'[a-z0-9_]{1,64}', line):
+            sys.exit(f'gen-catalog: {path}:{n}: {line!r} is not a dataset id')
+        ids.append(line)
+    if len(set(ids)) != len(ids):
+        sys.exit(f'gen-catalog: {path} lists an id twice')
+    if count is not None and count != len(ids):
+        sys.exit(f'gen-catalog: {path} says count: {count} but lists {len(ids)} ids')
+    for i in views:
+        if i not in ids:
+            sys.exit(f'gen-catalog: {path}: #views names {i}, which is not on the allowlist')
+    return ids, views
+
+
 def read_setup(path):
+    """WORKER-SETUP.ps1's UpdateCandidates: datasets measured and arriving with the next worker update (`next`).
+    The setup file no longer decides what is USABLE: that is the allowlist export (read_allowlist)."""
     text = Path(path).read_text(encoding='utf-8-sig')
-    allow_block = re.search(r"\$AllowToml\s*=\s*@'\s*(.*?)\s*'@", text, re.S).group(1)
-    allow = re.findall(r"'([a-z0-9_]+)'", allow_block)
     cand_block = re.search(r'\$UpdateCandidates\s*=\s*\[ordered\]@\{(.*?)\n\}', text, re.S).group(1)
     nxt = {}
     for line in cand_block.splitlines():
         m = re.match(r"\s*'([a-z0-9_]+)'\s*=\s*'([^']*)'", line)
         if m:
             nxt[m.group(1)] = m.group(2)
-    return allow, nxt
+    return nxt
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--engine', required=True)
-    ap.add_argument('--setup', required=True)
+    ap.add_argument('--setup', required=True, help="WORKER-SETUP.ps1: only its UpdateCandidates are read (the `next` list)")
+    ap.add_argument('--allowlist', required=True, help="the committed export of the installed worker's allowlist (one id per line)")
     ap.add_argument('--out', default=str(ROOT / 'assets' / 'app-catalog-data.js'))
     ap.add_argument('--detail-out', default='', help='also write the server-only detail (see the header)')
     ap.add_argument('--commit', default='', help="the engine commit (an exported tree has no .git)")
@@ -302,7 +337,12 @@ def main():
     sys.path.insert(0, engine)
     from ryagram.maprace import datasets as D            # the engine's own registry
     ingested = ingested_ids()
-    allow, nxt = read_setup(a.setup)
+    allow, restricted = read_allowlist(a.allowlist)
+    nxt = read_setup(a.setup)
+    registry_ids = {d['id'] for d in D.listing()}
+    stale = [i for i in allow if i not in registry_ids]
+    if stale:
+        sys.exit('gen-catalog: the allowlist names datasets the engine does not register (a stale export): ' + ', '.join(stale))
     # Windows the app already knows are good (tested templates); read from the app's own file.
     tpl = (ROOT / 'assets' / 'app-templates.js').read_text(encoding='utf-8')
     known = {m.group(1): (m.group(2), m.group(3))
@@ -316,9 +356,11 @@ def main():
         views = [v for v in d.get('views', []) if v in APP_VIEWS]
         if d.get('entity_kind') == 'plain':
             views = [v for v in views if v != 'map']
+        if d['id'] in restricted:                            # the worker offers this dataset in these views only
+            views = [v for v in views if v in restricted[d['id']]]
         if not views:
             continue
-        status = 'usable' if d['id'] in allow else 'next' if d['id'] in nxt else 'later'
+        status = 'usable' if d['id'] in allow else 'next' if d['id'] in nxt else 'later'   # usable = on the worker's allowlist
         window = known.get(d['id']) or ((d['available_from'], d['available_to'])
                                         if d.get('available_from') and d.get('available_to') else None)
         measure = ((d.get('measures') or [{}])[0]).get('label') or ''
@@ -344,7 +386,7 @@ def main():
     data = {'engine': commit, 'allow': allow, 'next': nxt, 'entries': entries}
     body = json.dumps(data, indent=1, ensure_ascii=True)
     Path(a.out).write_text(
-        "// GENERATED by tools/gen-catalog.py from the engine's registry (engine %s) and WORKER-SETUP.ps1's allowlist.\n"
+        "// GENERATED by tools/gen-catalog.py from the engine's registry (engine %s) and the worker's committed allowlist export.\n"
         "// Do not edit by hand: regenerate. See the header of tools/gen-catalog.py.\n"
         "window.ryagramCatalogData = %s;\n" % (commit, body), encoding='utf-8', newline='\n')
     write_seed(ROOT / 'supabase' / 'catalog_sources_seed.sql', commit, seed)

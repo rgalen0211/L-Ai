@@ -25,6 +25,7 @@ const refused = req => { try { compileFilm(req); return null; } catch (e) { asse
 const usable = CATALOG.filter(e => e.status === 'usable');
 const ENGINE = process.env.RYAGRAM_ENGINE, SETUP = process.env.RYAGRAM_SETUP;
 const python = process.env.PYTHON || 'python';
+const ALLOW = path.join(root, 'supabase', 'functions', '_shared', 'worker_allowlist.txt');
 
 // ------------------------------------------------------------------------------------------ the catalog
 
@@ -283,7 +284,7 @@ function exportCommit(dest) {
   return dest;
 }
 
-test('the committed catalog_data.ts equals a fresh regeneration; the public outputs are byte-identical to the previous script',
+test('the committed catalog_data.ts equals a fresh regeneration; the public outputs are byte-identical with and without --detail-out',
   { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, () => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-'));
   const tree = exportCommit(path.join(tmp, 'engine'));          // the same commit, whatever the checkout holds
@@ -293,24 +294,13 @@ test('the committed catalog_data.ts equals a fresh regeneration; the public outp
   const A = mk('A'), B = mk('B');
   fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(A, 'tools', 'gen-catalog.py'));
   fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(B, 'tools', 'gen-catalog.py'));
-  const args = (dir, extra) => [path.join(dir, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--commit', commit, '--out', path.join(dir, 'assets', 'app-catalog-data.js'), ...extra];
+  const args = (dir, extra) => [path.join(dir, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--allowlist', ALLOW, '--commit', commit, '--out', path.join(dir, 'assets', 'app-catalog-data.js'), ...extra];
   assert.equal(run(python, args(A, [])).status, 0);
   assert.equal(run(python, args(B, ['--detail-out', path.join(B, 'catalog_data.ts')])).status, 0);
   assert.ok(lf(fs.readFileSync(path.join(A, 'assets', 'app-catalog-data.js'))).equals(lf(fs.readFileSync(path.join(B, 'assets', 'app-catalog-data.js')))), 'public catalog differs with the flag');
   assert.ok(lf(fs.readFileSync(path.join(A, 'supabase', 'catalog_sources_seed.sql'))).equals(lf(fs.readFileSync(path.join(B, 'supabase', 'catalog_sources_seed.sql')))), 'seed differs with the flag');
   const committed = lf(fs.readFileSync(path.join(root, 'supabase', 'functions', '_shared', 'catalog_data.ts')));
   assert.ok(committed.equals(lf(fs.readFileSync(path.join(B, 'catalog_data.ts')))), 'catalog_data.ts is stale: regenerate it with tools/gen-catalog.py --detail-out');
-  // the previous script (origin/main's) writes the same two public files as this one without the flag
-  const prev = run('git', ['-C', root, 'show', 'origin/main:tools/gen-catalog.py']);
-  if (prev.status === 0 && !/--detail-out/.test(prev.stdout)) {
-    const P = mk('P');
-    fs.writeFileSync(path.join(P, 'tools', 'gen-catalog.py'), prev.stdout);
-    assert.equal(run(python, args(P, [])).status, 0);
-    assert.ok(lf(fs.readFileSync(path.join(P, 'assets', 'app-catalog-data.js'))).equals(lf(fs.readFileSync(path.join(A, 'assets', 'app-catalog-data.js')))), 'public catalog differs from the previous script');
-    assert.ok(lf(fs.readFileSync(path.join(P, 'supabase', 'catalog_sources_seed.sql'))).equals(lf(fs.readFileSync(path.join(A, 'supabase', 'catalog_sources_seed.sql')))), 'seed differs from the previous script');
-  } else {
-    console.log('note: origin/main already has --detail-out (or is not available), so the previous-script comparison was not made');
-  }
   fs.rmSync(tmp, { recursive: true, force: true });
 });
 
@@ -344,7 +334,7 @@ test('MUST-FAIL: an untracked INGESTED dataset in the engine checkout never reac
     for (const d of ['assets', 'supabase', 'tools']) fs.mkdirSync(path.join(outDir, d), { recursive: true });
     fs.copyFileSync(path.join(root, 'assets', 'app-templates.js'), path.join(outDir, 'assets', 'app-templates.js'));
     fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(outDir, 'tools', 'gen-catalog.py'));
-    return run(python, [path.join(outDir, 'tools', 'gen-catalog.py'), '--engine', repo, '--setup', SETUP, '--out', path.join(outDir, 'assets', 'app-catalog-data.js'), ...extra]);
+    return run(python, [path.join(outDir, 'tools', 'gen-catalog.py'), '--engine', repo, '--setup', SETUP, '--allowlist', ALLOW, '--out', path.join(outDir, 'assets', 'app-catalog-data.js'), ...extra]);
   };
   // 1. the detail run reads the COMMIT: the probe is absent from every output
   const d1 = path.join(tmp, 'detail');
