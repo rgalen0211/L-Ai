@@ -241,6 +241,10 @@ export type FilmReport = {
 // result (warnings and look.converted) so the looks page and the contact sheet can show it BEFORE a credit is spent.
 export const COUNTY_CONTINUOUS_NOTICE = "Your look uses solid colours; on a county map they are shown as a continuous ramp, not as a few bands, because counties are too small to class into bands and a banded county map does not visibly move.";
 
+// A look that holds each year longer than this on a county map is mostly shortened by pacing (measured, see compileFilm).
+export const COUNTY_SLOW_HOLD_ABOVE = 1;
+export const countySlowPacingNotice = (hold: number) => `On a county map this look's slow pacing (${hold} s per year) is mostly shortened so the film visibly moves: years where little changes are shown for about 0.4 s. The numbers and years are unchanged.`;
+
 export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json; audience?: Audience; today?: Today } = {}): { story: Json; report: FilmReport } {
   const catalog = opts.catalog ?? CATALOG, schema = opts.storySchema ?? STORY_SCHEMA;
   const errs: string[] = [];
@@ -362,6 +366,10 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
         throw new FilmError([`look: this dataset is drawn with ${undone.map((k) => `choropleth ${k} = ${JSON.stringify(pin[k])}`).join(" and ")} (its areas are too small to hatch or to class into a few bands); this look would change it to ${undone.map((k) => JSON.stringify(got[k])).join(" and ")}. Use a look that leaves it alone`]);
       }
       warnings.push(...r.report.warnings);
+      // Measured 2026-10-18 (cbp_arts_establishments, continuous county map): 1 s per year leaves 2 of 50 half-second windows still;
+      // 2 s per year leaves 76 of 100 still. A slow hold on a county map is therefore mostly shortened by pacing, to 0.4 s.
+      const hold = story.sequence?.hold_seconds;
+      if (countyLevel && req.film_type === "map" && typeof hold === "number" && hold > COUNTY_SLOW_HOLD_ABOVE) converted.push(countySlowPacingNotice(hold));
       warnings.push(...converted);
       look = { applied: true, changed: r.report.changed, not_applied: r.report.not_applied, converted };
     } catch (e) {
