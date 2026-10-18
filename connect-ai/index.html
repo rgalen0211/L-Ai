@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- DRAFT: Connect your AI to Ryagram. Unlisted (noindex, linked from nowhere) until Ryan fills in the connector address and has run the live tests (CONNECT's guides: docs/connect-guides).
+     The address below is a PLACEHOLDER. Every step is from CONNECT's guides, which say which assistants are confirmed and which are not. -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<meta name="robots" content="noindex, nofollow">
+<title>Connect your AI (draft) | L'Ai</title>
+<link rel="canonical" href="https://uselai.com/connect-ai/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20261017a">
+<link rel="stylesheet" href="/assets/help.css?v=20261018a">
+</head>
+<body>
+<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
+<main class="container help-main" id="main" data-connect-guide="draft">
+  <p class="shell-banner" role="note"><strong>DRAFT. Not published.</strong> The connector address below is a placeholder until Ryagram's connection is switched on. Nothing here works yet.</p>
+  <h1>Connect your AI to Ryagram</h1>
+  <p class="help-intro">If you use an AI assistant such as Claude or ChatGPT, you can let it work with your Ryagram account: ask it to start a film, save its story, make a contact sheet or a short preview, and check progress. You stay in charge, and you can disconnect it at any time.</p>
+
+  <h2>What you need</h2>
+  <ul>
+    <li>A Ryagram account that has been invited to try connections.</li>
+    <li>An assistant that lets you add an outside tool by address. Not every plan of every assistant does (see below).</li>
+    <li>The Ryagram connector address: <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code> (a placeholder; the real address is added when connections open).</li>
+  </ul>
+
+  <h2>What your AI can and cannot do</h2>
+  <ul>
+    <li>It can see your projects and credit balance, create projects, check and save a film's story, and make contact sheets and use your free previews, within a daily limit.</li>
+    <li><strong>It cannot start a full render.</strong> Full renders are always started by you, in Ryagram.</li>
+    <li><strong>It cannot spend your credits.</strong> If something would cost credits, your AI is refused and you start it yourself in Ryagram.</li>
+    <li>The first time it connects, a Ryagram page asks you to sign in and shows the name Ryagram knows the assistant by, the name it calls itself, and the web address it will send you back to. Press Allow only if these match the assistant you are using.</li>
+  </ul>
+
+  <h2>Claude (claude.ai, Claude Desktop, phone)</h2>
+  <ol>
+    <li>Open Settings, then Connectors, then Add custom connector.</li>
+    <li>Name it Ryagram. For the address, paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code>. Leave any client id and secret empty.</li>
+    <li>Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
+    <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
+  </ol>
+  <p class="form-note">On Team and Enterprise plans only an owner or admin can add a connector; each member then connects for themselves.</p>
+
+  <h2>Claude Code</h2>
+  <ol>
+    <li>In a terminal, run <code>claude mcp add --transport http ryagram CONNECTOR-ADDRESS-PENDING</code> (the placeholder address again).</li>
+    <li>Inside Claude Code run <code>/mcp</code>, choose ryagram, and press Authenticate. A browser opens for the Ryagram sign-in.</li>
+  </ol>
+
+  <h2>ChatGPT</h2>
+  <p>This works <strong>only on plans that allow custom MCP connectors</strong>. At the time of writing that is confirmed for Business, Enterprise and Edu workspaces; we have not confirmed it for Free, Plus or Pro. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan; use the Ryagram app directly.</p>
+  <ol>
+    <li>In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code>, and choose OAuth for authentication.</li>
+    <li>Accept the notice about custom servers, then Create and Connect. Sign in to Ryagram, check the address, and press Allow.</li>
+    <li>ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.</li>
+  </ol>
+  <p class="form-note">Do not use a Custom GPT with Actions for this: OpenAI is retiring custom GPTs in December 2026.</p>
+
+  <h2>Other assistants</h2>
+  <p>Google Gemini, Microsoft Copilot Studio, Grok, Perplexity and Mistral Le Chat can add an outside tool in some plans; step-by-step guides for them are coming. Some assistants, such as Meta AI, the DeepSeek app and the consumer Microsoft Copilot, cannot add an outside tool at all. The Ryagram app has its own built-in editor that works without any connection.</p>
+
+  <h2>Disconnecting</h2>
+  <p>In Ryagram, open Account, then Connected AIs, and press Disconnect. The assistant stops working with your account straight away. A sign-in request lasts 30 minutes; if it runs out, start again from your assistant.</p>
+
+  <p>Questions: see the <a href="/help/">help pages</a>.</p>
+</main>
+<footer><div class="container footer-row"><span>Ryagram, from L'Ai. Operated by L'Ai, LLC.</span><a href="/help/">Help</a><a href="/terms/">Terms of Use</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/ai-content/">AI content</a></div></footer>
+</body>
+</html>
