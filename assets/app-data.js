@@ -322,6 +322,9 @@
       },
 
       // Ryan's Operations screen (SQL 20261010000100): one summary, and the three buttons. Admin only; the functions refuse everyone else.
+      // The approval queue for full renders (PIPE-1): admin only (the database refuses everyone else). Decide = approve (starts the render) or decline (returns the credits).
+      adminRenderQueue() { return run(client.rpc('admin_render_queue'), 'Couldn\u2019t load the render requests.'); },
+      adminRenderDecide(stage, approve, note) { return run(client.rpc('admin_render_decide', { p_stage: stage, p_approve: approve === true, p_note: note ? String(note).slice(0, 500) : null }), 'Couldn\u2019t record that decision.'); },
       adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
       adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
       adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
@@ -352,6 +355,21 @@
       builderCatalog() { return api.builderCall({ action: 'catalog' }); },
       builderDescribe(id) { return api.builderCall({ action: 'describe', dataset: id }); },
       builderCompile(request) { return api.builderCall({ action: 'compile', request }); },
+      // Render orders (PIPE-1, SQL 20261017000500/600): a full render is REQUESTED, never inserted. While auto_render is off the order waits for Ryan's approval with the credits held.
+      requestFinalRender(previewJobId, key) { return run(client.rpc('request_final_render', { p_preview_job: previewJobId, p_idempotency_key: key }), 'Couldn\u2019t request the full render.'); },
+      listOrders(versionId) { return run(client.from('render_orders').select('id, state, want, error_code, created_at, ended_at, version_id').eq('version_id', versionId).order('created_at', { ascending: false }), 'Couldn\u2019t load the render requests.'); },
+      orderStatus(id) { return run(client.rpc('render_order_status', { p_order: id }), 'Couldn\u2019t load that render request.'); },
+      cancelOrder(id) { return run(client.rpc('cancel_render_order', { p_order: id }), 'Couldn\u2019t cancel that render request.'); },
+      // A delivered film as a 1-hour signed link (the get-delivery-url function signs only what the database says is the person's own, unexpired, undeleted).
+      async deliveryUrl(deliveryId) {
+        const { data, error } = await client.functions.invoke('get-delivery-url', { body: { delivery_id: deliveryId } });
+        if (error) {
+          let text = 'Couldn\u2019t open that film just now. Try again in a minute.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
       adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
       adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },

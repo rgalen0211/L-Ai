@@ -55,6 +55,8 @@ window.ryagramConfig = Object.freeze({
   // The guided builder (#/build): pick data, measure, years, film type, look and title, read the source and licence, get a free contact sheet. Turn on only once the guided-builder
   // function is deployed (supabase/README.md, "Guided builder"). Datasets are listed to signed-in, invited people only (RULINGS 2026-10-17); catalog and catalogComingSoon below stay off.
   guidedBuilder: false,
+  // Send full renders through request_final_render (the approval queue). Turn on only once SQL 20261017000500 and 20261017000600 (PIPE-1) are applied; until then the old direct path is used.
+  renderOrders: true,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.

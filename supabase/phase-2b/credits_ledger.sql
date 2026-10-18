@@ -587,7 +587,8 @@ create policy "Signed-in people read view prices" on public.credit_view_prices f
 
 revoke execute on all functions in schema ryagram_private from public, anon, authenticated;
 grant execute on function ryagram_private.owner_may_read(text), ryagram_private.worker_may_write(text),
-  ryagram_private.is_worker() to authenticated;       -- re-grant the ones policies need
+  ryagram_private.is_worker(), ryagram_private.upload_slot_ok(text), ryagram_private.worker_may_read_upload(text)
+  to authenticated;       -- re-grant the ones policies need (all five; the upload two were missing until CC1, 2026-10-17)
 revoke execute on function
   public.grant_credits(uuid, public.credit_entry, int, text, text, text, text, text),
   public.refund_job(uuid, text, text),

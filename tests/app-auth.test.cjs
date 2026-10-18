@@ -61,7 +61,9 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     functions: { invoke: async (name, opts) => { calls.invoked.push({ name, body: opts.body }); return invoke ? invoke(opts) : { data: { message: 'sent' }, error: null }; } }
   };
   const history = { replaceState: (a, b, url) => { calls.replaced.push(url); } };
+  const hashFns = [];
   const window = {
+    addEventListener(t, fn) { hashFns.push(fn); }, removeEventListener(t, fn) { const i = hashFns.indexOf(fn); if (i >= 0) hashFns.splice(i, 1); },
     ryagramConfig: config,
     ryagramData: c => ({ client: c }),
     ryagramLibrary: { mount(root, data) { calls.mounts++; calls.mountedWith = { root, data }; return () => { calls.unmounts++; }; } }
@@ -70,7 +72,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
   vm.runInNewContext(code, { document: { getElementById: id => els[id], createElement: () => ({}), body: { append: x => appended.push(x) } }, window,
                             location: { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location }, history, URLSearchParams, atob, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
-  return { els, button, calls, window, appended, emit: async s => { authListener('X', s); await flush(); },
+  return { els, button, calls, window, appended, fireHash: () => [...hashFns].forEach(f => f()), hashFns, emit: async s => { authListener('X', s); await flush(); },
            submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut(),
            forgot: () => listeners.forgot(), resetForm, setForm,
            requestReset: () => listeners.reset({ preventDefault() {} }), inviteForm,
@@ -427,4 +429,40 @@ test('the page has the link and expired panels, with a real button and no inline
   assert.match(html, /<section id="auth-expired" class="app-panel" hidden/);
   assert.match(html, /id="auth-expired-form"/);
   assert.doesNotMatch(html, /<script>[^<]/);
+});
+
+test('WELCOME ONCE: the welcome and "saved" messages clear on the person’s next move and do not come back; a different message is never cleared by it', async () => {
+  const h = harness({ location: { hostname: 'uselai.com', search: '?invite=inviteTOKEN_123-x', hash: '#/' } });
+  await h.emit(null); await h.click();
+  await h.emit({ user: { email: 'new@example.com' } });
+  h.setForm.elements.password.value = 'a-long-new-password';
+  h.setForm.elements.again.value = 'a-long-new-password';
+  await h.savePassword();
+  await h.flush();
+  assert.equal(h.els['app-status'].textContent, 'Welcome. Your password is saved.');
+  assert.equal(h.hashFns.length, 1);
+  h.fireHash();                                                                       // the person goes somewhere
+  assert.equal(h.els['app-status'].textContent, '');
+  assert.equal(h.hashFns.length, 0);                                                  // and the listener is gone: nothing greets them again
+  const c = harness({ location: confirmAt('signup') });
+  await c.emit(null); await c.click();
+  assert.match(c.els['app-status'].textContent, /email is confirmed/);
+  c.els['app-status'].textContent = 'Something else happened.';                      // a later, different message
+  c.fireHash();
+  assert.equal(c.els['app-status'].textContent, 'Something else happened.');
+});
+
+test('PASSWORD LENGTH: the set-password screen refuses fewer than 12 characters in words, before anything is sent', async () => {
+  const h = harness({ location: { hostname: 'uselai.com', search: '?reset=abcDEF123_-xyz', hash: '#/' } });
+  await h.emit(null); await h.click();
+  await h.emit({ user: { email: 'ryan@example.com' } });
+  h.setForm.elements.password.value = 'elevenchars';
+  h.setForm.elements.again.value = 'elevenchars';
+  await h.savePassword();
+  assert.equal(h.els['set-password-error'].textContent, 'Use at least 12 characters.');
+  assert.equal(h.calls.update.length, 0);
+  h.setForm.elements.password.value = 'twelve-chars';
+  h.setForm.elements.again.value = 'twelve-chars';
+  await h.savePassword();
+  assert.equal(h.calls.update.length, 1);
 });

@@ -64,7 +64,8 @@ export function describeDataset(id: string, opts: { audience?: Audience } = {}, 
   const e = byId(catalog, opts.audience).get(id);
   if (!e) return null;
   return {
-    id: e.id, title: e.title, status: e.status, listable: e.listable, publisher: e.publisher, url: e.url, licence_short: e.licence_short,
+    id: e.id, title: e.title, status: e.status, listable: e.listable, listable_class: e.listable_class, publisher: e.publisher,
+    source_line: e.source_line, url: e.url, licence: e.licence, licence_short: e.licence_short,
     geography: e.geography, period: e.period, default_window: e.window,
     measures: e.measures.map((m: Json) => ({ id: m.id, label: m.label, unit: m.unit, selectable: m.story_measure !== null })),
     film_types: e.film_types, known_gaps: e.known_gaps, methodology_breaks: e.methodology_breaks,
@@ -89,59 +90,140 @@ export function searchCatalog(query: string, opts: { usableOnly?: boolean; limit
     .map((e) => ({ id: e.id, title: e.title, status: e.status, film_types: e.film_types, period: e.period }));
 }
 
+/** "Today" for the one open-ended question (what is the latest period a series could hold). A date string or a Date; the
+ *  default is the real clock, a test passes its own so the answer does not move. */
+export type Today = string | Date;
+
+function todayDate(t?: Today): Date {
+  const d = t instanceof Date ? t : t ? new Date(`${String(t).slice(0, 10)}T00:00:00Z`) : new Date();
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+}
+
+/** How long after a period ENDS its figures are typically PUBLISHED, in days. An assumption, written down here and measured
+ *  per dataset later (the registry does not declare a publication lag): state employment series come out about three weeks
+ *  after the month ends; annual survey and business-count series months after the year ends. BUILDER's check: on 2026-10-17
+ *  BLS state unemployment for 2026-09 is NOT published yet (its release is after the 21st of October). */
+export const PUBLICATION_LAG_DAYS: Record<string, number> = { monthly: 21, annual: 270 };
+
+/** The latest period this dataset could possibly hold: its own end, or, for an OPEN-ENDED series (no end in the registry), the
+ *  latest period whose figures have been PUBLISHED by today (period end plus the publication lag), not the latest period the
+ *  calendar has finished. A request later than that asks for data that does not exist yet. */
+export function latestPossible(entry: Json, today?: Today): string {
+  if (entry.period.to) return entry.period.to;
+  const now = todayDate(today);
+  if (entry.period.cadence === "monthly") {
+    const lag = PUBLICATION_LAG_DAYS.monthly * 86400000;
+    let y = now.getUTCFullYear(), m = now.getUTCMonth();                       // m is 0-based: start from the current month
+    for (let i = 0; i < 24; i++) {
+      const endOfMonth = Date.UTC(y, m + 1, 0);                                 // last day of month (y, m)
+      if (endOfMonth + lag <= now.getTime()) return `${y}-${String(m + 1).padStart(2, "0")}`;
+      m -= 1;
+      if (m < 0) { m = 11; y -= 1; }
+    }
+    return entry.period.from;
+  }
+  const lag = PUBLICATION_LAG_DAYS.annual * 86400000;
+  for (let y = now.getUTCFullYear(); y > 1900; y--) if (Date.UTC(y, 11, 31) + lag <= now.getTime()) return String(y);
+  return entry.period.from;
+}
+
 function periodOk(p: string, cadence: string): boolean {
   return cadence === "monthly" ? /^[0-9]{4}-(0[1-9]|1[0-2])$/.test(p) : /^[0-9]{4}$/.test(p);
 }
 
-function resolveYears(entry: Json, years: Json, errs: string[]): [string, string] | null {
+// Compare two period strings of possibly different lengths at the shorter one's precision ("2025" against "2025-10").
+function cmp(a: string, b: string): number {
+  const n = Math.min(a.length, b.length);
+  const x = a.slice(0, n), y = b.slice(0, n);
+  return x < y ? -1 : x > y ? 1 : 0;
+}
+
+function resolveYears(entry: Json, years: Json, today: Today | undefined, errs: string[], warnings: string[]): [string, string] | null {
   const cad = entry.period.cadence;
-  const lo = entry.period.from, hi = entry.period.to;
-  const def = entry.window ?? [lo, hi || lo];       // an open-ended series (no end) needs a window from the catalog
+  const lo = entry.period.from, last = latestPossible(entry, today);
+  const def = entry.window ?? [lo, last];
   const raw = { start: years?.start ?? null, end: years?.end ?? null };
-  const out: string[] = [];
-  for (const [which, dflt] of [["start", def[0]], ["end", def[1]]] as const) {
+  const given: { start: string | null; end: string | null } = { start: null, end: null };
+  for (const which of ["start", "end"] as const) {
     let v = raw[which];
-    if (v === null || v === undefined || v === "") { out.push(dflt); continue; }
+    if (v === null || v === undefined || v === "") continue;
     v = String(v);
     // A year is accepted for a monthly series: it means that year's first (start) or last (end) month.
     if (cad === "monthly" && /^[0-9]{4}$/.test(v)) v = which === "start" ? `${v}-01` : `${v}-12`;
     if (!periodOk(v, cad)) {
       errs.push(`years.${which}: '${v}' is not a ${cad === "monthly" ? "month like 2019-06 (or a year like 2019)" : "year like 2019"}; this dataset is ${cad || "annual"}`);
-      out.push(dflt);
       continue;
     }
-    if (v < lo || (hi && v > hi)) errs.push(`years.${which}: ${v} is outside this dataset's coverage, ${lo} ${hi ? `to ${hi}` : "onward"}`);
-    out.push(v);
+    if (v < lo) errs.push(`years.${which}: ${v} is before this dataset's coverage, which starts ${lo}`);
+    else if (v > last) {
+      errs.push(entry.period.to
+        ? `years.${which}: ${v} is outside this dataset's coverage, ${lo} to ${entry.period.to}`
+        : `years.${which}: ${v} is later than this series can hold: it is open-ended, and the latest PUBLISHED period is ${last} (a period's figures come out some weeks after it ends)`);
+    }
+    given[which] = v;
   }
-  if (out[0] > out[1]) errs.push(`years: start ${out[0]} is after end ${out[1]}`);
-  return [out[0], out[1]];
+  // Neither end given: the catalog's known-good window. ONE end given: the other end is the dataset's own edge (a start-only request
+  // runs to the latest published period; an end-only request starts at coverage), never the known-good window's far end.
+  const start = given.start ?? (given.end !== null ? lo : def[0]);
+  const end = given.end ?? (given.start !== null ? last : def[1]);
+  if (cmp(start, end) > 0) errs.push(`years: start ${start} is after end ${end}`);
+  // Periods the source did not collect (known_gaps). A film may not START or END on one; one inside is said out loud.
+  for (const [g, why] of Object.entries(entry.known_gaps ?? {}) as [string, string][]) {
+    if (cmp(start, g) === 0 || cmp(end, g) === 0) errs.push(`years: ${g} was not published by the source (${why}); a film cannot start or end on it`);
+    else if (cmp(start, g) < 0 && cmp(g, end) < 0) warnings.push(`the window contains ${g}, which the source did not publish (${why}); the film shows the gap, it does not fill it`);
+  }
+  return [start, end];
+}
+
+// A methodology break's `period` is a point ("2012", "2012-03": the change happens there) or a span ("1994-2024": the
+// note applies across it). Compared as such: a span against a point would compare strings of different kinds.
+function breakSpan(p: string): { from: number; to: number; point: boolean; at: string } {
+  const r = /^(\d{4})-(\d{4})$/.exec(p);
+  if (r) return { from: Number(r[1]), to: Number(r[2]), point: false, at: p };
+  return { from: Number(p.slice(0, 4)), to: Number(p.slice(0, 4)), point: true, at: p };
 }
 
 function breaksInside(entry: Json, start: string, end: string): Json[] {
+  const y0 = Number(start.slice(0, 4)), y1 = Number(end.slice(0, 4));
   return entry.methodology_breaks.filter((b: Json) => {
+    const s = breakSpan(String(b.period));
+    if (!s.point) return s.from <= y1 && s.to >= y0;                      // a span that overlaps the window
     const p = String(b.period);
-    const s = start.slice(0, p.length), e = end.slice(0, p.length);
-    return p > s && p <= e;
+    return cmp(p, start) > 0 && cmp(p, end) <= 0;                         // a change that happens inside it
   });
 }
 
 const NOTES_MAX = 4000;
+const LICENCE_MAX = 1500;
 
-function buildNotes(entry: Json, window: [string, string], measure: Json | null, breaks: Json[]): string {
-  const lines = [
+/** The story's `notes`: one line (the worker refuses newlines). ORDER MATTERS because the 4000-character cap cuts from the
+ *  END: dataset, source and LICENCE come first and are never cut (a long licence is shortened, with a pointer, not dropped);
+ *  then the method changes inside the window; then gaps; then the measure; the engine's long method notes come LAST and are
+ *  the first thing to be shortened. */
+function buildNotes(entry: Json, window: [string, string], measure: Json | null, breaks: Json[], gaps: string[]): string {
+  const licence = String(entry.licence).length > LICENCE_MAX
+    ? `${String(entry.licence).slice(0, LICENCE_MAX - 40).trimEnd()}... (full terms at the source)` : String(entry.licence);
+  const required = [
     `Dataset: ${entry.title} (${entry.id}). ${window[0]} to ${window[1]}.`,
     `Source: ${entry.publisher}${entry.url ? `, ${entry.url}` : ""}.`,
-    measure ? `Measure: ${measure.label}${measure.unit ? ` (${measure.unit})` : ""}.` : "",
+    `Licence: ${licence}`,
+  ];
+  const optional = [
     ...breaks.map((b) => `Method change at ${b.period}: ${b.what} ${b.effect}`.trim()),
+    ...gaps,
+    measure ? `Measure: ${measure.label}${measure.unit ? ` (${measure.unit})` : ""}.` : "",
     entry.missing_is_ambiguous ? "In this source a missing value is ambiguous: it does not say whether it is zero or withheld." : "",
     entry.notes ? `Method notes: ${entry.notes}` : "",
-  ].filter(Boolean);
-  const licence = `Licence: ${entry.licence}`;
-  // One line: the worker's `notes` text refuses newlines.
-  let text = [...lines, licence].join(" ");
-  if (text.length > NOTES_MAX) text = [...lines, `Licence: ${entry.licence_short}. See the source for the full terms.`].join(" ");
-  if (text.length > NOTES_MAX) text = text.slice(0, NOTES_MAX - 3).trimEnd() + "...";
-  return text;
+  ].filter(Boolean) as string[];
+  let text = required.join(" ");
+  for (const part of optional) {
+    const next = `${text} ${part}`;
+    if (next.length <= NOTES_MAX) { text = next; continue; }
+    const room = NOTES_MAX - text.length - 1;
+    if (room > 60) text = `${text} ${part.slice(0, room - 3).trimEnd()}...`;
+    break;
+  }
+  return text.slice(0, NOTES_MAX);
 }
 
 export type FilmReport = {
@@ -155,9 +237,10 @@ export type FilmReport = {
   look: { applied: boolean; changed: string[]; not_applied: string[] };
 };
 
-export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json; audience?: Audience } = {}): { story: Json; report: FilmReport } {
+export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json; audience?: Audience; today?: Today } = {}): { story: Json; report: FilmReport } {
   const catalog = opts.catalog ?? CATALOG, schema = opts.storySchema ?? STORY_SCHEMA;
   const errs: string[] = [];
+  const warnings: string[] = [];
   if (req === null || typeof req !== "object" || Array.isArray(req)) throw new FilmError(["the request must be an object"]);
   for (const k of Object.keys(req)) if (!REQUEST_KEYS.includes(k)) errs.push(`request: unknown key '${k.slice(0, 40)}' (accepted: ${REQUEST_KEYS.join(", ")})`);
 
@@ -184,7 +267,13 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   }
   if (typeof req.film_type !== "string" || !req.film_type) errs.push(`film_type: required, one of ${FILM_TYPES.join(", ")}`);
   else if (!FILM_TYPES.includes(req.film_type)) errs.push(`film_type: '${req.film_type.slice(0, 30)}' is not one of ${FILM_TYPES.join(", ")}`);
-  else if (entry && !entry.film_types.includes(req.film_type)) errs.push(`film_type: '${req.film_type}' is not offered for ${entry.id}; it offers ${entry.film_types.join(", ") || "none"}`);
+  else if (req.film_type === "paired") {
+    // A paired film's story must carry keyframes_per_year MEASURED for that story (Ryan, 2026-09-28: the largest K whose worst
+    // per-frame step is at most 14 px). The engine measures it by drawing the film once per candidate (minutes to an hour), so
+    // it cannot be chosen here, and a paired story without it passes the worker's schema but is refused by the engine at render
+    // (BUILDER's review HIGH-1, shown on state_obesity_fastfood). Refused with that reason rather than compiled to a dead end.
+    errs.push("film_type: 'paired' is not offered: a paired film needs keyframes_per_year measured for its own story (Ryan, 2026-09-28), which takes minutes of rendering and cannot be chosen at compile time. Use map, bars or line");
+  } else if (entry && !entry.film_types.includes(req.film_type)) errs.push(`film_type: '${req.film_type}' is not offered for ${entry.id}; it offers ${entry.film_types.join(", ") || "none"}`);
 
   // ---- places: the story format has no place filter, so this says so instead of pretending
   const places = req.places;
@@ -197,7 +286,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   if (entry) {
     if (req.years !== undefined && req.years !== null && (typeof req.years !== "object" || Array.isArray(req.years) ||
         Object.keys(req.years).some((k) => !["start", "end"].includes(k)))) errs.push("years: an object with start and/or end");
-    else window = resolveYears(entry, req.years ?? null, errs);
+    else window = resolveYears(entry, req.years ?? null, opts.today, errs, warnings);
     if (req.measure !== undefined && req.measure !== null && req.measure !== "") {
       measure = entry.measures.find((m: Json) => m.id === req.measure) ?? null;
       if (!measure) errs.push(`measure: '${String(req.measure).slice(0, 60)}' is not a measure of ${entry.id}; it has ${entry.measures.map((m: Json) => m.id).join(", ") || "none"}`);
@@ -211,7 +300,11 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
 
   // ---- assemble
   const breaks = breaksInside(entry, window[0], window[1]);
-  const warnings: string[] = breaks.map((b) => `the window crosses a method change at ${b.period}: ${b.what} ${b.effect}`.trim());
+  warnings.push(...breaks.map((b) => (breakSpan(String(b.period)).point
+    ? `the window crosses a method change at ${b.period}: ${b.what} ${b.effect}`
+    : `a method note applies across ${b.period.replace("-", " to ")}, which overlaps the window: ${b.what} ${b.effect}`).trim()));
+  const gapNotes = Object.entries(entry.known_gaps ?? {}).filter(([g]) => cmp(window![0], g) < 0 && cmp(g, window![1]) < 0)
+    .map(([g, why]) => `Not published by the source: ${g} (${why}); shown as a gap, not filled.`);
   const settings: Json = {};
   if (req.film_type === "bars") Object.assign(settings, { top_n: 10, axis: "fixed" });
   if (req.film_type === "line") settings.line_top_n = 6;
@@ -225,7 +318,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
     schema: 1,
     name: slug(title),
     engine: "sequence",
-    notes: buildNotes(entry, window, headMeasure, breaks),
+    notes: buildNotes(entry, window, headMeasure, breaks, gapNotes),
     sequence: {
       canvas: [1920, 1080], fps: 30, theme: "dark",
       ...(entry.style ? { style_overrides: JSON.parse(JSON.stringify(entry.style)) } : {}),
@@ -237,12 +330,31 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   let look = { applied: false, changed: [] as string[], not_applied: [] as string[] };
   if (req.look !== undefined && req.look !== null) {
     // A dataset the engine draws as continuous colour (county areas are too small to hatch) cannot take a hatching look.
-    if (entry.style?.choropleth?.continuous && req.look?.look?.ramp?.mode === "hatch") {
+    // Found by the render proof (2026-10-18): only bps_county_permits was pinned, so a hatching look on any other county dataset
+    // compiled and then failed texture_carrying_capacity (12% of counties cannot carry a pattern). Any county-level geography
+    // is refused for hatching, pinned or not.
+    const countyLevel = ["us_counties", "tx_counties"].includes(entry.geography?.id);
+    if ((entry.style?.choropleth?.continuous || (countyLevel && req.film_type === "map")) && req.look?.look?.ramp?.mode === "hatch") {
       throw new FilmError(["look: this dataset is drawn as continuous colour (its areas are too small to hatch); use a look whose ramp mode is 'solid'"]);
     }
+    // A solid look on a county map is drawn as CONTINUOUS colour: counties are too small to class into a few bands, and a
+    // banded solid county map is judged by the 90 percent frame count (the render proof measured 29 to 53 percent kept, a
+    // fail) while the continuous map passes the half-second windows (50 of 50). So the look is applied with continuous on.
+    let lookToApply = req.look;
+    if (countyLevel && req.film_type === "map" && req.look?.look?.ramp && req.look.look.ramp.continuous === undefined) {
+      lookToApply = JSON.parse(JSON.stringify(req.look));
+      lookToApply.look.ramp.continuous = true;
+    }
     try {
-      const r = applyProfile(req.look, story, "restyle");
+      const r = applyProfile(lookToApply, story, "restyle");
       story = r.story;
+      // A dataset's pinned style (county areas are drawn as continuous colour) must survive the look. A look may restate the
+      // same value, but one that CHANGES a pinned key (continuous false, mode hatch) would silently undo it (BUILDER LOW-7).
+      const pin = entry.style?.choropleth ?? {}, got = story.sequence.style_overrides?.choropleth ?? {};
+      const undone = Object.keys(pin).filter((k) => got[k] !== pin[k]);
+      if (undone.length) {
+        throw new FilmError([`look: this dataset is drawn with ${undone.map((k) => `choropleth ${k} = ${JSON.stringify(pin[k])}`).join(" and ")} (its areas are too small to hatch or to class into a few bands); this look would change it to ${undone.map((k) => JSON.stringify(got[k])).join(" and ")}. Use a look that leaves it alone`]);
+      }
       warnings.push(...r.report.warnings);
       look = { applied: true, changed: r.report.changed, not_applied: r.report.not_applied };
     } catch (e) {

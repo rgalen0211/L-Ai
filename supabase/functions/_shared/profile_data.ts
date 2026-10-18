@@ -556,7 +556,7 @@ export const PRESETS: any = {
       }
     },
     "pacing": {
-      "hold_seconds": 3.0,
+      "hold_seconds": 2.0,
       "transition": {
         "kind": "crossfade",
         "seconds": 0.8
@@ -667,7 +667,7 @@ export const PRESET_LIST: any[] = [
     ],
     "fps": 24,
     "ramp_mode": "solid",
-    "hold_seconds": 3.0
+    "hold_seconds": 2.0
   },
   {
     "id": "wtds-classic",
@@ -736,10 +736,10 @@ export const SAMPLE_STORY: any = {
       {
         "kind": "render",
         "id": "line",
-        "dataset": "bls_state_unemployment",
+        "dataset": "cbp_retail_share_state",
         "view": "line",
-        "start": "2021-01",
-        "end": "2022-12",
+        "start": "1998",
+        "end": "2002",
         "transition": {
           "kind": "crossfade",
           "seconds": 0.6
@@ -760,10 +760,12 @@ export const BAR_RACE: any = {
   ]
 };
 
-export const SAMPLE_PERIODS: string[] = [
-  "2011",
-  "2017",
-  "2023",
+// The periods a sample contact sheet draws: 3 to 5 four-digit years inside the sample's span, each view drawn once.
+export const SAMPLE_SHEET_PERIODS: string[] = [
+  "2000",
   "2005",
-  "2021-06"
+  "2017",
+  "2023"
 ];
+// Deprecated name for the same list (it once held '2005' and '2021-06', which a sheet refuses).
+export const SAMPLE_PERIODS: string[] = SAMPLE_SHEET_PERIODS;

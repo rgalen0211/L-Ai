@@ -1,12 +1,15 @@
 """Generate assets/app-catalog-data.js: the app's dataset catalog, from the ENGINE's own registry.
 
-    python tools/gen-catalog.py --engine <engine checkout> --setup <WORKER-SETUP.ps1>
+    python tools/gen-catalog.py --engine <engine checkout> --setup <WORKER-SETUP.ps1> \n        --allowlist supabase/functions/_shared/worker_allowlist.txt
 
 The catalog is generated, never typed (two hand-kept lists drift): every dataset the engine
 registers (ryagram.maprace.datasets.listing()), minus fixtures, private data and shapes the app
 can't build yet, each marked with the worker's state:
 
-  usable  on the INSTALLED worker's allowlist (WORKER-SETUP.ps1, $AllowToml)
+  usable  on the INSTALLED worker's allowlist: the COMMITTED export supabase/functions/_shared/worker_allowlist.txt
+          (--allowlist), never a machine-local read
+          With --motion (WORKER's committed motion record, one line per allowlisted id) a dataset measured motion=fail is
+          NOT usable (it becomes `later`): its default film fails the strict motion check even after pacing (Ryan 2026-10-17).
   next    measured by WORKER and arriving with the next worker update ($UpdateCandidates)
   later   registered by the engine, not measured for the worker's cache yet
 
@@ -49,8 +52,9 @@ PUBLIC_SHAPES = ('areas',)                                   # flows, lines and 
 #: Datasets whose frame needs a style the engine would not choose itself. MUST equal the `style` of the same
 #: dataset in supabase/functions/_shared/templates.ts DATASETS (tests/film-compile.test.mjs checks).
 STYLE_PINS = {'bps_county_permits': {'choropleth': {'mode': 'solid', 'continuous': True}}}
-#: The film types the guided builder offers: the app's tested templates.
-FILM_TYPES = ('map', 'bars', 'line', 'paired')
+#: The film types the guided builder offers: the app's tested templates that need no per-story measurement. `paired` is NOT here:
+#: a paired story must carry keyframes_per_year measured for that story (Ryan, 2026-09-28), which takes minutes of rendering.
+FILM_TYPES = ('map', 'bars', 'line')
 LEVELS = {'us_states': 'U.S. states', 'us_counties': 'U.S. counties', 'tx_counties': 'Texas counties'}
 
 
@@ -174,6 +178,9 @@ def committed_tree(engine):
     if tar.returncode != 0:
         sys.exit('gen-catalog: could not export the engine commit: ' + tar.stderr.decode('utf-8', 'replace')[:300])
     out = tempfile.mkdtemp(prefix='gen-catalog-engine-')
+    import atexit
+    import shutil
+    atexit.register(shutil.rmtree, out, True)            # the export is a temporary copy: never leave it behind
     with tarfile.open(fileobj=io.BytesIO(tar.stdout)) as t:
         try:
             t.extractall(out, filter='data')            # no absolute paths, links or device files
@@ -200,34 +207,63 @@ def story_measure(m):
     return {'banded': 'rate', 'counted': 'count'}.get(m.get('role') or '')
 
 
-#: RULINGS 2026-10-17 (Ryan): a dataset may be LISTED to people only if it is not personal and its licence allows
-#: showing derived visuals publicly. The rule is decided here, from the registry's own licence text, and re-derived by
-#: supabase/functions/_shared/catalog_rules.ts (tests compare the two). Unknown or restrictive licences are NOT listable:
-#: the default is no. Terms: public domain, U.S. Government work, 17 USC 105, CC0, or CC BY (any version) with no NC or ND.
-PERSONAL_LICENCE = re.compile(r'\b(private|personal)\b', re.I)
-PUBLIC_LICENCE = re.compile(r'public domain|17 USC 105|U\.S\. Government works?|\bCC0\b|\bCC BY\b', re.I)
-RESTRICTED_LICENCE = re.compile(r'\bCC BY[- ](NC|ND)|non-?commercial|no ?derivatives?|all rights reserved|not for (public|redistribution)', re.I)
+#: RULINGS 2026-10-17 (Ryan): a dataset may be LISTED to people only if it is not personal and its licence allows showing
+#: derived visuals publicly; CC BY-SA, in whole or in part, is NOT listable in v1 (Ryan, 2026-10-17, with a must-fail).
+#:
+#: `listable` is a FIELD, DECIDED PER DATASET in supabase/functions/_shared/listing_decisions.json (who and why recorded),
+#: not a regex over the registry's prose. A new dataset with no decision is an ERROR, never listed by default. Two guards
+#: read the prose to CATCH a wrong decision, never to make one: a `listable: true` whose licence or notes trip a restriction
+#: word (INTERNAL, BY-SA, non-commercial, no derivatives, all rights reserved, "not public", private, personal, confidential,
+#: proprietary, or a licence that is private or personal) is an error, and so is a `true` whose licence names no open licence. catalog_rules.ts re-checks the same
+#: two guards on the generated data (tests).
+TRIPWIRE = re.compile(r'\bINTERNAL\b|BY-SA|share-?alike|\bBY-NC\b|\bBY-ND\b|non-?commercial|no ?derivatives?|all rights reserved|'
+                      r'not for (public|redistribution)|\bnot\s+(a\s+)?public\b|confidential|proprietary', re.I)
+#: In the LICENCE text only (prose such as "private-sector" or "personal income" is ordinary): a private or personal licence.
+PRIVATE_LICENCE = re.compile(r'^\s*(private|personal|local file)\b|\b(private|personal)\s+(data|dataset|use|file)\b', re.I)
+OPEN_LICENCE = re.compile(r'public domain|17 USC 105|U\.S\. Government works?|\bCC0\b|\bCC BY\b', re.I)
+LISTING_CLASSES = ('us-gov-public-domain', 'open-licence', 'not-listable')
 
 
-def listable_of(d):
-    """(listable, why): personal and synthetic data are never listed; otherwise only a recognised open licence is."""
+def read_listing(path):
+    """The per-dataset listing decisions: {id: {'listable': bool, 'class': str, 'why': str}}."""
+    raw = json.loads(Path(path).read_text(encoding='utf-8-sig'))
+    out = {}
+    for i, dec in (raw.get('decisions') or {}).items():
+        if not re.fullmatch(r'[a-z0-9_]{1,64}', i):
+            sys.exit(f'gen-catalog: {path}: {i!r} is not a dataset id')
+        if not isinstance(dec.get('listable'), bool) or dec.get('class') not in LISTING_CLASSES or not str(dec.get('why') or '').strip():
+            sys.exit(f'gen-catalog: {path}: the decision for {i} needs listable (true or false), a class from {LISTING_CLASSES} and a why')
+        if dec['listable'] == (dec['class'] == 'not-listable'):
+            sys.exit(f'gen-catalog: {path}: the decision for {i} says listable={dec["listable"]} with class {dec["class"]}')
+        out[i] = {'listable': dec['listable'], 'class': dec['class'], 'why': ' '.join(str(dec['why']).split())}
+    return out
+
+
+def listing_for(d, decisions):
+    """(listable, class, why) for one registry dataset, from its DECISION, checked against its own prose."""
+    i = d['id']
     lic = re.sub(r'\s+', ' ', d.get('license') or '').strip()
-    if EXCLUDE.search(d['id']) or PERSONAL_LICENCE.search(lic):
-        return False, 'personal'
-    if d.get('synthetic'):
-        return False, 'synthetic'
-    if RESTRICTED_LICENCE.search(lic):
-        return False, 'licence restricts public use'
-    if PUBLIC_LICENCE.search(lic):
-        return True, 'public domain' if re.search(r'public domain|17 USC 105|U\.S\. Government', lic, re.I) else 'open licence'
-    return False, 'licence not recognised'
+    notes = re.sub(r'\s+', ' ', d.get('notes') or '').strip()
+    if EXCLUDE.search(i) or d.get('synthetic'):
+        return False, 'not-listable', 'personal, fixture or synthetic data is never listed'
+    dec = decisions.get(i)
+    if dec is None:
+        sys.exit(f'gen-catalog: no listing decision for {i}: add it to listing_decisions.json (listable true or false, with a why); '
+                 f'a dataset is never listed by default')
+    if dec['listable']:
+        hit = TRIPWIRE.search(lic + ' ' + notes) or PRIVATE_LICENCE.search(lic)
+        if hit:
+            sys.exit(f'gen-catalog: {i} is decided listable but its licence or notes say {hit.group(0)!r}: fix the decision or the text')
+        if not OPEN_LICENCE.search(lic):
+            sys.exit(f'gen-catalog: {i} is decided listable but its licence names no open licence: {lic[:80]!r}')
+    return dec['listable'], dec['class'], dec['why']
 
 
-def detail_entry(d, status, window, title, short, family, views):
+def detail_entry(d, status, window, title, short, family, views, decisions):
     ms = d.get('measures') or []
-    listable, why = listable_of(d)
+    listable, lclass, why = listing_for(d, decisions)
     return {
-        'listable': listable, 'listable_why': why,
+        'listable': listable, 'listable_class': lclass, 'listable_why': why,
         'id': d['id'], 'title': title, 'short': short, 'group': group_of(d), 'family': family, 'status': status,
         'publisher': d.get('source') or '', 'source_line': d.get('source_line') or '',
         'url': d.get('url') if str(d.get('url') or '').startswith('https://') else '',
@@ -251,13 +287,15 @@ def detail_entry(d, status, window, title, short, family, views):
 
 def detail_text(commit, entries, schema_path):
     """The exact text of catalog_data.ts: plain data, ASCII only, stable order. Pure, so a test can regenerate it."""
-    raw = Path(schema_path).read_bytes()
+    # LINE-ENDING PROOF: the hash is of the file with CRLF turned into LF, so it is the same whether the engine tree was read
+    # from an LF checkout, a CRLF checkout (core.autocrlf) or a git archive (BUILDER LOW-8).
+    raw = Path(schema_path).read_bytes().replace(bytes([13, 10]), bytes([10]))
     schema = json.loads(raw.decode('utf-8'))
     sha = hashlib.sha256(raw).hexdigest()
     dump = lambda v: json.dumps(v, indent=1, ensure_ascii=True)
     return (
         "// GENERATED by tools/gen-catalog.py --detail-out, do not edit. Regenerate: see the header of that script.\n"
-        "// Engine %s. Story schema vendored from ryagram/worker/story.schema.json, sha256 %s.\n"
+        "// Engine %s. Story schema vendored from ryagram/worker/story.schema.json, sha256 %s (of the LF-normalised file).\n"
         "// SERVER ONLY: never copy this under assets/. It is the internal list Ryagram's AI and the guided builder's\n"
         "// server function choose from. (RULINGS 2026-10-17 lets a front end list datasets to invited users with source\n"
         "// and licence shown; that is a separate, public-catalog change, not this file.)\n"
@@ -269,23 +307,91 @@ def detail_text(commit, entries, schema_path):
         "export const STORY_SCHEMA: any = %s;\n" % (commit, sha, json.dumps(commit), json.dumps(sha), dump(entries), dump(schema)))
 
 
+def read_allowlist(path):
+    """The installed worker's allowlist, from a COMMITTED export (supabase/functions/_shared/worker_allowlist.txt).
+
+    One dataset id per line; blank lines and `#` lines are comments. If a `# count: N` header is present it must equal the
+    number of ids (a hand edit or a truncated export fails here, not later). A `#views <id> <view,view>` line records a
+    view restriction the worker enforces (worker.toml [datasets.views]); the catalog then offers only those views.
+    """
+    ids, count, views = [], None, {}
+    for n, raw in enumerate(Path(path).read_text(encoding='utf-8-sig').splitlines(), 1):
+        line = raw.strip()
+        if not line:
+            continue
+        if line.startswith('#'):
+            m = re.match(r'#\s*count:\s*(\d+)\s*$', line)
+            if m:
+                count = int(m.group(1))
+            v = re.match(r'#views\s+([a-z0-9_]{1,64})\s+([a-z,]+)\s*$', line)      # a view restriction the worker enforces
+            if v:
+                views[v.group(1)] = [x for x in v.group(2).split(',') if x]
+            continue
+        if not re.fullmatch(r'[a-z0-9_]{1,64}', line):
+            sys.exit(f'gen-catalog: {path}:{n}: {line!r} is not a dataset id')
+        ids.append(line)
+    if len(set(ids)) != len(ids):
+        sys.exit(f'gen-catalog: {path} lists an id twice')
+    if count is not None and count != len(ids):
+        sys.exit(f'gen-catalog: {path} says count: {count} but lists {len(ids)} ids')
+    for i in views:
+        if i not in ids:
+            sys.exit(f'gen-catalog: {path}: #views names {i}, which is not on the allowlist')
+    return ids, views
+
+
+MOTION_LINE = re.compile(r'^([a-z0-9_]{1,64}) motion=(pass|fail|na) paced=(\S+) engine=([0-9a-f]{7,40}) measured=(\d{4}-\d{2}-\d{2})$')
+
+
+def read_motion(path, allow):
+    """WORKER's measured motion record, COMMITTED beside the allowlist (RULINGS 2026-10-17: a dataset whose default film still
+    fails the strict motion check after pacing is not usable). One line per allowlisted dataset:
+
+        <id> motion=pass|fail|na paced=<years or none> engine=<commit> measured=<date>
+
+    `na` = the check does not apply to that film (not a windowed map and not measured); `paced` lists the years pacing shortened
+    ("none" if none). Refused here, not later: a line that does not parse, an id twice, an id that is not on the allowlist, and
+    an allowlisted id with NO line (a dataset nobody measured must not become usable by omission). Returns {id: (motion, paced)}."""
+    rec = {}
+    for n, raw in enumerate(Path(path).read_text(encoding='utf-8-sig').splitlines(), 1):
+        line = raw.strip()
+        if not line or line.startswith('#'):
+            continue
+        m = MOTION_LINE.match(line)
+        if not m:
+            sys.exit(f'gen-catalog: {path}:{n}: not a motion line: {line!r}')
+        i = m.group(1)
+        if i in rec:
+            sys.exit(f'gen-catalog: {path} has two lines for {i}')
+        if i not in allow:
+            sys.exit(f'gen-catalog: {path}:{n}: {i} is not on the allowlist')
+        rec[i] = (m.group(2), m.group(3))
+    missing = [i for i in allow if i not in rec]
+    if missing:
+        sys.exit(f'gen-catalog: {path} has no motion line for {len(missing)} allowlisted dataset(s): ' + ', '.join(missing[:8]))
+    return rec
+
+
 def read_setup(path):
+    """WORKER-SETUP.ps1's UpdateCandidates: datasets measured and arriving with the next worker update (`next`).
+    The setup file no longer decides what is USABLE: that is the allowlist export (read_allowlist)."""
     text = Path(path).read_text(encoding='utf-8-sig')
-    allow_block = re.search(r"\$AllowToml\s*=\s*@'\s*(.*?)\s*'@", text, re.S).group(1)
-    allow = re.findall(r"'([a-z0-9_]+)'", allow_block)
     cand_block = re.search(r'\$UpdateCandidates\s*=\s*\[ordered\]@\{(.*?)\n\}', text, re.S).group(1)
     nxt = {}
     for line in cand_block.splitlines():
         m = re.match(r"\s*'([a-z0-9_]+)'\s*=\s*'([^']*)'", line)
         if m:
             nxt[m.group(1)] = m.group(2)
-    return allow, nxt
+    return nxt
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument('--engine', required=True)
-    ap.add_argument('--setup', required=True)
+    ap.add_argument('--listing', required=True, help='the per-dataset listing decisions (listing_decisions.json): who may be LISTED')
+    ap.add_argument('--setup', required=True, help="WORKER-SETUP.ps1: only its UpdateCandidates are read (the `next` list)")
+    ap.add_argument('--allowlist', required=True, help="the committed export of the installed worker's allowlist (one id per line)")
+    ap.add_argument('--motion', default='', help="WORKER's committed motion record: a dataset measured motion=fail is NOT usable")
     ap.add_argument('--out', default=str(ROOT / 'assets' / 'app-catalog-data.js'))
     ap.add_argument('--detail-out', default='', help='also write the server-only detail (see the header)')
     ap.add_argument('--commit', default='', help="the engine commit (an exported tree has no .git)")
@@ -302,7 +408,14 @@ def main():
     sys.path.insert(0, engine)
     from ryagram.maprace import datasets as D            # the engine's own registry
     ingested = ingested_ids()
-    allow, nxt = read_setup(a.setup)
+    allow, restricted = read_allowlist(a.allowlist)
+    motion = read_motion(a.motion, allow) if a.motion else None
+    decisions = read_listing(a.listing)
+    nxt = read_setup(a.setup)
+    registry_ids = {d['id'] for d in D.listing()}
+    stale = [i for i in allow if i not in registry_ids]
+    if stale:
+        sys.exit('gen-catalog: the allowlist names datasets the engine does not register (a stale export): ' + ', '.join(stale))
     # Windows the app already knows are good (tested templates); read from the app's own file.
     tpl = (ROOT / 'assets' / 'app-templates.js').read_text(encoding='utf-8')
     known = {m.group(1): (m.group(2), m.group(3))
@@ -316,9 +429,13 @@ def main():
         views = [v for v in d.get('views', []) if v in APP_VIEWS]
         if d.get('entity_kind') == 'plain':
             views = [v for v in views if v != 'map']
+        if d['id'] in restricted:                            # the worker offers this dataset in these views only
+            views = [v for v in views if v in restricted[d['id']]]
         if not views:
             continue
-        status = 'usable' if d['id'] in allow else 'next' if d['id'] in nxt else 'later'
+        status = 'usable' if d['id'] in allow else 'next' if d['id'] in nxt else 'later'   # usable = on the worker's allowlist
+        if status == 'usable' and motion is not None and motion[d['id']][0] == 'fail':
+            status = 'later'          # its default film fails the strict motion check even after pacing: not usable (Ryan)
         window = known.get(d['id']) or ((d['available_from'], d['available_to'])
                                         if d.get('available_from') and d.get('available_to') else None)
         measure = ((d.get('measures') or [{}])[0]).get('label') or ''
@@ -332,7 +449,9 @@ def main():
         seed.append({'id': d['id'], 'title': title, 'publisher': d.get('source') or '', 'url': (d.get('url') or '') if str(d.get('url') or '').startswith('https://') else '',
                      'coverage': coverage_text(d), 'licence_short': short_licence(d.get('license')),
                      'licence_full': re.sub(r'\s+', ' ', d.get('license') or '').strip(), 'runnable': status == 'usable'})
-        detail.append(detail_entry(d, status, window, title, short, family, views))
+        detail.append(detail_entry(d, status, window, title, short, family, views, decisions))
+        if not detail[-1]['listable']:
+            continue        # THE PUBLIC FILE HOLDS LISTABLE DATASETS ONLY (RULINGS 2026-10-17): anyone can fetch it
         entries.append({
             'id': d['id'], 'title': title, 'short': short, 'blurb': blurb(d), 'source': d.get('source') or '', 'url': d.get('url') or '',
             'group': group_of(d), 'family': family, 'status': status,
@@ -344,7 +463,8 @@ def main():
     data = {'engine': commit, 'allow': allow, 'next': nxt, 'entries': entries}
     body = json.dumps(data, indent=1, ensure_ascii=True)
     Path(a.out).write_text(
-        "// GENERATED by tools/gen-catalog.py from the engine's registry (engine %s) and WORKER-SETUP.ps1's allowlist.\n"
+        "// GENERATED by tools/gen-catalog.py from the engine's registry (engine %s) and the worker's committed allowlist export.\n"
+        "// LISTABLE datasets only (RULINGS 2026-10-17): this file is public, so a dataset that may not be listed is not in it.\n"
         "// Do not edit by hand: regenerate. See the header of tools/gen-catalog.py.\n"
         "window.ryagramCatalogData = %s;\n" % (commit, body), encoding='utf-8', newline='\n')
     write_seed(ROOT / 'supabase' / 'catalog_sources_seed.sql', commit, seed)
