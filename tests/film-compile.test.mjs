@@ -13,7 +13,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { CATALOG, STORY_SCHEMA, STORY_SCHEMA_SHA256, CATALOG_ENGINE } from '../supabase/functions/_shared/catalog_data.ts';
-import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError, FILM_TYPES, COUNTY_CONTINUOUS_NOTICE, countySlowPacingNotice } from '../supabase/functions/_shared/film.ts';
+import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError, FILM_TYPES, COUNTY_CONTINUOUS_NOTICE, countySlowPacingNotice, NOT_USABLE_WHY } from '../supabase/functions/_shared/film.ts';
 import { checkAgainst } from '../supabase/functions/_shared/schema_check.ts';
 import { DATASETS } from '../supabase/functions/_shared/templates.ts';
 import { listableEntries, listableProblems, publicLeaks } from '../supabase/functions/_shared/catalog_rules.ts';
@@ -141,7 +141,8 @@ test('MUST-FAIL: every way to ask for something the engine cannot honestly draw 
   assert.equal(refused(ok), null, 'control');
   const cases = {
     'unknown dataset': [{ ...ok, dataset: 'nope' }, /not in the catalog/],
-    'a dataset the worker is not set up for': [{ ...ok, dataset: CATALOG.find(x => x.status !== 'usable').id }, /not usable yet/],
+    'a dataset that is not measured yet (next)': [{ ...ok, dataset: CATALOG.find(x => x.status === 'next').id }, /is not usable yet. Ryagram has not yet checked that a film from this data moves smoothly/],
+    'a dataset that did not pass the checks (later)': [{ ...ok, dataset: CATALOG.find(x => x.status === 'later' && x.listable).id }, /is not usable yet. Ryagram cannot make a film from this data yet: it has not been set up, or a film from it did not pass Ryagram's checks/],
     'private data': [{ ...ok, dataset: 'ryan_anything' }, /not in the catalog/],
     'an unknown film type': [{ ...ok, film_type: 'pie' }, /is not one of/],
     'a film type the dataset does not offer (a NON-paired type: fhwa_hm212 is a line-only dataset, asked for a map)': [{ ...ok, dataset: 'fhwa_hm212', film_type: 'map' }, /'map' is not offered for fhwa_hm212; it offers line/, { catalog: ALL_USABLE }],
@@ -319,6 +320,20 @@ test('the BY-SA backstop (TypeScript and Python patterns) catches every spelling
   const got = JSON.parse(py.stdout);
   for (const [t, hit] of got.slice(0, spellings.length)) assert.equal(hit, true, `Python: ${t}`);
   for (const [t, hit] of got.slice(spellings.length)) assert.equal(hit, false, `Python control: ${t}`);
+});
+
+test('the two ways a dataset is not usable are worded as the catalog page words them: next = not yet checked, later = did not pass the checks; neither promises a worker update', () => {
+  assert.equal(NOT_USABLE_WHY.next, "Ryagram has not yet checked that a film from this data moves smoothly, so you cannot make one yet.");
+  assert.equal(NOT_USABLE_WHY.later, "Ryagram cannot make a film from this data yet: it has not been set up, or a film from it did not pass Ryagram's checks.");
+  const next = CATALOG.find(x => x.status === 'next'), later = CATALOG.find(x => x.status === 'later' && x.listable);
+  assert.ok(next && later, 'the catalog has both kinds');
+  const msg = e => refused({ dataset: e.id, film_type: e.film_types[0], title: 'x' }).join(' | ');
+  assert.ok(msg(next).includes(NOT_USABLE_WHY.next) && !msg(next).includes(NOT_USABLE_WHY.later), 'next says next');
+  assert.ok(msg(later).includes(NOT_USABLE_WHY.later) && !msg(later).includes(NOT_USABLE_WHY.next), 'later says later');
+  // MUST-FAIL (the old wording): no non-usable dataset is told it is waiting for a render-worker update or that the worker is not set up
+  for (const e of [next, later]) assert.doesNotMatch(msg(e), /render-worker update|render worker has not been set up/, e.id);
+  // CONTROL: a usable dataset gets no such sentence
+  assert.equal(refused({ dataset: usable[0].id, film_type: usable[0].film_types[0], title: 'x' }), null);
 });
 
 test('a bad look is refused with the profile reasons, prefixed; a look cannot carry a claim', () => {

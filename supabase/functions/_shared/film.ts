@@ -246,6 +246,16 @@ export const COUNTY_CONTINUOUS_NOTICE = "Your look uses solid colours; on a coun
 export const COUNTY_SLOW_HOLD_ABOVE = 1;
 export const countySlowPacingNotice = (hold: number) => `On a county map this look's slow pacing (${hold} s per year) is mostly shortened so the film visibly moves: years where little changes are shown for about 0.4 s. The numbers and years are unchanged.`;
 
+// Under the MOTION GATE (RULINGS 5b16d78) a dataset that is not usable is one of two things, and the person is told which, in the
+// words the catalog page uses (WEB, catalog-usable 1792f7b: "Not checked yet" / "Not available yet"):
+//   next  = Ryagram has not yet checked that a film from this data moves smoothly (it is not measured), so you cannot make one yet;
+//   later = Ryagram cannot make a film from this data yet. 'later' means EITHER not set up on the worker at all (17 datasets today) OR
+//           measured and failed the motion check; the catalog does not say which, so the sentence says both.
+export const NOT_USABLE_WHY = {
+  next: "Ryagram has not yet checked that a film from this data moves smoothly, so you cannot make one yet.",
+  later: "Ryagram cannot make a film from this data yet: it has not been set up, or a film from it did not pass Ryagram's checks.",
+};
+
 export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json; audience?: Audience; today?: Today } = {}): { story: Json; report: FilmReport } {
   const catalog = opts.catalog ?? CATALOG, schema = opts.storySchema ?? STORY_SCHEMA;
   const errs: string[] = [];
@@ -273,7 +283,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   if (typeof req.dataset !== "string" || !req.dataset) errs.push("dataset: required (an id from the catalog)");
   else if (!entry) errs.push(`dataset: '${String(req.dataset).slice(0, 64)}' is not in the catalog; use searchCatalog`);
   else if (entry.status !== "usable") {
-    errs.push(`dataset: '${entry.id}' is not usable yet: ${entry.status === "next" ? "it arrives with the next render-worker update" : "the render worker has not been set up for it"}`);
+    errs.push(`dataset: '${entry.id}' is not usable yet. ${NOT_USABLE_WHY[entry.status as "next" | "later"] ?? NOT_USABLE_WHY.later}`);
   }
   if (typeof req.film_type !== "string" || !req.film_type) errs.push(`film_type: required, one of ${FILM_TYPES.join(", ")}`);
   else if (!FILM_TYPES.includes(req.film_type)) errs.push(`film_type: '${req.film_type.slice(0, 30)}' is not one of ${FILM_TYPES.join(", ")}`);
