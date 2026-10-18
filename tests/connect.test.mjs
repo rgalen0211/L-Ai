@@ -150,3 +150,8 @@ test('SCOPES SHOWN (CONNECT review F1): the boxes are what the assistant ASKED f
   assert.ok(!/redirect_label \|\| c\.client_name/.test(src), 'the assistant\'s own name is never promoted to the heading');
   assert.equal(C.UNKNOWN_ADDRESS, 'An address Ryagram does not recognise');
 });
+
+test('INHERITED NAMES (the MED-3 class): a scope called constructor, __proto__ or toString is shown as an unknown tool, never as a function', () => {
+  for (const bad of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) assert.equal(C.scopeWord(bad), `Use the tool called ${bad}`, bad);
+  assert.equal(C.scopeWord('read'), 'See your projects, films and credit balance');
+});
