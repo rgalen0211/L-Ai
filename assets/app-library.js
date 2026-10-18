@@ -47,6 +47,7 @@
   // Public film pages show once the film-page function is deployed (filmPages: true), or in mock mode.
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
+  const byodGuideOn = () => (window.ryagramConfig?.uploads === true && window.ryagramConfig?.byodGuide === true) || !!window.ryagramMock;
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
@@ -918,8 +919,13 @@
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
       const sources = sourcesPanel(v, !locked);
       // Using an upload as this film's data points the story's render clips at it (v1: one uploaded dataset per film).
-      const uploads = uploadsOn() ? uploadsPanel(v, !locked, async ref => {
-        const built = window.ryagramUploads.useInStory(v.story_spec, ref);
+      const uploads = uploadsOn() ? uploadsPanel(v, !locked, async (ref, ds) => {
+        let built = window.ryagramUploads.useInStory(v.story_spec, ref);
+        // BYOD guide: a blank story gets a starter film made from the upload (a title and one clip for the data), so the person is never left at a dead end.
+        if (!built && byodGuideOn() && window.ryagramTemplates.isBlank(v.story_spec)) {
+          const per = ds?.ingest_report?.periods;
+          if (per?.first && per?.last) built = window.ryagramTemplates.buildFor({ id: ref, label: ds.filename_label || ds.name || 'Your data', start: String(per.first), end: String(per.last), view: 'map', note: 'Started from your own data. Edit the headline, the years (start and end) or the view, then make a contact sheet.' }, project.title);
+        }
         if (!built) throw new Error('Add a render clip to the story first, then use your data in it.');
         const result = await data.saveStory(v.id, built);
         v.story_spec = built;
@@ -928,6 +934,15 @@
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
       }) : null;
+      // BYOD guide: a line near the top for people who want their own spreadsheet (the upload sits in the folded Advanced panel at the bottom, which a new person does not look in).
+      let advanced = null;
+      const byodPointer = uploads && byodGuideOn() && !locked
+        ? h('p', { class: 'form-note byod-pointer' }, 'Have your own spreadsheet? ', h('button', { class: 'link-button', type: 'button', onclick: () => {
+          if (!advanced) return;
+          advanced.open = true;
+          advanced.scrollIntoView({ block: 'start' });
+          document.getElementById('upload-file')?.focus();
+        } }, 'Use your own data')) : null;
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
         if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
@@ -962,13 +977,14 @@
             : null),
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
         picker,
+        byodPointer,
         saved,                                      // "Template applied and saved ...": shown here, not inside the folded story file
         chat,
         sources.el,
         jobs.el,
         files.el,
         // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
-        h('details', { class: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
+        advanced = h('details', { class: 'advanced-panel', id: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
           h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
           uploads?.el, storyForm)
       ];
@@ -1063,11 +1079,30 @@
         h('label', { class: 'choice' }, rights, h('span', {}, 'I have the right to use this data.')),
         send);
 
+      // Where the data comes from (S5). Every word marked PLACEHOLDER is draft wording; the person's answers are kept in `prov` and shown back as the closing card will read.
+      function provenanceFields(prov) {
+        const card = h('ul', { class: 'prov-card', 'aria-live': 'polite' });
+        const draw = () => card.replaceChildren(...U.provenanceCard(prov).map(l => h('li', {}, l)));
+        const text = (id, label, key, hint) => { const i = h('input', { id, type: 'text', maxlength: String(U.FIELD_MAX[key]), autocomplete: 'off', oninput: () => { prov[key] = i.value; draw(); } }); return h('div', { class: 'field' }, h('label', { for: id }, label), i, hint ? h('p', { class: 'form-note' }, hint) : null); };
+        const lic = h('select', { 'aria-label': 'What lets you use it', onchange: () => { prov.licence = lic.value; note.hidden = prov.licence !== 'other'; draw(); } }, h('option', { value: '' }, 'Choose\u2026'), U.LICENCES.map(([k, t]) => h('option', { value: k }, t)));
+        const note = h('div', { class: 'field', hidden: true }, h('label', { for: 'prov-licence-note' }, 'Describe it'), h('input', { id: 'prov-licence-note', type: 'text', maxlength: String(U.FIELD_MAX.licence_note), oninput: e => { prov.licence_note = e.target.value; draw(); } }));
+        const dec = h('select', { 'aria-label': 'Decimals to show', onchange: () => { prov.decimals = Number(dec.value); } }, [0, 1, 2, 3].map(n => h('option', { value: String(n) }, `${n} decimal place${n === 1 ? '' : 's'}`)));
+        const ok = h('input', { id: 'prov-attest', type: 'checkbox', onchange: () => { prov.attested = ok.checked; } });
+        draw();
+        return h('fieldset', { class: 'prov-fields' }, h('legend', {}, 'Where does this data come from?'),
+          h('p', { class: 'form-note prov-placeholder' }, `${U.PLACEHOLDER} Your film will show its source, and say the figures are yours.`),
+          text('prov-publisher', 'Who published or owns it', 'publisher'), text('prov-link', 'A link or a short description (optional)', 'link'),
+          h('label', { class: 'field' }, h('span', {}, 'What lets you use it'), lic), note,
+          text('prov-unit', 'What the numbers are in (dollars, percent, people\u2026)', 'unit'), h('label', { class: 'field' }, h('span', {}, 'Decimals to show'), dec),
+          h('label', { class: 'choice' }, ok, h('span', {}, U.ATTESTATION, ' ', h('span', { class: 'meta' }, U.PLACEHOLDER))),
+          h('p', { class: 'form-note' }, 'This is how the closing card of your film will read:'), card);
+      }
+
       function mappingForm(ds) {
         const report = ds.ingest_report;
         const mapping = U.draft(report);
         if (!mapping) {
-          return h('p', { class: 'form-note app-error', role: 'alert' }, U.problem(null, report));
+          return h('p', { class: 'form-note app-error', role: 'alert' }, byodGuideOn() ? U.WIDE_HELP : U.problem(null, report));
         }
         const cols = report.columns;
         const shown = (c) => `${U.text(c.header) || `Column ${c.index + 1}`}${c.sample?.length ? ` (${c.sample.slice(0, 3).map(U.text).join(', ')})` : ''}`;
@@ -1113,19 +1148,26 @@
             return h('div', { class: 'value-row' }, h('label', { class: 'choice' }, box, h('span', {}, shown(c))), name);
           }));
         drawCounty();
+        // S5 scaffold (byodGuide): who published it, the licence or permission, the unit, and the attestation. PLACEHOLDER wording (Ryan's final wording is RYAN-QUEUE Q5).
+        const prov = { publisher: '', link: '', licence: '', licence_note: '', unit: '', decimals: 0, attested: false };
+        const provBox = byodGuideOn() ? provenanceFields(prov) : null;
         const confirmBtn = h('button', { class: 'button', type: 'button', onclick: async () => {
           note.hidden = true;
           const problem = U.problem(mapping, report);
           if (problem) return showError(note, new Error(problem));
+          if (provBox) { const pp = U.provenanceProblem(prov); if (pp) return showError(note, new Error(pp)); }
           await busy(confirmBtn, 'Saving\u2026', async () => {
-            try { await data.confirmMapping(ds.id, U.clean(mapping)); await refresh(); } catch (err) { showError(note, err); }
+            try {
+              if (provBox) await data.setUploadProvenance(ds.id, U.cleanProvenance(prov));
+              await data.confirmMapping(ds.id, U.clean(mapping)); await refresh();
+            } catch (err) { showError(note, err); }
           });
         } }, 'These are right');
         const rows = report.rows;
         const per = report.periods;
         return h('div', { class: 'mapping-form' },
           h('p', { class: 'form-note' }, `We found ${rows.toLocaleString()} rows${per ? `, ${per.first} to ${per.last}` : ''}. Check what each column means. Only you can see these values.`),
-          select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values,
+          select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values, provBox,
           h('div', { class: 'actions-row' }, confirmBtn), note);
       }
 
@@ -1140,13 +1182,13 @@
         } }, 'Delete');
         const use = c.key === 'ready' && editable && !inUse ? h('button', { class: 'button small', type: 'button', onclick: async () => {
           await busy(use, 'Adding\u2026', async () => {
-            try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref)); v.dataset_id = ds.id; await refresh(); }
+            try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref, ds)); v.dataset_id = ds.id; await refresh(); }
             catch (err) { showError(error, err); }
           });
         } }, 'Use in this film') : null;
         const edit = c.key === 'ready' ? h('button', { class: 'link-button', type: 'button', onclick: () => { open = open === ds.id ? null : ds.id; draw(); } }, 'See the columns') : null;
         return h('li', { class: 'upload-card' },
-          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: `state state-upload-${c.key}` }, c.label),
+          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: `state state-upload-${c.key}` }, byodGuideOn() && c.key === 'check' && !U.draft(ds.ingest_report) ? 'Needs a different layout' : c.label),
           h('p', { class: 'meta' }, [bytes(ds.bytes), ds.ext ? ds.ext.toUpperCase() : '', ds.retention === 'dont_keep' ? 'Deleted after your final film' : 'Kept until you delete it'].filter(Boolean).join(' \u00b7 '),
             inUse ? ' \u00b7 In use in this film' : ''),
           c.key === 'reading' ? h('p', { class: 'form-note', role: 'status' }, 'We\u2019re reading it. This usually takes under a minute.') : null,
@@ -1156,10 +1198,19 @@
           h('div', { class: 'actions-row' }, use, edit, c.key === 'deleting' ? null : del));
       }
 
+      // What a good file looks like (BYOD guide): the shape, as a small table.
+      function exampleBox() {
+        const X = U.EXAMPLE;
+        return h('details', { class: 'byod-hint' }, h('summary', {}, 'What should my file look like?'),
+          h('p', { class: 'form-note' }, 'One row for each place and year: a column for the place, a column for the year, and a column of values. Places are U.S. states or U.S. counties.'),
+          h('table', { class: 'byod-example' }, h('thead', {}, h('tr', {}, X.head.map(t => h('th', {}, t)))), h('tbody', {}, X.rows.map(r => h('tr', {}, r.map(t => h('td', {}, t)))))));
+      }
+
       function draw() {
         el.replaceChildren(...[
           h('h2', { id: 'uploads-title' }, 'Your own data'),
           h('p', { class: 'form-note' }, 'Upload a spreadsheet with one row per U.S. state or county and year. Only you can see it. You can delete it at any time.'),
+          byodGuideOn() ? exampleBox() : null,
           editable ? form : null,
           error,
           list.length ? h('ul', { class: 'upload-cards' }, list.map(card)) : null].filter(Boolean));

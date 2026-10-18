@@ -51,10 +51,10 @@ test('EMPTY LIBRARY AND CREDITS: the first screen says what a project is and wha
 
 test('VERSION PAGE: the ready-made films and the editor come first, then sources, then Render; the raw story and the own-data upload are folded under Advanced (all controls kept)', () => {
   const lib = read('assets/app-library.js');
-  const ret = lib.slice(lib.indexOf("        picker,\n        saved,"));
-  assert.match(ret, /^ {8}picker,\n {8}saved,[^\n]*\n {8}chat,\n {8}sources\.el,\n {8}jobs\.el,\n {8}files\.el,/, 'order: picker, its confirmation, chat, sources, render, files');
+  const ret = lib.slice(lib.indexOf("        picker,\n        byodPointer,\n        saved,"));
+  assert.match(ret, /^ {8}picker,\n {8}byodPointer,\n {8}saved,[^\n]*\n {8}chat,\n {8}sources\.el,\n {8}jobs\.el,\n {8}files\.el,/, 'order: picker, its confirmation, chat, sources, render, files');
   assert.doesNotMatch(lib, /story, locked \? null : save, saved, error\)/, 'saved messages are not hidden inside the folded form');
-  assert.match(ret, /h\('details', \{ class: 'advanced-panel' \}, h\('summary', \{\}, 'Advanced: your own data and the story file'\),/);
+  assert.match(ret, /advanced = h\('details', \{ class: 'advanced-panel', id: 'advanced-panel' \}, h\('summary', \{\}, 'Advanced: your own data and the story file'\),/);
   assert.match(ret, /uploads\?\.el, storyForm\)/);
   for (const keep of ['sources.el', 'uploads?.el', 'picker', 'chat', 'storyForm', 'jobs.el', 'files.el']) assert.ok(ret.includes(keep), keep);       // nothing was dropped, only moved or folded
 });
