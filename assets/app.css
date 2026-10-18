@@ -136,3 +136,7 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .invite-panel{margin:12px 0;padding:14px 16px;border:2px solid var(--brand-deep,#0a6);border-radius:10px;background:#f2fbf6}.invite-panel code{font-size:1.05rem;font-weight:700;user-select:all}.request-list .project-list p{margin:6px 0}
 .ops-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:10px 0}.ops-field{display:grid;gap:4px;font-size:.88rem;font-weight:700}.ops-field input,.ops-field select{min-height:44px;padding:8px 10px;font:inherit;border:1px solid var(--line);border-radius:8px}.ops-details{margin:8px 0 14px}.ops-details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
 .ops-section{margin:0 0 28px}.ops-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}.ops-list li{padding:12px 0;border-bottom:1px solid var(--line);font-size:.95rem}.ops-list p{margin:6px 0}.credit-returned{color:var(--brand-deep)}
+/* Connecting an AI: the consent page and the Connected AIs list (assets/app-connect.js) */
+.consent-where,.consent-can,.consent-always{margin:18px 0;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.consent-where h2,.consent-can h2,.consent-always h2{margin:0 0 8px;font-size:1.05rem}
+.consent-uri{margin:6px 0;word-break:break-all}.consent-uri code{font-size:.95rem}.consent-scopes{list-style:none;margin:0;padding:0}.consent-scopes li{margin:0 0 8px}.consent-scopes input[type=checkbox]{width:20px;min-height:20px;height:20px;flex:none}
+.connected-list li{padding:12px 0}

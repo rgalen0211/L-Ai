@@ -620,3 +620,11 @@ Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring
 2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
 3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
 
+## Connecting an AI: the hosted consent page and Connected AIs (branch connect-consent)
+
+`assets/app-connect.js`, behind `connectAi: false` until CONNECT's SQL (`20261018000100_connect_ai.sql`) is applied and its `connect` function is deployed. The authorization server is CONNECT's (option B); these pages are where the SIGNED-IN person decides.
+
+- **Consent page:** `https://uselai.com/app/#/connect/consent?request=<id>` (CONNECT sets `CONNECT_CONSENT_URL=https://uselai.com/app/#/connect/consent?request=`; `<id>` is the `connect_requests` UUID). Not signed in: the normal sign-in shows first and the same address then opens the page. It calls `connect_consent_check(p_request)` and shows the app's name, the EXACT redirect address and its host, what the AI will be able to do (tickable; CONNECT's scope ids `read`, `write`, `render_free`, and `render_final` only if it is ever offered), and "Tools that spend credits will ask you first", with Approve and Deny. Nothing is sent on load. A refused request (not invited, an admin account, expired, unknown) shows only its reason. Approve with nothing ticked is refused in words. `connect_consent_decide(p_request, p_approve, p_scopes)` returns `{redirect_to}`; the page follows it ONLY if it starts with the exact address it showed (same origin and path); otherwise it stops with a sentence. It never sees a token: the code inside `redirect_to` is not read.
+- **Account > Connected AIs:** `my_connected_ais()` lists each active grant (name, what it may do, connected, last used, calls in 30 days) with **Disconnect** (`disconnect_ai(p_client_id)`, which revokes the grant and every live token at once; the page says "disconnected" only after the call returns).
+- **Dashboard steps (Ryan, later):** none from WEB; the redirect allowlist and invitations are CONNECT's admin functions. The page is served from GitHub Pages like the rest of the app (CSP unchanged: it only talks to the project's own host).
+- Tests: `tests/connect.test.mjs` (7), real Chrome `tools/check-connect.py`.

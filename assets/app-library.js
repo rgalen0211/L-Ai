@@ -52,6 +52,8 @@
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
   // Full renders go through request_final_render (and its approval queue) once SQL 20261017000500/600 are applied (renderOrders: true), or in mock mode.
   const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
+  // Connecting an AI (the consent page and Connected AIs) shows once CONNECT's SQL and function are live (connectAi: true), or in mock mode.
+  const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
@@ -73,6 +75,7 @@
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
         else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
+        else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
@@ -151,6 +154,10 @@
       button.textContent = label;
       try { await work(); } finally { button.disabled = false; button.textContent = was; }
     }
+
+    // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
+    let connectCache = null;
+    const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
 
     // --- #/  all projects
     async function libraryView() {
@@ -535,6 +542,7 @@
         email ? h('p', { class: 'meta' }, `Signed in as ${email}`) : null,
         h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm)
       ];
+      if (connectOn()) sections.push(await connectUi().connectedSection());
       if (!accountToolsOn()) return sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.
