@@ -593,6 +593,10 @@ class Connect(core.Base):
         self.assertEqual(r.one("select connect_list_versions(%s, %s)", h(b), pa), [])
         self.fails("select connect_create_version(%s, %s, %s)", h(b), pa, va, code="PT404")
         self.assertEqual(len(r.one("select connect_list_versions(%s, %s)", h(a), pa)), 1)
+        self.assertIsNone(r.one("select connect_current_version(%s, %s)", h(b), pa))                 # nor does the current-version lookup
+        # a read-only connection cannot create a version (scope write), even on its own project
+        _, ro, _ = self.connect(ALICE, scopes=("read",))
+        self.runner(); self.fails("select connect_create_version(%s, %s, %s)", h(ro), pa, va, code="PT403")
 
     def test_per_client_and_per_caller_buckets_and_the_open_request_cap(self):
         c1, a1, _ = self.connect(ALICE); c2, a2, _ = self.connect(ALICE)           # one person, two clients
@@ -829,6 +833,13 @@ class RealisticDefaults(core.Base):
                 c.execute(path.read_text(encoding="utf-8"))
             d = core.Db(core._server.get_uri(database=name))
             assert_runner_boundary(self, d)
+            report = (core.ROOT / "connect-live" / "04_runner_privilege_report.sql").read_text(encoding="utf-8")
+            with c.cursor() as cur:                                            # the live report file, on the platform-default database
+                cur.execute(report)
+                rows = cur.fetchall()
+            self.assertEqual([r[1] for r in rows if r[0] == "schema usage"], ["public"])
+            self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 22)
+            self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
             # PUBLIC really does hold EXECUTE on the platform-style functions here, which is the point: only the missing USAGE keeps the runner out
             self.assertTrue(c.execute("select has_function_privilege('connect_runner', 'auth.uid()', 'execute')").fetchone()[0])
             self.assertFalse(c.execute("select has_schema_privilege('connect_runner', 'auth', 'usage')").fetchone()[0])
@@ -1004,6 +1015,25 @@ class LiveFiles(core.Base):
         self.assertEqual(cols, ["kind", "name"])
         self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 22)
         self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
+        self.assertEqual([r[1] for r in rows if r[0] == "schema usage"], ["public"])
+        self.assertEqual([r for r in rows if r[0].startswith("member of")], [])
+        # MUST-FAIL (CC1 S2): the report looks at EVERY schema the runner can use, not a fixed list. Plant a schema the old report never named.
+        c = self.db.as_(None).c
+        c.execute("create schema zz_extra")
+        c.execute("create function zz_extra.sneaky() returns int language sql as $$ select 1 $$")
+        c.execute("create table zz_extra.t (id int)")
+        c.execute("grant usage on schema zz_extra to connect_runner")
+        c.execute("grant execute on function zz_extra.sneaky() to connect_runner")
+        c.execute("grant select on zz_extra.t to connect_runner")
+        _, rows = self.run_file("04_runner_privilege_report.sql")
+        self.assertIn(("schema usage", "zz_extra"), [(r[0], r[1]) for r in rows])
+        self.assertIn(("function execute", "zz_extra.sneaky()"), [(r[0], r[1]) for r in rows])
+        self.assertIn(("RELATION PRIVILEGE (must be none)", "zz_extra.t"), [(r[0], r[1]) for r in rows])
+        # a relation privilege in a schema the runner cannot enter is shown too, but under its own honest label (platform views are like that on real projects)
+        c.execute("revoke usage on schema zz_extra from connect_runner")
+        _, rows = self.run_file("04_runner_privilege_report.sql")
+        self.assertNotIn(("RELATION PRIVILEGE (must be none)", "zz_extra.t"), [(r[0], r[1]) for r in rows])
+        self.assertIn(("relation privilege in a schema it cannot enter (platform default, unreachable)", "zz_extra.t"), [(r[0], r[1]) for r in rows])
 
     def test_allowlist_file_turns_loopback_off_and_lists_only_exact_addresses(self):
         self.db.as_(None).c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'on staging')")
