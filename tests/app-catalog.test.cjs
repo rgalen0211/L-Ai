@@ -129,7 +129,8 @@ test('every ready dataset builds a valid story on every offered view, in the wor
 test('"not drawn before" is said for any view and dataset pair no confirmed template has drawn', () => {
   const obesity = K.viewChoices(D.entries.find(e => e.id === 'state_obesity_fastfood'), T.TEMPLATES);
   assert.deepEqual(plain(obesity.map(c => [c.view, c.tested, !!c.blocked])),
-                   [['map', true, false], ['bars', false, true], ['line', true, false], ['paired', true, false]]);
+                   [['map', true, false], ['bars', false, true], ['line', true, false]]);
+  assert.ok(!K.BUILD_VIEWS.includes('paired'), 'paired is not offered: the server catalog dropped it');
   const sector = K.viewChoices(D.entries.find(e => e.id === 'cbp_retail_share_state'), T.TEMPLATES);
   assert.ok(sector.every(c => !c.tested));
 });
