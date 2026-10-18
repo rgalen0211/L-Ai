@@ -88,7 +88,13 @@
     return out;
   }
 
-  const statusLabel = e => (e.status === 'usable' ? 'Ready' : 'Coming soon');
+  // Honest about what a dataset is. 'Ready' is only a dataset Ryagram has measured and can make a film from (status usable). A dataset ENGINE has not measured yet is 'next': we have not
+  // checked that a film from it moves smoothly, so it is not offered. One that was measured and failed is 'later': it did not pass the checks yet. Neither is ever called ready or
+  // offered to start a film from; visible() leaves them out unless the (off) catalogComingSoon flag is on, and then they carry these words.
+  const statusLabel = e => (e.status === 'usable' ? 'Ready' : e.status === 'next' ? 'Not checked yet' : 'Not available yet');
+  const statusNote = e => (e.status === 'usable' ? ''
+    : e.status === 'next' ? 'Ryagram has not yet checked that a film from this data moves smoothly, so you cannot make one yet.'
+      : 'A film from this data did not pass Ryagram’s checks yet, so you cannot make one yet.');
 
   // Views a story from this dataset can use, each marked by whether Ryagram has drawn that
   // combination before (a confirmed template), so the page can say so.
@@ -116,5 +122,5 @@
              hold: view === 'bars' ? 3 : undefined, headline: entry.family ? '' : entry.title, tplLabel: 'catalog' };
   }
 
-  window.ryagramCatalog = { MEASURED, GROUPS, FAMILIES, BUILD_VIEWS, VIEW_LABELS, data, load, visible, layout, statusLabel, viewChoices, storyInfo };
+  window.ryagramCatalog = { MEASURED, GROUPS, FAMILIES, BUILD_VIEWS, VIEW_LABELS, data, load, visible, layout, statusLabel, statusNote, viewChoices, storyInfo };
 })();
