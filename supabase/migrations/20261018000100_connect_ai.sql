@@ -704,7 +704,10 @@ language sql stable security definer set search_path = '' as $$
                       where n.nspname = p.schemaname and c.relname = p.tablename and pol.polname = 'connect_no_oauth_select'
                         and not pol.polpermissive and pol.polcmd in ('r', '*')
                         and (pol.polroles = '{0}'::pg_catalog.oid[] or 'authenticated'::pg_catalog.regrole::pg_catalog.oid = any (pol.polroles))
-                        and pg_catalog.pg_get_expr(pol.polqual, pol.polrelid) like '%client_id%')
+                        -- the expression must be exactly the one connect_guard_published_tables writes ((select auth.jwt() ->> 'client_id') is null), compared with
+                        -- spaces, brackets and ::text removed so PostgreSQL's own spelling of it matches; 'or true' or any other addition makes it differ
+                        and pg_catalog.regexp_replace(pg_catalog.lower(pg_catalog.pg_get_expr(pol.polqual, pol.polrelid)), '\s|\(|\)|::text', '', 'g')
+                            = 'selectauth.jwt->>''client_id''isnull')
 $$;
 
 create function ryagram_private.connect_guard_published_tables() returns int
