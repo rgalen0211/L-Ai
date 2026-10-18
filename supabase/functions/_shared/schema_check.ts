@@ -86,7 +86,7 @@ function walk(node: Json, v: Json, path: string, errs: string[]): void {
     }
     case "string": {
       if (typeof v !== "string") { errs.push(`${path}: expected a string`); return; }
-      if (node.maxLength != null && v.length > node.maxLength) { errs.push(`${path}: longer than ${node.maxLength} characters`); return; }
+      if (node.maxLength != null && [...v].length > node.maxLength) { errs.push(`${path}: longer than ${node.maxLength} characters`); return; }
       if (node.pattern && !new RegExp(node.pattern).test(v)) errs.push(`${path}: does not match the allowed form (${String(node.pattern).slice(0, 60)})`);
       return;
     }

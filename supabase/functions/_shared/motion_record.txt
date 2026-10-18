@@ -1,0 +1,3 @@
+# WORKER's measured motion record (tools/export_motion_record.py). A MISSING line means NOT MEASURED: the dataset is not usable (unless
+# baselined in motion_baseline.txt). Lines below are the ones measured so far; WORKER's run over the allowlist replaces this file.
+cbp_arts_establishments motion=skip paced=2017,2021 engine=5bc6a68 measured=2026-10-18
