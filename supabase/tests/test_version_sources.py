@@ -24,6 +24,17 @@ ALLOW = {line.strip() for line in (ROOT / "functions" / "_shared" / "worker_allo
          if line.strip() and not line.startswith("#")}
 
 
+def _ids(name):
+    return [l.strip() for l in (ROOT / "functions" / "_shared" / name).read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
+
+
+#: What may be RUNNABLE/USABLE: on the allowlist AND through the MOTION GATE (RULINGS 5b16d78), derived from the committed files,
+#: never typed here: a pass/na line, or no line but in the baseline, or a skip Ryan named. An unmeasured or skip dataset is not.
+_REC = {l.split()[0]: l.split()[1].split("=")[1] for l in _ids("motion_record.txt")}
+_BASE, _SKIP_OK = set(_ids("motion_baseline.txt")), set(_ids("motion_skip_named.txt"))
+GATED = {i for i in ALLOW if (i in _BASE if i not in _REC else _REC[i] in ("pass", "na") or (_REC[i] == "skip" and i in _SKIP_OK))}
+
+
 def setUpModule():
     _outer_setup()
     # The generated seed goes into the template database the tests copy.
@@ -66,7 +77,8 @@ class Sources(core.Base):
         self.assertEqual(self.admin("select count(*) from catalog_sources where id ~ '^(example_corp|ryan_)'"), 0)
         self.assertEqual(self.runnable_mismatches(), [])
         self.assertGreaterEqual(len(ALLOW), 80)
-        self.assertEqual({r[0] for r in self.db.as_(None).all("select id from catalog_sources where runnable")}, ALLOW & self.catalog_ids())
+        self.assertEqual({r[0] for r in self.db.as_(None).all("select id from catalog_sources where runnable")}, GATED & self.catalog_ids())
+        self.assertLess(len(GATED), len(ALLOW), "the motion gate holds datasets back: some allowlisted ids are not runnable")
 
     def catalog_ids(self):
         return {r[0] for r in self.db.as_(None).all("select id from catalog_sources")}
@@ -78,8 +90,8 @@ class Sources(core.Base):
         return ids[0]
 
     def runnable_mismatches(self):
-        """Seed rows whose `runnable` disagrees with the allowlist export (empty when the seed follows it)."""
-        return [r[0] for r in self.db.as_(None).all("select id, runnable from catalog_sources") if r[1] != (r[0] in ALLOW)]
+        """Seed rows whose `runnable` disagrees with the allowlist export THROUGH THE MOTION GATE (empty when the seed follows it)."""
+        return [r[0] for r in self.db.as_(None).all("select id, runnable from catalog_sources") if r[1] != (r[0] in GATED)]
 
     def test_MUST_FAIL_a_dataset_off_the_allowlist_marked_runnable_is_caught(self):
         off = self.not_on_allowlist()
@@ -88,7 +100,7 @@ class Sources(core.Base):
         self.assertEqual(self.runnable_mismatches(), [off])
         # and the other direction: an allowlisted dataset marked not runnable
         self.admin("update catalog_sources set runnable = false where id = %s returning 1", off)
-        on = sorted(ALLOW & self.catalog_ids())[0]
+        on = sorted(GATED & self.catalog_ids())[0]
         self.admin("update catalog_sources set runnable = false where id = %s returning 1", on)
         self.assertEqual(self.runnable_mismatches(), [on])
 

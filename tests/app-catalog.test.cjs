@@ -40,10 +40,19 @@ test('fixtures, private data and shapes the app cannot build are not in the cata
   }
 });
 
-test('"ready" is exactly the installed worker allowlist, and every ready dataset can be priced and built', () => {
-  assert.deepEqual(plain(usable.map(e => e.id).sort()), plain([...D.allow].sort()));
+test('"ready" is the installed worker allowlist THROUGH THE MOTION GATE (motion_record / baseline / named skips), and every ready dataset can be priced and built', () => {
+  const ids = f => fs.readFileSync(path.join(root, 'supabase/functions/_shared', f), 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const rec = Object.fromEntries(ids('motion_record.txt').map(l => { const m = /^(\S+) motion=(\S+) /.exec(l); return [m[1], m[2]]; }));
+  const base = new Set(ids('motion_baseline.txt')), skipOk = new Set(ids('motion_skip_named.txt'));
+  const gated = D.allow.filter(i => rec[i] === undefined ? base.has(i) : rec[i] === 'pass' || rec[i] === 'na' || (rec[i] === 'skip' && skipOk.has(i)));
+  assert.deepEqual(plain(usable.map(e => e.id).sort()), plain([...gated].sort()));
+  assert.ok(gated.length < D.allow.length, 'the gate holds some allowlisted datasets back');
   for (const id of D.allow) assert.ok(D.entries.some(e => e.id === id), `allowlisted ${id} is missing from the catalog`);
-  for (const id of Object.keys(D.next)) assert.equal(D.entries.find(e => e.id === id)?.status, D.allow.includes(id) ? 'usable' : 'next', id);       // a candidate already on the allowlist is usable, never 'next'
+  for (const id of Object.keys(D.next)) {                       // a candidate on the allowlist is usable only if the motion gate lets it through; otherwise it waits as next (not measured) or later (failed)
+    const st = D.entries.find(e => e.id === id)?.status;
+    if (D.allow.includes(id)) assert.ok(gated.includes(id) ? st === 'usable' : ['next', 'later'].includes(st), `${id}: ${st}`);
+    else assert.equal(st, 'next', id);
+  }
   // credit_quote refuses a dataset with no shape row (supabase/phase-2b/credits_ledger.sql).
   const sql = fs.readFileSync(path.join(root, 'supabase/phase-2b/credits_ledger.sql'), 'utf8');
   const seeded = new Set([...sql.matchAll(/\('([a-z0-9_]+)', 'standard'/g)].map(m => m[1]));
@@ -56,14 +65,10 @@ test('"ready" is exactly the installed worker allowlist, and every ready dataset
   for (const e of usable) assert.ok(e.window && e.window.length === 2, `${e.id} needs a ready-made period`);
 });
 
-test('the catalog\'s usable list is the COMMITTED worker allowlist export (supabase/functions/_shared/worker_allowlist.txt), and, when WORKER-SETUP.ps1 is here, \'next\' is its candidates', t => {
-  const ids = fs.readFileSync(path.join(root, 'supabase/functions/_shared/worker_allowlist.txt'), 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#')).map(l => l.trim().split(/\s+/)[0]);
-  assert.deepEqual(plain([...D.allow].sort()), plain([...ids].sort()), 'regenerate: python tools/gen-catalog.py --allowlist supabase/functions/_shared/worker_allowlist.txt ...');
-  const f = 'C:/Users/Ryan/Ryagram-logs/proposals/WORKER-SETUP.ps1';
-  if (!fs.existsSync(f)) return t.skip('WORKER-SETUP.ps1 not on this machine (the usable check above ran from the committed file)');
-  const text = fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '');
-  const next = [...text.match(/\$UpdateCandidates\s*=\s*\[ordered\]@\{([\s\S]*?)\n\}/)[1].matchAll(/^\s*'([a-z0-9_]+)'\s*=\s*'/gm)].map(m => m[1]);
-  assert.deepEqual(plain(Object.keys(D.next).sort()), plain([...next].sort()), 'regenerate: python tools/gen-catalog.py');
+test('the catalog allow list is the COMMITTED allowlist export (never a machine-local file), and every UpdateCandidate not on it is next or later', t => {
+  const committed = fs.readFileSync(path.join(root, 'supabase/functions/_shared/worker_allowlist.txt'), 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  assert.deepEqual(plain([...D.allow].sort()), plain([...committed].sort()), 'regenerate: python tools/gen-catalog.py');
+  for (const id of Object.keys(D.next)) assert.ok(['next', 'later'].includes(D.entries.find(e => e.id === id)?.status) || !D.entries.find(e => e.id === id), id);
 });
 
 test('by default only what can run is listed; "coming soon" is a separate switch', () => {
@@ -90,10 +95,11 @@ test('sector rows sit under one family heading, search narrows, and nothing is i
   assert.equal(share.items.length, 18);
   assert.ok(share.items.some(e => e.short === 'Manufacturing'));
   const manufacturing = ['cbp_manufacturing_employment', 'cbp_manufacturing_establishments', 'cbp_manufacturing_share', 'cbp_manufacturing_share_state'];
-  assert.deepEqual(plain(K.visible(D.entries, { text: 'manufacturing' }).map(e => e.id).sort()), plain(manufacturing));          // ready only: all four are on the worker's allowlist
+  assert.deepEqual(plain(K.visible(D.entries, { text: 'manufacturing' }).map(e => e.id).sort()), plain(D.entries.filter(e => manufacturing.includes(e.id) && e.status === 'usable').map(e => e.id).sort()));          // ready only: the ones through the motion gate
   assert.equal(K.visible(D.entries, { soon: true, text: 'manufacturing' }).length, 4);
   assert.equal(K.visible(D.entries, { text: 'zzzz nothing' }).length, 0);
-  assert.equal(K.visible(D.entries, { text: 'census manufacturing' }).length, 4);            // words are ANDed
+  const readyMfg = D.entries.filter(e => manufacturing.includes(e.id) && e.status === 'usable').length;
+  assert.equal(K.visible(D.entries, { text: 'census manufacturing' }).length, readyMfg);            // words are ANDed; ready only
 });
 
 test('every ready dataset builds a valid story on every offered view, in the worker schema shape', () => {
@@ -161,4 +167,18 @@ test('there is no dataset picker or browse list for users: flags stay off, and t
   assert.deepEqual(selects, ['wl-days', 'cost-th-period']);
   const html = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
   assert.doesNotMatch(html, /app-catalog/);                       // the browser never loads the catalog
+});
+
+test('HONEST STATUS (CC1 HIGH-1, app side): only a measured dataset is Ready; an unmeasured one says it is not checked, a failed one says it is not available; neither is offered or counted as ready', () => {
+  const e = (id, status, group = 'housing') => ({ id, status, group, title: id, short: id, blurb: '', source: '', level: '' });
+  const entries = [e('a', 'usable'), e('b', 'next'), e('c', 'later')];
+  assert.deepEqual(entries.map(K.statusLabel), ['Ready', 'Not checked yet', 'Not available yet']);
+  assert.equal(K.statusNote(entries[0]), '');
+  assert.match(K.statusNote(entries[1]), /has not yet checked that a film from this data moves smoothly, so you cannot make one yet\./);
+  assert.match(K.statusNote(entries[2]), /did not pass Ryagram.s checks yet, so you cannot make one yet\./);
+  for (const w of [K.statusLabel(entries[1]), K.statusNote(entries[1]), K.statusLabel(entries[2]), K.statusNote(entries[2])]) assert.doesNotMatch(w, /\bReady\b|Coming soon|soon/i, w);
+  assert.deepEqual(K.visible(entries).map(x => x.id), ['a'], 'by default only the measured one is shown');
+  const g = K.layout(entries, { soon: true }).find(x => x.key === 'housing');
+  assert.equal(g.ready, 1, 'only the measured one counts as ready');
+  assert.equal(g.total, 3);
 });
