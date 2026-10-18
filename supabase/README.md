@@ -629,6 +629,13 @@ Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring
 - **Not on this page:** no paid render, no price, no per-credit figure; places cannot be subset (the engine says so); the dataset flags `catalog` / `catalogComingSoon` stay off (this page lists nothing to anyone who is not signed in).
 - Tests: `tests/guided-builder.test.mjs` (6), `tests/builder.test.mjs` (9), real Chrome `tools/check-builder.py`.
 
+
+<<<<<<< HEAD
+## What "usable" means in the catalog (2026-10-17)
+
+A dataset is **usable** only if it is on the INSTALLED render worker's allowlist (`worker.toml` `[datasets].allow`). That list is a COMMITTED export, `supabase/functions/_shared/worker_allowlist.txt` (a `# count: N` header, one id per line, `#views <id> <view,...>` for a view restriction the worker enforces), written by WORKER; the generator (`tools/gen-catalog.py --allowlist ...`, ENGINE's) reads that file and nothing on any machine. It replaced WORKER-SETUP.ps1's 23-id base list (BUILDER's finding: the catalog said 23, the worker runs 83). When WORKER changes the allowlist: export it, regenerate (`assets/app-catalog-data.js`, the catalog_sources seed, `catalog_data.ts`) and commit both. `tests/catalog-usable.test.mjs` fails if the export's count and ids, the public catalog and the server catalog ever disagree, or if an allowlisted id is missing from the catalog. **Open for CC1:** five usable datasets (`bps_county_unit_share_1`, `_2to4`, `_5plus`, `bps_us_unit_mix`, `fhwa_hm212`) have no `credit_dataset_shapes` row, so `credit_quote` would refuse them; the shape comes from the engine's DatasetSpec, so WEB did not guess it. `tests/app-catalog.test.cjs` names them (UNPRICED) and fails on any new one.
+=======
 ## Render approvals: #/admin/renders (branch admin-renders)
 
 While `auto_render` is off a full render waits for Ryan. `admin_render_decide` needs an APP session (`require_admin()`), so it cannot be used from the SQL editor; `#/admin/renders` (admin only, behind `renderOrders`; link "Render approvals" among the admin links in the library) lists `admin_render_queue()` (film, who, credits held, when asked, when it expires, from the app or a connected AI) with **Approve** (starts the render) and **Decline** (confirm, optional note, returns the credits), and redraws after each call returns. The daily-cap refusal is shown to Ryan in the database's own sentence and leaves the request waiting (declining is still possible). The auto_render switch and per-user caps are not on this page yet (they come with the connector pages). Tests: `tests/render-approvals.test.mjs` (5), real Chrome `tools/check-render-approvals.py`.
+>>>>>>> origin/engine-profiles

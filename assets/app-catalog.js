@@ -29,7 +29,7 @@
     'bps-unit-share': 'Share of new housing by building size, by county'
   };
   const STATUS_ORDER = { usable: 0, next: 1, later: 2 };
-  const BUILD_VIEWS = ['map', 'bars', 'line', 'paired'];       // what a story from the catalog can use
+  const BUILD_VIEWS = ['map', 'bars', 'line'];                 // what a story from the catalog can use (the server catalog no longer offers 'paired')
 
   // What contact sheets have shown for the exact story the catalog builds (engine main 56f652e,
   // 2026-10-04). A view that fails the engine's own checks is not offered: it would stop at the gate.
@@ -102,7 +102,7 @@
       .map(v => ({ view: v, tested: tested.has(v) && !blocked[v], blocked: blocked[v] || '' }));
   }
 
-  const VIEW_LABELS = { map: 'Map', bars: 'Bar race (top 10)', line: 'Lines (top 6)', paired: 'Map and bar race together' };
+  const VIEW_LABELS = { map: 'Map', bars: 'Bar race (top 10)', line: 'Lines (top 6)' };
 
   // The story options for a catalog dataset, for window.ryagramTemplates.buildFor().
   function storyInfo(entry, view) {
