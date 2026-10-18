@@ -97,6 +97,9 @@ def main():
                 check('Auto-render is OFF' in p.inner_text('.render-switch'), 'the switch says auto-render is OFF')
                 check('sam@example.com: 12 of 30 credits used' in p.inner_text('.render-caps'), 'the caps list shows who has a cap and how much they used')
                 row = p.locator('.render-queue li').first
+                row.get_by_role('button', name='Set daily cap').click()
+                p.wait_for_selector('p.app-error:not([hidden])')
+                check('Type how many credits a day first.' in p.inner_text('main') and 'sam@example.com: 12 of 30' in p.inner_text('.render-caps'), 'an empty Set daily cap is refused and deletes nothing')
                 row.get_by_placeholder('credits a day').fill('abc')
                 row.get_by_role('button', name='Set daily cap').click()
                 p.wait_for_selector('p.app-error:not([hidden])')

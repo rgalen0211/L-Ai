@@ -77,6 +77,11 @@ test('PAGE: the switch, the caps list and a per-request cap are wired on #/admin
   assert.match(view, /data\.adminSetUserCap\(/);
   assert.match(view, /r\.owner_id \? capRow\(r\) : null/);
   assert.doesNotMatch(view, /replaceChildren\([^;]*\? [^;]*: null\)/, 'a null passed to replaceChildren prints the word null');
+  assert.doesNotMatch(view, /replaceChildren\([^;]*\? null :/, 'neither does the other way round: ? null : x'); 
+  assert.match(view, /s\.defaultCap == null \? '' : h\(/);
+  assert.ok(view.includes('Set one from a waiting request above.') && !view.includes('waiting request below'));
+  assert.ok(view.includes('Requests already waiting stay waiting and still need your decision.'));
+  assert.match(view, /if \(!input\.value\.trim\(\)\) \{ showError\(error, new Error\('Type how many credits a day first\.'\)\); return; \}/);
   const dataSrc = read('assets/app-data.js');
   const rpcs = [...dataSrc.matchAll(/rpc\('(admin_[a-z_]+)'/g)].map(m => m[1]);
   const sql = read('supabase/migrations/20261017000600_pipe1_orders.sql');

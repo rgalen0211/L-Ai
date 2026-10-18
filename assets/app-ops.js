@@ -133,7 +133,7 @@
     if (!/^\d{1,6}$/.test(t)) return { error: 'A cap is a whole number of credits a day, 0 or more. Leave it empty to use the default.' };
     return { value: Number(t) };
   }
-  function capLine(c, defaultCap) {
+  function capLine(c) {
     const used = Number(c.used_last_24h) || 0;
     return `${c.email || 'an account'}: ${used} of ${c.credits_per_day} credit${c.credits_per_day === 1 ? '' : 's'} used in the last 24 hours`;
   }
