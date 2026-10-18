@@ -622,6 +622,18 @@ class Connect(core.Base):
         self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 1)
         self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [])
         self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 0)
+        # every guard policy is RESTRICTIVE (a permissive one only adds access, so it would guard nothing) ...
+        self.assertEqual(admin("select count(*) from pg_policy where polname = 'connect_no_oauth_select' and polpermissive"), 0)
+        self.assertGreaterEqual(admin("select count(*) from pg_policy where polname = 'connect_no_oauth_select' and not polpermissive"), 3)
+        # ... and a look-alike: a PERMISSIVE policy with the same name does not count as a guard, so the table is still listed (and repaired)
+        c = self.db.as_(None).c
+        c.execute("create table public.lookalike (id int primary key, owner_id uuid)")
+        c.execute("alter table public.lookalike enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.lookalike as permissive for select to authenticated using (true)")
+        c.execute("alter publication supabase_realtime add table public.lookalike")
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [("public", "lookalike")])
+        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 1)
+        self.assertEqual(admin("select count(*) from pg_policy where polname = 'connect_no_oauth_select' and polpermissive"), 0)
         # the runner and the app roles cannot call the guard functions
         self.runner(); self.fails("select ryagram_private.connect_guard_published_tables()")
         self.app(ALICE); self.fails("select * from ryagram_private.connect_unguarded_published_tables()")
@@ -821,6 +833,16 @@ class LiveFiles(core.Base):
         self.db.as_(None).c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'x')")
         _, rows = self.run_file("01_after_migration_check.sql")
         self.assertEqual([r[0] for r in rows if r[1] is not True], ["the redirect allowlist has NO loopback row enabled (live must keep loopback off)"])
+        # a PERMISSIVE look-alike guard policy on a published table fails the restrictive row and the published-table row
+        c = self.db.as_(None).c
+        c.execute("create table public.lookalike2 (id int primary key)")
+        c.execute("alter table public.lookalike2 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.lookalike2 as permissive for select to authenticated using (true)")
+        c.execute("alter publication supabase_realtime add table public.lookalike2")
+        _, rows = self.run_file("01_after_migration_check.sql")
+        bad = {r[0] for r in rows if r[1] is not True}
+        self.assertIn("every connect_no_oauth_select policy is RESTRICTIVE (none is permissive) and at least one exists", bad)
+        self.assertIn("every published realtime table has the restrictive client_id policy", bad)
 
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")
