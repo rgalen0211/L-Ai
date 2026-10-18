@@ -2,3 +2,13 @@
 supabase/email-templates/** text eol=lf
 # The pinned engine drawer is LF only (its hash is checked).
 assets/preview/scene-draw.min.js text eol=lf
+# Generated catalog and fixture files are LF on every checkout (a CRLF checkout made the regeneration byte-compare fail).
+supabase/functions/_shared/catalog_data.ts text eol=lf
+supabase/functions/_shared/profile_data.ts text eol=lf
+tests/fixtures/profile-parity.json text eol=lf
+tests/fixtures/profile.schema.json text eol=lf
+supabase/functions/_shared/worker_allowlist.txt text eol=lf
+supabase/functions/_shared/listing_decisions.json text eol=lf
+supabase/functions/_shared/motion_record.txt text eol=lf
+supabase/functions/_shared/motion_baseline.txt text eol=lf
+supabase/functions/_shared/motion_skip_named.txt text eol=lf
