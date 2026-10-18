@@ -44,3 +44,8 @@ test('WIRING: the account page loads the module, shows Email after Password, Dow
   assert.deepEqual(tables.sort(), ['account_settings', 'credit_balances', 'credit_ledger', 'film_requests', 'jobs', 'projects', 'render_orders', 'versions']);
   assert.match(read('tests/fake-supabase.js'), /emailChangeRequested/);
 });
+
+test('NO NEW MAIL ADDRESS: the Help section links the help pages and adds no mail address until Ryan has confirmed ryagram@ receives mail', () => {
+  assert.doesNotMatch(read('assets/app-account.js'), /uselai\.com|mailto:/);
+  assert.ok(read('assets/app-account.js').includes("'Questions about your account? ', h('a', { href: '/help/' }, 'Read the help pages'), ' for answers and a way to ask us.'"));
+});
