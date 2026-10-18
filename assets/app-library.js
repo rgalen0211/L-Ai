@@ -567,7 +567,14 @@
         email ? h('p', { class: 'meta' }, `Signed in as ${email}`) : null,
         h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm)
       ];
-      if (!accountToolsOn()) return sections;
+      let helpSection = null;
+      if (window.ryagramAccount) {
+        const acct = window.ryagramAccount.create({ h, data, busy, showError, errorLine });
+        sections.splice(4, 0, await acct.changeEmailSection(email));
+        sections.push(acct.exportSection(email));
+        helpSection = acct.helpSection();
+      }
+      if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.
       const choiceNote = h('p', { class: 'form-note', role: 'status' });
@@ -612,6 +619,7 @@
         h('h2', { id: 'acct-delete' }, 'Delete your account'),
         h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
         delForm));
+      if (helpSection) sections.push(helpSection);
       return sections;
     }
 
