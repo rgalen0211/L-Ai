@@ -37,7 +37,9 @@ const STATES = new Set("AL AK AZ AR CA CO CT DE DC FL GA HI ID IL IN IA KS KY LA
 export const UPLOAD_PUBLISHER = "The person who made this film";
 export const UPLOAD_LICENCE = "Supplied by the person who made this film, who confirmed they may use it.";
 export const UPLOAD_SOURCE_LINE = "Source: data supplied by the film's maker";
-const BAD_TEXT = /[\u0000-\u001f\u007f-\u009f­​-‏‪-‮⁠-⁤﻿]/;
+// Built from code points so this source stays plain ASCII (tests/source-hygiene.test.cjs).
+const BAD_TEXT = new RegExp("[" + [[0x00, 0x1f], [0x7f, 0x9f], [0xad, 0xad], [0x200b, 0x200f], [0x202a, 0x202e], [0x2060, 0x206f], [0xfeff, 0xfeff]]
+  .map(([lo, hi]) => String.fromCharCode(lo) + "-" + String.fromCharCode(hi)).join("") + "]");
 const isInt = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v);
 
 /** The id the worker gives the upload in a story: u_ plus the first 24 hex digits of the dataset id. */

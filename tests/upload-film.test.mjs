@@ -67,7 +67,7 @@ test("MUST-FAIL: an upload that is not confirmed, or whose mapping the SQL would
   assert.match(say(() => describeUpload(upload({ ingest_report: report({ periods: { first: '2023', last: '2016', count: 8 } }) }))), /periods could not be read/);
   assert.match(say(() => describeUpload(upload({ ingest_report: report({ periods: null }) }))), /periods could not be read/);
   assert.match(say(() => describeUpload(upload({ label: '' }))), /needs 1 to 80 characters/);
-  assert.match(say(() => describeUpload(upload({ label: 'a‮b' }))), /control or invisible/);
+  assert.match(say(() => describeUpload(upload({ label: 'a' + String.fromCharCode(0x202e) + 'b' }))), /control or invisible/);
   assert.match(say(() => describeUpload(upload({ dataset_id: 'not-a-uuid' }))), /not a dataset id/);
   assert.match(say(() => describeUpload(null)), /expected the upload's record/);
   assert.equal(mappingProblems(mapping(), report()).length, 0, 'control: the sound mapping has no problem');
