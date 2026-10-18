@@ -1,4 +1,4 @@
-"""Wide files in the upload SQL (migration 20261018000100, Q6; ENGINE + WEB, 2026-10-18) on a local Postgres.
+"""Wide files in the upload SQL (migration 20261018000300, Q6; ENGINE + WEB, 2026-10-18) on a local Postgres.
 
 The reader melts a wide file in memory and reports the LONG form; the person ticks "These columns are years"; the mapping carries
 `melt_wide` and optionally `wide_prefix`. The five tests WEB listed, plus the rest of the rule:
