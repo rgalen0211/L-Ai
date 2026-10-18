@@ -43,3 +43,7 @@ test('LIMITS: free previews only (within a daily limit), no full renders, and th
   const foot = page.match(/<footer[\s\S]*?<\/footer>/)[0];
   assert.match(foot, /<a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a>/);
 });
+
+test('NO NEW MAIL ADDRESS: the guide names no mail address until Ryan has confirmed ryagram@ receives mail', () => {
+  assert.doesNotMatch(page, /ryagram@uselai|mailto:/);
+});
