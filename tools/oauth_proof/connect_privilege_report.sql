@@ -8,7 +8,9 @@ select 'function execute', n.nspname || '.' || p.proname || '(' || pg_get_functi
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname in ('public', 'ryagram_private', 'auth', 'storage', 'extensions', 'realtime', 'graphql_public', 'vault') and p.prokind in ('f', 'p')
     and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
-    and not (n.nspname = 'extensions')                      -- extension helpers are PUBLIC-executable on every Supabase project
+    -- A function can only be CALLED with USAGE on its schema. Supabase makes many platform functions in auth, storage, realtime and
+    -- graphql_public executable by everyone, but connect_runner has no usage on those schemas, so it cannot call them.
+    and has_schema_privilege('connect_runner', n.oid, 'USAGE')
 union all
 select 'RELATION PRIVILEGE (must be none)', n.nspname || '.' || c.relname
   from pg_class c join pg_namespace n on n.oid = c.relnamespace
