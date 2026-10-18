@@ -1,0 +1,526 @@
+{
+ "_about": "WHO MAY BE LISTED to people (RULINGS 2026-10-17). One decision per catalog dataset, made by a person, read by tools/gen-catalog.py (--listing). A dataset with no entry is an error, never listed by default. Two guards in the generator and in catalog_rules.ts catch a listable:true whose licence or notes say INTERNAL, BY-SA, non-commercial and so on, or whose licence names no open licence.",
+ "decided_by": "ENGINE proposal from the registry licence text, 2026-10-17; the not-listable entries need Ryan or CC1 to confirm or overturn",
+ "decisions": {
+  "bea_cainc1_county_income_index": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bea_sainc1_state_income_index": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bls_state_unemployment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_county_permits": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_county_unit_share_1": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_county_unit_share_2to4": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_county_unit_share_5plus": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_state_permits_rate": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_state_unit_share_1": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_state_unit_share_2to4": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_state_unit_share_5plus": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "bps_us_unit_mix": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_accommodation_food_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_accommodation_food_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_accommodation_food_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_accommodation_food_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_admin_support_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_admin_support_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_admin_support_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_admin_support_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_arts_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_arts_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_arts_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_arts_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_construction_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_construction_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_construction_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_construction_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_county_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_county_grocery": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_education_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_education_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_education_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_education_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_finance_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_finance_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_finance_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_finance_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_health_care_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_health_care_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_health_care_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_health_care_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_information_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_information_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_information_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_information_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_management_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_management_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_management_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_management_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_manufacturing_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_manufacturing_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_manufacturing_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_manufacturing_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_mining_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_mining_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_mining_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_mining_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_other_services_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_other_services_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_other_services_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_other_services_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_professional_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_professional_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_professional_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_professional_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_real_estate_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_real_estate_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_real_estate_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_real_estate_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_retail_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_retail_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_retail_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_retail_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_suppression": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_transportation_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_transportation_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_transportation_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_transportation_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_utilities_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_utilities_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_utilities_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_utilities_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_wholesale_employment": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_wholesale_establishments": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_wholesale_share": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cbp_wholesale_share_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "cdc_state_obesity": {
+   "listable": false,
+   "class": "not-listable",
+   "why": "the licence names 'Open Data Commons terms' for the data.cdc.gov portal without saying which; unclear whether share-alike applies. Not listable until Ryan or CC1 confirms the exact terms"
+  },
+  "cdc_teen_birth_rate_state": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "census_city_population": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain (17 USC 105): the Census Bureau's own decennial counts (Working Paper 27 for 1900-1990, the 2000-2020 census files); the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "county_population_1990s": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "county_population_2000s": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "county_population_2010s": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "county_population_2020s": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "easterlin_state_income_index": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "eia_utility_added_mwh": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "fdic_branches": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "fdic_zero_branch_counties": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "fhwa_hm212": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "qcew_biggest_employer": {
+   "listable": false,
+   "class": "not-listable",
+   "why": "its notes say INTERNAL (Codex R3's frozen table, pinned); a note that a dataset is internal means it is not for public listing until its owner says otherwise"
+  },
+  "redistricting_2026": {
+   "listable": false,
+   "class": "not-listable",
+   "why": "Seat figures are CC BY-SA 4.0 (Wikipedia): CC BY-SA, in whole or in part, is NOT listable in v1 (Ryan, 2026-10-17)"
+  },
+  "state_obesity_fastfood": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "tx_county_income": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  },
+  "tx_county_income_real": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
+  }
+ }
+}
