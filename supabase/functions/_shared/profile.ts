@@ -83,6 +83,9 @@ function shape(node: Json, v: Json, path: string, errs: string[]): void {
   }
 }
 
+// Measured 2026-10-18 (see compile.py): a hatched map held longer than this per period can fail the strict motion check.
+const MAP_HOLD_WARN_ABOVE = 2;
+
 export function checkShape(profile: Json): string[] {
   const errs: string[] = [];
   shape(PROFILE_SCHEMA, profile, "", errs);
@@ -270,6 +273,10 @@ export function applyProfile(rawProfile: unknown, story: Json, mode: "restyle" |
     const shown = clips.filter((c: Json) => c.kind === "render" && BAR_RACE.views.includes(c.view) && !c.hold_seconds);
     if (shown.length && pace.hold_seconds < BAR_RACE.hold_seconds) {
       warnings.push(`pacing.hold_seconds ${pace.hold_seconds} is below the bar race's own default of ${BAR_RACE.hold_seconds} s per period; rows may not be able to cross that fast and the bar-race checks may fail. Make a contact sheet first.`);
+    }
+    const mapShown = clips.filter((c: Json) => c.kind === "render" && c.view === "map" && !c.hold_seconds);
+    if (mapShown.length && pace.hold_seconds > MAP_HOLD_WARN_ABOVE) {
+      warnings.push(`pacing.hold_seconds ${pace.hold_seconds} is above ${MAP_HOLD_WARN_ABOVE} s per period on a map film. Measured on the obesity map, a hatched map held 3 s per period kept 83% of its frames moving, 2.5 s kept 89% and 2 s kept 91%, against the strict motion check's 90% floor, so a long hold can fail it. Make a contact sheet first.`);
     }
   }
   // A portrait canvas is accepted by the worker, but the engine has no vertical layout yet.
