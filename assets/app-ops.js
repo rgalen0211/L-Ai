@@ -125,6 +125,18 @@
     const n = (rows || []).length;
     return n ? `${plural(n, 'full render')} waiting for your approval, oldest first. Approving starts the render; declining returns the person\u2019s credits.` : 'No full renders are waiting for approval.';
   }
+  // Auto-render and caps (queue item 3). A cap is a whole number of credits a day, 0 or more; empty means "use the default" (the database deletes the row).
+  const autoRenderLine = on => on ? 'Auto-render is ON: full renders start at once, with no approval.' : 'Auto-render is OFF: every full render waits here for your approval, with the credits held.';
+  function checkCap(text) {
+    const t = String(text == null ? '' : text).trim();
+    if (t === '') return { value: null };
+    if (!/^\d{1,6}$/.test(t)) return { error: 'A cap is a whole number of credits a day, 0 or more. Leave it empty to use the default.' };
+    return { value: Number(t) };
+  }
+  function capLine(c) {
+    const used = Number(c.used_last_24h) || 0;
+    return `${c.email || 'an account'}: ${used} of ${c.credits_per_day} credit${c.credits_per_day === 1 ? '' : 's'} used in the last 24 hours`;
+  }
   function renderWhen(r, now) {
     const left = Math.round((Date.parse(r.expires_at) - now) / 3600000);
     const expiry = !Number.isFinite(left) ? '' : left <= 0 ? ' It has expired and will be cancelled and returned on the next check.' : ` Expires in ${left < 48 ? plural(left, 'hour') : plural(Math.round(left / 24), 'day')} if nobody decides.`;
@@ -189,5 +201,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
+  window.ryagramOps = { autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
 })();

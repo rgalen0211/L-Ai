@@ -307,12 +307,61 @@
               });
             } }, label);
             return h('li', {}, h('strong', {}, r.film_title || 'A film'), h('span', { class: 'meta' }, ` ${r.owner_email || 'an account'}, ${O.RENDER_SOURCE_WORDS[r.source] || r.source}, ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} held`),
-              h('p', { class: 'form-note' }, O.renderWhen(r, now)), h('div', { class: 'inline-row' }, n, ' ', decide(true, 'Approve', 'Approving\u2026'), ' ', decide(false, 'Decline', 'Declining\u2026')));
+              h('p', { class: 'form-note' }, O.renderWhen(r, now)), h('div', { class: 'inline-row' }, n, ' ', decide(true, 'Approve', 'Approving\u2026'), ' ', decide(false, 'Decline', 'Declining\u2026')),
+              r.owner_id ? capRow(r) : null);
           })) : '');
       }
-      await load();
+      // A cap for the person who asked (the queue knows their id; the caps list below only shows people who already have one)
+      const capRow = r => {
+        const input = h('input', { type: 'text', inputmode: 'numeric', maxlength: '6', size: '6', placeholder: 'credits a day', 'aria-label': `Daily cap for ${r.owner_email || 'this person'}` });
+        const btn = h('button', { class: 'button secondary small', type: 'button' }, 'Set daily cap');
+        btn.addEventListener('click', async () => {
+          if (!input.value.trim()) { showError(error, new Error('Type how many credits a day first.')); return; }          // an empty box would delete the cap
+          const checked = O.checkCap(input.value);
+          if (checked.error) { showError(error, new Error(checked.error)); return; }
+          error.hidden = true;
+          await busy(btn, 'Saving\u2026', async () => { try { await data.adminSetUserCap(r.owner_id, checked.value); input.value = ''; await loadCaps(); } catch (err) { showError(error, err); } });
+        });
+        return h('div', { class: 'inline-row' }, input, ' ', btn);
+      };
+      // --- the auto-render switch and the per-person daily caps (existing admin functions only)
+      const switchBox = h('div', { class: 'render-switch' });
+      const capsBox = h('div', { class: 'render-caps' });
+      async function loadSwitch() {
+        let s;
+        try { s = await data.adminAutoRender(); } catch (err) { switchBox.replaceChildren(); showError(error, err); return; }
+        switchBox.replaceChildren(h('p', { class: s.on ? 'form-note switch-on' : 'form-note' }, O.autoRenderLine(s.on)),
+          h('button', { class: `button ${s.on ? 'secondary' : 'primary'} small`, type: 'button', id: 'auto-render-toggle', onclick: async event => {
+            const turningOn = !s.on;
+            if (turningOn && !confirm('Turn auto-render ON? New full renders will start at once, without your approval. Requests already waiting stay waiting and still need your decision. Daily caps still apply.')) return;
+            error.hidden = true;
+            await busy(event.currentTarget, 'Saving\u2026', async () => {
+              try { await data.adminSetAutoRender(turningOn); await loadSwitch(); await load(); } catch (err) { showError(error, err); }
+            });
+          } }, s.on ? 'Turn auto-render off' : 'Turn auto-render on'),
+          s.defaultCap == null ? '' : h('p', { class: 'form-note' }, `Everyone without their own cap gets ${s.defaultCap} credit${s.defaultCap === 1 ? '' : 's'} a day.`));
+      }
+      async function loadCaps() {
+        let caps;
+        try { caps = await data.adminUserCaps(); } catch (err) { capsBox.replaceChildren(); showError(error, err); return; }
+        const save = async (owner, text, button, after) => {
+          const checked = O.checkCap(text);
+          if (checked.error) { showError(error, new Error(checked.error)); return; }
+          error.hidden = true;
+          await busy(button, 'Saving\u2026', async () => { try { await data.adminSetUserCap(owner, checked.value); await after(); } catch (err) { showError(error, err); } });
+        };
+        capsBox.replaceChildren(h('h2', {}, 'Daily credit caps'),
+          h('p', { class: 'form-note' }, 'A cap limits how many credits one person can spend in 24 hours. Empty and Save puts a person back on the default.'),
+          caps.length ? h('ul', { class: 'ops-list' }, caps.map(c => {
+            const input = h('input', { type: 'text', inputmode: 'numeric', value: String(c.credits_per_day), 'aria-label': `Daily cap for ${c.email || 'this account'}`, maxlength: '6', size: '6' });
+            const btn = h('button', { class: 'button secondary small', type: 'button' }, 'Save');
+            btn.addEventListener('click', () => save(c.owner_id, input.value, btn, loadCaps));
+            return h('li', {}, h('span', { class: 'meta' }, O.capLine(c)), h('div', { class: 'inline-row' }, input, ' ', btn));
+          })) : h('p', { class: 'form-note' }, 'Nobody has their own cap yet. Set one from a waiting request above.'));
+      }
+      await Promise.all([loadSwitch(), loadCaps(), load()]);
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Render approvals'),
-        h('p', { class: 'form-note' }, 'Full renders wait here while auto-render is off. The person\u2019s credits are held until you decide.'), out, error];
+        switchBox, h('p', { class: 'form-note' }, 'Full renders wait here while auto-render is off. The person\u2019s credits are held until you decide.'), out, capsBox, error];
     }
 
     async function opsAdminView(onStop) {
