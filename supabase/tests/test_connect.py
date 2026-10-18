@@ -56,8 +56,8 @@ class Connect(core.Base):
 
     def app(self, who, claims=None):
         self.db.as_(who)
-        if claims:
-            self.db.c.execute("select set_config('request.jwt.claims', %s, false)", (claims,))
+        # always set the claims GUC: a previous call's client_id must not leak into this one
+        self.db.c.execute("select set_config('request.jwt.claims', %s, false)", (claims or "",))
         return self.db
 
     def register(self):
@@ -638,6 +638,40 @@ class Connect(core.Base):
         self.assertEqual(deny, URI + "?error=access_denied&state=st&iss=https%3A%2F%2Fref.supabase.co%2Ffunctions%2Fv1%2Fconnect")
         for bad in ("http://ref.supabase.co/x", "https://a b.example/", "javascript:alert(1)", "https://x/" + "a" * 300):
             self.runner(); self.fails("select connect_begin_authorization(%s,%s,'st',%s,'S256','read',null,%s)", client, URI, s256(VER), bad)
+
+    def test_the_master_switch_turns_everything_off_at_once_and_back_on(self):
+        client, a, ref = self.connect(ALICE)
+        r = self.runner()
+        r.one("select connect_whoami(%s)", h(a))
+        req = r.one("select connect_begin_authorization(%s,%s,'s',%s,'S256','read',null)", client, URI, s256(VER))
+        # a non-admin cannot flip it; an admin can, but not with a client_id token
+        self.app(ALICE); self.fails("select admin_connect_set_enabled(false)", code="42501")
+        self.app(ADMIN, '{"sub": "%s", "role": "authenticated", "client_id": "x"}' % ADMIN); self.fails("select admin_connect_set_enabled(false)", code="42501")
+        self.app(ADMIN).one("select admin_connect_set_enabled(false)")
+        r = self.runner()
+        self.assertIsNone(r.one("select connect_scopes(%s)", h(a)))
+        self.fails("select connect_whoami(%s)", h(a), code="PT403")
+        self.fails("select connect_list_projects(%s)", h(a), code="PT403")
+        self.fails("select connect_register_client('Claude', array[%s])", URI, code="PT400")
+        self.fails("select connect_begin_authorization(%s,%s,'s',%s,'S256','read',null)", client, URI, s256(VER), code="PT400")
+        self.assertEqual(r.one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("1" * 20), h("2" * 20)), {"error": "invalid_grant"})
+        chk = self.app(ALICE).one("select connect_consent_check(%s)", req)
+        self.assertFalse(chk["allowed"]); self.assertIn("switched off", chk["reason"])
+        self.app(ALICE); self.fails("select connect_consent_decide(%s, true, array['read'])", req, code="42501")
+        # the refresh above did not spend the refresh token (it was refused before looking), so switching on restores everything
+        self.app(ADMIN).one("select admin_connect_set_enabled(true)")
+        r = self.runner()
+        self.assertEqual(r.one("select connect_scopes(%s)", h(a)), ["read", "write", "render_free"])
+        r.one("select connect_whoami(%s)", h(a))
+
+    def test_revoke_all_ends_every_token_and_grant(self):
+        _, a, _ = self.connect(ALICE); _, b, _ = self.connect(BOB)
+        self.app(ALICE); self.fails("select admin_connect_revoke_all()", code="42501")
+        n = self.app(ADMIN).one("select admin_connect_revoke_all()")
+        self.assertEqual(n, 2)
+        self.runner()
+        for tok in (a, b): self.fails("select connect_whoami(%s)", h(tok), code="PT401")
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.connect_grants where revoked_at is null"), 0)
 
     def test_purge_removes_old_rows_only(self):
         _, a, _ = self.connect(ALICE)

@@ -118,7 +118,8 @@ create table public.connect_buckets (                      -- fixed-window rate 
 
 create table public.connect_flags (
   id boolean primary key default true check (id),
-  full_render_enabled boolean not null default false);     -- full renders from a connection: OFF; also refused in SQL until PIPE's approve queue exists
+  full_render_enabled boolean not null default false,
+  connections_enabled boolean not null default true);      -- THE MASTER SWITCH: false = every connect function refuses, tokens stay but mean nothing     -- full renders from a connection: OFF; also refused in SQL until PIPE's approve queue exists
 insert into public.connect_flags (id) values (true);
 
 alter table public.connect_access enable row level security;
@@ -165,6 +166,11 @@ $$;
 create function ryagram_private.connect_offered_scopes() returns text[]
 language sql stable set search_path = '' as $$ select array['read', 'write', 'render_free']::text[] $$;
 
+-- The master switch. One row, one flag. When it is false nothing in this file lets anybody in: no registration, no sign-in, no token,
+-- no tool, no consent. (admin_connect_set_enabled flips it; so does an update from the SQL Editor.)
+create function ryagram_private.connect_on() returns boolean
+language sql stable security definer set search_path = '' as $$ select coalesce((select connections_enabled from public.connect_flags where id), false) $$;
+
 -- The consent and settings functions are for the person's OWN app session. A Supabase-issued OAuth token (it carries client_id)
 -- must never reach them, even though connect tokens are not JWTs at all (defence in depth, and the live project may one day
 -- register OAuth clients of its own).
@@ -191,6 +197,9 @@ create function ryagram_private.connect_actor(p_token_hash text, p_scope text) r
 language plpgsql security definer set search_path = '' as $$
 declare t public.connect_tokens;
 begin
+  if not ryagram_private.connect_on() then
+    raise exception 'AI connections to Ryagram are switched off right now.' using errcode = 'PT403';
+  end if;
   if p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$' then
     raise exception 'Sign in to Ryagram to use this connection.' using errcode = 'PT401';
   end if;
@@ -219,6 +228,7 @@ create function public.connect_register_client(p_name text, p_redirect_uris text
 language plpgsql security definer set search_path = '' as $$
 declare uri text; id text; n int;
 begin
+  if not ryagram_private.connect_on() then raise exception 'unavailable: AI connections are switched off right now' using errcode = 'PT400'; end if;
   if p_name is null or char_length(btrim(p_name)) not between 1 and 80 or p_name ~ '[[:cntrl:]\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]' then
     raise exception 'invalid_client_metadata: a client name is required' using errcode = 'PT400'; end if;
   if p_redirect_uris is null or cardinality(p_redirect_uris) not between 1 and 5 then
@@ -243,6 +253,7 @@ create function public.connect_begin_authorization(p_client_id text, p_redirect_
 language plpgsql security definer set search_path = '' as $$
 declare c public.connect_clients; want text[]; id uuid;
 begin
+  if not ryagram_private.connect_on() then raise exception 'unavailable: AI connections are switched off right now' using errcode = 'PT400'; end if;
   select * into c from public.connect_clients where client_id = p_client_id;
   if not found then raise exception 'invalid_client' using errcode = 'PT400'; end if;
   if p_redirect_uri is null or not (p_redirect_uri = any (c.redirect_uris)) or not ryagram_private.connect_uri_ok(p_redirect_uri) then
@@ -269,6 +280,7 @@ create function public.connect_exchange_code(p_code_hash text, p_client_id text,
 language plpgsql security definer set search_path = '' as $$
 declare k public.connect_codes; fam uuid := gen_random_uuid(); bad jsonb := jsonb_build_object('error', 'invalid_grant');
 begin
+  if not ryagram_private.connect_on() then return bad; end if;
   select * into k from public.connect_codes where code_hash = p_code_hash for update;
   if not found then return bad; end if;
   if k.used_at is not null then      -- a replayed code: everything issued from it dies (RFC 6749 4.1.2)
@@ -295,6 +307,7 @@ create function public.connect_refresh(p_refresh_hash text, p_client_id text, p_
 language plpgsql security definer set search_path = '' as $$
 declare t public.connect_tokens; bad jsonb := jsonb_build_object('error', 'invalid_grant');
 begin
+  if not ryagram_private.connect_on() then return bad; end if;
   select * into t from public.connect_tokens where refresh_hash = p_refresh_hash for update;
   if not found or t.client_id is distinct from p_client_id then return bad; end if;
   if t.refresh_used_at is not null or t.revoked_at is not null then   -- reuse of a rotated or revoked token: kill the whole family
@@ -322,6 +335,10 @@ create function public.connect_consent_check(p_request uuid) returns jsonb
 language plpgsql stable security definer set search_path = '' as $$
 declare me uuid := ryagram_private.connect_app_session(); r public.connect_requests; c public.connect_clients; why text;
 begin
+  if not ryagram_private.connect_on() then
+    return jsonb_build_object('allowed', false, 'reason', 'AI connections to Ryagram are switched off right now.',
+                              'offered_scopes', ryagram_private.connect_offered_scopes(), 'credit_scopes', '[]'::jsonb, 'invited', ryagram_private.connect_person_ok(me));
+  end if;
   select * into r from public.connect_requests where id = p_request;
   if not found then return jsonb_build_object('allowed', false, 'reason', 'This sign-in request was not found. Start again from your assistant.',
                                                'offered_scopes', ryagram_private.connect_offered_scopes(), 'credit_scopes', '[]'::jsonb, 'invited', ryagram_private.connect_person_ok(me)); end if;
@@ -346,6 +363,9 @@ create function public.connect_consent_decide(p_request uuid, p_approve boolean,
 language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.connect_app_session(); r public.connect_requests; code text; got text[]; sep text;
 begin
+  if not ryagram_private.connect_on() then
+    raise exception 'AI connections to Ryagram are switched off right now.' using errcode = '42501';
+  end if;
   select * into r from public.connect_requests where id = p_request for update;
   if not found or r.decided_at is not null or r.expires_at < now() then
     raise exception 'This sign-in request has expired. Start again from your assistant.' using errcode = '42501'; end if;
@@ -419,6 +439,28 @@ begin
     on conflict (redirect_uri) do update set kind = excluded.kind, label = excluded.label, enabled = excluded.enabled;
 end $$;
 
+-- One step to switch every AI connection off (or back on). Off = nothing gets in; the tokens and grants stay, so switching on restores them.
+create function public.admin_connect_set_enabled(p_on boolean) returns void
+language plpgsql security definer set search_path = '' as $$
+begin
+  perform ryagram_private.connect_app_session();
+  if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;
+  update public.connect_flags set connections_enabled = coalesce(p_on, false) where id;
+end $$;
+
+-- The rollback of a bad day: every token and every grant ends now. Connections must be set up again by their owners.
+create function public.admin_connect_revoke_all() returns int
+language plpgsql security definer set search_path = '' as $$
+declare n int;
+begin
+  perform ryagram_private.connect_app_session();
+  if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;
+  update public.connect_tokens set revoked_at = now() where revoked_at is null;
+  get diagnostics n = row_count;
+  update public.connect_grants set revoked_at = now() where revoked_at is null;
+  return n;
+end $$;
+
 -- ------------------------------------------------------------------------------------- tool functions (connect_runner)
 -- Every function takes p_token_hash first and resolves the owner itself. None takes an owner id.
 
@@ -426,6 +468,7 @@ create function public.connect_scopes(p_token_hash text) returns text[]         
 language plpgsql stable security definer set search_path = '' as $$
 declare t public.connect_tokens; g public.connect_grants;
 begin
+  if not ryagram_private.connect_on() then return null; end if;
   if p_token_hash is null or p_token_hash !~ '^[0-9a-f]{64}$' then return null; end if;
   select * into t from public.connect_tokens k where k.access_hash = p_token_hash and k.revoked_at is null and k.access_expires_at > now();
   if not found or not ryagram_private.connect_person_ok(t.owner_id) then return null; end if;
@@ -678,7 +721,7 @@ select ryagram_private.connect_guard_published_tables();
 -- --------------------------------------------------------------------------------------------------- grants
 -- Nothing is callable by anyone until granted here. connect_runner gets the AS and tool functions; the app session gets
 -- the consent, settings and admin functions; connect_purge is for the dashboard / service role only.
-revoke all on function ryagram_private.connect_pct(text), ryagram_private.connect_uri_ok(text), ryagram_private.connect_offered_scopes(),
+revoke all on function ryagram_private.connect_on(), ryagram_private.connect_pct(text), ryagram_private.connect_uri_ok(text), ryagram_private.connect_offered_scopes(),
   ryagram_private.connect_person_ok(uuid), ryagram_private.connect_actor(text, text), ryagram_private.connect_app_session() from public, anon, authenticated, connect_runner;
 
 revoke all on function
@@ -690,7 +733,8 @@ revoke all on function
   public.connect_save_story(text, uuid, jsonb), public.connect_create_version(text, uuid, uuid), public.connect_quote(text, uuid, text),
   public.connect_submit_job(text, uuid, text, jsonb, uuid, uuid), public.connect_job(text, uuid), public.connect_current_engine(text),
   public.connect_consent_check(uuid), public.connect_consent_decide(uuid, boolean, text[]), public.my_connected_ais(), public.disconnect_ai(text),
-  public.admin_set_connect_access(text, boolean), public.admin_connect_allowlist_set(text, text, text, boolean), public.connect_purge()
+  public.admin_set_connect_access(text, boolean), public.admin_connect_allowlist_set(text, text, text, boolean), public.connect_purge(),
+  public.admin_connect_set_enabled(boolean), public.admin_connect_revoke_all()
   from public, anon, authenticated, connect_runner;
 
 grant execute on function
@@ -705,4 +749,4 @@ grant execute on function
 
 grant execute on function public.connect_consent_check(uuid), public.connect_consent_decide(uuid, boolean, text[]),
   public.my_connected_ais(), public.disconnect_ai(text), public.admin_set_connect_access(text, boolean),
-  public.admin_connect_allowlist_set(text, text, text, boolean) to authenticated;
+  public.admin_connect_allowlist_set(text, text, text, boolean), public.admin_connect_set_enabled(boolean), public.admin_connect_revoke_all() to authenticated;

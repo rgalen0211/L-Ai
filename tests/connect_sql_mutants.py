@@ -81,6 +81,13 @@ MUTANTS = [
      "'code=' || code || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end);"),
     ("the realtime guard is not applied to the published tables", "select ryagram_private.connect_guard_published_tables();\n", ""),
     ("the realtime check ignores whether the policy is restrictive", "and not pol.polpermissive and pol.polcmd in ('r', '*'))", "and pol.polcmd in ('r', '*'))"),
+    ("the master switch is ignored by the actor", "  if not ryagram_private.connect_on() then\n    raise exception 'AI connections to Ryagram are switched off right now.' using errcode = 'PT403';\n  end if;\n  if p_token_hash is null", "  if p_token_hash is null"),
+    ("the master switch is ignored by connect_scopes", "  if not ryagram_private.connect_on() then return null; end if;\n", ""),
+    ("the master switch is ignored by registration", "  if not ryagram_private.connect_on() then raise exception 'unavailable: AI connections are switched off right now' using errcode = 'PT400'; end if;\n  if p_name is null", "  if p_name is null"),
+    ("the master switch is ignored by refresh", "  if not ryagram_private.connect_on() then return bad; end if;\n  select * into t from public.connect_tokens where refresh_hash", "  select * into t from public.connect_tokens where refresh_hash"),
+    ("the master switch is ignored by consent decide", "  if not ryagram_private.connect_on() then\n    raise exception 'AI connections to Ryagram are switched off right now.' using errcode = '42501';\n  end if;\n  select * into r from public.connect_requests where id = p_request for update;", "  select * into r from public.connect_requests where id = p_request for update;"),
+    ("the switch can be flipped by a non-admin", "  perform ryagram_private.connect_app_session();\n  if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;\n  update public.connect_flags set connections_enabled", "  perform ryagram_private.connect_app_session();\n  update public.connect_flags set connections_enabled"),
+    ("revoke-all leaves grants alive", "  update public.connect_grants set revoked_at = now() where revoked_at is null;\n  return n;", "  return n;"),
     ("a helper function with no revoke (only the realistic-defaults test sees it)", "-- --------------------------------------------------------------------------------------------------- grants\n",
      "create function public.helper_without_revoke() returns int language sql as $$ select 1 $$;\n-- grants\n"),
 ]
