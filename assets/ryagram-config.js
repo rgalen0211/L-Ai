@@ -43,6 +43,9 @@ window.ryagramConfig = Object.freeze({
   // 20261004000300 are applied, purge-uploads is deployed and scheduled, and the worker reads uploads
   // (supabase/README.md, "Uploads").
   uploads: false,
+  // The guide for people bringing their own spreadsheet (BYOD audit 2026-10-18): a starter film made from the upload when the story is blank, a pointer to it from the top of the
+  // version page, an example of a good file, and plain words for a file with its years across the columns. Needs uploads: true. Off until Ryan has seen it.
+  byodGuide: false,
   // Show the "rendering is delayed" notice and the help form (#/help) in /app/. Turn on only once SQL 20261010000100 is applied
   // (supabase/README.md, "Hands-off operations").
   opsTools: true,
@@ -55,6 +58,9 @@ window.ryagramConfig = Object.freeze({
   // The guided builder (#/build): pick data, measure, years, film type, look and title, read the source and licence, get a free contact sheet. Turn on only once the guided-builder
   // function is deployed (supabase/README.md, "Guided builder"). Datasets are listed to signed-in, invited people only (RULINGS 2026-10-17); catalog and catalogComingSoon below stay off.
   guidedBuilder: false,
+  // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once
+  // SQL 20261017000900 is applied and the Privacy Policy line for it is published (supabase/README.md, "Funnel tracking").
+  funnelTracking: false,
   // Send full renders through request_final_render (the approval queue). Turn on only once SQL 20261017000500 and 20261017000600 (PIPE-1) are applied; until then the old direct path is used.
   renderOrders: true,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The

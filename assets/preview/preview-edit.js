@@ -140,7 +140,7 @@
   function themeEdits(scene, theme, drawnIn = scene) {
     const out = {};
     for (const key of themeKeys(drawnIn)) {
-      if (theme === 'light') { if (LIGHT[key]) out[key] = LIGHT[key]; }
+      if (theme === 'light') { if (Object.hasOwn(LIGHT, key) && LIGHT[key]) out[key] = LIGHT[key]; }
       else out[key] = toHex(drawnIn.styles[key].value);
     }
     return out;

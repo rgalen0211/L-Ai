@@ -195,7 +195,7 @@
               h('dl', { class: 'builder-summary' }, [['Data', r.dataset.title], ['Measure', r.measure ? `${r.measure.label}${r.measure.unit ? ` (${r.measure.unit})` : ''}` : 'the film’s own choice'], ['Years', `${r.window.start} to ${r.window.end}`],
                 ['Film type', typeWords(r.film_type)[0]], ['Look', r.look.applied ? (s.lookName || 'your look') : 'the film’s own'], ['Title', s.title.trim()]].flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
               ...r.warnings.map(w => h('p', { class: 'form-note builder-warning' }, w)),
-              r.method_notes.length ? h('details', {}, h('summary', {}, 'Method notes from the source'), h('ul', {}, r.method_notes.map(n => h('li', {}, n)))) : null,
+              r.method_notes.length ? h('details', {}, h('summary', {}, 'Method notes from the source'), h('ul', {}, r.method_notes.map(n => h('li', {}, n)))) : '',
               h('p', { class: 'form-note' }, FILE_NOTE));
             story.value = JSON.stringify(compiled.story, null, 2);
             make.disabled = false;
