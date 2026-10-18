@@ -211,7 +211,7 @@
             totals.length ? h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col' }, 'From'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
               h('tbody', {}, totals.map(r => h('tr', {}, h('td', {}, A.campaignLabel(r.campaign)), h('td', {}, r.utm_source || '\u2014'),
-                                                     h('td', { class: 'num' }, String(r.signups)))))) : null,
+                                                     h('td', { class: 'num' }, String(r.signups)))))) : '',
             ...(rows.length ? [h('h2', {}, 'By day'), h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Day'), h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
               h('tbody', {}, rows.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', {}, A.campaignLabel(r.campaign)),
@@ -306,7 +306,7 @@
             } }, label);
             return h('li', {}, h('strong', {}, r.film_title || 'A film'), h('span', { class: 'meta' }, ` ${r.owner_email || 'an account'}, ${O.RENDER_SOURCE_WORDS[r.source] || r.source}, ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} held`),
               h('p', { class: 'form-note' }, O.renderWhen(r, now)), h('div', { class: 'inline-row' }, n, ' ', decide(true, 'Approve', 'Approving\u2026'), ' ', decide(false, 'Decline', 'Declining\u2026')));
-          })) : null);
+          })) : '');
       }
       await load();
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Render approvals'),
@@ -522,7 +522,7 @@
             days.length ? h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, th('Day'), th('Visits', true), th('Signups', true), th('Signup rate', true))),
               h('tbody', {}, days.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', { class: 'num' }, String(r.visits)),
-                                          h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : null);
+                                          h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : '');
         } catch (err) { body.replaceChildren(); showError(error, err); }
       }
       range.addEventListener('change', load);
@@ -1343,7 +1343,7 @@
           shown.push(h('li', {}, h('strong', {}, `${J.ORDER_WORDS[st.state] || st.state} `), h('span', { class: 'meta' }, `${date(o.created_at)}. `), J.orderLine(st), ' ', actions));
         }
         openOrders = rows.some(o => J.orderOpen(o.state));
-        orderBox.replaceChildren(shown.length ? h('ul', { class: 'order-list' }, shown) : null);
+        orderBox.replaceChildren(...(shown.length ? [h('ul', { class: 'order-list' }, shown)] : []));      // (replaceChildren(null) would print the word "null")
       }
 
       function syncControls() {
