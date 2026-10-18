@@ -254,7 +254,10 @@ export const countySlowPacingNotice = (hold: number) => `On a county map this lo
 export const NOT_USABLE_WHY = {
   next: "Ryagram has not yet checked that a film from this data moves smoothly, so you cannot make one yet.",
   later: "Ryagram cannot make a film from this data yet: it has not been set up, or a film from it did not pass Ryagram's checks.",
-};
+  // the catalog's status_why says which, so each sentence can be TRUE (gen-catalog: failed-checks vs not-set-up):
+  "failed-checks": "A film from this data did not pass Ryagram's checks yet, so you cannot make one yet.",
+  "not-set-up": "Ryagram has not set up this dataset yet, so you cannot make a film from it yet.",
+} as Record<string, string>;
 
 export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: Json; audience?: Audience; today?: Today } = {}): { story: Json; report: FilmReport } {
   const catalog = opts.catalog ?? CATALOG, schema = opts.storySchema ?? STORY_SCHEMA;
@@ -283,7 +286,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
   if (typeof req.dataset !== "string" || !req.dataset) errs.push("dataset: required (an id from the catalog)");
   else if (!entry) errs.push(`dataset: '${String(req.dataset).slice(0, 64)}' is not in the catalog; use searchCatalog`);
   else if (entry.status !== "usable") {
-    errs.push(`dataset: '${entry.id}' is not usable yet. ${NOT_USABLE_WHY[entry.status as "next" | "later"] ?? NOT_USABLE_WHY.later}`);
+    errs.push(`dataset: '${entry.id}' is not usable yet. ${NOT_USABLE_WHY[entry.status_why] ?? NOT_USABLE_WHY[entry.status] ?? NOT_USABLE_WHY.later}`);
   }
   if (typeof req.film_type !== "string" || !req.film_type) errs.push(`film_type: required, one of ${FILM_TYPES.join(", ")}`);
   else if (!FILM_TYPES.includes(req.film_type)) errs.push(`film_type: '${req.film_type.slice(0, 30)}' is not one of ${FILM_TYPES.join(", ")}`);

@@ -260,12 +260,12 @@ def listing_for(d, decisions):
     return dec['listable'], dec['class'], dec['why']
 
 
-def detail_entry(d, status, window, title, short, family, views, decisions):
+def detail_entry(d, status, window, title, short, family, views, decisions, status_why=''):
     ms = d.get('measures') or []
     listable, lclass, why = listing_for(d, decisions)
     return {
         'listable': listable, 'listable_class': lclass, 'listable_why': why,
-        'id': d['id'], 'title': title, 'short': short, 'group': group_of(d), 'family': family, 'status': status,
+        'id': d['id'], 'title': title, 'short': short, 'group': group_of(d), 'family': family, 'status': status, 'status_why': status_why,
         'publisher': d.get('source') or '', 'source_line': d.get('source_line') or '',
         'url': d.get('url') if str(d.get('url') or '').startswith('https://') else '',
         'licence': re.sub(r'\s+', ' ', d.get('license') or '').strip(), 'licence_short': short_licence(d.get('license')),
@@ -469,10 +469,15 @@ def main():
         if not views:
             continue
         status = 'usable' if d['id'] in allow else 'next' if d['id'] in nxt else 'later'   # usable = on the worker's allowlist
+        # WHY a dataset has its status, so the sentences a person reads can each be TRUE (CC1/Ryan 2026-10-18): 'later' is two
+        # different things, a dataset the worker is not set up for and one whose default film FAILED the motion check.
+        status_why = 'usable' if status == 'usable' else 'update-candidate' if status == 'next' else 'not-set-up'
         if status == 'usable':
             ok, not_status = usable_by_motion(d['id'], motion, baseline, skip_named)
             if not ok:
                 status = not_status       # unmeasured or skip -> next; fail -> later (its default film does not pass the strict check)
+                m = motion.get(d['id'])
+                status_why = 'failed-checks' if (m and m[0] == 'fail') else 'skipped-unmeasured' if (m and m[0] == 'skip') else 'not-measured'
         window = known.get(d['id']) or ((d['available_from'], d['available_to'])
                                         if d.get('available_from') and d.get('available_to') else None)
         measure = ((d.get('measures') or [{}])[0]).get('label') or ''
@@ -486,12 +491,12 @@ def main():
         seed.append({'id': d['id'], 'title': title, 'publisher': d.get('source') or '', 'url': (d.get('url') or '') if str(d.get('url') or '').startswith('https://') else '',
                      'coverage': coverage_text(d), 'licence_short': short_licence(d.get('license')),
                      'licence_full': re.sub(r'\s+', ' ', d.get('license') or '').strip(), 'runnable': status == 'usable'})
-        detail.append(detail_entry(d, status, window, title, short, family, views, decisions))
+        detail.append(detail_entry(d, status, window, title, short, family, views, decisions, status_why))
         if not detail[-1]['listable']:
             continue        # THE PUBLIC FILE HOLDS LISTABLE DATASETS ONLY (RULINGS 2026-10-17): anyone can fetch it
         entries.append({
             'id': d['id'], 'title': title, 'short': short, 'blurb': blurb(d), 'source': d.get('source') or '', 'url': d.get('url') or '',
-            'group': group_of(d), 'family': family, 'status': status,
+            'group': group_of(d), 'family': family, 'status': status, 'status_why': status_why,
             'level': LEVELS.get(d.get('geography_id')) or d.get('geography') or '',
             'cadence': d.get('cadence') or '', 'from': d.get('available_from') or '', 'to': d.get('available_to') or '',
             'window': list(window) if window else None, 'views': views,

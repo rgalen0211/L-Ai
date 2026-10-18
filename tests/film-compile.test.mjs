@@ -142,7 +142,8 @@ test('MUST-FAIL: every way to ask for something the engine cannot honestly draw 
   const cases = {
     'unknown dataset': [{ ...ok, dataset: 'nope' }, /not in the catalog/],
     'a dataset that is not measured yet (next)': [{ ...ok, dataset: CATALOG.find(x => x.status === 'next').id }, /is not usable yet. Ryagram has not yet checked that a film from this data moves smoothly/],
-    'a dataset that did not pass the checks (later)': [{ ...ok, dataset: CATALOG.find(x => x.status === 'later' && x.listable).id }, /is not usable yet. Ryagram cannot make a film from this data yet: it has not been set up, or a film from it did not pass Ryagram's checks/],
+    'a dataset the worker is not set up for (later, not-set-up)': [{ ...ok, dataset: CATALOG.find(x => x.status === 'later' && x.listable).id }, /is not usable yet\. Ryagram has not set up this dataset yet/],
+    'a dataset whose film failed the motion check (later, failed-checks)': [{ ...ok, dataset: 'bls_state_unemployment' }, /is not usable yet\. A film from this data did not pass Ryagram's checks yet/, { catalog: CATALOG.map(e => e.id === 'bls_state_unemployment' ? { ...e, status: 'later', status_why: 'failed-checks' } : e) }],
     'private data': [{ ...ok, dataset: 'ryan_anything' }, /not in the catalog/],
     'an unknown film type': [{ ...ok, film_type: 'pie' }, /is not one of/],
     'a film type the dataset does not offer (a NON-paired type: fhwa_hm212 is a line-only dataset, asked for a map)': [{ ...ok, dataset: 'fhwa_hm212', film_type: 'map' }, /'map' is not offered for fhwa_hm212; it offers line/, { catalog: ALL_USABLE }],
@@ -322,16 +323,25 @@ test('the BY-SA backstop (TypeScript and Python patterns) catches every spelling
   for (const [t, hit] of got.slice(spellings.length)) assert.equal(hit, false, `Python control: ${t}`);
 });
 
-test('the two ways a dataset is not usable are worded as the catalog page words them: next = not yet checked, later = did not pass the checks; neither promises a worker update', () => {
+test('the ways a dataset is not usable are worded as the catalog page words them, and each sentence is TRUE: status_why separates not-set-up from failed-checks; none promises a worker update', () => {
   assert.equal(NOT_USABLE_WHY.next, "Ryagram has not yet checked that a film from this data moves smoothly, so you cannot make one yet.");
-  assert.equal(NOT_USABLE_WHY.later, "Ryagram cannot make a film from this data yet: it has not been set up, or a film from it did not pass Ryagram's checks.");
-  const next = CATALOG.find(x => x.status === 'next'), later = CATALOG.find(x => x.status === 'later' && x.listable);
-  assert.ok(next && later, 'the catalog has both kinds');
+  assert.equal(NOT_USABLE_WHY['failed-checks'], "A film from this data did not pass Ryagram's checks yet, so you cannot make one yet.");
+  assert.equal(NOT_USABLE_WHY['not-set-up'], "Ryagram has not set up this dataset yet, so you cannot make a film from it yet.");
   const msg = e => refused({ dataset: e.id, film_type: e.film_types[0], title: 'x' }).join(' | ');
-  assert.ok(msg(next).includes(NOT_USABLE_WHY.next) && !msg(next).includes(NOT_USABLE_WHY.later), 'next says next');
-  assert.ok(msg(later).includes(NOT_USABLE_WHY.later) && !msg(later).includes(NOT_USABLE_WHY.next), 'later says later');
+  const next = CATALOG.find(x => x.status === 'next'), notSetUp = CATALOG.find(x => x.status === 'later' && x.listable);
+  assert.equal(next.status_why, 'not-measured'); assert.equal(notSetUp.status_why, 'not-set-up');
+  assert.ok(msg(next).includes(NOT_USABLE_WHY.next) && !msg(next).includes('did not pass'), 'next says next');
+  assert.ok(msg(notSetUp).includes(NOT_USABLE_WHY['not-set-up']) && !msg(notSetUp).includes('did not pass'), 'a dataset never set up is NOT told it failed a check');
+  const failed = ALL_USABLE.find(e => e.id === 'bls_state_unemployment');
+  const failedCat = CATALOG.map(e => e.id === failed.id ? { ...e, status: 'later', status_why: 'failed-checks' } : e);
+  const fm = refused({ dataset: failed.id, film_type: failed.film_types[0], title: 'x' }, { catalog: failedCat }).join(' | ');
+  assert.ok(fm.includes(NOT_USABLE_WHY['failed-checks']) && !fm.includes('has not set up'), 'a dataset that failed is told it failed, not that it was never set up');
   // MUST-FAIL (the old wording): no non-usable dataset is told it is waiting for a render-worker update or that the worker is not set up
-  for (const e of [next, later]) assert.doesNotMatch(msg(e), /render-worker update|render worker has not been set up/, e.id);
+  for (const text of [msg(next), msg(notSetUp), fm]) assert.doesNotMatch(text, /render-worker update|render worker has not been set up/);
+  // every non-usable catalog entry carries a status_why from the known set, and a usable one says 'usable'
+  const known = ['usable', 'update-candidate', 'not-set-up', 'failed-checks', 'skipped-unmeasured', 'not-measured'];
+  for (const e of CATALOG) assert.ok(known.includes(e.status_why), `${e.id}: ${e.status_why}`);
+  assert.ok(CATALOG.every(e => (e.status === 'usable') === (e.status_why === 'usable')));
   // CONTROL: a usable dataset gets no such sentence
   assert.equal(refused({ dataset: usable[0].id, film_type: usable[0].film_types[0], title: 'x' }), null);
 });
@@ -471,6 +481,11 @@ test('THE MOTION GATE: usable needs a pass/na line (or the baseline, or a skip R
   assert.equal(statusOf(gen('skipother', ids.map(i => line(i, i === target ? 'skip' : 'pass')), [], [other]).pub, target), 'next', 'naming a different dataset does not rescue it');
   // fail is later, na is usable
   assert.equal(statusOf(gen('fail', ids.map(i => line(i, i === target ? 'fail' : 'pass'))).pub, target), 'later', 'MUST-FAIL: a fail dataset is later');
+  const whyOf = (pub, id) => { const m = new RegExp(`"id": "${id}",[\\s\\S]*?"status_why": "([a-z-]+)"`).exec(pub); return m && m[1]; };
+  assert.equal(whyOf(gen('why-fail', ids.map(i => line(i, i === target ? 'fail' : 'pass'))).pub, target), 'failed-checks', 'a motion=fail dataset says failed-checks, not not-set-up');
+  assert.equal(whyOf(noLine.pub, target), 'not-measured', 'an allowlisted dataset with no line says not-measured');
+  assert.equal(whyOf(skip.pub, target), 'skipped-unmeasured', 'a skip dataset says skipped-unmeasured');
+  assert.equal(whyOf(control.pub, target), 'usable', 'a usable dataset says usable');
   assert.equal(statusOf(gen('na', ids.map(i => line(i, i === target ? 'na' : 'pass'))).pub, target), 'usable', 'na (nothing to measure) is usable');
   // refused outright
   assert.notEqual(gen('extra', [...all(), line('not_on_the_allowlist')]).r.status, 0, 'MUST-FAIL: a line for an id off the allowlist is refused');
