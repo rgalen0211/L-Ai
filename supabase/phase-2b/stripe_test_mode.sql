@@ -362,7 +362,8 @@ create policy "Owners see their plan" on public.stripe_subscriptions for select 
 
 revoke execute on all functions in schema ryagram_private from public, anon, authenticated;
 grant execute on function ryagram_private.owner_may_read(text), ryagram_private.worker_may_write(text),
-  ryagram_private.is_worker() to authenticated;       -- re-grant the ones policies need
+  ryagram_private.is_worker(), ryagram_private.upload_slot_ok(text), ryagram_private.worker_may_read_upload(text)
+  to authenticated;       -- re-grant the ones policies need (all five; the upload two were missing until CC1, 2026-10-17)
 revoke execute on function
   public.stripe_apply(text, text, timestamptz, boolean, jsonb),
   public.stripe_checkout_context(uuid, text),

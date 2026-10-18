@@ -54,6 +54,8 @@ window.ryagramConfig = Object.freeze({
   filmRequests: true,
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
   lookEditor: false,
+  // Send full renders through request_final_render (the approval queue). Turn on only once SQL 20261017000500 and 20261017000600 (PIPE-1) are applied; until then the old direct path is used.
+  renderOrders: true,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.
