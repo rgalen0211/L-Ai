@@ -1,4 +1,4 @@
-// First-party funnel tracking (SQL 20261017000400): our own database only, no third-party pixels, no cookies.
+// First-party funnel tracking (SQL 20261017000900): our own database only, no third-party pixels, no cookies.
 //
 // What it does, and all it does:
 //   * remembers how a visitor first found us, as ONE small record in this browser's local storage: utm_source / utm_medium / utm_campaign from the link and the

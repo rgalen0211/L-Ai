@@ -158,6 +158,9 @@ begin
   end loop;
   return done;
 end $$;
+-- CC1 MED-1: ryagram_private.funnel_log takes ANY p_user, so it must not be callable by a signed-in person (PUBLIC keeps default EXECUTE on new functions on a real project, and
+-- authenticated has USAGE on this schema). Only the definer functions in public.* and the triggers reach these.
+revoke execute on function ryagram_private.funnel_clean(text, int), ryagram_private.funnel_log(text, uuid), ryagram_private.funnel_trg() from public, anon, authenticated, service_role;
 select ryagram_private.funnel_install_triggers();
 revoke execute on function ryagram_private.funnel_install_triggers() from public, anon, authenticated, service_role;
 

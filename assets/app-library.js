@@ -506,7 +506,7 @@
         try { fr = await data.adminFilmRequests(); } catch { fr = null; }
         let cost = null;   // the cost ledger; null until its SQL is applied
         try { cost = await data.adminCostRollup(14); } catch { cost = null; }
-        let funnel = null; // the funnel; null until SQL 20261017000400 is applied
+        let funnel = null; // the funnel; null until SQL 20261017000900 is applied
         try { funnel = await data.adminFunnel(funnelWeeks); } catch { funnel = null; }
         const now = Date.now();
         body.replaceChildren(

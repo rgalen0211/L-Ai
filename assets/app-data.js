@@ -340,7 +340,7 @@
       adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
-      // Funnel (SQL 20261017000400): Ryan's counts per step, by week and by source. Admin only.
+      // Funnel (SQL 20261017000900): Ryan's counts per step, by week and by source. Admin only.
       // The raw funnel events of the last N days, read as Ryan (the table's own admin-only policy): for the by-day page. Paged, newest first.
       async adminFunnelEvents(days) {
         const since = new Date(Date.now() - Math.min(Math.max(days || 14, 1), 60) * 864e5).toISOString();
