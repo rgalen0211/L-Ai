@@ -358,8 +358,15 @@ class Connect(core.Base):
         # GRACE: the same refresh token presented again within 60 s (a lost answer, or two requests at once) gets a fresh pair; both pairs work
         n2, r2 = uuid.uuid4().hex, uuid.uuid4().hex
         out = self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n2), h(r2))
-        self.assertEqual(out["expires_in"], 3600)
-        self.runner().one("select connect_list_projects(%s)", h(n1)); self.runner().one("select connect_list_projects(%s)", h(n2))
+        # ASSERT the outcome (a refusal here must FAIL this test, not raise a KeyError or a database error that a mutation harness reads as 'errored')
+        self.assertIsInstance(out, dict)
+        self.assertNotIn("error", out, "a repeat of a spent refresh token inside the 60 s grace must return a new pair, not invalid_grant")
+        self.assertEqual(out.get("expires_in"), 3600, "the grace answer must carry a new access token lifetime")
+        for tok, what in ((n1, "the first refreshed pair"), (n2, "the pair issued by the grace")):
+            try:
+                self.runner().one("select connect_list_projects(%s)", h(tok))
+            except psycopg.Error as e:
+                self.fail(f"{what} must work, but the call raised: {e}")
         # ONCE per spent token: a SECOND repeat inside the 60 s is reuse, refused, and it kills the family (no parallel chain can grow from a replay)
         n3, r3 = uuid.uuid4().hex, uuid.uuid4().hex
         self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n3), h(r3)), {"error": "invalid_grant"})
