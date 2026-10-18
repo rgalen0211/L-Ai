@@ -2,9 +2,11 @@
 // A tool's arguments are data from an untrusted client: no argument skips, waives or overrides a check, and
 // nothing a client sends reaches a path, a command line or an SQL string except as a validated value.
 import storySchema from "../_shared/story_schema.ts";
-import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
+import { cleanText, TEMPLATES, build } from "../_shared/templates.ts";
+import { CATALOG } from "../_shared/catalog_data.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStory } from "./story_check.ts";
+import { BUILDER_TOOL_DEFS } from "./builder_tools.ts";
 import { PROFILE_TOOL_DEFS } from "./profile_tools.ts";
 import { LIMITS, type Data, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
@@ -79,13 +81,14 @@ const getSchema: ToolDef = {
   description: "Returns the story format (a JSON Schema), the engine rules in plain words, the dataset catalog and a small example. Read it before writing a story.",
   inputSchema: obj(),
   async run() {
-    const catalog = Object.entries(DATASETS).map(([id, d]) => `${id}: ${d.label}, ${d.start} to ${d.end}`);
+    const usable = (CATALOG as { id: string; title: string; status: string; listable?: boolean; period?: unknown }[]).filter((e) => e.listable === true && e.status === "usable");
+    const catalog = [...usable.slice(0, 30).map((e) => `${e.id}: ${e.title}`), ...(usable.length > 30 ? [`...and ${usable.length - 30} more: use search_datasets.`] : [])];
     let example: unknown = null;
     try { const t = TEMPLATES[0]; example = build(t.id, t.datasets[0], null); } catch { /* the example is a courtesy */ }
     return ok(
-      ["Engine rules:", ...RULES.map((r) => `- ${r}`), "", "Dataset catalog:", ...catalog, "",
+      ["Engine rules:", ...RULES.map((r) => `- ${r}`), "", "Datasets (use search_datasets and describe_dataset to find and read them, compile_film to turn a film request into a story):", ...catalog, "",
        "Example story (valid):", JSON.stringify(example), "", "JSON Schema (draft 2020-12):", JSON.stringify(storySchema)].join("\n"),
-      { rules: RULES, catalog: Object.keys(DATASETS), example, schema: storySchema });
+      { rules: RULES, catalog: usable.map((e) => e.id), example, schema: storySchema });
   },
 };
 
@@ -236,5 +239,5 @@ const filmLink: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, contactSheet, preview, fullRender, jobStatus, filmLink, ...PROFILE_TOOL_DEFS];
+export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, contactSheet, preview, fullRender, jobStatus, filmLink, ...PROFILE_TOOL_DEFS, ...BUILDER_TOOL_DEFS];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

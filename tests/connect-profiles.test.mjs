@@ -24,7 +24,7 @@ const preset = () => listPresets()[0].id;
 const mine = () => JSON.stringify(forkPreset(preset(), 'my-look', 'My look'));
 
 test('the five profile tools are in the registry with safe names, honest hints and closed schemas', () => {
-  assert.equal(TOOLS.length, 15);
+  assert.equal(TOOLS.length, 18);
   for (const n of PROFILE_TOOLS) {
     const t = TOOLS.find((x) => x.name === n);
     assert.ok(t, n); assert.match(t.name, /^[a-z0-9_]+$/); assert.equal(t.inputSchema.additionalProperties, false);

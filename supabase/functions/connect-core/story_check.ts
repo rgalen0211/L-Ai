@@ -1,7 +1,7 @@
 // set_story's server-side check: the worker's own JSON Schema (vendored, generated from ryagram/worker/schema.py)
 // plus the rules the schema cannot carry that this side can verify, each failure in plain words.
 // The worker re-validates every job and its verdict is authoritative; the message says so.
-import { DATASETS } from "../_shared/templates.ts";
+import { isKnownDataset, knownDatasetIds } from "./datasets.ts";
 import { titleProblems } from "../_shared/title_limits.ts";
 import { LIMITS } from "./types.ts";
 
@@ -60,8 +60,9 @@ export function extraProblems(story: unknown): string[] {
       else ids.set(c.id, n);
     }
     if (c.kind === "render") {
-      if (typeof c.dataset === "string" && !DATASETS[c.dataset]) {
-        out.push(`Clip ${n} uses the dataset "${c.dataset.slice(0, 64)}", which is not in the Ryagram catalog. Allowed: ${Object.keys(DATASETS).join(", ")}.`);
+      if (typeof c.dataset === "string" && !isKnownDataset(c.dataset)) {
+        const ids = knownDatasetIds();
+        out.push(`Clip ${n} uses the dataset "${c.dataset.slice(0, 64)}", which is not in the Ryagram catalog. Use search_datasets to find one (${ids.length} are available, for example ${ids.slice(0, 4).join(", ")}).`);
       }
       if (typeof c.start === "string" && typeof c.end === "string" && c.start > c.end) {
         out.push(`Clip ${n} starts (${c.start}) after it ends (${c.end}).`);
