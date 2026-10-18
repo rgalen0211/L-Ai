@@ -356,6 +356,11 @@
       adminRenderQueue() { return run(client.rpc('admin_render_queue'), 'Couldn\u2019t load the render requests.'); },
       adminRenderDecide(stage, approve, note) { return run(client.rpc('admin_render_decide', { p_stage: stage, p_approve: approve === true, p_note: note ? String(note).slice(0, 500) : null }), 'Couldn\u2019t record that decision.'); },
       adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
+      // Auto-render switch and per-person daily caps (PIPE-1, SQL 20261017000600). Admin only; the database refuses everyone else.
+      async adminAutoRender() { const ops = await run(client.rpc('admin_ops'), 'Couldn\u2019t load the auto-render setting.'); return { on: ops?.orders?.auto_render === true, defaultCap: ops?.orders?.default_credits_per_day ?? null }; },
+      adminSetAutoRender(on) { return run(client.rpc('admin_set_auto_render', { p_on: on === true }), 'Couldn\u2019t change auto-render.'); },
+      adminUserCaps() { return run(client.rpc('admin_user_caps'), 'Couldn\u2019t load the caps.'); },
+      adminSetUserCap(owner, perDay) { return run(client.rpc('admin_set_user_cap', { p_owner: owner, p_credits_per_day: perDay }), 'Couldn\u2019t save that cap.'); },
       adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
       adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
       // Creator beta applications (SQL 20261014000100): Ryan's list, and Approve / Decline. Neither sends anything or moves credits.
