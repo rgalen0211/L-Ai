@@ -216,6 +216,14 @@ class Connect(core.Base):
         self.fails("select connect_create_project(%s, 'x')", h(a), code="PT403")
         self.fails("select connect_submit_job(%s, gen_random_uuid(), 'preview', '{}'::jsonb, null, null)", h(a), code="PT403")
 
+    def test_a_token_keeps_only_the_scopes_it_was_issued_with_when_the_grant_is_widened_later(self):
+        _, a, _ = self.connect(ALICE, scopes=("read",))
+        self.db.as_(None).c.execute("update public.connect_grants set scopes = array['read','write','render_free'] where owner_id = %s", (ALICE,))
+        r = self.runner()
+        r.one("select connect_list_projects(%s)", h(a))
+        self.fails("select connect_create_project(%s, 'x')", h(a), code="PT403")      # the old token was never given write
+        self.assertEqual(r.one("select connect_scopes(%s)", h(a)), ["read"])
+
     def test_full_render_is_refused_in_sql_even_with_every_switch_on(self):
         _, a, _ = self.connect(ALICE)
         d = self.db.as_(None)
