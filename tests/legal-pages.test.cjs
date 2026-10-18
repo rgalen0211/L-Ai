@@ -1,6 +1,6 @@
 // The Terms of Use and Privacy Policy drafts (legal-drafts/) and the approval script that publishes them (tools/legal-approve.py).
 // Nothing here publishes anything: the drafts are unlisted, noindex and linked from nowhere until Ryan approves the wording.
-const { test } = require('node:test');
+const { test, after } = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -72,8 +72,11 @@ test('DRAFTS: what is not built or not live is NOT in the text: no uploads, AI, 
 });
 
 // ---- the approval script, on a scratch copy -------------------------------------------------------------------------------------------------------
+const madeDirs = [];
+after(() => { for (const d of madeDirs) fs.rmSync(d, { recursive: true, force: true }); });       // every scratch copy is removed when the file's tests end, pass or fail
 function scratch() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'legal-'));
+  madeDirs.push(dir);
   for (const p of ['legal-drafts', 'assets/legal-draft.css', 'privacy-policy.html', 'ryagram/index.html', 'app/index.html', 'film/index.html', 'help/index.html', 'report/index.html']) {
     if (!fs.existsSync(path.join(root, p))) continue;
     fs.mkdirSync(path.dirname(path.join(dir, p)), { recursive: true });
@@ -214,4 +217,9 @@ test('SHELLS: approval replaces the Terms shell with the real page (no shell mar
   const app = fs.readFileSync(path.join(dir, 'app/index.html'), 'utf8');
   assert.equal((app.match(/<footer[\s\S]*?<\/footer>/)[0].match(/href="\/terms\/"/g) || []).length, 1, 'the footer link is not doubled');
   assert.match(app, /By joining you agree to the <a href="\/terms\/">Terms of Use<\/a>/);
+});
+
+test('CLEAN UP: the scratch copies this file makes are registered for removal', () => {
+  assert.ok(madeDirs.length >= 1 && madeDirs.every(d => path.basename(d).startsWith('legal-')), 'scratch copies exist and are tracked');
+  assert.match(fs.readFileSync(__filename, 'utf8'), /after\(\(\) => \{ for \(const d of madeDirs\) fs\.rmSync\(d, \{ recursive: true, force: true \}\); \}\);/);
 });
