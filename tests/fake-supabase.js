@@ -17,7 +17,7 @@
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [],
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], render_orders: [],
                  account_settings: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
@@ -469,6 +469,38 @@
         return { data: structuredClone(version), error: null };
       },
 
+      // Mock of the order functions (PIPE-1, SQL 20261017000600). With seed.autoRender === false a full render waits for approval (credits held); otherwise it starts at once through the
+      // direct path, so the older mock flows keep working. The real rules are tested against Postgres.
+      request_final_render({ p_preview_job, p_idempotency_key }) {
+        if (!/^[A-Za-z0-9_-]{8,100}$/.test(p_idempotency_key || '')) return fail('The idempotency key must be 8 to 100 letters, digits, - or _.');
+        if (db.render_orders.some(o => o.idempotency_key === p_idempotency_key)) return fail('key_reused: this key belongs to another request; use a new key.');
+        const preview = db.jobs.find(j => j.id === p_preview_job && j.job_type === 'preview' && j.state === 'complete');
+        if (!preview) return fail('That preview is not yours, or not finished.');
+        if (db.render_orders.some(o => o.preview_job_id === preview.id && ['running', 'awaiting_approval', 'delivered'].includes(o.state))) return fail('That preview already has a full-render request waiting, running or delivered.');
+        const sheet = db.jobs.find(j => j.version_id === preview.version_id && j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === preview.story_sha256);
+        if (!sheet) return fail('That preview has no finished contact sheet for the same story.');
+        const order = { id: id(), owner_id: 'u-ryan', idempotency_key: p_idempotency_key, source: 'app', want: 'final', project_id: db.versions.find(v => v.id === preview.version_id)?.project_id, version_id: preview.version_id,
+                        preview_job_id: preview.id, state: 'awaiting_approval', error_code: null, created_at: now(), ended_at: null, stages: [{ stage: 'final_render', state: 'awaiting_approval', credits_quoted: 10, error_code: null, job_id: null }], delivery: null };
+        const autoOff = seed.autoRender === false || (typeof location !== 'undefined' && /[?&]autorender=off/.test(location.search || ''));     // ?autorender=off in mock mode
+        if (!autoOff) {
+          const r = rpcs.submit_job({ p_version_id: preview.version_id, p_job_type: 'final_render', p_params: {}, p_sheet_job_id: sheet.id, p_preview_job_id: preview.id });
+          if (r.error) return r;
+          order.state = 'running'; order.stages[0].state = 'running';
+        }
+        db.render_orders.push(order);
+        return { data: structuredClone({ id: order.id, state: order.state, version_id: order.version_id }), error: null };
+      },
+      render_order_status({ p_order }) {
+        const o = db.render_orders.find(x => x.id === p_order);
+        if (!o) return fail('Order not found.');
+        return { data: structuredClone({ id: o.id, state: o.state, want: o.want, source: o.source, error_code: o.error_code, created_at: o.created_at, ended_at: o.ended_at, project_id: o.project_id, version_id: o.version_id, stages: o.stages, delivery: o.delivery }), error: null };
+      },
+      cancel_render_order({ p_order }) {
+        const o = db.render_orders.find(x => x.id === p_order);
+        if (!o) return fail('Order not found.');
+        if (['running', 'awaiting_approval'].includes(o.state)) { o.state = 'cancelled'; o.error_code = 'cancelled'; o.ended_at = now(); }
+        return { data: structuredClone({ id: o.id, state: o.state }), error: null };
+      },
       submit_job(args) {
         const v = db.versions.find(x => x.id === args.p_version_id);
         if (!v) return fail('Version not found.');
@@ -606,6 +638,13 @@
             for (const t of ['projects', 'versions', 'artifacts', 'jobs', 'film_pages', 'account_settings', 'ai_sessions', 'ai_messages']) db[t].length = 0;
             return { data: { status: 'deleted', files_removed: 0 }, error: null };
           }
+          if (name === 'get-delivery-url') {
+            const o = db.render_orders.find(x => x.delivery && x.delivery.id === body.delivery_id);
+            const err = text => ({ data: null, error: { message: 'x', context: { json: async () => ({ error: text }) } } });
+            if (!o) return err('Film not found.');
+            if (o.delivery.deleted) return err('This film was kept for its 30 days and has been deleted.');
+            return { data: { url: '/assets/ryagram-hero-interstate.mp4', expires_in: 3600, label: 'AI-assisted' }, error: null };
+          }
           if (name === 'film-page') {
             // Mock publish: the summary comes from the sample page; the link opens /film/?mock.
             const v = db.versions.find(x => x.id === body.version_id);
@@ -700,7 +739,7 @@
         },
         async updateUser({ password }) {
           if (!session) return { error: { message: 'Auth session missing!' } };
-          if (!password || password.length < 10) return { error: { message: 'Password should be at least 10 characters.' } };
+          if (!password || password.length < 12) return { error: { message: 'Password should be at least 12 characters.' } };
           log.push({ passwordChanged: true });
           return { data: { user: session.user }, error: null };
         },
