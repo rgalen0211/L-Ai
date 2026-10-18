@@ -643,8 +643,14 @@ class Connect(core.Base):
         c.execute("alter table public.weak2 enable row level security")
         c.execute("create policy connect_no_oauth_select on public.weak2 as restrictive for select to anon using ((select auth.jwt() ->> 'client_id') is null)")
         c.execute("alter publication supabase_realtime add table public.weak2")
-        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables() order by 2"), [("public", "weak1"), ("public", "weak2")])
-        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 2)
+        c.execute("create table public.weak3 (id int primary key)")
+        c.execute("alter table public.weak3 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.weak3 as restrictive for select to authenticated using (((select auth.jwt() ->> 'client_id') is null) or true)")
+        c.execute("alter publication supabase_realtime add table public.weak3")
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables() order by 2"), [("public", "weak1"), ("public", "weak2"), ("public", "weak3")])
+        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 3)
+        # after the repair every guard policy is the one exact expression
+        self.assertEqual(admin("select count(distinct regexp_replace(lower(pg_get_expr(polqual, polrelid)), '\\s|\\(|\\)|::text', '', 'g')) from pg_policy where polname = 'connect_no_oauth_select'"), 1)
         self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [])
         # the runner and the app roles cannot call the guard functions
         self.runner(); self.fails("select ryagram_private.connect_guard_published_tables()")
