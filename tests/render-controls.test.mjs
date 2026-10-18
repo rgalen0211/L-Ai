@@ -15,6 +15,28 @@ const O = win.ryagramOps;
 const plain = x => JSON.parse(JSON.stringify(x));
 const world = (seed = {}) => { const client = createFakeClient(seed); return { client, data: win.ryagramData(client) }; };
 
+// Finds every replaceChildren( ... ) call by its balanced brackets (strings and template literals skipped) and returns those whose arguments hold a ternary with a null arm. A regular
+// expression that stops at the first ';' (the earlier guard) misses a call whose arguments contain a function body, which is exactly how the original bug got past it.
+function nullInReplaceChildren(src) {
+  const out = [];
+  let at = src.indexOf('replaceChildren(');
+  while (at >= 0) {
+    const start = at + 'replaceChildren('.length;
+    let i = start, depth = 1, q = null, top = '';
+    for (; i < src.length && depth > 0; i++) {
+      const c = src[i];
+      if (q) { if (c === String.fromCharCode(92)) i++; else if (c === q) q = null; continue; }
+      if (c === "'" || c === '"' || c === '`') { q = c; if (depth === 1) top += "''"; continue; }
+      if (c === '(' || c === '[' || c === '{') { depth++; continue; }
+      if (c === ')' || c === ']' || c === '}') { depth--; continue; }
+      if (depth === 1) top += c;                       // only what sits directly among replaceChildren's own arguments: a null given to h(...) is dropped by h, so it is fine
+    }
+    if (/\?\s*null\s*:|:\s*null\s*(?:,|$)/.test(top.replace(/\?\./g, ''))) out.push(top.trim().slice(0, 80));
+    at = src.indexOf('replaceChildren(', i);
+  }
+  return out;
+}
+
 test('SWITCH: the current setting is read from admin_ops, flipped with admin_set_auto_render, and read back; wording says what each state means', async () => {
   const { data, client } = world({ autoRender: false });
   assert.deepEqual(plain(await data.adminAutoRender()), { on: false, defaultCap: 20 });
@@ -76,8 +98,10 @@ test('PAGE: the switch, the caps list and a per-request cap are wired on #/admin
   assert.match(view, /data\.adminUserCaps\(\)/);
   assert.match(view, /data\.adminSetUserCap\(/);
   assert.match(view, /r\.owner_id \? capRow\(r\) : null/);
-  assert.doesNotMatch(view, /replaceChildren\([^;]*\? [^;]*: null\)/, 'a null passed to replaceChildren prints the word null');
-  assert.doesNotMatch(view, /replaceChildren\([^;]*\? null :/, 'neither does the other way round: ? null : x'); 
+  assert.deepEqual(nullInReplaceChildren(view), [], 'a null passed to replaceChildren (either arm of a ternary) prints the word null');
+  assert.equal(nullInReplaceChildren("out.replaceChildren(h('p'), rows.length ? h('ul', { onclick: async () => { a(); b(); } }) : null);").length, 1, 'the scanner sees a null after a function body with semicolons (the original bug)');
+  assert.equal(nullInReplaceChildren("x.replaceChildren(s.cap == null ? null : h('p'));").length, 1, 'and the other arm');
+  assert.equal(nullInReplaceChildren("x.replaceChildren(a, b ? c : '');").length, 0, 'and not a clean call');
   assert.match(view, /s\.defaultCap == null \? '' : h\(/);
   assert.ok(view.includes('Set one from a waiting request above.') && !view.includes('waiting request below'));
   assert.ok(view.includes('Requests already waiting stay waiting and still need your decision.'));
