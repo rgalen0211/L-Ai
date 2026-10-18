@@ -51,6 +51,8 @@
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
   // Full renders go through request_final_render (and its approval queue) once SQL 20261017000500/600 are applied (renderOrders: true), or in mock mode.
+  // Ryan 2026-10-18: the same words on the delivery page and the public film page (assets/film.js).
+  const AI_LABEL = 'AI-assisted (Ryagram)';
   const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
@@ -236,7 +238,7 @@
       try { got = await data.deliveryUrl(id); } catch (err) { problem = err.message; }
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Your film'),
         got ? [h('video', { controls: true, preload: 'metadata', src: got.url }), h('p', {}, h('a', { class: 'button secondary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download')),
-               h('p', { class: 'form-note' }, `${got.label || 'AI-assisted'}. This film is kept for 30 days, then deleted. This link works for an hour; come back to this page for a new one.`)]
+               h('p', { class: 'form-note' }, `${AI_LABEL}. This film is kept for 30 days, then deleted. This link works for an hour; come back to this page for a new one.`)]
             : h('p', { class: 'app-error', role: 'alert' }, problem)];
     }
 
