@@ -58,7 +58,7 @@ create table public.connect_requests (                     -- an authorization w
   resource text,
   issuer text check (issuer ~ '^https://[A-Za-z0-9.-]+(:[0-9]{1,5})?(/[A-Za-z0-9._~/-]*)?$' and char_length(issuer) <= 300),   -- RFC 9207: added to the redirect as iss
   created_at timestamptz not null default now(),
-  expires_at timestamptz not null default now() + interval '10 minutes',
+  expires_at timestamptz not null default now() + interval '30 minutes',      -- a real person reads the consent page: 10 minutes expired under Ryan's reading
   decided_at timestamptz);
 
 create table public.connect_codes (                        -- authorization codes, hashed, single use, 5 minutes

@@ -3,7 +3,6 @@
 // nothing a client sends reaches a path, a command line or an SQL string except as a validated value.
 import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
-import { ladder } from "../ai-editor/tools.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStory } from "./story_check.ts";
 import { LIMITS, type Data, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
@@ -44,12 +43,11 @@ const whoami: ToolDef = {
   inputSchema: obj(),
   async run(_a, ctx) {
     const w = await ctx.data.whoami();
-    const finals = await ctx.policy.finalRendersEnabled();
     return ok(
       `You are acting as the Ryagram account ${untrusted("account-label", w.label)}. Credits available: ${w.available}; held for running jobs: ${w.held}. ` +
       `Contact sheets and previews started from a connection are free. If one would cost credits it is refused and the person starts it in the Ryagram app: ` +
-      `a connection cannot spend credits. Full renders from this connection are ${finals ? "enabled (they cost credits and need confirm=true)" : "switched off: the person starts them in the Ryagram app"}.`,
-      { account: w.label, credits_available: w.available, credits_held: w.held, full_render_enabled: finals });
+      `a connection cannot spend credits. A full render can never be started from a connection: the person presses "Render final film" in the Ryagram app.`,
+      { account: w.label, credits_available: w.available, credits_held: w.held, full_render_enabled: false });
   },
 };
 
@@ -186,35 +184,14 @@ const preview: ToolDef = {
 };
 
 const fullRender: ToolDef = {
-  name: "request_full_render", title: "Request the full film render", scope: "render_final", readOnly: false, ladder: true,
-  description: "Starts the final film render. IT SPENDS CREDITS: the cost is stated first and nothing starts without confirm=true. It needs a completed contact sheet and preview of this exact story (pass the preview's job id, which you should have shown the person). Asking twice never queues a second render. May be switched off, in which case the person starts it in the Ryagram app.",
-  inputSchema: obj({ project_id: uuid, preview_job_id: uuid, confirm: CONFIRM }, ["project_id", "preview_job_id"]),
-  async run(a, ctx) {
-    if (!(await ctx.policy.finalRendersEnabled())) {
-      return refuse("Full renders cannot be started from an AI connection at the moment. The person can start it in the Ryagram app (Render final film).", "disabled");
-    }
-    const pv = await projectVersion(ctx, String(a.project_id));
-    if (!pv) return NOT_YOURS("project");
-    const { view, versionId } = pv;
-    const running = view.jobs.find((j) => j.job_type === "final_render" && IN_PROGRESS.has(j.state));
-    if (running) return ok(`The full render is already ${running.state} (job ${running.id}).`, { job_id: running.id, started: false });
-    if (view.jobs.some((j) => j.job_type === "final_render" && j.state === "complete" && j.story_sha256 === view.version.story_sha256)) {
-      return ok("This exact story has already been rendered. Use get_film_link.", { started: false });
-    }
-    const l = ladder(view.jobs, view.version.story_sha256, await ctx.data.currentEngine());
-    if (!l.ready) return refuse(`Not ready: ${l.missing}`, "ladder");
-    if (l.preview!.id !== a.preview_job_id) {
-      return refuse(`The preview you named is not the current one for this story. The current preview is job ${l.preview!.id}; show it to the person and use its id.`, "ladder");
-    }
-    const q = await ctx.data.quote(versionId, "final_render");
-    if (a.confirm !== true) {
-      return refuse(`The full render would cost ${q.credits} credits (you have ${q.available}). NOTHING was started. Only call again with confirm=true if the person has seen the preview and agreed to this cost.`,
-        "needs_confirm", { credits: q.credits, data: { started: false, credits: q.credits, available: q.available } });
-    }
-    if (q.credits > q.available) return refuse(`The full render costs ${q.credits} credits and you have ${q.available}. NOTHING was started.`, "no_credits", { credits: q.credits });
-    const job = await ctx.data.submitJob(versionId, "final_render", {}, l.sheet!.id, l.preview!.id);
-    return ok(`Full render queued (job ${job.id}). ${q.credits} credits are held and are charged only if it finishes. Use job_status to follow it.`,
-      { job_id: job.id, state: job.state, started: true, credits_held: q.credits }, { credits: q.credits });
+  name: "request_full_render", title: "Full film render (not available from an AI connection)", scope: "read", readOnly: true,
+  description: "NOT AVAILABLE from an AI connection: it is refused every time, whatever other arguments you send (including confirm). A connection cannot spend " +
+    "credits and cannot start a full render. When the contact sheet and preview look right, tell the person to press 'Render final film' in the Ryagram app; " +
+    "that click is their decision.",
+  inputSchema: obj({ project_id: uuid, preview_job_id: uuid, confirm: CONFIRM }, ["project_id"]),
+  async run() {
+    // No lookup, no flag, no ladder: the answer does not depend on anything the caller can influence. (The database refuses it as well.)
+    return refuse("A full render cannot be started from an AI connection. Nothing was started and no credits were used. Tell the person to press 'Render final film' in the Ryagram app.", "not_available");
   },
 };
 

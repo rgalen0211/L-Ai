@@ -673,6 +673,19 @@ class Connect(core.Base):
         for tok in (a, b): self.fails("select connect_whoami(%s)", h(tok), code="PT401")
         self.assertEqual(self.db.as_(None).one("select count(*) from public.connect_grants where revoked_at is null"), 0)
 
+    def test_a_sign_in_request_lives_30_minutes_and_the_page_is_told_when_it_ends(self):
+        client = self.register()
+        req = self.runner().one("select connect_begin_authorization(%s,%s,'s',%s,'S256','read',null)", client, URI, s256(VER))
+        life = self.db.as_(None).one("select expires_at - created_at from public.connect_requests where id = %s", req)
+        import datetime
+        self.assertEqual(life, datetime.timedelta(minutes=30))              # Ryan's real reading of the consent page outlasted 10 minutes
+        chk = self.app(ALICE).one("select connect_consent_check(%s)", req)
+        self.assertTrue(chk["allowed"]); self.assertIsNotNone(chk["expires_at"])     # the page can show a countdown or warn before it ends
+        # past 30 minutes it is gone, with the plain sentence the page shows
+        self.db.as_(None).c.execute("update public.connect_requests set expires_at = now() - interval '1 second' where id = %s", (req,))
+        late = self.app(ALICE).one("select connect_consent_check(%s)", req)
+        self.assertFalse(late["allowed"]); self.assertEqual(late["reason"], "This sign-in request has expired. Start again from your assistant.")
+
     def test_purge_removes_old_rows_only(self):
         _, a, _ = self.connect(ALICE)
         d = self.db.as_(None)

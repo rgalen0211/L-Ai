@@ -88,6 +88,7 @@ MUTANTS = [
     ("the master switch is ignored by consent decide", "  if not ryagram_private.connect_on() then\n    raise exception 'AI connections to Ryagram are switched off right now.' using errcode = '42501';\n  end if;\n  select * into r from public.connect_requests where id = p_request for update;", "  select * into r from public.connect_requests where id = p_request for update;"),
     ("the switch can be flipped by a non-admin", "  perform ryagram_private.connect_app_session();\n  if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;\n  update public.connect_flags set connections_enabled", "  perform ryagram_private.connect_app_session();\n  update public.connect_flags set connections_enabled"),
     ("revoke-all leaves grants alive", "  update public.connect_grants set revoked_at = now() where revoked_at is null;\n  return n;", "  return n;"),
+    ("a sign-in request lives only 10 minutes again", "default now() + interval '30 minutes',", "default now() + interval '10 minutes',"),
     ("a helper function with no revoke (only the realistic-defaults test sees it)", "-- --------------------------------------------------------------------------------------------------- grants\n",
      "create function public.helper_without_revoke() returns int language sql as $$ select 1 $$;\n-- grants\n"),
 ]

@@ -45,10 +45,10 @@ test('tool names are a-z0-9_ only, unique, every schema closed, reads are read-o
     assert.equal(t.inputSchema.additionalProperties, false, t.name);
     assert.ok(t.description.length > 30);
   }
-  for (const n of ['whoami_and_credits', 'list_projects', 'get_story_schema', 'job_status', 'get_film_link']) {
+  for (const n of ['whoami_and_credits', 'list_projects', 'get_story_schema', 'job_status', 'get_film_link', 'request_full_render']) {
     assert.equal(TOOLS.find((t) => t.name === n).readOnly, true, n);
   }
-  for (const n of ['create_project', 'set_story', 'make_contact_sheet', 'make_preview', 'request_full_render']) {
+  for (const n of ['create_project', 'set_story', 'make_contact_sheet', 'make_preview']) {
     assert.equal(TOOLS.find((t) => t.name === n).readOnly, false, n);
   }
   for (const n of ['whoami_and_credits', 'list_projects', 'create_project', 'get_story_schema', 'set_story', 'make_contact_sheet', 'make_preview', 'request_full_render', 'job_status', 'get_film_link']) {
@@ -188,7 +188,6 @@ test('credits: "free" means free - a connection cannot spend, the cost is stated
   }
   assert.equal(u.jobs.length, 0); assert.equal(u.held, 0);
   assert.equal(TOOLS.find((t) => t.name === 'make_preview').inputSchema.properties.confirm, undefined);
-  assert.equal(TOOLS.find((t) => t.name === 'request_full_render').inputSchema.properties.confirm.type, 'boolean');   // the full render still asks, when it is ever on
 });
 
 test('a sheet or preview is never queued twice for the same story', async () => {
@@ -225,39 +224,26 @@ async function readyForFinal(call, w, p = A) {
   return { id, pv: pv.data.job_id };
 }
 
-test('full render: switched off by default, even for a client with the scope', async () => {
-  const { call, w } = world({ finals: false });
+test('full render: refused for every AI connection whatever the scope, the switches, the ladder, the preview named or confirm says - and the tool says so', async () => {
+  const { call, w } = world({ finals: true });
   w.invite(A.userId, A.clientId, ['read', 'write', 'render_free', 'render_final']);
   const { id, pv } = await readyForFinal(call, w);
-  const r = await call(A, 'request_full_render', { project_id: id, preview_job_id: pv, confirm: true });
-  assert.equal(r.code, 'disabled'); assert.match(r.text, /Render final film/);
+  const tool = TOOLS.find((t) => t.name === 'request_full_render');
+  assert.match(tool.description, /NOT AVAILABLE from an AI connection/); assert.match(tool.description, /whatever other arguments you send/);
+  assert.match(tool.description, /Ryagram app/);
+  for (const args of [{ project_id: id, preview_job_id: pv, confirm: true }, { project_id: id, preview_job_id: pv }, { project_id: id, preview_job_id: pv, confirm: false },
+                      { project_id: id, preview_job_id: id, confirm: true }, { project_id: '00000000-0000-4000-8000-0000000000ff' }]) {
+    const r = await call(A, 'request_full_render', args);
+    assert.equal(r.isError, true, JSON.stringify(args)); assert.equal(r.code, 'not_available', JSON.stringify(args));
+    assert.match(r.text, /Nothing was started and no credits were used/); assert.match(r.text, /Render final film/);
+  }
   assert.equal(w.users.get(A.userId).jobs.filter((j) => j.job_type === 'final_render').length, 0);
-});
-
-test('full render: scope, ladder, the right preview, a stated cost and confirm=true, and only once', async () => {
-  const { call, w } = world({ finals: true });
-  const { id, pv } = await readyForFinal(call, w);
-  assert.equal((await call(A, 'request_full_render', { project_id: id, preview_job_id: pv, confirm: true })).code, 'scope');   // no render_final scope
-  w.invite(A.userId, A.clientId, ['read', 'write', 'render_free', 'render_final']);
-  const wrong = await call(A, 'request_full_render', { project_id: id, preview_job_id: id, confirm: true });
-  assert.equal(wrong.code, 'ladder');
-  const ask = await call(A, 'request_full_render', { project_id: id, preview_job_id: pv });
-  assert.equal(ask.code, 'needs_confirm'); assert.match(ask.text, /cost 40 credits/);
-  const u = w.users.get(A.userId); assert.equal(u.held, 0);
-  const go = await call(A, 'request_full_render', { project_id: id, preview_job_id: pv, confirm: true });
-  assert.equal(go.data.started, true); assert.equal(u.held, 40);
-  const twice = await call(A, 'request_full_render', { project_id: id, preview_job_id: pv, confirm: true });
-  assert.equal(twice.data.started, false); assert.equal(u.jobs.filter((j) => j.job_type === 'final_render').length, 1);
-});
-
-test('full render: refused when the story changed after the preview', async () => {
-  const { call, w } = world({ finals: true });
-  w.invite(A.userId, A.clientId, ['read', 'write', 'render_free', 'render_final']);
-  const { id, pv } = await readyForFinal(call, w);
-  const changed = goodStory(); changed.sequence.clips[0].headline = 'A different headline';
-  assert.equal((await call(A, 'set_story', { project_id: id, story: changed })).isError, undefined);
-  const r = await call(A, 'request_full_render', { project_id: id, preview_job_id: pv, confirm: true });
-  assert.equal(r.code, 'ladder');
+  // a connection with no render_final scope (the only kind the consent page ever grants) gets the same plain answer, not a scope error
+  w.invite(A.userId, A.clientId, ['read', 'write', 'render_free']);
+  assert.equal((await call(A, 'request_full_render', { project_id: id, preview_job_id: pv, confirm: true })).code, 'not_available');
+  // and the page and the tools agree: whoami says it too, and the flag field is false
+  const who = await call(A, 'whoami_and_credits', {});
+  assert.match(who.text, /can never be started from a connection/); assert.equal(who.data.full_render_enabled, false);
 });
 
 test('text from users is wrapped as untrusted and cannot close its own wrapper', async () => {
