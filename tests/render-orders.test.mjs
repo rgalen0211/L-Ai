@@ -92,7 +92,7 @@ test('WIRING: the Render button takes the order path when renderOrders is on and
   assert.match(lib, /data\.requestFinalRender\(previewJobId, `app-\$\{previewJobId\.slice\(0, 8\)\}-\$\{Date\.now\(\)\.toString\(36\)\}-\$\{Math\.random\(\)\.toString\(36\)\.slice\(2, 8\)\}`\)/);
   assert.match(lib, /jobs\.some\(J\.isActive\) \|\| openOrders/);
   assert.match(lib, /ordersOn\(\) && \(m = hash\.match\(new RegExp\(`\^#\/delivery\/\$\{UUID\}\$`\)\)\)/);
-  assert.match(read('assets/ryagram-config.js'), /renderOrders: false,/);                                                // ships OFF until PIPE-1's SQL is applied
+  assert.match(read('assets/ryagram-config.js'), /renderOrders: true,/);                                                 // ON since PIPE-1's SQL (20261017000500 + 600) is applied live (2026-10-17)
   assert.doesNotMatch(lib.slice(lib.indexOf('async function requestOrder')), /insert\(|\.from\('jobs'\)/);               // a full render is requested, never inserted
 });
 

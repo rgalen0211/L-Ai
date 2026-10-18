@@ -8,6 +8,7 @@
 //   * per request: the PERSON'S token, used for every tool, so RLS applies as in the app.
 import Anthropic from "npm:@anthropic-ai/sdk@0.129.0";
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./editor.ts";
 import type { UserData } from "./tools.ts";
 
@@ -67,10 +68,7 @@ function userData(jwt: string): UserData {
 
 Deno.serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
-  async verifyUser(jwt) {
-    const { data, error } = await service.auth.getUser(jwt);
-    return error || !data.user ? null : { id: data.user.id };
-  },
+  verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
   store: {
     sessionFor: (owner, versionId) => rpc("ai_session_for", { p_owner: owner, p_version: versionId }),
     reserveTurn: (owner, sessionId) => rpc("ai_reserve_turn", { p_owner: owner, p_session: sessionId }),

@@ -81,6 +81,7 @@
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
+        else if (ordersOn() && hash === '#/admin/renders' && await data.isAppAdmin()) view = await rendersAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -191,7 +192,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
@@ -290,6 +291,35 @@
     }
 
     // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
+    // --- #/admin/renders  Ryan only: the full renders waiting for approval. Approve starts the render; Decline returns the credits. Redrawn after each call returns.
+    async function rendersAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const out = h('div');
+      const note = id => h('input', { type: 'text', maxlength: '500', autocomplete: 'off', placeholder: 'Note (optional)', 'aria-label': `Note for request ${id}` });
+      async function load() {
+        let rows;
+        try { rows = await data.adminRenderQueue(); } catch (err) { out.replaceChildren(); showError(error, err); return; }
+        const now = Date.now();
+        out.replaceChildren(h('p', { class: 'form-note' }, O.renderQueueLine(rows)),
+          rows.length ? h('ul', { class: 'ops-list render-queue' }, rows.map(r => {
+            const n = note(r.stage_id.slice(0, 8));
+            const decide = (approve, label, busyLabel) => h('button', { class: `button ${approve ? 'primary' : 'secondary'} small`, type: 'button', onclick: async event => {
+              if (!approve && !confirm(`Decline this full render? ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} go back to ${r.owner_email || 'the person'}.`)) return;
+              error.hidden = true;
+              await busy(event.currentTarget, busyLabel, async () => {
+                try { await data.adminRenderDecide(r.stage_id, approve, n.value.trim()); await load(); } catch (err) { showError(error, err); }
+              });
+            } }, label);
+            return h('li', {}, h('strong', {}, r.film_title || 'A film'), h('span', { class: 'meta' }, ` ${r.owner_email || 'an account'}, ${O.RENDER_SOURCE_WORDS[r.source] || r.source}, ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} held`),
+              h('p', { class: 'form-note' }, O.renderWhen(r, now)), h('div', { class: 'inline-row' }, n, ' ', decide(true, 'Approve', 'Approving\u2026'), ' ', decide(false, 'Decline', 'Declining\u2026')));
+          })) : null);
+      }
+      await load();
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Render approvals'),
+        h('p', { class: 'form-note' }, 'Full renders wait here while auto-render is off. The person\u2019s credits are held until you decide.'), out, error];
+    }
+
     async function opsAdminView(onStop) {
       const O = window.ryagramOps;
       const error = errorLine();

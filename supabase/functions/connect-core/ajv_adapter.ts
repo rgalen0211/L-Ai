@@ -1,0 +1,17 @@
+// Turns an Ajv 2020 constructor into Deps.compile. The constructor is passed in so this file imports nothing:
+// Deno wires `npm:ajv`, the node tests wire the npm package.
+import { plainError, type AjvError } from "./story_check.ts";
+
+// deno-lint-ignore no-explicit-any
+export function makeCompile(Ajv2020: any): (schema: object) => (value: unknown) => string[] {
+  const ajv = new Ajv2020({ allErrors: true, strict: false, allowUnionTypes: true });
+  const cache = new WeakMap<object, (value: unknown) => string[]>();
+  return (schema) => {
+    const hit = cache.get(schema);
+    if (hit) return hit;
+    const validate = ajv.compile(schema);
+    const fn = (value: unknown): string[] => (validate(value) ? [] : (validate.errors as AjvError[]).map((e) => plainError(e, (schema as { $id?: string }).$id ? "story" : "call")));
+    cache.set(schema, fn);
+    return fn;
+  };
+}
