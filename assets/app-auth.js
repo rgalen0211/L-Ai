@@ -159,7 +159,10 @@
       account.hidden = false;
       $('account-email').textContent = user.email || '';
       // Mount once per sign-in; token refreshes fire this again and must not reset the page.
-      if (!unmount) unmount = window.ryagramLibrary.mount(library, window.ryagramData(client));
+      if (!unmount) {
+        unmount = window.ryagramLibrary.mount(library, window.ryagramData(client));
+        window.ryagramFunnel?.signedIn?.(client);                       // the account's source (once) and the return-visit check; never in the way
+      }
     }
 
     function showSignIn() {
@@ -382,6 +385,7 @@
       inviteForm.addEventListener('submit', async event => {
         event.preventDefault();
         if (!inviteForm.reportValidity()) return;
+        window.ryagramFunnel?.signupStarted?.();
         const join = inviteForm.querySelector('button');
         join.disabled = true;
         inviteNote.textContent = '';
@@ -407,6 +411,7 @@
 
     $('sign-out').addEventListener('click', async () => {
       await client.auth.signOut();
+      sayOnce('You have signed out.');
     });
   }
 })();

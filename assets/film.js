@@ -91,6 +91,9 @@
       h('dl', {}, rows.map(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])));
   }
 
+  // Ryan 2026-10-18: the same words on the public film page and the in-app delivery page (assets/app-library.js).
+  const AI_LABEL = 'AI-assisted (Ryagram)';
+
   function render(page) {
     const s = page.summary || {};
     document.title = `${page.title} | Made with Ryagram`;
@@ -106,7 +109,7 @@
       s.subhead && s.subhead !== page.title ? h('p', { class: 'film-subhead' }, s.subhead) : null,
       page.sample ? h('p', { class: 'film-sample', role: 'note' }, 'This is a sample page. It shows what every published Ryagram film page contains: the film, where its data came from, how it was drawn, and its receipt.') : null,
       h('figure', { class: 'film-player' }, video,
-        h('figcaption', {}, 'Made with Ryagram · ', h('a', { href: '#sources' }, 'View sources'),
+        h('figcaption', {}, h('strong', { class: 'film-ai-label' }, AI_LABEL), ' · Made with Ryagram · ', h('a', { href: '#sources' }, 'View sources'),
           page.sample && page.preview_url && /^\/(?!\/)[a-z0-9\/_-]*$/.test(page.preview_url) ? [' · ', h('a', { href: page.preview_url }, 'Drag through the film')] : null)),
       h('div', { class: 'film-cta' },
         h('div', {}, h('p', {}, 'Have a question? Ryagram makes the data answer it.'),
