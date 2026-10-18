@@ -310,6 +310,11 @@
         await run(client.rpc('finish_upload', { p_dataset: slot.dataset_id }), 'Couldn’t finish the upload.');
         return slot.dataset_id;
       },
+      // S5 (proposed SQL set_dataset_provenance; see the MAILBOX post): who published the data, the licence or permission, the unit and the attestation. Refuses until that SQL exists.
+      setUploadProvenance(datasetId, p) {
+        return run(client.rpc('set_dataset_provenance', { p_dataset: datasetId, p_publisher: p.publisher, p_link: p.link || null, p_licence: p.licence, p_licence_note: p.licence_note || null, p_unit: p.unit, p_decimals: p.decimals, p_attested: p.attested === true }),
+          'Couldn\u2019t save where this data comes from.');
+      },
       confirmMapping(datasetId, mapping) {
         return run(client.rpc('confirm_dataset_mapping', { p_dataset: datasetId, p_mapping: mapping }), 'Couldn’t save that.');
       },
@@ -356,6 +361,11 @@
       adminRenderQueue() { return run(client.rpc('admin_render_queue'), 'Couldn\u2019t load the render requests.'); },
       adminRenderDecide(stage, approve, note) { return run(client.rpc('admin_render_decide', { p_stage: stage, p_approve: approve === true, p_note: note ? String(note).slice(0, 500) : null }), 'Couldn\u2019t record that decision.'); },
       adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
+      // Auto-render switch and per-person daily caps (PIPE-1, SQL 20261017000600). Admin only; the database refuses everyone else.
+      async adminAutoRender() { const ops = await run(client.rpc('admin_ops'), 'Couldn\u2019t load the auto-render setting.'); return { on: ops?.orders?.auto_render === true, defaultCap: ops?.orders?.default_credits_per_day ?? null }; },
+      adminSetAutoRender(on) { return run(client.rpc('admin_set_auto_render', { p_on: on === true }), 'Couldn\u2019t change auto-render.'); },
+      adminUserCaps() { return run(client.rpc('admin_user_caps'), 'Couldn\u2019t load the caps.'); },
+      adminSetUserCap(owner, perDay) { return run(client.rpc('admin_set_user_cap', { p_owner: owner, p_credits_per_day: perDay }), 'Couldn\u2019t save that cap.'); },
       adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
       adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
       // Creator beta applications (SQL 20261014000100): Ryan's list, and Approve / Decline. Neither sends anything or moves credits.
@@ -370,6 +380,19 @@
       adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
+      // Funnel (SQL 20261017000900): Ryan's counts per step, by week and by source. Admin only.
+      // The raw funnel events of the last N days, read as Ryan (the table's own admin-only policy): for the by-day page. Paged, newest first.
+      async adminFunnelEvents(days) {
+        const since = new Date(Date.now() - Math.min(Math.max(days || 14, 1), 60) * 864e5).toISOString();
+        const rows = [];
+        for (let from = 0; from < 50000; from += 1000) {
+          const page = await run(client.from('funnel_events').select('at, event').gte('at', since).order('at', { ascending: false }).range(from, from + 999), 'Couldn\u2019t load the funnel.');
+          rows.push(...page);
+          if (page.length < 1000) return { rows, truncated: false };
+        }
+        return { rows, truncated: true };
+      },
+      adminFunnel(weeks) { return run(client.rpc('admin_funnel', { p_weeks: weeks || 8 }), 'Couldn\u2019t load the funnel.'); },
       // Render orders (PIPE-1, SQL 20261017000500/600): a full render is REQUESTED, never inserted. While auto_render is off the order waits for Ryan's approval with the credits held.
       requestFinalRender(previewJobId, key) { return run(client.rpc('request_final_render', { p_preview_job: previewJobId, p_idempotency_key: key }), 'Couldn\u2019t request the full render.'); },
       listOrders(versionId) { return run(client.from('render_orders').select('id, state, want, error_code, created_at, ended_at, version_id').eq('version_id', versionId).order('created_at', { ascending: false }), 'Couldn\u2019t load the render requests.'); },

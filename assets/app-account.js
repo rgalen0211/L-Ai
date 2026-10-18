@@ -83,7 +83,7 @@
 
     function helpSection() {
       return h('section', { class: 'account-section', 'aria-labelledby': 'acct-help' }, h('h2', { id: 'acct-help' }, 'Help'),
-        h('p', {}, 'Questions about your account? ', h('a', { href: '/help/' }, 'Read the help pages'), ' or write to ', h('a', { href: 'mailto:ryagram@uselai.com' }, 'ryagram@uselai.com'), '.'));
+        h('p', {}, 'Questions about your account? ', h('a', { href: '/help/' }, 'Read the help pages'), ' for answers and a way to ask us.'));
     }
 
     return { changeEmailSection, exportSection, helpSection };

@@ -461,7 +461,7 @@ test('the operator is L\'Ai, LLC everywhere it is named; Ryagram pages, the poli
   // The main uselai.com pages keep Ryan's address.
   for (const f of ['index.html', 'workflow-audit/index.html', 'workflow-audit-thanks.html', 'thank-you.html']) assert.match(page(f), /ryan\.galen@uselai\.com/, f);
   // The app names its operator and links the policy (it had no footer before).
-  assert.match(page('app/index.html'), /<footer class="app-foot"><span>Ryagram is operated by L'Ai, LLC\.<\/span><a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">Contact: ryagram@uselai\.com<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><\/footer>/);   // Help and Contact are in every footer (consumer audit)
+  assert.match(page('app/index.html'), /<footer class="app-foot"><span>Ryagram is operated by L'Ai, LLC\.<\/span><a href="\/help\/">Help<\/a><a href="mailto:ryagram@uselai\.com">ryagram@uselai\.com<\/a><a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a><\/footer>/);   // Help and Contact are in every footer (consumer audit)
   // The Auth email templates live in the Supabase dashboard: the README says what to paste.
   assert.match(page('supabase/README.md'), /Ryagram is operated by L'Ai, LLC\. Questions: ryagram@uselai\.com/);
 });

@@ -154,5 +154,58 @@ class PolicyGrants(unittest.TestCase):
             c.close()
 
 
+def build_realistic(name, files):
+    """Like build(), but from the stub WITHOUT its strictness (the way CONNECT's RealisticDefaults does): PUBLIC keeps its default EXECUTE on new
+    functions and USAGE on the public schema, as on a real Supabase project, so a function nobody revoked shows up as executable."""
+    with psycopg.connect(_server.get_uri(), autocommit=True) as c:
+        c.execute(f"drop database if exists {name}")
+        c.execute(f"create database {name}")
+    drop = ("revoke usage on schema public from anon, authenticated;", "revoke all on schema public from public;",
+            "alter default privileges revoke execute on functions from public;", "alter default privileges in schema public revoke execute on functions from public;")
+    lines = [l for l in (ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8").splitlines(True)
+             if not l.startswith("create role") and l.strip() not in drop]
+    c = psycopg.connect(_server.get_uri(database=name), autocommit=True)
+    c.execute("".join(lines))
+    for f in files:
+        c.execute(f.read_text(encoding="utf-8"))
+    return c
+
+
+def executable_by_authenticated(c):
+    """Every ryagram_private function a signed-in person (or anon, or PUBLIC) can execute: name(args)."""
+    return sorted(r[0] for r in c.execute(
+        "select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'ryagram_private' "
+        "and (has_function_privilege('authenticated', p.oid, 'execute') or has_function_privilege('anon', p.oid, 'execute'))").fetchall())
+
+
+# The order Ryan applies on live: the phase-2b files (whose tail revokes every ryagram_private function) went in BEFORE the funnel migration, so they cannot mask a missing revoke in it.
+LIVE_ORDER = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, *[m for m in core.MIGRATIONS if m.name >= "20261017000900"]]
+
+
+class PrivateSchemaClosed(unittest.TestCase):
+    """CC1 MED-1 (funnel-events): ryagram_private.funnel_log takes any p_user and was never revoked, so on a real project (PUBLIC executes new functions by default)
+    any signed-in person could have written fake funnel events for any account. The stub's default-privilege revoke hid it. This runs WITHOUT that revoke:
+    a signed-in person (or anon) may execute NO ryagram_private function except the five a row policy calls."""
+
+    def test_authenticated_executes_only_the_five_policy_functions(self):
+        c = build_realistic("g_real", LIVE_ORDER)
+        try:
+            names = {re.match(r"ryagram_private\.(\w+)\(", f).group(1) for f in executable_by_authenticated(c)}
+            self.assertEqual(sorted(names), sorted(POLICY_FUNCS))
+        finally:
+            c.close()
+
+    def test_must_fail_a_new_private_function_nobody_revoked_is_caught(self):
+        c = build_realistic("g_real_mf", LIVE_ORDER)
+        try:
+            c.execute("create function ryagram_private.funnel_log_planted(p_user uuid) returns void language sql as 'select 1'")
+            self.assertIn("ryagram_private.funnel_log_planted(uuid)", executable_by_authenticated(c))
+            for fn in ("funnel_log(text,uuid)", "funnel_clean(text,integer)"):
+                c.execute(f"grant execute on function ryagram_private.{fn} to public")
+                self.assertIn(f"ryagram_private.{fn}", executable_by_authenticated(c))
+        finally:
+            c.close()
+
+
 if __name__ == "__main__":
     unittest.main()

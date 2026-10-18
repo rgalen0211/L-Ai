@@ -102,12 +102,20 @@ body:has(.mock-bar) .app-main{padding-bottom:120px}
 .share-link{overflow-wrap:anywhere;font-weight:700}
 .share-panel label{display:block;margin-top:12px}
 .app-account a{color:inherit;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+/* A button that is off for a reason shows the not-allowed cursor (the reason is its tooltip); the wait cursor is only for a button that is busy */
+.button[data-locked]:disabled{cursor:not-allowed}
+.job-progress .working{margin:6px 0;font-weight:700}
+.job-help{margin:6px 0}.job-help summary{cursor:pointer;min-height:40px;display:flex;align-items:center}.job-help code{display:block;white-space:pre-wrap;word-break:break-word;margin:6px 0}
 .link-button{padding:0;border:0;background:none;color:var(--brand-deep);font:inherit;text-decoration:underline;cursor:pointer}
 .account-section{margin:28px 0;padding-top:20px;border-top:1px solid var(--line)}
 .account-section h2{margin:0 0 10px;font-size:1.2rem}
 .choices{margin:12px 0;padding:0;border:0}
 .choice{display:flex;gap:10px;align-items:flex-start;margin:0 0 12px;cursor:pointer}
 .choice input{margin-top:4px}
+/* BYOD audit: a radio or tick box is a small control (the global input rule had made it full width and 44 px tall, which pushed its words off to the far side) */
+.choice input[type=radio],.choice input[type=checkbox]{width:20px;height:20px;min-height:20px;flex:none;margin:2px 0 0}
+.byod-hint{margin:10px 0}.byod-hint summary{cursor:pointer;min-height:40px;display:flex;align-items:center;font-weight:700}.byod-example{border-collapse:collapse;margin:8px 0;font-size:.9rem}.byod-example th,.byod-example td{border:1px solid var(--line);padding:4px 10px;text-align:left}.byod-pointer{margin:10px 0 0}
+.prov-fields{border:1px solid var(--line);border-radius:12px;padding:10px 14px;margin:14px 0}.prov-fields legend{font-weight:700;padding:0 6px}.prov-placeholder{font-weight:700}.prov-card{margin:6px 0 0;padding-left:20px}
 .choice-text{display:block;color:var(--muted);font-size:.92rem}
 .button.danger{background:#9b2c2c;border-color:#9b2c2c;color:#fff}
 .account-danger p{max-width:60ch}
@@ -146,3 +154,10 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .app-main p.meta + p.meta{margin-top:10px}.admin-links{line-height:2}
 .advanced-panel{margin:28px 0;border:1px solid var(--line);border-radius:12px;padding:6px 16px}.advanced-panel>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
 .app-main .form-note + p.meta{margin-top:12px}
+/* Consumer audit round 2: comfortable back links, and a loading line that moves (still, for people who ask for less motion) */
+.back{display:inline-flex;align-items:center;min-height:40px;padding:6px 0;margin-bottom:6px}
+.loading{display:flex;align-items:center;gap:10px}.spinner{width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--brand-deep);border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+/* Funnel on #/admin/ops: the wide tables scroll sideways inside themselves on a phone instead of squeezing every word */
+.funnel-sources,.funnel-weeks{display:block;overflow-x:auto;max-width:100%}.funnel-sources th,.funnel-weeks th{min-width:84px}.funnel-sources td:first-child,.funnel-weeks td:first-child{white-space:nowrap}.funnel-side td{color:var(--muted)}

@@ -16,9 +16,20 @@
     `<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#354247"/>` +
     `<text x="320" y="190" font-family="Arial" font-size="28" fill="#efe5d3" text-anchor="middle">${label}</text></svg>`);
 
+  // Made-up funnel events over the last ten days (relative to now), for #/admin/funnel in mock mode.
+  function mockFunnelEvents() {
+    const out = [];
+    const plan = { landing_view: [30, 24, 28, 31, 22, 40, 35, 26, 20, 18], signup_done: [4, 3, 3, 5, 2, 6, 5, 3, 2, 2], first_project: [3, 2, 3, 4, 2, 5, 4, 2, 1, 1],
+                   preview: [1, 1, 2, 2, 1, 3, 2, 1, 1, 0], render_ordered: [0, 1, 1, 1, 0, 1, 1, 0, 0, 0], render_approved: [0, 1, 1, 0, 0, 1, 0, 0, 0, 0], purchase: [0, 0, 1, 0, 0, 1, 0, 0, 0, 0] };
+    for (const [event, counts] of Object.entries(plan)) {
+      counts.forEach((n, ago) => { for (let i = 0; i < n; i += 1) out.push({ id: out.length + 1, at: new Date(Date.now() - ago * 864e5 - (i + 1) * 60000).toISOString(), event }); });
+    }
+    return out;
+  }
+
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], render_orders: [],
-                 account_settings: [], credit_ledger: [], version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
+                 account_settings: [], credit_ledger: [], funnel_events: mockFunnelEvents(), version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -77,6 +88,12 @@
       emit('jobs', job);
     }
 
+    // The auto_render setting: the database default is OFF, but the mock keeps its older default (ON) unless the seed or ?autorender=off says otherwise; the admin switch then wins.
+    function autoRenderNow() {
+      if (typeof db.autoRenderSet === 'boolean') return db.autoRenderSet;
+      return !(seed.autoRender === false || (typeof location !== 'undefined' && /[?&]autorender=off/.test(location.search || '')));
+    }
+
     function query(table) {
       if (table === 'credit_balances' || table === 'job_accounting') {
         if (!ledger) return { select: () => ({ then: r => r({ data: null, error: { message: `relation ${table} does not exist` } }) }) };
@@ -91,13 +108,15 @@
         return q;
       }
       const filters = [];
-      let op = 'select', payload = null, single = false, order = null;
+      let op = 'select', payload = null, single = false, order = null, window_ = null;
       const q = {
         select() { return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
         upsert(row) { op = 'upsert'; payload = row; return q; },         // one row per person (account_settings)
         update(row) { op = 'update'; payload = row; return q; },
         eq(col, val) { filters.push(r => r[col] === val); return q; },
+        gte(col, val) { filters.push(r => String(r[col]) >= String(val)); return q; },
+        range(a, b) { window_ = [a, b]; return q; },
         in(col, vals) { filters.push(r => vals.includes(r[col])); return q; },
         is(col, val) { filters.push(r => (r[col] ?? null) === val); return q; },
         order(col, { ascending = true } = {}) { order = { col, ascending }; return q; },
@@ -139,6 +158,7 @@
         if (order) {
           result = [...result].sort((a, b) => (a[order.col] < b[order.col] ? -1 : a[order.col] > b[order.col] ? 1 : 0) * (order.ascending ? 1 : -1));
         }
+        if (window_) result = result.slice(window_[0], window_[1] + 1);
         result = structuredClone(result);
         if (single) {
           return result.length === 1 ? { data: result[0], error: null }
@@ -274,12 +294,24 @@
         Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved' });
         return { data: null, error: null };
       },
+      // Mock of the PROPOSED set_dataset_provenance (S5). With seed.requireProvenance a dataset cannot be used in a film without it (the real rule would be the database's).
+      set_dataset_provenance({ p_dataset, p_publisher, p_link, p_licence, p_licence_note, p_unit, p_decimals, p_attested }) {
+        const ds = mine(p_dataset);
+        if (!ds) return fail('Dataset not found.');
+        if (!String(p_publisher || '').trim()) return fail('Say who published or owns this data.');
+        if (!['public_domain', 'open_licence', 'permission', 'own_data', 'other'].includes(p_licence)) return fail('Say what lets you use it.');
+        if (!String(p_unit || '').trim()) return fail('Say what the numbers are in.');
+        if (p_attested !== true) return fail('Confirm you may publish charts of this data.');
+        ds.provenance = { publisher: p_publisher, link: p_link, licence: p_licence, licence_note: p_licence_note, unit: p_unit, decimals: p_decimals, attested_at: now() };
+        return { data: null, error: null };
+      },
       attach_upload_to_version({ p_version, p_dataset }) {
         const v = db.versions.find(x => x.id === p_version);
         const ds = mine(p_dataset);
         if (!v || !ds) return fail('Dataset not found.');
         if (!EDITABLE.includes(v.state)) return fail(`This version is ${v.state} and can't change its data. Make a new version.`);
         if (ds.status !== 'approved') return fail('Confirm what the columns mean before using this data.');
+        if (seed.requireProvenance && !ds.provenance) return fail('Say where this data comes from before using it in a film.');
         v.dataset_id = ds.id;
         const p = ds.ingest_report.periods;
         const coverage = [ds.geography === 'us_counties' ? 'U.S. counties' : 'U.S. states', p ? `${p.first} to ${p.last}` : null, ds.mapping.cadence].filter(Boolean).join(', ');
@@ -342,6 +374,7 @@
           outbox: [{ id: 1, created_at: ago(20), kind: 'digest', mode: 'dry_run', subject: 'Ryagram daily: 1 thing needs you' }],
           backups: { expected: true, last_daily_ok: ago(600), last_daily_bytes: 5242880, last_restore_test: ago(14400), last_restore_ok: true },
           open_alerts: [{ key: 'support:1', detail: 'New support request #1 (render)', since: ago(30) }],
+          orders: { auto_render: autoRenderNow(), default_credits_per_day: 20, awaiting_approval: db.render_orders.filter(o => o.state === 'awaiting_approval').length },
           support_open: db.supportOpen ?? 1,
           support: (db.supportOpen ?? 1) ? [{ id: 1, created_at: ago(30), topic: 'render', email: 'sam@example.com', job_id: 'job-9', job_state: 'failed', job_error_code: 'worker_lost', message: 'My preview failed twice.' }] : [],
           stripe: db.stripeAcked ? { available: true, open: 0, items: [] } : { available: true, open: 1, items: [{ event_id: 'evt_mock1', type: 'checkout.session.completed', detail: 'Paid for an unknown pack: pack_x.', received_at: ago(90), livemode: false }] },
@@ -394,6 +427,36 @@
         if (!c) return fail('An invite was already made for this application.');
         c.status = 'approved';
         return { data: 'RYA-K7M2-9QPX', error: null };
+      },
+      // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.
+      admin_set_auto_render({ p_on }) {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        db.autoRenderSet = p_on === true;
+        return { data: p_on === true, error: null };
+      },
+      admin_user_caps() {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        db.userCaps = db.userCaps || [{ owner_id: 'u-sam', email: 'sam@example.com', credits_per_day: 30, updated_at: now(), used_last_24h: 12 }];
+        return { data: structuredClone(db.userCaps), error: null };
+      },
+      admin_set_user_cap({ p_owner, p_credits_per_day }) {
+        if (seed.nonAdmin) return fail('Only an admin can do this.');
+        rpcs.admin_user_caps();
+        if (p_credits_per_day !== null && (!Number.isInteger(p_credits_per_day) || p_credits_per_day < 0)) return fail('A cap is 0 or more credits a day.');
+        db.userCaps = db.userCaps.filter(c => c.owner_id !== p_owner);
+        if (p_credits_per_day !== null) db.userCaps.push({ owner_id: p_owner, email: p_owner === 'u-ryan' ? 'creator@example.com' : `${p_owner}@example.com`, credits_per_day: p_credits_per_day, updated_at: now(), used_last_24h: 0 });
+        return { data: null, error: null };
+      },
+      // Mock funnel for #/admin/ops: made-up counts by step, week and source (the real rules are tested against Postgres).
+      admin_funnel({ p_weeks }) {
+        const n = Math.min(Math.max(p_weeks || 8, 1), 52);
+        const base = new Date('2026-10-12T00:00:00Z');
+        const weeks = Array.from({ length: Math.min(n, 8) }, (_, i) => new Date(base.getTime() - (Math.min(n, 8) - 1 - i) * 7 * 864e5).toISOString().slice(0, 10));
+        const totals = { landing_view: 400, signup_started: 60, signup_done: 40, first_project: 30, contact_sheet: 24, preview: 12, render_ordered: 9, render_approved: 7, film_requested: 6, film_delivered: 4, purchase: 2, subscription_start: 1, subscription_cancel: 0, return_7d: 15, return_30d: 7 };
+        const steps = Object.entries(totals).map(([event, total]) => ({ event, total,
+          by_week: Object.fromEntries(weeks.map((w, i) => [w, Math.round(total / weeks.length) + (i % 2)])),
+          by_source: { youtube: Math.round(total * 0.6), direct: Math.round(total * 0.25), 'reddit.com': Math.round(total * 0.15) } }));
+        return { data: { weeks, steps }, error: null };
       },
       // Mock of the render approval queue (PIPE-1): waiting orders are the ones request_final_render made while auto_render was off. Admin only (seed.nonAdmin makes it refuse).
       admin_render_queue() {
@@ -497,7 +560,7 @@
         if (!sheet) return fail('That preview has no finished contact sheet for the same story.');
         const order = { id: id(), owner_id: 'u-ryan', idempotency_key: p_idempotency_key, source: 'app', want: 'final', project_id: db.versions.find(v => v.id === preview.version_id)?.project_id, version_id: preview.version_id,
                         preview_job_id: preview.id, state: 'awaiting_approval', error_code: null, created_at: now(), ended_at: null, stages: [{ stage: 'final_render', state: 'awaiting_approval', credits_quoted: 10, error_code: null, job_id: null }], delivery: null };
-        const autoOff = seed.autoRender === false || (typeof location !== 'undefined' && /[?&]autorender=off/.test(location.search || ''));     // ?autorender=off in mock mode
+        const autoOff = !autoRenderNow();
         if (!autoOff) {
           const r = rpcs.submit_job({ p_version_id: preview.version_id, p_job_type: 'final_render', p_params: {}, p_sheet_job_id: sheet.id, p_preview_job_id: preview.id });
           if (r.error) return r;
