@@ -103,3 +103,35 @@ test('compile_film can apply the person\'s saved look or a starter look, and say
   const badPreset = await call('compile_film', { dataset: e.id, film_type: ft, title: 'Looks', look_name: 'no-such-preset', look_is_preset: true });
   assert.equal(badPreset.isError, true);
 });
+
+// ENGINE review HIGH-2: compileFilm's county rule reads req.look.look.ramp.mode, which is skipped if a look arrives as JSON text. The connector never lets the AI
+// send a look at all: compile_film takes a NAME (a saved profile or a starter look) and the server turns it into an object. Proven from the AI's side.
+import { getPreset } from '../supabase/functions/_shared/profile.ts';
+test('HIGH-2: a hatched look cannot reach a county (continuous) map, whether it is a starter look, a saved look sent as JSON text, or a look pasted in as text', async () => {
+  const { call } = world();
+  const county = usable.find((x) => x.style?.choropleth?.continuous && x.film_types.includes('map'));
+  assert.ok(county, 'a continuous-colour (county) map dataset exists in the catalog');
+  const hatch = listPresets().map((p) => getPreset(p.id)).find((p) => p.look?.ramp?.mode === 'hatch');
+  assert.ok(hatch, 'a hatching starter look exists');
+  const base = { dataset: county.id, film_type: 'map', title: 'County map' };
+  // 1. the starter look, by id
+  const preset = await call('compile_film', { ...base, look_name: hatch.name, look_is_preset: true });
+  assert.equal(preset.isError, true, preset.text); assert.match(preset.text, /too small to hatch/);
+  // 2. the same look saved by the AI as JSON TEXT through set_profile (the one place text is accepted), then used by name
+  const saved = await call('set_profile', { profile_json: JSON.stringify({ ...hatch, name: 'my-hatch', title: 'My hatch' }), make_default: false });
+  assert.equal(saved.isError, undefined, saved.text);
+  const named = await call('compile_film', { ...base, look_name: 'my-hatch' });
+  assert.equal(named.isError, true, named.text); assert.match(named.text, /too small to hatch/);
+  // 3. a look pasted straight into compile_film, as text or as an object, is not an argument at all: the closed schema refuses it
+  for (const look of [JSON.stringify(hatch), JSON.stringify({ look: hatch.look }), hatch, { look: hatch.look }]) {
+    const direct = await call('compile_film', { ...base, look });
+    assert.equal(direct.isError, true); assert.equal(direct.code, 'args');
+  }
+  const t = TOOLS.find((x) => x.name === 'compile_film');
+  assert.equal(t.inputSchema.additionalProperties, false);
+  assert.ok(!Object.keys(t.inputSchema.properties).some((k) => /^look(_json|_text|_object)?$/.test(k)), 'no argument takes a look itself');
+  // and the same story is accepted with a look that does not hatch, so the refusal above is the rule, not a broken fixture
+  const solid = listPresets().map((p) => getPreset(p.id)).find((p) => p.look?.ramp?.mode === 'solid');
+  const ok = await call('compile_film', { ...base, look_name: solid.name, look_is_preset: true });
+  assert.equal(ok.isError, undefined, ok.text);
+});
