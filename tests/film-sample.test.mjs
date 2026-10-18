@@ -93,7 +93,7 @@ test('THE SAMPLE PAGE: title, sample note, poster, "Made with Ryagram · View so
   assert.match(text, /Rise of the Interstate Highway, 1956–1993/);
   assert.match(text, /Contiguous United States 39,279 Miles Constructed/);                    // the film's own title card line, as its subhead
   assert.match(text, /This is a sample page\./);
-  assert.match(text, /Made with Ryagram · View sources/);
+  assert.match(text, /AI-assisted \(Ryagram\) · Made with Ryagram · View sources/);              // Ryan 2026-10-18: the same label as the delivery page
   assert.match(text, /Brooks & Liscow \(2023\), Infrastructure Costs, replication package/);
   assert.match(text, /Engine versionb17561adead5/);
   assert.match(text, /This pageA sample, to show what a Ryagram film page contains/);
@@ -121,7 +121,7 @@ test('A PUBLISHED FILM: the film, "Made with Ryagram · View sources" pointing a
   assert.deepEqual(r.calls, [`https://p.supabase.co/functions/v1/film-page?s=${SLUG}`]);
   assert.equal(findAll(r.root, n => n.tag === 'video').length, 1);
   const cap = find(r.root, n => n.tag === 'figcaption');
-  assert.equal(textOf(cap), 'Made with Ryagram · View sources');
+  assert.equal(textOf(cap), 'AI-assisted (Ryagram) · Made with Ryagram · View sources');
   assert.equal(find(cap, n => n.tag === 'a').attrs.href, '#sources');
   assert.match(text, /Sources and method/);
   assert.match(text, /CDC adult obesity/);
@@ -173,7 +173,7 @@ test('A FILM MADE FROM THE OWNER\'S UPLOAD names only "the maker\'s own data": n
 
 test('the film page file loads the sample and the page script, under a policy that allows only its own files and the project\'s storage', () => {
   const html = read('film/index.html');
-  assert.match(html, /film\.js\?v=20261013a/);
+  assert.match(html, /film\.js\?v=20261018a/);
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.match(csp, /script-src 'self'(;|$)/);
   assert.match(csp, /connect-src 'self' https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co/);
