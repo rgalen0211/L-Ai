@@ -13,10 +13,10 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { CATALOG, STORY_SCHEMA, STORY_SCHEMA_SHA256, CATALOG_ENGINE } from '../supabase/functions/_shared/catalog_data.ts';
-import { compileFilm, describeDataset, searchCatalog, FilmError, FILM_TYPES } from '../supabase/functions/_shared/film.ts';
+import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError, FILM_TYPES } from '../supabase/functions/_shared/film.ts';
 import { checkAgainst } from '../supabase/functions/_shared/schema_check.ts';
 import { DATASETS } from '../supabase/functions/_shared/templates.ts';
-import { listableEntries, listableProblems } from '../supabase/functions/_shared/catalog_rules.ts';
+import { listableEntries, listableProblems, publicLeaks } from '../supabase/functions/_shared/catalog_rules.ts';
 import { validateProfile } from '../supabase/functions/_shared/profile.ts';
 import { PRESETS } from '../supabase/functions/_shared/profile_data.ts';
 
@@ -272,8 +272,9 @@ function exportCommit(dest) {
 }
 
 test('the committed catalog_data.ts equals a fresh regeneration; the public outputs are byte-identical with and without --detail-out',
-  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, () => {
+  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));      // cleaned up even when an assertion fails
   const tree = exportCommit(path.join(tmp, 'engine'));          // the same commit, whatever the checkout holds
   const commit = run('git', ['-C', ENGINE, 'rev-parse', '--short=12', 'HEAD']).stdout.trim();
   const mk = name => { for (const d of ['tools', 'assets', 'supabase']) fs.mkdirSync(path.join(tmp, name, d), { recursive: true });
@@ -281,7 +282,7 @@ test('the committed catalog_data.ts equals a fresh regeneration; the public outp
   const A = mk('A'), B = mk('B');
   fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(A, 'tools', 'gen-catalog.py'));
   fs.copyFileSync(path.join(root, 'tools', 'gen-catalog.py'), path.join(B, 'tools', 'gen-catalog.py'));
-  const args = (dir, extra) => [path.join(dir, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--allowlist', ALLOW, '--listing', LISTING, '--commit', commit, '--out', path.join(dir, 'assets', 'app-catalog-data.js'), ...extra];
+  const args = (dir, extra) => [path.join(dir, 'tools', 'gen-catalog.py'), '--engine', tree, '--setup', SETUP, '--allowlist', ALLOW, '--listing', LISTING, '--commit', CATALOG_ENGINE, '--out', path.join(dir, 'assets', 'app-catalog-data.js'), ...extra];
   assert.equal(run(python, args(A, [])).status, 0);
   assert.equal(run(python, args(B, ['--detail-out', path.join(B, 'catalog_data.ts')])).status, 0);
   assert.ok(lf(fs.readFileSync(path.join(A, 'assets', 'app-catalog-data.js'))).equals(lf(fs.readFileSync(path.join(B, 'assets', 'app-catalog-data.js')))), 'public catalog differs with the flag');
@@ -292,8 +293,9 @@ test('the committed catalog_data.ts equals a fresh regeneration; the public outp
 });
 
 test('MUST-FAIL: an untracked INGESTED dataset in the engine checkout never reaches a catalog (privacy and determinism)',
-  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, () => {
+  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-ing-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));      // cleaned up even when an assertion fails
   const repo = exportCommit(path.join(tmp, 'checkout'));
   const git = (...a) => run('git', ['-C', repo, '-c', 'user.name=t', '-c', 'user.email=t@t', ...a]);
   assert.equal(git('init', '-q').status, 0);
@@ -418,8 +420,9 @@ test('MUST-FAIL: every way a `listable: true` can contradict its own text is cau
 });
 
 test('the GENERATOR refuses a missing, contradicting or stale listing decision (it never lists by default)',
-  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, () => {
+  { skip: (!ENGINE || !SETUP) && 'RYAGRAM_ENGINE / RYAGRAM_SETUP not set: SKIPPED, not passed' }, (t) => {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'gen-list-'));
+  t.after(() => fs.rmSync(tmp, { recursive: true, force: true }));      // cleaned up even when an assertion fails
   const tree = exportCommit(path.join(tmp, 'engine'));
   const dec = JSON.parse(JSON.stringify(DECISIONS));
   const run1 = (decisions, name) => {
@@ -474,27 +477,34 @@ test('the real engine refuses a paired story that has no keyframes_per_year (the
 const TODAY = '2026-10-17';
 const bls = () => CATALOG.find(e => e.id === 'bls_state_unemployment');
 
-test('MUST-FAIL (MED-3): an open-ended series cannot be asked past the last complete period (BUILDER saw 2031-12 accepted)', () => {
+test('MUST-FAIL (MED-3): an open-ended series cannot be asked past its latest PUBLISHED period (BUILDER saw 2031-12 accepted; 2026-09 is not out on 2026-10-17)', () => {
   const e = bls();
   const req = { dataset: e.id, film_type: 'line', title: 'x' };
-  const outcome = (years) => { try { return compileFilm({ ...req, years }, { today: TODAY }); } catch (x) { return x.errors; } };
-  const far = outcome({ start: '2025-06', end: '2031-12' });
-  assert.match(far.join(), /later than this series can hold.*last complete period is 2026-09/);
-  assert.ok(Array.isArray(outcome({ start: '2026-10' })), 'the current month is not complete yet');
-  assert.ok(!Array.isArray(outcome({ start: '2024-01', end: '2026-09' })) && outcome({ start: '2024-01', end: '2026-09' }).report.window.end === '2026-09', 'control: the last complete month is accepted');
-  assert.match(outcome({ end: '2027-01' }).join(), /later than this series can hold/);
-  // the clock really decides: the same request is fine a year later
-  assert.ok(!Array.isArray((() => { try { return compileFilm({ ...req, years: { start: '2025-06', end: '2027-01' } }, { today: '2027-06-01' }); } catch (x) { return x.errors; } })()));
+  const outcome = (years, today = TODAY) => { try { return compileFilm({ ...req, years }, { today }); } catch (x) { return x.errors; } };
+  assert.match(outcome({ start: '2025-06', end: '2031-12' }).join(), /later than this series can hold.*latest PUBLISHED period is 2026-08/);
+  assert.match(outcome({ start: '2026-01', end: '2026-09' }).join(), /latest PUBLISHED period is 2026-08/, 'the calendar month that has ended is not yet published');
+  const ok = outcome({ start: '2024-01', end: '2026-08' });
+  assert.ok(!Array.isArray(ok) && ok.report.window.end === '2026-08', 'control: the latest published month is accepted');
+  // the clock decides, and by PUBLICATION: after the release date the same request is fine
+  assert.equal(latestPossible(e, '2026-10-17'), '2026-08');
+  assert.equal(latestPossible(e, '2026-10-20'), '2026-08');
+  assert.equal(latestPossible(e, '2026-10-21'), '2026-09');
+  assert.ok(!Array.isArray(outcome({ start: '2026-01', end: '2026-09' }, '2026-10-22')));
+  assert.equal(latestPossible({ period: { to: '2023', cadence: 'annual', from: '1990' } }, '2030-01-01'), '2023', 'a closed series ends where it ends');
+  assert.equal(latestPossible({ period: { to: '', cadence: 'annual', from: '1990' } }, '2026-10-17'), '2025');
 });
 
-test('years: a start-only or end-only request gets a sensible other end, never an out-of-order pair (BUILDER MED-3)', () => {
+test('years: one end given means the other is the dataset edge (start-only runs to the latest published period); neither means the known-good window', () => {
   const e = bls();
   const run1 = years => compileFilm({ dataset: e.id, film_type: 'line', title: 'x', years }, { today: TODAY }).report.window;
-  assert.deepEqual(run1({ start: '2023-01' }), { start: '2023-01', end: '2026-09' }, 'start after the known window: end at the last complete period');
-  assert.deepEqual(run1({ start: '2020-01' }), { start: '2020-01', end: '2022-12' }, 'start inside the known window: its end');
-  assert.deepEqual(run1({ end: '2015-12' }), { start: e.period.from, end: '2015-12' }, 'end before the known window: start at coverage');
-  assert.deepEqual(run1({ end: '2021-12' }), { start: '2019-01', end: '2021-12' });
-  assert.deepEqual(run1({}), { start: '2019-01', end: '2022-12' });
+  assert.deepEqual(run1({ start: '2023-01' }), { start: '2023-01', end: '2026-08' }, 'start-only ends at the latest PUBLISHED period');
+  assert.deepEqual(run1({ start: '2020-01' }), { start: '2020-01', end: '2026-08' }, 'start-only does NOT stop at the known-good window end');
+  assert.deepEqual(run1({ end: '2015-12' }), { start: e.period.from, end: '2015-12' }, 'end-only starts at coverage');
+  assert.deepEqual(run1({ end: '2021-12' }), { start: e.period.from, end: '2021-12' });
+  assert.deepEqual(run1({}), { start: '2019-01', end: '2022-12' }, 'neither: the catalog known-good window');
+  const annual = CATALOG.find(x => x.id === 'cbp_manufacturing_share_state');
+  const a1 = compileFilm({ dataset: annual.id, film_type: 'bars', title: 'x', years: { start: '2010' } }).report.window;
+  assert.deepEqual(a1, { start: '2010', end: annual.period.to }, 'a closed annual series: start-only ends at its coverage end');
 });
 
 test('MUST-FAIL (MED-3): known gaps are consulted: a film cannot start or end on one, and one inside is said and recorded', () => {
@@ -550,7 +560,10 @@ test('MUST-FAIL (LOW-7): a look that would undo a dataset\'s pinned style is ref
 
 // ------------------------------------------------------------------------------------------ BUILDER's review: leak probe, staleness, validator
 
-test('SERVER ONLY (MED-5): none of the detail-only text (notes, method changes, known gaps, the full licence) is in any public file', () => {
+// The probe as a function, so a test can prove it CAN FAIL: it returns every detail-only fragment a text contains.
+function leakedFragments(text, frags) { return frags.filter(f => text.includes(f)); }
+
+test('SERVER ONLY (MED-5): none of the detail-only text (notes, method changes, known gaps, the full licence) is in any public file, and the probe can fail', () => {
   const frags = [];
   for (const e of CATALOG) {
     if (e.notes.length >= 60) frags.push(e.notes.slice(0, 60));
@@ -560,7 +573,7 @@ test('SERVER ONLY (MED-5): none of the detail-only text (notes, method changes, 
   }
   assert.ok(frags.length > 100, `only ${frags.length} probe fragments`);
   // A front end that lists datasets (RULINGS 2026-10-17) may legitimately show the licence; when WEB adds that, it names the
-  // fields here on purpose, in this list, in a reviewed commit. Today nothing is exempt.
+  // fields here on purpose, in a reviewed commit. Today nothing is exempt.
   const EXEMPT_FIELDS = [];
   assert.deepEqual(EXEMPT_FIELDS, []);
   const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(x => x.isDirectory()
@@ -569,31 +582,70 @@ test('SERVER ONLY (MED-5): none of the detail-only text (notes, method changes, 
   assert.ok(publicFiles.length > 20);
   for (const f of publicFiles) {
     const text = fs.readFileSync(f, 'utf8');
-    for (const frag of frags) assert.ok(!text.includes(frag), `${f} contains detail-only catalog text: ${frag.slice(0, 40)}`);
+    assert.deepEqual(leakedFragments(text, frags), [], `${f} contains detail-only catalog text`);
     assert.doesNotMatch(text, /catalog_data\.ts|_shared\/film|schema_check|catalog_rules|listing_decisions/, `${f} refers to a server-only module`);
   }
-  // control: the probe CAN fail. Plant a fragment in a temp copy of a public file and see it found.
-  const probe = frags[0];
-  assert.ok(`prefix ${probe} suffix`.includes(probe));
+  // THE CONTROL: plant one fragment of each kind in a COPY of a real public file and the probe must find it (and only it).
+  const real = fs.readFileSync(path.join(root, 'assets', 'app-catalog-data.js'), 'utf8');
+  assert.deepEqual(leakedFragments(real, frags), [], 'control baseline: the real public file is clean');
+  const withNotes = CATALOG.find(e => e.notes.length >= 60), withLicence = CATALOG.find(e => e.licence.length >= 60);
+  const withBreak = CATALOG.find(e => e.methodology_breaks.some(b => b.what.length >= 40));
+  const withGap = CATALOG.find(e => Object.keys(e.known_gaps).length);
+  const planted = {
+    'notes': withNotes.notes.slice(0, 60), 'the full licence': withLicence.licence.slice(0, 60),
+    'a method change': withBreak.methodology_breaks.find(b => b.what.length >= 40).what.slice(0, 40), 'a known gap': String(Object.values(withGap.known_gaps)[0]),
+  };
+  for (const [what, frag] of Object.entries(planted)) {
+    const tainted = `${real}\n// ${frag}\n`;
+    assert.ok(leakedFragments(tainted, frags).includes(frag), `the probe must catch ${what} planted in a public file`);
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'leak-'));
+    try {
+      const f = path.join(dir, 'planted-public.js');
+      fs.writeFileSync(f, tainted);
+      assert.ok(leakedFragments(fs.readFileSync(f, 'utf8'), frags).length >= 1, `${what}: found when read back from a file`);
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
 });
 
-test('MED-6: the committed PUBLIC catalog and the server detail agree BOTH ways: same ids, same statuses, same engine', () => {
+test('MED-NEW: the PUBLIC catalog holds LISTABLE datasets only, and the checker can fail (anyone can fetch assets/app-catalog-data.js)', () => {
+  const pub = fs.readFileSync(path.join(root, 'assets', 'app-catalog-data.js'), 'utf8');
+  const ctx = { window: {} };
+  new Function('window', pub)(ctx.window);
+  const P = ctx.window.ryagramCatalogData;
+  assert.deepEqual(publicLeaks(P.entries), [], 'the public file lists something that may not be listed');
+  for (const id of ['redistricting_2026', 'qcew_biggest_employer', 'cdc_state_obesity']) {
+    assert.ok(!P.entries.some(e => e.id === id), `${id} must not be in the public catalog`);
+    assert.ok(!pub.includes(id), `${id} must not appear anywhere in the public file`);
+  }
+  // both ways: every LISTABLE dataset is in the public file, so the public file is neither leaky nor incomplete
+  const listable = CATALOG.filter(e => e.listable).map(e => e.id).sort();
+  assert.deepEqual(P.entries.map(e => e.id).sort(), listable);
+  // MUST-FAIL: plant each kind of leak in a copy of the entries
+  const entry = plain(P.entries[0]);
+  assert.match(publicLeaks([...P.entries, { ...entry, id: 'redistricting_2026' }]).join(), /redistricting_2026.*NOT listable/);
+  assert.match(publicLeaks([...P.entries, { ...entry, id: 'qcew_biggest_employer' }]).join(), /qcew_biggest_employer.*NOT listable/);
+  assert.match(publicLeaks([...P.entries, { ...entry, id: 'ryan_spending_flows' }]).join(), /unknown to the server catalog/);
+  // and a catalog whose decision flips makes a previously clean public entry a leak
+  const flipped = plain(CATALOG); const hit = flipped.find(e => e.id === P.entries[0].id); hit.listable = false; hit.listable_why = 'planted';
+  assert.match(publicLeaks(P.entries, flipped).join(), /NOT listable \(planted\)/);
+});
+
+test('MED-6: the committed PUBLIC catalog and the server detail agree BOTH ways (listable ids, statuses, engine commit, the allow list)', () => {
   const pub = fs.readFileSync(path.join(root, 'assets', 'app-catalog-data.js'), 'utf8');
   const ctx = { window: {} };
   new Function('window', pub)(ctx.window);
   const P = ctx.window.ryagramCatalogData;
   assert.equal(P.engine, CATALOG_ENGINE, 'the public file and the server detail were generated from different engine commits');
   const pubIds = new Map(P.entries.map(e => [e.id, e.status]));
-  const srvIds = new Map(CATALOG.map(e => [e.id, e.status]));
-  for (const id of pubIds.keys()) assert.ok(srvIds.has(id), `${id} is in the public catalog but not the server detail`);
-  for (const id of srvIds.keys()) assert.ok(pubIds.has(id), `${id} is in the server detail but not the public catalog (the public file is stale)`);
-  for (const [id, st] of pubIds) assert.equal(srvIds.get(id), st, `${id}: status differs`);
-  assert.equal(pubIds.size, srvIds.size);
-  // the public file's `allow` is the committed allowlist
+  const srvListable = new Map(CATALOG.filter(e => e.listable).map(e => [e.id, e.status]));
+  for (const id of pubIds.keys()) assert.ok(srvListable.has(id), `${id} is in the public catalog but is not a listable server entry`);
+  for (const id of srvListable.keys()) assert.ok(pubIds.has(id), `${id} is a listable server entry but is not in the public catalog (the public file is stale)`);
+  for (const [id, st] of pubIds) assert.equal(srvListable.get(id), st, `${id}: status differs`);
+  assert.equal(pubIds.size, srvListable.size);
   const allow = fs.readFileSync(ALLOW, 'utf8').split(/\r?\n/).filter(l => l && !l.startsWith('#'));
   assert.deepEqual([...P.allow].sort(), [...allow].sort());
   // control: the checks can fail
-  const stale = new Map(srvIds); stale.delete('bls_state_unemployment');
+  const stale = new Map(srvListable); stale.delete('bls_state_unemployment');
   assert.ok([...pubIds.keys()].some(id => !stale.has(id)));
 });
 

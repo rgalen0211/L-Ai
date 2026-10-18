@@ -94,21 +94,37 @@ export function searchCatalog(query: string, opts: { usableOnly?: boolean; limit
  *  default is the real clock, a test passes its own so the answer does not move. */
 export type Today = string | Date;
 
-function todayParts(t?: Today): [number, number] {
+function todayDate(t?: Today): Date {
   const d = t instanceof Date ? t : t ? new Date(`${String(t).slice(0, 10)}T00:00:00Z`) : new Date();
-  return [d.getUTCFullYear(), d.getUTCMonth() + 1];
+  return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }
 
-/** The latest period this dataset could possibly hold: its own end, or, for an OPEN-ENDED series (no end in the registry),
- *  the last COMPLETE period before today. A request later than that asks for data that cannot exist yet. */
+/** How long after a period ENDS its figures are typically PUBLISHED, in days. An assumption, written down here and measured
+ *  per dataset later (the registry does not declare a publication lag): state employment series come out about three weeks
+ *  after the month ends; annual survey and business-count series months after the year ends. BUILDER's check: on 2026-10-17
+ *  BLS state unemployment for 2026-09 is NOT published yet (its release is after the 21st of October). */
+export const PUBLICATION_LAG_DAYS: Record<string, number> = { monthly: 21, annual: 270 };
+
+/** The latest period this dataset could possibly hold: its own end, or, for an OPEN-ENDED series (no end in the registry), the
+ *  latest period whose figures have been PUBLISHED by today (period end plus the publication lag), not the latest period the
+ *  calendar has finished. A request later than that asks for data that does not exist yet. */
 export function latestPossible(entry: Json, today?: Today): string {
   if (entry.period.to) return entry.period.to;
-  const [y, m] = todayParts(today);
+  const now = todayDate(today);
   if (entry.period.cadence === "monthly") {
-    const [py, pm] = m === 1 ? [y - 1, 12] : [y, m - 1];
-    return `${py}-${String(pm).padStart(2, "0")}`;
+    const lag = PUBLICATION_LAG_DAYS.monthly * 86400000;
+    let y = now.getUTCFullYear(), m = now.getUTCMonth();                       // m is 0-based: start from the current month
+    for (let i = 0; i < 24; i++) {
+      const endOfMonth = Date.UTC(y, m + 1, 0);                                 // last day of month (y, m)
+      if (endOfMonth + lag <= now.getTime()) return `${y}-${String(m + 1).padStart(2, "0")}`;
+      m -= 1;
+      if (m < 0) { m = 11; y -= 1; }
+    }
+    return entry.period.from;
   }
-  return String(y - 1);
+  const lag = PUBLICATION_LAG_DAYS.annual * 86400000;
+  for (let y = now.getUTCFullYear(); y > 1900; y--) if (Date.UTC(y, 11, 31) + lag <= now.getTime()) return String(y);
+  return entry.period.from;
 }
 
 function periodOk(p: string, cadence: string): boolean {
@@ -142,14 +158,14 @@ function resolveYears(entry: Json, years: Json, today: Today | undefined, errs: 
     else if (v > last) {
       errs.push(entry.period.to
         ? `years.${which}: ${v} is outside this dataset's coverage, ${lo} to ${entry.period.to}`
-        : `years.${which}: ${v} is later than this series can hold: it is open-ended, and the last complete period is ${last}`);
+        : `years.${which}: ${v} is later than this series can hold: it is open-ended, and the latest PUBLISHED period is ${last} (a period's figures come out some weeks after it ends)`);
     }
     given[which] = v;
   }
-  // Defaults: the catalog's known-good window, unless the one end the caller gave puts it out of order, in which case the
-  // coverage edge on the other side (never a window the caller did not ask for, never an out-of-order pair).
-  const start = given.start ?? (given.end !== null && cmp(def[0], given.end) > 0 ? lo : def[0]);
-  const end = given.end ?? (given.start !== null && cmp(def[1], given.start) < 0 ? last : def[1]);
+  // Neither end given: the catalog's known-good window. ONE end given: the other end is the dataset's own edge (a start-only request
+  // runs to the latest published period; an end-only request starts at coverage), never the known-good window's far end.
+  const start = given.start ?? (given.end !== null ? lo : def[0]);
+  const end = given.end ?? (given.start !== null ? last : def[1]);
   if (cmp(start, end) > 0) errs.push(`years: start ${start} is after end ${end}`);
   // Periods the source did not collect (known_gaps). A film may not START or END on one; one inside is said out loud.
   for (const [g, why] of Object.entries(entry.known_gaps ?? {}) as [string, string][]) {

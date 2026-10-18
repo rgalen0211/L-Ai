@@ -54,3 +54,16 @@ export function listableEntries(opts: { usableOnly?: boolean } = {}, catalog: Js
   if (listableProblems(catalog).length) return [];           // a catalog that fails its own rule lists nothing
   return catalog.filter((e) => e.listable && (!opts.usableOnly || e.status === "usable"));
 }
+
+/** What a PUBLIC catalog file (anyone can fetch it) holds that it must not: an id the server catalog does not list as listable,
+ *  an id the server does not know, or an unlistable entry carrying listing fields. [] when the public file is clean. */
+export function publicLeaks(publicEntries: Json[], catalog: Json[] = CATALOG): string[] {
+  const byId = new Map(catalog.map((e) => [e.id, e]));
+  const errs: string[] = [];
+  for (const p of publicEntries) {
+    const s = byId.get(p.id);
+    if (!s) errs.push(`${p.id}: in the public catalog but unknown to the server catalog`);
+    else if (s.listable !== true) errs.push(`${p.id}: in the public catalog but NOT listable (${s.listable_why})`);
+  }
+  return errs;
+}
