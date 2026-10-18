@@ -10,19 +10,43 @@ const win = {};
 vm.runInNewContext(read('assets/app-jobs.js'), { window: win, setTimeout, clearTimeout });
 const J = win.ryagramJobs;
 
-test('REFUSALS: known engine messages become plain sentences; code-looking text is dropped; plain text stays; the raw text is kept for the help panel', () => {
-  assert.equal(J.plainDetail("$: unknown key 'outro'"), 'The story has a setting Ryagram doesn’t recognise: “outro”. Remove it, or pick a ready-made film and start again.');
-  assert.match(J.plainDetail("$.scenes[0].title: unknown key 'colour'"), /recognise: “colour” \(in scenes > 0 > title\)/);
-  assert.match(J.plainDetail("$.fps: missing key 'fps'"), /missing a required setting: “fps” \(in fps\)/);
-  assert.match(J.plainDetail('$.fps: expected integer, got string'), /wrong kind of value \(in fps\)/);
-  assert.equal(J.plainDetail('$.a.b: something odd'), '');
-  assert.equal(J.plainDetail('Traceback (most recent call last): boom'), '');
-  assert.equal(J.plainDetail('No data for 2031 in this dataset.'), 'No data for 2031 in this dataset.');
-  assert.equal(J.plainDetail(null), '');
-  const job = { state: 'failed', error_class: 'invalid_input', error_detail: "$: unknown key 'outro'" };
+// Golden strings: produced by the real ryagram.worker.schema.validate_story (ENGINE, tests/worker_schema.py's probe story) with one planted fault each, 2026-10-18.
+const GOLDEN = {
+  twoUnknown: "$: unknown key 'outro'; $: unknown key 'description_notes'",
+  datasetNotAllowed: "$.sequence.clips[1].dataset: 'not_on_this_worker' is not on this worker's dataset allowlist",
+  notOneOf: '$.sequence.fps: "thirty" is not one of 24, 25, 30',
+  badView: '$.sequence.clips[1].view: "globe" is not one of "map", "bars", "line", "paired", "panel", "shares"',
+  viewNotOffered: "$.sequence.clips[1].view: 'bars' is not offered for cbp_suppression on this worker (offered: line)",
+  missingSchema: "$: missing 'schema'",
+  wrongType: '$.sequence.clips[1].dataset: expected a string',
+  mixed: "$: unknown key 'outro'; $.sequence.fps: \"x\" is not one of 24, 25, 30"
+};
+
+test('REFUSALS: every fault in a joined list is put into words (not only the first), each real validate_story message has a sentence, nothing code-like survives, and an unknown fault still gets a plain sentence', () => {
+  const p = J.plainDetail;
+  const two = p(GOLDEN.twoUnknown);
+  assert.match(two, /recognise: “outro”\./);
+  assert.match(two, /recognise: “description_notes”\./, 'the second fault is not lost');
+  assert.match(p(GOLDEN.datasetNotAllowed), /The dataset “not_on_this_worker” \(in sequence > clip 2 > dataset\) can’t be drawn here\. Pick a dataset from the catalog\./);
+  assert.match(p(GOLDEN.notOneOf), /The value “thirty” \(in sequence > fps\) isn’t an allowed choice here\. Allowed: 24, 25, 30\./);
+  assert.match(p(GOLDEN.badView), /The value “globe” .*Allowed: map, bars, line, paired, panel, shares\./);
+  assert.match(p(GOLDEN.viewNotOffered), /cbp_suppression can’t be drawn as bars \(in sequence > clip 2 > view\)\. It can be drawn as: line\./);
+  assert.match(p(GOLDEN.missingSchema), /missing a required setting: “schema”\./);
+  assert.match(p(GOLDEN.wrongType), /wrong kind of value/);
+  const mixed = p(GOLDEN.mixed);
+  assert.match(mixed, /recognise: “outro”/);
+  assert.match(mixed, /“x” \(in sequence > fps\) isn’t an allowed choice/);
+  for (const g of Object.values(GOLDEN)) assert.doesNotMatch(p(g), /\$|\[\d\]|unknown key|is not one of/, g);
+  assert.equal(p('$.some.new.rule: a message nobody has seen'), 'Something in the story (in some > new > rule) wasn’t accepted.');
+  assert.match(p('$: boom_thing'), /^Something in the story wasn’t accepted\.$/);
+  assert.match(p('Traceback (most recent call last): boom'), /cannot put into plain words/);
+  assert.equal(p('No data for 2031 in this dataset.'), 'No data for 2031 in this dataset.');
+  assert.equal(p(null), '');
+  const many = p(Array.from({ length: 8 }, (_, i) => `$: unknown key 'k${i}'`).join('; '));
+  assert.match(many, /And 3 more: open “Get help with this”\.$/);
+  const job = { state: 'failed', error_class: 'invalid_input', error_detail: GOLDEN.twoUnknown };
   assert.doesNotMatch(J.problem(job), /\$|unknown key/);
-  assert.match(J.problem(job), /recognise: “outro”/);
-  assert.equal(J.rawDetail(job), "$: unknown key 'outro'");
+  assert.equal(J.rawDetail(job), GOLDEN.twoUnknown);
   assert.doesNotMatch(J.problem({ state: 'failed', error_class: 'gate', error_detail: '$.x: boom_thing' }), /\$|boom_thing/);
 });
 

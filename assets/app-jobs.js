@@ -15,21 +15,39 @@
   const isActive = job => ACTIVE.includes(job.state);
   const versionTakesJobs = versionState => !LOCKED_VERSION.includes(versionState);
 
-  // The worker's refusal text is for engineers ("$.outro: unknown key 'outro'"). plainDetail turns the ones we know into a sentence a person can act on, and drops text that still
-  // looks like code; the raw text is kept (rawDetail) and shown only behind "Get help with this".
+  // The worker's refusal text is for engineers: ryagram.worker.schema joins EVERY fault with "; " ("$: unknown key 'outro'; $.sequence.fps: \"x\" is not one of 24, 25, 30").
+  // plainDetail splits it, turns each fault into a sentence a person can act on, and for a fault it does not know says so plainly -- never nothing. The raw text is kept
+  // (rawDetail) and shown behind "Get help with this". Golden strings in tests/smoke-fixes.test.mjs come from the real validate_story on planted stories.
   const LOOKS_LIKE_CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|\b[a-z]+_[a-z_]+\b/;
+  const UNREADABLE = 'The render machine gave a reason Ryagram cannot put into plain words. Open “Get help with this” to see it, or send it to us.';
+  const unquote = t => String(t).trim().replace(/^(['"“])(.*)\1$/, '$2');
+  function where(path) {
+    const parts = String(path || '').replace(/^\$\.?/, '').split('.').filter(Boolean)
+      .map(p => { const m = /^([A-Za-z_]+)\[(\d+)\]$/.exec(p); return m ? `${m[1] === 'clips' ? 'clip' : m[1]} ${Number(m[2]) + 1}` : p; });
+    return parts.length ? ` (in ${parts.join(' > ')})` : '';
+  }
+  function plainFault(fault) {
+    const f = /^(\$[^:]*):\s*(.*)$/s.exec(fault.trim());
+    if (!f) return fault.trim() && !LOOKS_LIKE_CODE.test(fault) ? fault.trim().slice(0, 200) : '';
+    const at = where(f[1]), msg = f[2].trim();
+    let m;
+    if ((m = /^unknown key '([^']+)'/i.exec(msg))) return `The story has a setting Ryagram doesn’t recognise: “${m[1]}”${at}. Remove it, or pick a ready-made film and start again.`;
+    if ((m = /^(?:missing|required)(?: key)? '?([^']*)'?/i.exec(msg))) return `The story is missing a required setting${m[1] ? `: “${m[1]}”` : ''}${at}.`;
+    if ((m = /^(.+?) is not on this worker.s dataset allowlist/i.exec(msg))) return `The dataset “${unquote(m[1])}”${at} can’t be drawn here. Pick a dataset from the catalog.`;
+    if ((m = /^(.+?) is not offered for (\S+) on this worker \(offered: ([^)]*)\)/i.exec(msg))) return `${unquote(m[2])} can’t be drawn as ${unquote(m[1])}${at}. It can be drawn as: ${m[3].trim()}.`;
+    if ((m = /^(.+?) is not one of (.+)$/i.exec(msg))) return `The value “${unquote(m[1])}”${at} isn’t an allowed choice here. Allowed: ${m[2].replace(/["“”]/g, '').trim()}.`;
+    if (/^(?:expected|must be|should be)\b/i.test(msg)) return `A setting${at} has the wrong kind of value. Check it against a ready-made film.`;
+    return `Something in the story${at} wasn’t accepted.`;
+  }
   function plainDetail(raw) {
     const text = String(raw == null ? '' : raw).trim();
     if (!text) return '';
-    const path = p => { const parts = String(p || '').replace(/^\$\.?/, '').split(/[.\[\]]+/).filter(Boolean); return parts.length ? ` (in ${parts.join(' > ')})` : ''; };
-    let m = /^(\$[^:]*):\s*unknown key '([^']+)'/i.exec(text);
-    if (m) return `The story has a setting Ryagram doesn\u2019t recognise: \u201c${m[2]}\u201d${path(m[1])}. Remove it, or pick a ready-made film and start again.`;
-    m = /^(\$[^:]*):\s*(?:missing|required) (?:key )?'?([^']*)'?/i.exec(text);
-    if (m) return `The story is missing a required setting${m[2] ? `: \u201c${m[2]}\u201d` : ''}${path(m[1])}.`;
-    m = /^(\$[^:]*):\s*(?:expected|must be|should be)\b/i.exec(text);
-    if (m) return `A setting has the wrong kind of value${path(m[1])}. Check it against a ready-made film.`;
-    if (/^\$/.test(text) || LOOKS_LIKE_CODE.test(text)) return '';
-    return text.length > 200 ? `${text.slice(0, 197)}\u2026` : text;
+    const faults = text.split(/;\s+(?=\$)/).filter(x => x.trim());
+    const out = [];
+    for (const f of faults) { const s = plainFault(f); if (s && !out.includes(s)) out.push(s); }
+    if (!out.length) return text.startsWith('$') || LOOKS_LIKE_CODE.test(text) ? UNREADABLE : text.slice(0, 200);
+    const shown = out.slice(0, 5).join(' ');
+    return out.length > 5 ? `${shown} And ${out.length - 5} more: open “Get help with this”.` : shown;
   }
   const rawDetail = job => String((job && job.error_detail) || '').trim();
 
