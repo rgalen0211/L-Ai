@@ -50,11 +50,9 @@ test('"ready" is exactly the installed worker allowlist, and every ready dataset
   const sectors = [...sql.match(/unnest\(array\[((?:'[a-z_]+',?\s*)+)\]\) sector/)[1].matchAll(/'([a-z_]+)'/g)].map(m => m[1]);
   const suffixes = [...sql.match(/unnest\(array\[((?:'_[a-z_]+',?\s*)+)\]\) suffix/)[1].matchAll(/'(_[a-z_]+)'/g)].map(m => m[1]);
   for (const s of sectors) for (const x of suffixes) seeded.add(`cbp_${s}${x}`);
-  // The installed worker's allowlist grew from 23 to 83 (tests/catalog-usable.test.mjs). These five are on it but have NO credit_dataset_shapes row, so credit_quote would
-  // refuse them: a pricing decision for CC1 (the shape comes from the engine's DatasetSpec.shape; WEB does not guess it). Add their rows to supabase/phase-2b/credits_ledger.sql
-  // and DELETE the id from this list; a NEW usable dataset without a row fails here.
-  const UNPRICED = ['bps_county_unit_share_1', 'bps_county_unit_share_2to4', 'bps_county_unit_share_5plus', 'bps_us_unit_mix', 'fhwa_hm212'];
-  assert.deepEqual(plain(usable.map(e => e.id).filter(id => !seeded.has(id)).sort()), plain([...UNPRICED].sort()), 'usable datasets with no credit_dataset_shapes row');
+  // The installed worker's allowlist grew from 23 to 83 (tests/catalog-usable.test.mjs). Every usable dataset needs a credit_dataset_shapes row or credit_quote refuses it; the last five
+  // (bps_county_unit_share_1, _2to4, _5plus, bps_us_unit_mix, fhwa_hm212) were priced by CC1's dataset-shapes c886e09 (all 'standard'). A NEW usable dataset without a row fails here.
+  assert.deepEqual(plain(usable.map(e => e.id).filter(id => !seeded.has(id)).sort()), [], 'usable datasets with no credit_dataset_shapes row');
   for (const e of usable) assert.ok(e.window && e.window.length === 2, `${e.id} needs a ready-made period`);
 });
 
