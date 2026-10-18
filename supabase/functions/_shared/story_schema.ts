@@ -1,4 +1,4 @@
-// GENERATED from story.schema.json (the worker's export) by tools/gen_story_schema_ts.mjs. Do not edit; tests/connect.test.mjs compares the two.
+// GENERATED from story.schema.json (the worker's export) by tools/gen_story_schema_ts.mjs. Do not edit; tests/connect-tools.test.mjs compares the two.
 // A plain module, because the platform's bundler is not asked to understand JSON import attributes.
 const schema: Record<string, unknown> = {
  "type": "object",
@@ -59,8 +59,8 @@ const schema: Record<string, unknown> = {
     },
     "hold_seconds": {
      "type": "number",
-     "minimum": 0.0,
-     "maximum": 10.0
+     "minimum": 0,
+     "maximum": 10
     },
     "style_overrides": {
      "type": "object",
@@ -115,8 +115,8 @@ const schema: Record<string, unknown> = {
           },
           {
            "type": "number",
-           "minimum": -1000000000.0,
-           "maximum": 1000000000.0
+           "minimum": -1000000000,
+           "maximum": 1000000000
           }
          ]
         }
@@ -150,12 +150,12 @@ const schema: Record<string, unknown> = {
         "radius": {
          "type": "number",
          "minimum": 0.5,
-         "maximum": 6.0
+         "maximum": 6
         },
         "min_spacing": {
          "type": "number",
-         "minimum": 0.0,
-         "maximum": 40.0
+         "minimum": 0,
+         "maximum": 40
         },
         "placement_note": {
          "type": "string",
@@ -176,8 +176,8 @@ const schema: Record<string, unknown> = {
         },
         "outline_width": {
          "type": "number",
-         "minimum": 0.0,
-         "maximum": 4.0
+         "minimum": 0,
+         "maximum": 4
         },
         "fill": {
          "type": "string",
@@ -237,8 +237,8 @@ const schema: Record<string, unknown> = {
         },
         "base_alpha": {
          "type": "number",
-         "minimum": 0.0,
-         "maximum": 1.0
+         "minimum": 0,
+         "maximum": 1
         },
         "base_dash": {
          "type": "array",
@@ -246,12 +246,12 @@ const schema: Record<string, unknown> = {
           {
            "type": "number",
            "minimum": 0.5,
-           "maximum": 60.0
+           "maximum": 60
           },
           {
            "type": "number",
            "minimum": 0.5,
-           "maximum": 60.0
+           "maximum": 60
           }
          ],
          "items": false,
@@ -266,12 +266,12 @@ const schema: Record<string, unknown> = {
         "context_width": {
          "type": "number",
          "minimum": 0.1,
-         "maximum": 8.0
+         "maximum": 8
         },
         "context_alpha": {
          "type": "number",
-         "minimum": 0.0,
-         "maximum": 1.0
+         "minimum": 0,
+         "maximum": 1
         },
         "key_label": {
          "type": "string",
@@ -289,28 +289,28 @@ const schema: Record<string, unknown> = {
            "properties": {
             "clearance_px": {
              "type": "number",
-             "minimum": 1.0,
-             "maximum": 500.0
+             "minimum": 1,
+             "maximum": 500
             },
             "min_piece_px": {
              "type": "number",
-             "minimum": 10.0,
-             "maximum": 2000.0
+             "minimum": 10,
+             "maximum": 2000
             },
             "size_px": {
              "type": "number",
-             "minimum": 10.0,
-             "maximum": 200.0
+             "minimum": 10,
+             "maximum": 200
             },
             "repeat_miles": {
              "type": "number",
-             "minimum": 50.0,
-             "maximum": 5000.0
+             "minimum": 50,
+             "maximum": 5000
             },
             "min_gap_px": {
              "type": "number",
-             "minimum": 20.0,
-             "maximum": 2000.0
+             "minimum": 20,
+             "maximum": 2000
             }
            },
            "required": []
@@ -353,8 +353,8 @@ const schema: Record<string, unknown> = {
          "type": "array",
          "items": {
           "type": "number",
-          "minimum": -1000000000.0,
-          "maximum": 1000000000.0
+          "minimum": -1000000000,
+          "maximum": 1000000000
          },
          "minItems": 1,
          "maxItems": 8
@@ -397,7 +397,7 @@ const schema: Record<string, unknown> = {
         },
         "swap_seconds": {
          "type": "number",
-         "minimum": 0.0,
+         "minimum": 0,
          "maximum": 1.5
         },
         "label_width": {
@@ -429,18 +429,18 @@ const schema: Record<string, unknown> = {
         },
         "width": {
          "type": "number",
-         "minimum": 0.0,
-         "maximum": 4.0
+         "minimum": 0,
+         "maximum": 4
         },
         "opacity": {
          "type": "number",
-         "minimum": 0.0,
-         "maximum": 1.0
+         "minimum": 0,
+         "maximum": 1
         },
         "ghost_opacity": {
          "type": "number",
-         "minimum": 0.0,
-         "maximum": 1.0
+         "minimum": 0,
+         "maximum": 1
         },
         "dash_on": {
          "type": "integer",
@@ -479,7 +479,7 @@ const schema: Record<string, unknown> = {
          "seconds": {
           "type": "number",
           "minimum": 0.5,
-          "maximum": 12.0
+          "maximum": 12
          },
          "headline": {
           "type": "string",
@@ -504,8 +504,8 @@ const schema: Record<string, unknown> = {
          },
          "fade": {
           "type": "number",
-          "minimum": 0.0,
-          "maximum": 2.0
+          "minimum": 0,
+          "maximum": 2
          },
          "transition": {
           "type": "object",
@@ -520,8 +520,8 @@ const schema: Record<string, unknown> = {
            },
            "seconds": {
             "type": "number",
-            "minimum": 0.0,
-            "maximum": 3.0
+            "minimum": 0,
+            "maximum": 3
            }
           },
           "required": [
@@ -597,8 +597,8 @@ const schema: Record<string, unknown> = {
          },
          "hold_seconds": {
           "type": "number",
-          "minimum": 0.0,
-          "maximum": 10.0
+          "minimum": 0,
+          "maximum": 10
          },
          "subtitle": {
           "type": "string",
@@ -639,8 +639,8 @@ const schema: Record<string, unknown> = {
            },
            "line_axis_max": {
             "type": "number",
-            "minimum": 0.0,
-            "maximum": 1000000000.0
+            "minimum": 0,
+            "maximum": 1000000000
            },
            "line_top_n": {
             "type": "integer",
@@ -663,13 +663,13 @@ const schema: Record<string, unknown> = {
              },
              "low": {
               "type": "number",
-              "minimum": -1000000000.0,
-              "maximum": 1000000000.0
+              "minimum": -1000000000,
+              "maximum": 1000000000
              },
              "high": {
               "type": "number",
-              "minimum": -1000000000.0,
-              "maximum": 1000000000.0
+              "minimum": -1000000000,
+              "maximum": 1000000000
              },
              "label": {
               "type": "string",
@@ -702,7 +702,7 @@ const schema: Record<string, unknown> = {
               {
                "type": "number",
                "minimum": 0.1,
-               "maximum": 10.0
+               "maximum": 10
               },
               {
                "type": "string",
@@ -766,7 +766,7 @@ const schema: Record<string, unknown> = {
               "seconds": {
                "type": "number",
                "minimum": 0.5,
-               "maximum": 20.0
+               "maximum": 20
               },
               "position": {
                "enum": [
@@ -904,7 +904,7 @@ const schema: Record<string, unknown> = {
              "fade_seconds": {
               "type": "number",
               "minimum": 0.1,
-              "maximum": 10.0
+              "maximum": 10
              },
              "label": {
               "type": "string",
@@ -927,7 +927,7 @@ const schema: Record<string, unknown> = {
            "final_hold_seconds": {
             "type": "number",
             "minimum": 1.6,
-            "maximum": 10.0
+            "maximum": 10
            }
           },
           "required": []
@@ -945,8 +945,8 @@ const schema: Record<string, unknown> = {
            },
            "seconds": {
             "type": "number",
-            "minimum": 0.0,
-            "maximum": 3.0
+            "minimum": 0,
+            "maximum": 3
            }
           },
           "required": [

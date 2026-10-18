@@ -340,9 +340,60 @@ class Connect(core.Base):
         self.fails("select connect_list_projects(%s)", h(a), code="PT401")                  # the old pair is spent
         r.one("select connect_list_projects(%s)", h(n_acc))
         bad = {"error": "invalid_grant"}
+        self.db.as_(None).c.execute("update public.connect_tokens set refresh_used_at = now() - interval '61 seconds' where refresh_hash = %s", (h(ref),))   # past the 60 s retry grace
+        r = self.runner()
         self.assertEqual(r.one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("3" * 64), h("4" * 64)), bad)   # reuse ...
         self.fails("select connect_list_projects(%s)", h(n_acc), code="PT401")              # ... killed the new one too
         self.assertEqual(r.one("select connect_refresh(%s,%s,%s,%s)", h(n_ref), client, h("5" * 64), h("6" * 64)), bad)
+
+    def test_refresh_retry_grace_and_sliding_thirty_days(self):
+        bad = {"error": "invalid_grant"}
+        # SLIDING: a refresh gives the new refresh token a fresh 30 days, even when the old one had only days left
+        client, a, ref = self.connect(ALICE)
+        self.db.as_(None).c.execute("update public.connect_tokens set refresh_expires_at = now() + interval '3 days' where refresh_hash = %s", (h(ref),))
+        n1, r1 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n1), h(r1))
+        days = self.db.as_(None).one("select extract(epoch from (refresh_expires_at - now())) / 86400 from public.connect_tokens where refresh_hash = %s", h(r1))
+        self.assertGreater(float(days), 29.9); self.assertLess(float(days), 30.1)
+        # GRACE: the same refresh token presented again within 60 s (a lost answer, or two requests at once) gets a fresh pair; both pairs work
+        n2, r2 = uuid.uuid4().hex, uuid.uuid4().hex
+        out = self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n2), h(r2))
+        self.assertEqual(out["expires_in"], 3600)
+        self.runner().one("select connect_list_projects(%s)", h(n1)); self.runner().one("select connect_list_projects(%s)", h(n2))
+        # ONCE per spent token: a SECOND repeat inside the 60 s is reuse, refused, and it kills the family (no parallel chain can grow from a replay)
+        n3, r3 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n3), h(r3)), {"error": "invalid_grant"})
+        self.runner(); self.fails("select connect_list_projects(%s)", h(n1), code="PT401"); self.runner(); self.fails("select connect_list_projects(%s)", h(n2), code="PT401")
+        self.runner(); self.fails("select connect_list_projects(%s)", h(n3), code="PT401")
+        client, a, ref = self.connect(ALICE)           # a new connection to carry on with the remaining checks
+        n1, r1 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n1), h(r1))
+        n2, r2 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n2), h(r2))          # its one grace
+        # the grace never reaches past 60 s: aged, the same token is reuse and kills the family (both pairs)
+        self.db.as_(None).c.execute("update public.connect_tokens set refresh_used_at = now() - interval '61 seconds' where refresh_hash = %s", (h(ref),))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("7" * 64), h("8" * 64)), bad)
+        self.runner(); self.fails("select connect_list_projects(%s)", h(n1), code="PT401"); self.runner(); self.fails("select connect_list_projects(%s)", h(n2), code="PT401")
+        # once the family is dead the grace does not come back, even for a token spent a second ago
+        self.db.as_(None).c.execute("update public.connect_tokens set refresh_used_at = now() where refresh_hash = %s", (h(ref),))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("9" * 64), h("a" * 64)), bad)
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(r1), client, h("b" * 64), h("c" * 64)), bad)
+        # a killed family gets no grace even though this token has not used its one retry: a child row revoked without having been rotated is the kill marker
+        client4, a4, ref4 = self.connect(ALICE)
+        n4, r4 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref4), client4, h(n4), h(r4))
+        self.db.as_(None).c.execute("update public.connect_tokens set revoked_at = now() where refresh_hash = %s", (h(r4),))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref4), client4, h("5" * 64), h("6" * 64)), bad)
+        # the grace still needs the right client, a live grant and an enabled person
+        client2, a2, ref2 = self.connect(ALICE)
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref2), client2, h("d" * 64), h("e" * 64))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref2), "rgc_not_this_client", h("f" * 64), h("0" * 64)), bad)
+        self.db.as_(None).c.execute("update public.connect_grants set revoked_at = now() where client_id = %s", (client2,))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref2), client2, h("1" * 64), h("2" * 64)), bad)
+        # UNUSED for 30 days: the refresh token has expired and the connection is over
+        client3, a3, ref3 = self.connect(ALICE)
+        self.db.as_(None).c.execute("update public.connect_tokens set refresh_expires_at = now() - interval '1 second' where refresh_hash = %s", (h(ref3),))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref3), client3, h("3" * 64), h("4" * 64)), bad)
 
     def test_refresh_needs_the_same_client_and_a_live_grant(self):
         client, a, ref = self.connect(ALICE)
@@ -622,6 +673,36 @@ class Connect(core.Base):
         self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 1)
         self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [])
         self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 0)
+        # every guard policy is RESTRICTIVE (a permissive one only adds access, so it would guard nothing) ...
+        self.assertEqual(admin("select count(*) from pg_policy where polname = 'connect_no_oauth_select' and polpermissive"), 0)
+        self.assertGreaterEqual(admin("select count(*) from pg_policy where polname = 'connect_no_oauth_select' and not polpermissive"), 3)
+        # ... and a look-alike: a PERMISSIVE policy with the same name does not count as a guard, so the table is still listed (and repaired)
+        c = self.db.as_(None).c
+        c.execute("create table public.lookalike (id int primary key, owner_id uuid)")
+        c.execute("alter table public.lookalike enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.lookalike as permissive for select to authenticated using ((select auth.jwt() ->> 'client_id') is null)")
+        c.execute("alter publication supabase_realtime add table public.lookalike")
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [("public", "lookalike")])
+        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 1)
+        self.assertEqual(admin("select count(*) from pg_policy where polname = 'connect_no_oauth_select' and polpermissive"), 0)
+        # a restrictive policy of that name that does NOT test client_id (using true), or that is for another role, is no guard either
+        c.execute("create table public.weak1 (id int primary key)")
+        c.execute("alter table public.weak1 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.weak1 as restrictive for select to authenticated using (true)")
+        c.execute("alter publication supabase_realtime add table public.weak1")
+        c.execute("create table public.weak2 (id int primary key)")
+        c.execute("alter table public.weak2 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.weak2 as restrictive for select to anon using ((select auth.jwt() ->> 'client_id') is null)")
+        c.execute("alter publication supabase_realtime add table public.weak2")
+        c.execute("create table public.weak3 (id int primary key)")
+        c.execute("alter table public.weak3 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.weak3 as restrictive for select to authenticated using (((select auth.jwt() ->> 'client_id') is null) or true)")
+        c.execute("alter publication supabase_realtime add table public.weak3")
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables() order by 2"), [("public", "weak1"), ("public", "weak2"), ("public", "weak3")])
+        self.assertEqual(admin("select ryagram_private.connect_guard_published_tables()"), 3)
+        # after the repair every guard policy is the one exact expression
+        self.assertEqual(admin("select count(distinct regexp_replace(lower(pg_get_expr(polqual, polrelid)), '\\s|\\(|\\)|::text', '', 'g')) from pg_policy where polname = 'connect_no_oauth_select'"), 1)
+        self.assertEqual(self.db.as_(None).all("select * from ryagram_private.connect_unguarded_published_tables()"), [])
         # the runner and the app roles cannot call the guard functions
         self.runner(); self.fails("select ryagram_private.connect_guard_published_tables()")
         self.app(ALICE); self.fails("select * from ryagram_private.connect_unguarded_published_tables()")
@@ -879,6 +960,25 @@ class LiveFiles(core.Base):
         self.db.as_(None).c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'x')")
         _, rows = self.run_file("01_after_migration_check.sql")
         self.assertEqual([r[0] for r in rows if r[1] is not True], ["the redirect allowlist has NO loopback row enabled (live must keep loopback off)"])
+        # a PERMISSIVE look-alike guard policy on a published table fails the restrictive row and the published-table row
+        c = self.db.as_(None).c
+        c.execute("create table public.lookalike2 (id int primary key)")
+        c.execute("alter table public.lookalike2 enable row level security")
+        c.execute("create policy connect_no_oauth_select on public.lookalike2 as permissive for select to authenticated using ((select auth.jwt() ->> 'client_id') is null)")
+        c.execute("alter publication supabase_realtime add table public.lookalike2")
+        _, rows = self.run_file("01_after_migration_check.sql")
+        bad = {r[0] for r in rows if r[1] is not True}
+        # the day someone adds a policy on realtime.messages (a private channel), the check says so
+        c.execute("create schema if not exists realtime")
+        c.execute("create table realtime.messages (id int primary key, topic text)")
+        c.execute("alter table realtime.messages enable row level security")
+        _, rows2 = self.run_file("01_after_migration_check.sql")
+        self.assertNotIn("realtime.messages has NO policy", " ".join(r[0] for r in rows2 if r[1] is not True))     # a table with no policy passes
+        c.execute("create policy private_channels on realtime.messages for select to authenticated using (true)")
+        _, rows2 = self.run_file("01_after_migration_check.sql")
+        self.assertTrue(any(r[0].startswith("realtime.messages has NO policy") and r[1] is not True for r in rows2))
+        self.assertIn("every connect_no_oauth_select policy is RESTRICTIVE (none is permissive) and at least one exists", bad)
+        self.assertIn("every published realtime table has the restrictive client_id policy", bad)
 
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")

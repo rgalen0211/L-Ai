@@ -359,7 +359,7 @@ test('no secret in the repo: no real role password, no connection string with a 
   const walk = (d) => readdirSync(d).flatMap((f) => (skip.has(f) ? [] : statSync(`${d}/${f}`).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]));
   const files = ['supabase', 'tools', 'docs', 'tests'].flatMap(walk).filter((f) => /\.(sql|py|mjs|cjs|ts|md|sh|json|txt)$/.test(f));
   assert.ok(files.length > 50);
-  const here = 'tests/connect.test.mjs';
+  const here = 'tests/connect-tools.test.mjs';
   for (const f of files) {
     if (f === here) continue;
     const text = readFileSync(f, 'utf8');
@@ -372,4 +372,18 @@ test('no secret in the repo: no real role password, no connection string with a 
   }
   assert.equal(statSync('tools/oauth_proof').isDirectory(), true);
   assert.throws(() => statSync('tools/oauth_proof/connect_runner_login.sql'));
+});
+
+test('the app opens no private realtime channel (a private channel is authorised by a policy on realtime.messages; the live check says so the day one is added)', async () => {
+  const fs = await import('node:fs'); const path = await import('node:path');
+  const files = ['assets', 'app'].flatMap((d) => fs.existsSync(d) ? fs.readdirSync(d, { recursive: true }).map((f) => path.join(d, String(f))) : [])
+    .filter((f) => /\.(js|html|mjs)$/.test(f) && fs.statSync(f).isFile());
+  assert.ok(files.length > 3, 'found the app files');
+  for (const f of files) {
+    const src = fs.readFileSync(f, 'utf8');
+    assert.doesNotMatch(src, /private\s*:\s*true/, `${f} must not open a private channel`);
+    assert.doesNotMatch(src, /\.(setAuth|send)\(\s*['"]?broadcast/, `${f} must not use realtime broadcast`);
+  }
+  const channels = files.flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/\.channel\(([^)]*)\)/g)].map((m) => m[1]));
+  assert.ok(channels.length >= 1 && channels.every((c) => /^`jobs:/.test(c.trim())), `the only channel is the per-film jobs channel (found ${channels.join(' | ')})`);
 });
