@@ -119,6 +119,18 @@
     return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
+  // ---- Render approvals (PIPE-1, SQL 20261017000600): the full renders waiting for Ryan, oldest first.
+  const RENDER_SOURCE_WORDS = { app: 'from the app', connect: 'from a connected AI' };
+  function renderQueueLine(rows) {
+    const n = (rows || []).length;
+    return n ? `${plural(n, 'full render')} waiting for your approval, oldest first. Approving starts the render; declining returns the person\u2019s credits.` : 'No full renders are waiting for approval.';
+  }
+  function renderWhen(r, now) {
+    const left = Math.round((Date.parse(r.expires_at) - now) / 3600000);
+    const expiry = !Number.isFinite(left) ? '' : left <= 0 ? ' It has expired and will be cancelled and returned on the next check.' : ` Expires in ${left < 48 ? plural(left, 'hour') : plural(Math.round(left / 24), 'day')} if nobody decides.`;
+    return `Asked ${ago(r.requested_at, now)}.${expiry}`;
+  }
+
   // ---- Costs on the Operations screen (SQL 20261016000100). An unknown cost is never shown as $0.
   const COST_VENDORS = [['stripe', 'Stripe'], ['resend', 'Resend (email)'], ['supabase', 'Supabase'], ['domain', 'Domain'], ['cloud', 'Cloud'], ['anthropic', 'Anthropic (AI editor)'], ['render', 'Rendering'], ['other', 'Other']];
   const vendorWord = v => (COST_VENDORS.find(([id]) => id === v) || [v, v])[1];
@@ -177,5 +189,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
+  window.ryagramOps = { RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost };
 })();

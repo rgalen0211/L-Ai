@@ -50,6 +50,8 @@
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  // Full renders go through request_final_render (and its approval queue) once SQL 20261017000500/600 are applied (renderOrders: true), or in mock mode.
+  const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
@@ -70,11 +72,13 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
+        else if (ordersOn() && hash === '#/admin/renders' && await data.isAppAdmin()) view = await rendersAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
@@ -181,7 +185,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
@@ -226,6 +230,16 @@
     }
 
     // --- #/request  a creator asks for a film: the question, what it costs, and where each request stands (Ryan makes it by hand for now)
+    // --- #/delivery/<id>  a delivered film (kept 30 days): the link is signed for an hour, by the database's say-so
+    async function deliveryView(id) {
+      let got = null, problem = '';
+      try { got = await data.deliveryUrl(id); } catch (err) { problem = err.message; }
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Your film'),
+        got ? [h('video', { controls: true, preload: 'metadata', src: got.url }), h('p', {}, h('a', { class: 'button secondary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download')),
+               h('p', { class: 'form-note' }, `${got.label || 'AI-assisted'}. This film is kept for 30 days, then deleted. This link works for an hour; come back to this page for a new one.`)]
+            : h('p', { class: 'app-error', role: 'alert' }, problem)];
+    }
+
     async function requestView() {
       const O = window.ryagramOps;
       const error = errorLine();
@@ -270,6 +284,35 @@
     }
 
     // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
+    // --- #/admin/renders  Ryan only: the full renders waiting for approval. Approve starts the render; Decline returns the credits. Redrawn after each call returns.
+    async function rendersAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const out = h('div');
+      const note = id => h('input', { type: 'text', maxlength: '500', autocomplete: 'off', placeholder: 'Note (optional)', 'aria-label': `Note for request ${id}` });
+      async function load() {
+        let rows;
+        try { rows = await data.adminRenderQueue(); } catch (err) { out.replaceChildren(); showError(error, err); return; }
+        const now = Date.now();
+        out.replaceChildren(h('p', { class: 'form-note' }, O.renderQueueLine(rows)),
+          rows.length ? h('ul', { class: 'ops-list render-queue' }, rows.map(r => {
+            const n = note(r.stage_id.slice(0, 8));
+            const decide = (approve, label, busyLabel) => h('button', { class: `button ${approve ? 'primary' : 'secondary'} small`, type: 'button', onclick: async event => {
+              if (!approve && !confirm(`Decline this full render? ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} go back to ${r.owner_email || 'the person'}.`)) return;
+              error.hidden = true;
+              await busy(event.currentTarget, busyLabel, async () => {
+                try { await data.adminRenderDecide(r.stage_id, approve, n.value.trim()); await load(); } catch (err) { showError(error, err); }
+              });
+            } }, label);
+            return h('li', {}, h('strong', {}, r.film_title || 'A film'), h('span', { class: 'meta' }, ` ${r.owner_email || 'an account'}, ${O.RENDER_SOURCE_WORDS[r.source] || r.source}, ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} held`),
+              h('p', { class: 'form-note' }, O.renderWhen(r, now)), h('div', { class: 'inline-row' }, n, ' ', decide(true, 'Approve', 'Approving\u2026'), ' ', decide(false, 'Decline', 'Declining\u2026')));
+          })) : null);
+      }
+      await load();
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Render approvals'),
+        h('p', { class: 'form-note' }, 'Full renders wait here while auto-render is off. The person\u2019s credits are held until you decide.'), out, error];
+    }
+
     async function opsAdminView(onStop) {
       const O = window.ryagramOps;
       const error = errorLine();
@@ -283,11 +326,22 @@
       let invited = null;
       function invitePanel() {
         if (!invited) return null;
-        const { name, email, code } = invited;
+        const { name, email, code, credits } = invited;
         return h('div', { class: 'invite-panel', role: 'status' },
           h('p', {}, h('strong', {}, `Invite code for ${name}: `), h('code', {}, code), '  (shown once; copy it now)'),
-          h('p', {}, h('a', { class: 'button secondary small', href: O.inviteMailto({ name, email, code, credits: null }) }, `Email it to ${email}`), ' ',
+          h('p', {}, h('a', { class: 'button secondary small', href: O.inviteMailto({ name, email, code, credits: credits == null ? null : credits }) }, `Email it to ${email}`), ' ',
             button('Done', async () => { invited = null; })));
+      }
+      // --- Invite someone: a friend Ryan names before the public form is live. The address is used ONLY for the mailto: link; the database gets the name and the credits.
+      function invitePersonForm() {
+        const name = h('input', { id: 'ip-name', name: 'name', type: 'text', required: true, maxlength: '100', autocomplete: 'off' });
+        const email = h('input', { id: 'ip-email', name: 'email', type: 'email', required: true, maxlength: '320', autocomplete: 'off' });
+        const credits = h('input', { id: 'ip-credits', name: 'credits', type: 'number', min: '0', max: '1000', step: '1', placeholder: 'the usual welcome credits' });
+        return miniForm('Invite someone', [field('Their name', name), field('Their email (stays in your mail program)', email), field('Welcome credits (optional)', credits)], 'Make an invite code', async () => {
+          const c = credits.value.trim() === '' ? null : Number(credits.value);
+          const code = await data.adminInvitePerson(name.value, c);
+          invited = { name: name.value.trim(), email: email.value.trim(), code, credits: c };
+        });
       }
       // --- the film request queue: what creators asked for, to make by hand and then mark delivered (with the film's https link) or decline (credits go back)
       function queueSection(q, now) {
@@ -415,7 +469,7 @@
               h('p', {}, e.detail || '(no detail recorded)'), button('Mark reviewed', () => data.adminAckStripe(e.event_id))))) : null),
           queueSection(fr, now),
           costSection(cost, now),
-          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)), invitePanel(),
+          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)), invitePanel(), invitePersonForm(),
             cb && cb.items.length ? h('ul', { class: 'ops-list' }, cb.items.map(a => h('li', {},
               h('strong', {}, `#${a.id} ${a.name}`), h('span', { class: 'meta' }, ` ${O.CREATOR_KIND_WORDS[a.kind] || a.kind}, ${a.email}, ${O.ago(a.created_at, now)}`),
               h('p', {}, 'Makes: ', a.makes, ' \u00b7 ', h('a', { href: a.link, rel: 'noopener noreferrer', target: '_blank' }, a.link)),
@@ -489,8 +543,8 @@
       // Change password
       const pwError = errorLine();
       const pwDone = h('p', { class: 'form-note', role: 'status' });
-      const pw = h('input', { id: 'acct-password', type: 'password', autocomplete: 'new-password', minlength: '10', required: true });
-      const pw2 = h('input', { id: 'acct-password2', type: 'password', autocomplete: 'new-password', minlength: '10', required: true });
+      const pw = h('input', { id: 'acct-password', type: 'password', autocomplete: 'new-password', minlength: '12', required: true });
+      const pw2 = h('input', { id: 'acct-password2', type: 'password', autocomplete: 'new-password', minlength: '12', required: true });
       const pwSave = h('button', { class: 'button secondary', type: 'submit' }, 'Change password');
       const pwForm = h('form', { class: 'contact-form', onsubmit: async event => {
         event.preventDefault();
@@ -502,7 +556,7 @@
           catch (err) { showError(pwError, err); }
         });
       } },
-        h('label', { for: 'acct-password' }, 'New password (at least 10 characters)'), pw,
+        h('label', { for: 'acct-password' }, 'New password (at least 12 characters)'), pw,
         h('label', { for: 'acct-password2' }, 'The same again'), pw2, pwSave, pwDone, pwError);
 
       const sections = [
@@ -678,9 +732,11 @@
           });
         } }, `New version from r${v.number}`)));
 
+      const helpNote = requestsOn() ? h('p', { class: 'form-note request-pointer' }, 'Not sure how to build a film? ', h('a', { href: '#/request' }, 'Request a film'), ' and we will make it for you.') : null;
       return [
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, project.title),
+        helpNote,
         actions, renameForm, error,
         h('h2', {}, 'Versions'),
         h('p', { class: 'form-intro' }, 'Each version keeps its own story and files. Making a new version copies the story and leaves the old one as it was.'),
@@ -1209,6 +1265,8 @@
       const previewButton = h('button', { class: 'button secondary', type: 'button' }, 'Make preview');
       const finalButton = h('button', { class: 'button primary', type: 'button' }, 'Render final film');
       const finalNote = h('p', { class: 'form-note' });
+      const orderBox = h('div', { class: 'order-box', 'aria-live': 'polite' });
+      let openOrders = false;                                        // an order waiting or running keeps the page polling
       const lockedNote = h('p', { class: 'form-note', hidden: true });
       const controls = h('div', { class: 'run-controls' },
         h('div', { class: 'run-step' },
@@ -1219,7 +1277,7 @@
           h('div', { class: 'inline-row' }, winStart, winEnd, previewButton)),
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
-          finalNote, finalButton),
+          finalNote, finalButton, orderBox),
         h('p', { class: 'form-note run-timing' }, 'Jobs keep running if you leave this page.'));
 
       async function submit(button, type, params, ladder) {
@@ -1253,8 +1311,40 @@
         const cost = creditsOn() && q && !q.error && q.credits
           ? ` It uses ${C.plural(q.credits)}, held now and returned if the render fails.` : '';
         if (!confirm(`Render the final film of r${v.number}? Its story locks while it renders; later changes need a new version.${cost}`)) return;
+        if (ordersOn()) { requestOrder(ladder.preview.id); return; }                  // the order path: held for approval while auto_render is off
         submit(finalButton, 'final_render', {}, { sheetJobId: ladder.sheet.id, previewJobId: ladder.preview.id });
       });
+
+      // A full render is REQUESTED: while auto_render is off it waits for Ryan with the credits held; with it on it starts at once. A key is spent for good, so each request makes a new one.
+      async function requestOrder(previewJobId) {
+        error.hidden = true;
+        await busy(finalButton, 'Requesting\u2026', async () => {
+          try {
+            await data.requestFinalRender(previewJobId, `app-${previewJobId.slice(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+            await loadOrders();
+            await refresh();
+          } catch (err) { showError(error, err); }
+        });
+      }
+      async function loadOrders() {
+        if (!ordersOn()) return;
+        let rows = [];
+        try { rows = await data.listOrders(v.id); } catch { return; }
+        const shown = [];
+        for (const o of rows.slice(0, 3)) {
+          let st = null;
+          try { st = await data.orderStatus(o.id); } catch { st = { state: o.state, stages: [] }; }
+          const actions = [];
+          if (J.orderOpen(st.state)) actions.push(h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
+            if (!confirm('Cancel this full render? Your credits are returned.')) return;
+            await busy(event.currentTarget, 'Cancelling\u2026', async () => { try { await data.cancelOrder(o.id); await loadOrders(); } catch (err) { showError(error, err); } });
+          } }, 'Cancel the request'));
+          if (st.state === 'delivered' && st.delivery && !st.delivery.deleted) actions.push(h('a', { class: 'button primary small', href: `#/delivery/${st.delivery.id}` }, 'Open your film'));
+          shown.push(h('li', {}, h('strong', {}, `${J.ORDER_WORDS[st.state] || st.state} `), h('span', { class: 'meta' }, `${date(o.created_at)}. `), J.orderLine(st), ' ', actions));
+        }
+        openOrders = rows.some(o => J.orderOpen(o.state));
+        orderBox.replaceChildren(shown.length ? h('ul', { class: 'order-list' }, shown) : null);
+      }
 
       function syncControls() {
         const takes = J.versionTakesJobs(v.state);
@@ -1267,7 +1357,7 @@
         const ladder = J.ladder(jobs, storySha, engine);
         finalButton.disabled = !ladder.ready || busyType('final_render');
         finalNote.textContent = ladder.ready
-          ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. Clicking is your approval.`
+          ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. ${ordersOn() ? 'Clicking requests the full render: while we approve them by hand it waits, with your credits held, and they come back if it is not approved.' : 'Clicking is your approval.'}`
           : ladder.missing;
         if (creditsOn()) {
           const label = (button, base, type) => {
@@ -1392,6 +1482,7 @@
             } catch (err) {
               if (!stopped) showError(error, err);
             }
+            await loadOrders();
             if (!stopped) draw();
           } while (again && !stopped);
         })();
@@ -1400,7 +1491,7 @@
 
       const watch = data.watchJobs(v.id, () => refresh());
       const timer = setInterval(() => {
-        if (!watch.live() || jobs.some(J.isActive)) refresh();
+        if (!watch.live() || jobs.some(J.isActive) || openOrders) refresh();
         else liveNote.textContent = '● Live';
       }, 10000);
       refresh();

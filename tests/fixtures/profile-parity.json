@@ -1,0 +1,5285 @@
+{
+ "presets": {
+  "bold-social": {
+   "profile_version": 1,
+   "name": "bold-social",
+   "title": "Bold social",
+   "notes": "Dark page, vivid violet-to-yellow ramp, cyan and magenta dots, quick fades. 16:9: a true vertical layout is not built yet (see the canvas warning).",
+   "look": {
+    "theme": "dark",
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "page_background": "#0b0b12",
+    "text_muted": "#a3a3b3",
+    "ramp": {
+     "low": "#2a1a5e",
+     "high": "#ffd400",
+     "mode": "solid",
+     "steps": "auto"
+    },
+    "hatch_line_color": "#ffd400",
+    "dots": {
+     "color": "#00e5ff",
+     "baseline_color": "#ff2d95",
+     "radius": 4.0
+    },
+    "state": {
+     "fill": "#16162a",
+     "no_data_fill": "#4a4630",
+     "outline_width": 1.5
+    }
+   },
+   "pacing": {
+    "transition": {
+     "kind": "fade",
+     "seconds": 0.3
+    },
+    "title_card": {
+     "fade": 0.2,
+     "align": "left"
+    }
+   }
+  },
+  "clean-light": {
+   "profile_version": 1,
+   "name": "clean-light",
+   "title": "Clean light",
+   "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+   "look": {
+    "theme": "light",
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "page_background": "#fcfcfb",
+    "text_muted": "#6b6a65",
+    "ramp": {
+     "low": "#eef1f6",
+     "high": "#16233f",
+     "mode": "solid",
+     "steps": "auto"
+    },
+    "hatch_line_color": "#3d5a8a",
+    "dots": {
+     "color": "#c2410c",
+     "baseline_color": "#1d4ed8",
+     "radius": 3.4
+    },
+    "state": {
+     "fill": "#f6f5f1",
+     "no_data_fill": "#e2d7c6",
+     "outline_width": 1.5
+    }
+   },
+   "pacing": {
+    "transition": {
+     "kind": "crossfade",
+     "seconds": 0.6
+    },
+    "title_card": {
+     "fade": 0.4,
+     "align": "left"
+    }
+   }
+  },
+  "print-mono": {
+   "profile_version": 1,
+   "name": "print-mono",
+   "title": "High-contrast print",
+   "notes": "Black on white with hatching, so it survives greyscale printing and colour-blind readers. Dots use the Okabe-Ito blue and orange.",
+   "look": {
+    "theme": "light",
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "page_background": "#ffffff",
+    "text_muted": "#4d4d4d",
+    "ramp": {
+     "low": "#f2f2f2",
+     "high": "#000000",
+     "mode": "hatch",
+     "steps": "auto"
+    },
+    "hatch_line_color": "#111111",
+    "dots": {
+     "color": "#d55e00",
+     "baseline_color": "#0072b2",
+     "radius": 3.6
+    },
+    "state": {
+     "fill": "#f7f7f7",
+     "no_data_fill": "#d9d2c3",
+     "outline_width": 2.5
+    }
+   },
+   "pacing": {
+    "transition": {
+     "kind": "cut"
+    },
+    "title_card": {
+     "fade": 0.0,
+     "align": "center"
+    }
+   }
+  },
+  "warm-documentary": {
+   "profile_version": 1,
+   "name": "warm-documentary",
+   "title": "Warm documentary",
+   "notes": "Paper page, earth ramp, 24 fps, slow dissolves. Reads like a printed atlas.",
+   "look": {
+    "theme": "light",
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 24,
+    "page_background": "#f4efe6",
+    "text_muted": "#6f675a",
+    "ramp": {
+     "low": "#efe6d4",
+     "high": "#4a230a",
+     "mode": "solid",
+     "steps": "auto"
+    },
+    "hatch_line_color": "#4a230a",
+    "dots": {
+     "color": "#b5390f",
+     "baseline_color": "#1f6f78",
+     "radius": 3.4
+    },
+    "state": {
+     "fill": "#ebe3d3",
+     "no_data_fill": "#c9bba0",
+     "outline_width": 1.5
+    }
+   },
+   "pacing": {
+    "hold_seconds": 3.0,
+    "transition": {
+     "kind": "crossfade",
+     "seconds": 0.8
+    },
+    "title_card": {
+     "fade": 0.8,
+     "align": "left"
+    }
+   }
+  },
+  "wtds-classic": {
+   "profile_version": 1,
+   "name": "wtds-classic",
+   "title": "What the Data Show (classic)",
+   "notes": "The look of the current films, written out as a profile. Applying it to a story changes nothing the engine would not already draw.",
+   "look": {
+    "theme": "dark",
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "page_background": "#14141a",
+    "text_muted": "#86857e",
+    "ramp": {
+     "low": "#232838",
+     "high": "#e8eefb",
+     "mode": "hatch",
+     "steps": "auto"
+    },
+    "hatch_line_color": "#8fb6ea",
+    "dots": {
+     "color": "#ff8a3d",
+     "baseline_color": "#c2185b",
+     "radius": 3.4
+    },
+    "state": {
+     "fill": "#1f1f27",
+     "no_data_fill": "#38312a",
+     "outline_width": 2.0
+    },
+    "bars": {
+     "label_width": 190,
+     "value_width": 150
+    }
+   },
+   "pacing": {
+    "transition": {
+     "kind": "crossfade",
+     "seconds": 0.6
+    },
+    "title_card": {
+     "fade": 0.4,
+     "align": "center"
+    }
+   }
+  }
+ },
+ "compiled": [
+  {
+   "preset": "bold-social",
+   "sample": "map",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.2,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "fade",
+        "seconds": 0.3
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#0b0b12"
+      },
+      "text": {
+       "muted": "#a3a3b3"
+      },
+      "choropleth": {
+       "low": "#2a1a5e",
+       "high": "#ffd400",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#ffd400"
+      },
+      "dots": {
+       "color": "#00e5ff",
+       "baseline_color": "#ff2d95",
+       "radius": 4.0
+      },
+      "state": {
+       "fill": "#16162a",
+       "no_data_fill": "#4a4630",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.kind",
+    "sequence.clips.1.transition.seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "bold-social",
+   "sample": "map",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#0b0b12"
+      },
+      "text": {
+       "muted": "#a3a3b3"
+      },
+      "choropleth": {
+       "low": "#2a1a5e",
+       "high": "#ffd400",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#ffd400"
+      },
+      "dots": {
+       "color": "#00e5ff",
+       "baseline_color": "#ff2d95",
+       "radius": 4.0
+      },
+      "state": {
+       "fill": "#16162a",
+       "no_data_fill": "#4a4630",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "bold-social",
+   "sample": "bars",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.2,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "fade",
+        "seconds": 0.3
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#0b0b12"
+      },
+      "text": {
+       "muted": "#a3a3b3"
+      },
+      "choropleth": {
+       "low": "#2a1a5e",
+       "high": "#ffd400",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#ffd400"
+      },
+      "dots": {
+       "color": "#00e5ff",
+       "baseline_color": "#ff2d95",
+       "radius": 4.0
+      },
+      "state": {
+       "fill": "#16162a",
+       "no_data_fill": "#4a4630",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.kind",
+    "sequence.clips.1.transition.seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "bold-social",
+   "sample": "bars",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#0b0b12"
+      },
+      "text": {
+       "muted": "#a3a3b3"
+      },
+      "choropleth": {
+       "low": "#2a1a5e",
+       "high": "#ffd400",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#ffd400"
+      },
+      "dots": {
+       "color": "#00e5ff",
+       "baseline_color": "#ff2d95",
+       "radius": 4.0
+      },
+      "state": {
+       "fill": "#16162a",
+       "no_data_fill": "#4a4630",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "bold-social",
+   "sample": "line",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.2,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "fade",
+        "seconds": 0.3
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#0b0b12"
+      },
+      "text": {
+       "muted": "#a3a3b3"
+      },
+      "choropleth": {
+       "low": "#2a1a5e",
+       "high": "#ffd400",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#ffd400"
+      },
+      "dots": {
+       "color": "#00e5ff",
+       "baseline_color": "#ff2d95",
+       "radius": 4.0
+      },
+      "state": {
+       "fill": "#16162a",
+       "no_data_fill": "#4a4630",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.kind",
+    "sequence.clips.1.transition.seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "bold-social",
+   "sample": "line",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#0b0b12"
+      },
+      "text": {
+       "muted": "#a3a3b3"
+      },
+      "choropleth": {
+       "low": "#2a1a5e",
+       "high": "#ffd400",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#ffd400"
+      },
+      "dots": {
+       "color": "#00e5ff",
+       "baseline_color": "#ff2d95",
+       "radius": 4.0
+      },
+      "state": {
+       "fill": "#16162a",
+       "no_data_fill": "#4a4630",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "clean-light",
+   "sample": "map",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#fcfcfb"
+      },
+      "text": {
+       "muted": "#6b6a65"
+      },
+      "choropleth": {
+       "low": "#eef1f6",
+       "high": "#16233f",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#3d5a8a"
+      },
+      "dots": {
+       "color": "#c2410c",
+       "baseline_color": "#1d4ed8",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#f6f5f1",
+       "no_data_fill": "#e2d7c6",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "clean-light",
+   "sample": "map",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#fcfcfb"
+      },
+      "text": {
+       "muted": "#6b6a65"
+      },
+      "choropleth": {
+       "low": "#eef1f6",
+       "high": "#16233f",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#3d5a8a"
+      },
+      "dots": {
+       "color": "#c2410c",
+       "baseline_color": "#1d4ed8",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#f6f5f1",
+       "no_data_fill": "#e2d7c6",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "clean-light",
+   "sample": "bars",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#fcfcfb"
+      },
+      "text": {
+       "muted": "#6b6a65"
+      },
+      "choropleth": {
+       "low": "#eef1f6",
+       "high": "#16233f",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#3d5a8a"
+      },
+      "dots": {
+       "color": "#c2410c",
+       "baseline_color": "#1d4ed8",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#f6f5f1",
+       "no_data_fill": "#e2d7c6",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "clean-light",
+   "sample": "bars",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#fcfcfb"
+      },
+      "text": {
+       "muted": "#6b6a65"
+      },
+      "choropleth": {
+       "low": "#eef1f6",
+       "high": "#16233f",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#3d5a8a"
+      },
+      "dots": {
+       "color": "#c2410c",
+       "baseline_color": "#1d4ed8",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#f6f5f1",
+       "no_data_fill": "#e2d7c6",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "clean-light",
+   "sample": "line",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#fcfcfb"
+      },
+      "text": {
+       "muted": "#6b6a65"
+      },
+      "choropleth": {
+       "low": "#eef1f6",
+       "high": "#16233f",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#3d5a8a"
+      },
+      "dots": {
+       "color": "#c2410c",
+       "baseline_color": "#1d4ed8",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#f6f5f1",
+       "no_data_fill": "#e2d7c6",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "clean-light",
+   "sample": "line",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#fcfcfb"
+      },
+      "text": {
+       "muted": "#6b6a65"
+      },
+      "choropleth": {
+       "low": "#eef1f6",
+       "high": "#16233f",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#3d5a8a"
+      },
+      "dots": {
+       "color": "#c2410c",
+       "baseline_color": "#1d4ed8",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#f6f5f1",
+       "no_data_fill": "#e2d7c6",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "print-mono",
+   "sample": "map",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.0,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "cut"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#ffffff"
+      },
+      "text": {
+       "muted": "#4d4d4d"
+      },
+      "choropleth": {
+       "low": "#f2f2f2",
+       "high": "#000000",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#111111"
+      },
+      "dots": {
+       "color": "#d55e00",
+       "baseline_color": "#0072b2",
+       "radius": 3.6
+      },
+      "state": {
+       "fill": "#f7f7f7",
+       "no_data_fill": "#d9d2c3",
+       "outline_width": 2.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.kind",
+    "sequence.clips.1.transition.seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "print-mono",
+   "sample": "map",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#ffffff"
+      },
+      "text": {
+       "muted": "#4d4d4d"
+      },
+      "choropleth": {
+       "low": "#f2f2f2",
+       "high": "#000000",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#111111"
+      },
+      "dots": {
+       "color": "#d55e00",
+       "baseline_color": "#0072b2",
+       "radius": 3.6
+      },
+      "state": {
+       "fill": "#f7f7f7",
+       "no_data_fill": "#d9d2c3",
+       "outline_width": 2.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "print-mono",
+   "sample": "bars",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.0,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "cut"
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#ffffff"
+      },
+      "text": {
+       "muted": "#4d4d4d"
+      },
+      "choropleth": {
+       "low": "#f2f2f2",
+       "high": "#000000",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#111111"
+      },
+      "dots": {
+       "color": "#d55e00",
+       "baseline_color": "#0072b2",
+       "radius": 3.6
+      },
+      "state": {
+       "fill": "#f7f7f7",
+       "no_data_fill": "#d9d2c3",
+       "outline_width": 2.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.kind",
+    "sequence.clips.1.transition.seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "print-mono",
+   "sample": "bars",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#ffffff"
+      },
+      "text": {
+       "muted": "#4d4d4d"
+      },
+      "choropleth": {
+       "low": "#f2f2f2",
+       "high": "#000000",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#111111"
+      },
+      "dots": {
+       "color": "#d55e00",
+       "baseline_color": "#0072b2",
+       "radius": 3.6
+      },
+      "state": {
+       "fill": "#f7f7f7",
+       "no_data_fill": "#d9d2c3",
+       "outline_width": 2.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "print-mono",
+   "sample": "line",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.0,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "cut"
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#ffffff"
+      },
+      "text": {
+       "muted": "#4d4d4d"
+      },
+      "choropleth": {
+       "low": "#f2f2f2",
+       "high": "#000000",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#111111"
+      },
+      "dots": {
+       "color": "#d55e00",
+       "baseline_color": "#0072b2",
+       "radius": 3.6
+      },
+      "state": {
+       "fill": "#f7f7f7",
+       "no_data_fill": "#d9d2c3",
+       "outline_width": 2.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.kind",
+    "sequence.clips.1.transition.seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "print-mono",
+   "sample": "line",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#ffffff"
+      },
+      "text": {
+       "muted": "#4d4d4d"
+      },
+      "choropleth": {
+       "low": "#f2f2f2",
+       "high": "#000000",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#111111"
+      },
+      "dots": {
+       "color": "#d55e00",
+       "baseline_color": "#0072b2",
+       "radius": 3.6
+      },
+      "state": {
+       "fill": "#f7f7f7",
+       "no_data_fill": "#d9d2c3",
+       "outline_width": 2.5
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "warm-documentary",
+   "sample": "map",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 24,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.8,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.8
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#f4efe6"
+      },
+      "text": {
+       "muted": "#6f675a"
+      },
+      "choropleth": {
+       "low": "#efe6d4",
+       "high": "#4a230a",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#4a230a"
+      },
+      "dots": {
+       "color": "#b5390f",
+       "baseline_color": "#1f6f78",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#ebe3d3",
+       "no_data_fill": "#c9bba0",
+       "outline_width": 1.5
+      }
+     },
+     "hold_seconds": 3.0
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.seconds",
+    "sequence.fps",
+    "sequence.hold_seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "warm-documentary",
+   "sample": "map",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#f4efe6"
+      },
+      "text": {
+       "muted": "#6f675a"
+      },
+      "choropleth": {
+       "low": "#efe6d4",
+       "high": "#4a230a",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#4a230a"
+      },
+      "dots": {
+       "color": "#b5390f",
+       "baseline_color": "#1f6f78",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#ebe3d3",
+       "no_data_fill": "#c9bba0",
+       "outline_width": 1.5
+      }
+     },
+     "hold_seconds": 3.0
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.hold_seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "warm-documentary",
+   "sample": "bars",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 24,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.8,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.8
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#f4efe6"
+      },
+      "text": {
+       "muted": "#6f675a"
+      },
+      "choropleth": {
+       "low": "#efe6d4",
+       "high": "#4a230a",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#4a230a"
+      },
+      "dots": {
+       "color": "#b5390f",
+       "baseline_color": "#1f6f78",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#ebe3d3",
+       "no_data_fill": "#c9bba0",
+       "outline_width": 1.5
+      }
+     },
+     "hold_seconds": 3.0
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.seconds",
+    "sequence.fps",
+    "sequence.hold_seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "warm-documentary",
+   "sample": "bars",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#f4efe6"
+      },
+      "text": {
+       "muted": "#6f675a"
+      },
+      "choropleth": {
+       "low": "#efe6d4",
+       "high": "#4a230a",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#4a230a"
+      },
+      "dots": {
+       "color": "#b5390f",
+       "baseline_color": "#1f6f78",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#ebe3d3",
+       "no_data_fill": "#c9bba0",
+       "outline_width": 1.5
+      }
+     },
+     "hold_seconds": 3.0
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.hold_seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "warm-documentary",
+   "sample": "line",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 24,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.8,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.8
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#f4efe6"
+      },
+      "text": {
+       "muted": "#6f675a"
+      },
+      "choropleth": {
+       "low": "#efe6d4",
+       "high": "#4a230a",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#4a230a"
+      },
+      "dots": {
+       "color": "#b5390f",
+       "baseline_color": "#1f6f78",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#ebe3d3",
+       "no_data_fill": "#c9bba0",
+       "outline_width": 1.5
+      }
+     },
+     "hold_seconds": 3.0
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.clips.0.fade",
+    "sequence.clips.1.transition.seconds",
+    "sequence.fps",
+    "sequence.hold_seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted",
+    "sequence.theme"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "warm-documentary",
+   "sample": "line",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#f4efe6"
+      },
+      "text": {
+       "muted": "#6f675a"
+      },
+      "choropleth": {
+       "low": "#efe6d4",
+       "high": "#4a230a",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#4a230a"
+      },
+      "dots": {
+       "color": "#b5390f",
+       "baseline_color": "#1f6f78",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#ebe3d3",
+       "no_data_fill": "#c9bba0",
+       "outline_width": 1.5
+      }
+     },
+     "hold_seconds": 3.0
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.hold_seconds",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "wtds-classic",
+   "sample": "map",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#14141a"
+      },
+      "text": {
+       "muted": "#86857e"
+      },
+      "choropleth": {
+       "low": "#232838",
+       "high": "#e8eefb",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#8fb6ea"
+      },
+      "dots": {
+       "color": "#ff8a3d",
+       "baseline_color": "#c2185b",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#1f1f27",
+       "no_data_fill": "#38312a",
+       "outline_width": 2.0
+      },
+      "bars": {
+       "label_width": 190,
+       "value_width": 150
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.bars.label_width",
+    "sequence.style_overrides.bars.value_width",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "wtds-classic",
+   "sample": "map",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-map",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Obesity and fast food by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#14141a"
+      },
+      "text": {
+       "muted": "#86857e"
+      },
+      "choropleth": {
+       "low": "#232838",
+       "high": "#e8eefb",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#8fb6ea"
+      },
+      "dots": {
+       "color": "#ff8a3d",
+       "baseline_color": "#c2185b",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#1f1f27",
+       "no_data_fill": "#38312a",
+       "outline_width": 2.0
+      },
+      "bars": {
+       "label_width": 190,
+       "value_width": 150
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.bars.label_width",
+    "sequence.style_overrides.bars.value_width",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "wtds-classic",
+   "sample": "bars",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#14141a"
+      },
+      "text": {
+       "muted": "#86857e"
+      },
+      "choropleth": {
+       "low": "#232838",
+       "high": "#e8eefb",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#8fb6ea"
+      },
+      "dots": {
+       "color": "#ff8a3d",
+       "baseline_color": "#c2185b",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#1f1f27",
+       "no_data_fill": "#38312a",
+       "outline_width": 2.0
+      },
+      "bars": {
+       "label_width": 190,
+       "value_width": 150
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.bars.label_width",
+    "sequence.style_overrides.bars.value_width",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "wtds-classic",
+   "sample": "bars",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-bars",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "Manufacturing: share of CBP-covered jobs, by state",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#14141a"
+      },
+      "text": {
+       "muted": "#86857e"
+      },
+      "choropleth": {
+       "low": "#232838",
+       "high": "#e8eefb",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#8fb6ea"
+      },
+      "dots": {
+       "color": "#ff8a3d",
+       "baseline_color": "#c2185b",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#1f1f27",
+       "no_data_fill": "#38312a",
+       "outline_width": 2.0
+      },
+      "bars": {
+       "label_width": 190,
+       "value_width": 150
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.bars.label_width",
+    "sequence.style_overrides.bars.value_width",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "wtds-classic",
+   "sample": "line",
+   "mode": "restyle",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#14141a"
+      },
+      "text": {
+       "muted": "#86857e"
+      },
+      "choropleth": {
+       "low": "#232838",
+       "high": "#e8eefb",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#8fb6ea"
+      },
+      "dots": {
+       "color": "#ff8a3d",
+       "baseline_color": "#c2185b",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#1f1f27",
+       "no_data_fill": "#38312a",
+       "outline_width": 2.0
+      },
+      "bars": {
+       "label_width": 190,
+       "value_width": 150
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.bars.label_width",
+    "sequence.style_overrides.bars.value_width",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  },
+  {
+   "preset": "wtds-classic",
+   "sample": "line",
+   "mode": "fill",
+   "story": {
+    "schema": 1,
+    "name": "profile-sample-line",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "State unemployment rate",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "main",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2019-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#14141a"
+      },
+      "text": {
+       "muted": "#86857e"
+      },
+      "choropleth": {
+       "low": "#232838",
+       "high": "#e8eefb",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#8fb6ea"
+      },
+      "dots": {
+       "color": "#ff8a3d",
+       "baseline_color": "#c2185b",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#1f1f27",
+       "no_data_fill": "#38312a",
+       "outline_width": 2.0
+      },
+      "bars": {
+       "label_width": 190,
+       "value_width": 150
+      }
+     }
+    }
+   },
+   "changed": [
+    "sequence.clips.0.align",
+    "sequence.style_overrides.bars.label_width",
+    "sequence.style_overrides.bars.value_width",
+    "sequence.style_overrides.choropleth.high",
+    "sequence.style_overrides.choropleth.low",
+    "sequence.style_overrides.choropleth.mode",
+    "sequence.style_overrides.choropleth.steps",
+    "sequence.style_overrides.dots.baseline_color",
+    "sequence.style_overrides.dots.color",
+    "sequence.style_overrides.dots.radius",
+    "sequence.style_overrides.hatch.line_color",
+    "sequence.style_overrides.page.background",
+    "sequence.style_overrides.state.fill",
+    "sequence.style_overrides.state.no_data_fill",
+    "sequence.style_overrides.state.outline_width",
+    "sequence.style_overrides.text.muted"
+   ],
+   "warnings": []
+  }
+ ],
+ "refused": [
+  {
+   "name": "ramp ends too close",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#444444",
+      "high": "#4c4c4c",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "errors": [
+    "look.ramp: low #444444 and high #4c4c4c are only 3 dE apart; they need at least 20 so five bands can be told apart. Move them further apart in lightness."
+   ]
+  },
+  {
+   "name": "ramp high dissolves into the page",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#fcfcfa",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "errors": [
+    "look.ramp: low #eef1f6 and high #fcfcfa are only 5 dE apart; they need at least 20 so five bands can be told apart. Move them further apart in lightness.",
+    "look.ramp.high #fcfcfa is only 1 dE from the page #fcfcfb; the highest values would dissolve into the background. Needs at least 20."
+   ]
+  },
+  {
+   "name": "dots invisible on the page",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#fbfbfa",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "errors": [
+    "look.dots.color #fbfbfa is only 0 dE from the page #fcfcfb; dots would not be seen. Needs at least 20."
+   ]
+  },
+  {
+   "name": "new dots and stock identical",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2185b",
+      "baseline_color": "#c2185c",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "errors": [
+    "look.dots: color #c2185b and baseline_color #c2185c are only 1 dE apart; new dots and the stock would read as one. Needs at least 20."
+   ]
+  },
+  {
+   "name": "no-data fill looks like a measured fill",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#f6f5f2",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "errors": [
+    "look.state: no_data_fill #f6f5f2 is only 0.5 dE from fill #f6f5f1; 'not published' areas would look like measured ones. Needs at least 5."
+   ]
+  },
+  {
+   "name": "muted text unreadable",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#f0f0ee",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "errors": [
+    "look.text_muted #f0f0ee on page #fcfcfb has contrast 1.1:1; it needs at least 3:1 to be read."
+   ]
+  },
+  {
+   "name": "continuous with hatch",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "hatch",
+      "steps": "auto",
+      "continuous": true
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "errors": [
+    "look.ramp: continuous colour needs mode 'solid', not 'hatch'."
+   ]
+  }
+ ],
+ "shape": [
+  {
+   "name": "look.axis",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     },
+     "axis": 1
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "top.axis",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    },
+    "axis": 1
+   },
+   "accepted": false
+  },
+  {
+   "name": "look.dataset",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     },
+     "dataset": 1
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "top.dataset",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    },
+    "dataset": 1
+   },
+   "accepted": false
+  },
+  {
+   "name": "look.no_data_label",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     },
+     "no_data_label": 1
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "top.no_data_label",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    },
+    "no_data_label": 1
+   },
+   "accepted": false
+  },
+  {
+   "name": "look.callouts",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     },
+     "callouts": 1
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "top.callouts",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    },
+    "callouts": 1
+   },
+   "accepted": false
+  },
+  {
+   "name": "look.renderer",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     },
+     "renderer": 1
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "top.renderer",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    },
+    "renderer": 1
+   },
+   "accepted": false
+  },
+  {
+   "name": "look.preflight",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     },
+     "preflight": 1
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "top.preflight",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    },
+    "preflight": 1
+   },
+   "accepted": false
+  },
+  {
+   "name": "bad hex",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "red",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "fps 60",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 60,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "canvas",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      800,
+      600
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "swap 9",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     },
+     "bars": {
+      "swap_seconds": 9
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "radius bool",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": true
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "name space",
+   "profile": {
+    "profile_version": 1,
+    "name": "has space",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "version 2",
+   "profile": {
+    "profile_version": 2,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "font",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    },
+    "reserved": {
+     "fonts": {
+      "bold": "comic-sans"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "missing name",
+   "profile": {
+    "profile_version": 1,
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "steps 12",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": 12
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "steps 2",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": 2
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  },
+  {
+   "name": "steps 3",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": 3
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": true
+  },
+  {
+   "name": "steps auto",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "crossfade",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": true
+  },
+  {
+   "name": "transition kind",
+   "profile": {
+    "profile_version": 1,
+    "name": "clean-light",
+    "title": "Clean light",
+    "notes": "White page, navy ramp, calm cuts. Good for reports and slides.",
+    "look": {
+     "theme": "light",
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "page_background": "#fcfcfb",
+     "text_muted": "#6b6a65",
+     "ramp": {
+      "low": "#eef1f6",
+      "high": "#16233f",
+      "mode": "solid",
+      "steps": "auto"
+     },
+     "hatch_line_color": "#3d5a8a",
+     "dots": {
+      "color": "#c2410c",
+      "baseline_color": "#1d4ed8",
+      "radius": 3.4
+     },
+     "state": {
+      "fill": "#f6f5f1",
+      "no_data_fill": "#e2d7c6",
+      "outline_width": 1.5
+     }
+    },
+    "pacing": {
+     "transition": {
+      "kind": "wipe",
+      "seconds": 0.6
+     },
+     "title_card": {
+      "fade": 0.4,
+      "align": "left"
+     }
+    }
+   },
+   "accepted": false
+  }
+ ],
+ "list_presets": [
+  {
+   "id": "bold-social",
+   "title": "Bold social",
+   "summary": "Dark page, vivid violet-to-yellow ramp, cyan and magenta dots, quick fades. 16:9: a true vertical layout is not built yet (see the canvas warning).",
+   "theme": "dark",
+   "canvas": [
+    1920,
+    1080
+   ],
+   "fps": 30,
+   "ramp_mode": "solid",
+   "hold_seconds": null
+  },
+  {
+   "id": "clean-light",
+   "title": "Clean light",
+   "summary": "White page, navy ramp, calm cuts. Good for reports and slides.",
+   "theme": "light",
+   "canvas": [
+    1920,
+    1080
+   ],
+   "fps": 30,
+   "ramp_mode": "solid",
+   "hold_seconds": null
+  },
+  {
+   "id": "print-mono",
+   "title": "High-contrast print",
+   "summary": "Black on white with hatching, so it survives greyscale printing and colour-blind readers. Dots use the Okabe-Ito blue and orange.",
+   "theme": "light",
+   "canvas": [
+    1920,
+    1080
+   ],
+   "fps": 30,
+   "ramp_mode": "hatch",
+   "hold_seconds": null
+  },
+  {
+   "id": "warm-documentary",
+   "title": "Warm documentary",
+   "summary": "Paper page, earth ramp, 24 fps, slow dissolves. Reads like a printed atlas.",
+   "theme": "light",
+   "canvas": [
+    1920,
+    1080
+   ],
+   "fps": 24,
+   "ramp_mode": "solid",
+   "hold_seconds": 3.0
+  },
+  {
+   "id": "wtds-classic",
+   "title": "What the Data Show (classic)",
+   "summary": "The look of the current films, written out as a profile. Applying it to a story changes nothing the engine would not already draw.",
+   "theme": "dark",
+   "canvas": [
+    1920,
+    1080
+   ],
+   "fps": 30,
+   "ramp_mode": "hatch",
+   "hold_seconds": null
+  }
+ ],
+ "samples": {
+  "map": {
+   "schema": 1,
+   "name": "profile-sample-map",
+   "engine": "sequence",
+   "notes": "A sample story for previewing a profile. Not a film.",
+   "sequence": {
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "theme": "dark",
+    "clips": [
+     {
+      "kind": "title",
+      "id": "open",
+      "seconds": 3,
+      "fade": 0.4,
+      "headline": "Sample film",
+      "subhead": "Obesity and fast food by state"
+     },
+     {
+      "kind": "render",
+      "id": "main",
+      "dataset": "state_obesity_fastfood",
+      "view": "map",
+      "start": "2011",
+      "end": "2023",
+      "transition": {
+       "kind": "crossfade",
+       "seconds": 0.6
+      }
+     }
+    ]
+   }
+  },
+  "bars": {
+   "schema": 1,
+   "name": "profile-sample-bars",
+   "engine": "sequence",
+   "notes": "A sample story for previewing a profile. Not a film.",
+   "sequence": {
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "theme": "dark",
+    "clips": [
+     {
+      "kind": "title",
+      "id": "open",
+      "seconds": 3,
+      "fade": 0.4,
+      "headline": "Sample film",
+      "subhead": "Manufacturing: share of CBP-covered jobs, by state"
+     },
+     {
+      "kind": "render",
+      "id": "main",
+      "dataset": "cbp_manufacturing_share_state",
+      "view": "bars",
+      "start": "2003",
+      "end": "2013",
+      "transition": {
+       "kind": "crossfade",
+       "seconds": 0.6
+      },
+      "settings": {
+       "top_n": 10,
+       "axis": "fixed"
+      }
+     }
+    ]
+   }
+  },
+  "line": {
+   "schema": 1,
+   "name": "profile-sample-line",
+   "engine": "sequence",
+   "notes": "A sample story for previewing a profile. Not a film.",
+   "sequence": {
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "theme": "dark",
+    "clips": [
+     {
+      "kind": "title",
+      "id": "open",
+      "seconds": 3,
+      "fade": 0.4,
+      "headline": "Sample film",
+      "subhead": "State unemployment rate"
+     },
+     {
+      "kind": "render",
+      "id": "main",
+      "dataset": "bls_state_unemployment",
+      "view": "line",
+      "start": "2019-01",
+      "end": "2022-12",
+      "transition": {
+       "kind": "crossfade",
+       "seconds": 0.6
+      },
+      "settings": {
+       "line_top_n": 6
+      }
+     }
+    ]
+   }
+  }
+ },
+ "combined": {
+  "story": {
+   "schema": 1,
+   "name": "profile-sample",
+   "engine": "sequence",
+   "notes": "A sample story for previewing a profile. Not a film.",
+   "sequence": {
+    "canvas": [
+     1920,
+     1080
+    ],
+    "fps": 30,
+    "theme": "dark",
+    "clips": [
+     {
+      "kind": "title",
+      "id": "open",
+      "seconds": 3,
+      "fade": 0.4,
+      "headline": "Sample film",
+      "subhead": "How a profile treats a map, a bar race and a line chart"
+     },
+     {
+      "kind": "render",
+      "id": "map",
+      "dataset": "state_obesity_fastfood",
+      "view": "map",
+      "start": "2011",
+      "end": "2023",
+      "transition": {
+       "kind": "crossfade",
+       "seconds": 0.6
+      }
+     },
+     {
+      "kind": "render",
+      "id": "bars",
+      "dataset": "cbp_manufacturing_share_state",
+      "view": "bars",
+      "start": "2003",
+      "end": "2013",
+      "transition": {
+       "kind": "crossfade",
+       "seconds": 0.6
+      },
+      "settings": {
+       "top_n": 10,
+       "axis": "fixed"
+      }
+     },
+     {
+      "kind": "render",
+      "id": "line",
+      "dataset": "bls_state_unemployment",
+      "view": "line",
+      "start": "2021-01",
+      "end": "2022-12",
+      "transition": {
+       "kind": "crossfade",
+       "seconds": 0.6
+      },
+      "settings": {
+       "line_top_n": 6
+      }
+     }
+    ]
+   }
+  },
+  "periods": [
+   "2011",
+   "2017",
+   "2023",
+   "2005",
+   "2021-06"
+  ],
+  "compiled": {
+   "bold-social": {
+    "schema": 1,
+    "name": "profile-sample",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.2,
+       "headline": "Sample film",
+       "subhead": "How a profile treats a map, a bar race and a line chart",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "map",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "fade",
+        "seconds": 0.3
+       }
+      },
+      {
+       "kind": "render",
+       "id": "bars",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "fade",
+        "seconds": 0.3
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      },
+      {
+       "kind": "render",
+       "id": "line",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2021-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "fade",
+        "seconds": 0.3
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#0b0b12"
+      },
+      "text": {
+       "muted": "#a3a3b3"
+      },
+      "choropleth": {
+       "low": "#2a1a5e",
+       "high": "#ffd400",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#ffd400"
+      },
+      "dots": {
+       "color": "#00e5ff",
+       "baseline_color": "#ff2d95",
+       "radius": 4.0
+      },
+      "state": {
+       "fill": "#16162a",
+       "no_data_fill": "#4a4630",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "clean-light": {
+    "schema": 1,
+    "name": "profile-sample",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "How a profile treats a map, a bar race and a line chart",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "map",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      },
+      {
+       "kind": "render",
+       "id": "bars",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      },
+      {
+       "kind": "render",
+       "id": "line",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2021-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#fcfcfb"
+      },
+      "text": {
+       "muted": "#6b6a65"
+      },
+      "choropleth": {
+       "low": "#eef1f6",
+       "high": "#16233f",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#3d5a8a"
+      },
+      "dots": {
+       "color": "#c2410c",
+       "baseline_color": "#1d4ed8",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#f6f5f1",
+       "no_data_fill": "#e2d7c6",
+       "outline_width": 1.5
+      }
+     }
+    }
+   },
+   "print-mono": {
+    "schema": 1,
+    "name": "profile-sample",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.0,
+       "headline": "Sample film",
+       "subhead": "How a profile treats a map, a bar race and a line chart",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "map",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "cut"
+       }
+      },
+      {
+       "kind": "render",
+       "id": "bars",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "cut"
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      },
+      {
+       "kind": "render",
+       "id": "line",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2021-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "cut"
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#ffffff"
+      },
+      "text": {
+       "muted": "#4d4d4d"
+      },
+      "choropleth": {
+       "low": "#f2f2f2",
+       "high": "#000000",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#111111"
+      },
+      "dots": {
+       "color": "#d55e00",
+       "baseline_color": "#0072b2",
+       "radius": 3.6
+      },
+      "state": {
+       "fill": "#f7f7f7",
+       "no_data_fill": "#d9d2c3",
+       "outline_width": 2.5
+      }
+     }
+    }
+   },
+   "warm-documentary": {
+    "schema": 1,
+    "name": "profile-sample",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 24,
+     "theme": "light",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.8,
+       "headline": "Sample film",
+       "subhead": "How a profile treats a map, a bar race and a line chart",
+       "align": "left"
+      },
+      {
+       "kind": "render",
+       "id": "map",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.8
+       }
+      },
+      {
+       "kind": "render",
+       "id": "bars",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.8
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      },
+      {
+       "kind": "render",
+       "id": "line",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2021-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.8
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#f4efe6"
+      },
+      "text": {
+       "muted": "#6f675a"
+      },
+      "choropleth": {
+       "low": "#efe6d4",
+       "high": "#4a230a",
+       "mode": "solid",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#4a230a"
+      },
+      "dots": {
+       "color": "#b5390f",
+       "baseline_color": "#1f6f78",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#ebe3d3",
+       "no_data_fill": "#c9bba0",
+       "outline_width": 1.5
+      }
+     },
+     "hold_seconds": 3.0
+    }
+   },
+   "wtds-classic": {
+    "schema": 1,
+    "name": "profile-sample",
+    "engine": "sequence",
+    "notes": "A sample story for previewing a profile. Not a film.",
+    "sequence": {
+     "canvas": [
+      1920,
+      1080
+     ],
+     "fps": 30,
+     "theme": "dark",
+     "clips": [
+      {
+       "kind": "title",
+       "id": "open",
+       "seconds": 3,
+       "fade": 0.4,
+       "headline": "Sample film",
+       "subhead": "How a profile treats a map, a bar race and a line chart",
+       "align": "center"
+      },
+      {
+       "kind": "render",
+       "id": "map",
+       "dataset": "state_obesity_fastfood",
+       "view": "map",
+       "start": "2011",
+       "end": "2023",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       }
+      },
+      {
+       "kind": "render",
+       "id": "bars",
+       "dataset": "cbp_manufacturing_share_state",
+       "view": "bars",
+       "start": "2003",
+       "end": "2013",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "top_n": 10,
+        "axis": "fixed"
+       }
+      },
+      {
+       "kind": "render",
+       "id": "line",
+       "dataset": "bls_state_unemployment",
+       "view": "line",
+       "start": "2021-01",
+       "end": "2022-12",
+       "transition": {
+        "kind": "crossfade",
+        "seconds": 0.6
+       },
+       "settings": {
+        "line_top_n": 6
+       }
+      }
+     ],
+     "style_overrides": {
+      "page": {
+       "background": "#14141a"
+      },
+      "text": {
+       "muted": "#86857e"
+      },
+      "choropleth": {
+       "low": "#232838",
+       "high": "#e8eefb",
+       "mode": "hatch",
+       "steps": "auto"
+      },
+      "hatch": {
+       "line_color": "#8fb6ea"
+      },
+      "dots": {
+       "color": "#ff8a3d",
+       "baseline_color": "#c2185b",
+       "radius": 3.4
+      },
+      "state": {
+       "fill": "#1f1f27",
+       "no_data_fill": "#38312a",
+       "outline_width": 2.0
+      },
+      "bars": {
+       "label_width": 190,
+       "value_width": 150
+      }
+     }
+    }
+   }
+  }
+ }
+}
