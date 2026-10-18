@@ -33,6 +33,17 @@
     const d = Math.max(0, Math.round((now - Date.parse(iso)) / 86400000));
     return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
   };
+  // A sign-in request lives 30 minutes (CONNECT). The page says when it ends, warns with 5 minutes left, and turns Approve off once it has ended.
+  const EXPIRED = 'This sign-in request has expired. Start again from your assistant.';
+  function expiry(iso, now = Date.now()) {
+    const end = Date.parse(iso);
+    if (!Number.isFinite(end)) return { state: 'unknown', text: '' };
+    const left = end - now;
+    if (left <= 0) return { state: 'expired', text: EXPIRED };
+    const at = new Date(end).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    if (left <= 5 * 60000) return { state: 'soon', text: `This sign-in expires at ${at}, in ${Math.max(1, Math.ceil(left / 60000))} minute${Math.ceil(left / 60000) <= 1 ? '' : 's'}. Decide now, or start again from your assistant.` };
+    return { state: 'ok', text: `This sign-in expires at ${at}.` };
+  }
   const callsLine = n => (n === 1 ? 'used 1 time in the last 30 days' : `used ${Number(n) || 0} times in the last 30 days`);
 
   // ---------------------------------------------------------------- the screens
@@ -55,6 +66,7 @@
       const scopes = c.offered_scopes || [];
       const spending = new Set(c.credit_scopes || []);
       const boxes = scopes.map(id => h('input', { type: 'checkbox', id: `cs-${id.replace(/[^a-z0-9]/gi, '-')}`, value: id, checked: true }));
+      const expiryLine = h('p', { class: 'form-note consent-expiry', role: 'status' });
       const approve = h('button', { class: 'button primary', type: 'button' }, 'Approve');
       const deny = h('button', { class: 'button secondary', type: 'button' }, 'Deny');
       const decide = async (button, yes) => {
@@ -72,6 +84,16 @@
       };
       approve.addEventListener('click', () => decide(approve, true));
       deny.addEventListener('click', () => decide(deny, false));
+      const tick = () => {
+        const e = expiry(c.expires_at);
+        expiryLine.textContent = e.text;
+        expiryLine.className = `form-note consent-expiry${e.state === 'soon' || e.state === 'expired' ? ' consent-expiry-warn' : ''}`;
+        if (e.state === 'expired') { approve.disabled = true; approve.title = EXPIRED; }
+        return e.state;
+      };
+      if (tick() !== 'expired' && c.expires_at) {
+        const timer = setInterval(() => { if (!expiryLine.isConnected || tick() === 'expired') clearInterval(timer); }, 15000);
+      }
       return [back, h('h1', { tabindex: '-1', class: 'consent-who' }, `Connect ${who} to Ryagram?`),
         h('p', { class: 'form-intro' }, `${c.redirect_label || c.client_name || 'This AI'} is asking to work with your Ryagram account.`),
         c.redirect_label && c.client_name ? h('p', { class: 'form-note consent-calls-itself' }, 'It calls itself: ', c.client_name) : '',
@@ -82,7 +104,7 @@
           h('ul', { class: 'consent-scopes' }, scopes.map((id, i) => h('li', {}, h('label', { class: 'choice', for: boxes[i].id }, boxes[i], ' ', scopeWord(id), spending.has(id) ? h('span', { class: 'meta' }, ' (spends credits)') : null)))),
           h('p', { class: 'form-note' }, 'Untick anything you do not want to allow.')),
         h('section', { class: 'consent-always' }, h('h2', {}, 'Always true'), h('ul', {}, ALWAYS.map(t => h('li', {}, t)))),
-        h('div', { class: 'actions-row' }, approve, deny), error];
+        expiryLine, h('div', { class: 'actions-row' }, approve, deny), error];
     }
 
     // ---- the account page's list
@@ -112,5 +134,5 @@
     return { consentView, connectedSection };
   }
 
-  window.ryagramConnect = { create, SCOPE_WORDS, ALWAYS, requestFromHash, scopeWord, safeRedirect, hostOf, ago, callsLine, REQUEST };
+  window.ryagramConnect = { expiry, EXPIRED, create, SCOPE_WORDS, ALWAYS, requestFromHash, scopeWord, safeRedirect, hostOf, ago, callsLine, REQUEST };
 })();

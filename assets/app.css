@@ -140,4 +140,5 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .consent-where,.consent-can,.consent-always{margin:18px 0;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.consent-where h2,.consent-can h2,.consent-always h2{margin:0 0 8px;font-size:1.05rem}
 .consent-uri{margin:6px 0;word-break:break-all}.consent-uri code{font-size:.95rem}.consent-scopes{list-style:none;margin:0;padding:0}.consent-scopes li{margin:0 0 8px}.consent-scopes input[type=checkbox]{width:20px;min-height:20px;height:20px;flex:none}
 .connected-list li{padding:12px 0}
+.consent-expiry-warn{font-weight:700;color:var(--danger,#9b1c1c)}
 .consent-who{font-size:clamp(1.8rem,5vw,2.4rem)}.consent-calls-itself{margin-top:-6px;word-break:break-word}

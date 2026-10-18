@@ -118,3 +118,19 @@ test('LABEL: the return-address label is shown first and large, the AI\'s own na
   const c = await win.ryagramData(createFakeClient()).connectConsentCheck(GOOD);
   assert.equal(c.redirect_label, 'Claude');
 });
+
+test('EXPIRY: the page says when the sign-in ends, warns at 5 minutes, and says the recovery once it has ended; Approve is turned off then', () => {
+  const now = Date.parse('2026-10-17T12:00:00Z');
+  const at = m => new Date(now + m * 60000).toISOString();
+  assert.equal(C.expiry(at(29), now).state, 'ok');
+  assert.match(C.expiry(at(29), now).text, /^This sign-in expires at .+\.$/);
+  const soon = C.expiry(at(4.2), now);
+  assert.equal(soon.state, 'soon');
+  assert.match(soon.text, /in 5 minutes\. Decide now, or start again from your assistant\./);
+  assert.match(C.expiry(at(0.4), now).text, /in 1 minute\./);
+  assert.deepEqual(plain(C.expiry(at(-1), now)), { state: 'expired', text: 'This sign-in request has expired. Start again from your assistant.' });
+  assert.deepEqual(plain(C.expiry('nope', now)), { state: 'unknown', text: '' });
+  const src = read('assets/app-connect.js');
+  assert.ok(src.includes('approve.disabled = true; approve.title = EXPIRED;'));
+  assert.ok(src.includes('expiryLine, h(\'div\', { class: \'actions-row\' }, approve, deny), error]'));
+});
