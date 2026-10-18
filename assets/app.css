@@ -136,3 +136,18 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .invite-panel{margin:12px 0;padding:14px 16px;border:2px solid var(--brand-deep,#0a6);border-radius:10px;background:#f2fbf6}.invite-panel code{font-size:1.05rem;font-weight:700;user-select:all}.request-list .project-list p{margin:6px 0}
 .ops-form{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;margin:10px 0}.ops-field{display:grid;gap:4px;font-size:.88rem;font-weight:700}.ops-field input,.ops-field select{min-height:44px;padding:8px 10px;font:inherit;border:1px solid var(--line);border-radius:8px}.ops-details{margin:8px 0 14px}.ops-details summary{cursor:pointer;font-weight:700;min-height:44px;display:flex;align-items:center}
 .ops-section{margin:0 0 28px}.ops-list{list-style:none;margin:0;padding:0;border-top:1px solid var(--line)}.ops-list li{padding:12px 0;border-bottom:1px solid var(--line);font-size:.95rem}.ops-list p{margin:6px 0}.credit-returned{color:var(--brand-deep)}
+/* Header and sign-in basics (consumer audit): Help and Account are words, links are comfortable to tap, the sign-in page has a way forward */
+.app-nav-link{padding:10px 4px;min-height:40px;display:inline-flex;align-items:center}
+.app-foot a,.sign-in-help a,.form-intro a{display:inline-block;padding:10px 2px}
+.link-button{min-height:40px;padding:10px 2px}
+.sign-in-help{margin:18px 0}
+@media(max-width:760px){.app-account{gap:8px}.app-account #account-email{display:none}}
+/* Consumer audit: stacked link lines keep their spacing; the folded Advanced panel on a version page */
+.app-main p.meta + p.meta{margin-top:10px}.admin-links{line-height:2}
+.advanced-panel{margin:28px 0;border:1px solid var(--line);border-radius:12px;padding:6px 16px}.advanced-panel>summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}
+.app-main .form-note + p.meta{margin-top:12px}
+/* Consumer audit round 2: comfortable back links, and a loading line that moves (still, for people who ask for less motion) */
+.back{display:inline-flex;align-items:center;min-height:40px;padding:6px 0;margin-bottom:6px}
+.loading{display:flex;align-items:center;gap:10px}.spinner{width:18px;height:18px;border:3px solid var(--line);border-top-color:var(--brand-deep);border-radius:50%;animation:spin .9s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
