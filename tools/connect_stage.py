@@ -12,7 +12,7 @@ Reads D:\\Ryagram-scratch\\oauth-proof\\.env  (SUPABASE_URL, SUPABASE_DB_URL, SU
 REFUSES to run against the live project (jxtkfishqfxuptwjzczz, or whatever supabase/.temp/project-ref says).
 Each file is applied in its own transaction and recorded in public._connect_stage_applied, so a rerun skips what is done.
 The role connect_runner is created by the migration WITHOUT a login. Its password is set by Ryan in the SQL Editor
-(tools/oauth_proof/connect_runner_login.sql) and never passes through this script or chat.
+(D:\Ryagram-scratch\secrets-staging\connect_runner_login.sql, outside every repo) and never passes through this script, the repo or chat.
 """
 import json
 import re

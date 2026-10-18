@@ -17,7 +17,8 @@
 -- The app's own rules are not copied: after the actor is resolved, a tool function sets request.jwt.claims for THIS
 -- TRANSACTION ONLY (set_config(..., true)) so auth.uid() is the owner, then calls the same functions the app calls.
 --
--- Run connect_runner_login.sql separately (it sets the role's password; that is a secret, never in a migration).
+-- The role's login and password are set by the person who owns the project, from a file that lives OUTSIDE every repo
+-- (D:\Ryagram-scratch\secrets-staging\connect_runner_login.sql, runbook in docs/connect-runbook.md): a password is never in a migration, a repo or a chat.
 
 -- ------------------------------------------------------------------------------------------------------ role
 do $$ begin

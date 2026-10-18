@@ -366,3 +366,24 @@ test('the plain schema module equals the vendored worker export, and no function
     if (f.endsWith('.ts')) assert.doesNotMatch(readFileSync(f, 'utf8'), /with\s*\{\s*type:\s*['"]json['"]|assert\s*\{\s*type:\s*['"]json['"]/, f);
   }
 });
+
+test('no secret in the repo: no real role password, no connection string with a password (the login file lives outside every repo)', async () => {
+  const { readdirSync, readFileSync, statSync } = await import('node:fs');
+  const skip = new Set(['node_modules', '.git', '.mut', '.mut_sql', '.mut_base']);
+  const walk = (d) => readdirSync(d).flatMap((f) => (skip.has(f) ? [] : statSync(`${d}/${f}`).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]));
+  const files = ['supabase', 'tools', 'docs', 'tests'].flatMap(walk).filter((f) => /\.(sql|py|mjs|cjs|ts|md|sh|json|txt)$/.test(f));
+  assert.ok(files.length > 50);
+  const here = 'tests/connect.test.mjs';
+  for (const f of files) {
+    if (f === here) continue;
+    const text = readFileSync(f, 'utf8');
+    for (const m of text.matchAll(/alter\s+role\s+connect_runner[^;]*?password\s+'([^']*)'/gi)) {
+      assert.match(m[1], /^(CHOOSE_A_LONG_RANDOM_PASSWORD|<[^>]*>|x+)$/, `${f}: a real-looking role password`);
+    }
+    for (const m of text.matchAll(/postgres(?:ql)?:\/\/[^:\s'"@/]+:([^@\s'"]+)@/g)) {
+      assert.match(m[1], /^(<[^>]*>|\[[^\]]*\]|\$\{[^}]*\}|%s|THE-PASSWORD|x+|password|\.\.\.)$/i, `${f}: a connection string with a password`);
+    }
+  }
+  assert.equal(statSync('tools/oauth_proof').isDirectory(), true);
+  assert.throws(() => statSync('tools/oauth_proof/connect_runner_login.sql'));
+});
