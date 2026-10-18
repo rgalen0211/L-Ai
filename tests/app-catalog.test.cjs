@@ -40,8 +40,13 @@ test('fixtures, private data and shapes the app cannot build are not in the cata
   }
 });
 
-test('"ready" is exactly the installed worker allowlist, and every ready dataset can be priced and built', () => {
-  assert.deepEqual(plain(usable.map(e => e.id).sort()), plain([...D.allow].sort()));
+test('"ready" is the installed worker allowlist THROUGH THE MOTION GATE (motion_record / baseline / named skips), and every ready dataset can be priced and built', () => {
+  const ids = f => fs.readFileSync(path.join(root, 'supabase/functions/_shared', f), 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  const rec = Object.fromEntries(ids('motion_record.txt').map(l => { const m = /^(\S+) motion=(\S+) /.exec(l); return [m[1], m[2]]; }));
+  const base = new Set(ids('motion_baseline.txt')), skipOk = new Set(ids('motion_skip_named.txt'));
+  const gated = D.allow.filter(i => rec[i] === undefined ? base.has(i) : rec[i] === 'pass' || rec[i] === 'na' || (rec[i] === 'skip' && skipOk.has(i)));
+  assert.deepEqual(plain(usable.map(e => e.id).sort()), plain([...gated].sort()));
+  assert.ok(gated.length < D.allow.length, 'the gate holds some allowlisted datasets back');
   for (const id of D.allow) assert.ok(D.entries.some(e => e.id === id), `allowlisted ${id} is missing from the catalog`);
   for (const id of Object.keys(D.next)) assert.equal(D.entries.find(e => e.id === id)?.status, 'next', id);
   // credit_quote refuses a dataset with no shape row (supabase/phase-2b/credits_ledger.sql).
@@ -56,14 +61,10 @@ test('"ready" is exactly the installed worker allowlist, and every ready dataset
   }
 });
 
-test('when WORKER-SETUP.ps1 is on this machine, the catalog lists are its lists', t => {
-  const f = 'C:/Users/Ryan/Ryagram-logs/proposals/WORKER-SETUP.ps1';
-  if (!fs.existsSync(f)) return t.skip('WORKER-SETUP.ps1 not on this machine');
-  const text = fs.readFileSync(f, 'utf8').replace(/^\uFEFF/, '');
-  const allow = [...text.match(/\$AllowToml\s*=\s*@'\s*([\s\S]*?)\s*'@/)[1].matchAll(/'([a-z0-9_]+)'/g)].map(m => m[1]);
-  const next = [...text.match(/\$UpdateCandidates\s*=\s*\[ordered\]@\{([\s\S]*?)\n\}/)[1].matchAll(/^\s*'([a-z0-9_]+)'\s*=\s*'/gm)].map(m => m[1]);
-  assert.deepEqual(plain([...D.allow].sort()), plain([...allow].sort()), 'regenerate: python tools/gen-catalog.py');
-  assert.deepEqual(plain(Object.keys(D.next).sort()), plain([...next].sort()), 'regenerate: python tools/gen-catalog.py');
+test('the catalog allow list is the COMMITTED allowlist export (never a machine-local file), and every UpdateCandidate not on it is next or later', t => {
+  const committed = fs.readFileSync(path.join(root, 'supabase/functions/_shared/worker_allowlist.txt'), 'utf8').split('\n').map(l => l.trim()).filter(l => l && !l.startsWith('#'));
+  assert.deepEqual(plain([...D.allow].sort()), plain([...committed].sort()), 'regenerate: python tools/gen-catalog.py');
+  for (const id of Object.keys(D.next)) assert.ok(['next', 'later'].includes(D.entries.find(e => e.id === id)?.status) || !D.entries.find(e => e.id === id), id);
 });
 
 test('by default only what can run is listed; "coming soon" is a separate switch', () => {
