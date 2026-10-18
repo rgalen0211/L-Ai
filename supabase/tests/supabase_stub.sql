@@ -9,6 +9,10 @@ create table auth.users (id uuid primary key, email text, email_confirmed_at tim
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
 $$;
+-- Supabase's auth.jwt(): the request's claims. Tests set request.jwt.claims (e.g. a client_id for a CONNECT token).
+create function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
+$$;
 grant usage on schema auth to anon, authenticated;
 
 create schema storage;

@@ -73,16 +73,17 @@ class Ops(core.Base):
         job = self.lost_job(1)
         self.assertEqual(self.admin("select ryagram_private.reap_lost_leases()"), 1)
         self.assertEqual(self.shape(job), ("queued", 2, "worker_lost", False, True))
-        self.admin("update public.jobs set state = 'running', attempt = 3, lease_expires_at = now() - interval '1 minute', worker_user_id = %s where id = %s returning 1", WORKER, job)
+        # attempt 2 is the last (retry once, Ryan 2026-10-17; PIPE-1): lost again, it fails
+        self.admin("update public.jobs set state = 'running', attempt = 2, lease_expires_at = now() - interval '1 minute', worker_user_id = %s where id = %s returning 1", WORKER, job)
         self.admin("select ryagram_private.reap_lost_leases()")
-        self.assertEqual(self.shape(job), ("failed", 3, "worker_lost", True, True))
+        self.assertEqual(self.shape(job), ("failed", 2, "worker_lost", True, True))
 
     ROW = ("select state::text, attempt, error_code, error_class::text, error_detail, ended_at is null, claimed_at is null, started_at is null, "
            "lease_expires_at is null, heartbeat_at is null, worker_id is null, worker_user_id is null, progress is null, "
            "queued_at > now() - interval '1 minute' from public.jobs where id = %s")
 
     def test_reaper_does_exactly_what_claim_next_jobs_lease_block_does_row_for_row(self):
-        for attempt, cancel in ((1, False), (3, False), (2, True)):
+        for attempt, cancel in ((1, False), (2, False), (1, True)):      # 2 = the last attempt (retry once, PIPE-1)
             with self.subTest(attempt=attempt, cancel=cancel):
                 self.db.as_(None).c.execute("delete from public.job_metering")
                 self.db.as_(None).c.execute("delete from public.jobs")
@@ -363,7 +364,15 @@ class Ops(core.Base):
                            "admin_cost_set_plan(text,text,numeric,date,jsonb)", "admin_cost_set_rate(text,text,numeric,text)", "admin_cost_record(text,numeric,date,text)",
                            # creator flow: a signed-in person asks for a film (the database needs their id); the rest are Ryan's, each refusing everyone else inside
                            "request_film(text,text)", "film_request_cost()", "admin_creator_invite(bigint,integer)", "admin_invite_person(text,integer)", "funnel_attach_source(text,text,text,text)", "funnel_return_visit()", "admin_funnel(integer)", "funnel_anon(text,text,text,text,text)", "admin_film_requests()",
-                           "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)"}
+                           "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)",
+                           # engine profiles: the only write path to a person's own look; checks the key tree inside
+                           "set_engine_profile(jsonb,boolean)",
+                           # render orders (PIPE-1, JOB-CONTRACT-v1 section 3): a person's own orders (app session only, checked inside);
+                           # the rest are Ryan's, each refusing everyone but is_app_admin() from an app session inside
+                           "submit_render_order(jsonb,text,order_want,text)", "request_final_render(uuid,text)",
+                           "render_order_status(uuid)", "cancel_render_order(uuid)",
+                           "admin_set_auto_render(boolean)", "admin_render_queue()", "admin_render_decide(uuid,boolean,text)",
+                           "admin_user_caps()", "admin_set_user_cap(uuid,integer)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
@@ -763,15 +772,15 @@ class RetryPolicy(unittest.TestCase):
                 self.assertEqual(self.admin("select state::text, attempt from public.jobs where id = %s", job), ("failed", 1))
                 self.assertEqual(self.available(), granted)                                 # credits back, immediately
 
-    def test_infrastructure_failures_retry_up_to_three_attempts_then_fail_and_refund(self):
+    def test_infrastructure_failures_retry_once_then_fail_and_refund(self):
+        # retry once: two attempts in all (Ryan, 2026-10-17; PIPE-1 / JOB-CONTRACT-v1)
         job = self.held_final()
-        for attempt in (1, 2):
-            self.assertEqual(self.claim(), job)
-            self.assertEqual(self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job), "queued")
-            self.assertEqual(self.available(), 90)                                          # still held while it can still run
+        self.assertEqual(self.claim(), job)
+        self.assertEqual(self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job), "queued")
+        self.assertEqual(self.available(), 90)                                              # still held while it can still run
         self.assertEqual(self.claim(), job)
         self.assertEqual(self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job), "failed")
-        self.assertEqual(self.admin("select attempt, error_code from public.jobs where id = %s", job), (3, "crash"))
+        self.assertEqual(self.admin("select attempt, error_code from public.jobs where id = %s", job), (2, "crash"))
         self.assertEqual(self.available(), 100)
 
 
