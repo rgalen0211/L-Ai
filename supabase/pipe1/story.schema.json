@@ -7,6 +7,50 @@
         1
       ]
     },
+    "brand": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "channel": {
+          "type": "string",
+          "maxLength": 60,
+          "pattern": "^(?!.*(?:https?:|www\\.|://|[\\\\]|\\.(?:download|digital|network|website|agency|casino|crypto|online|review|social|stream|studio|click|cloud|email|games|media|ninja|party|press|rocks|space|store|today|trade|video|world|asia|blog|chat|club|date|guru|host|info|life|link|live|loan|mobi|name|news|page|shop|site|tech|tips|tube|wang|work|zone|app|bet|bid|bio|biz|cam|com|dev|edu|eth|fun|gov|icu|ink|int|lol|men|mil|net|org|pro|tel|top|vip|win|wtf|xxx|xyz|ac|ai|am|ar|at|au|be|br|ca|cc|ch|cn|co|cz|de|dk|ee|es|eu|fi|fm|fr|gg|gl|gr|hk|id|ie|im|in|io|it|jp|ke|kr|ly|me|mx|ng|nl|no|nz|ph|pl|pt|ru|se|sg|sh|so|th|to|tv|tw|uk|us|vn|ws|za)\\b|(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9-]+\\.(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9-]+/)).*$"
+        },
+        "handle": {
+          "type": "string",
+          "maxLength": 31,
+          "pattern": "^@[A-Za-z0-9._-]{3,30}$"
+        },
+        "credit_line": {
+          "type": "string",
+          "maxLength": 160,
+          "pattern": "^(?!.*(?:https?:|www\\.|://|[\\\\]|\\.(?:download|digital|network|website|agency|casino|crypto|online|review|social|stream|studio|click|cloud|email|games|media|ninja|party|press|rocks|space|store|today|trade|video|world|asia|blog|chat|club|date|guru|host|info|life|link|live|loan|mobi|name|news|page|shop|site|tech|tips|tube|wang|work|zone|app|bet|bid|bio|biz|cam|com|dev|edu|eth|fun|gov|icu|ink|int|lol|men|mil|net|org|pro|tel|top|vip|win|wtf|xxx|xyz|ac|ai|am|ar|at|au|be|br|ca|cc|ch|cn|co|cz|de|dk|ee|es|eu|fi|fm|fr|gg|gl|gr|hk|id|ie|im|in|io|it|jp|ke|kr|ly|me|mx|ng|nl|no|nz|ph|pl|pt|ru|se|sg|sh|so|th|to|tv|tw|uk|us|vn|ws|za)\\b|(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9-]+\\.(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9-]+/)).*$"
+        },
+        "logo_asset": {
+          "type": "string",
+          "maxLength": 36,
+          "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
+        }
+      },
+      "required": []
+    },
+    "outro": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "seconds": {
+          "type": "number",
+          "minimum": 5.0,
+          "maximum": 20.0
+        },
+        "next_line": {
+          "type": "string",
+          "maxLength": 80,
+          "pattern": "^(?!.*(?:https?:|www\\.|://|[\\\\]|\\.(?:download|digital|network|website|agency|casino|crypto|online|review|social|stream|studio|click|cloud|email|games|media|ninja|party|press|rocks|space|store|today|trade|video|world|asia|blog|chat|club|date|guru|host|info|life|link|live|loan|mobi|name|news|page|shop|site|tech|tips|tube|wang|work|zone|app|bet|bid|bio|biz|cam|com|dev|edu|eth|fun|gov|icu|ink|int|lol|men|mil|net|org|pro|tel|top|vip|win|wtf|xxx|xyz|ac|ai|am|ar|at|au|be|br|ca|cc|ch|cn|co|cz|de|dk|ee|es|eu|fi|fm|fr|gg|gl|gr|hk|id|ie|im|in|io|it|jp|ke|kr|ly|me|mx|ng|nl|no|nz|ph|pl|pt|ru|se|sg|sh|so|th|to|tv|tw|uk|us|vn|ws|za)\\b|(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9-]+\\.(?=[A-Za-z0-9-]*[A-Za-z])[A-Za-z0-9-]+/)).*$"
+        }
+      },
+      "required": []
+    },
     "name": {
       "type": "string",
       "maxLength": 64,
@@ -991,6 +1035,7 @@
     "callout ids unique within a clip",
     "what depends on the dataset or the run: a callout's period, entity, reading time and overlap; network_context.at; shares_order naming every band; the shares view only on a dataset with a composition",
     "free text: the worker tests Unicode categories (Cc, Cf, Cs, Co, Cn); the schema's pattern blocks the common ones only",
-    "the story at most 256 KB, no duplicate keys, no NaN or Infinity"
+    "the story at most 256 KB, no duplicate keys, no NaN or Infinity",
+    "brand and outro text: no link in any letter case (the pattern is case-sensitive), and brand.channel, brand.handle and brand.credit_line may not name the product (the 'Ryagram' rule, ryagram.profile.brand)"
   ]
 }
