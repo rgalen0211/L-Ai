@@ -7,7 +7,7 @@ exactly as the consent page does, exchanges the code, then checks what a real as
   - /token returns a refresh_token and expires_in; the registration says the client may use the refresh_token grant
   - the access token works; a refresh returns a NEW access token AND a NEW refresh token, and the new access token works
   - every refresh slides the 30 days (the newest refresh token always has about 30 days left)
-  - a refresh with a different client_id is refused; the same old refresh token again within 60 s gets a fresh pair (retry grace); after 60 s it is refused AND kills the whole family
+  - a refresh with a different client_id is refused; the same old refresh token again within 60 s gets ONE fresh pair (retry grace); a second repeat is refused AND kills the whole family (after 60 s too, covered by the SQL tests)
   - the family can be disconnected and then nothing works
 Prints no token, code or password. Cleans up after itself (the throwaway client's grant is disconnected).
 """
@@ -134,11 +134,10 @@ for line in open(ENV, encoding="utf-8").read().splitlines():
 with psycopg.connect(dburl, autocommit=True, prepare_threshold=None) as c:
     days = c.execute("select max(extract(epoch from (refresh_expires_at - now())) / 86400) from public.connect_tokens where client_id = %s", (cid,)).fetchone()[0]
     check(29.9 < float(days) <= 30.01, f"the newest refresh token has about 30 days left ({float(days):.2f}): every refresh slides it")
-    # age the spent token past the grace (test data on the proof project only), then reuse it
-    c.execute("update public.connect_tokens set refresh_used_at = now() - interval '61 seconds' where refresh_hash = %s", (hashlib.sha256(t1["refresh_token"].encode()).hexdigest(),))
-st, reuse = token(grant_type="refresh_token", refresh_token=t1["refresh_token"], client_id=cid)
-check(st == 400 and (reuse or {}).get("error") == "invalid_grant", "after the 60 seconds, re-using an OLD refresh token is refused")
-check(whoami(t3["access_token"]) == 401 and whoami(again["access_token"]) == 401, "and that revokes the whole family: every access token stops")
+# --- the grace is ONCE per spent token: a second repeat inside the same 60 seconds is reuse and kills the family
+st, second = token(grant_type="refresh_token", refresh_token=t1["refresh_token"], client_id=cid)
+check(st == 400 and (second or {}).get("error") == "invalid_grant", "a SECOND repeat of the same spent token inside the 60 seconds is refused (one retry per token)")
+check(whoami(t3["access_token"]) == 401 and whoami(again["access_token"]) == 401, "and that revokes the whole family: every access token stops, so a replay cannot grow a parallel chain")
 st, dead = token(grant_type="refresh_token", refresh_token=again["refresh_token"], client_id=cid)
 check(st == 400, "and the newest refresh token is dead as well (the assistant must sign in again, as designed)")
 

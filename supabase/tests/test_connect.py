@@ -358,8 +358,25 @@ class Connect(core.Base):
         # GRACE: the same refresh token presented again within 60 s (a lost answer, or two requests at once) gets a fresh pair; both pairs work
         n2, r2 = uuid.uuid4().hex, uuid.uuid4().hex
         out = self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n2), h(r2))
-        self.assertEqual(out["expires_in"], 3600)
-        self.runner().one("select connect_list_projects(%s)", h(n1)); self.runner().one("select connect_list_projects(%s)", h(n2))
+        # ASSERT the outcome (a refusal here must FAIL this test, not raise a KeyError or a database error that a mutation harness reads as 'errored')
+        self.assertIsInstance(out, dict)
+        self.assertNotIn("error", out, "a repeat of a spent refresh token inside the 60 s grace must return a new pair, not invalid_grant")
+        self.assertEqual(out.get("expires_in"), 3600, "the grace answer must carry a new access token lifetime")
+        for tok, what in ((n1, "the first refreshed pair"), (n2, "the pair issued by the grace")):
+            try:
+                self.runner().one("select connect_list_projects(%s)", h(tok))
+            except psycopg.Error as e:
+                self.fail(f"{what} must work, but the call raised: {e}")
+        # ONCE per spent token: a SECOND repeat inside the 60 s is reuse, refused, and it kills the family (no parallel chain can grow from a replay)
+        n3, r3 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n3), h(r3)), {"error": "invalid_grant"})
+        self.runner(); self.fails("select connect_list_projects(%s)", h(n1), code="PT401"); self.runner(); self.fails("select connect_list_projects(%s)", h(n2), code="PT401")
+        self.runner(); self.fails("select connect_list_projects(%s)", h(n3), code="PT401")
+        client, a, ref = self.connect(ALICE)           # a new connection to carry on with the remaining checks
+        n1, r1 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n1), h(r1))
+        n2, r2 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h(n2), h(r2))          # its one grace
         # the grace never reaches past 60 s: aged, the same token is reuse and kills the family (both pairs)
         self.db.as_(None).c.execute("update public.connect_tokens set refresh_used_at = now() - interval '61 seconds' where refresh_hash = %s", (h(ref),))
         self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("7" * 64), h("8" * 64)), bad)
@@ -368,6 +385,12 @@ class Connect(core.Base):
         self.db.as_(None).c.execute("update public.connect_tokens set refresh_used_at = now() where refresh_hash = %s", (h(ref),))
         self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref), client, h("9" * 64), h("a" * 64)), bad)
         self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(r1), client, h("b" * 64), h("c" * 64)), bad)
+        # a killed family gets no grace even though this token has not used its one retry: a child row revoked without having been rotated is the kill marker
+        client4, a4, ref4 = self.connect(ALICE)
+        n4, r4 = uuid.uuid4().hex, uuid.uuid4().hex
+        self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref4), client4, h(n4), h(r4))
+        self.db.as_(None).c.execute("update public.connect_tokens set revoked_at = now() where refresh_hash = %s", (h(r4),))
+        self.assertEqual(self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref4), client4, h("5" * 64), h("6" * 64)), bad)
         # the grace still needs the right client, a live grant and an enabled person
         client2, a2, ref2 = self.connect(ALICE)
         self.runner().one("select connect_refresh(%s,%s,%s,%s)", h(ref2), client2, h("d" * 64), h("e" * 64))
@@ -577,6 +600,10 @@ class Connect(core.Base):
         self.assertEqual(r.one("select connect_list_versions(%s, %s)", h(b), pa), [])
         self.fails("select connect_create_version(%s, %s, %s)", h(b), pa, va, code="PT404")
         self.assertEqual(len(r.one("select connect_list_versions(%s, %s)", h(a), pa)), 1)
+        self.assertIsNone(r.one("select connect_current_version(%s, %s)", h(b), pa))                 # nor does the current-version lookup
+        # a read-only connection cannot create a version (scope write), even on its own project
+        _, ro, _ = self.connect(ALICE, scopes=("read",))
+        self.runner(); self.fails("select connect_create_version(%s, %s, %s)", h(ro), pa, va, code="PT403")
 
     def test_per_client_and_per_caller_buckets_and_the_open_request_cap(self):
         c1, a1, _ = self.connect(ALICE); c2, a2, _ = self.connect(ALICE)           # one person, two clients
@@ -813,6 +840,13 @@ class RealisticDefaults(core.Base):
                 c.execute(path.read_text(encoding="utf-8"))
             d = core.Db(core._server.get_uri(database=name))
             assert_runner_boundary(self, d)
+            report = (core.ROOT / "connect-live" / "04_runner_privilege_report.sql").read_text(encoding="utf-8")
+            with c.cursor() as cur:                                            # the live report file, on the platform-default database
+                cur.execute(report)
+                rows = cur.fetchall()
+            self.assertEqual([r[1] for r in rows if r[0] == "schema usage"], ["public"])
+            self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 22)
+            self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
             # PUBLIC really does hold EXECUTE on the platform-style functions here, which is the point: only the missing USAGE keeps the runner out
             self.assertTrue(c.execute("select has_function_privilege('connect_runner', 'auth.uid()', 'execute')").fetchone()[0])
             self.assertFalse(c.execute("select has_schema_privilege('connect_runner', 'auth', 'usage')").fetchone()[0])
@@ -906,11 +940,107 @@ class LiveFiles(core.Base):
         self.assertIn("every connect_no_oauth_select policy is RESTRICTIVE (none is permissive) and at least one exists", bad)
         self.assertIn("every published realtime table has the restrictive client_id policy", bad)
 
+    def test_daily_health_query_is_read_only_named_and_says_act_when_something_is_wrong(self):
+        d = self.db.as_(None)
+        d.c.execute("set default_transaction_read_only = on")                     # the file must run in a read-only session: it changes nothing
+        try:
+            cols, rows = self.run_file("05_daily_health.sql")
+        finally:
+            d.c.execute("set default_transaction_read_only = off")
+        self.assertEqual(cols, ["check_name", "value", "status", "what_to_do"])
+        self.assertGreaterEqual(len(rows), 14)
+        self.assertTrue(all(r[2] in ("ok", "look", "act") and r[0] and r[3] for r in rows))
+        status = lambda rows, start: [r[2] for r in rows if r[0].startswith(start)]
+        # a fresh install: nothing needs doing
+        self.assertEqual([r[0] for r in rows if r[2] == "act"], [])
+                # something goes wrong in each of the ways the query must notice
+        c = self.db.as_(None).c
+        c.execute("update public.connect_flags set full_render_enabled = true")
+        c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'x') on conflict (redirect_uri) do update set enabled = true")
+        c.execute("create table public.health_late (id int primary key)")
+        c.execute("alter table public.health_late enable row level security")
+        c.execute("alter publication supabase_realtime add table public.health_late")
+        c.execute("create schema if not exists realtime")
+        c.execute("create table if not exists realtime.messages (id int primary key)")
+        c.execute("alter table realtime.messages enable row level security")
+        c.execute("create policy private_channels on realtime.messages for select to authenticated using (true)")
+        c.execute("grant select on public.connect_flags to connect_runner")
+        for i in range(12):
+            c.execute("insert into public.connect_calls (tool, result, code) values ('set_story', 'error', 'boom')")
+        _, rows = self.run_file("05_daily_health.sql")
+        acts = [r[0] for r in rows if r[2] == "act"]
+        for needle in ("full renders from a connection", "realtime tables WITHOUT", "policies on realtime.messages", "redirect addresses that are loopback",
+                       "connect_runner: functions it can call", "errors in 24 hours: set_story / boom"):
+            self.assertTrue(any(a.startswith(needle) for a in acts), (needle, acts))
+        self.assertEqual(rows[0][2], "act")                                          # the worst come first
+        # the master switch off is a 'look', not an alarm
+        c.execute("update public.connect_flags set connections_enabled = false")
+        _, rows = self.run_file("05_daily_health.sql")
+        self.assertEqual(status(rows, "master switch"), ["look"])
+
+    def test_purge_last_run_file_reads_pg_cron(self):
+        c = self.db.as_(None).c
+        self.assertRaises(Exception, self.run_file, "05b_purge_last_run.sql")            # no pg_cron here: it says so by failing, as documented
+        c.execute("create schema cron")
+        c.execute("create table cron.job (jobid bigint primary key, schedule text, command text)")
+        c.execute("create table cron.job_run_details (runid serial primary key, jobid bigint, start_time timestamptz, status text)")
+        run = lambda: self.run_file("05b_purge_last_run.sql")
+        cols, rows = run()
+        self.assertEqual(cols, ["job_id", "schedule", "last_success_at", "last_run_status", "last_run_at", "status", "what_to_do"])
+        self.assertEqual([r[5] for r in rows], ["look"])                                  # no job at all
+        c.execute("insert into cron.job values (1, '0 3 * * *', 'select public.connect_purge();')")
+        self.assertEqual([r[5] for r in run()[1]], ["look"])                              # scheduled, never ran
+        c.execute("insert into cron.job_run_details (jobid, start_time, status) values (1, now() - interval '40 hours', 'succeeded')")
+        self.assertEqual([r[5] for r in run()[1]], ["act"])                               # last success over 36 hours ago
+        c.execute("insert into cron.job_run_details (jobid, start_time, status) values (1, now() - interval '2 hours', 'failed')")
+        self.assertEqual([r[5] for r in run()[1]], ["act"])                               # a failed run is not a success
+        c.execute("insert into cron.job_run_details (jobid, start_time, status) values (1, now() - interval '1 hour', 'succeeded')")
+        self.assertEqual([r[5] for r in run()[1]], ["ok"])
+
+    def test_who_is_connected_and_end_one_persons_connections_files(self):
+        _, a, _ = self.connect(ALICE)
+        _, b, _ = self.connect(BOB)
+        email = self.db.as_(None).one("select email from auth.users where id = %s", ALICE)
+        cols, rows = self.run_file("06_who_is_connected.sql")
+        self.assertEqual(cols, ["person", "assistant_calls_itself", "may_do", "connected_at", "last_used_at"])
+        self.assertTrue(any(r[0] == email for r in rows))
+        src = (self.DIR / "97_end_one_persons_connections.sql").read_text(encoding="utf-8")
+        self.assertIn("PERSON@EXAMPLE.COM", src)
+        d = self.db.as_(None)
+        with d.c.cursor() as cur:
+            cur.execute(src.replace("PERSON@EXAMPLE.COM", email))
+            self.assertEqual([x.name for x in cur.description], ["people_found", "tokens_ended", "permissions_ended"])
+            self.assertEqual(cur.fetchall()[0], (1, 1, 1))
+        self.runner(); self.fails("select connect_whoami(%s)", h(a), code="PT401")                 # Alice's connection is over ...
+        self.runner().one("select connect_whoami(%s)", h(b))                                       # ... Bob's is untouched
+        with self.db.as_(None).c.cursor() as cur:                                                    # an address nobody has changes nothing
+            cur.execute(src)
+            self.assertEqual(cur.fetchall()[0], (0, 0, 0))
+
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")
         self.assertEqual(cols, ["kind", "name"])
         self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 22)
         self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
+        self.assertEqual([r[1] for r in rows if r[0] == "schema usage"], ["public"])
+        self.assertEqual([r for r in rows if r[0].startswith("member of")], [])
+        # MUST-FAIL (CC1 S2): the report looks at EVERY schema the runner can use, not a fixed list. Plant a schema the old report never named.
+        c = self.db.as_(None).c
+        c.execute("create schema zz_extra")
+        c.execute("create function zz_extra.sneaky() returns int language sql as $$ select 1 $$")
+        c.execute("create table zz_extra.t (id int)")
+        c.execute("grant usage on schema zz_extra to connect_runner")
+        c.execute("grant execute on function zz_extra.sneaky() to connect_runner")
+        c.execute("grant select on zz_extra.t to connect_runner")
+        _, rows = self.run_file("04_runner_privilege_report.sql")
+        self.assertIn(("schema usage", "zz_extra"), [(r[0], r[1]) for r in rows])
+        self.assertIn(("function execute", "zz_extra.sneaky()"), [(r[0], r[1]) for r in rows])
+        self.assertIn(("RELATION PRIVILEGE (must be none)", "zz_extra.t"), [(r[0], r[1]) for r in rows])
+        # a relation privilege in a schema the runner cannot enter is shown too, but under its own honest label (platform views are like that on real projects)
+        c.execute("revoke usage on schema zz_extra from connect_runner")
+        _, rows = self.run_file("04_runner_privilege_report.sql")
+        self.assertNotIn(("RELATION PRIVILEGE (must be none)", "zz_extra.t"), [(r[0], r[1]) for r in rows])
+        self.assertIn(("relation privilege in a schema it cannot enter (platform default, unreachable)", "zz_extra.t"), [(r[0], r[1]) for r in rows])
 
     def test_allowlist_file_turns_loopback_off_and_lists_only_exact_addresses(self):
         self.db.as_(None).c.execute("insert into public.connect_redirect_allowlist (redirect_uri, kind, label) values ('loopback', 'loopback', 'on staging')")
