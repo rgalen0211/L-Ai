@@ -69,3 +69,33 @@ test('the app understands every type the templates send (end to end in the auth 
   for (const type of Object.values(TEMPLATES)) assert.ok(auth.includes(`'${type}'`), type);
   assert.match(auth, /#\/auth\?token_hash=<hash>/);
 });
+
+// ---- the sixth template, Reauthentication: it carries a CODE ({{ .Token }}), not a link, and is branded exactly like the other five
+test('REAUTHENTICATION: HTML, plain text and subject exist, branded like the other five, with the code in one visible box and in the text, and no link', () => {
+  for (const ext of ['.html', '.txt', '.subject.txt']) assert.ok(fs.existsSync(path.join(dir, 'reauthentication' + ext)), 'reauthentication' + ext);
+  const html = read('reauthentication.html'), text = read('reauthentication.txt');
+  assert.ok(read('reauthentication.subject.txt').trim().length > 5 && read('reauthentication.subject.txt').trim().length < 80);
+  assert.match(html, />Ryagram</);
+  assert.match(html, /You(?:'|’)re getting this because/);
+  assert.equal((html.match(/You(?:'|’)re getting this because/g) || []).length, 1);
+  assert.equal((html.match(/\{\{ \.Token \}\}/g) || []).length, 1);                                                 // the code once, in its box
+  assert.match(html, /<span style="display:inline-block;background:#f1f2ef[^>]*font-family:'Courier New'[^>]*>\{\{ \.Token \}\}<\/span>/);
+  assert.equal((text.match(/\{\{ \.Token \}\}/g) || []).length, 1);
+  assert.match(text, /^Your code: \{\{ \.Token \}\}$/m);
+  assert.doesNotMatch(html + text, /ConfirmationURL|TokenHash|SiteURL|RedirectTo|auth\?token_hash|<a href="(?!mailto:ryagram|https:\/\/uselai\.com\/ryagram)/);   // no sign-in or confirm link in a code email
+  assert.match(html, /Ryagram is operated by L'Ai, LLC\./);
+  assert.match(html, /<a href="mailto:ryagram@uselai\.com"[^>]*>ryagram@uselai\.com<\/a>/);
+  assert.match(html, /<a href="https:\/\/uselai\.com\/ryagram\/"/);
+  assert.doesNotMatch(html, /<script|<img|<!--|supabase\.co/i);
+  assert.equal((html.match(/<table/g) || []).length, (html.match(/<\/table>/g) || []).length);
+  for (const v of (html + text).match(/\{\{[^}]*\}\}/g)) assert.match(v, /^\{\{ \.(Token|Email) \}\}$/, v);
+  assert.match(html, /Never share it with anyone/);
+  assert.ok(text.includes("You're getting this because a change to the Ryagram account {{ .Email }} needs a code to confirm it's you."));        // the same reason in both parts
+  assert.ok(text.includes("If that wasn't you, you can ignore this email.") && html.includes("If that wasn't you, you can ignore this email."));
+  for (const line of ["Ryagram is operated by L'Ai, LLC.", 'Questions: ryagram@uselai.com', 'https://uselai.com/ryagram/']) assert.ok(text.includes(line), line);
+});
+
+test('REAUTHENTICATION: it shares the other templates frame (same outer table, card, header and footer markup), so one look covers all six', () => {
+  const frame = f => read(f).replace(/<h1[\s\S]*?<\/td><\/tr>\s*<tr><td style="padding:16px/, '<BODY></td></tr><tr><td style="padding:16px');
+  for (const name of Object.keys(TEMPLATES)) assert.equal(frame('reauthentication.html'), frame(name + '.html'), name);
+});
