@@ -99,7 +99,12 @@ check('asking twice does not queue a second one', r.structuredContent?.started =
 r = await call('job_status', { job_id: jid });
 check('job_status says it is waiting in the queue', !r.isError && /queue/.test(text(r)), text(r).slice(0, 120));
 r = await call('request_full_render', { project_id: pid, preview_job_id: jid, confirm: true });
-check('request_full_render is refused', r.isError === true);
+check('request_full_render is refused, with the reason in words, whatever confirm says', r.isError === true && /cannot be started from an AI connection/.test(text(r)) && /Render final film/.test(text(r)), text(r).slice(0, 120));
+const fr = tools.find((t) => t.name === 'request_full_render');
+check('its description says it is not available from a connection, so the tool list and the consent page agree', /NOT AVAILABLE from an AI connection/.test(fr.description) && fr.annotations.readOnlyHint === true);
+r = await call('request_full_render', { project_id: pid });
+check('and it is refused the same way with no confirm at all', r.isError === true && /cannot be started from an AI connection/.test(text(r)));
+check('the consent page told the person how long the request lives (30 minutes from now)', (new Date(chk.data.expires_at) - Date.now()) > 25 * 60 * 1000, String(chk.data.expires_at));
 r = await call('create_project', { title: 'x', owner_id: 'someone-else' });
 check('an extra argument that would skip or override anything is refused', r.isError === true && /not understood/.test(text(r)));
 await client.close();
