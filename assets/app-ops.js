@@ -119,7 +119,7 @@
     return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
   }
 
-  // ---- Funnel on the Operations screen (SQL 20261017000400): counts per step, conversion between steps, by source and by week.
+  // ---- Funnel on the Operations screen (SQL 20261017000900): counts per step, conversion between steps, by source and by week.
   // The first two steps are VISITS (anonymous); every other step counts each account once. The chain below is the order people go through.
   const FUNNEL_LABELS = { landing_view: 'Saw the landing page', signup_started: 'Started signing up', signup_done: 'Signed up', first_project: 'Made a first project', contact_sheet: 'Made a contact sheet',
     preview: 'Made a preview', film_requested: 'Requested a film', film_delivered: 'Film delivered', purchase: 'Bought credits', subscription_start: 'Started a plan', subscription_cancel: 'Cancelled a plan',
@@ -152,7 +152,7 @@
     return [...(f.weeks || [])].reverse().map(week => ({ week, counts: Object.fromEntries(FUNNEL_KEY.map(e => [e, (step(e).by_week || {})[week] || 0])) }));
   }
   const funnelLine = f => (f ? 'Visits (the first two steps) are counted each time; every other step counts each account once, the first time it happens. Source = the link\u2019s utm_source, else the referring site, else direct.'
-                            : 'Funnel tracking is not set up yet (apply SQL 20261017000400).');
+                            : 'Funnel tracking is not set up yet (apply SQL 20261017000900).');
 
   // ---- Costs on the Operations screen (SQL 20261016000100). An unknown cost is never shown as $0.
   const COST_VENDORS = [['stripe', 'Stripe'], ['resend', 'Resend (email)'], ['supabase', 'Supabase'], ['domain', 'Domain'], ['cloud', 'Cloud'], ['anthropic', 'Anthropic (AI editor)'], ['render', 'Rendering'], ['other', 'Other']];

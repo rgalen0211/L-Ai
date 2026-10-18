@@ -53,7 +53,7 @@ window.ryagramConfig = Object.freeze({
   // the credits ledger is live (supabase/README.md, "Creator beta flow").
   filmRequests: true,
   // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once
-  // SQL 20261017000400 is applied and the Privacy Policy line for it is published (supabase/README.md, "Funnel tracking").
+  // SQL 20261017000900 is applied and the Privacy Policy line for it is published (supabase/README.md, "Funnel tracking").
   funnelTracking: false,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;

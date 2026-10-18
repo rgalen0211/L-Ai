@@ -1,4 +1,4 @@
-"""First-party funnel tracking (migrations/20261017000400_funnel_events.sql) on a local Postgres with the 2B credits ledger:
+"""First-party funnel tracking (migrations/20261017000900_funnel_events.sql) on a local Postgres with the 2B credits ledger:
 anonymous steps, steps written by triggers on the real tables, the account's source (first answer wins), return visits, Ryan's view, who can read what, retention.
 
 Same setup as test_creator_flow.py. Run from the repo root with TEMP/TMP/TMPDIR on D: (the storage rule):

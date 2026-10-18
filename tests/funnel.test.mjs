@@ -121,7 +121,7 @@ test('FUNNEL BY SOURCE AND WEEK: sources sorted by volume with the visit-to-sign
   const wk = O.funnelByWeek(f);
   assert.deepEqual(plain(wk.map(r => r.week)), ['2026-10-12', '2026-10-05']);
   assert.equal(wk[0].counts.landing_view, 60);
-  assert.match(O.funnelLine(null), /apply SQL 20261017000400/);
+  assert.match(O.funnelLine(null), /apply SQL 20261017000900/);
   assert.match(O.funnelLine(f), /Visits .* counted each time; every other step counts each account once/);
 });
 
@@ -150,7 +150,7 @@ test('WIRING: the pages load funnel.js, sign-in attaches the source once, the in
 });
 
 test('SQL: the table, the policies and the retention are what the privacy line says', () => {
-  const sql = read('supabase/migrations/20261017000400_funnel_events.sql');
+  const sql = read('supabase/migrations/20261017000900_funnel_events.sql');
   assert.match(sql, /create table public\.funnel_events/);
   assert.match(sql, /alter table public\.funnel_events enable row level security/);
   assert.match(sql, /for select to authenticated using \(public\.is_app_admin\(\)\)/);

@@ -622,7 +622,7 @@ Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring
 
 ## Funnel tracking (branch funnel-events): first-party, no cookies, no pixels
 
-`migrations/20261017000400_funnel_events.sql` (apply after `20261017000200_invite_someone.sql`; it replaces `retention_purge()` once more) and `assets/funnel.js`, behind `funnelTracking: false` in `assets/ryagram-config.js`. Spec: Ryan, 2026-10-17.
+`migrations/20261017000900_funnel_events.sql` (apply after `20261017000200_invite_someone.sql`; it replaces `retention_purge()` once more) and `assets/funnel.js`, behind `funnelTracking: false` in `assets/ryagram-config.js`. Spec: Ryan, 2026-10-17.
 
 - **Tables:** `funnel_events` (event, time, the account if any, utm_source/medium/campaign, referrer domain) and `funnel_accounts` (the source attached to an account). RLS on, an `is_app_admin()` read policy and nothing else: no one can insert, update or delete through the API; the service role has no grant either.
 - **Events:** `landing_view` and `signup_started` are anonymous (`funnel_anon()`, callable with the public key, only those two names, stops at 5,000 an hour). `signup_done` (first confirmed email, a trigger on `auth.users`), `first_project`, `contact_sheet`, `preview`, `film_requested`, `film_delivered`, `purchase` (a `purchase` credit-ledger row), `subscription_start` / `subscription_cancel` are written by TRIGGERS on the real tables, so the page cannot invent or skip a step. `return_7d` / `return_30d`: `funnel_return_visit()` when a signed-in person opens the app 7 / 30 or more days after confirming their email. Each account counts once per step except purchases and plan starts/cancels.
