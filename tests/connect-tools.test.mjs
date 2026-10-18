@@ -359,7 +359,7 @@ test('no secret in the repo: no real role password, no connection string with a 
   const walk = (d) => readdirSync(d).flatMap((f) => (skip.has(f) ? [] : statSync(`${d}/${f}`).isDirectory() ? walk(`${d}/${f}`) : [`${d}/${f}`]));
   const files = ['supabase', 'tools', 'docs', 'tests'].flatMap(walk).filter((f) => /\.(sql|py|mjs|cjs|ts|md|sh|json|txt)$/.test(f));
   assert.ok(files.length > 50);
-  const here = 'tests/connect.test.mjs';
+  const here = 'tests/connect-tools.test.mjs';
   for (const f of files) {
     if (f === here) continue;
     const text = readFileSync(f, 'utf8');

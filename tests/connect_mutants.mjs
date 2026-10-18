@@ -1,4 +1,4 @@
-// Must-fail proof for tests/connect.test.mjs: each mutant deletes ONE check from a scratch copy of the connect code
+// Must-fail proof for tests/connect-tools.test.mjs: each mutant deletes ONE check from a scratch copy of the connect code
 // and the suite must then FAIL. Run:  node tests/connect_mutants.mjs   (exit 0 only when every mutant is caught)
 import fs from 'node:fs';
 import path from 'node:path';
@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut');
 const D = 'supabase/functions/connect-core/';
-const SUITES = ['connect.test.mjs', 'connect-oauth.test.mjs', 'connect-mcp-sdk.test.mjs', 'connect-oauth-guard.test.mjs'];
+const SUITES = ['connect-tools.test.mjs', 'connect-oauth.test.mjs', 'connect-mcp-sdk.test.mjs', 'connect-oauth-guard.test.mjs'];
 const mutants = [
   ['no invitation/consent check', D + 'dispatch.ts', 'if (!grant) return refused(NO_GRANT, "no_grant");', 'grant = grant ?? { scopes: ["read", "write", "render_free", "render_final"] };'],
   ['no scope check', D + 'dispatch.ts', 'if (!grant.scopes.includes(tool.scope)) {', 'if (false) {'],
