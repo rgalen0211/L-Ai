@@ -75,3 +75,9 @@ test('ROUND 2: back links are comfortable to tap, the first loading line has a s
   assert.ok(lib.includes("h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'"));
   assert.ok(lib.includes("'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'"));
 });
+
+test('FOOTER (Ryan Q26, 2026-10-18): the app footer says "Contact: ryagram@uselai.com" as one link, between Help and Terms of Use', () => {
+  const foot = read('app/index.html').match(/<footer class="app-foot">[\s\S]*?<\/footer>/)[0];
+  assert.ok(foot.includes('<a href="/help/">Help</a><a href="mailto:ryagram@uselai.com">Contact: ryagram@uselai.com</a><a href="/terms/">Terms of Use</a>'));
+  assert.equal((foot.match(/ryagram@uselai\.com/g) || []).length, 2, 'the address is the link target and its label, nothing else');
+});
