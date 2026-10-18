@@ -7,4 +7,6 @@ export interface AuthStore {
   exchangeCode(a: { codeHash: string; clientId: string; redirectUri: string; verifier: string; accessHash: string; refreshHash: string }): Promise<Record<string, unknown>>;
   refresh(a: { refreshHash: string; clientId: string; accessHash: string; newRefreshHash: string }): Promise<Record<string, unknown>>;
   revoke(hash: string): Promise<void>;
+  /** Per-caller limit for the open endpoints; the caller is a salted hash of the address, never the address. true = allowed. */
+  hit(caller: string, bucket: string, max: number, windowSeconds: number): Promise<boolean>;
 }

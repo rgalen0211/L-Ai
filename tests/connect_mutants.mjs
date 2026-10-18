@@ -8,24 +8,35 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut');
 const D = 'supabase/functions/connect-core/';
+const SUITES = ['connect.test.mjs', 'connect-oauth.test.mjs', 'connect-mcp-sdk.test.mjs', 'connect-oauth-guard.test.mjs'];
 const mutants = [
   ['no invitation/consent check', D + 'dispatch.ts', 'if (!grant) return refused(NO_GRANT, "no_grant");', 'grant = grant ?? { scopes: ["read", "write", "render_free", "render_final"] };'],
   ['no scope check', D + 'dispatch.ts', 'if (!grant.scopes.includes(tool.scope)) {', 'if (false) {'],
   ['no argument check', D + 'dispatch.ts', 'if (problems.length) return refused(`The call was not understood', 'if (false) return refused(`The call was not understood'],
-  ['no per-client rate limit', D + 'dispatch.ts', 'if (!(await policy.hit(principal, `calls:${principal.clientId}`', 'if (false && !(await policy.hit(principal, `calls:${principal.clientId}`'],
+  ['no per-client rate limit', D + 'dispatch.ts', 'if (!(await policy.hit(principal, "calls"', 'if (false && !(await policy.hit(principal, "calls"'],
   ['no render-ladder rate limit', D + 'dispatch.ts', 'if (tool.ladder && !(await policy.hit', 'if (false && !(await policy.hit'],
   ['set_story saves despite failed checks', D + 'tools.ts', 'if (problems.length) {\n      return refuse(`The story was NOT saved', 'if (false) {\n      return refuse(`The story was NOT saved'],
-  ['sheet/preview/render start without confirm', D + 'tools.ts', 'if (!confirm) {', 'if (false) {'],
+  ['a sheet or preview that costs credits is started', D + 'tools.ts', 'if (q.credits > 0) {\n    return refuse(`${label} would cost', 'if (false) {\n    return refuse(`${label} would cost'],
   ['full render ignores confirm', D + 'tools.ts', 'if (a.confirm !== true) {', 'if (false) {'],
   ['full render ignores the on/off switch', D + 'tools.ts', 'if (!(await ctx.policy.finalRendersEnabled())) {', 'if (false) {'],
   ['full render ignores which preview was shown', D + 'tools.ts', 'if (l.preview!.id !== a.preview_job_id) {', 'if (false) {'],
   ['full render ignores the ladder', D + 'tools.ts', 'if (!l.ready) return refuse', 'if (false) return refuse'],
-  ['no credit balance check', D + 'tools.ts', 'if (q.credits > q.available) {\n      return refuse(`${label} costs', 'if (false) {\n      return refuse(`${label} costs'],
   ['a second identical job is queued', D + 'tools.ts', 'if (running) return ok(`${label} for this story is already', 'if (false) return ok(`${label} for this story is already'],
   ['project titles not marked untrusted', D + 'tools.ts', 'untrusted("project-title", p.title)', 'p.title'],
   ['errors leak tokens', D + 'tools.ts', String.raw`.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]")`, ''],
   ['MCP answers without a valid token', D + 'mcp.ts', 'if (!principal) return json(401, { error: "Sign in to Ryagram to use this connection." }', 'if (false) return json(401, { error: "Sign in to Ryagram to use this connection." }'],
-  ['MCP does not cap the request size', D + 'mcp.ts', 'if (raw.length > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });\n  let msg', 'let msg'],
+  ['MCP does not cap the request size', D + 'mcp.ts', 'if (buf.byteLength > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });\n  const raw', 'const raw'],
+  ['a database outage looks like a bad token (401)', D + 'mcp.ts', 'if ("down" in auth) return unavailable();', ''],
+  ['REST answers without a valid token', D + 'rest.ts', 'if (!principal) return json(401', 'if (false) return json(401'],
+  ['REST does not cap the request size', D + 'rest.ts', 'if (buf.byteLength > LIMITS.maxBodyBytes) return json(413', 'if (false) return json(413'],
+  ['a client secret is accepted at /token', D + 'oauth.ts', 'if (p.get("client_secret") ||', 'if (false && p.get("client_secret") ||'],
+  ['response_type is not checked at /authorize', D + 'oauth.ts', 'if (u.get("response_type") !== "code") return text(400', 'if (false) return text(400'],
+  ['the resource (RFC 8707) is not checked', D + 'oauth.ts', 'if (resource && resource !== `${d.baseUrl}/mcp` && resource !== d.baseUrl) return text', 'if (false) return text'],
+  ['no per-caller limit on the open endpoints', D + 'oauth.ts', 'if (!ok) return json(429', 'if (false) return json(429'],
+  ['the caller key uses the FIRST forwarded address', D + 'oauth.ts', 'hops[hops.length - 1]', 'hops[0]'],
+  ['a missing grant_type is not refused', D + 'oauth.ts', 'if (!grant) return json(400', 'if (false) return json(400'],
+  ['the OpenID-shaped discovery document is not served', D + 'oauth.ts', 'route.startsWith("/.well-known/openid-configuration")', 'route.startsWith("/.well-known/openid-configuration-off")'],
+  ['the token endpoint returns the token in the clear to the store', D + 'oauth.ts', 'accessHash: aHash, refreshHash: rHash', 'accessHash: access, refreshHash: refresh'],
   ['story size cap removed', D + 'story_check.ts', 'if (size > LIMITS.maxStoryBytes)', 'if (false)'],
   ['unknown dataset allowed', D + 'story_check.ts', 'typeof c.dataset === "string" && !DATASETS[c.dataset]', 'false'],
   ['calls are not logged', D + 'dispatch.ts', 'await policy.log(principal, {', 'void ({'],
@@ -36,12 +47,12 @@ for (const [name, file, from, to] of mutants) {
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(path.join(scratch, 'tests'), { recursive: true });
   fs.cpSync(path.join(root, 'supabase/functions'), path.join(scratch, 'supabase/functions'), { recursive: true });
-  fs.copyFileSync(path.join(root, 'tests/connect.test.mjs'), path.join(scratch, 'tests/connect.test.mjs'));
+  for (const f of SUITES) fs.copyFileSync(path.join(root, 'tests', f), path.join(scratch, 'tests', f));
   const target = path.join(scratch, file);
-  const src = fs.readFileSync(target, 'utf8');
+  const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');          // this checkout may have CRLF line endings
   if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, to));
-  const r = spawnSync(process.execPath, ['--test', path.join(scratch, 'tests/connect.test.mjs')], { encoding: 'utf8' });
+  const r = spawnSync(process.execPath, ['--test', ...SUITES.map((f) => path.join('tests', f))], { encoding: 'utf8', cwd: scratch });
   const caught = r.status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
   if (!caught) missed++;

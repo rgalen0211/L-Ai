@@ -28,7 +28,15 @@ export const toolList = () => TOOLS.map((t) => ({
 }));
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "WWW-Authenticate", ...headers } });
+
+/** A bearer token to a principal. null = not a live token (401). A database outage is NOT "not a token": it answers 503 so clients do not sign in again. */
+export async function authenticate(deps: { verifyToken(t: string): Promise<Principal | null> }, token: string): Promise<{ principal: Principal | null } | { down: true }> {
+  if (!token) return { principal: null };
+  try { return { principal: await deps.verifyToken(token) }; } catch { return { down: true }; }
+}
+export const unavailable = () => json(503, { error: "Ryagram is not reachable right now. Try again in a moment." }, { "Retry-After": "5" });
 
 export const challenge = (url: string, error?: string) =>
   ({ "WWW-Authenticate": `Bearer${error ? ` error="${error}",` : ""} resource_metadata="${url}"` });
@@ -47,13 +55,16 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
   // Authenticate before anything else, so an unauthenticated client gets the OAuth challenge on its first call
   // (that is how every assistant discovers where to sign in).
   const token = bearer(req);
-  const principal = token ? await deps.verifyToken(token).catch(() => null) : null;
+  const auth = await authenticate(deps, token);
+  if ("down" in auth) return unavailable();
+  const principal = auth.principal;
   if (!principal) return json(401, { error: "Sign in to Ryagram to use this connection." }, challenge(deps.resourceMetadataUrl, token ? "invalid_token" : undefined));
 
   const declared = Number(req.headers.get("content-length") ?? 0);
   if (declared > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
-  const raw = await req.text();
-  if (raw.length > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  const buf = await req.arrayBuffer();
+  if (buf.byteLength > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  const raw = new TextDecoder().decode(buf);
   let msg: any;
   try { msg = JSON.parse(raw); } catch { return rpcError(null, -32700, "Parse error"); }
   if (Array.isArray(msg)) return rpcError(null, -32600, "Send one message per request.");

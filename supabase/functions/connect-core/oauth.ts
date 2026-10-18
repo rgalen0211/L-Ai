@@ -6,6 +6,14 @@
 // calls and generates the opaque tokens. Tokens are random, shown once, and only their SHA-256 hash is ever stored.
 import type { AuthStore } from "./authstore.ts";
 
+/** The address of the caller as a salted daily hash (never stored or logged as an address), or null when the request carries none. */
+export async function callerKey(req: Request): Promise<string | null> {
+  const cf = (req.headers.get("cf-connecting-ip") ?? "").trim();
+  const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+  const ip = cf || hops[hops.length - 1] || "";              // the LAST hop: the one the gateway added, never the first (that one is the caller's to forge)
+  return ip ? await sha256hex(`${new Date().toISOString().slice(0, 10)}|ryagram-connect|${ip}`) : null;
+}
+
 export interface OAuthDeps {
   store: AuthStore;
   /** Public address of this function, no trailing slash, e.g. https://<ref>.supabase.co/functions/v1/connect */
@@ -69,9 +77,16 @@ const WHY: Record<string, string> = {
 const code = (e: unknown) => /^([a-z_]+)/.exec(String((e as Error)?.message ?? ""))?.[1] ?? "";
 const status = (e: unknown) => /^PT(\d{3})$/.test((e as { code?: string })?.code ?? "") ? Number((e as { code: string }).code.slice(2)) : 0;
 
+/** The body as text, refusing more than `max` BYTES before decoding. null = too large. */
+async function bodyText(req: Request, max = 8192): Promise<string | null> {
+  if (Number(req.headers.get("content-length") ?? 0) > max) return null;
+  const buf = await req.arrayBuffer();
+  return buf.byteLength > max ? null : new TextDecoder().decode(buf);
+}
+
 async function form(req: Request): Promise<URLSearchParams> {
-  const raw = await req.text();
-  if (raw.length > 8192) return new URLSearchParams();
+  const raw = await bodyText(req);
+  if (raw === null) return new URLSearchParams();
   if ((req.headers.get("content-type") ?? "").includes("application/json")) {
     try { const o = JSON.parse(raw); return new URLSearchParams(Object.entries(o).map(([k, v]) => [k, String(v)])); } catch { return new URLSearchParams(); }
   }
@@ -82,6 +97,17 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
   const { store } = d;
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
 
+  // Per-caller limits on the endpoints anyone can reach (each insert or lookup costs a database round trip). Over the limit: 429, nothing runs.
+  const LIMITS_: Record<string, [string, number, number]> = { "/register": ["register", 10, 3600], "/authorize": ["authorize", 30, 600],
+    "/token": ["token", 60, 600], "/revoke": ["revoke", 30, 600] };
+  const lim = LIMITS_[route];
+  if (lim) {
+    const who = await callerKey(req);
+    let ok = true;
+    try { ok = who ? await store.hit(who, lim[0], lim[1], lim[2]) : true; } catch { ok = true; }       // a limiter that is down never locks the door
+    if (!ok) return json(429, { error: "slow_down", error_description: "Too many requests. Wait a few minutes." }, { "Retry-After": "300" });
+  }
+
   if (req.method === "GET" && route.startsWith("/.well-known/oauth-authorization-server")) return json(200, authorizationServerMetadata(d.baseUrl));
   if (req.method === "GET" && route.startsWith("/.well-known/openid-configuration")) return json(200, openIdShapedMetadata(d.baseUrl));
   if (req.method === "GET" && route === "/.well-known/jwks.json") return json(200, { keys: [] });             // we sign no tokens
@@ -89,7 +115,9 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
 
   if (route === "/register" && req.method === "POST") {
     let body: Record<string, unknown>;
-    try { body = JSON.parse((await req.text()).slice(0, 8192)); } catch { return json(400, { error: "invalid_client_metadata", error_description: "Send JSON." }); }
+    const raw = await bodyText(req);
+    try { body = JSON.parse(raw ?? ""); } catch { return json(400, { error: "invalid_client_metadata", error_description: "Send JSON." }); }
+    if (!body || typeof body !== "object" || Array.isArray(body)) return json(400, { error: "invalid_client_metadata", error_description: "Send a JSON object." });
     const uris = body.redirect_uris;
     if (!Array.isArray(uris) || uris.some((u) => typeof u !== "string")) return json(400, { error: "invalid_redirect_uri", error_description: "redirect_uris must be a list of addresses." });
     const name = typeof body.client_name === "string" && body.client_name.trim() ? body.client_name.trim().slice(0, 80) : "AI assistant";
@@ -107,6 +135,9 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
   if (route === "/authorize" && (req.method === "GET" || req.method === "POST")) {
     const u = req.method === "GET" ? new URL(req.url).searchParams : await form(req);
     if (u.get("response_type") !== "code") return text(400, "Ryagram can only start a sign-in with response_type=code.");
+    const resource = u.get("resource");                                                      // RFC 8707: it must name THIS server
+    if (resource && resource !== `${d.baseUrl}/mcp` && resource !== d.baseUrl) return text(400, "Ryagram could not start this sign-in. The assistant asked for a different server (invalid_target).");
+    if ((u.get("state") ?? "").length > 512) return text(400, "Ryagram could not start this sign-in. The state value is too long.");
     try {
       const id = await store.beginAuthorization({
         clientId: u.get("client_id") ?? "", redirectUri: u.get("redirect_uri") ?? "", state: u.get("state"), codeChallenge: u.get("code_challenge") ?? "",
@@ -121,6 +152,7 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
   if (route === "/token" && req.method === "POST") {
     const p = await form(req);
     const grant = p.get("grant_type");
+    if (!grant) return json(400, { error: "invalid_request", error_description: "grant_type is required." });
     if (p.get("client_secret") || (req.headers.get("authorization") ?? "").toLowerCase().startsWith("basic ")) {
       return json(401, { error: "invalid_client", error_description: "Ryagram connections are public clients: send client_id only." });
     }

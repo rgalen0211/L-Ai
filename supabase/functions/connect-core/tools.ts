@@ -26,7 +26,7 @@ export function friendlyError(e: unknown): string {
   const msg = String((e as Error)?.message ?? "");
   const own = /^(PT\d{3}|P0002|42501|22023)$/.test(code);
   if (!own || msg.length > 300) return "Ryagram could not do that right now. Nothing was changed. Try again in a moment.";
-  return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg)[-_][\w-]{8,}/g, "[removed]");
+  return msg.replace(/eyJ[\w-]{10,}\.[\w-]{10,}\.[\w-]*/g, "[removed]").replace(/\b(sk|ryg|rga|rgr|rgc)[-_][\w-]{8,}/g, "[removed]");
 }
 
 async function projectVersion(ctx: ToolCtx, projectId: string) {
@@ -47,8 +47,8 @@ const whoami: ToolDef = {
     const finals = await ctx.policy.finalRendersEnabled();
     return ok(
       `You are acting as the Ryagram account ${untrusted("account-label", w.label)}. Credits available: ${w.available}; held for running jobs: ${w.held}. ` +
-      `Contact sheets and most previews are free; a call that costs credits says so first and needs confirm=true. ` +
-      `Full renders from this connection are ${finals ? "enabled (they cost credits and need confirm=true)" : "switched off: the person starts them in the Ryagram app"}.`,
+      `Contact sheets and previews started from a connection are free. If one would cost credits it is refused and the person starts it in the Ryagram app: ` +
+      `a connection cannot spend credits. Full renders from this connection are ${finals ? "enabled (they cost credits and need confirm=true)" : "switched off: the person starts them in the Ryagram app"}.`,
       { account: w.label, credits_available: w.available, credits_held: w.held, full_render_enabled: finals });
   },
 };
@@ -137,9 +137,9 @@ const setStory: ToolDef = {
 
 // ---------------------------------------------------------------------------------------------- rendering
 
-/** Shared by the three job tools: quote, ask for confirm when it costs, never queue a second identical job. */
+/** Shared by the sheet and preview tools: quote, refuse anything that costs credits (a connection cannot spend), never queue a second identical job. */
 async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnType<Data["getVersion"]>>, jobType: "contact_sheet" | "preview",
-                        params: Record<string, unknown>, confirm: boolean, label: string): Promise<ToolResult> {
+                        params: Record<string, unknown>, label: string): Promise<ToolResult> {
   const sha = view.version.story_sha256;
   const same = view.jobs.filter((j) => j.job_type === jobType && j.story_sha256 === sha &&
     JSON.stringify((j as { params?: unknown }).params ?? params) === JSON.stringify(params));
@@ -152,41 +152,36 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
   }
   const q = await ctx.data.quote(versionId, jobType);
   if (q.credits > 0) {
-    if (!confirm) {
-      return refuse(`${label} would cost ${q.credits} credits (you have ${q.available}). NOTHING was started. To go ahead, call this tool again with confirm=true.`,
-        "needs_confirm", { credits: q.credits, data: { started: false, credits: q.credits, available: q.available } });
-    }
-    if (q.credits > q.available) {
-      return refuse(`${label} costs ${q.credits} credits and you have ${q.available}. NOTHING was started.`, "no_credits", { credits: q.credits });
-    }
+    return refuse(`${label} would cost ${q.credits} credits. NOTHING was started. A connection cannot spend credits: tell the person, and they can start it in the Ryagram app.`,
+      "costs_credits", { credits: q.credits, data: { started: false, credits: q.credits } });
   }
   const job = await ctx.data.submitJob(versionId, jobType, params);
-  return ok(`${label} queued (job ${job.id}). ${q.credits > 0 ? `${q.credits} credits are held while it runs. ` : "It is free. "}Use job_status to follow it.`,
-    { job_id: job.id, state: job.state, started: true, credits_held: q.credits }, { credits: q.credits });
+  return ok(`${label} queued (job ${job.id}). It is free. Use job_status to follow it.`,
+    { job_id: job.id, state: job.state, started: true, credits_held: 0 });
 }
 
 const contactSheet: ToolDef = {
   name: "make_contact_sheet", title: "Make a contact sheet", scope: "render_free", readOnly: false, ladder: true,
-  description: "Queues a contact sheet: still frames of the saved story, which also runs Ryagram's full correctness checks. Usually free. If it would cost credits it says so and needs confirm=true. Asking twice never queues a second one.",
-  inputSchema: obj({ project_id: uuid, periods: { type: "array", items: { type: "string", pattern: "^[0-9]{4}$" }, minItems: 3, maxItems: 5 }, confirm: CONFIRM }, ["project_id"]),
+  description: "Queues a contact sheet: still frames of the saved story, which also runs Ryagram's full correctness checks. Free. A connection cannot spend credits, so if one would cost any it is refused and the person starts it in the Ryagram app. Asking twice never queues a second one.",
+  inputSchema: obj({ project_id: uuid, periods: { type: "array", items: { type: "string", pattern: "^[0-9]{4}$" }, minItems: 3, maxItems: 5 } }, ["project_id"]),
   async run(a, ctx) {
     const pv = await projectVersion(ctx, String(a.project_id));
     if (!pv) return NOT_YOURS("project");
-    return startJob(ctx, pv.versionId, pv.view, "contact_sheet", Array.isArray(a.periods) ? { periods: a.periods } : {}, a.confirm === true, "The contact sheet");
+    return startJob(ctx, pv.versionId, pv.view, "contact_sheet", Array.isArray(a.periods) ? { periods: a.periods } : {}, "The contact sheet");
   },
 };
 
 const preview: ToolDef = {
   name: "make_preview", title: "Make a preview", scope: "render_free", readOnly: false, ladder: true,
-  description: "Queues a preview clip of at most 10 seconds of the saved story. The first few per project are free; after that it costs credits, which the tool states and which need confirm=true. Asking twice never queues a second one.",
-  inputSchema: obj({ project_id: uuid, start_seconds: { type: "number", minimum: 0, maximum: 36000 }, end_seconds: { type: "number", minimum: 0.1, maximum: 36010 }, confirm: CONFIRM }, ["project_id"]),
+  description: "Queues a preview clip of at most 10 seconds of the saved story. The first few per project are free; after that a preview costs credits, and a connection cannot spend credits, so it is refused and the person starts it in the Ryagram app. Asking twice never queues a second one.",
+  inputSchema: obj({ project_id: uuid, start_seconds: { type: "number", minimum: 0, maximum: 36000 }, end_seconds: { type: "number", minimum: 0.1, maximum: 36010 } }, ["project_id"]),
   async run(a, ctx) {
     const s = a.start_seconds == null ? 0 : Number(a.start_seconds);
     const e = a.end_seconds == null ? s + 10 : Number(a.end_seconds);
     if (!(s >= 0 && e > s && e - s <= 10)) return refuse("A preview window is at most 10 seconds, with the start before the end.", "args");
     const pv = await projectVersion(ctx, String(a.project_id));
     if (!pv) return NOT_YOURS("project");
-    return startJob(ctx, pv.versionId, pv.view, "preview", { window_s: [s, e] }, a.confirm === true, "The preview");
+    return startJob(ctx, pv.versionId, pv.view, "preview", { window_s: [s, e] }, "The preview");
   },
 };
 

@@ -180,6 +180,7 @@ create function ryagram_private.connect_person_ok(p_owner uuid) returns boolean
 language sql stable set search_path = '' as $$
   select exists (select 1 from public.connect_access a where a.user_id = p_owner and a.enabled)
      and not exists (select 1 from public.app_admins ad where ad.user_id = p_owner)
+     and not exists (select 1 from public.workers w where w.user_id = p_owner)
 $$;
 
 -- THE ACTOR. Resolves the owner from the token and re-checks everything, on every call. p_scope null = any valid token.
@@ -204,6 +205,8 @@ begin
       using errcode = 'PT403';
   end if;
   perform set_config('request.jwt.claim.sub', t.owner_id::text, true);
+  perform set_config('request.jwt.claim.role', 'authenticated', true);
+  perform set_config('request.jwt.claim', json_build_object('sub', t.owner_id, 'role', 'authenticated')::text, true);
   perform set_config('request.jwt.claims', json_build_object('sub', t.owner_id, 'role', 'authenticated')::text, true);
   update public.connect_tokens set last_used_at = now() where id = t.id and (last_used_at is null or last_used_at < now() - interval '1 minute');
   return t.owner_id;
@@ -214,7 +217,7 @@ create function public.connect_register_client(p_name text, p_redirect_uris text
 language plpgsql security definer set search_path = '' as $$
 declare uri text; id text; n int;
 begin
-  if p_name is null or char_length(btrim(p_name)) not between 1 and 80 then
+  if p_name is null or char_length(btrim(p_name)) not between 1 and 80 or p_name ~ '[[:cntrl:]\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]' then
     raise exception 'invalid_client_metadata: a client name is required' using errcode = 'PT400'; end if;
   if p_redirect_uris is null or cardinality(p_redirect_uris) not between 1 and 5 then
     raise exception 'invalid_redirect_uri: one to five redirect URIs' using errcode = 'PT400'; end if;
@@ -223,12 +226,12 @@ begin
       raise exception 'invalid_redirect_uri: that address is not on Ryagram''s list of allowed sign-in return addresses' using errcode = 'PT400';
     end if;
   end loop;
-  -- a global flood limit on registrations: 60 an hour
+  -- a global backstop on registrations: 600 an hour (the Edge function limits each caller far lower, see connect_anon_hit)
   insert into public.connect_buckets (who, bucket, window_start, n)
     values ('global', 'register', date_trunc('hour', now()), 1)
     on conflict (who, bucket, window_start) do update set n = public.connect_buckets.n + 1
     returning public.connect_buckets.n into n;
-  if n > 60 then raise exception 'slow_down: too many registrations' using errcode = 'PT429'; end if;
+  if n > 600 then raise exception 'slow_down: too many registrations' using errcode = 'PT429'; end if;
   insert into public.connect_clients (name, redirect_uris) values (btrim(p_name), p_redirect_uris) returning client_id into id;
   return id;
 end $$;
@@ -243,12 +246,15 @@ begin
   if p_redirect_uri is null or not (p_redirect_uri = any (c.redirect_uris)) or not ryagram_private.connect_uri_ok(p_redirect_uri) then
     raise exception 'invalid_redirect_uri' using errcode = 'PT400'; end if;
   if p_method is distinct from 'S256' then raise exception 'invalid_request: code_challenge_method must be S256' using errcode = 'PT400'; end if;
+  if (select count(*) from public.connect_requests q where q.client_id = p_client_id and q.decided_at is null and q.expires_at > now()) >= 20 then
+    raise exception 'slow_down: too many sign-ins waiting for this assistant' using errcode = 'PT429'; end if;
   if p_code_challenge is null or p_code_challenge !~ '^[A-Za-z0-9_-]{43}$' then
     raise exception 'invalid_request: bad code_challenge' using errcode = 'PT400'; end if;
-  want := coalesce(nullif(regexp_split_to_array(btrim(coalesce(p_scope, '')), '\s+'), array['']), ryagram_private.connect_offered_scopes());
+  want := coalesce(nullif(regexp_split_to_array(btrim(coalesce(p_scope, '')), '\s+'), array['']), array['read']);
   -- OAuth scope words the assistants send (openid, offline_access, profile, email) are ignored; ours are the tool scopes.
+  -- Asking for nothing we know means the least we have: read.
   want := array(select s from unnest(want) s where s = any (ryagram_private.connect_offered_scopes()));
-  if cardinality(want) = 0 then want := ryagram_private.connect_offered_scopes(); end if;
+  if cardinality(want) = 0 then want := array['read']; end if;
   insert into public.connect_requests (client_id, redirect_uri, state, code_challenge, scopes, resource)
     values (p_client_id, p_redirect_uri, left(p_state, 512), p_code_challenge, want, left(p_resource, 300)) returning connect_requests.id into id;
   return id;
@@ -267,9 +273,10 @@ begin
     update public.connect_tokens set revoked_at = now() where family_id = k.family_id and revoked_at is null;
     return bad;
   end if;
-  if k.expires_at < now() or k.client_id <> p_client_id or k.redirect_uri is distinct from p_redirect_uri
+  if k.expires_at < now() or k.client_id is distinct from p_client_id or k.redirect_uri is distinct from p_redirect_uri
      or p_verifier is null or p_verifier !~ '^[A-Za-z0-9._~-]{43,128}$'
      or translate(rtrim(encode(sha256(convert_to(p_verifier, 'UTF8')), 'base64'), '='), '+/', '-_') <> k.code_challenge then
+    update public.connect_codes set used_at = now() where code_hash = p_code_hash;      -- a failed attempt burns the code (OAuth 2.1)
     return bad;
   end if;
   if not ryagram_private.connect_person_ok(k.owner_id)
@@ -287,7 +294,7 @@ language plpgsql security definer set search_path = '' as $$
 declare t public.connect_tokens; bad jsonb := jsonb_build_object('error', 'invalid_grant');
 begin
   select * into t from public.connect_tokens where refresh_hash = p_refresh_hash for update;
-  if not found or t.client_id <> p_client_id then return bad; end if;
+  if not found or t.client_id is distinct from p_client_id then return bad; end if;
   if t.refresh_used_at is not null or t.revoked_at is not null then   -- reuse of a rotated or revoked token: kill the whole family
     update public.connect_tokens set revoked_at = now() where family_id = t.family_id and revoked_at is null;
     return bad;
@@ -323,6 +330,8 @@ begin
   elsif not ryagram_private.connect_person_ok(me) then why := 'This Ryagram account is not enabled for AI assistants yet (invite-only for now).';
   end if;
   return jsonb_build_object('allowed', why is null, 'reason', why, 'client_name', c.name,
+    'redirect_label', case when r.redirect_uri ~ '^http://(localhost|127\.0\.0\.1|\[::1\])' then 'A program on this computer'
+                           else coalesce((select a.label from public.connect_redirect_allowlist a where a.enabled and a.kind = 'exact' and a.redirect_uri = r.redirect_uri), 'An address Ryagram does not recognise') end,
     'redirect_uri', r.redirect_uri, 'redirect_host', substring(r.redirect_uri from '^[a-z]+://([^/:]+)'),
     'requested_scopes', r.scopes, 'offered_scopes', ryagram_private.connect_offered_scopes(),
     'credit_scopes', '[]'::jsonb,                       -- v1: nothing offered can spend credits without asking (full renders are not offered)
@@ -340,6 +349,8 @@ begin
     raise exception 'This sign-in request has expired. Start again from your assistant.' using errcode = '42501'; end if;
   sep := case when position('?' in r.redirect_uri) > 0 then '&' else '?' end;
   update public.connect_requests set decided_at = now() where id = p_request;
+  if not ryagram_private.connect_uri_ok(r.redirect_uri) then
+    raise exception 'This assistant''s return address is not on Ryagram''s allowed list.' using errcode = '42501'; end if;
   if not coalesce(p_approve, false) then
     return jsonb_build_object('redirect_to', r.redirect_uri || sep || 'error=access_denied' || case when r.state is null then '' else '&state=' || ryagram_private.connect_pct(r.state) end);
   end if;
@@ -380,6 +391,7 @@ create function public.admin_set_connect_access(p_email text, p_enabled boolean)
 language plpgsql security definer set search_path = '' as $$
 declare target uuid;
 begin
+  perform ryagram_private.connect_app_session();
   if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;
   select id into target from auth.users where lower(email) = lower(btrim(p_email));
   if target is null then raise exception 'No account with that email.' using errcode = 'P0002'; end if;
@@ -395,6 +407,7 @@ end $$;
 create function public.admin_connect_allowlist_set(p_redirect_uri text, p_kind text, p_label text, p_enabled boolean) returns void
 language plpgsql security definer set search_path = '' as $$
 begin
+  perform ryagram_private.connect_app_session();
   if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;
   if p_kind not in ('exact', 'loopback') then raise exception 'kind must be exact or loopback.' using errcode = '22023'; end if;
   insert into public.connect_redirect_allowlist (redirect_uri, kind, label, enabled)
@@ -436,9 +449,23 @@ language plpgsql security definer set search_path = '' as $$
 declare t public.connect_tokens;
 begin
   if p_result not in ('ok', 'refused', 'error') or p_tool !~ '^[a-z0-9_]{1,40}$' or p_code !~ '^[a-z0-9_]{1,40}$' then return; end if;
-  select * into t from public.connect_tokens where access_hash = p_token_hash;         -- an unknown token is logged with no owner
+  select * into t from public.connect_tokens where access_hash = p_token_hash;
+  if not found then return; end if;                    -- an unknown hash is not logged: anyone holding the runner credentials could flood the table
   insert into public.connect_calls (owner_id, client_id, tool, credits, result, code, failed_checks)
     values (t.owner_id, t.client_id, p_tool, greatest(coalesce(p_credits, 0), 0), p_result, p_code, greatest(coalesce(p_failed, 0), 0));
+end $$;
+
+create function public.connect_anon_hit(p_caller text, p_bucket text, p_max int, p_window_s int) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare w timestamptz; c int;
+begin
+  if p_caller is null or p_caller !~ '^[0-9a-f]{64}$' or p_bucket !~ '^[a-z0-9_]{1,30}$' or p_window_s not between 1 and 86400 or p_max < 1 then
+    raise exception 'bad limit' using errcode = '22023'; end if;
+  w := to_timestamp(floor(extract(epoch from now()) / p_window_s) * p_window_s);
+  insert into public.connect_buckets (who, bucket, window_start, n) values ('ip:' || p_caller, p_bucket, w, 1)
+    on conflict (who, bucket, window_start) do update set n = public.connect_buckets.n + 1
+    returning public.connect_buckets.n into c;
+  return c <= p_max;
 end $$;
 
 create function public.connect_final_enabled() returns boolean
@@ -558,6 +585,11 @@ begin
   end if;
   if p_job_type not in ('contact_sheet', 'preview') then raise exception 'Unknown job type.' using errcode = '22023'; end if;
   me := ryagram_private.connect_actor(p_token_hash, 'render_free');
+  -- "Free" means free: a connection cannot spend credits in v1, so a job that would cost any is refused here, whatever the AI sends.
+  -- (The tool says so in words first.) Credits are spent only by the person, in the Ryagram app.
+  if coalesce((public.connect_quote(p_token_hash, p_version, p_job_type) ->> 'credits')::int, 0) > 0 then
+    raise exception 'This would cost credits. Credits can only be spent from the Ryagram app for now; start it there.' using errcode = '42501';
+  end if;
   select * into j from public.submit_job(p_version, p_job_type::public.job_type, coalesce(p_params, '{}'::jsonb));   -- the app's function, as the owner
   return jsonb_build_object('id', j.id, 'state', j.state);
 end $$;
@@ -590,9 +622,13 @@ declare a int; b int; c int; d int;
 begin
   delete from public.connect_requests where expires_at < now() - interval '1 day'; get diagnostics a = row_count;
   delete from public.connect_codes where expires_at < now() - interval '1 day'; get diagnostics b = row_count;
-  delete from public.connect_tokens where (revoked_at < now() - interval '7 days') or refresh_expires_at < now() - interval '7 days'; get diagnostics c = row_count;
+  delete from public.connect_tokens where refresh_expires_at < now() - interval '1 day'; get diagnostics c = row_count;      -- rotated rows stay until expiry so reuse is still detected
   delete from public.connect_calls where at < now() - interval '30 days'; get diagnostics d = row_count;
   delete from public.connect_buckets where window_start < now() - interval '2 days';
+  -- clients that registered but nobody ever signed in to (DCR is open): gone after a week
+  delete from public.connect_clients c where c.created_at < now() - interval '7 days'
+    and not exists (select 1 from public.connect_grants g where g.client_id = c.client_id)
+    and not exists (select 1 from public.connect_tokens t where t.client_id = c.client_id);
   return jsonb_build_object('requests', a, 'codes', b, 'tokens', c, 'calls', d);
 end $$;
 
@@ -605,7 +641,7 @@ revoke all on function ryagram_private.connect_pct(text), ryagram_private.connec
 revoke all on function
   public.connect_register_client(text, text[]), public.connect_begin_authorization(text, text, text, text, text, text, text),
   public.connect_exchange_code(text, text, text, text, text, text), public.connect_refresh(text, text, text, text), public.connect_revoke(text),
-  public.connect_scopes(text), public.connect_hit(text, text, int, int), public.connect_log(text, text, int, text, text, int),
+  public.connect_scopes(text), public.connect_hit(text, text, int, int), public.connect_anon_hit(text, text, int, int), public.connect_log(text, text, int, text, text, int),
   public.connect_final_enabled(), public.connect_whoami(text), public.connect_list_projects(text), public.connect_create_project(text, text),
   public.connect_current_version(text, uuid), public.connect_get_version(text, uuid), public.connect_list_versions(text, uuid),
   public.connect_save_story(text, uuid, jsonb), public.connect_create_version(text, uuid, uuid), public.connect_quote(text, uuid, text),
@@ -617,7 +653,7 @@ revoke all on function
 grant execute on function
   public.connect_register_client(text, text[]), public.connect_begin_authorization(text, text, text, text, text, text, text),
   public.connect_exchange_code(text, text, text, text, text, text), public.connect_refresh(text, text, text, text), public.connect_revoke(text),
-  public.connect_scopes(text), public.connect_hit(text, text, int, int), public.connect_log(text, text, int, text, text, int),
+  public.connect_scopes(text), public.connect_hit(text, text, int, int), public.connect_anon_hit(text, text, int, int), public.connect_log(text, text, int, text, text, int),
   public.connect_final_enabled(), public.connect_whoami(text), public.connect_list_projects(text), public.connect_create_project(text, text),
   public.connect_current_version(text, uuid), public.connect_get_version(text, uuid), public.connect_list_versions(text, uuid),
   public.connect_save_story(text, uuid, jsonb), public.connect_create_version(text, uuid, uuid), public.connect_quote(text, uuid, text),

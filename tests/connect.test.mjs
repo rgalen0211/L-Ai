@@ -175,26 +175,20 @@ test('rate limits: per client per minute, per user per hour for the render tools
   assert.equal(last.code, 'rate');
 });
 
-test('credits: a costing call states the cost, needs confirm=true, and never starts without it', async () => {
+test('credits: "free" means free - a connection cannot spend, the cost is stated, nothing starts, and there is no confirm to send', async () => {
   const { call, w } = world();
   const id = await savedProject(call);
   const u = w.users.get(A.userId);
-  u.previewsUsed.set(u.projects[0].id, 3);                    // the free previews are used up
+  u.previewsUsed.set(u.projects[0].id, 3);                    // the free previews are used up: the next one would cost 5
   const ask = await call(A, 'make_preview', { project_id: id });
-  assert.equal(ask.code, 'needs_confirm'); assert.match(ask.text, /cost 5 credits/); assert.match(ask.text, /NOTHING was started/);
+  assert.equal(ask.code, 'costs_credits'); assert.match(ask.text, /cost 5 credits/); assert.match(ask.text, /NOTHING was started/); assert.match(ask.text, /cannot spend credits/);
   assert.equal(u.jobs.length, 0);
-  const go = await call(A, 'make_preview', { project_id: id, confirm: true });
-  assert.equal(go.data.started, true); assert.equal(go.data.credits_held, 5); assert.equal(u.held, 5);
-  const again = await call(A, 'make_preview', { project_id: id, confirm: true });   // idempotent: no second job, no second hold
-  assert.equal(again.data.started, false); assert.equal(u.jobs.length, 1); assert.equal(u.held, 5);
-});
-
-test('credits: not enough credits is refused even with confirm=true', async () => {
-  const { call, w } = world({ credits: 2 });
-  const id = await savedProject(call);
-  const u = w.users.get(A.userId); u.previewsUsed.set(u.projects[0].id, 3);
-  const r = await call(A, 'make_preview', { project_id: id, confirm: true });
-  assert.equal(r.code, 'no_credits'); assert.equal(u.jobs.length, 0);
+  for (const tool of ['make_preview', 'make_contact_sheet']) {                               // confirm=true is not an argument at all, so it cannot be used to push a cost through
+    assert.equal((await call(A, tool, { project_id: id, confirm: true })).code, 'args', tool);
+  }
+  assert.equal(u.jobs.length, 0); assert.equal(u.held, 0);
+  assert.equal(TOOLS.find((t) => t.name === 'make_preview').inputSchema.properties.confirm, undefined);
+  assert.equal(TOOLS.find((t) => t.name === 'request_full_render').inputSchema.properties.confirm.type, 'boolean');   // the full render still asks, when it is ever on
 });
 
 test('a sheet or preview is never queued twice for the same story', async () => {

@@ -5,12 +5,13 @@
 // A tool that is refused answers 200 with isError true (so an assistant can read the reason), except for
 // authentication (401), size (413) and unknown routes (404).
 import { callTool, type Env } from "./dispatch.ts";
-import { bearer, challenge, toolList, type McpDeps } from "./mcp.ts";
+import { authenticate, bearer, challenge, toolList, unavailable, type McpDeps } from "./mcp.ts";
 import { TOOLS } from "./tools.ts";
 import { LIMITS } from "./types.ts";
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", ...headers } });
+  new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff",
+    "Access-Control-Allow-Origin": "*", "Access-Control-Expose-Headers": "WWW-Authenticate", ...headers } });
 
 export function openApi(baseUrl: string): Record<string, unknown> {
   const paths: Record<string, unknown> = {};
@@ -49,7 +50,9 @@ export async function handleRest(req: Request, route: string, deps: McpDeps, bas
   if (!m) return json(404, { error: "Not found." });
 
   const token = bearer(req);
-  const principal = token ? await deps.verifyToken(token).catch(() => null) : null;
+  const auth = await authenticate(deps, token);
+  if ("down" in auth) return unavailable();
+  const principal = auth.principal;
   if (!principal) return json(401, { error: "Sign in to Ryagram to use this." }, challenge(deps.resourceMetadataUrl, token ? "invalid_token" : undefined));
 
   if (!m[1]) {
@@ -58,8 +61,9 @@ export async function handleRest(req: Request, route: string, deps: McpDeps, bas
   }
   if (req.method !== "POST") return json(405, { error: "Use POST." }, { Allow: "POST" });
   if (Number(req.headers.get("content-length") ?? 0) > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
-  const raw = await req.text();
-  if (raw.length > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  const buf = await req.arrayBuffer();
+  if (buf.byteLength > LIMITS.maxBodyBytes) return json(413, { error: "That request is too large." });
+  const raw = new TextDecoder().decode(buf);
   let args: unknown = {};
   if (raw.trim()) { try { args = JSON.parse(raw); } catch { return json(400, { error: "The body must be JSON." }); } }
   const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps };

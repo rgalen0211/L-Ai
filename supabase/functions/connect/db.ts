@@ -39,6 +39,7 @@ export class ConnectDb {
         [a.codeHash, a.clientId, a.redirectUri, a.verifier, a.accessHash, a.refreshHash]),
       refresh: (a) => this.fn("connect_refresh", ["text", "text", "text", "text"], [a.refreshHash, a.clientId, a.accessHash, a.newRefreshHash]),
       revoke: async (hash) => { await this.fn("connect_revoke", ["text"], [hash]); },
+      hit: (caller, bucket, max, windowSeconds) => this.fn<boolean>("connect_anon_hit", ["text", "text", "int", "int"], [caller, bucket, max, windowSeconds]),
     };
   }
 

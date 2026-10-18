@@ -145,3 +145,77 @@ test('the function entry holds no Supabase key and reads only its own settings',
   assert.doesNotMatch(src, /SERVICE_ROLE|service_role|ANON_KEY|SUPABASE_URL|getUser|createClient/);
   assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_PUBLIC_URL']);
 });
+
+// ------------------------------------------------------------------------------------------------ hardening (CC1 review E3/S3, LOWs)
+import { handleMcp } from '../supabase/functions/connect-core/mcp.ts';
+import { handleRest } from '../supabase/functions/connect-core/rest.ts';
+
+test('the open endpoints are limited per caller: the 11th registration from one address in an hour is a 429, another address is not blocked', async () => {
+  const limited = { n: new Map() };
+  const st = store({ hit: async (who, bucket, max) => { const k = who + bucket; limited.n.set(k, (limited.n.get(k) ?? 0) + 1); return limited.n.get(k) <= max; } });
+  const reg = (ip) => handleOAuth(new Request(BASE + '/register', { method: 'POST', headers: { 'x-forwarded-for': `1.1.1.1, ${ip}`, 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'x', redirect_uris: ['https://claude.ai/api/mcp/auth_callback'] }) }), '/register', deps(st));
+  for (let i = 0; i < 10; i++) assert.equal((await reg('9.9.9.9')).status, 201);
+  const r = await reg('9.9.9.9');
+  assert.equal(r.status, 429); assert.equal(r.headers.get('retry-after'), '300');
+  assert.equal((await reg('8.8.8.8')).status, 201);                                    // the LAST hop is the key; the first is the caller's to forge
+  const keys = [...limited.n.keys()];
+  assert.ok(keys.every((k) => /^[0-9a-f]{64}/.test(k)) && !keys.some((k) => k.includes('9.9.9.9')), 'the address itself reached the store');
+});
+
+test('a limiter that is down never locks the door; a request with no address is not limited', async () => {
+  const down = store({ hit: async () => { throw new Error('db down'); } });
+  const r = await handleOAuth(new Request(BASE + '/register', { method: 'POST', headers: { 'x-forwarded-for': '2.2.2.2', 'content-type': 'application/json' },
+    body: JSON.stringify({ client_name: 'x', redirect_uris: ['https://claude.ai/api/mcp/auth_callback'] }) }), '/register', deps(down));
+  assert.equal(r.status, 201);
+});
+
+test('authorize: a resource that is not this server is refused (RFC 8707); an overlong state is refused, not truncated', async () => {
+  const st = store();
+  const q = (extra) => new URLSearchParams({ response_type: 'code', client_id: 'rgc_abc', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', state: 's',
+    code_challenge: 'c'.repeat(43), code_challenge_method: 'S256', ...extra });
+  const bad = await handleOAuth(new Request(BASE + '/authorize?' + q({ resource: 'https://evil.example/mcp' })), '/authorize', deps(st));
+  assert.equal(bad.status, 400); assert.match(await bad.text(), /invalid_target/);
+  assert.equal((await handleOAuth(new Request(BASE + '/authorize?' + q({ resource: BASE + '/mcp' })), '/authorize', deps(st))).status, 302);
+  assert.equal((await handleOAuth(new Request(BASE + '/authorize?' + q({ state: 's'.repeat(513) })), '/authorize', deps(st))).status, 400);
+});
+
+test('token: a missing grant_type is invalid_request; register: a JSON null or array is a 400, never a 500', async () => {
+  assert.deepEqual(await (await handleOAuth(post('/token', 'code=x'), '/token', deps(store()))).json(), { error: 'invalid_request', error_description: 'grant_type is required.' });
+  for (const body of ['null', '[]', '"x"', '5']) assert.equal((await handleOAuth(post('/register', body, 'application/json'), '/register', deps(store()))).status, 400, body);
+});
+
+test('bodies are limited in BYTES before they are decoded', async () => {
+  const big = 'é'.repeat(5000);                                     // 5000 characters, 10000 bytes: over 8192 bytes, under 8192 characters
+  assert.equal((await handleOAuth(post('/register', JSON.stringify({ client_name: 'x', redirect_uris: [big] }), 'application/json'), '/register', deps(store()))).status, 400);
+});
+
+const mcpDeps = (verifyToken) => ({ data: null, policy: {}, deps: {}, verifyToken, dataFor: () => ({}), resourceMetadataUrl: BASE + '/.well-known/oauth-protected-resource' });
+const mcpReq = (extra = {}) => new Request(BASE + '/mcp', { method: 'POST', headers: { authorization: 'Bearer rga_x', 'content-type': 'application/json', ...extra }, body: '{"jsonrpc":"2.0","id":1,"method":"ping"}' });
+
+test('a database outage while checking a token answers 503 (clients retry), never 401 (clients sign in again) - MCP and REST', async () => {
+  const outage = mcpDeps(async () => { throw new Error('db down'); });
+  const m = await handleMcp(mcpReq(), outage);
+  assert.equal(m.status, 503); assert.equal(m.headers.get('retry-after'), '5'); assert.equal(m.headers.get('www-authenticate'), null);
+  const r = await handleRest(new Request(BASE + '/v1/tools/list_projects', { method: 'POST', headers: { authorization: 'Bearer rga_x' }, body: '{}' }), '/v1/tools/list_projects', outage, BASE);
+  assert.equal(r.status, 503);
+  assert.equal((await handleMcp(mcpReq(), mcpDeps(async () => null))).status, 401);                          // a token that is simply not valid is still a 401
+});
+
+test('REST: no token is 401 with the challenge, an oversize body is 413 measured in bytes, and every response says nosniff', async () => {
+  const ok = mcpDeps(async () => ({ tokenHash: 'h' }));
+  const none = await handleRest(new Request(BASE + '/v1/tools/list_projects', { method: 'POST', body: '{}' }), '/v1/tools/list_projects', ok, BASE);
+  assert.equal(none.status, 401); assert.match(none.headers.get('www-authenticate'), /resource_metadata=/); assert.equal(none.headers.get('x-content-type-options'), 'nosniff');
+  const huge = 'é'.repeat(160 * 1024);                                       // 160K characters = 320K bytes, over the 300 KB cap
+  const big = await handleRest(new Request(BASE + '/v1/tools/set_story', { method: 'POST', headers: { authorization: 'Bearer rga_x' }, body: huge }), '/v1/tools/set_story', ok, BASE);
+  assert.equal(big.status, 413);
+  const mc = await handleMcp(mcpReq({ authorization: 'Bearer rga_x' }), ok);
+  assert.equal(mc.headers.get('access-control-expose-headers'), 'WWW-Authenticate'); assert.equal(mc.headers.get('x-content-type-options'), 'nosniff');
+});
+
+test('our own token prefixes are scrubbed from error text too', async () => {
+  const { friendlyError } = await import('../supabase/functions/connect-core/tools.ts');
+  for (const t of ['rga_abcdefghijklmnop', 'rgr_abcdefghijklmnop', 'rgc_abcdefghijklmnop']) {
+    assert.doesNotMatch(friendlyError(Object.assign(new Error('bad ' + t), { code: '42501' })), /rg[arc]_/);
+  }
+});

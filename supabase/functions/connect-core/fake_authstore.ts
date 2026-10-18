@@ -15,6 +15,7 @@ export class FakeAuthStore {
   codes = new Map<string, { owner: Principal; client: string; uri: string; challenge: string; used: boolean; scopes: string[] }>();
   refreshes = new Map<string, { owner: Principal; client: string; used: boolean; scopes: string[] }>();
   n = 0;
+  hits = new Map<string, number>();
   private world: FakeWorld;
   private owner: Principal;
   constructor(world: FakeWorld, owner: Principal) { this.world = world; this.owner = owner; }
@@ -55,6 +56,7 @@ export class FakeAuthStore {
         return { scope: r.scopes.join(" "), expires_in: 3600 };
       },
       revoke: async () => {},
+      hit: async (caller, bucket, max) => { const k = caller + bucket; this.hits.set(k, (this.hits.get(k) ?? 0) + 1); return (this.hits.get(k) ?? 0) <= max; },
     };
   }
 
