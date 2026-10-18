@@ -687,9 +687,12 @@
                 notes: `Dataset: ${d.title} (${d.id}). ${win[0]} to ${win[1]}. Source: ${d.publisher}. Licence: ${d.licence}`,
                 sequence: { canvas: [1920, 1080], fps: 30, theme: r.look?.look?.theme || 'dark', clips: [{ kind: 'title', id: 'open', seconds: 3, fade: 0.4, headline: r.title, subhead: r.subtitle || m.label },
                   { kind: 'render', id: 'main', dataset: d.id, view: r.film_type, start: win[0], end: win[1], transition: { kind: 'crossfade', seconds: 0.6 } }] } };
+              // ENGINE 11cf562: a SOLID look on a COUNTY map is shown as continuous colour, and compileFilm says so in report.warnings and look.converted (the sentence is film.ts's COUNTY_CONTINUOUS_NOTICE; a test compares them).
+              const converted = d.geography.label.toLowerCase().includes('county') && r.film_type === 'map' && r.look?.look?.ramp && r.look.look.ramp.continuous === undefined
+                ? ["Your look uses solid colours; on a county map they are shown as a continuous ramp, not as a few bands, because counties are too small to class into bands and a banded county map does not visibly move."] : [];
               const breaks = d.methodology_breaks.filter(b => b.period > win[0] && b.period <= win[1]).map(b => `the window crosses a method change at ${b.period}: ${b.what} ${b.effect}`);
               return { data: { story, report: { dataset: { id: d.id, title: d.title, publisher: d.publisher, url: d.url, licence_short: d.licence_short }, film_type: r.film_type, window: { start: win[0], end: win[1] },
-                measure: { id: m.id, label: m.label, unit: m.unit }, method_notes: d.methodology_breaks.map(b => `${b.period}: ${b.what} ${b.effect}`), gaps: {}, warnings: breaks, look: { applied: !!r.look, changed: [], not_applied: [] } } }, error: null };
+                measure: { id: m.id, label: m.label, unit: m.unit }, method_notes: d.methodology_breaks.map(b => `${b.period}: ${b.what} ${b.effect}`), gaps: {}, warnings: [...breaks, ...converted], look: { applied: !!r.look, changed: [], not_applied: [], converted } } }, error: null };
             }
             return err(400, { error: 'Unknown action.' });
           }

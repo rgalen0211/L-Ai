@@ -114,3 +114,27 @@ test('WIRING AND FLAG: #/build and its link exist only behind guidedBuilder (off
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-builder.js') > 0 && html.indexOf('app-builder.js') < html.indexOf('app-library.js'));
 });
+
+// ENGINE 11cf562: compileFilm says, in report.warnings and look.converted, when a solid look is shown as a continuous ramp on a county map. The review shows every warning
+// BEFORE the button that makes the film and its (free) contact sheet; nothing here decides what is converted: that is the engine's.
+test('COUNTY NOTICE: a solid look on a county map shows the engine\'s sentence at the review; a state map shows no conversion notice', async () => {
+  const film = read('supabase/functions/_shared/film.ts');
+  const notice = /export const COUNTY_CONTINUOUS_NOTICE = "([^"]+)";/.exec(film)[1];
+  const client = createFakeClient();
+  const data = win.ryagramData(client);
+  const solid = { profile_version: 1, name: 'solid-look', look: { theme: 'light', ramp: { mode: 'solid', low: '#eeeeee', high: '#0a4a7a' } } };
+  const county = await data.builderCompile(B.requestFrom({ dataset: 'bps_county_permits', type: 'map', title: 'Permits', look: solid }));
+  assert.ok(county.report.warnings.includes(notice), 'the sentence is in report.warnings, word for word the engine\'s');
+  assert.deepEqual(plain(county.report.look.converted), [notice]);
+  const state = await data.builderCompile(B.requestFrom({ dataset: 'state_obesity_fastfood', type: 'map', title: 'Obesity', look: solid }));
+  assert.ok(!state.report.warnings.includes(notice) && state.report.look.converted.length === 0, 'no conversion notice on a state map');
+  const countyBars = await data.builderCompile(B.requestFrom({ dataset: 'bps_county_permits', type: 'bars', title: 'Permits', look: solid }));
+  assert.equal(countyBars.report.look.converted.length, 0, 'only the county MAP is converted');
+  const own = await data.builderCompile(B.requestFrom({ dataset: 'bps_county_permits', type: 'map', title: 'Permits' }));
+  assert.equal(own.report.look.converted.length, 0, 'the film\'s own look is not converted');
+  // the page puts every warning into the review ABOVE the make button, so it is read before anything is made
+  const src = read('assets/app-builder.js');
+  const review = src.slice(src.indexOf('function stepReview'), src.indexOf('function draw()'));
+  assert.ok(review.indexOf('...r.warnings.map(w =>') > -1 && review.indexOf('...r.warnings.map(w =>') < review.indexOf("h('div', { class: 'actions-row builder-nav' }"), 'warnings come before the buttons');
+  assert.match(review, /make\.disabled = false/, 'the make button is enabled only after the warnings are drawn');
+});
