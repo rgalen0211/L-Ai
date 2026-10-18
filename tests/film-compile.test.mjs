@@ -13,7 +13,7 @@ import os from 'node:os';
 import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { CATALOG, STORY_SCHEMA, STORY_SCHEMA_SHA256, CATALOG_ENGINE } from '../supabase/functions/_shared/catalog_data.ts';
-import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError, FILM_TYPES, COUNTY_CONTINUOUS_NOTICE } from '../supabase/functions/_shared/film.ts';
+import { compileFilm, describeDataset, searchCatalog, latestPossible, FilmError, FILM_TYPES, COUNTY_CONTINUOUS_NOTICE, countySlowPacingNotice } from '../supabase/functions/_shared/film.ts';
 import { checkAgainst } from '../supabase/functions/_shared/schema_check.ts';
 import { DATASETS } from '../supabase/functions/_shared/templates.ts';
 import { listableEntries, listableProblems, publicLeaks } from '../supabase/functions/_shared/catalog_rules.ts';
@@ -219,6 +219,18 @@ test('render-proof finding: a hatching look on EVERY county-level map is refused
     assert.ok(r.report.warnings.includes(COUNTY_CONTINUOUS_NOTICE), `${e.id}: and in warnings, where the looks page and the sheet read it`);
   }
   assert.match(COUNTY_CONTINUOUS_NOTICE, /continuous ramp, not as a few bands/);
+  // A slow-paced look on a county map is told plainly that pacing will mostly shorten it (measured: 2 s per year left 76 of 100 windows still).
+  for (const e of counties) {
+    const w = compileFilm({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['warm-documentary'] });
+    assert.ok(w.report.warnings.includes(countySlowPacingNotice(2)), `${e.id}: warm-documentary (2 s per year) is told its slow pacing is mostly shortened`);
+    assert.ok(w.report.look.converted.includes(countySlowPacingNotice(2)), e.id);
+    assert.equal(w.story.sequence.hold_seconds, 2, `${e.id}: the story still says 2 s (pacing happens at render; the data is untouched)`);
+    const fast = compileFilm({ dataset: e.id, film_type: 'map', title: 'x', look: PRESETS['clean-light'] });
+    assert.ok(!fast.report.warnings.some(x => /slow pacing/.test(x)), `${e.id}: control: a look with no slow hold is not told`);
+  }
+  assert.match(countySlowPacingNotice(2), /mostly shortened so the film visibly moves/);
+  const stSlow = compileFilm({ dataset: usable.find(e => e.geography.id === 'us_states' && e.film_types.includes('map')).id, film_type: 'map', title: 'x', look: PRESETS['warm-documentary'] });
+  assert.ok(!stSlow.report.warnings.some(x => /slow pacing/.test(x)), 'control: a state map with the same look is not told (its hatched/banded film is judged by the frame count, not shortened)');
   const noLook = compileFilm({ dataset: counties[0].id, film_type: 'map', title: 'x' });
   assert.ok(!noLook.report.warnings.includes(COUNTY_CONTINUOUS_NOTICE) && noLook.report.look.converted.length === 0, 'control: no look, no notice');
   const states = usable.find(e => e.geography.id === 'us_states' && e.film_types.includes('map'));
