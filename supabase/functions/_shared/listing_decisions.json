@@ -447,6 +447,11 @@
    "class": "us-gov-public-domain",
    "why": "U.S. Government work in the public domain; the publisher asks for citation, which every listing shows (source and licence)"
   },
+  "census_city_population": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain (17 USC 105): the Census Bureau's own decennial counts (Working Paper 27 for 1900-1990, the 2000-2020 census files); the publisher asks for citation, which every listing shows (source and licence)"
+  },
   "county_population_1990s": {
    "listable": true,
    "class": "us-gov-public-domain",
