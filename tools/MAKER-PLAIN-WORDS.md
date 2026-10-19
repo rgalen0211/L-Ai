@@ -1,4 +1,4 @@
-# Maker plain words (branch maker-plain-words): WORDING IS RYAN'S
+# Maker plain words (branch maker-plain-words-v11, on maker-v11 f6f2787): WORDING IS RYAN'S
 
 Every visible string this branch changes, old and new side by side. It comes from `proposals/WEB-MAKER-PLAIN-WORDS.md`. Only wording that keeps the same meaning is changed; nothing about what the maker does changes. **This is for Ryan to accept or refuse. It is not in any kit.** To refuse, do not merge it; the kit pins stay on `maker-sam-words`.
 
@@ -66,4 +66,5 @@ The main word swaps (used everywhere): Plan -> **Check my videos**; Build -> **M
 | 58 | `'Cannot build yet. Not said anywhere in your files: ${j.plan.gaps.join(', ')}.'` | `'Cannot make the film yet. These words are not in your videos: ${j.plan.gaps.join(', ')}.'` |
 | 59 | `'Not said anywhere in the files you chose: ${a.gaps.join(', ')}.'` | `'These words are not in the videos you chose: ${a.gaps.join(', ')}.'` |
 
+| 59 | `...Double-click tools\get-model.bat once (it needs the internet for a few minutes), then press Plan again.` | `...then press Check my videos again.` |
 Also changed (tests and audits only): the checks and `audit-maker-a11y.py` look for the new words. The ten questions FACES wrote are changed in 4 of 10 (questions 3, 5, 6 and 7 used Plan, Build and "model"); they are in the table above.

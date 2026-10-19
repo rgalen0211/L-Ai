@@ -157,7 +157,7 @@ GET_MODEL = r"tools\get-model.bat"
 
 
 def missing_model_sentence(model: str) -> str:
-    return f"The listening model ({model}) is not on this computer yet. Double-click {GET_MODEL} once (it needs the internet for a few minutes), then press Plan again."
+    return f"The listening model ({model}) is not on this computer yet. Double-click {GET_MODEL} once (it needs the internet for a few minutes), then press Check my videos again."
 
 
 def precheck(body: dict) -> dict:
