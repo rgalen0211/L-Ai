@@ -1469,6 +1469,7 @@
       const previewButton = h('button', { class: 'button secondary', type: 'button' }, 'Make preview');
       const finalButton = h('button', { class: 'button primary', type: 'button' }, 'Render final film');
       const finalNote = h('p', { class: 'form-note' });
+      // (outside the run controls on purpose: a finished render makes the version "complete", which hides the controls, and "Open your film" must stay reachable then)
       const orderBox = h('div', { class: 'order-box', 'aria-live': 'polite' });
       let openOrders = false;                                        // an order waiting or running keeps the page polling
       const lockedNote = h('p', { class: 'form-note', hidden: true });
@@ -1481,7 +1482,7 @@
           h('div', { class: 'inline-row' }, winStart, winEnd, previewButton)),
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
-          finalNote, finalButton, orderBox),
+          finalNote, finalButton),
         h('p', { class: 'form-note run-timing' }, 'Jobs keep running if you leave this page.'));
 
       async function submit(button, type, params, ladder) {
@@ -1720,7 +1721,7 @@
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
         h('p', { class: 'form-note' }, 'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'),
-        controls, balanceNote, lockedNote, error, listEl);
+        controls, orderBox, balanceNote, lockedNote, error, listEl);
 
       return {
         el,
