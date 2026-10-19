@@ -28,7 +28,7 @@
 .project-list,.version-list,.file-list,.job-list{list-style:none;padding:0;margin:0;border-top:1px solid var(--line)}
 .project-list li,.version-list li,.file-list li,.job-list li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:14px 0;margin:0;border-bottom:1px solid var(--line);font-size:.95rem;color:var(--ink)}
 .project-list a{font-weight:700;font-size:1.05rem;text-decoration:none;margin-right:auto}
-.version-link{font-weight:800;font-size:1.05rem;text-decoration:none;min-width:36px}
+.version-link{display:inline-flex;align-items:center;justify-content:center;font-weight:800;font-size:1.05rem;text-decoration:none;min-width:40px;min-height:40px}
 .version-list .button{margin-left:auto}
 .state{display:inline-block;padding:2px 10px;border-radius:999px;font-size:.75rem;font-weight:700;letter-spacing:.02em;background:var(--soft);color:var(--ink);white-space:nowrap}
 .state-complete,.job-complete{background:#dcefe9;color:var(--brand-deep)}
@@ -206,3 +206,7 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 /* First run at phone width (2026-10-19, tools/check-first-run-phone.py): the project name and the file's Open link are comfortable to tap, and the story box is 16px so iOS does not zoom in when it is focused */
 .project-list a{display:flex;align-items:center;min-height:40px}.file-list a{display:inline-flex;align-items:center;min-height:40px;padding:0 6px}
 @media(max-width:520px){.story,.builder-advanced textarea{font-size:16px}}
+/* Whole-app pass (2026-10-19, tools/audit-app-pass.py): on a phone every text field is 16px, so iOS does not zoom in when it is focused */
+@media(max-width:520px){.ryagram-app :is(input,select,textarea){font-size:16px}}
+/* Whole-app pass: the footer's text and links sit on one line (the links have padding the text does not), and an admin link is never split across two lines */
+.app-foot{align-items:center}.admin-links a{white-space:nowrap}
