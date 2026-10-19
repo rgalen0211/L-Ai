@@ -5,6 +5,7 @@
 // Every decision is made in SQL (connect_* functions, tested in supabase/tests/test_connect.py). This file turns HTTP into those
 // calls and generates the opaque tokens. Tokens are random, shown once, and only their SHA-256 hash is ever stored.
 import type { AuthStore } from "./authstore.ts";
+import { cachedRedirects, type CimdDeps, looksLikeCimd, rememberRedirects, validateCimd } from "./cimd.ts";
 
 /** The address of the caller as a salted daily hash (never stored or logged as an address), or null when the request carries none. */
 export async function callerKey(req: Request): Promise<string | null> {
@@ -20,6 +21,8 @@ export interface OAuthDeps {
   baseUrl: string;
   /** Where the browser is sent to decide; the request id is appended, e.g. https://uselai.com/app/#/connect/consent?request= */
   consentUrl: string;
+  /** Client ID Metadata Documents ("Use Claude's published identity"). Absent = not supported: the metadata does not advertise it and an https client_id is refused. */
+  cimd?: CimdDeps;
 }
 
 export const SCOPES = ["read", "write", "render_free"];
@@ -40,7 +43,7 @@ export function randomToken(prefix: string): string {
   return prefix + btoa(String.fromCharCode(...b)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
 
-export const authorizationServerMetadata = (base: string) => ({
+export const authorizationServerMetadata = (base: string, cimd = false) => ({
   issuer: base,
   authorization_endpoint: `${base}/authorize`,
   token_endpoint: `${base}/token`,
@@ -54,12 +57,13 @@ export const authorizationServerMetadata = (base: string) => ({
   revocation_endpoint_auth_methods_supported: ["none"],
   scopes_supported: SCOPES,
   service_documentation: "https://uselai.com/",
+  ...(cimd ? { client_id_metadata_document_supported: true } : {}),
 });
 /** The same server described the OpenID way, because clients that follow the MCP discovery order for an issuer with a path try
  *  `<issuer>/.well-known/openid-configuration` and Supabase routes nothing else to us. Ryagram issues no ID tokens and has no userinfo;
  *  the OpenID-required fields below are present only so those clients accept the document. `openid` is not a scope we grant. */
-export const openIdShapedMetadata = (base: string) => ({
-  ...authorizationServerMetadata(base),
+export const openIdShapedMetadata = (base: string, cimd = false) => ({
+  ...authorizationServerMetadata(base, cimd),
   jwks_uri: `${base}/.well-known/jwks.json`,
   subject_types_supported: ["public"],
   id_token_signing_alg_values_supported: ["RS256"],
@@ -94,6 +98,18 @@ async function form(req: Request): Promise<URLSearchParams> {
   return new URLSearchParams(raw);
 }
 
+/** null = the client is now registered (or already was) and the sign-in may go on; otherwise the plain-words reason it may not. */
+async function resolveCimdClient(clientId: string, redirectUri: string, d: OAuthDeps): Promise<string | null> {
+  const NOT_REGISTERED = WHY.invalid_client;
+  if (!d.cimd || !d.store.registerCimdClient || !d.cimd.allowed.has(clientId)) return NOT_REGISTERED;        // not on the list: nothing is fetched
+  if (cachedRedirects(clientId, redirectUri)) return null;
+  const res = validateCimd(clientId, await d.cimd.fetch(clientId), redirectUri);
+  if (!res.ok) return "The assistant's identity document was not accepted. Go back to your assistant and try again, or choose 'Register automatically' when adding it.";
+  try { await d.store.registerCimdClient(clientId, res.redirectUris); } catch (e) { return WHY[code(e)] ?? NOT_REGISTERED; }
+  rememberRedirects(clientId, res.redirectUris);
+  return null;
+}
+
 export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Promise<Response | null> {
   const { store } = d;
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: CORS });
@@ -109,8 +125,8 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
     if (!ok) return json(429, { error: "slow_down", error_description: "Too many requests. Wait a few minutes." }, { "Retry-After": "300" });
   }
 
-  if (req.method === "GET" && route.startsWith("/.well-known/oauth-authorization-server")) return json(200, authorizationServerMetadata(d.baseUrl));
-  if (req.method === "GET" && route.startsWith("/.well-known/openid-configuration")) return json(200, openIdShapedMetadata(d.baseUrl));
+  if (req.method === "GET" && route.startsWith("/.well-known/oauth-authorization-server")) return json(200, authorizationServerMetadata(d.baseUrl, !!d.cimd));
+  if (req.method === "GET" && route.startsWith("/.well-known/openid-configuration")) return json(200, openIdShapedMetadata(d.baseUrl, !!d.cimd));
   if (req.method === "GET" && route === "/.well-known/jwks.json") return json(200, { keys: [] });             // we sign no tokens
   if (req.method === "GET" && route.startsWith("/.well-known/oauth-protected-resource")) return json(200, protectedResourceDoc(d.baseUrl));
 
@@ -139,6 +155,11 @@ export async function handleOAuth(req: Request, route: string, d: OAuthDeps): Pr
     const resource = u.get("resource");                                                      // RFC 8707: it must name THIS server
     if (resource && resource !== `${d.baseUrl}/mcp` && resource !== d.baseUrl) return text(400, "Ryagram could not start this sign-in. The assistant asked for a different server (invalid_target).");
     if ((u.get("state") ?? "").length > 512) return text(400, "Ryagram could not start this sign-in. The state value is too long.");
+    const wantedClient = u.get("client_id") ?? "";
+    if (looksLikeCimd(wantedClient)) {                                                        // an https client_id: only an allowlisted address is ever fetched
+      const refused = await resolveCimdClient(wantedClient, u.get("redirect_uri") ?? "", d);
+      if (refused) return text(400, `Ryagram could not start this sign-in. ${refused}`);
+    }
     try {
       const id = await store.beginAuthorization({
         clientId: u.get("client_id") ?? "", redirectUri: u.get("redirect_uri") ?? "", state: u.get("state"), codeChallenge: u.get("code_challenge") ?? "",

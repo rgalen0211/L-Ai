@@ -13,6 +13,7 @@ import Ajv2020 from "npm:ajv@8.17.1/dist/2020.js";
 import { makeCompile } from "../connect-core/ajv_adapter.ts";
 import { sha256hex, json } from "../connect-core/oauth.ts";
 import { handleRequest } from "../connect-core/router.ts";
+import { CIMD_ALLOWED, defaultCimdFetcher } from "../connect-core/cimd.ts";
 import { ConnectDb } from "./db.ts";
 
 const dbUrl = Deno.env.get("CONNECT_DB_URL") ?? "";
@@ -40,6 +41,7 @@ Deno.serve(async (req) => {
     if (!sql || !consentUrl) return json(503, { error: "This connection is not set up yet." });
     return await handleRequest(req, {
       store: db.authStore(), consentUrl, publicBase,
+      cimd: { fetch: defaultCimdFetcher, allowed: CIMD_ALLOWED },
       mcp: {
         data: null as never, policy: db.policy(), deps: { compile },
         async verifyToken(token: string) { return await db.verify(await sha256hex(token)); },

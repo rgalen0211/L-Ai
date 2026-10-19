@@ -7,6 +7,7 @@
 // told where the resource metadata is (the WWW-Authenticate header on the 401, RFC 9728) goes straight to it.
 import type { AuthStore } from "./authstore.ts";
 import { handleMcp, type McpDeps } from "./mcp.ts";
+import type { CimdDeps } from "./cimd.ts";
 import { handleOAuth, json } from "./oauth.ts";
 import { handleRest } from "./rest.ts";
 
@@ -16,6 +17,8 @@ export interface RouterDeps {
   /** Pin the public address (CONNECT_PUBLIC_URL). Without it the address is derived from the request, which is only as trustworthy as the gateway. */
   publicBase?: string;
   mcp: Omit<McpDeps, "resourceMetadataUrl">;
+  /** Turn on "Use Claude's published identity" (client ID metadata documents). Off by default. */
+  cimd?: CimdDeps;
 }
 
 /** The public address of the function and the route inside it. */
@@ -34,7 +37,7 @@ export function baseAndRoute(req: Request, publicBase?: string): { base: string;
 
 export async function handleRequest(req: Request, d: RouterDeps): Promise<Response> {
   const { base, route } = baseAndRoute(req, d.publicBase);
-  const oauth = await handleOAuth(req, route, { store: d.store, baseUrl: base, consentUrl: d.consentUrl });
+  const oauth = await handleOAuth(req, route, { store: d.store, baseUrl: base, consentUrl: d.consentUrl, cimd: d.cimd });
   if (oauth) return oauth;
   const deps: McpDeps = { ...d.mcp, resourceMetadataUrl: `${base}/.well-known/oauth-protected-resource` };
   if (route === "/mcp" || route === "/") return await handleMcp(req, deps);

@@ -2,6 +2,8 @@
 // (connect/db.ts); tests use the in-memory one in fake_authstore.ts.
 export interface AuthStore {
   registerClient(name: string, redirectUris: string[]): Promise<string>;
+  /** Client ID Metadata Document identity: the client_id is the (allowlisted) https address itself. The database checks the allowlist and the redirect addresses again. */
+  registerCimdClient?(clientId: string, redirectUris: string[]): Promise<void>;
   beginAuthorization(a: { clientId: string; redirectUri: string; state: string | null; codeChallenge: string; method: string | null;
                           scope: string | null; resource: string | null; issuer: string }): Promise<string>;
   exchangeCode(a: { codeHash: string; clientId: string; redirectUri: string; verifier: string; accessHash: string; refreshHash: string }): Promise<Record<string, unknown>>;
