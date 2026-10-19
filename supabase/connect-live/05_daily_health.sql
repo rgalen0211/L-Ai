@@ -6,7 +6,7 @@ flags as (select connections_enabled, full_render_enabled from public.connect_fl
 calls24 as (select * from public.connect_calls where at > now() - interval '24 hours'),
 runner as (
   select ((select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-            where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
+            where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype) and not (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')
               and n.nspname not in ('pg_catalog', 'information_schema') and not (n.nspname = 'public' and p.proname like 'connect\_%'))
           + (select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace
               where c.relkind in ('r', 'v', 'm', 'p', 'f') and n.nspname not in ('pg_catalog', 'information_schema') and has_schema_privilege('connect_runner', n.oid, 'USAGE')
@@ -47,6 +47,15 @@ rows as (
          rr.n::text, case when rr.n = 0 then 'ok' else 'act' end,
          'If not zero: the connector login can do more than it should (a new function or table was granted to everyone, in a schema it can enter). Run 04_runner_privilege_report.sql, then tell CONNECT; consider 90_switch_off.sql until fixed.'
     from runner rr
+  union all
+  select 1, 'accepted residual (Ryan, Q55): pg_net functions in schema net that connect_runner can reach',
+         (select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
+             and (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')),
+         case when exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+           where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
+             and (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')) then 'look' else 'ok' end,
+         'Not zero is the residual Ryan accepted: the connector login can make the database send web requests (it cannot read tables). When Supabase support removes PUBLIC usage on schema net this reads 0 and the tolerance in 01 and 05 can be deleted.'
   union all
   select 0, 'redirect addresses that are loopback and ON (live must keep this at 0)',
          (select count(*)::text from public.connect_redirect_allowlist where kind = 'loopback' and enabled),
