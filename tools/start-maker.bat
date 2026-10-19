@@ -7,8 +7,9 @@ cd /d "%~dp0.."
 rem The listening model lives in the kit's own models folder unless you set RYAGRAM_MODEL_DIR yourself, so a double-click needs no setup in another window.
 if not defined RYAGRAM_MODEL_DIR set "RYAGRAM_MODEL_DIR=%CD%\models"
 set "PY="
-where py >nul 2>nul && set "PY=py"
-if not defined PY where python >nul 2>nul && set "PY=python"
+rem A Python counts only if it really runs (Windows 11 ships a python.exe stub that sends you to the Microsoft Store); call, so a python.bat shim returns here.
+call py -c "import sys" >nul 2>nul && set "PY=py"
+if not defined PY call python -c "import sys" >nul 2>nul && set "PY=python"
 if not defined PY (
   echo Python was not found on this computer.
   echo Install Python 3.12 from python.org and tick "Add python.exe to PATH" during setup, then double-click this file again.
@@ -17,7 +18,7 @@ if not defined PY (
 )
 set "OPEN=--open"
 if defined MAKER_NO_OPEN set "OPEN="
-%PY% tools\desktop_maker.py %OPEN% %*
+call %PY% tools\desktop_maker.py %OPEN% %*
 if errorlevel 1 (
   echo.
   echo The maker did not start. The message above says why.

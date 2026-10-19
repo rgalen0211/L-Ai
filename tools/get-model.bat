@@ -6,8 +6,9 @@ setlocal enabledelayedexpansion
 title Get the listening model
 cd /d "%~dp0.."
 set "PY="
-where py >nul 2>nul && set "PY=py"
-if not defined PY where python >nul 2>nul && set "PY=python"
+rem A Python counts only if it really runs (Windows 11 ships a python.exe stub that sends you to the Microsoft Store); call, so a python.bat shim returns here.
+call py -c "import sys" >nul 2>nul && set "PY=py"
+if not defined PY call python -c "import sys" >nul 2>nul && set "PY=python"
 if not defined PY goto nopython
 if not defined RYAGRAM_MODEL_DIR set "RYAGRAM_MODEL_DIR=%CD%\models"
 set "LOG=%RYAGRAM_MODEL_DIR%.get-model.log"
@@ -15,7 +16,7 @@ echo This downloads the listening model once, about 150 MB. It is the only step 
 echo It will be saved in: %RYAGRAM_MODEL_DIR%
 echo Please wait. This can take a few minutes, and nothing is shown while it works.
 echo.
-%PY% -m ryagram.library models --get base %* > "%LOG%" 2>&1
+call %PY% -m ryagram.library models --get base %* > "%LOG%" 2>&1
 if errorlevel 1 goto failed
 echo Done. You can close this window and double-click start-maker.bat.
 pause

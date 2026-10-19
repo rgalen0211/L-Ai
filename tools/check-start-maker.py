@@ -170,6 +170,24 @@ def main():
         f8.flush()
         t8 = gm_log.read_text(encoding='utf8', errors='replace')
         check('Python was not found' in t8 and 'python.org' in t8, 'get-model.bat with no Python on PATH says how to get Python (it started no download)')
+        # the Microsoft Store python.exe stub (found by `where`, but it only prints "Python was not found; run without arguments...") must count as NO Python
+        stub_dir = tmp / 'storestub'
+        stub_dir.mkdir()
+        (stub_dir / 'python.cmd').write_text('@echo Python was not found; run without arguments to install from the Microsoft Store, or disable this shortcut from Settings > Apps > Advanced app settings > App execution aliases.' + chr(13) + chr(10) + '@exit /b 9009' + chr(13) + chr(10), encoding='ascii')
+        for bat in ('start-maker.bat', 'get-model.bat'):
+            lg = folder / ('stub-' + bat + '.log')
+            f_ = open(lg, 'w', encoding='utf8')
+            e_ = clean_env(False)
+            e_['PATH'] = str(stub_dir) + ';' + e_['PATH']
+            p_ = subprocess.Popen(['cmd.exe', '/c', str(folder / 'tools' / bat)], cwd=str(folder.parent), env=e_, stdin=subprocess.DEVNULL, stdout=f_, stderr=subprocess.STDOUT)
+            procs.append((p_, f_))
+            try:
+                p_.wait(timeout=30)
+            except subprocess.TimeoutExpired:
+                stop(p_)
+            f_.flush()
+            tx = lg.read_text(encoding='utf8', errors='replace')
+            check('Python was not found on this computer.' in tx and 'python.org' in tx and 'Microsoft Store' not in tx and 'online' not in tx, f'{bat} with only the Microsoft Store python stub on PATH says Python is missing and how to get it (not the Store text, not "check you are online")')
         # get-model.bat with the internet BLOCKED (a dead local proxy, so nothing leaves this computer): the download fails, Sam sees a plain sentence plus the last line of the error, NOT a Python traceback; the full text is kept in a log next to the models folder
         folder_g = tmp / 'getmodel'
         shutil.copytree(folder, folder_g, ignore=shutil.ignore_patterns('*.log'))

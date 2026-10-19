@@ -166,6 +166,27 @@ def main():
         pc = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4') + '#100-900'], 'source-2': [str(clips / 'b.mkv')]}}, tok)[1]
         check(pc['ok'] and 'only 0.10 to 0.90 s' in pc['slots'][0]['files'][0]['name'], 'a START_MS-END_MS span is accepted and shown in seconds')
         check(post(f'{base}/api/build', {**sl, 'binds': good}, tok)[0] == 400, 'Build without a Plan is refused')
+        # the speech add-on missing is caught at the door check, in one plain sentence with the exact command (not after a long listen, not as a refusal about the recipe)
+        keep_fw = dm.faster_whisper_missing
+        dm.faster_whisper_missing = lambda: True
+        pf = post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]
+        dm.faster_whisper_missing = keep_fw
+        # a missing Python package when the maker starts (the sign of a Python without the speech add-on: faster-whisper brings PyYAML and more) is ONE plain message with the command, not a traceback
+        keep_le, keep_state = dm.load_engine, dict(dm.STATE)
+
+        def boom(engine):
+            raise ModuleNotFoundError("No module named 'yaml'", name='yaml')
+        dm.load_engine = boom
+        try:
+            dm.main(['--engine', str(eng), '--recipes', str(recipes), '--work-dir', str(tmp / 'w-missing'), '--out-dir', str(tmp / 'o-missing'), '--port', '0'])
+            msg = ''
+        except SystemExit as e_:
+            msg = str(e_.code)
+        dm.load_engine = keep_le
+        dm.STATE.clear()
+        dm.STATE.update(keep_state)          # main() reset the running server's settings: put them back
+        check('(yaml)' in msg and 'speech add-on' in msg and 'faster-whisper "av<19"' in msg and 'Traceback' not in msg, f'a missing Python package at start is one plain message with the exact command, not a traceback ({msg[:60]!r})')
+        check(not pf['ok'] and any('speech add-on is not installed' in x and 'faster-whisper "av<19"' in x for x in pf['problems']), 'a missing speech add-on is named at the door check with the exact command (including av<19)')
         # ---- the expected wait in plain words, from the length of the files
         dm.media_seconds = lambda pth: {'a.mp4': 1800.0, 'b.mkv': 1800.0}.get(pth.name, 60.0)
         pc = post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]

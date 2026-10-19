@@ -147,6 +147,15 @@ def _span(b) -> str:
     return "" if b.start_ms is None else f", only {b.start_ms / 1000:.2f} to {b.end_ms / 1000:.2f} s"
 
 
+ADDON_STEP = 'Type this in a PowerShell window, then double-click this file again:  python -m pip install faster-whisper "av<19"'
+
+
+def faster_whisper_missing() -> bool:
+    """Is the speech add-on (faster-whisper) missing from the Python that runs the maker? Found without importing it (it is big)."""
+    import importlib.util
+    return importlib.util.find_spec("faster_whisper") is None
+
+
 def models_present(root) -> list[str]:
     """Which listening models have their weights in this folder (the layout the engine's model download writes: models--Systran--faster-whisper-<size>/snapshots/<id>/model.bin)."""
     root = Path(root)
@@ -177,6 +186,8 @@ def precheck(body: dict) -> dict:
     mroot = os.environ.get("RYAGRAM_MODEL_DIR")
     if model in MODELS and mroot and model not in models_present(mroot):
         problems.append(missing_model_sentence(model))
+    if faster_whisper_missing():
+        problems.append('The speech add-on is not installed on this PC. Type this in a PowerShell window, then press Plan again:  python -m pip install faster-whisper "av<19"')
     args = _bind_args(body.get("binds") or {})
     binds: dict = {}
     for pair in args:
@@ -1065,7 +1076,11 @@ def main(argv=None) -> int:
     recipes = Path(a.recipes) if a.recipes else engine / "recipes"
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
-    srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None)
+    try:
+        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None)
+    except ModuleNotFoundError as e:
+        raise SystemExit(f"A part of Python that the maker needs is missing ({e.name}). Most likely the speech add-on is not installed. "
+                         + ADDON_STEP)
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)
