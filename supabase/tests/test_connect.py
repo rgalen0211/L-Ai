@@ -1130,7 +1130,7 @@ class LiveFiles(core.Base):
         health = lambda start: [r for r in self.run_file("05_daily_health.sql")[1] if r[0].startswith(start)][0]
         report = lambda: [(r[0], r[1]) for r in self.run_file("04_runner_privilege_report.sql")[1]]
         RUNNER = "connect_runner: functions it can call"
-        RESIDUAL = "accepted residual (Ryan, Q55)"
+        RESIDUAL = "ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38)"
         c = self.db.as_(None).c
         c.execute("do $$ begin if not exists (select 1 from pg_roles where rolname = 'supabase_admin') then create role supabase_admin nologin; end if; end $$")
         try:
@@ -1143,13 +1143,13 @@ class LiveFiles(core.Base):
             # the named, supabase_admin-owned net functions: tolerated, counted in the row's name, labelled in the report, 'look' (not act) in health
             name, ok = rows01()[0]
             self.assertTrue(ok)
-            self.assertIn("(plus 2 named pg_net functions in schema net: ACCEPTED RESIDUAL, Ryan Q55)", name)
+            self.assertIn("(plus 2 named pg_net functions in schema net: ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38))", name)
             self.assertEqual(health(RUNNER)[2], "ok")
             res = health(RESIDUAL)
             self.assertEqual((res[1], res[2]), ("2", "look"))
             rep = report()
             self.assertEqual(sum(1 for k, _ in rep if k == "function execute"), 22)
-            self.assertEqual(sorted(k for k, n in rep if n.startswith("net.")), ["ACCEPTED RESIDUAL (Ryan, Q55): pg_net function in schema net, PUBLIC usage, owned by supabase_admin"] * 2)
+            self.assertEqual(sorted(k for k, n in rep if n.startswith("net.")), ["ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38): pg_net function in schema net, PUBLIC usage, owned by supabase_admin"] * 2)
             self.assertIn(("schema usage", "net"), rep)                           # the reach itself is still reported, never hidden
             # (1) a NEW function in net is not tolerated
             c.execute("create function net.new_helper() returns int language sql as $$ select 1 $$")
