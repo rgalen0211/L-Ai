@@ -80,7 +80,7 @@ begin
   -- A FILE WITH ITS YEARS ACROSS THE COLUMNS (Q6): the worker melts it in memory and reports the LONG form; wide_groups are the
   -- measure groups it could melt (one is chosen), wide_chosen the default. Only a wide file carries them.
   if r ? 'wide_groups' then
-    if coalesce((r->'guess'->>'wide')::boolean, false) is not true then return false; end if;
+    if (r->'guess'->'wide') is distinct from 'true'::jsonb then return false; end if;
     if coalesce(jsonb_typeof(r->'wide_groups'), '') <> 'array' then return false; end if;
     if jsonb_array_length(r->'wide_groups') not between 1 and 8 then return false; end if;
     for g in select * from jsonb_array_elements(r->'wide_groups') loop
@@ -121,7 +121,7 @@ begin
   if m ? 'melt_wide' and coalesce(jsonb_typeof(m->'melt_wide'), '') <> 'boolean' then
     return 'The mapping has something unexpected in it.';
   end if;
-  if coalesce((r->'guess'->>'wide')::boolean, false) then
+  if (r->'guess'->'wide') is not distinct from 'true'::jsonb then
     if not (r ? 'wide_groups') then
       -- a report from a reader that does not melt (an older worker): the old refusal, in the old words
       return 'This file has its years across the columns. Put the years in one column, with one row per place and year, and upload it again.';

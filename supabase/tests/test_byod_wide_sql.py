@@ -100,6 +100,34 @@ class WideSql(core.Base):
         ds2 = self.with_report(wide_report())
         self.assertTrue(self.confirm(ds2, dict(MAPPING, melt_wide=True)), "and no wide_prefix at all is the same")
 
+    def test_an_unnamed_group_is_accepted(self):
+        """A one-measure file (and WEB's mock) reports ONE group with prefix '' and wide_chosen ''."""
+        unnamed = [{"prefix": "", "first": "2019", "last": "2021", "count": 3}]
+        rep = wide_report(wide_groups=unnamed, wide_chosen="")
+        self.assertTrue(self.db.as_(None).one("select ryagram_private.ingest_report_ok(%s::jsonb)", json.dumps(rep)), "the report is valid")
+        ds = self.with_report(rep)
+        self.assertTrue(self.confirm(ds, dict(MAPPING, melt_wide=True)), "no prefix = the unnamed default")
+        ds2 = self.with_report(rep)
+        self.assertTrue(self.confirm(ds2, dict(MAPPING, melt_wide=True, wide_prefix="")), "an empty prefix = the unnamed group")
+        ds3 = self.with_report(rep)
+        self.refused(ds3, dict(MAPPING, melt_wide=True, wide_prefix="rent"), "not one of the file's year columns")        # CONTROL: still checked
+        self.assertFalse(self.db.as_(None).one("select ryagram_private.ingest_report_ok(%s::jsonb)", json.dumps(wide_report(wide_groups=unnamed, wide_chosen="x"))),
+                         "MUST-FAIL: a chosen prefix that is not the unnamed group")
+
+    def test_a_non_boolean_wide_returns_false_and_never_raises(self):
+        """ingest_report_ok must RETURN FALSE for a non-boolean guess.wide (it raised invalid_text_representation on 'abc')."""
+        for bad in ("abc", "yes", 1, [True], {"a": 1}, None, "true"):
+            for with_groups in (True, False):
+                g = {"place_index": 0, "period_index": 1, "value_indexes": [2], "geography": "us_states", "cadence": "annual", "wide": bad}
+                rep = wide_report() if with_groups else T.report()
+                rep["guess"] = g
+                with self.subTest(wide=bad, groups=with_groups):
+                    got = self.db.as_(None).one("select ryagram_private.ingest_report_ok(%s::jsonb)", json.dumps(rep))
+                    if with_groups:
+                        self.assertFalse(got, "wide_groups on a report whose wide is not the boolean true")
+        # CONTROL: the boolean true with groups is accepted
+        self.assertTrue(self.db.as_(None).one("select ryagram_private.ingest_report_ok(%s::jsonb)", json.dumps(wide_report())))
+
     def test_an_old_wide_report_without_groups_keeps_the_old_refusal(self):
         ds = self.with_report(T.report(guess={"place_index": 0, "period_index": 1, "value_indexes": [2], "geography": None, "cadence": None, "wide": True}))
         self.refused(ds, dict(MAPPING, melt_wide=True), "Put the years in one column, with one row per place and year, and upload it again")
