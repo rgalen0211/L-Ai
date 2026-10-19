@@ -798,7 +798,7 @@ def callable_by_runner(d):
     rows = d.all("""select p.oid::regprocedure::text
                     from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                     where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE')
-                      and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
+                      and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
                       and n.nspname not in ('pg_catalog', 'information_schema')""")
     # regprocedure leaves the schema off when it is on the search path, so put it back
     return sorted(r[0] if "." in r[0].split("(")[0] else "public." + r[0] for r in rows)
@@ -1016,6 +1016,210 @@ class LiveFiles(core.Base):
         with self.db.as_(None).c.cursor() as cur:                                                    # an address nobody has changes nothing
             cur.execute(src)
             self.assertEqual(cur.fetchall()[0], (0, 0, 0))
+
+    def test_runner_function_rows_ignore_trigger_functions_and_unreachable_schemas_but_count_a_callable_one(self):
+        # Q15b: live had Supabase's own public.rls_auto_enable (an event-trigger function, executable by everyone) and the live check counted it.
+        ROW = "connect_runner can call exactly 22 functions"
+        row = lambda: [r[1] for r in self.run_file("01_after_migration_check.sql")[1] if r[0].startswith(ROW)]
+        health = lambda: [r for r in self.run_file("05_daily_health.sql")[1] if r[0].startswith("connect_runner: functions it can call")][0]
+        report = lambda: [(r[0], r[1]) for r in self.run_file("04_runner_privilege_report.sql")[1]]
+        self.assertEqual(row(), [True])
+        c = self.db.as_(None).c
+        # (a) PUBLIC-executable trigger and event-trigger functions in public: NOT counted
+        c.execute("create function public.fake_trg() returns trigger language plpgsql as $$ begin return null; end $$")
+        c.execute("create function public.fake_evt() returns event_trigger language plpgsql as $$ begin null; end $$")
+        c.execute("grant execute on function public.fake_trg(), public.fake_evt() to public")
+        self.assertTrue(c.execute("select has_function_privilege('connect_runner', 'public.fake_trg()', 'EXECUTE') and has_function_privilege('connect_runner', 'public.fake_evt()', 'EXECUTE')").fetchone()[0])
+        self.assertEqual(row(), [True])
+        self.assertEqual(health()[2], "ok")
+        rows = report()
+        self.assertNotIn(("function execute", "public.fake_trg()"), rows)
+        self.assertIn(("trigger function it may execute (cannot be called directly: listed so nothing is hidden)", "public.fake_trg()"), rows)       # still listed, honestly labelled
+        self.assertEqual(sum(1 for k, _ in rows if k == "function execute"), 22)
+        # (b) a PUBLIC-executable function in a schema where the role has no USAGE: NOT counted
+        c.execute("create schema zz_nouse")
+        c.execute("create function zz_nouse.hidden() returns int language sql as $$ select 1 $$")
+        c.execute("grant execute on function zz_nouse.hidden() to public")
+        self.assertFalse(c.execute("select has_schema_privilege('connect_runner', 'zz_nouse', 'USAGE')").fetchone()[0])
+        self.assertEqual(row(), [True])
+        self.assertEqual(health()[2], "ok")
+        # (c) a callable non-connect function in public IS counted: the row goes false, the health row says act, the report lists it as a function
+        c.execute("create function public.callable_extra() returns int language sql as $$ select 1 $$")
+        c.execute("grant execute on function public.callable_extra() to public")
+        self.assertEqual(row(), [False])
+        self.assertEqual(health()[2], "act")
+        self.assertIn(("function execute", "public.callable_extra()"), report())
+
+    def test_03b_closes_a_schema_that_public_may_use_but_only_when_every_cron_role_keeps_its_own_usage(self):
+        # Q15c: on live the schema net grants USAGE to PUBLIC and holds PUBLIC-executable http functions; connect_runner could call them.
+        import re
+        src = (self.DIR / "03b_close_net_reach.sql").read_text(encoding="utf-8")
+        step2 = re.search(r"^/\* STEP 2[^\n]*\n(.*?)\*/", src, flags=re.S | re.M).group(1)
+        step3 = re.search(r"^/\* STEP 3[^\n]*\n(.*?)\*/", src, flags=re.S | re.M).group(1)
+        ROW = "connect_runner can call exactly 22 functions"
+        row = lambda: [r[1] for r in self.run_file("01_after_migration_check.sql")[1] if r[0].startswith(ROW)]
+        health = lambda: [r for r in self.run_file("05_daily_health.sql")[1] if r[0].startswith("connect_runner: functions it can call")][0]
+        c = self.db.as_(None).c
+        self.assertEqual(row(), [True])
+        # a stand-in net schema as on live: PUBLIC usage, a PUBLIC-executable http function, explicit usage for the roles that really use it
+        c.execute("create schema net")
+        c.execute("create function net.http_get(url text) returns int language sql as $$ select 1 $$")
+        c.execute("grant usage on schema net to public")
+        c.execute("grant usage on schema net to service_role")
+        c.execute("grant execute on function net.http_get(text) to public")
+        c.execute("create schema cron")
+        c.execute("create table cron.job (jobid bigint primary key, jobname text, username text, active boolean, command text)")
+        c.execute("insert into cron.job values (1, 'ops-tick', 'service_role', true, 'select net.http_post(1)')")
+        # (b) it IS counted: the 01 row goes false and the daily health row says act
+        self.assertEqual(row(), [False])
+        self.assertEqual(health()[2], "act")
+        # step 1 (the file as pasted) only reads, names every column, and says the revoke is safe
+        with c.cursor() as cur:
+            cur.execute(src)
+            cols = [x.name for x in cur.description]
+            rows = cur.fetchall()
+        self.assertEqual(cols, ["kind", "name", "detail", "ok"])
+        verdict = [r for r in rows if r[0] == "verdict"]
+        self.assertEqual([r[3] for r in verdict], [True])
+        self.assertIn(("usage on schema net", "PUBLIC (everyone)", "USAGE", None), rows)
+        # a cron job whose role has no USAGE of its own: the verdict is false and step 2 REFUSES (nothing changes)
+        c.execute("insert into cron.job values (2, 'other', 'anon', true, 'select net.http_post(2)')")
+        with c.cursor() as cur:
+            cur.execute(src)
+            self.assertEqual([r[3] for r in cur.fetchall() if r[0] == "verdict"], [False])
+        with self.assertRaises(psycopg.Error) as cm:
+            c.execute(step2)
+        self.assertIn("STOP", str(cm.exception))
+        self.assertEqual(row(), [False])                                      # still open: the refusal changed nothing
+        c.execute("delete from cron.job where jobid = 2")
+        # step 2: after the revoke from PUBLIC it is NOT counted, and the role that really uses net keeps working
+        with c.cursor() as cur:
+            cur.execute(step2)
+            while cur.nextset():
+                pass
+            self.assertEqual([x.name for x in cur.description], ["still_has_usage_on_net", "privilege"])
+            left = {r[0] for r in cur.fetchall()}
+        self.assertNotIn("PUBLIC (everyone)", left)
+        self.assertIn("service_role", left)
+        self.assertEqual(row(), [True])
+        self.assertEqual(health()[2], "ok")
+        self.assertTrue(c.execute("select has_schema_privilege('service_role', 'net', 'USAGE')").fetchone()[0])
+        self.assertFalse(c.execute("select has_schema_privilege('connect_runner', 'net', 'USAGE')").fetchone()[0])
+        # (c) a later re-grant (Supabase upgrades do this) shows up again in the daily health query
+        c.execute("grant usage on schema net to public")
+        self.assertEqual(health()[2], "act")
+        self.assertEqual(row(), [False])
+        c.execute("revoke usage on schema net from public")
+        # step 3 runs and names its columns (stand-ins for the cron history and pg_net's response table)
+        c.execute("create table cron.job_run_details (runid serial primary key, jobid bigint, status text, return_message text, start_time timestamptz)")
+        c.execute("create table net._http_response (id bigint, status_code int, error_msg text, created timestamptz)")
+        with c.cursor() as cur:
+            cur.execute(step3)
+            names = []
+            while True:
+                names.append([x.name for x in cur.description])
+                if not cur.nextset():
+                    break
+        self.assertEqual(names, [["job_id", "run_status", "run_message", "started_at"], ["response_id", "http_status", "error_message", "created_at"]])
+
+    def test_pg_net_residual_is_tolerated_by_exact_name_and_owner_and_nothing_else_is(self):
+        # Q55 option (b): Supabase's schema net grants USAGE to PUBLIC and only supabase_admin can revoke it. The named pg_net functions are tolerated and COUNTED
+        # in the 01 row's name; a new net function, a same-named function elsewhere, or one not owned by supabase_admin is still an extra.
+        ROW = "connect_runner can call exactly 22 functions"
+        rows01 = lambda: [(r[0], r[1]) for r in self.run_file("01_after_migration_check.sql")[1] if r[0].startswith(ROW)]
+        health = lambda start: [r for r in self.run_file("05_daily_health.sql")[1] if r[0].startswith(start)][0]
+        report = lambda: [(r[0], r[1]) for r in self.run_file("04_runner_privilege_report.sql")[1]]
+        RUNNER = "connect_runner: functions it can call"
+        RESIDUAL = "ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38)"
+        c = self.db.as_(None).c
+        c.execute("do $$ begin if not exists (select 1 from pg_roles where rolname = 'supabase_admin') then create role supabase_admin nologin; end if; end $$")
+        try:
+            c.execute("create schema net authorization supabase_admin")
+            c.execute("grant usage on schema net to public")
+            for sig in ("http_get(url text)", "http_post(url text, body text)"):
+                c.execute(f"create function net.{sig} returns int language sql as $$ select 1 $$")
+                c.execute(f"alter function net.{sig} owner to supabase_admin")
+                c.execute(f"grant execute on function net.{sig} to public")
+            # the named, supabase_admin-owned net functions: tolerated, counted in the row's name, labelled in the report, 'look' (not act) in health
+            name, ok = rows01()[0]
+            self.assertTrue(ok)
+            self.assertIn("(plus 2 named pg_net functions in schema net: ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38))", name)
+            self.assertEqual(health(RUNNER)[2], "ok")
+            res = health(RESIDUAL)
+            self.assertEqual((res[1], res[2]), ("2", "look"))
+            rep = report()
+            self.assertEqual(sum(1 for k, _ in rep if k == "function execute"), 22)
+            self.assertEqual(sorted(k for k, n in rep if n.startswith("net.")), ["ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38): pg_net function in schema net, PUBLIC usage, owned by supabase_admin"] * 2)
+            self.assertIn(("schema usage", "net"), rep)                           # the reach itself is still reported, never hidden
+            # (1) a NEW function in net is not tolerated
+            c.execute("create function net.new_helper() returns int language sql as $$ select 1 $$")
+            c.execute("alter function net.new_helper() owner to supabase_admin")
+            c.execute("grant execute on function net.new_helper() to public")
+            self.assertEqual([x[1] for x in rows01()], [False])
+            self.assertEqual(health(RUNNER)[2], "act")
+            self.assertIn(("function execute", "net.new_helper()"), report())
+            c.execute("drop function net.new_helper()")
+            self.assertEqual([x[1] for x in rows01()], [True])
+            # (2) a function with a tolerated NAME in another schema is not tolerated
+            c.execute("create function public.http_get() returns int language sql as $$ select 1 $$")
+            c.execute("grant execute on function public.http_get() to public")
+            self.assertEqual([x[1] for x in rows01()], [False])
+            self.assertEqual(health(RUNNER)[2], "act")
+            c.execute("drop function public.http_get()")
+            # (3) a tolerated name in net but NOT owned by supabase_admin is not tolerated
+            c.execute("create function net.http_delete(url text) returns int language sql as $$ select 1 $$")
+            c.execute("grant execute on function net.http_delete(text) to public")
+            self.assertNotEqual(c.execute("select pg_get_userbyid(proowner) from pg_proc where proname = 'http_delete' and pronamespace = 'net'::regnamespace").fetchone()[0], "supabase_admin")
+            self.assertEqual([x[1] for x in rows01()], [False])
+            self.assertEqual(health(RUNNER)[2], "act")
+            c.execute("drop function net.http_delete(text)")
+            self.assertEqual([x[1] for x in rows01()], [True])
+            # (4) when support removes PUBLIC's usage on net the residual reads 0 and the row name goes back to plain
+            c.execute("revoke usage on schema net from public")
+            name, ok = rows01()[0]
+            self.assertTrue(ok)
+            self.assertNotIn("ACCEPTED RESIDUAL", name)
+            res = health(RESIDUAL)
+            self.assertEqual((res[1], res[2]), ("0", "ok"))
+        finally:
+            c.execute("drop schema if exists net cascade")
+            c.execute("drop owned by supabase_admin")
+            c.execute("drop role if exists supabase_admin")
+
+    def test_03c_net_owner_and_acl_report_reads_only_and_names_every_column(self):
+        c = self.db.as_(None).c
+        c.execute("set default_transaction_read_only = on")
+        try:
+            cols, rows = self.run_file("03c_net_owner_and_acl_report.sql")
+        finally:
+            c.execute("set default_transaction_read_only = off")
+        self.assertEqual(cols, ["kind", "name", "owner", "acl", "postgres_is_member_of_owner"])
+        self.assertEqual(rows, [])                                                    # no schema net on this project: an empty grid, no error
+        c.execute("do $$ begin if not exists (select 1 from pg_roles where rolname = 'supabase_admin') then create role supabase_admin nologin; end if; end $$")
+        try:
+            c.execute("create schema net authorization supabase_admin")
+            c.execute("grant usage on schema net to public")
+            c.execute("create function net.http_get(url text) returns int language sql as $$ select 1 $$")
+            c.execute("alter function net.http_get(text) owner to supabase_admin")
+            c.execute("grant execute on function net.http_get(text) to public")
+            c.execute("alter default privileges for role supabase_admin in schema net grant execute on functions to public")
+            c.execute("set default_transaction_read_only = on")
+            try:
+                cols, rows = self.run_file("03c_net_owner_and_acl_report.sql")
+            finally:
+                c.execute("set default_transaction_read_only = off")
+            kinds = {r[0]: r for r in rows}
+            self.assertEqual(kinds["schema"][2], "supabase_admin")
+            self.assertIn("=U/supabase_admin", kinds["schema"][3])                      # PUBLIC's USAGE, granted by supabase_admin
+            member = c.execute("select pg_has_role('postgres', 'supabase_admin', 'MEMBER')").fetchone()[0]       # true here only because postgres is a SUPERUSER in the test cluster; on Supabase it is not
+            self.assertEqual(kinds["schema"][4], member)
+            fn = [r for r in rows if r[0] == "function"][0]
+            self.assertEqual((fn[1], fn[2], fn[4]), ("net.http_get(text)", "supabase_admin", member))
+            self.assertIn("default privileges for new objects in net", kinds)
+        finally:
+            c.execute("drop schema if exists net cascade")
+            c.execute("drop owned by supabase_admin")
+            c.execute("drop role if exists supabase_admin")
 
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")

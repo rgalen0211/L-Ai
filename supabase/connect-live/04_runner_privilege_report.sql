@@ -5,7 +5,11 @@
 select 'schema usage'::text as kind, n.nspname::text as name
   from pg_namespace n where has_schema_privilege('connect_runner', n.oid, 'USAGE') and n.nspname not like 'pg\_%' and n.nspname <> 'information_schema'
 union all
-select 'function execute', n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
+select case when p.prorettype in ('trigger'::regtype, 'event_trigger'::regtype)
+            then 'trigger function it may execute (cannot be called directly: listed so nothing is hidden)'
+            when (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin') then 'ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38): pg_net function in schema net, PUBLIC usage, owned by supabase_admin'
+            else 'function execute' end,
+       n.nspname || '.' || p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')'
   from pg_proc p join pg_namespace n on n.oid = p.pronamespace
   where n.nspname not in ('pg_catalog', 'information_schema') and n.nspname not like 'pg\_%' and p.prokind in ('f', 'p')
     and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
