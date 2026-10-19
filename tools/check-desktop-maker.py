@@ -220,7 +220,7 @@ def main():
         check(Path(r2['path']).name != 'my-answers.txt' and 'yes' in a1.read_text(encoding='utf8'), 'a second save makes a new file and never overwrites the first')
         check(post(f'{base}/api/answers', {'answers': 'x'}, tok)[0] == 400, 'a bad answers request is refused')
         # the sound check
-        for name, fn, expect in (('a file with gaps', lambda pth: 2000 if 'drift' in pth.name else 0, 'Some of the sound in drift.mp4 is missing (about 2.0 seconds in all). Its words are timed correctly, but anything said in the missing parts cannot be found.'),
+        for name, fn, expect in (('a file with gaps', lambda pth: 2000 if 'drift' in pth.name else 0, 'drift.mp4 has about 2.0 s of silence where its sound has gaps or starts late (the file is damaged or oddly made); its words are timed correctly, but nothing said in a gap can be found.'),
                                  ('a file that cannot be measured', lambda pth: None, 'Could not check the sound in a.mp4, so any missing parts would not be noticed.')):
             dm.STATE['gap_fn'] = fn
             bd = {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'drift.mp4')]}
@@ -404,9 +404,9 @@ def main():
             page.click('#plan')
             page.wait_for_selector('#sound-out .warn', timeout=30000)
             wt = page.inner_text('#sound-out')
-            check('Some of the sound in drift.mp4 is missing (about 2.0 seconds in all)' in wt and 'cannot be found' in wt and 'timed wrongly' not in wt and 'Check this before you rely on the film' in wt and page.locator('#build').is_enabled(), 'a file whose sound has gaps gets a plain warning in the page, and Build is still the person\u2019s choice')
-            page.locator('#job-status:has-text("2.0 seconds")').wait_for(state='attached', timeout=5000)
-            check('2.0 seconds' in page.text_content('#job-status'), 'and a screen reader is told')
+            check('drift.mp4 has about 2.0 s of silence where its sound has gaps or starts late' in wt and 'nothing said in a gap can be found' in wt and 'timed wrongly' not in wt and 'Check this before you rely on the film' in wt and page.locator('#build').is_enabled(), 'a file whose sound has gaps gets a plain warning in the page, and Build is still the person\u2019s choice')
+            page.locator('#job-status:has-text("2.0 s of silence")').wait_for(state='attached', timeout=5000)
+            check('2.0 s of silence' in page.text_content('#job-status'), 'and a screen reader is told')
             page.screenshot(path=str(OUT / '06-sound-warning.png'), full_page=True)
             # a film that is not short gets no "short" sentence
             dm.pick_files = lambda multiple: [str(clips / 'long.mp4')]

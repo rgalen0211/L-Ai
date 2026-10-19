@@ -938,8 +938,8 @@ def _soundcheck(job, fn, paths):
         if ms is None:
             job["warnings"].append(f"Could not check the sound in {path.name}, so any missing parts would not be noticed.")
         elif ms >= STATE.get("gap_warn_ms", GAP_WARN_MS):
-            # the same sentence `library index` prints (WORKER): with the fix in the engine, words ARE timed on the file's own clock, so they are right; what is missing cannot be found
-            job["warnings"].append(f"Some of the sound in {path.name} is missing (about {ms / 1000:.1f} seconds in all). Its words are timed correctly, but anything said in the missing parts cannot be found.")
+            # the same sentence `library index` prints (WORKER, phrasefind f06b907): with the fix in the engine, words ARE timed on the file's own clock, so they are right; what is missing cannot be found
+            job["warnings"].append(f"{path.name} has about {ms / 1000:.1f} s of silence where its sound has gaps or starts late (the file is damaged or oddly made); its words are timed correctly, but nothing said in a gap can be found.")
         job["checked"] += 1
     job["state"] = "done"
 
