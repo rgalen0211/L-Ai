@@ -878,6 +878,20 @@ test('MED-2: the worker\'s REAL validate_story, given the worker\'s REAL allowli
   assert.match(r.stdout, /checked \d+ mismatches 0/);
 });
 
+test('THE TWO VENDORED SCHEMA COPIES ARE THE SAME FILE (CC1, 2026-10-18): supabase/pipe1/story.schema.json equals STORY_SCHEMA in catalog_data.ts, and its sha256 (LF-normalised) is STORY_SCHEMA_SHA256', () => {
+  const raw = fs.readFileSync(path.join(root, 'supabase', 'pipe1', 'story.schema.json'));
+  const lfBytes = Buffer.from(raw.toString('latin1').split(String.fromCharCode(13, 10)).join(String.fromCharCode(10)), 'latin1');
+  assert.equal(crypto.createHash('sha256').update(lfBytes).digest('hex'), STORY_SCHEMA_SHA256, 'pipe1 copy hash == the hash catalog_data.ts records');
+  assert.deepEqual(JSON.parse(lfBytes.toString('utf8')), plain(STORY_SCHEMA), 'pipe1 copy == STORY_SCHEMA');
+  // MUST-FAIL: a one-keyword edit to either copy is caught by the same two comparisons
+  const drift = JSON.parse(lfBytes.toString('utf8'));
+  drift.properties.brand = { type: 'string' };
+  assert.notDeepEqual(drift, plain(STORY_SCHEMA), 'a drifted copy is not equal');
+  assert.notEqual(crypto.createHash('sha256').update(Buffer.from(JSON.stringify(drift))).digest('hex'), STORY_SCHEMA_SHA256);
+  // the schema carries the brand and outro the worker accepts (O1); fonts (F3) join when that branch lands
+  assert.ok(STORY_SCHEMA.properties.brand && STORY_SCHEMA.properties.outro, 'brand and outro');
+});
+
 test('LOW-8: the vendored schema hash is of the committed file with line endings normalised, so it is the same on any checkout',
   { skip: !ENGINE && 'RYAGRAM_ENGINE not set: SKIPPED, not passed' }, () => {
   const blob = spawnSync('git', ['-C', ENGINE, 'show', 'HEAD:ryagram/worker/story.schema.json'], { maxBuffer: 1 << 26 });
