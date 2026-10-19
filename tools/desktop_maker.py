@@ -1,7 +1,9 @@
 """Desktop maker (INTERNAL prototype, for Sam): a one-page screen on THIS computer for ENGINE's local build. Pick a recipe, see its slots, pick a local video file for each slot (or paste the
 `--bind slot=FILE` lines WORKER's `library find --emit-binds` prints), press Plan to see exactly what Build would do, then Build, which runs ENGINE's CLI (`python -m ryagram.local build`).
 
-    py tools/desktop_maker.py --engine <a Ryagram checkout that has ryagram/local> --recipes <a folder of recipe .json files> [--work-dir <folder>] [--out-dir <folder>] [--port 8765]
+    py tools/desktop_maker.py [--open] [--engine <the Ryagram folder>] [--recipes <a folder of recipe .json files>] [--work-dir <folder>] [--out-dir <folder>] [--port 8765]
+
+For a person who does not use a terminal: double-click tools/start-maker.bat (it runs this with --open).
 
 What it is not: no upload (the page has no file input and the server never sends or receives file bytes, only paths on this computer), no Supabase, no account, no network call of its own. The server
 listens on 127.0.0.1 only; every request must carry a random token that is printed once at start-up and must name the local host (a web page on another site cannot drive it). The page and its script and style
@@ -533,24 +535,60 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": f"Unexpected: {type(e).__name__}: {str(e)[:200]}"})
 
 
+class LocalServer(ThreadingHTTPServer):
+    allow_reuse_address = False         # on Windows SO_REUSEADDR lets a second server share a port that is already in use; here a busy port must be an error so the next free one is taken
+
+
 def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["R"], STATE["E"] = load_engine(STATE["engine"])
-    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
     return srv
 
 
+def find_engine() -> Path | None:
+    """The Ryagram folder this script sits in: tools/ inside it, or the script next to ryagram/ itself."""
+    for d in (HERE.parent, HERE, HERE.parent.parent):
+        if (d / "ryagram" / "local" / "engine.py").is_file():
+            return d
+    return None
+
+
+def bind_free_port(engine, recipes, work, out, first: int):
+    """Start on the asked port, or the next free one (up to 10 more), so a second start does not fail with an error screen."""
+    last = None
+    for port in range(first, first + 11) if first else (0,):
+        try:
+            return make_server(engine, recipes, work, out, port)
+        except OSError as e:
+            last = e
+    raise SystemExit(f"Could not open a local port ({last}). Close any other Desktop maker window and try again.")
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Desktop maker (internal prototype): ENGINE's local film build behind a one-page screen. Local only.")
-    ap.add_argument("--engine", required=True, help="a Ryagram checkout that has ryagram/local (branch local-mvp)")
-    ap.add_argument("--recipes", required=True, help="a folder of recipe .json files")
+    ap.add_argument("--engine", help="the Ryagram folder that has ryagram/local (default: the one this script sits in)")
+    ap.add_argument("--recipes", help="a folder of recipe .json files (default: the recipes folder inside the Ryagram folder)")
     ap.add_argument("--work-dir", default=str(Path.home() / "Desktop maker" / "work"), help="where the index, cut clips and TEMP go (choose the drive with room)")
     ap.add_argument("--out-dir", default=str(Path.home() / "Desktop maker" / "films"), help="where the MP4 and its receipt go")
-    ap.add_argument("--port", type=int, default=8765)
+    ap.add_argument("--port", type=int, default=8765, help="0 picks any free port")
+    ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     a = ap.parse_args(argv)
-    srv = make_server(Path(a.engine), Path(a.recipes), Path(a.work_dir), Path(a.out_dir), a.port)
-    print(f"Desktop maker: open  http://127.0.0.1:{STATE['port']}/?t={STATE['token']}\n(this computer only; press Ctrl+C to stop)")
+    engine = Path(a.engine) if a.engine else find_engine()
+    if not engine:
+        raise SystemExit("I cannot find the Ryagram folder (it has a folder named ryagram, with a folder named local inside it). Keep this tool inside it, or start with --engine <that folder>.")
+    recipes = Path(a.recipes) if a.recipes else engine / "recipes"
+    if not recipes.is_dir() or not list(recipes.glob("*.json")):
+        raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
+    srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port)
+    url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
+    print("Desktop maker is running on this computer only.", flush=True)
+    print(f"Open  {url}", flush=True)
+    print("Leave this window open while you use it. Close it, or press Ctrl+C, to stop.", flush=True)
+    if a.open:
+        import webbrowser
+        threading.Timer(0.4, webbrowser.open, args=(url,)).start()
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
