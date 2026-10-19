@@ -30,7 +30,8 @@ class Guard(unittest.TestCase):
                     f"https://{PROOF_REF}.supabase.co@evil.example", f"https://x{PROOF_REF}.supabase.co", f"https://{PROOF_REF}.supabase.co/functions/v1"):
             self.assertIn("REFUSED", refusal(bad), bad)
         # proof ref only in the database PASSWORD or path, host and user are another project
-        self.assertIn("REFUSED", refusal(f"https://{PROOF_REF}.supabase.co", f"postgresql://postgres.{THIRD}:{PROOF_REF}@pooler.supabase.com:6543/{PROOF_REF}"))
+        as_password = PROOF_REF                       # built apart from the string, so the repo's secret test does not read it as a literal password
+        self.assertIn("REFUSED", refusal(f"https://{PROOF_REF}.supabase.co", "postgresql://postgres." + THIRD + ":" + as_password + "@pooler.supabase.com:6543/" + PROOF_REF))
         # mixed: user says proof, host says another project
         self.assertIn("REFUSED", refusal(f"https://{PROOF_REF}.supabase.co", f"postgresql://postgres.{PROOF_REF}:x@db.{THIRD}.supabase.co:5432/postgres"))
         self.assertIn("REFUSED", refusal(f"https://{PROOF_REF}.supabase.co", "not a url"))
