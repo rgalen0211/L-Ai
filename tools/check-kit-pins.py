@@ -240,9 +240,20 @@ def selftest():
         code, out = go()
         check(code == 1 and 'MISSING' in out, 'a branch that no longer exists is reported MISSING')
     finally:
-        pass
+        _rmtree(tmp)
     print('RESULT:', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
+
+
+def _rmtree(path):
+    """Remove the self-test's own folder, including the read-only files git leaves in .git on Windows."""
+    import shutil
+    import stat
+
+    def clear(func, p, _exc):
+        os.chmod(p, stat.S_IWRITE)
+        func(p)
+    shutil.rmtree(path, onerror=clear)
 
 
 def main():
