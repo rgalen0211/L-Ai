@@ -117,6 +117,19 @@ def _span(b) -> str:
     return "" if b.start_ms is None else f", only {b.start_ms / 1000:.2f} to {b.end_ms / 1000:.2f} s"
 
 
+def models_present(root) -> list[str]:
+    """Which listening models have their weights in this folder (the layout the engine's model download writes: models--Systran--faster-whisper-<size>/snapshots/<id>/model.bin)."""
+    root = Path(root)
+    return [m for m in MODELS if any(root.glob(f"models--Systran--faster-whisper-{m}/snapshots/*/model.bin"))]
+
+
+GET_MODEL = r"tools\get-model.bat"
+
+
+def missing_model_sentence(model: str) -> str:
+    return f"The listening model ({model}) is not on this computer yet. Double-click {GET_MODEL} once (it needs the internet for a few minutes), then press Plan again."
+
+
 def precheck(body: dict) -> dict:
     """The door checks, before ENGINE's plan is run (fast, writes nothing): ENGINE's own recipe check and bind check, every slot filled, ffmpeg, disk room."""
     R, E = STATE["R"], STATE["E"]
@@ -131,6 +144,9 @@ def precheck(body: dict) -> dict:
     model = body.get("model") or "base"
     if model not in MODELS:
         problems.append(f"The model must be one of {', '.join(MODELS)}.")
+    mroot = os.environ.get("RYAGRAM_MODEL_DIR")
+    if model in MODELS and mroot and model not in models_present(mroot):
+        problems.append(missing_model_sentence(model))
     args = _bind_args(body.get("binds") or {})
     binds: dict = {}
     for pair in args:
@@ -1004,6 +1020,10 @@ def main(argv=None) -> int:
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)
+    mroot = os.environ.get("RYAGRAM_MODEL_DIR")
+    if mroot:
+        have = models_present(mroot)
+        print(f"Listening model folder: {mroot} ({'found: ' + ', '.join(have) if have else 'no model there yet: double-click ' + GET_MODEL + ' once'})", flush=True)
     print("Leave this window open while you use it. Close it, or press Ctrl+C, to stop.", flush=True)
     print("If the page does not look right or a button does nothing, copy the address above into Microsoft Edge or Google Chrome.", flush=True)
     if a.open:

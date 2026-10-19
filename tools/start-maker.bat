@@ -4,6 +4,8 @@ rem Keep this file in the tools folder next to desktop_maker.py, inside the Ryag
 setlocal
 title Desktop maker
 cd /d "%~dp0.."
+rem The listening model lives in the kit's own models folder unless you set RYAGRAM_MODEL_DIR yourself, so a double-click needs no setup in another window.
+if not defined RYAGRAM_MODEL_DIR set "RYAGRAM_MODEL_DIR=%CD%\models"
 set "PY="
 where py >nul 2>nul && set "PY=py"
 if not defined PY where python >nul 2>nul && set "PY=python"
