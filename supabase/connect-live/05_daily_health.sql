@@ -48,7 +48,7 @@ rows as (
          'If not zero: the connector login can do more than it should (a new function or table was granted to everyone, in a schema it can enter). Run 04_runner_privilege_report.sql, then tell CONNECT; consider 90_switch_off.sql until fixed.'
     from runner rr
   union all
-  select 1, 'accepted residual (Ryan, Q55): pg_net functions in schema net that connect_runner can reach',
+  select 1, 'ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38): pg_net functions in schema net that connect_runner can reach',
          (select count(*)::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
              and (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')),
