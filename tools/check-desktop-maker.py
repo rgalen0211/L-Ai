@@ -9,6 +9,7 @@ import importlib.util
 import os
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import threading
@@ -297,6 +298,13 @@ def main():
         (other / 'b.mkv').write_bytes(b'a different size')             # same name, different size: not the one
         (clips / 'node_modules').mkdir()
         (clips / 'node_modules' / 'c.mp4').write_bytes(b'hidden in a skipped folder')
+        # a junction (or a link) inside a search folder is never followed: it can point to another drive, or loop back
+        elsewhere = tmp / 'elsewhere'
+        elsewhere.mkdir()
+        (elsewhere / 'j.mp4').write_bytes(b'only reachable through a junction')
+        jn = clips / 'linked'
+        subprocess.run(['cmd', '/c', 'mklink', '/J', str(jn), str(elsewhere)], capture_output=True)
+        sj = (elsewhere / 'j.mp4').stat()
         dm.STATE['search_roots'] = [clips, tmp / 'other']
         dm.STATE['recent_dirs'] = []
 
@@ -315,10 +323,13 @@ def main():
         check(post(f'{base}/api/locate', {'name': '../../secret/b.mkv', 'size': sz, 'mtime_ms': mt}, tok)[1]['matches'] == lb['matches'], 'a dropped name with folder tricks is cut to its file name, so it cannot point elsewhere')
         sc = (clips / 'node_modules' / 'c.mp4').stat()
         check(post(f'{base}/api/locate', {'name': 'c.mp4', 'size': sc.st_size, 'mtime_ms': int(sc.st_mtime * 1000)}, tok)[1]['matches'] == [], 'folders like node_modules are not searched')
+        check(jn.exists() and dm.locate('j.mp4', sj.st_size, int(sj.st_mtime * 1000))['matches'] == [], 'a junction inside a search folder is not followed, so a file that is only reachable through it is not offered')
         check(dm.locate('b.mkv', sz, mt, limit_s=0)['timed_out'] is True, 'the search stops at its time limit and says so')
         dm.remember_dirs([other / 'a.mp4'])
         check(dm.locate('a.mp4', sa, ma)['matches'] == [str((other / 'a.mp4').resolve())], 'folders the person already used are searched first, and a match there ends the search')
         dm.STATE['recent_dirs'] = []
+        os.rmdir(jn)                                    # remove the junction itself first, so cleaning up can never reach through it
+        check((elsewhere / 'j.mp4').is_file(), 'removing the junction left the file it pointed to untouched')
         # ---- the page
         dm.pick_files = lambda multiple: [str(clips / 'a.mp4'), str(clips / 'b.mkv')] if multiple else [str(clips / 'a.mp4')]
         films_before = len(list((tmp / 'films').glob('*.mp4')))

@@ -797,6 +797,8 @@ def locate(name, size, mtime_ms, limit_s=None) -> dict:
             with it:
                 for e in it:
                     try:
+                        if e.is_symlink() or (hasattr(e, "is_junction") and e.is_junction()):
+                            continue                  # a link or a Windows junction can point to another drive or loop back: never followed
                         if e.is_dir(follow_symlinks=False):
                             if e.name.lower() not in SKIP_DIRS and not e.name.startswith("."):
                                 stack.append(Path(e.path))
