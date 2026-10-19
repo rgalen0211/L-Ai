@@ -170,6 +170,24 @@ def main():
         f8.flush()
         t8 = gm_log.read_text(encoding='utf8', errors='replace')
         check('Python was not found' in t8 and 'python.org' in t8, 'get-model.bat with no Python on PATH says how to get Python (it started no download)')
+        # get-model.bat with the internet BLOCKED (a dead local proxy, so nothing leaves this computer): the download fails, Sam sees a plain sentence plus the last line of the error, NOT a Python traceback; the full text is kept in a log next to the models folder
+        folder_g = tmp / 'getmodel'
+        shutil.copytree(folder, folder_g, ignore=shutil.ignore_patterns('*.log'))
+        gm2 = folder_g / 'getmodel-out.txt'
+        f9 = open(gm2, 'w', encoding='utf8')
+        dead = 'http://127.0.0.1:9'
+        p9 = subprocess.Popen(['cmd.exe', '/c', str(folder_g / 'tools' / 'get-model.bat')], cwd=str(folder_g.parent), env=clean_env(True, {'HTTP_PROXY': dead, 'HTTPS_PROXY': dead, 'ALL_PROXY': dead, 'NO_PROXY': ''}), stdin=subprocess.DEVNULL, stdout=f9, stderr=subprocess.STDOUT)
+        procs.append((p9, f9))
+        try:
+            p9.wait(timeout=180)
+        except subprocess.TimeoutExpired:
+            stop(p9)
+        f9.flush()
+        t9 = gm2.read_text(encoding='utf8', errors='replace')
+        logf = Path(str(folder_g / 'models') + '.get-model.log')
+        check('The download did not finish' in t9 and 'The last line of the error was:' in t9 and 'Traceback' not in t9, 'a failed download shows a plain sentence and the last line of the error, no Python traceback (' + str(t9.strip()[:120]) + ')')
+        check(logf.is_file() and len(logf.read_text(encoding='utf8', errors='replace')) > 20 and str(logf) in t9, 'the full text of the failure is kept in a log file next to the models folder, and the window names it')
+        check(not any((folder_g / 'models').rglob('model.bin')) if (folder_g / 'models').exists() else True, 'and nothing was downloaded')
         # a folder with no recipe
         folder2 = tmp / 'norecipe'
         shutil.copytree(folder, folder2, ignore=shutil.ignore_patterns('*.log'))
