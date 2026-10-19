@@ -788,6 +788,42 @@ class Connect(core.Base):
         self.runner().one("select connect_whoami(%s)", h(a))
 
 
+    # ------------------------------------------------------------------------------------ coverage audit 2026-10-19 (CONNECT): three paths no test pinned
+    def test_the_global_registration_backstop_stops_the_601st_registration_in_an_hour(self):
+        """connect_register_client has a database-wide cap of 600 registrations an hour, behind the Edge Function's per-caller limit: many callers cannot together flood
+        the clients table. Pin it: the 600th passes, the 601st is refused with PT429 and inserts nothing."""
+        self.db.as_(None).c.execute("insert into public.connect_buckets (who, bucket, window_start, n) values ('global', 'register', date_trunc('hour', now()), 599)")
+        before = self.db.as_(None).one("select count(*) from public.connect_clients")
+        r = self.runner()
+        self.assertTrue(r.one("select connect_register_client('Claude', array[%s])", URI).startswith("rgc_"))                 # the 600th
+        self.fails("select connect_register_client('Claude', array[%s])", URI, code="PT429")                                  # the 601st
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.connect_clients"), before + 1)                   # the refused call inserted nothing
+
+    def test_a_story_must_be_an_object_of_at_most_256_kb_and_a_refused_story_changes_nothing(self):
+        """The Edge Function caps a story at 256 KB, but a leaked connect_runner connection with a live token reaches this function directly. The database enforces the
+        same cap and the object rule itself."""
+        _, a, _ = self.connect(ALICE)
+        r = self.runner()
+        pid = r.one("select connect_create_project(%s, 'Cap')", h(a))["id"]
+        vid = r.one("select connect_current_version(%s, %s)", h(a), pid)
+        r.one("select connect_save_story(%s, %s, %s::jsonb)", h(a), vid, STORY)
+        stored = self.db.as_(None).one("select story_spec::text from public.versions where id = %s", vid)
+        too_big = '{"schema": 1, "pad": "' + "x" * 262144 + '"}'
+        for label, bad in (("over 256 KB", too_big), ("an array", "[1, 2, 3]"), ("a bare string", '"just text"'), ("a number", "5")):
+            self.fails("select connect_save_story(%s, %s, %s::jsonb)", h(a), vid, bad, code="22023")
+            self.assertEqual(self.db.as_(None).one("select story_spec::text from public.versions where id = %s", vid), stored, label)    # nothing was overwritten
+        just_ok = '{"schema": 1, "pad": "' + "x" * 262000 + '"}'
+        self.assertRegex(self.runner().one("select connect_save_story(%s, %s, %s::jsonb)", h(a), vid, just_ok), "^[0-9a-f]{64}$")      # a large but allowed story still saves
+
+    def test_a_project_title_is_1_to_120_characters_and_a_refused_title_creates_nothing(self):
+        _, a, _ = self.connect(ALICE)
+        r = self.runner()
+        for bad in ("", "   ", "t" * 121):
+            self.fails("select connect_create_project(%s, %s)", h(a), bad, code="22023")
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.projects where owner_id = %s", ALICE), 0)
+        self.assertEqual(self.runner().one("select connect_create_project(%s, %s)", h(a), "t" * 120)["created"], True)             # exactly 120 is fine
+
+
 
 # Everything connect_runner may CALL, exactly. A function is callable only with EXECUTE and USAGE on its schema, so this is computed over
 # every schema the role has USAGE on (pg_catalog and information_schema hold the built-ins every role has, set_config among them).

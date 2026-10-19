@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut');
 const D = 'supabase/functions/connect-core/';
-const SUITES = ['connect-tools.test.mjs', 'connect-oauth.test.mjs', 'connect-mcp-sdk.test.mjs', 'connect-oauth-guard.test.mjs'];
+const SUITES = ['connect-tools.test.mjs', 'connect-oauth.test.mjs', 'connect-mcp-sdk.test.mjs', 'connect-oauth-guard.test.mjs', 'connect-gate.test.mjs'];
 const mutants = [
   ['no invitation/consent check', D + 'dispatch.ts', 'if (!grant) return refused(NO_GRANT, "no_grant");', 'grant = grant ?? { scopes: ["read", "write", "render_free", "render_final"] };'],
   ['no scope check', D + 'dispatch.ts', 'if (!grant.scopes.includes(tool.scope)) {', 'if (false) {'],
@@ -38,6 +38,12 @@ const mutants = [
   ['story size cap removed', D + 'story_check.ts', 'if (size > LIMITS.maxStoryBytes)', 'if (false)'],
   ['unknown dataset allowed', D + 'story_check.ts', 'typeof c.dataset === "string" && !DATASETS[c.dataset]', 'false'],
   ['calls are not logged', D + 'dispatch.ts', 'await policy.log(principal, {', 'void ({'],
+  ['a grant lookup failure lets the call through', D + 'dispatch.ts', 'catch { return finish({ text: friendlyError(null), isError: true, code: "error" }, "error", "grant_lookup"); }', 'catch { grant = { scopes: ["read", "write", "render_free", "render_final"] }; }'],
+  ['a rate-limit lookup failure lets the call through', D + 'dispatch.ts', '} catch { return finish({ text: friendlyError(null), isError: true, code: "error" }, "error", "limit_lookup"); }', '} catch { /* open */ }'],
+  ['a failed log write changes the answer', D + 'dispatch.ts', '} catch { /* a failed log write never changes what the person sees */ }', '} catch (e) { throw e; }'],
+  ['a tool error shows its raw message', D + 'dispatch.ts', 'return finish({ text: friendlyError(e), isError: true, code: "error" }, "error", "tool_error");', 'return finish({ text: String(e), isError: true, code: "error" }, "error", "tool_error");'],
+  ['an unknown tool name is logged as supplied', D + 'dispatch.ts', 'tool: tool ? name : "unknown"', 'tool: name'],
+  ['an unknown tool is not refused before the grant check', D + 'dispatch.ts', 'if (!tool) return refused(`There is no tool called', 'if (false) return refused(`There is no tool called'],
 ];
 
 let missed = 0;
