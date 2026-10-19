@@ -251,10 +251,18 @@
           h('p', { class: 'form-note' }, QUICK_NOTE));
         syncSheetNote();
       }
+      // A label inside a swatch of any colour stays readable: black or white, whichever has more contrast with the swatch.
+      function readableOn(colour) {
+        const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(colour || ''));
+        if (!m) return '';
+        const f = v => { v = parseInt(v, 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+        const L = 0.2126 * f(m[1]) + 0.7152 * f(m[2]) + 0.0722 * f(m[3]);
+        return L > 0.179 ? '#000000' : '#ffffff';
+      }
       function swatch(colour, child, text, label) {
         const el = h('span', { class: 'look-swatch', title: label ? `${label} ${colour}` : colour }, child, label ? h('span', { class: 'look-swatch-label' }, label) : null);
         el.style.backgroundColor = colour;
-        if (text) { el.style.color = text; }
+        if (text) { el.style.color = text; } else if (label) { el.style.color = readableOn(colour); }
         return el;
       }
       function dot(colour, page) {
