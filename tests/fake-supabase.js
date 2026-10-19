@@ -770,6 +770,48 @@
             for (const t of ['projects', 'versions', 'artifacts', 'jobs', 'film_pages', 'account_settings', 'ai_sessions', 'ai_messages']) db[t].length = 0;
             return { data: { status: 'deleted', files_removed: 0 }, error: null };
           }
+          if (name === 'guided-builder') {
+            // Mock of the guided-builder function (ENGINE's compileFilm and the listable catalog): three datasets and a few of the engine's refusals. The real rules are the engine's.
+            const err = (status, payload) => ({ data: null, error: { message: 'x', context: { json: async () => payload, status } } });
+            const MOCK = [
+              { id: 'state_obesity_fastfood', title: 'Obesity and fast food by state', topic: 'Health', publisher: 'CDC (BRFSS) and U.S. Census Bureau (County Business Patterns)', url: 'https://data.cdc.gov/d/hn4x-zwk7',
+                licence_short: 'Both are U.S. Government works in the public domain', licence: 'Both are U.S. Government works in the public domain. CDC asks that BRFSS be cited and notes its values are self-reported survey estimates.',
+                geography: { label: 'US state (plus DC)', noun: 'states', kind: 'geographic' }, period: { from: '2011', to: '2023', cadence: 'annual' }, window: ['2011', '2023'], film_types: ['map', 'bars', 'line', 'paired'],
+                measures: [{ id: 'obesity', label: 'Adult obesity prevalence', unit: '%', selectable: true }, { id: 'fast_food', label: 'Net new since 2011', unit: 'establishments', selectable: true }, { id: 'restaurants_per_100k', label: 'Restaurants per 100,000 residents', unit: 'per 100k', selectable: false }],
+                known_gaps: {}, methodology_breaks: [{ period: '2011', what: 'BRFSS changed its weighting; estimates from 2011 forward cannot be compared with earlier ones.', effect: 'The window starts here.' }], missing_is_ambiguous: false, continuous_colour: false },
+              { id: 'bps_county_permits', title: 'Residential building permits per 1,000 residents, by county', topic: 'Housing', publisher: 'U.S. Census Bureau, Building Permits Survey', url: 'https://www.census.gov/construction/bps/',
+                licence_short: 'U.S. Government work in the public domain', licence: 'U.S. Government work in the public domain. Cite the Census Bureau.',
+                geography: { label: 'US county', noun: 'counties', kind: 'geographic' }, period: { from: '1990', to: '2024', cadence: 'annual' }, window: ['1990', '2024'], film_types: ['map', 'bars', 'line'],
+                measures: [{ id: 'permits_per_1k', label: 'Permits per 1,000 residents', unit: '/1,000', selectable: true }], known_gaps: {}, methodology_breaks: [], missing_is_ambiguous: false, continuous_colour: true },
+              { id: 'bls_state_unemployment', title: 'State unemployment rate', topic: 'Work', publisher: 'U.S. Bureau of Labor Statistics', url: 'https://www.bls.gov/lau/',
+                licence_short: 'U.S. Government work in the public domain', licence: 'U.S. Government work in the public domain.', geography: { label: 'US state (plus DC)', noun: 'states', kind: 'geographic' },
+                period: { from: '1976-01', to: '', cadence: 'monthly' }, window: ['2015-01', '2024-12'], film_types: ['map', 'bars', 'line'], measures: [{ id: 'rate', label: 'Unemployment rate', unit: '%', selectable: true }],
+                known_gaps: {}, methodology_breaks: [], missing_is_ambiguous: false, continuous_colour: false }];
+            if (body.action === 'catalog') return { data: { datasets: MOCK.map(d => ({ id: d.id, title: d.title, topic: d.topic, publisher: d.publisher, url: d.url, licence_short: d.licence_short, geography: d.geography.label, period: d.period, film_types: d.film_types })), film_types: ['map', 'bars', 'line', 'paired'] }, error: null };
+            if (body.action === 'describe') { const d = MOCK.find(x => x.id === body.dataset); return d ? { data: { dataset: structuredClone(d) }, error: null } : err(404, { error: 'That dataset is not available.' }); }
+            if (body.action === 'compile') {
+              const r = body.request || {}, d = MOCK.find(x => x.id === r.dataset), errs = [];
+              if (!d) return err(422, { errors: ['dataset: required (an id from the catalog)'] });
+              if (!String(r.title || '').trim()) errs.push('title: required');
+              if (!d.film_types.includes(r.film_type)) errs.push(`film_type: '${r.film_type}' is not offered for ${d.id}; it offers ${d.film_types.join(', ')}`);
+              if (r.measure && !d.measures.some(m => m.id === r.measure && m.selectable)) errs.push(`measure: '${r.measure}' is not a measure of ${d.id}`);
+              for (const k of ['start', 'end']) { const v = r.years?.[k]; if (v && (v < d.period.from.slice(0, 4) || (d.period.to && v > d.period.to))) errs.push(`years.${k}: ${v} is outside this dataset's coverage, ${d.period.from} ${d.period.to ? `to ${d.period.to}` : 'onward'}`); }
+              if (errs.length) return err(422, { errors: errs });
+              const win = [r.years?.start || d.window[0], r.years?.end || d.window[1]];
+              const m = d.measures.find(x => x.id === r.measure) || d.measures.find(x => x.selectable);
+              const story = { schema: 1, name: String(r.title).toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 64) || 'ryagram-film', engine: 'sequence',
+                notes: `Dataset: ${d.title} (${d.id}). ${win[0]} to ${win[1]}. Source: ${d.publisher}. Licence: ${d.licence}`,
+                sequence: { canvas: [1920, 1080], fps: 30, theme: r.look?.look?.theme || 'dark', clips: [{ kind: 'title', id: 'open', seconds: 3, fade: 0.4, headline: r.title, subhead: r.subtitle || m.label },
+                  { kind: 'render', id: 'main', dataset: d.id, view: r.film_type, start: win[0], end: win[1], transition: { kind: 'crossfade', seconds: 0.6 } }] } };
+              // ENGINE 11cf562: a SOLID look on a COUNTY map is shown as continuous colour, and compileFilm says so in report.warnings and look.converted (the sentence is film.ts's COUNTY_CONTINUOUS_NOTICE; a test compares them).
+              const converted = d.geography.label.toLowerCase().includes('county') && r.film_type === 'map' && r.look?.look?.ramp && r.look.look.ramp.continuous === undefined
+                ? ["Your look uses solid colours; on a county map they are shown as a continuous ramp, not as a few bands, because counties are too small to class into bands and a banded county map does not visibly move."] : [];
+              const breaks = d.methodology_breaks.filter(b => b.period > win[0] && b.period <= win[1]).map(b => `the window crosses a method change at ${b.period}: ${b.what} ${b.effect}`);
+              return { data: { story, report: { dataset: { id: d.id, title: d.title, publisher: d.publisher, url: d.url, licence_short: d.licence_short }, film_type: r.film_type, window: { start: win[0], end: win[1] },
+                measure: { id: m.id, label: m.label, unit: m.unit }, method_notes: d.methodology_breaks.map(b => `${b.period}: ${b.what} ${b.effect}`), gaps: {}, warnings: [...breaks, ...converted], look: { applied: !!r.look, changed: [], not_applied: [], converted } } }, error: null };
+            }
+            return err(400, { error: 'Unknown action.' });
+          }
           if (name === 'get-delivery-url') {
             const o = db.render_orders.find(x => x.delivery && x.delivery.id === body.delivery_id);
             const err = text => ({ data: null, error: { message: 'x', context: { json: async () => ({ error: text }) } } });

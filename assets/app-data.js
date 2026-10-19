@@ -427,6 +427,21 @@
       },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
+      // The guided builder (the guided-builder function: ENGINE's compileFilm and the listable catalog). A refusal carries every reason in .errors.
+      async builderCall(body) {
+        const { data, error } = await client.functions.invoke('guided-builder', { body });
+        if (error) {
+          let payload = null;
+          try { payload = await error.context.json(); } catch { payload = null; }
+          const err = new Error(payload?.error || (payload?.errors || []).join(' ') || 'Couldn\u2019t reach the film builder. Try again in a minute.');
+          if (payload?.errors) err.errors = payload.errors;
+          throw err;
+        }
+        return data;
+      },
+      builderCatalog() { return api.builderCall({ action: 'catalog' }); },
+      builderDescribe(id) { return api.builderCall({ action: 'describe', dataset: id }); },
+      builderCompile(request) { return api.builderCall({ action: 'compile', request }); },
       // Funnel (SQL 20261017000900): Ryan's counts per step, by week and by source. Admin only.
       // The raw funnel events of the last N days, read as Ryan (the table's own admin-only policy): for the by-day page. Paged, newest first.
       async adminFunnelEvents(days) {
