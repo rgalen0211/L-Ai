@@ -445,6 +445,31 @@
         c.status = 'approved';
         return { data: 'RYA-K7M2-9QPX', error: null };
       },
+      // Mock of CONNECT's consent and settings functions (SQL 20261018000100). Request ids are UUIDs; 00000000-0000-4000-8000-0000000000aa is a good one, ...bb is not allowed (an admin account),
+      // ...cc is expired. The real rules are CONNECT's, tested against Postgres.
+      connect_consent_check({ p_request }) {
+        const known = { '00000000-0000-4000-8000-0000000000aa': true, '00000000-0000-4000-8000-0000000000bb': false, '00000000-0000-4000-8000-0000000000cc': false };
+        if (!(p_request in known)) return { data: { allowed: false, reason: 'That request was not found. Start again from the AI.' }, error: null };
+        if (p_request.endsWith('bb')) return { data: { allowed: false, reason: 'This account can\u2019t connect an AI.' }, error: null };
+        if (p_request.endsWith('cc')) return { data: { allowed: false, reason: 'That request has expired. Start again from the AI.' }, error: null };
+        return { data: { allowed: true, reason: null, client_name: 'Claude', redirect_label: 'Claude', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', redirect_host: 'claude.ai', requested_scopes: ['read', 'write', 'render_free'],
+                         offered_scopes: ['read', 'write', 'render_free'], credit_scopes: [], invited: true, expires_at: new Date(Date.now() + 600000).toISOString() }, error: null };
+      },
+      connect_consent_decide({ p_request, p_approve, p_scopes }) {
+        db.connectDecisions = db.connectDecisions || [];
+        if (p_request !== '00000000-0000-4000-8000-0000000000aa') return fail('That request was not found.');
+        if (db.connectDecisions.some(d => d.request === p_request)) return fail('That request was already decided.');
+        if (p_approve && !(p_scopes || []).length) return fail('Choose at least one permission.');
+        db.connectDecisions.push({ request: p_request, approve: p_approve, scopes: p_scopes });
+        if (p_approve) {
+          db.connected = db.connected || [];
+          db.connected.push({ client_id: 'client-claude', client_name: 'Claude', scopes: p_scopes, connected_at: now(), last_used_at: null, calls_30d: 0 });
+          return { data: { redirect_to: 'https://claude.ai/api/mcp/auth_callback?code=MOCKCODE&state=abc' }, error: null };
+        }
+        return { data: { redirect_to: 'https://claude.ai/api/mcp/auth_callback?error=access_denied&state=abc' }, error: null };
+      },
+      my_connected_ais() { return { data: structuredClone(db.connected || []), error: null }; },
+      disconnect_ai({ p_client_id }) { db.connected = (db.connected || []).filter(c => c.client_id !== p_client_id); return { data: null, error: null }; },
       // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.
       admin_set_auto_render({ p_on }) {
         if (seed.nonAdmin) return fail('Only an admin can do this.');

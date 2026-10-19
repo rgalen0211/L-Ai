@@ -1,0 +1,15 @@
+{
+  "name": "l-ai-tests",
+  "private": true,
+  "description": "Test and tooling dependencies only (nothing here ships). Run `npm ci` once in a fresh checkout before `node --test`.",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test tests/",
+    "connect:predeploy": "node tools/connect_predeploy_check.mjs"
+  },
+  "devDependencies": {
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "@supabase/supabase-js": "2.117.2",
+    "ajv": "8.17.1"
+  }
+}

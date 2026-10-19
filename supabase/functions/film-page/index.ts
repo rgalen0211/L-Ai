@@ -3,6 +3,7 @@
 // No secrets of its own: it uses the service role that Supabase gives every function, only for
 // the film_* functions and to read the one receipt and sign the film's two links.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./page.ts";
 
 const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -18,10 +19,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
 Deno.serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   siteUrl: "https://uselai.com",
-  async verifyUser(jwt) {
-    const { data, error } = await service.auth.getUser(jwt);
-    return error || !data.user ? null : { id: data.user.id };
-  },
+  verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
   publishContext: (owner, versionId) => rpc("film_publish_context", { p_owner: owner, p_version: versionId }),
   async readFile(path) {
     const { data, error } = await bucket().download(path);

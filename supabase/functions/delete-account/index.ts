@@ -3,6 +3,7 @@
 // No secrets of its own: the service role Supabase gives every function is used only for the
 // account_* functions, removing the person's files, and deleting their login.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./remove.ts";
 
 const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
@@ -16,10 +17,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
 
 Deno.serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
-  async verifyUser(jwt) {
-    const { data, error } = await service.auth.getUser(jwt);
-    return error || !data.user ? null : { id: data.user.id, email: data.user.email ?? "" };
-  },
+  verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
   check: (owner) => rpc("account_deletion_check", { p_owner: owner }),
   async removeFiles(paths, bucket) {
     const { error } = await service.storage.from(bucket === "uploads" ? "ryagram-uploads" : "ryagram-artifacts").remove(paths);
