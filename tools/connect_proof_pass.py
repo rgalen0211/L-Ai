@@ -38,8 +38,9 @@ for line in open(ENV, encoding="utf-8").read().splitlines():
 URL = env["SUPABASE_URL"].rstrip("/")
 KEY = env["SUPABASE_PUBLISHABLE_KEY"]
 DB = env["SUPABASE_DB_URL"]
-if "jxtkfishqfxuptwjzczz" in URL or "jxtkfishqfxuptwjzczz" in DB:
-    sys.exit("REFUSED: live project")
+from connect_proof_guard import require_proof  # noqa: E402
+
+require_proof(URL, DB)                                     # ALLOW-list: only the proof project, never a deny-list of the live one
 FN = f"{URL}/functions/v1/connect"
 acct = json.load(open(ACCT))
 results = []

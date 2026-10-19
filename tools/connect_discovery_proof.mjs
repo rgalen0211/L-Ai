@@ -12,7 +12,8 @@ for (const line of fs.readFileSync(ENVFILE, 'utf8').split(/\r?\n/)) {
   const m = /^\s*SUPABASE_URL\s*=\s*(.*?)\s*$/.exec(line);
   if (m) base = m[1].replace(/^["']|["']$/g, '').replace(/\/+$/, '');
 }
-if (/jxtkfishqfxuptwjzczz/.test(base) || !base) { console.error('REFUSED: no non-live project'); process.exit(2); }
+// ALLOW-list: exactly the proof project (same rule as tools/connect_proof_guard.py), never a deny-list of the live one
+if (!/^https:\/\/awjbjersplaqhxhuvozi\.supabase\.co$/.test(base)) { console.error('REFUSED: not the proof project'); process.exit(2); }
 const server = new URL(`${base}/functions/v1/connect/mcp`);
 
 let bad = 0;

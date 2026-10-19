@@ -49,8 +49,10 @@ def read_env():
 env = read_env()
 URL = env["SUPABASE_URL"].rstrip("/")
 KEY = env["SUPABASE_PUBLISHABLE_KEY"]
-if LIVE_REF in URL:
-    sys.exit("REFUSED: live project")
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from connect_proof_guard import require_proof  # noqa: E402
+
+require_proof(URL)                                         # ALLOW-list: only the proof project
 REF = re.match(r"https://([a-z0-9]+)\.supabase\.co", URL).group(1)
 FN = f"{URL}/functions/v1/connect"
 acct = json.loads(ACCT.read_text())
