@@ -1050,6 +1050,78 @@ class LiveFiles(core.Base):
         self.assertEqual(health()[2], "act")
         self.assertIn(("function execute", "public.callable_extra()"), report())
 
+    def test_03b_closes_a_schema_that_public_may_use_but_only_when_every_cron_role_keeps_its_own_usage(self):
+        # Q15c: on live the schema net grants USAGE to PUBLIC and holds PUBLIC-executable http functions; connect_runner could call them.
+        import re
+        src = (self.DIR / "03b_close_net_reach.sql").read_text(encoding="utf-8")
+        step2 = re.search(r"^/\* STEP 2[^\n]*\n(.*?)\*/", src, flags=re.S | re.M).group(1)
+        step3 = re.search(r"^/\* STEP 3[^\n]*\n(.*?)\*/", src, flags=re.S | re.M).group(1)
+        ROW = "connect_runner can call exactly 22 functions"
+        row = lambda: [r[1] for r in self.run_file("01_after_migration_check.sql")[1] if r[0].startswith(ROW)]
+        health = lambda: [r for r in self.run_file("05_daily_health.sql")[1] if r[0].startswith("connect_runner: functions it can call")][0]
+        c = self.db.as_(None).c
+        self.assertEqual(row(), [True])
+        # a stand-in net schema as on live: PUBLIC usage, a PUBLIC-executable http function, explicit usage for the roles that really use it
+        c.execute("create schema net")
+        c.execute("create function net.http_get(url text) returns int language sql as $$ select 1 $$")
+        c.execute("grant usage on schema net to public")
+        c.execute("grant usage on schema net to service_role")
+        c.execute("grant execute on function net.http_get(text) to public")
+        c.execute("create schema cron")
+        c.execute("create table cron.job (jobid bigint primary key, jobname text, username text, active boolean, command text)")
+        c.execute("insert into cron.job values (1, 'ops-tick', 'service_role', true, 'select net.http_post(1)')")
+        # (b) it IS counted: the 01 row goes false and the daily health row says act
+        self.assertEqual(row(), [False])
+        self.assertEqual(health()[2], "act")
+        # step 1 (the file as pasted) only reads, names every column, and says the revoke is safe
+        with c.cursor() as cur:
+            cur.execute(src)
+            cols = [x.name for x in cur.description]
+            rows = cur.fetchall()
+        self.assertEqual(cols, ["kind", "name", "detail", "ok"])
+        verdict = [r for r in rows if r[0] == "verdict"]
+        self.assertEqual([r[3] for r in verdict], [True])
+        self.assertIn(("usage on schema net", "PUBLIC (everyone)", "USAGE", None), rows)
+        # a cron job whose role has no USAGE of its own: the verdict is false and step 2 REFUSES (nothing changes)
+        c.execute("insert into cron.job values (2, 'other', 'anon', true, 'select net.http_post(2)')")
+        with c.cursor() as cur:
+            cur.execute(src)
+            self.assertEqual([r[3] for r in cur.fetchall() if r[0] == "verdict"], [False])
+        with self.assertRaises(psycopg.Error) as cm:
+            c.execute(step2)
+        self.assertIn("STOP", str(cm.exception))
+        self.assertEqual(row(), [False])                                      # still open: the refusal changed nothing
+        c.execute("delete from cron.job where jobid = 2")
+        # step 2: after the revoke from PUBLIC it is NOT counted, and the role that really uses net keeps working
+        with c.cursor() as cur:
+            cur.execute(step2)
+            while cur.nextset():
+                pass
+            self.assertEqual([x.name for x in cur.description], ["still_has_usage_on_net", "privilege"])
+            left = {r[0] for r in cur.fetchall()}
+        self.assertNotIn("PUBLIC (everyone)", left)
+        self.assertIn("service_role", left)
+        self.assertEqual(row(), [True])
+        self.assertEqual(health()[2], "ok")
+        self.assertTrue(c.execute("select has_schema_privilege('service_role', 'net', 'USAGE')").fetchone()[0])
+        self.assertFalse(c.execute("select has_schema_privilege('connect_runner', 'net', 'USAGE')").fetchone()[0])
+        # (c) a later re-grant (Supabase upgrades do this) shows up again in the daily health query
+        c.execute("grant usage on schema net to public")
+        self.assertEqual(health()[2], "act")
+        self.assertEqual(row(), [False])
+        c.execute("revoke usage on schema net from public")
+        # step 3 runs and names its columns (stand-ins for the cron history and pg_net's response table)
+        c.execute("create table cron.job_run_details (runid serial primary key, jobid bigint, status text, return_message text, start_time timestamptz)")
+        c.execute("create table net._http_response (id bigint, status_code int, error_msg text, created timestamptz)")
+        with c.cursor() as cur:
+            cur.execute(step3)
+            names = []
+            while True:
+                names.append([x.name for x in cur.description])
+                if not cur.nextset():
+                    break
+        self.assertEqual(names, [["job_id", "run_status", "run_message", "started_at"], ["response_id", "http_status", "error_message", "created_at"]])
+
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")
         self.assertEqual(cols, ["kind", "name"])
