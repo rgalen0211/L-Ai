@@ -88,6 +88,11 @@
       emit('jobs', job);
     }
 
+    // Give back what an order was holding (decline, cancel): held goes down, available comes back.
+    function releaseHold(o) {
+      if (ledger && o.hold) { ledger.held -= o.hold; ledger.available += o.hold; o.hold = 0; }
+    }
+
     // The auto_render setting: the database default is OFF, but the mock keeps its older default (ON) unless the seed or ?autorender=off says otherwise; the admin switch then wins.
     function autoRenderNow() {
       if (typeof db.autoRenderSet === 'boolean') return db.autoRenderSet;
@@ -521,6 +526,7 @@
         if (o.state !== 'awaiting_approval') return fail(`This request is no longer waiting (${o.state}).`);
         if (p_approve && seed.capReached) return fail('daily_cap: this person has reached their daily credit cap; approve later or decline.');
         o.state = p_approve ? 'running' : 'declined'; o.stages[0].state = p_approve ? 'queued' : 'declined'; o.ended_at = p_approve ? null : now(); o.admin_note = p_note || null;
+        if (!p_approve) releaseHold(o);
         return { data: { id: p_stage, state: o.stages[0].state }, error: null };
       },
       admin_invite_person({ p_name, p_credits }) {
@@ -610,6 +616,11 @@
         const order = { id: id(), owner_id: 'u-ryan', idempotency_key: p_idempotency_key, source: 'app', want: 'final', project_id: db.versions.find(v => v.id === preview.version_id)?.project_id, version_id: preview.version_id,
                         preview_job_id: preview.id, state: 'awaiting_approval', error_code: null, created_at: now(), ended_at: null, stages: [{ stage: 'final_render', state: 'awaiting_approval', credits_quoted: 10, error_code: null, job_id: null }], delivery: null };
         const autoOff = !autoRenderNow();
+        // A full render that waits for approval HOLDS its credits (the database does this); a decline or a cancel gives them back.
+        if (autoOff && ledger) {
+          if (ledger.available < order.stages[0].credits_quoted) return fail('Not enough credits for this render.');
+          ledger.available -= order.stages[0].credits_quoted; ledger.held += order.stages[0].credits_quoted; order.hold = order.stages[0].credits_quoted;
+        }
         if (!autoOff) {
           const r = rpcs.submit_job({ p_version_id: preview.version_id, p_job_type: 'final_render', p_params: {}, p_sheet_job_id: sheet.id, p_preview_job_id: preview.id });
           if (r.error) return r;
@@ -626,7 +637,7 @@
       cancel_render_order({ p_order }) {
         const o = db.render_orders.find(x => x.id === p_order);
         if (!o) return fail('Order not found.');
-        if (['running', 'awaiting_approval'].includes(o.state)) { o.state = 'cancelled'; o.error_code = 'cancelled'; o.ended_at = now(); }
+        if (['running', 'awaiting_approval'].includes(o.state)) { o.state = 'cancelled'; o.error_code = 'cancelled'; o.ended_at = now(); releaseHold(o); }
         return { data: structuredClone({ id: o.id, state: o.state }), error: null };
       },
       submit_job(args) {
