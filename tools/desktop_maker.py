@@ -102,6 +102,13 @@ def parse_pasted(text: str) -> tuple[dict, list[str]]:
     return binds, bad
 
 
+def _listen_seconds(b):
+    """What the engine will listen to for this file: the span when one is given, else the whole file."""
+    if b.start_ms is not None:
+        return (b.end_ms - b.start_ms) / 1000
+    return media_seconds(b.path)
+
+
 def _bind_args(raw) -> list[str]:
     return [f"{slot}={f}" for slot, files in (raw.items() if isinstance(raw, dict) else []) for f in (files if isinstance(files, list) else [])]
 
@@ -143,7 +150,7 @@ def precheck(body: dict) -> dict:
                 problems.append(f"The slot \u201c{s['label']}\u201d has no file yet.")
             if len(items) > 1 and not s["multiple"]:
                 problems.append(f"The slot \u201c{s['label']}\u201d takes one file; it has {len(items)}.")
-            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1)} for b in items]})
+            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b)} for b in items]})
     work = STATE["work"]
     anchor = work if work.exists() else work.parent if work.parent.exists() else Path(work.anchor)
     free_gb = round(shutil.disk_usage(anchor).free / 1e9, 1)
@@ -153,7 +160,10 @@ def precheck(body: dict) -> dict:
     if free_gb < max(2.0, total_mb / 1000 * 1.5):
         problems.append(f"Only {free_gb} GB free where the work folder is; choose a drive with more room.")
     film = (re.sub(r"[^A-Za-z0-9._-]+", "-", rec["name"]).strip("-")[:60] or "film") if rec else None
-    return {"ok": not problems, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
+    secs = [f["seconds"] for ln in lines for f in ln["files"]]
+    total_s = None if (not secs or any(x is None for x in secs)) else sum(secs)
+    return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": len(secs),
+            "film_stamped": f"{film}-<date and time>.mp4" if film else None, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
             "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
 
 
@@ -191,7 +201,8 @@ def _start_job_locked(kind: str, body: dict) -> dict:
         out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, PYTHONPATH=str(STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
     proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
-    job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body)}
+    job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body),
+           "of": pc["bind_count"], "done": 0, "current": "", "expect_s": (pc["listen_seconds"] or 0) * LISTEN_SECONDS_PER_MINUTE.get(pc["model"], 0) / 60 if pc["listen_seconds"] else None}
     threading.Thread(target=_pump, args=(job, proc.stderr, "lines"), daemon=True).start()
     threading.Thread(target=_pump, args=(job, proc.stdout, "stdout"), daemon=True).start()
     STATE["job"] = job
@@ -210,6 +221,12 @@ def _pump(job, stream, field):
         job[field].append(line.rstrip("\n")[:2000] if field == "stdout" else line.rstrip()[:300])
         if field == "lines":
             del job["lines"][:-60]
+            t = line.strip()
+            m = re.match(r"^listening to (.+?) \.\.\.$", t)
+            if m:
+                job["current"] = m.group(1)
+            elif re.search(r": [0-9]+ words in [0-9.]+ s of audio$", t) or t.endswith("heard before, using the saved words"):
+                job["done"] += 1
 
 
 def _progress_words(lines) -> str:
@@ -234,7 +251,10 @@ def job_status() -> dict:
     code = job["proc"].poll()
     base = {"id": job["id"], "kind": job["kind"], "seconds": round(time.time() - job["started"]), "lines": job["lines"][-12:], "film": job["out"].name}
     if code is None:
-        return {**base, "state": "running"}
+        run = {**base, "state": "running"}
+        if job["kind"] == "plan":
+            run["progress"] = {"done": job["done"], "of": job["of"], "current": job["current"], "expect_s": job["expect_s"]}
+        return run
     if code is not None:
         time.sleep(0.15)                                       # let the readers drain the last lines
     if job["cancelled"]:
@@ -354,7 +374,7 @@ JS = r"""(function () {
     if (!r.ok) throw new Error(j.error || 'That did not work.');
     return j;
   }
-  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '';
+  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '';
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
   const fresh = () => { planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
@@ -393,8 +413,8 @@ JS = r"""(function () {
   });
   function summary(p) {
     return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'The files and the recipe pass the door checks.'),
-      el('dl', {}, el('dt', {}, 'Film it would write'), el('dd', {}, `${p.film} (in ${p.out_dir})`), el('dt', {}, 'Words it will find'), el('dd', {}, p.find), el('dt', {}, 'Files'),
-        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join('; ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model),
+      el('dl', {}, el('dt', {}, 'Film it would write'), el('dd', {}, `${p.film_stamped} (in ${p.out_dir}; the date and time are added so an earlier film is never replaced)`), el('dt', {}, 'Words it will find'), el('dd', {}, p.find), el('dt', {}, 'Files'),
+        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join('; ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
         el('dt', {}, 'Network'), el('dd', {}, p.network), el('dt', {}, 'Room on the work drive'), el('dd', {}, `${p.free_gb} GB free`)));
   }
   $('plan').addEventListener('click', async ev => {
@@ -404,7 +424,7 @@ JS = r"""(function () {
       const body = { recipe: current.file, binds, model: $('model').value };
       const c = await api('/api/check', body);
       if (!c.ok) { fresh(); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
-      fresh(); $('job-out').replaceChildren();
+      fresh(); $('job-out').replaceChildren(); lastWait = c.listen_words || '';
       $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now ENGINE\u2019s plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
       await api('/api/plan', body); poll = setInterval(watch, 1200); watch();
     } catch (e) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
@@ -461,7 +481,12 @@ JS = r"""(function () {
     const running = j.state === 'running';
     const what = j.kind === 'plan' ? 'Listening to your files' : 'Building';
     const parts = [];
-    if (running) parts.push(el('p', {}, `${what}\u2026 ${j.seconds || 0} s`));
+    const clock = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
+    if (running && j.kind === 'plan' && j.progress && j.progress.of) {
+      const g = j.progress;
+      parts.push(el('p', {}, `Listening to file ${Math.min(g.done + 1, g.of)} of ${g.of}${g.current ? ': ' + g.current : ''}\u2026 ${clock(j.seconds || 0)} so far` + (g.expect_s ? `, expected about ${Math.max(1, Math.round(g.expect_s / 60))} minute${Math.round(g.expect_s / 60) <= 1 ? '' : 's'} in all` : '') + '.'));
+    }
+    else if (running) parts.push(el('p', {}, `${what}\u2026 ${j.seconds || 0} s`));
     else if (j.words) parts.push(el('p', { class: ['built', 'planned'].includes(j.state) ? 'ok' : 'problems', role: ['built', 'planned'].includes(j.state) ? null : 'alert' }, j.words));
     if (j.state === 'planned' || j.state === 'gaps') {
       const a = j.plan;
@@ -469,6 +494,7 @@ JS = r"""(function () {
         el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
       if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Not said anywhere in the files you chose: ${a.gaps.join(', ')}.`));
     }
+    if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `Your recipe looks for the words \u201c${current.find}\u201d and uses them once, so this film is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, put a longer sentence in the recipe.`));
     if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s, network attempts: ${j.receipt.network_attempts}. A receipt is beside it.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
     if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
@@ -481,7 +507,7 @@ JS = r"""(function () {
     drawResults(j);
     if (j.state !== lastState) {                                  // announce a change once, not every poll
       lastState = j.state;
-      if (running) say(j.kind === 'plan' ? 'Listening to your files.' : 'Building the film.');
+      if (running) say(j.kind === 'plan' ? ('Listening to your files. ' + lastWait).trim() : 'Building the film.');
       else if (j.state === 'planned') say(`Plan ready: ${j.plan.clips.length} clip${j.plan.clips.length === 1 ? '' : 's'}, about ${j.plan.seconds_estimate} seconds. Build is now on.`);
       else if (j.state === 'gaps') say(`Cannot build yet. Not said anywhere in your files: ${j.plan.gaps.join(', ')}.`);
       else if (j.state === 'built') say(`The film is built: ${j.path}`);
@@ -677,6 +703,34 @@ QUESTIONS = [
 ]
 NL = chr(10)
 GAP_WARN_MS = 500
+LISTEN_SECONDS_PER_MINUTE = {"base": 6}          # measured once, on one PC: Plan listened to about 66 minutes of video in 383 s with base (5.8 s a minute); the other models are not measured
+SHORT_FILM_SECONDS = 5.0
+
+
+def media_seconds(path: Path):
+    """How long a video file is, in seconds (ffprobe, which comes with ffmpeg), or None when it cannot be read."""
+    exe = shutil.which("ffprobe")
+    if not exe:
+        return None
+    try:
+        r = subprocess.run([exe, "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)], capture_output=True, text=True, timeout=60)
+        return float(r.stdout.strip().split()[0])
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def wait_words(total_s, model: str) -> str:
+    """The expected wait to listen, in plain words, for a total length of video (None = a length could not be read)."""
+    if total_s is None:
+        return "I could not read how long the files are, so I cannot say how long the listening will take."
+    per = LISTEN_SECONDS_PER_MINUTE.get(model)
+    minutes = total_s / 60
+    length = f"{minutes:.0f} minute{'' if round(minutes) == 1 else 's'}" if minutes >= 1 else "under a minute"
+    if per is None:
+        return f"{length} of video to listen to. How long that takes has not been measured for the {model} model; the base model takes about {LISTEN_SECONDS_PER_MINUTE['base']} seconds for each minute of video."
+    secs = minutes * per
+    wait = "under a minute" if secs < 60 else f"about {round(secs / 60)} minute{'' if round(secs / 60) == 1 else 's'}"
+    return f"{length} of video to listen to: expect {wait} (about {per} seconds for each minute of video with the {model} model, measured on one computer; less if you have planned these files before)."
 
 
 def load_questions(path) -> list[str]:

@@ -46,8 +46,12 @@ for name, code in (("refuse", 2), ("boom", 1), ("net", 4)):
     if name + ".mp4" in joined:
         print("stand-in says " + name, file=sys.stderr); sys.exit(code)
 print("listening to the files ...", file=sys.stderr, flush=True)
-if "slow.mp4" in joined:
-    time.sleep(60)
+for b in binds:
+    name = Path(b.partition("=")[2].split("#")[0]).name
+    print("  listening to " + name + " ...", file=sys.stderr, flush=True)
+    if name == "slow.mp4":
+        time.sleep(60)
+    print("  " + name + ": 3 words in 2.0 s of audio", file=sys.stderr, flush=True)
 clips = [{"n": 1, "words": "well that is great", "file_name": "a.mp4", "slot": "source-1", "start_ms": 7930, "end_ms": 9970, "duration_ms": 2040},
          {"n": 2, "words": "news", "file_name": "b.mkv", "slot": "source-2", "start_ms": 100, "end_ms": 900, "duration_ms": 800}]
 if cmd == "plan":
@@ -61,7 +65,7 @@ if "buildfail.mp4" in joined:
     out.with_suffix(".receipt.json").write_text("{}"); print("a cut failed", file=sys.stderr); sys.exit(1)
 if "slowbuild.mp4" in joined:
     print("joining ...", file=sys.stderr, flush=True); time.sleep(60)
-out.with_suffix(".receipt.json").write_text(json.dumps({"schema": "ryagram.local-receipt/0", "recipe": "stub", "film": out.name, "seconds": 2.4, "model": "base", "network_attempts": 0, "clips": clips, "reused_words": (work / "heard.txt").is_file(), "work": str(work), "wall_seconds": 0.1}))
+out.with_suffix(".receipt.json").write_text(json.dumps({"schema": "ryagram.local-receipt/0", "recipe": "stub", "film": out.name, "seconds": 12.0 if "long.mp4" in joined else 2.4, "model": "base", "network_attempts": 0, "clips": clips, "reused_words": (work / "heard.txt").is_file(), "work": str(work), "wall_seconds": 0.1}))
 with open(out, "ab") as fh:
     fh.write(bytes(range(256)) * 20)
 print("built", out.name)
@@ -116,7 +120,7 @@ def main():
         (recipes / 'broken.json').write_text(json.dumps({"schema": "ryagram.recipe/0", "name": "x", "slots": []}), encoding='utf8')
         clips = tmp / 'clips'
         clips.mkdir()
-        for n in ('a.mp4', 'b.mkv', 'slow.mp4', 'gap.mp4', 'boom.mp4', 'net.mp4', 'refuse.mp4', 'buildfail.mp4', 'slowbuild.mp4', 'drift.mp4'):
+        for n in ('a.mp4', 'b.mkv', 'slow.mp4', 'gap.mp4', 'boom.mp4', 'net.mp4', 'refuse.mp4', 'buildfail.mp4', 'slowbuild.mp4', 'drift.mp4', 'long.mp4'):
             (clips / n).write_bytes(b'not really a video; the checks only look at the name and that it exists')
         (clips / 'notes.txt').write_text('x')
         srv = dm.make_server(eng, recipes, tmp / 'work', tmp / 'films', port=0, token='testtoken')
@@ -141,6 +145,30 @@ def main():
         pc = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4') + '#100-900'], 'source-2': [str(clips / 'b.mkv')]}}, tok)[1]
         check(pc['ok'] and 'only 0.10 to 0.90 s' in pc['slots'][0]['files'][0]['name'], 'a START_MS-END_MS span is accepted and shown in seconds')
         check(post(f'{base}/api/build', {**sl, 'binds': good}, tok)[0] == 400, 'Build without a Plan is refused')
+        # ---- the expected wait in plain words, from the length of the files
+        dm.media_seconds = lambda pth: {'a.mp4': 1800.0, 'b.mkv': 1800.0}.get(pth.name, 60.0)
+        pc = post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]
+        check(pc['listen_seconds'] == 3600 and '60 minutes of video to listen to: expect about 6 minutes' in pc['listen_words'] and 'about 6 seconds for each minute of video with the base model' in pc['listen_words'], f'the expected wait is stated from the files\u2019 length ({pc["listen_words"][:90]!r})')
+        check('has not been measured for the tiny model' in post(f'{base}/api/check', {**sl, 'model': 'tiny', 'binds': good}, tok)[1]['listen_words'], 'a model nobody measured says so instead of guessing a time')
+        pc = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'b.mkv') + '#100-900']}}, tok)[1]
+        check(abs(pc['listen_seconds'] - 1800.8) < 0.01, 'a span counts only its own length')
+        dm.media_seconds = lambda pth: None
+        check('could not read how long the files are' in post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]['listen_words'], 'when the length cannot be read it says so, with no made-up time')
+        dm.media_seconds = lambda pth: {'a.mp4': 1800.0, 'b.mkv': 1800.0}.get(pth.name, 60.0)
+        check(post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]['film_stamped'] == 'well-that-is-great-news-<date and time>.mp4', 'the plan names the film the way it will really be named (with its date and time)')
+        # which file the plan is listening to
+        pg = {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'slow.mp4')]}
+        post(f'{base}/api/plan', {**sl, 'binds': pg}, tok)
+        end = time.time() + 15
+        jp = {}
+        while time.time() < end:
+            jp = json.loads(get(f'{base}/api/job', tok)[2])
+            if jp.get('progress', {}).get('current') == 'slow.mp4':
+                break
+            time.sleep(0.2)
+        check(jp.get('progress', {}).get('done') == 1 and jp['progress']['of'] == 2 and jp['progress']['current'] == 'slow.mp4' and abs(jp['progress']['expect_s'] - 186) < 1, f'while it listens, the job says which file it is on ({jp.get("progress")})')
+        post(f'{base}/api/cancel', {}, tok)
+        wait_job(base, tok, ('cancelled',))
         # ---- the plan job, the work folder reuse, and a Build only for what was planned
         print('jobs')
         check(post(f'{base}/api/plan', {**sl, 'binds': good}, tok)[0] == 200, 'Plan starts ENGINE\u2019s plan command')
@@ -298,6 +326,7 @@ def main():
             page.click('#plan')
             page.wait_for_selector('#job-out .ok', timeout=30000)
             pt = page.inner_text('#plan-out') + page.inner_text('#job-out')
+            check('How long the listening takes' in pt and '60 minutes of video to listen to: expect about 6 minutes' in pt and 'well-that-is-great-news-<date and time>.mp4' in pt, 'the plan summary says how long the listening will take, and the real file name')
             check('Ready to build. No film has been written yet.' in pt and 'only 0.10 to 0.90 s' in pt and 'It would cut 2 clips, about 2.96 s' in pt and '\u201cnews\u201d from b.mkv' in pt, 'Plan shows the clips ENGINE\u2019s plan found, the span in seconds, and that no film is written yet')
             check(page.locator('#build').is_enabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_before, 'Build is on after a ready Plan, and Plan wrote no film')
             check('Plan ready: 2 clips, about 2.96 seconds. Build is now on.' in page.inner_text('#job-status') and page.get_attribute('#job-status', 'role') == 'status', 'a screen reader is told once, in the quiet status line, that the plan is ready')
@@ -307,6 +336,7 @@ def main():
             page.wait_for_selector('#job-out:has-text("Your film:")', timeout=30000)
             jt = page.inner_text('#job-out')
             check('network attempts: 0' in jt and 'A receipt is beside it.' in jt, f'Build runs ENGINE\u2019s CLI and shows the film, the clip count and the receipt\u2019s network attempts ({jt[:60]!r})')
+            check('so this film is short (2.4 s)' in page.inner_text('#job-out') and '\u201cwell that is great news\u201d' in page.inner_text('#job-out') and 'put a longer sentence in the recipe' in page.inner_text('#job-out'), 'a short film says why it is short, and what to change')
             page.screenshot(path=str(OUT / '04-built.png'), full_page=True)
             # the results view in the page: the film plays from this computer, Open folder, the questions, and the sound warning
             res_before = len(opened)
@@ -336,6 +366,16 @@ def main():
             page.locator('#job-status:has-text("2.0 seconds")').wait_for(state='attached', timeout=5000)
             check('2.0 seconds' in page.text_content('#job-status'), 'and a screen reader is told')
             page.screenshot(path=str(OUT / '06-sound-warning.png'), full_page=True)
+            # a film that is not short gets no "short" sentence
+            dm.pick_files = lambda multiple: [str(clips / 'long.mp4')]
+            page.get_by_role('button', name='Choose a file for Second footage').click()
+            page.locator('.slot').nth(1).get_by_text('long.mp4').wait_for()
+            page.click('#plan')
+            page.wait_for_selector('#job-out .ok', timeout=30000)
+            page.click('#build')
+            page.wait_for_selector('#job-out:has-text("12.0 s")', timeout=30000)
+            check(page.locator('#short-film').count() == 0, 'a film of 12 seconds gets no "so this film is short" sentence')
+            films_after = len(list((tmp / 'films').glob('*.mp4')))
             # a plan that stops: the words and what to do next
             dm.pick_files = lambda multiple: [str(clips / 'gap.mp4')]
             page.get_by_role('button', name='Choose a file for Second footage').click()
@@ -351,8 +391,10 @@ def main():
             page.locator('.slot').nth(1).get_by_text('slow.mp4').wait_for()
             page.click('#plan')
             page.wait_for_selector('#cancel:not([hidden])', timeout=15000)
+            page.locator('#job-out:has-text("Listening to file 3 of 3: slow.mp4")').wait_for(timeout=15000)
+            check('so far, expected about' in page.inner_text('#job-out'), 'the running line names the file, the time so far and the expected time in all')
             page.locator('#job-status:has-text("Listening to your files.")').wait_for(state='attached', timeout=5000)      # the status line is set a moment after the change, on purpose
-            check(page.text_content('#job-status') == 'Listening to your files.' and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
+            check(page.text_content('#job-status').startswith('Listening to your files. 61 minutes of video to listen to: expect about 6 minutes') and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
             page.click('#cancel')
             page.get_by_text('Cancelled.', exact=False).first.wait_for(timeout=15000)
             check(page.locator('#build').is_disabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_after, 'Cancel stops the job, Build stays off, and no film was kept')
