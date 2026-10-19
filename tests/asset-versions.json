@@ -1,0 +1,62 @@
+{
+ "app-account.js": {
+  "sha256": "8b475a88908d49d6a7bdf1463a639b5a22c38f8c4eb68b28cbcda06015eaaa3d",
+  "v": "20261018a"
+ },
+ "app-admin.js": {
+  "sha256": "d868ed7294903482ffc59b22a967a1ec3940becc33b7cc3e031090a84da90595",
+  "v": "20261004h"
+ },
+ "app-auth.js": {
+  "sha256": "a9770b136df3c75f6a552d076f741171a66935dc83c9585004c46adbc35fdffd",
+  "v": "20261018a"
+ },
+ "app-builder.js": {
+  "sha256": "0cf64889ef8020a39a021ac0f08093f4a9cdebcac012f81bcbec8374cedef67e",
+  "v": "20261017c"
+ },
+ "app-connect.js": {
+  "sha256": "b529ade6f251fbd63047462732ac4ae3c80a990c0778902112e73088afbc2750",
+  "v": "20261018c"
+ },
+ "app-credits.js": {
+  "sha256": "16778baf6ced7f45f724d37eb7917de5be952d8b891eadbe9c52ee98b02c5fdb",
+  "v": "20261004h"
+ },
+ "app-data.js": {
+  "sha256": "7824d71c7ad275969bde2c64b83b931a7cf0af57d29978935907b137f033ee95",
+  "v": "20261017z"
+ },
+ "app-jobs.js": {
+  "sha256": "09738674576a26fbcb0c8f0007ce92cc5bdc8118ed0ca40523ba6e43ca30fa73",
+  "v": "20261018c"
+ },
+ "app-library.js": {
+  "sha256": "507c7837a44aaec9d0779258336e043208a912dda1f80a7ddd27dc478c19f58f",
+  "v": "20261018a"
+ },
+ "app-limits.js": {
+  "sha256": "1fcde0b756c6d177dc2a290fd08bf0d358e3baf0c3b50a0886dabd2b8eb57104",
+  "v": "20261012a"
+ },
+ "app-looks.js": {
+  "sha256": "e6086c23d6424911ca9fbf04d7e9789ed56aa1bd26d30256ea81c3b8500e9eab",
+  "v": "20261018a"
+ },
+ "app-ops.js": {
+  "sha256": "51c4c55a009366b6fc4771a8a479d1527533acf08975388498801e069a373f1f",
+  "v": "20261017g"
+ },
+ "app-sources.js": {
+  "sha256": "014dd86de556427164e5b7fce3cdfd2d622f8dde15a289d8e3f4836b1bb4980f",
+  "v": "20261004h"
+ },
+ "app-templates.js": {
+  "sha256": "c76b44b772da0b81d585ffbf4c67e97968d550f886cbddc295927cc3aedfb262",
+  "v": "20261018b"
+ },
+ "app-uploads.js": {
+  "sha256": "fa4f61d018b6fccabf8610eaed88fbcd3422dabedd5fe49d34092fea829950fd",
+  "v": "20261004y"
+ }
+}
