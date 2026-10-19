@@ -9,9 +9,9 @@ const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABA
 
 Deno.serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
-  // The shared guard first (CONNECT's rule): a connection (OAuth) token is refused before Supabase is even asked; builder.ts keeps its own clientId refusal as a second line.
+  // The shared guard first (CONNECT's rule): a connection (OAuth) token is refused before Supabase is even asked (the only line of defence needed: there is no token left for a second check to see).
   async verifyUser(jwt) {
     const u = await verifyAppUser(service.auth, jwt);
-    return u ? { id: u.id, clientId: null } : null;
+    return u ? { id: u.id } : null;
   },
 }));

@@ -1,27 +1,24 @@
 // The guided-builder Edge function (WEB's front end for ENGINE's compileFilm): who may call it, what it lists, and that a compile is exactly ENGINE's.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { handle, catalogFor, forPerson, claimsOf } from '../supabase/functions/guided-builder/builder.ts';
+import { handle, catalogFor, forPerson } from '../supabase/functions/guided-builder/builder.ts';
 import { CATALOG } from '../supabase/functions/_shared/catalog_data.ts';
 import { compileFilm } from '../supabase/functions/_shared/film.ts';
 import { listableEntries } from '../supabase/functions/_shared/catalog_rules.ts';
 
 const ORIGIN = 'https://uselai.com';
-const deps = (user = { id: 'u1', clientId: null }) => ({ allowedOrigins: [ORIGIN, 'https://www.uselai.com'], verifyUser: async jwt => (jwt === 'good' ? user : null) });
+const deps = (user = { id: 'u1' }) => ({ allowedOrigins: [ORIGIN, 'https://www.uselai.com'], verifyUser: async jwt => (jwt === 'good' ? user : null) });
 const post = (body, { origin = ORIGIN, auth = 'Bearer good', method = 'POST', raw, d = deps(), catalog } = {}) =>
   handle(new Request('https://x.supabase.co/functions/v1/guided-builder', { method, headers: { ...(origin ? { origin } : {}), ...(auth ? { authorization: auth } : {}), 'content-type': 'application/json' },
     ...(method === 'GET' ? {} : { body: raw ?? JSON.stringify(body) }) }), d, catalog);
 
-test('WHO: only uselai.com, only POST, only a signed-in person; a connected AI\'s token and a bad token are refused', async () => {
+test('WHO: only uselai.com, only POST, only a signed-in person; a bad token is refused (a connected AI\'s token is refused by the shared guard in index.ts, below)', async () => {
   assert.equal((await post({ action: 'catalog' }, { origin: null })).status, 403);
   assert.equal((await post({ action: 'catalog' }, { origin: 'https://evil.example' })).status, 403);
   assert.equal((await post({ action: 'catalog' }, { method: 'GET' })).status, 405);
   assert.equal((await post({ action: 'catalog' }, { method: 'OPTIONS' })).status, 204);
   assert.equal((await post({ action: 'catalog' }, { auth: null })).status, 401);
   assert.equal((await post({ action: 'catalog' }, { auth: 'Bearer bad' })).status, 401);
-  const ai = await post({ action: 'catalog' }, { d: deps({ id: 'u1', clientId: 'chatgpt' }) });
-  assert.equal(ai.status, 403);
-  assert.match((await ai.json()).error, /connected AI builds films through its own tools/);
   assert.equal((await post({ action: 'catalog' })).headers.get('cache-control'), 'no-store');
 });
 
@@ -100,5 +97,13 @@ test('INPUT: bad JSON, a non-object, an oversized body and an unknown action are
   const unknown = await post({ action: 'delete_everything' });
   assert.equal(unknown.status, 400);
   assert.deepEqual(await unknown.json(), { error: 'Unknown action.' });
-  assert.deepEqual(claimsOf('not.a.jwt'), {});
+});
+
+test('A CONNECTION TOKEN NEVER REACHES THE BUILDER: index.ts verifies through the shared verifyAppUser guard (which refuses an OAuth token before Supabase is asked), uses no getUser of its own, and builder.ts has no dead second line', async () => {
+  const fs = await import('node:fs');
+  const idx = fs.readFileSync(new URL('../supabase/functions/guided-builder/index.ts', import.meta.url), 'utf8');
+  assert.match(idx, /verifyAppUser\(service\.auth, jwt\)/);
+  assert.doesNotMatch(idx, /\.auth\.getUser\(|claimsOf|clientId: null/);
+  const bld = fs.readFileSync(new URL('../supabase/functions/guided-builder/builder.ts', import.meta.url), 'utf8');
+  assert.doesNotMatch(bld, /clientId|claimsOf|through its own tools/, 'no dead code that can never run');
 });

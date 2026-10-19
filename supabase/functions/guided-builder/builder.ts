@@ -3,8 +3,8 @@
 //   { action: "describe", dataset }             one dataset in full: measures, coverage, film types, known gaps, method changes, source and licence
 //   { action: "compile", request }              the story for a film request (ENGINE's compileFilm), or EVERY reason it refused
 // The rules are the engine's: catalog_rules.ts decides who may be listed (RULINGS 2026-10-17), film.ts compiles and checks the story against the worker's own schema.
-// Nothing here chooses, hides or rounds anything. Tested in tests/guided-builder.test.mjs. App sessions only: a connected AI's token (it carries client_id) is refused; it
-// uses CONNECT's connect_* functions, which sit on the same film.ts.
+// Nothing here chooses, hides or rounds anything. Tested in tests/guided-builder.test.mjs. App sessions only: index.ts verifies with the shared verifyAppUser guard, which refuses a connected AI's (OAuth) token before Supabase is even asked; a connected AI uses CONNECT's
+// connect_* functions, which sit on the same film.ts.
 import { CATALOG } from "../_shared/catalog_data.ts";
 import { listableEntries } from "../_shared/catalog_rules.ts";
 import { compileFilm, FILM_TYPES, FilmError } from "../_shared/film.ts";
@@ -13,7 +13,7 @@ type Json = any;
 
 export interface Deps {
   allowedOrigins: string[];
-  verifyUser(jwt: string): Promise<{ id: string; clientId: string | null } | null>;
+  verifyUser(jwt: string): Promise<{ id: string } | null>;
 }
 
 const MAX_BODY = 40_000;     // a request carries at most a look (16 KB) and a few short fields
@@ -55,7 +55,6 @@ export async function handle(req: Request, deps: Deps, catalog: Json[] = CATALOG
   const jwt = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "");
   const user = jwt ? await deps.verifyUser(jwt).catch(() => null) : null;
   if (!user) return reply(401, { error: "Sign in first." });
-  if (user.clientId) return reply(403, { error: "A connected AI builds films through its own tools." });
 
   let raw: string;
   try { raw = await req.text(); } catch { return reply(400, { error: "Bad request." }); }
@@ -80,14 +79,4 @@ export async function handle(req: Request, deps: Deps, catalog: Json[] = CATALOG
     }
   }
   return reply(400, { error: "Unknown action." });
-}
-
-export function claimsOf(jwt: string): Record<string, unknown> {
-  try {
-    const part = jwt.split(".")[1] ?? "";
-    const b64 = part.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(part.length / 4) * 4, "=");
-    return JSON.parse(atob(b64));
-  } catch {
-    return {};
-  }
 }

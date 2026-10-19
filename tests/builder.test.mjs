@@ -138,3 +138,12 @@ test('COUNTY NOTICE: a solid look on a county map shows the engine\'s sentence a
   assert.ok(review.indexOf('...r.warnings.map(w =>') > -1 && review.indexOf('...r.warnings.map(w =>') < review.indexOf("h('div', { class: 'actions-row builder-nav' }"), 'warnings come before the buttons');
   assert.match(review, /make\.disabled = false/, 'the make button is enabled only after the warnings are drawn');
 });
+
+test('LINKS (CC1 LOW-3): a data link from the catalog is shown only as a plain http(s) address; javascript:, data: and the like never become a link or text', () => {
+  for (const bad of ['javascript:alert(1)', 'data:text/html;base64,AAAA', 'ftp://x.org/a', '//x.org', 'https://exa mple.org', 'https://x.org/"onmouseover=', '', null, undefined]) assert.equal(B.webLink(bad), '', String(bad));
+  assert.equal(B.webLink('https://data.cdc.gov/d/hn4x-zwk7'), 'https://data.cdc.gov/d/hn4x-zwk7');
+  assert.equal(B.sourceLine({ publisher: 'P', url: 'javascript:alert(1)', licence_short: 'L' }), 'Source: P. Licence: L.');
+  assert.equal(B.sourceLine({ publisher: 'P', url: 'https://x.org/a', licence_short: 'L' }), 'Source: P (https://x.org/a). Licence: L.');
+  const src = fs.readFileSync(new URL('../assets/app-builder.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(src, /href: d\.url/, 'the link target always goes through webLink');
+});

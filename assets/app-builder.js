@@ -18,7 +18,9 @@
   // ---------------------------------------------------------------- pure helpers (tested in node)
   const typeWords = id => TYPE_WORDS[id] || [id, ''];
   const periodWord = p => (p ? `${p.from} to ${p.to || 'now'}${p.cadence === 'monthly' ? ', monthly' : ''}` : '');
-  const sourceLine = d => `Source: ${d.publisher}${d.url ? ` (${d.url})` : ''}. Licence: ${d.licence_short}.`;
+  // A link from the catalog is shown only as a plain http(s) address: a bad registry entry can never become a javascript: or data: link.
+  const webLink = u => (/^https?:\/\/[^\s<>"']{1,290}$/i.test(String(u == null ? '' : u)) ? String(u) : '');
+  const sourceLine = d => `Source: ${d.publisher}${webLink(d.url) ? ` (${webLink(d.url)})` : ''}. Licence: ${d.licence_short}.`;
 
   // The step an engine sentence is about ("years.start: ..." -> years). Anything else belongs to the review.
   function stepOf(error) {
@@ -90,7 +92,7 @@
       function sourceBox() {
         if (!s.d) return null;
         const d = s.d;
-        return h('aside', { class: 'builder-source' }, h('h3', {}, 'Source and licence'), h('p', {}, `Source: ${d.publisher}.`, d.url ? [' ', h('a', { href: d.url, rel: 'noopener noreferrer', target: '_blank' }, 'The data’s page')] : null),
+        return h('aside', { class: 'builder-source' }, h('h3', {}, 'Source and licence'), h('p', {}, `Source: ${d.publisher}.`, webLink(d.url) ? [' ', h('a', { href: webLink(d.url), rel: 'noopener noreferrer', target: '_blank' }, 'The data’s page')] : null),
           h('p', {}, `Licence: ${d.licence_short}.`), h('details', {}, h('summary', {}, 'Read the full licence'), h('p', {}, d.licence)));
       }
 
@@ -243,5 +245,5 @@
     return { builderView };
   }
 
-  window.ryagramBuilder = { create, STEPS, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
+  window.ryagramBuilder = { webLink, create, STEPS, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
 })();
