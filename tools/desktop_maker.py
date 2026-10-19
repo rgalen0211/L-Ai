@@ -63,8 +63,38 @@ def list_recipes(folder: Path) -> list[dict]:
             out.append({"file": p.name, "ok": False, "problem": str(e)[:200]})
             continue
         out.append({"file": p.name, "ok": True, "name": rec["name"], "slots": [{"id": s["id"], "label": s["label"], "multiple": bool(s["multiple"]), "accepts": s["accepts"]} for s in rec["slots"]],
-                    "find": (rec.get("find") or {}).get("text", "")})
+                    "find": (rec.get("find") or {}).get("text", ""), "has_find": isinstance(rec.get("find"), dict)})
     return out
+
+
+def _phrase(body: dict) -> str:
+    """The words the person typed on the page (one line, at most 200 letters), or "" to keep the words in the recipe file."""
+    return " ".join(str(body.get("phrase") or "").split())[:200]
+
+
+def recipe_bytes(body: dict) -> bytes:
+    """The recipe as it will be run: the file as it is, or (when words were typed on the page) a copy whose find text is those words. The recipe file itself is never changed."""
+    raw = recipe_path(body.get("recipe")).read_bytes()
+    typed = _phrase(body)
+    if not typed:
+        return raw
+    d = json.loads(raw.decode("utf-8-sig"))
+    if not isinstance(d, dict) or not isinstance(d.get("find"), dict) or d["find"].get("text") == typed:
+        return raw
+    d["find"]["text"] = typed
+    return json.dumps(d, indent=1, ensure_ascii=False).encode("utf-8")
+
+
+def recipe_file_for(body: dict) -> Path:
+    """The recipe file to hand to the engine: the original, or the copy with the typed words, saved in this choice's own work folder."""
+    orig = recipe_path(body.get("recipe"))
+    data = recipe_bytes(body)
+    if data == orig.read_bytes():
+        return orig
+    copy = _work_for(body) / "recipe-with-typed-words.json"
+    copy.parent.mkdir(parents=True, exist_ok=True)
+    copy.write_bytes(data)
+    return copy
 
 
 def recipe_path(name: str) -> Path:
@@ -123,7 +153,7 @@ def precheck(body: dict) -> dict:
     problems: list[str] = []
     rec = None
     try:
-        rec = R.parse_recipe(recipe_path(body.get("recipe")).read_bytes())
+        rec = R.parse_recipe(recipe_bytes(body))
     except Problem as e:
         problems.append(str(e))
     except Exception as e:  # noqa: BLE001
@@ -171,7 +201,7 @@ def precheck(body: dict) -> dict:
 
 def _work_for(body: dict) -> Path:
     """One work folder for one choice of recipe, files and model, so Build reuses the words Plan already heard instead of listening again."""
-    key = hashlib.sha1(json.dumps([body.get("recipe"), sorted(_bind_args(body.get("binds") or {})), body.get("model")]).encode("utf-8")).hexdigest()[:10]
+    key = hashlib.sha1(json.dumps([body.get("recipe"), sorted(_bind_args(body.get("binds") or {})), body.get("model"), _phrase(body)]).encode("utf-8")).hexdigest()[:10]
     return STATE["work"] / key
 
 
@@ -194,7 +224,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     out_dir = STATE["out"]
     stamp = time.strftime("%Y%m%d-%H%M%S")
     out = out_dir / (pc["film"] if kind == "plan" else f"{Path(pc['film']).stem}-{stamp}.mp4")
-    cmd = [sys.executable, "-m", "ryagram.local", kind, str(recipe_path(body["recipe"])), "--work-dir", str(_work_for(body)), "--model", pc["model"], "--out", str(out)]
+    cmd = [sys.executable, "-m", "ryagram.local", kind, str(recipe_file_for(body)), "--work-dir", str(_work_for(body)), "--model", pc["model"], "--out", str(out)]
     if kind == "plan":
         cmd.append("--json")
     for a in pc["args"]:
@@ -204,7 +234,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     env = dict(os.environ, PYTHONPATH=str(STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
     proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body),
-           "of": pc["bind_count"], "done": 0, "current": "", "expect_s": (pc["listen_seconds"] or 0) * LISTEN_SECONDS_PER_MINUTE.get(pc["model"], 0) / 60 if pc["listen_seconds"] else None}
+           "of": pc["bind_count"], "done": 0, "current": "", "expect_s": listen_expect_s(pc["listen_seconds"], pc["model"])}
     threading.Thread(target=_pump, args=(job, proc.stderr, "lines"), daemon=True).start()
     threading.Thread(target=_pump, args=(job, proc.stdout, "stdout"), daemon=True).start()
     STATE["job"] = job
@@ -215,7 +245,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
 
 
 def _plan_key(body: dict) -> str:
-    return json.dumps([body.get("recipe"), sorted(_bind_args(body.get("binds") or {})), body.get("model")])
+    return json.dumps([body.get("recipe"), sorted(_bind_args(body.get("binds") or {})), body.get("model"), _phrase(body)])
 
 
 def _pump(job, stream, field):
@@ -327,7 +357,9 @@ PAGE = """<!doctype html>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
-<p id="recipe-note" class="note" role="status"></p></section>
+<p id="recipe-note" class="note" role="status"></p>
+<label for="words">The words to find in your videos</label><input id="words" type="text" maxlength="200" autocomplete="off" spellcheck="false" aria-describedby="words-note">
+<p id="words-note" class="note">The film is cut from these words, in this order. Change them here if you like; the recipe file stays as it is.</p></section>
 <section aria-labelledby="h-files"><h2 id="h-files">2. Your files</h2>
 <div id="slots"></div>
 <details class="paste"><summary>Paste bind lines instead</summary>
@@ -355,7 +387,7 @@ main{max-width:860px;margin:0 auto;padding:16px 20px 60px}h1{margin:.4em 0 .2em}
 label{display:block;font-weight:700;margin:.8em 0 .25em}select,textarea,input{width:100%;max-width:100%;font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--paper);color:var(--ink);min-height:44px}
 textarea{font-family:ui-monospace,Consolas,monospace;font-size:.9rem}
 .button{font:inherit;font-weight:700;min-height:44px;padding:8px 22px;border-radius:999px;border:1px solid var(--brand);background:transparent;color:var(--brand);cursor:pointer}
-.button.primary{background:var(--brand);color:var(--paper)}.button:disabled{opacity:.5;cursor:not-allowed}.button:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
+.button.primary{background:var(--brand);color:var(--paper)}.button:disabled{opacity:.5;cursor:not-allowed}.button:focus-visible,select:focus-visible,textarea:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 .slot{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}.slot h3{margin:0 0 4px;font-size:1rem}.slot ul{margin:6px 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
 video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}.question textarea{min-height:76px}.warn{border:1px solid #d4a017;background:rgba(212,160,23,.12);border-radius:10px;padding:10px 14px;margin:10px 0}.slot.drop-over{outline:3px dashed var(--brand);outline-offset:3px;background:var(--soft)}.drop-note{margin:6px 0}.drop-note ul{list-style:none;padding:0}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
@@ -410,7 +442,7 @@ JS = r"""(function () {
       const dropped = [...(ev.dataTransfer && ev.dataTransfer.files ? ev.dataTransfer.files : [])];
       if (!dropped.length) { note.textContent = 'I did not receive a file. Drag a video file from a folder window.'; return; }
       note.textContent = 'Looking for the file on this computer\u2026';
-      const got = [], problems = [];
+      const got = [], problems = [], before = JSON.stringify(binds[s.id] || []), recipeThen = current;
       for (const f of (s.multiple ? dropped : dropped.slice(0, 1))) {
         try {
           const r = await api('/api/locate', { name: f.name, size: f.size, mtime_ms: f.lastModified });
@@ -419,6 +451,8 @@ JS = r"""(function () {
           else problems.push({ name: f.name, none: true, timed_out: r.timed_out });
         } catch (e) { problems.push({ name: f.name, error: e.message }); }
       }
+      const changed = recipeThen !== current || JSON.stringify(binds[s.id] || []) !== before;      // the person gave this slot a file another way while the search ran: a 'not found' answer is old news now
+      if (changed) problems.length = 0;
       if (got.length) { binds[s.id] = s.multiple ? (binds[s.id] || []).concat(got) : got.slice(0, 1); fresh(); drawSlots(); say(`Added ${got.length} file${got.length === 1 ? '' : 's'} to ${s.label}.`); }
       const again = [...document.querySelectorAll('.slot')].find(z => z.getAttribute('aria-label').startsWith(s.label + ':'));
       const out = again ? again.querySelector('.drop-note') : note;
@@ -437,11 +471,15 @@ JS = r"""(function () {
   function drawRecipe() {
     const r = recipes.find(x => x.file === $('recipe').value);
     current = r && r.ok ? r : null; binds = {}; fresh();
-    $('recipe-note').textContent = !r ? '' : !r.ok ? `This recipe is refused: ${r.problem}` : `Finds the words \u201c${r.find}\u201d in your files, in order.`;
+    $('recipe-note').textContent = !r ? '' : !r.ok ? `This recipe is refused: ${r.problem}` : '';
+    $('words').value = current ? current.find : ''; $('words').disabled = !current || !current.has_find;
     drawSlots();
   }
   $('recipe').addEventListener('change', drawRecipe);
   $('model').addEventListener('change', fresh);
+  $('words').addEventListener('input', fresh);
+  // what the engine is asked: the words go along only when they differ from the recipe file's own
+  const reqBody = () => { const w = $('words').value.replace(/\s+/g, ' ').trim(); const b = { recipe: current.file, binds, model: $('model').value }; if (w && w !== current.find) b.phrase = w; return b; };
   $('use-paste').addEventListener('click', async () => {
     try {
       const r = await api('/api/paste', { text: $('paste').value });
@@ -462,7 +500,7 @@ JS = r"""(function () {
     if (!current) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Choose a recipe first.')); return; }
     const btn = ev.currentTarget; btn.disabled = true;
     try {
-      const body = { recipe: current.file, binds, model: $('model').value };
+      const body = reqBody();
       const c = await api('/api/check', body);
       if (!c.ok) { fresh(); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
       fresh(); $('job-out').replaceChildren(); lastWait = c.listen_words || '';
@@ -544,7 +582,7 @@ JS = r"""(function () {
     planned = j.state === 'planned' || (j.state === 'built' && planned);
     $('cancel').hidden = !running; $('plan').disabled = running; $('build').disabled = running || !planned;
     why(running ? 'A job is running, so Plan and Build are off until it ends. You can cancel it.' : planned ? 'The plan is ready. Press Build.' : 'Build turns on after a Plan says the files are ready.');
-    if (j.state === 'planned') checkSound({ recipe: current.file, binds, model: $('model').value });
+    if (j.state === 'planned') checkSound(reqBody());
     drawResults(j);
     if (j.state !== lastState) {                                  // announce a change once, not every poll
       lastState = j.state;
@@ -559,7 +597,7 @@ JS = r"""(function () {
   async function watch() { try { drawJob(await api('/api/job')); } catch (e) { $('job-out').textContent = e.message; } }
   $('build').addEventListener('click', async () => {
     if (!planned || !current) return;
-    try { await api('/api/build', { recipe: current.file, binds, model: $('model').value }); poll = setInterval(watch, 1200); watch(); }
+    try { await api('/api/build', reqBody()); poll = setInterval(watch, 1200); watch(); }
     catch (e) { $('job-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
   });
   $('cancel').addEventListener('click', async () => { try { drawJob(await api('/api/cancel', {})); } catch (e) { $('job-out').textContent = e.message; } });
@@ -823,7 +861,10 @@ def locate(name, size, mtime_ms, limit_s=None) -> dict:
 
 
 GAP_WARN_MS = 500
-LISTEN_SECONDS_PER_MINUTE = {"base": 6}          # measured once, on one PC: Plan listened to about 66 minutes of video in 383 s with base (5.8 s a minute); the other models are not measured
+# Measured on one PC with the base model, the v9-lean kit: 24 minutes of video took 145 s, and 67 minutes took 234 s (CONNECT's dress rehearsal). Those two points give about 90 s to start plus 2 s for each minute of video.
+# (The first estimate, 6 s a minute from one earlier run of 66 minutes in 383 s, showed about 7 minutes for a plan that took under 4.) The other models are not measured.
+LISTEN_START_SECONDS = {"base": 90}
+LISTEN_SECONDS_PER_MINUTE = {"base": 2}
 SHORT_FILM_SECONDS = 5.0
 
 
@@ -839,6 +880,14 @@ def media_seconds(path: Path):
         return None
 
 
+def listen_expect_s(total_s, model: str):
+    """Expected seconds to listen to total_s seconds of video, or None when the length or the model is not known."""
+    per = LISTEN_SECONDS_PER_MINUTE.get(model)
+    if total_s is None or per is None:
+        return None
+    return LISTEN_START_SECONDS[model] + total_s / 60 * per
+
+
 def wait_words(total_s, model: str) -> str:
     """The expected wait to listen, in plain words, for a total length of video (None = a length could not be read)."""
     if total_s is None:
@@ -847,10 +896,10 @@ def wait_words(total_s, model: str) -> str:
     minutes = total_s / 60
     length = f"{minutes:.0f} minute{'' if round(minutes) == 1 else 's'}" if minutes >= 1 else "under a minute"
     if per is None:
-        return f"{length} of video to listen to. How long that takes has not been measured for the {model} model; the base model takes about {LISTEN_SECONDS_PER_MINUTE['base']} seconds for each minute of video."
-    secs = minutes * per
+        return f"{length} of video to listen to. How long that takes has not been measured for the {model} model; the base model takes about {LISTEN_START_SECONDS['base']} seconds to start and then about {LISTEN_SECONDS_PER_MINUTE['base']} seconds for each minute of video."
+    secs = listen_expect_s(total_s, model)
     wait = "under a minute" if secs < 60 else f"about {round(secs / 60)} minute{'' if round(secs / 60) == 1 else 's'}"
-    return f"{length} of video to listen to: expect {wait} (about {per} seconds for each minute of video with the {model} model, measured on one computer; less if you have planned these files before)."
+    return f"{length} of video to listen to: expect {wait} (about {LISTEN_START_SECONDS[model]} seconds to start, then about {per} seconds for each minute of video with the {model} model, measured on one computer; less if you have planned these files before)."
 
 
 def load_questions(path) -> list[str]:

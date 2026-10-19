@@ -7,6 +7,7 @@ only that one function. Screenshots go to the out folder.
 """
 import importlib.util
 import os
+import re
 import json
 import shutil
 import subprocess
@@ -58,6 +59,7 @@ clips = [{"n": 1, "words": "well that is great", "file_name": "a.mp4", "slot": "
          {"n": 2, "words": "news", "file_name": "b.mkv", "slot": "source-2", "start_ms": 100, "end_ms": 900, "duration_ms": 800}]
 if cmd == "plan":
     work.mkdir(parents=True, exist_ok=True); (work / "heard.txt").write_text("words")
+    (work / "asked-for.txt").write_text(json.loads(Path(a[2]).read_text(encoding="utf-8"))["find"]["text"])
     gap = "gap.mp4" in joined
     print(json.dumps({"ok": not gap, "gaps": ["news"] if gap else [], "clips": [] if gap else clips, "seconds_estimate": 2.96, "would_write": out.name, "model": "base", "network_attempts": 0}))
     sys.exit(3 if gap else 0)
@@ -137,7 +139,7 @@ def main():
         check(get(f'{base}/')[0] == 403, 'the page without the token is refused')
         check(get(f'{base}/api/recipes', {'Host': 'evil.example', **tok})[0] == 403, 'a request that names another host is refused (no DNS rebinding)')
         st, h, body = get(f'{base}/?t=testtoken')
-        check(st == 200 and b'type="file"' not in body and b'<input' not in body, 'the page has no file input: nothing can be uploaded')
+        check(st == 200 and b'type="file"' not in body and all(b'type="text"' in t for t in re.findall(rb'<input[^>]*>', body)), 'the page has no file input (its one text box is for the words to find): nothing can be uploaded')
         check("default-src 'none'" in h.get('Content-Security-Policy', '') and "connect-src 'self'" in h['Content-Security-Policy'], 'a strict policy: only this server, no inline script')
         check(post(f'{base}/api/check', {'recipe': '../../etc/x.json', 'binds': {}}, tok)[1]['problems'][0].startswith('That recipe is not in the recipes folder'), 'a recipe name with folder tricks is refused')
         text = ' '.join(post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'notes.txt')], 'source-2': ['http://example.com/a.mp4']}}, tok)[1]['problems'])
@@ -150,7 +152,7 @@ def main():
         # ---- the expected wait in plain words, from the length of the files
         dm.media_seconds = lambda pth: {'a.mp4': 1800.0, 'b.mkv': 1800.0}.get(pth.name, 60.0)
         pc = post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]
-        check(pc['listen_seconds'] == 3600 and '60 minutes of video to listen to: expect about 6 minutes' in pc['listen_words'] and 'about 6 seconds for each minute of video with the base model' in pc['listen_words'], f'the expected wait is stated from the files\u2019 length ({pc["listen_words"][:90]!r})')
+        check(pc['listen_seconds'] == 3600 and '60 minutes of video to listen to: expect about 4 minutes' in pc['listen_words'] and 'about 90 seconds to start, then about 2 seconds for each minute of video with the base model' in pc['listen_words'], f'the expected wait is stated from the files\u2019 length ({pc["listen_words"][:90]!r})')
         check('has not been measured for the tiny model' in post(f'{base}/api/check', {**sl, 'model': 'tiny', 'binds': good}, tok)[1]['listen_words'], 'a model nobody measured says so instead of guessing a time')
         pc = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'b.mkv') + '#100-900']}}, tok)[1]
         check(abs(pc['listen_seconds'] - 1800.8) < 0.01, 'a span counts only its own length')
@@ -170,9 +172,25 @@ def main():
             if jp.get('progress', {}).get('current') == 'slow.mp4':
                 break
             time.sleep(0.2)
-        check(jp.get('progress', {}).get('done') == 1 and jp['progress']['of'] == 2 and jp['progress']['current'] == 'slow.mp4' and abs(jp['progress']['expect_s'] - 186) < 1, f'while it listens, the job says which file it is on ({jp.get("progress")})')
+        check(jp.get('progress', {}).get('done') == 1 and jp['progress']['of'] == 2 and jp['progress']['current'] == 'slow.mp4' and abs(jp['progress']['expect_s'] - 152) < 1, f'while it listens, the job says which file it is on ({jp.get("progress")})')
         post(f'{base}/api/cancel', {}, tok)
         wait_job(base, tok, ('cancelled',))
+        # ---- the words can be typed on the page: they go to the engine in a copy of the recipe; the recipe file is never changed
+        orig_bytes = (recipes / 'great-news.json').read_bytes()
+        typed = {**sl, 'binds': good, 'phrase': '  oh   my god '}
+        pt = post(f'{base}/api/check', typed, tok)[1]
+        check(pt['ok'] and pt['find'] == 'oh my god', f'typed words (spaces tidied) replace the recipe\u2019s words in the plan summary ({pt["find"]!r})')
+        check(post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]['find'] == 'well that is great news', 'with nothing typed the recipe\u2019s own words are used')
+        post(f'{base}/api/plan', typed, tok)
+        wait_job(base, tok, ('planned',))
+        heard = (dm._work_for(typed) / 'asked-for.txt').read_text()
+        check(heard == 'oh my god' and (recipes / 'great-news.json').read_bytes() == orig_bytes, f'the engine is asked for the typed words and the recipe file is untouched ({heard!r})')
+        check(dm._work_for(typed) != dm._work_for({**sl, 'binds': good}), 'a different phrase gets its own work folder, so the old words are never reused')
+        check(post(f'{base}/api/build', {**sl, 'binds': good}, tok)[0] == 400, 'a Build whose words differ from the ones planned is refused')
+        check(post(f'{base}/api/check', {**sl, 'binds': good, 'phrase': 'x' * 400}, tok)[1]['find'] == 'x' * 200, 'typed words are cut at 200 letters')
+        post(f'{base}/api/plan', {**sl, 'binds': good}, tok)
+        wait_job(base, tok, ('planned',))
+        check((dm._work_for({**sl, 'binds': good}) / 'asked-for.txt').read_text() == 'well that is great news', 'planning with nothing typed asks for the recipe\u2019s own words')
         # ---- the plan job, the work folder reuse, and a Build only for what was planned
         print('jobs')
         check(post(f'{base}/api/plan', {**sl, 'binds': good}, tok)[0] == 200, 'Plan starts ENGINE\u2019s plan command')
@@ -351,6 +369,8 @@ def main():
             check('well that is great news' in opts and any('broken.json (refused)' in o for o in opts), f'recipes are listed, and a refused one says so ({opts})')
             check(page.locator('.slot').count() == 2 and 'One or more video files.' in page.inner_text('#slots'), 'the recipe\u2019s two slots are shown, one taking many files')
             check(page.locator('#build').is_disabled(), 'Build is off until a Plan is ready')
+            words = page.get_by_label('The words to find in your videos')
+            check(words.input_value() == 'well that is great news' and words.is_enabled() and 'the recipe file stays as it is' in page.inner_text('#words-note'), 'a labelled box shows the words the recipe looks for, and says the recipe file stays as it is')
             page.screenshot(path=str(OUT / '01-recipe.png'), full_page=True)
             page.click('#plan')
             page.wait_for_selector('#plan-out .problems')
@@ -370,7 +390,7 @@ def main():
             page.click('#plan')
             page.wait_for_selector('#job-out .ok', timeout=30000)
             pt = page.inner_text('#plan-out') + page.inner_text('#job-out')
-            check('How long the listening takes' in pt and '60 minutes of video to listen to: expect about 6 minutes' in pt and 'well-that-is-great-news-<date and time>.mp4' in pt, 'the plan summary says how long the listening will take, and the real file name')
+            check('How long the listening takes' in pt and '60 minutes of video to listen to: expect about 4 minutes' in pt and 'well-that-is-great-news-<date and time>.mp4' in pt, 'the plan summary says how long the listening will take, and the real file name')
             check('Ready to build. No film has been written yet.' in pt and 'only 0.10 to 0.90 s' in pt and 'It would cut 2 clips, about 2.96 s' in pt and '\u201cnews\u201d from b.mkv' in pt, 'Plan shows the clips ENGINE\u2019s plan found, the span in seconds, and that no film is written yet')
             check(page.locator('#build').is_enabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_before, 'Build is on after a ready Plan, and Plan wrote no film')
             check('Plan ready: 2 clips, about 2.96 seconds. Build is now on.' in page.inner_text('#job-status') and page.get_attribute('#job-status', 'role') == 'status', 'a screen reader is told once, in the quiet status line, that the plan is ready')
@@ -438,7 +458,7 @@ def main():
             page.locator('#job-out:has-text("Listening to file 3 of 3: slow.mp4")').wait_for(timeout=15000)
             check('so far, expected about' in page.inner_text('#job-out'), 'the running line names the file, the time so far and the expected time in all')
             page.locator('#job-status:has-text("Listening to your files.")').wait_for(state='attached', timeout=5000)      # the status line is set a moment after the change, on purpose
-            check(page.text_content('#job-status').startswith('Listening to your files. 61 minutes of video to listen to: expect about 6 minutes') and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
+            check(page.text_content('#job-status').startswith('Listening to your files. 61 minutes of video to listen to: expect about 4 minutes') and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
             page.click('#cancel')
             page.get_by_text('Cancelled.', exact=False).first.wait_for(timeout=15000)
             check(page.locator('#build').is_disabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_after, 'Cancel stops the job, Build stays off, and no film was kept')
@@ -476,9 +496,25 @@ def main():
             check(True, 'a drop with no file says so in words')
             prevented = page.evaluate("""() => { const ev = new DragEvent('drop', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }); document.body.dispatchEvent(ev); return ev.defaultPrevented; }""")
             check(prevented, 'a file dropped outside a slot is ignored (the browser does not open it)')
+            # a slow search must not write "could not find" into a slot that got its file another way while it searched
+            page.evaluate("""() => { const f = window.fetch; window.fetch = (u, o) => String(u).includes('/api/locate') ? new Promise(r => setTimeout(r, 1500)).then(() => f(u, o)) : f(u, o); }""")
+            page.get_by_role('button', name='Clear the files for First footage').click()
+            drop('First footage', 'nothere.mp4', 3, 12345)
+            page.fill('#paste', f'--bind source-1={clips / "a.mp4"}')
+            page.click('#use-paste')
+            page.locator('.slot').first.locator('ul li').first.wait_for(timeout=5000)
+            page.wait_for_timeout(3000)
+            check('I could not find' not in page.locator('.slot').first.inner_text() and page.locator('.slot').first.locator('ul li').count() == 1, 'a slow search for a dropped file says nothing once the slot has a file another way')
             page.click('#plan')
             page.wait_for_selector('#job-out .ok, #plan-out .problems', timeout=30000)
             check('pass the door checks' in page.inner_text('#plan-out') or page.locator('#job-out .ok').count() == 1, 'files that were dropped plan like any others')
+            words.fill('oh my god')
+            check(page.locator('#build').is_disabled(), 'changing the words turns Build off until Plan is pressed again')
+            page.click('#plan')
+            page.locator('#plan-out dd', has_text='oh my god').wait_for(timeout=30000)
+            page.wait_for_selector('#job-out .ok', timeout=30000)
+            check(page.locator('#build').is_enabled() and 'oh my god' in page.inner_text('#plan-out'), 'typed words are shown in the plan and Build comes on for them')
+            page.screenshot(path=str(OUT / '08-typed-words.png'), full_page=True)
             check(page.get_by_role('button', name='Choose a file for First footage').count() == 1 and page.locator('summary:has-text("Paste bind lines")').count() == 1, 'the Choose a file button and the paste box are still there')
             check(not page.evaluate('document.documentElement.scrollWidth > window.innerWidth + 1'), 'no sideways scroll')
             check(not outside, f'the page contacted nothing but this server {outside[:3]}')
