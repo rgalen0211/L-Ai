@@ -188,6 +188,15 @@ def main():
         check(dm._work_for(typed) != dm._work_for({**sl, 'binds': good}), 'a different phrase gets its own work folder, so the old words are never reused')
         check(post(f'{base}/api/build', {**sl, 'binds': good}, tok)[0] == 400, 'a Build whose words differ from the ones planned is refused')
         check(post(f'{base}/api/check', {**sl, 'binds': good, 'phrase': 'x' * 400}, tok)[1]['find'] == 'x' * 200, 'typed words are cut at 200 letters')
+        # MUST-FAIL: typed words that break ENGINE's own PLAIN rule (paths, shell-looking text, markup, right-to-left controls) are refused with ENGINE's sentence, and nothing runs
+        bad_words = ['..' + chr(92) + '..' + chr(92) + 'Windows', '$(whoami)', 'rm -rf /', '<b>x</b>', 'abc' + chr(0x202e) + 'def', 'a`b', '100%']
+        refused_all, ran = True, False
+        for w in bad_words:
+            pb = post(f'{base}/api/check', {**sl, 'binds': good, 'phrase': w}, tok)[1]
+            refused_all = refused_all and (not pb['ok']) and any('find.text' in x and 'does not match' in x for x in pb['problems'])
+            code, _ = post(f'{base}/api/plan', {**sl, 'binds': good, 'phrase': w}, tok)
+            ran = ran or code == 200 or (dm._work_for({**sl, 'binds': good, 'phrase': w}) / 'recipe-with-typed-words.json').exists()
+        check(refused_all and not ran, 'typed words that break the engine\u2019s PLAIN rule get its own refusal sentence, Plan will not start, and no recipe copy is written')
         post(f'{base}/api/plan', {**sl, 'binds': good}, tok)
         wait_job(base, tok, ('planned',))
         check((dm._work_for({**sl, 'binds': good}) / 'asked-for.txt').read_text() == 'well that is great news', 'planning with nothing typed asks for the recipe\u2019s own words')
