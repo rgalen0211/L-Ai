@@ -1131,7 +1131,7 @@
 
       function mappingForm(ds) {
         const report = ds.ingest_report;
-        const mapping = U.draft(report);
+        const mapping = U.draft(report, { wide: byodGuideOn() });
         if (!mapping) {
           return h('p', { class: 'form-note app-error', role: 'alert' }, byodGuideOn() ? U.WIDE_HELP : U.problem(null, report));
         }
@@ -1179,6 +1179,16 @@
             return h('div', { class: 'value-row' }, h('label', { class: 'choice' }, box, h('span', {}, shown(c))), name);
           }));
         drawCounty();
+        // Wide file (the worker melted it and reports the long columns): 'These columns are years', and which group when there are several.
+        const wideBox = mapping.melt_wide === undefined ? null : (() => {
+          const tick = h('input', { id: 'wide-tick', type: 'checkbox', onchange: () => { mapping.melt_wide = tick.checked; } });
+          const groups = U.wideGroups(report);
+          const pick = groups.length > 1 ? h('div', {}, h('label', { class: 'field' }, h('span', {}, 'Which columns'), h('select', { 'aria-label': 'Which columns are the years', onchange: e => { mapping.wide_prefix = e.target.value; } },
+            groups.map(g => h('option', { value: g.prefix, selected: g.prefix === mapping.wide_prefix }, U.groupLabel(g))))), h('p', { class: 'form-note wide-examples-note' }, 'The example values shown below are from the default choice (' + U.groupLabel(groups.find(g => g.prefix === mapping.wide_prefix) || groups[0]) + '); they stay as they are when you pick another group.')) : null;
+          return h('fieldset', { class: 'choices wide-years' }, h('legend', {}, 'This file has one column for each year'),
+            h('p', { class: 'form-note' }, 'Ryagram turns it into one row for each place and year before it draws. Check that the year columns are the ones you mean.'),
+            h('label', { class: 'choice' }, tick, h('span', {}, U.WIDE_TICK)), pick);
+        })();
         // S5 scaffold (byodGuide): who published it, the licence or permission, the unit, and the attestation. PLACEHOLDER wording (Ryan's final wording is RYAN-QUEUE Q5).
         const prov = { publisher: '', link: '', licence: '', licence_note: '', unit: '', decimals: 0, attested: false };
         const provBox = byodGuideOn() ? provenanceFields(prov) : null;
@@ -1198,7 +1208,7 @@
         const per = report.periods;
         return h('div', { class: 'mapping-form' },
           h('p', { class: 'form-note' }, `We found ${rows.toLocaleString()} rows${per ? `, ${per.first} to ${per.last}` : ''}. Check what each column means. Only you can see these values.`),
-          select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values, provBox,
+          wideBox, select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values, provBox,
           h('div', { class: 'actions-row' }, confirmBtn), note);
       }
 
