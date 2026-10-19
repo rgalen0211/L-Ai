@@ -408,7 +408,7 @@ JS = r"""(function () {
     if (!r.ok) throw new Error(j.error || 'That did not work.');
     return j;
   }
-  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '';
+  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '';
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
   const fresh = () => { planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
@@ -573,7 +573,7 @@ JS = r"""(function () {
         el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
       if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Not said anywhere in the files you chose: ${a.gaps.join(', ')}.`));
     }
-    if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `Your recipe looks for the words \u201c${current.find}\u201d and uses them once, so this film is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, put a longer sentence in the recipe.`));
+    if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
     if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s, network attempts: ${j.receipt.network_attempts}. A receipt is beside it.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
     if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
@@ -597,7 +597,7 @@ JS = r"""(function () {
   async function watch() { try { drawJob(await api('/api/job')); } catch (e) { $('job-out').textContent = e.message; } }
   $('build').addEventListener('click', async () => {
     if (!planned || !current) return;
-    try { await api('/api/build', reqBody()); poll = setInterval(watch, 1200); watch(); }
+    try { const rb = reqBody(); builtWords = rb.phrase || current.find; await api('/api/build', rb); poll = setInterval(watch, 1200); watch(); }
     catch (e) { $('job-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
   });
   $('cancel').addEventListener('click', async () => { try { drawJob(await api('/api/cancel', {})); } catch (e) { $('job-out').textContent = e.message; } });
