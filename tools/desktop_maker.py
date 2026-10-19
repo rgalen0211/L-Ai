@@ -1005,6 +1005,7 @@ def main(argv=None) -> int:
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)
     print("Leave this window open while you use it. Close it, or press Ctrl+C, to stop.", flush=True)
+    print("If the page does not look right or a button does nothing, copy the address above into Microsoft Edge or Google Chrome.", flush=True)
     if a.open:
         import webbrowser
         threading.Timer(0.4, webbrowser.open, args=(url,)).start()

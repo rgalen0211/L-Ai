@@ -103,6 +103,7 @@ def main():
                 refused = True
             check(refused, f'it listens on 127.0.0.1 only: connecting to this computer\u2019s network address {host} fails')
             check('Open  http://127.0.0.1:' in txt and 'Leave this window open' in txt, 'the window says in words what to do (open this, leave it open, close to stop)')
+            check('copy the address above into Microsoft Edge or Google Chrome' in txt, 'and it says what to do if the page misbehaves in the default browser: use Edge or Chrome')
             # a second start takes the next free port
             p2, log2, f2 = start(folder, args=('--port', str(port)))
             procs.append((p2, f2))
