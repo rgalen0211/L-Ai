@@ -1,7 +1,7 @@
 """Kit drift check: does a Sam kit folder still match the commits it says it was built from, and are those commits still the heads of their branches? Read-only: it only reads the kit folder and runs
 `git` read commands in the two repositories (no fetch, no network; run `git fetch` first if you want the latest heads).
 
-    python tools/check-kit-pins.py <kit folder> [--ryagram-repo PATH] [--lai-repo PATH] [--maker-branch maker-drop] [--selftest]
+    python tools/check-kit-pins.py <kit folder> [--pins tools/sam-kit-pins-v9-lean.json] [--ryagram-repo PATH] [--lai-repo PATH] [--maker-branch maker-drop] [--selftest]
 
 For every pinned component (the Ryagram commits and the desktop maker in KIT-MANIFEST.json) it prints the pinned commit, the branch it belongs to, that branch's head NOW, and: UP TO DATE, BEHIND by N
 commits (with their subjects and whether the maker's page files changed), or DIVERGED / MISSING. Then it checks the kit's contents byte for byte:
@@ -9,6 +9,8 @@ commits (with their subjects and whether the maker's page files changed), or DIV
   * the maker's page files (tools/desktop_maker.py, tools/start-maker.bat) equal the pinned maker commit, line endings aside;
   * tools/faces_local_probe.py equals the pinned faces-local-probe commit;
   * every file under ryagram/ is identical to the same path in one of the pinned Ryagram commits (a file that is not is either a merge result of two pinned commits or has been edited: it is listed).
+With --pins FILE (a pins file as make-sam-kit.ps1 reads it: ryagram [{name, sha}] and maker {name, sha}) it also prints PINS vs HEADS (is each pin still its branch's head?) and PINS vs KIT
+(was the kit built from exactly these commits?), so a pins file that moved ahead of a built kit, or a kit built from other commits than the file says, is reported.
 Exit 0 when nothing is behind and nothing differs; 1 when something is behind or differs (a table says what); 2 when the check itself could not run.
 """
 import argparse
@@ -73,7 +75,37 @@ def blob_matches(repo, commit, path, data):
     return raw.replace(b'\r\n', b'\n') == data.replace(b'\r\n', b'\n')
 
 
-def run(kit, ryagram_repo, lai_repo, maker_branch):
+def pins_report(pins_path, man, ryagram_repo, lai_repo):
+    """PINS vs HEADS and PINS vs KIT. Returns a list of problems."""
+    problems = []
+    pins = json.loads(Path(pins_path).read_text(encoding='utf-8'))
+    print(f'\nPINS FILE {pins_path}')
+    print('  pin                  pinned     branch head now  state / kit')
+    kit_full = list((man.get('ryagram_commits') or {}).values())
+    dm = (man.get('desktop_maker') or {}).get('commit', '')
+    rows = [(e['name'], e['sha'], e['name'], ryagram_repo) for e in pins.get('ryagram', [])]
+    if pins.get('maker'):
+        rows.append(('desktop maker', pins['maker']['sha'], pins['maker']['name'], lai_repo))
+    pinned_full = set()
+    for name, sha, branch, repo in rows:
+        full = git(repo, 'rev-parse', '--verify', '-q', sha + '^{commit}').stdout.strip() or sha      # a pins file may use short ids; compare full ones
+        state, head, detail = compare(repo, name, full, branch)
+        pinned_full.add(full)
+        in_kit = (full == dm) if name == 'desktop maker' else (full in kit_full)
+        kit_note = 'in the kit' if in_kit else 'NOT IN THE KIT'
+        print(f'  {name:20} {sha[:7]:10} {branch:12} {(head or "-")[:7]:8} {state}; {kit_note}' + (f'   {detail}' if detail else ''))
+        if state != 'UP TO DATE':
+            problems.append(f'pins file {name}: {state}')
+        if not in_kit:
+            problems.append(f'pins file {name} {sha[:7]} is not what the kit was built from')
+    for full in kit_full + ([dm] if dm else []):
+        if full and full not in pinned_full:
+            print(f'  the kit has {full[:7]}, which the pins file does not list')
+            problems.append(f'the kit holds {full[:7]}, which the pins file does not list')
+    return problems
+
+
+def run(kit, ryagram_repo, lai_repo, maker_branch, pins_path=None):
     kit = Path(kit)
     man = json.loads((kit / 'KIT-MANIFEST.json').read_text(encoding='utf-8'))
     problems = []
@@ -146,6 +178,8 @@ def run(kit, ryagram_repo, lai_repo, maker_branch):
             odd.append(rel)
     print(f'  ryagram/: {count} files, {count - len(odd)} identical to a pinned commit, {len(odd)} not' + (f' (a merge result of two pinned commits, or edited): {", ".join(odd[:8])}' + (' ...' if len(odd) > 8 else '') if odd else ''))
     problems += bad
+    if pins_path:
+        problems += pins_report(pins_path, man, ryagram_repo, lai_repo)
     # a file that is not identical to any single pinned commit is information, not an alarm, unless the integrity hash also fails
     print('\nRESULT: ' + ('NOTHING BEHIND, NOTHING DIFFERS' if not problems else 'DRIFT FOUND: ' + '; '.join(problems)))
     return 0 if not problems else 1
@@ -230,6 +264,28 @@ def selftest():
         code, out = go()
         check(code == 1 and 'changed since the kit was built: ryagram/a.py' in out and '0 identical to a pinned commit, 1 not' in out, 'an edited engine file is caught')
         (kit / 'ryagram' / 'a.py').write_text('print(1)\n')
+        pins_ok = tmp / 'pins-ok.json'
+        pins_ok.write_text(json.dumps({'ryagram': [{'name': 'local-mcp', 'sha': r1[:7]}], 'maker': {'name': 'maker-drop', 'sha': m1[:7]}}))
+        import io
+        import contextlib
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = run(kit, ry, lai, 'maker-drop', str(pins_ok))
+        out = buf.getvalue()
+        check('PINS FILE' in out and 'UP TO DATE; in the kit' in out and 'NOT IN THE KIT' not in out and 'which the pins file does not list' not in out, 'a pins file (with short commit ids) that lists exactly what the kit was built from is matched, and a pin that is still its branch head reads UP TO DATE (the maker pin is behind at this point of the test, on purpose)')
+        g(ry, 'checkout', '-q', '-b', 'other')
+        (ry / 'ryagram' / 'b.py').write_text('x\n')
+        g(ry, 'add', '-A')
+        g(ry, 'commit', '-q', '-m', 'a newer commit')
+        r2 = g(ry, 'rev-parse', 'HEAD')
+        g(ry, 'checkout', '-q', 'main')
+        pins_new = tmp / 'pins-new.json'
+        pins_new.write_text(json.dumps({'ryagram': [{'name': 'other', 'sha': r2[:7]}], 'maker': {'name': 'maker-drop', 'sha': m1[:7]}}))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = run(kit, ry, lai, 'maker-drop', str(pins_new))
+        out = buf.getvalue()
+        check(code == 1 and 'NOT IN THE KIT' in out and 'which the pins file does not list' in out, 'a pins file that moved ahead of the built kit is reported both ways (its pin is not in the kit; the kit holds a commit the file does not list)')
         g(ry, 'commit', '-q', '--allow-empty', '-m', 'two')
         g(ry, 'checkout', '-q', 'local-mcp')
         g(ry, 'commit', '-q', '--allow-empty', '-m', 'newer on the branch')
@@ -262,6 +318,7 @@ def main():
     ap.add_argument('--ryagram-repo', default='C:/Users/Ryan/Documents/GitHub/Ryagram')
     ap.add_argument('--lai-repo', default=str(ROOT))
     ap.add_argument('--maker-branch', default='maker-drop')
+    ap.add_argument('--pins', help='a pins file to compare with the kit and with the branch heads')
     ap.add_argument('--selftest', action='store_true')
     a = ap.parse_args()
     if a.selftest:
@@ -269,7 +326,7 @@ def main():
     if not a.kit:
         ap.error('give a kit folder (or --selftest)')
     try:
-        return run(a.kit, Path(a.ryagram_repo), Path(a.lai_repo), a.maker_branch)
+        return run(a.kit, Path(a.ryagram_repo), Path(a.lai_repo), a.maker_branch, a.pins)
     except (OSError, RuntimeError, KeyError, json.JSONDecodeError) as e:
         print(f'check-kit-pins: could not run: {e}')
         return 2
