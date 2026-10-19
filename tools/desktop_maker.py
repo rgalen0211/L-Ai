@@ -31,11 +31,11 @@ HERE = Path(__file__).resolve().parent
 MODELS = ("tiny", "base", "small")
 EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
-    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
-    2: ("Refused: the recipe or one of the files is not right, so nothing was run.", "Read the lines below: they name the file or slot. Fix it, then press Plan again."),
-    3: ("The files you chose do not say every word the recipe needs. Nothing was written.", "Add a file that says the missing words, or pick a recipe whose words your files do say, then press Plan again."),
-    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
-    5: ("Cancelled.", "Anything half-made is in the work folder; no film was kept. Press Plan to start again."),
+    1: ("Something unexpected went wrong.", "Press Check my videos again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
+    2: ("Stopped: the film idea or one of the files has a problem, so nothing was run.", "The lines below name the file or place. Fix it, then press Check my videos again."),
+    3: ("Your videos do not say every word the film idea needs. Nothing was made.", "Add a video that says the missing words, or pick a film idea that fits your videos, then press Check my videos again."),
+    4: ("Stopped: the film maker tried to use the internet, which it must not do. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
+    5: ("Cancelled.", "Anything half-made is left in the work folder; no film was kept. Press Check my videos to start again."),
 }
 STATE = {"engine": None, "recipes": None, "work": None, "out": None, "token": "", "port": 0, "job": None, "planned": None, "R": None, "E": None}
 LOCK = threading.RLock()
@@ -100,7 +100,7 @@ def recipe_file_for(body: dict) -> Path:
 def recipe_path(name: str) -> Path:
     p = (STATE["recipes"] / Path(str(name)).name)           # the file NAME only: no folder tricks
     if p.suffix.lower() != ".json" or not p.is_file() or p.parent.resolve() != STATE["recipes"].resolve():
-        raise Problem("That recipe is not in the recipes folder.")
+        raise Problem("That film idea is not in the film ideas folder.")
     return p
 
 
@@ -123,7 +123,7 @@ def parse_pasted(text: str) -> tuple[dict, list[str]]:
             continue
         m = BIND_RE.match(t)
         if not m:
-            bad.append(f"line {n}: not a slot=file line")
+            bad.append(f"line {n}: it should look like place=file")
             continue
         f = m.group("file").strip()
         if len(f) >= 2 and f[0] == f[-1] and f[0] in "\"'":
@@ -170,10 +170,10 @@ def precheck(body: dict) -> dict:
     except Problem as e:
         problems.append(str(e))
     except Exception as e:  # noqa: BLE001
-        problems.append(f"The recipe is refused: {str(e)[:200]}")
+        problems.append(f"The film idea cannot be used: {str(e)[:200]}")
     model = body.get("model") or "base"
     if model not in MODELS:
-        problems.append(f"The model must be one of {', '.join(MODELS)}.")
+        problems.append(f"The listening quality must be one of {', '.join(MODELS)}.")
     mroot = os.environ.get("RYAGRAM_MODEL_DIR")
     if model in MODELS and mroot and model not in models_present(mroot):
         problems.append(missing_model_sentence(model))
@@ -190,13 +190,13 @@ def precheck(body: dict) -> dict:
     if rec:
         extra = sorted(set(binds) - {s["id"] for s in rec["slots"]})
         if extra:
-            problems.append("Not a slot of this recipe: " + ", ".join(extra))
+            problems.append("Not a place in this film idea: " + ", ".join(extra))
         for s in rec["slots"]:
             items = binds.get(s["id"], [])
             if not items:
-                problems.append(f"The slot \u201c{s['label']}\u201d has no file yet.")
+                problems.append(f"\u201c{s['label']}\u201d has no video yet.")
             if len(items) > 1 and not s["multiple"]:
-                problems.append(f"The slot \u201c{s['label']}\u201d takes one file; it has {len(items)}.")
+                problems.append(f"\u201c{s['label']}\u201d takes one video; it has {len(items)}.")
             lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b), "key": f"{b.path}|{b.start_ms}|{b.end_ms}"} for b in items]})
     work = STATE["work"]
     anchor = work if work.exists() else work.parent if work.parent.exists() else Path(work.anchor)
@@ -212,7 +212,7 @@ def precheck(body: dict) -> dict:
     total_s = None if (not secs or any(x is None for x in distinct.values())) else sum(distinct.values())
     return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": len(secs),
             "film_stamped": f"{film}-<date and time>.mp4" if film else None, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
-            "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
+            "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the maker blocks the internet while it works)"}
 
 
 def _work_for(body: dict) -> Path:
@@ -236,7 +236,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     if kind == "build":
         last = STATE.get("planned")
         if not last or last != _plan_key(body):
-            raise Problem("Press Plan first for exactly these files, and wait for it to say it is ready.")
+            raise Problem("Press Check my videos first for exactly these videos, and wait until it says ready.")
     out_dir = STATE["out"]
     stamp = time.strftime("%Y%m%d-%H%M%S")
     out = out_dir / (pc["film"] if kind == "plan" else f"{Path(pc['film']).stem}-{stamp}.mp4")
@@ -323,7 +323,7 @@ def job_status() -> dict:
             if ans.get("ok"):
                 with LOCK:
                     STATE["planned"] = job["key"]
-                out["words"], out["next"] = "Ready to build. No film has been written yet.", "Press Build. It reuses the words Plan already heard."
+                out["words"], out["next"] = "Ready. No film has been made yet.", "Press Make my film. It reuses the words already heard."
     if job["kind"] == "build" and code == 0:
         rp = job["out"].with_suffix(".receipt.json")
         try:
@@ -370,23 +370,23 @@ PAGE = """<!doctype html>
 <body><main>
 <p class="banner" role="note"><strong>INTERNAL PROTOTYPE.</strong> Runs on this computer only. Nothing is uploaded; there is no account.</p>
 <h1>Desktop maker</h1>
-<p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
-<section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
-<label for="recipe">Recipe</label><select id="recipe"></select>
+<p class="intro">Make a film from your own videos, on this computer. Pick a film idea, give each place a video, press Check my videos to see what would be made, then Make my film.</p>
+<section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Film idea</h2>
+<label for="recipe">Film idea</label><select id="recipe"></select>
 <p id="recipe-note" class="note" role="status"></p>
 <label for="words">The words to find in your videos</label><input id="words" type="text" maxlength="200" autocomplete="off" spellcheck="false" aria-describedby="words-note">
-<p id="words-note" class="note">The film is cut from these words, in this order. Change them here if you like; the recipe file stays as it is.</p></section>
-<section aria-labelledby="h-files"><h2 id="h-files">2. Your files</h2>
+<p id="words-note" class="note">The film is cut from these words, in this order. Change them here if you like; the film idea file stays as it is.</p></section>
+<section aria-labelledby="h-files"><h2 id="h-files">2. Your videos</h2>
 <div id="slots"></div>
-<details class="paste"><summary>Paste bind lines instead</summary>
+<details class="paste"><summary>Paste file lines instead</summary>
 <label for="paste">One line for each file, like <code>--bind source-1=C:\\clips\\a.mp4</code> (what <code>library find --emit-binds</code> prints; a span of a file is <code>slot=FILE#START_MS-END_MS</code>)</label>
 <textarea id="paste" rows="4" spellcheck="false"></textarea><button id="use-paste" type="button" class="button secondary">Use these lines</button>
 <p id="paste-note" class="note" role="status"></p></details>
-<label for="model">Speech model on this computer</label><select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>
-<p class="note">A larger model hears more words and is slower. Use the same one the finder used.</p></section>
-<section aria-labelledby="h-plan"><h2 id="h-plan">3. Plan, then Build</h2>
-<div class="actions"><button id="plan" type="button" class="button secondary" aria-describedby="why">Plan</button><button id="build" type="button" class="button primary" aria-describedby="why" disabled>Build</button><button id="cancel" type="button" class="button secondary" hidden>Cancel</button></div>
-<p id="why" class="note">Build turns on after a Plan says the files are ready.</p>
+<label for="model">Listening quality on this computer</label><select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>
+<p class="note">A bigger setting hears more words and is slower. Use the same one you used when you found the words.</p></section>
+<section aria-labelledby="h-plan"><h2 id="h-plan">3. Check, then make</h2>
+<div class="actions"><button id="plan" type="button" class="button secondary" aria-describedby="why">Check my videos</button><button id="build" type="button" class="button primary" aria-describedby="why" disabled>Make my film</button><button id="cancel" type="button" class="button secondary" hidden>Cancel</button></div>
+<p id="why" class="note">Make my film turns on after Check my videos says your videos are ready.</p>
 <p id="job-status" class="sr-only" role="status"></p>
 <div id="plan-out"></div>
 <div id="job-out"></div>
@@ -427,7 +427,7 @@ JS = r"""(function () {
   let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '';
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
-  const fresh = () => { planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
+  const fresh = () => { planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Make my film turns on after Check my videos says your videos are ready.'); $('plan-out').replaceChildren(); };
   function drawSlots() {
     const box = $('slots'); box.replaceChildren();
     if (!current) return;
@@ -487,7 +487,7 @@ JS = r"""(function () {
   function drawRecipe() {
     const r = recipes.find(x => x.file === $('recipe').value);
     current = r && r.ok ? r : null; binds = {}; fresh();
-    $('recipe-note').textContent = !r ? '' : !r.ok ? `This recipe is refused: ${r.problem}` : '';
+    $('recipe-note').textContent = !r ? '' : !r.ok ? `This film idea cannot be used: ${r.problem}` : '';
     $('words').value = current ? current.find : ''; $('words').disabled = !current || !current.has_find;
     drawSlots();
   }
@@ -502,25 +502,25 @@ JS = r"""(function () {
       const unknown = Object.keys(r.binds).filter(k => !current || !current.slots.some(s => s.id === k));
       for (const [k, v] of Object.entries(r.binds)) if (current && current.slots.some(s => s.id === k)) binds[k] = v;
       fresh(); drawSlots();
-      const notes = r.bad.concat(unknown.map(k => `${k} is not a slot of this recipe`));
-      $('paste-note').textContent = notes.length ? 'Not used: ' + notes.join('; ') + '.' : 'Used. Check the slots above, then press Plan.';
+      const notes = r.bad.concat(unknown.map(k => `${k} is not a place in this film idea`));
+      $('paste-note').textContent = notes.length ? 'Not used: ' + notes.join('; ') + '.' : 'Used. Check the boxes above, then press Check my videos.';
     } catch (e) { $('paste-note').textContent = e.message; }
   });
   function summary(p) {
-    return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'The files and the recipe pass the door checks.'),
-      el('dl', {}, el('dt', {}, 'Film it would write'), el('dd', {}, `${p.film_stamped} (in ${p.out_dir}; the date and time are added so an earlier film is never replaced)`), el('dt', {}, 'Words it will find'), el('dd', {}, p.find), el('dt', {}, 'Files'),
-        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join('; ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
-        el('dt', {}, 'Network'), el('dd', {}, p.network), el('dt', {}, 'Room on the work drive'), el('dd', {}, `${p.free_gb} GB free`)));
+    return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'Your videos and the film idea are fine.'),
+      el('dl', {}, el('dt', {}, 'Film it would make'), el('dd', {}, `${p.film_stamped} (in ${p.out_dir}; the date and time are added so an earlier film is never replaced)`), el('dt', {}, 'Words it will look for'), el('dd', {}, p.find), el('dt', {}, 'Videos'),
+        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join('; ')))), el('dt', {}, 'Listening quality'), el('dd', {}, p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
+        el('dt', {}, 'Internet use'), el('dd', {}, p.network), el('dt', {}, 'Space left on the drive'), el('dd', {}, `${p.free_gb} GB free`)));
   }
   $('plan').addEventListener('click', async ev => {
-    if (!current) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Choose a recipe first.')); return; }
+    if (!current) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Pick a film idea first.')); return; }
     const btn = ev.currentTarget; btn.disabled = true;
     try {
       const body = reqBody();
       const c = await api('/api/check', body);
       if (!c.ok) { fresh(); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
       fresh(); $('job-out').replaceChildren(); lastWait = c.listen_words || '';
-      $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now the plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
+      $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now the maker listens to your videos and shows what it would make. It does not make the film yet. It keeps the words it hears, so making the film does not listen again.'));
       await api('/api/plan', body); poll = setInterval(watch, 1200); watch();
     } catch (e) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
     finally { if (!poll) btn.disabled = false; }
@@ -574,7 +574,7 @@ JS = r"""(function () {
   }
   function drawJob(j) {
     const running = j.state === 'running';
-    const what = j.kind === 'plan' ? 'Listening to your files' : 'Building';
+    const what = j.kind === 'plan' ? 'Listening to your files' : 'Making the film';
     const parts = [];
     const clock = n => `${Math.floor(n / 60)}:${String(n % 60).padStart(2, '0')}`;
     if (running && j.kind === 'plan' && j.progress && j.progress.of) {
@@ -585,26 +585,26 @@ JS = r"""(function () {
     else if (j.words) parts.push(el('p', { class: ['built', 'planned'].includes(j.state) ? 'ok' : 'problems', role: ['built', 'planned'].includes(j.state) ? null : 'alert' }, j.words));
     if (j.state === 'planned' || j.state === 'gaps') {
       const a = j.plan;
-      if (a.clips.length) parts.push(el('p', {}, `It would cut ${a.clips.length} clip${a.clips.length === 1 ? '' : 's'}, about ${a.seconds_estimate} s:`),
+      if (a.clips.length) parts.push(el('p', {}, `It would use ${a.clips.length} piece${a.clips.length === 1 ? '' : 's'}, about ${a.seconds_estimate} s:`),
         el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
-      if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Not said anywhere in the files you chose: ${a.gaps.join(', ')}.`));
+      if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `These words are not in the videos you chose: ${a.gaps.join(', ')}.`));
     }
-    if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
-    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s, network attempts: ${j.receipt.network_attempts}. A receipt is beside it.`) : null);
+    if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the film idea file).`));
+    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} piece(s), ${j.receipt.seconds.toFixed(1)} s, internet use: ${j.receipt.network_attempts}. A record of the run is saved beside it.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
     if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
     if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
     $('job-out').replaceChildren(...parts);
     planned = j.state === 'planned' || (j.state === 'built' && planned);
     $('cancel').hidden = !running; $('plan').disabled = running; $('build').disabled = running || !planned;
-    why(running ? 'A job is running, so Plan and Build are off until it ends. You can cancel it.' : planned ? 'The plan is ready. Press Build.' : 'Build turns on after a Plan says the files are ready.');
+    why(running ? 'Something is running, so Check my videos and Make my film are off until it ends. You can cancel it.' : planned ? 'Ready. Press Make my film.' : 'Make my film turns on after Check my videos says your videos are ready.');
     if (j.state === 'planned') checkSound(reqBody());
     drawResults(j);
     if (j.state !== lastState) {                                  // announce a change once, not every poll
       lastState = j.state;
-      if (running) say(j.kind === 'plan' ? ('Listening to your files. ' + lastWait).trim() : 'Building the film.');
-      else if (j.state === 'planned') say(`Plan ready: ${j.plan.clips.length} clip${j.plan.clips.length === 1 ? '' : 's'}, about ${j.plan.seconds_estimate} seconds. Build is now on.`);
-      else if (j.state === 'gaps') say(`Cannot build yet. Not said anywhere in your files: ${j.plan.gaps.join(', ')}.`);
+      if (running) say(j.kind === 'plan' ? ('Listening to your files. ' + lastWait).trim() : 'Making the film.');
+      else if (j.state === 'planned') say(`Ready: ${j.plan.clips.length} piece${j.plan.clips.length === 1 ? '' : 's'}, about ${j.plan.seconds_estimate} seconds. Make my film is now on.`);
+      else if (j.state === 'gaps') say(`Cannot make the film yet. These words are not in your videos: ${j.plan.gaps.join(', ')}.`);
       else if (j.state === 'built') say(`The film is built: ${j.path}`);
       else if (j.words) say(j.words + (j.next ? ' ' + j.next : ''));
     }
@@ -620,8 +620,8 @@ JS = r"""(function () {
   (async () => {
     try {
       recipes = (await api('/api/recipes')).recipes.sort((a, b) => Number(b.ok) - Number(a.ok));      // the ones that work first, so the first choice is a usable one
-      $('recipe').replaceChildren(...recipes.map(r => el('option', { value: r.file }, r.ok ? r.name : `${r.file} (refused)`)));
-      if (!recipes.length) $('recipe-note').textContent = 'No recipe files (.json) were found in the recipes folder.';
+      $('recipe').replaceChildren(...recipes.map(r => el('option', { value: r.file }, r.ok ? r.name : `${r.file} (cannot be used)`)));
+      if (!recipes.length) $('recipe-note').textContent = 'No film idea files (.json) were found in the recipes folder.';
       drawRecipe(); const j = await api('/api/job'); if (j.state === 'running') { poll = setInterval(watch, 1200); drawJob(j); }
     } catch (e) { $('recipe-note').textContent = e.message; }
   })();
@@ -792,10 +792,10 @@ QUESTIONS = [
     "Did the start program open the page without help? If not, what did the black window say?",
     "Which step was most confusing, and what did you expect to see instead?",
     "Did every sentence on the page make sense? Write down any word you did not understand.",
-    "Did the model download work? How long did it take?",
-    "Did the plan show what you expected it to find? What was missing or wrong?",
-    "Did you trust the Plan before pressing Build? What would have made you trust it more?",
-    "How long did Plan and Build take, and did that feel too slow, fine, or fast?",
+    "Did the first-time download work? How long did it take?",
+    "Did Check my videos show what you expected it to find? What was missing or wrong?",
+    "Did you trust the check before pressing Make my film? What would have made you trust it more?",
+    "How long did checking and making take, and did that feel too slow, fine, or fast?",
     "Is the film what you wanted? What would you change first?",
     "Did anything make you worry about your videos or privacy? What?",
     "Would you use this again next week? What would stop you?",
@@ -947,7 +947,7 @@ def save_answers(answers) -> str:
     """The answers go in a plain text file NEXT TO THE FILM, on this computer; nothing is sent anywhere. An earlier file is never overwritten."""
     film = last_film()
     if not film:
-        raise Problem("Build a film first; the answers are saved next to it.")
+        raise Problem("Make a film first; the answers are saved next to it.")
     qs = STATE["questions"]
     if not isinstance(answers, list):
         raise Problem("Bad request.")
@@ -976,7 +976,7 @@ def start_soundcheck(body: dict) -> dict:
     """After a READY plan: check the sound of each distinct chosen file in the background, so Plan is not slowed. Only files of the plan that was just made are checked."""
     with LOCK:
         if STATE.get("planned") != _plan_key(body):
-            raise Problem("Press Plan for exactly these files first.")
+            raise Problem("Press Check my videos for exactly these videos first.")
         pc = precheck(body)
         if not pc["ok"]:
             raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
