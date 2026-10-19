@@ -205,8 +205,8 @@
             compiled = null;
             const errs = err.errors || [err.message];
             s.problems = groupErrors(errs);
-            out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, 'This film can’t be made yet:'),
-              h('ul', { class: 'builder-problems' }, errs.map(e => h('li', {}, e, ' ', h('button', { class: 'link-button', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === stepOf(e))) }, 'Fix it')))));
+            out.replaceChildren(h('div', { role: 'alert' }, h('p', { class: 'app-error' }, 'This film can’t be made yet:'),
+              h('ul', { class: 'builder-problems' }, errs.map(e => h('li', {}, e, ' ', h('button', { class: 'link-button', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === stepOf(e))) }, 'Fix it'))))));
           }
         }
         make.addEventListener('click', async () => {
