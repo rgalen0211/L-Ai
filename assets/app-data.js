@@ -423,6 +423,11 @@
         }
         return data;
       },
+      // Connecting an AI (CONNECT's SQL 20261018000100): the consent page's three calls and the account page's list. App sessions only; the page never sees a token or a code.
+      connectConsentCheck(request) { return run(client.rpc('connect_consent_check', { p_request: request }), 'Couldn\u2019t check that connection request.'); },
+      connectConsentDecide(request, approve, scopes) { return run(client.rpc('connect_consent_decide', { p_request: request, p_approve: approve === true, p_scopes: scopes || [] }), 'Couldn\u2019t record your answer.'); },
+      myConnectedAis() { return run(client.rpc('my_connected_ais'), 'Couldn\u2019t load your connected AIs.'); },
+      disconnectAi(clientId) { return run(client.rpc('disconnect_ai', { p_client_id: clientId }), 'Couldn\u2019t disconnect that AI.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
       adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
       adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },

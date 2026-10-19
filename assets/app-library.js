@@ -57,6 +57,8 @@
   // Ryan 2026-10-18: the same words on the delivery page and the public film page (assets/film.js).
   const AI_LABEL = 'AI-assisted (Ryagram)';
   const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
+  // Connecting an AI (the consent page and Connected AIs) shows once CONNECT's SQL and function are live (connectAi: true), or in mock mode.
+  const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const funnelOn = () => window.ryagramConfig?.funnelTracking === true || !!window.ryagramMock;
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
@@ -80,6 +82,7 @@
         else if (hash === '#/account') view = await accountView();
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
+        else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
@@ -164,6 +167,9 @@
     // The guided builder (assets/app-builder.js): built once, with this page's helpers.
     let builderCache = null;
     const builderUi = () => builderCache || (builderCache = window.ryagramBuilder.create({ h, data, busy, showError, errorLine, date }));
+    // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
+    let connectCache = null;
+    const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
 
     // --- #/  all projects
     async function libraryView() {
@@ -690,6 +696,7 @@
         sections.push(acct.exportSection(email));
         helpSection = acct.helpSection();
       }
+      if (connectOn()) sections.push(await connectUi().connectedSection());
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.
