@@ -84,7 +84,7 @@
         else if (hash === '#/account') view = await accountView();
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
-        else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'clean-light', onStop);
+        else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
         else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
         else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
         else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
