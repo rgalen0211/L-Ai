@@ -1,6 +1,6 @@
 """Full connector test pass against the PROOF project only (never live). Prints one results table; exit 0 only when every row passes.
 
-    pgvenv/Scripts/python tools/connect_proof_pass.py [--page-python <python with playwright> --page-tree <WEB consent tree>]
+    pgvenv/Scripts/python tools/connect_proof_pass.py [--abuse] [--page-python <python with playwright> --page-tree <WEB consent tree>]
 
 Rows: (1) drift: the proof database holds exactly the function bodies the repo's connect migration defines (read-only); (2) discovery with the MCP SDK;
 (3) the real MCP client end to end (register, consent, token, every tool, request_full_render refused, revoke); (4) token lifetimes: refresh, rotation,
@@ -218,6 +218,8 @@ def main():
     reset_register_counter()
     admin_refused()
     switch_off()
+    if "--abuse" in args:
+        run_script("8 abuse and limits (replays, expiry, revoked consent, oversize, hostile input, rate limits)", [sys.executable, "tools/connect_abuse_pass.py"], ROOT, "ABUSE PASS: PASS")
     bad = [r for r in results if not r[1]]
     print(f"\n{len(results)} rows, {len(results) - len(bad)} pass, {len(bad)} fail, {time.time() - t0:.0f} s")
     print("PROOF PASS: PASS" if not bad else "PROOF PASS: FAIL")
