@@ -33,8 +33,8 @@ EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
     1: ("Something unexpected went wrong.", "Press Check my videos again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
     2: ("Stopped: the film idea or one of the files has a problem, so nothing was run.", "The lines below name the file or place. Fix it, then press Check my videos again."),
-    3: ("Your videos do not say every word the film idea needs. Nothing was made.", "Add a video that says the missing words, or pick a film idea that fits your videos, then press Check my videos again."),
-    4: ("Stopped: the film maker tried to use the internet, which it must not do. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
+    3: ("Your videos do not say every word the film idea needs. Nothing was written.", "Add a video that says the missing words, or pick a film idea that fits your videos, then press Check my videos again."),
+    4: ("Stopped: the film maker tried to use the internet or another network, which it must not do. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
     5: ("Cancelled.", "Anything half-made is left in the work folder; no film was kept. Press Check my videos to start again."),
 }
 STATE = {"engine": None, "recipes": None, "work": None, "out": None, "token": "", "port": 0, "job": None, "planned": None, "R": None, "E": None}
@@ -100,7 +100,7 @@ def recipe_file_for(body: dict) -> Path:
 def recipe_path(name: str) -> Path:
     p = (STATE["recipes"] / Path(str(name)).name)           # the file NAME only: no folder tricks
     if p.suffix.lower() != ".json" or not p.is_file() or p.parent.resolve() != STATE["recipes"].resolve():
-        raise Problem("That film idea is not in the film ideas folder.")
+        raise Problem("That film idea is not in the recipes folder.")
     return p
 
 
@@ -212,7 +212,7 @@ def precheck(body: dict) -> dict:
     total_s = None if (not secs or any(x is None for x in distinct.values())) else sum(distinct.values())
     return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": len(secs),
             "film_stamped": f"{film}-<date and time>.mp4" if film else None, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
-            "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the maker blocks the internet while it works)"}
+            "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "blocked (the maker stops any try to use the internet or another network)"}
 
 
 def _work_for(body: dict) -> Path:
@@ -370,7 +370,7 @@ PAGE = """<!doctype html>
 <body><main>
 <p class="banner" role="note"><strong>INTERNAL PROTOTYPE.</strong> Runs on this computer only. Nothing is uploaded; there is no account.</p>
 <h1>Desktop maker</h1>
-<p class="intro">Make a film from your own videos, on this computer. Pick a film idea, give each place a video, press Check my videos to see what would be made, then Make my film.</p>
+<p class="intro">Make a film from your own videos, on this computer. Pick a film idea, give each place a video, press Check my videos to hear your videos and see what would be made, then Make my film.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Film idea</h2>
 <label for="recipe">Film idea</label><select id="recipe"></select>
 <p id="recipe-note" class="note" role="status"></p>
@@ -507,10 +507,10 @@ JS = r"""(function () {
     } catch (e) { $('paste-note').textContent = e.message; }
   });
   function summary(p) {
-    return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'Your videos and the film idea are fine.'),
+    return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'Your videos and the film idea passed the first checks.'),
       el('dl', {}, el('dt', {}, 'Film it would make'), el('dd', {}, `${p.film_stamped} (in ${p.out_dir}; the date and time are added so an earlier film is never replaced)`), el('dt', {}, 'Words it will look for'), el('dd', {}, p.find), el('dt', {}, 'Videos'),
         el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join('; ')))), el('dt', {}, 'Listening quality'), el('dd', {}, p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
-        el('dt', {}, 'Internet use'), el('dd', {}, p.network), el('dt', {}, 'Space left on the drive'), el('dd', {}, `${p.free_gb} GB free`)));
+        el('dt', {}, 'Internet or other network'), el('dd', {}, p.network), el('dt', {}, 'Space left on the work folder' + String.fromCharCode(8217) + 's drive'), el('dd', {}, `${p.free_gb} GB free`)));
   }
   $('plan').addEventListener('click', async ev => {
     if (!current) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Pick a film idea first.')); return; }
@@ -590,7 +590,7 @@ JS = r"""(function () {
       if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `These words are not in the videos you chose: ${a.gaps.join(', ')}.`));
     }
     if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the film idea file).`));
-    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} piece(s), ${j.receipt.seconds.toFixed(1)} s, internet use: ${j.receipt.network_attempts}. A record of the run is saved beside it.`) : null);
+    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} piece(s), ${j.receipt.seconds.toFixed(1)} s, tries to reach the internet (all blocked): ${j.receipt.network_attempts}. A record of the run is saved beside it.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
     if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
     if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
