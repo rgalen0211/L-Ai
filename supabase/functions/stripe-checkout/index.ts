@@ -3,6 +3,7 @@
 // Needs the secret STRIPE_SECRET_KEY (a TEST key, sk_test_... or a restricted rk_test_...) in
 // Dashboard -> Edge Functions -> Secrets. A live key is refused until stripe_settings.live_ok.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { formEncode } from "../_shared/stripe.ts";
 import { handle } from "./checkout.ts";
 
@@ -20,10 +21,7 @@ Deno.serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   siteUrl: "https://uselai.com",
   keyIsTest: /^(sk|rk)_test_/.test(key),
-  async verifyUser(jwt) {
-    const { data, error } = await service.auth.getUser(jwt);
-    return error || !data.user ? null : { id: data.user.id };
-  },
+  verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
   context: (owner, code) => rpc("stripe_checkout_context", { p_owner: owner, p_price_code: code }),
   setCustomer: (owner, customer) => rpc("stripe_set_customer", { p_owner: owner, p_customer: customer }),
   async stripe(path, params, idempotencyKey) {
