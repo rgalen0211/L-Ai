@@ -8,6 +8,7 @@ It does not replace a person with a screen reader. Prints findings; exit 1 if an
 """
 import importlib.util
 import json
+import os
 import shutil
 import sys
 import tempfile
@@ -98,7 +99,7 @@ def main():
                 findings.append(f'{where}: screen reader: {v}')
 
         with sync_playwright() as pw:
-            b = pw.chromium.launch(channel='chrome')
+            b = pw.chromium.launch(channel=os.environ.get('MAKER_BROWSER', 'chrome'))
             for size, scheme in (('desktop', 'light'), ('desktop', 'dark'), ('phone', 'light')):
                 opts = dict(viewport={'width': 1280, 'height': 900}) if size == 'desktop' else dict(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True)
                 ctx = b.new_context(color_scheme=scheme, **opts)

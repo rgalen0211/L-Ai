@@ -336,7 +336,7 @@ def main():
         dm.pick_files = lambda multiple: [str(clips / 'a.mp4'), str(clips / 'b.mkv')] if multiple else [str(clips / 'a.mp4')]
         films_before = len(list((tmp / 'films').glob('*.mp4')))
         with sync_playwright() as pw:
-            b = pw.chromium.launch(channel='chrome')
+            b = pw.chromium.launch(channel=os.environ.get('MAKER_BROWSER', 'chrome'))
             ctx = b.new_context(viewport={'width': 1280, 'height': 900})
             outside = []
             ctx.on('request', lambda r: outside.append(r.url) if not r.url.startswith(base) and not r.url.startswith(('data:', 'blob:')) else None)
