@@ -64,7 +64,9 @@ if cmd == "plan":
     print(json.dumps({"ok": not gap, "gaps": ["news"] if gap else [], "clips": [] if gap else clips, "seconds_estimate": 2.96, "would_write": out.name, "model": "base", "network_attempts": 0}))
     sys.exit(3 if gap else 0)
 out.parent.mkdir(parents=True, exist_ok=True)
-out.write_bytes(b"\\x00\\x00\\x00\\x18ftypmp42")
+import os
+real = os.environ.get("STUB_REAL_FILM")
+out.write_bytes(Path(real).read_bytes() if real else b"\\x00\\x00\\x00\\x18ftypmp42")
 if "buildfail.mp4" in joined:
     out.with_suffix(".receipt.json").write_text("{}"); print("a cut failed", file=sys.stderr); sys.exit(1)
 if "slowbuild.mp4" in joined:
@@ -105,9 +107,24 @@ def wait_job(base, tok, states, seconds=30):
     return j
 
 
+def make_real_film(dest):
+    exe = shutil.which('ffmpeg')
+    if not exe:
+        return None
+    r = subprocess.run([exe, '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x180:rate=10', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(dest)], capture_output=True)
+    return dest if r.returncode == 0 and dest.exists() else None
+
+
+REAL_FILM = None
+
+
 def main():
+    global REAL_FILM
     OUT.mkdir(parents=True, exist_ok=True)
-    tmp = Path(tempfile.mkdtemp(prefix='maker-'))          # the computer's own TEMP, nothing assumes a D: drive
+    tmp = Path(tempfile.mkdtemp(prefix='maker-'))
+    REAL_FILM = make_real_film(tmp / 'real-film.mp4')
+    if REAL_FILM:
+        os.environ['STUB_REAL_FILM'] = str(REAL_FILM)          # the computer's own TEMP, nothing assumes a D: drive
     ok = True
 
     def check(cond, what):
@@ -413,6 +430,15 @@ def main():
             page.screenshot(path=str(OUT / '04-built.png'), full_page=True)
             # the results view in the page: the film plays from this computer, Open folder, the questions, and the sound warning
             res_before = len(opened)
+            if REAL_FILM:
+                page.locator('#results video').wait_for(state='attached', timeout=10000)
+                page.wait_for_timeout(1500)
+                vs = page.evaluate("""() => { const v = document.querySelector('#results video'); const c = document.createElement('canvas'); c.width = 64; c.height = 36;
+                  let luma = -1; try { c.getContext('2d').drawImage(v, 0, 0, 64, 36); const d = c.getContext('2d').getImageData(0, 0, 64, 36).data; let t = 0; for (let i = 0; i < d.length; i += 4) t += (d[i] + d[i + 1] + d[i + 2]) / 3; luma = t / (d.length / 4); } catch (e) { luma = -2; }
+                  return { ready: v.readyState, paused: v.paused, t: v.currentTime, w: v.videoWidth, luma }; }""")
+                check(vs['ready'] >= 2 and vs['paused'] and vs['w'] > 0 and vs['luma'] > 25, f'before Play the player already shows the film\u2019s first real frame, not a black box ({vs})')
+                page.locator('#results video').scroll_into_view_if_needed()
+                page.locator('#results video').screenshot(path=str(OUT / '09-first-frame.png'))
             check(page.locator('#results video').count() == 1 and '/film?t=' in (page.get_attribute('#results video', 'src') or ''), 'after a build the page shows the film in a player that reads it from this computer')
             check(page.locator('#results textarea').count() == 10 and page.get_by_label('1. Did the start program open the page without help?', exact=False).count() == 1, 'the ten questions are there, each with its own label')
             page.get_by_role('button', name='Open the folder that holds the film').click()

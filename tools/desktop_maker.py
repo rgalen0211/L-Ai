@@ -31,10 +31,10 @@ HERE = Path(__file__).resolve().parent
 MODELS = ("tiny", "base", "small")
 EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
-    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, copy the lines below into a message to ENGINE; nothing was kept as a film."),
+    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
     2: ("Refused: the recipe or one of the files is not right, so nothing was run.", "Read the lines below: they name the file or slot. Fix it, then press Plan again."),
     3: ("The files you chose do not say every word the recipe needs. Nothing was written.", "Add a file that says the missing words, or pick a recipe whose words your files do say, then press Plan again."),
-    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell ENGINE exactly what you chose and the lines below."),
+    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
     5: ("Cancelled.", "Anything half-made is in the work folder; no film was kept. Press Plan to start again."),
 }
 STATE = {"engine": None, "recipes": None, "work": None, "out": None, "token": "", "port": 0, "job": None, "planned": None, "R": None, "E": None}
@@ -504,7 +504,7 @@ JS = r"""(function () {
       const c = await api('/api/check', body);
       if (!c.ok) { fresh(); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
       fresh(); $('job-out').replaceChildren(); lastWait = c.listen_words || '';
-      $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now ENGINE\u2019s plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
+      $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now the plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
       await api('/api/plan', body); poll = setInterval(watch, 1200); watch();
     } catch (e) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
     finally { if (!poll) btn.disabled = false; }
@@ -542,7 +542,7 @@ JS = r"""(function () {
     const note = el('p', { class: 'note', id: 'answers-note' });
     const areas = qs.map((q, i) => el('div', { class: 'question' }, el('label', { for: `q${i + 1}` }, `${i + 1}. ${q}`), el('textarea', { id: `q${i + 1}`, rows: '2' })));
     box.replaceChildren(el('div', { class: 'results' }, el('h2', { id: 'h-results' }, 'Your film'),
-      el('video', { controls: true, preload: 'metadata', src: `${j.film_url}?t=${encodeURIComponent(T)}`, 'aria-label': 'The film that was just built' }),
+      el('video', { controls: true, preload: 'metadata', src: `${j.film_url}?t=${encodeURIComponent(T)}#t=0.1`, 'aria-label': 'The film that was just built' }),
       el('p', { class: 'note' }, 'It plays from the file on this computer. Nothing is uploaded.'),
       el('div', { class: 'row' }, el('button', { type: 'button', class: 'button secondary', 'aria-label': 'Open the folder that holds the film', onclick: async ev => {
         const btn = ev.currentTarget; btn.disabled = true;
@@ -966,7 +966,7 @@ def start_soundcheck(body: dict) -> dict:
             raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
         fn = STATE.get("gap_fn")
         if fn is None:
-            STATE["sound"] = {"state": "unavailable", "warnings": ["This copy of the engine cannot check the sound of your files."], "checked": 0}
+            STATE["sound"] = {"state": "unavailable", "warnings": ["This copy of the maker cannot check the sound of your files."], "checked": 0}
             return STATE["sound"]
         paths = []
         for items in STATE["E"].parse_binds(pc["args"]).values():
