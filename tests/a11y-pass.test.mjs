@@ -31,6 +31,16 @@ test('REFUSAL IS ANNOUNCED: the builder\'s "can\'t be made yet" sentence and its
 
 test('CACHE-BUST: the three changed assets carry a new version', () => {
   const html = read('app/index.html');
-  assert.match(html, /app\.css\?v=20261019c/);
+  assert.match(html, /app\.css\?v=20261019e/);
   for (const f of ['app-builder.js', 'app-looks.js']) assert.match(html, new RegExp(`${f.replace('.', '\\.')}\\?v=20261019a`));
+});
+
+test('WHOLE-APP PASS (tools/audit-app-pass.py): phone text fields are 16 px, the version link and help questions are 40 px, the footer and admin links do not wrap oddly', () => {
+  const css = read('assets/app.css');
+  assert.ok(css.includes('@media(max-width:520px){.ryagram-app :is(input,select,textarea){font-size:16px}}'));
+  assert.ok(css.includes('.version-link{display:inline-flex;align-items:center;justify-content:center;'));
+  assert.ok(css.includes('min-width:40px;min-height:40px}'));
+  assert.ok(css.includes('.app-foot{align-items:center}.admin-links a{white-space:nowrap}'));
+  assert.ok(read('assets/help.css').includes('.faq summary{min-height:40px;padding:8px 0;box-sizing:border-box}'));
+  for (const f of ['help', 'terms', 'ai-content', 'report', 'connect-ai']) assert.ok(read(`${f}/index.html`).includes('help.css?v=20261019a'), f);
 });
