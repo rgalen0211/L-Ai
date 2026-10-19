@@ -28,7 +28,7 @@
   }
 
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
-    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], render_orders: [],
+    const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], engine_profiles: [], render_orders: [],
                  account_settings: [], credit_ledger: [], funnel_events: mockFunnelEvents(), version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
@@ -114,6 +114,7 @@
         insert(row) { op = 'insert'; payload = row; return q; },
         upsert(row) { op = 'upsert'; payload = row; return q; },         // one row per person (account_settings)
         update(row) { op = 'update'; payload = row; return q; },
+        delete() { op = 'delete'; return q; },
         eq(col, val) { filters.push(r => r[col] === val); return q; },
         gte(col, val) { filters.push(r => String(r[col]) >= String(val)); return q; },
         range(a, b) { window_ = [a, b]; return q; },
@@ -152,6 +153,9 @@
             Object.assign(r, payload, { updated_at: now() });
             if (table === 'versions' && 'story_spec' in payload) r.story_sha256 = `sha-${n}`;
           }
+        } else if (op === 'delete') {
+          result = rows.filter(r => filters.every(f => f(r)));
+          for (const r of result) rows.splice(rows.indexOf(r), 1);
         } else {
           result = rows.filter(r => filters.every(f => f(r)));
         }
@@ -428,6 +432,26 @@
         c.status = 'approved';
         return { data: 'RYA-K7M2-9QPX', error: null };
       },
+      // Mock of set_engine_profile (SQL 20261017000300): the database's backstop (key tree, name, size, 20 per person, one default). The engine's value and colour rules run in the page.
+      set_engine_profile({ p_spec, p_make_default }) {
+        const tree = { profile_version: null, name: null, title: null, based_on: null, notes: null,
+          look: { theme: null, canvas: null, fps: null, page_background: null, text_muted: null, ramp: { low: null, high: null, mode: null, steps: null, continuous: null }, hatch_line_color: null,
+                  dots: { color: null, baseline_color: null, radius: null }, state: { fill: null, no_data_fill: null, outline_width: null }, bars: { swap_seconds: null, label_width: null, value_width: null } },
+          pacing: { hold_seconds: null, transition: { kind: null, seconds: null }, title_card: { fade: null, align: null } },
+          reserved: { fonts: { bold: null, regular: null }, motion: { position_easing: null }, brand: { channel: null, credit_line: null } } };
+        const keysOk = (v, t) => (t === null ? !(v && typeof v === 'object' && !Array.isArray(v)) : !!v && typeof v === 'object' && !Array.isArray(v) && Object.keys(v).every(k => k in t && keysOk(v[k], t[k])));
+        if (!p_spec || typeof p_spec !== 'object' || Array.isArray(p_spec)) return fail('a profile is a JSON object');
+        if (JSON.stringify(p_spec).length > 16384) return fail('the profile is larger than 16 KB');
+        if (p_spec.profile_version !== 1) return fail('profile_version must be 1');
+        if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,63}$/.test(p_spec.name || '')) return fail('the profile needs a name: letters, digits and hyphens, up to 64');
+        if (!keysOk(p_spec, tree)) return fail('the profile has a field the engine profile does not allow');
+        let row = db.engine_profiles.find(r => r.owner_id === 'u-ryan' && r.name === p_spec.name);
+        if (!row && db.engine_profiles.filter(r => r.owner_id === 'u-ryan').length >= 20) return fail('at most 20 profiles per person');
+        if (p_make_default) for (const r of db.engine_profiles) r.is_default = false;
+        if (!row) { row = { id: id(), owner_id: 'u-ryan', created_at: now(), is_default: false }; db.engine_profiles.push(row); }
+        Object.assign(row, { name: p_spec.name, title: p_spec.title ?? null, based_on: p_spec.based_on ?? null, spec: structuredClone(p_spec), updated_at: now(), is_default: p_make_default ? true : row.is_default });
+        return { data: row.id, error: null };
+      },
       // Mock of CONNECT's consent and settings functions (SQL 20261018000100). Request ids are UUIDs; 00000000-0000-4000-8000-0000000000aa is a good one, ...bb is not allowed (an admin account),
       // ...cc is expired. The real rules are CONNECT's, tested against Postgres.
       connect_consent_check({ p_request }) {
@@ -619,6 +643,10 @@
         const allowed = { contact_sheet: ['periods'], preview: ['window_s'], final_render: [] }[type];
         const bad = Object.keys(params).find(k => !allowed.includes(k));
         if (bad) return fail(`Unknown parameter "${bad}" for ${type}.`);
+        // The SQL's own rule (2a_core, again in pipe1_orders): 3 to 5 strings, each exactly four digits. The mock used to accept anything, so a bad sample period set passed every test.
+        if ('periods' in params && !(Array.isArray(params.periods) && params.periods.length >= 3 && params.periods.length <= 5 && params.periods.every(p => typeof p === 'string' && /^[0-9]{4}$/.test(p)))) {
+          return fail('periods must be 3 to 5 years like "2016".');
+        }
         if (type === 'preview' && !params.window_s) {
           return fail('A preview needs window_s: [start, end] in seconds, at most 10 seconds long.');
         }

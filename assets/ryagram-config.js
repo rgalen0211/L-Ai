@@ -55,6 +55,8 @@ window.ryagramConfig = Object.freeze({
   // Show "Request a film" in /app/ (the creator beta: people ask, Ryan makes each film by hand). Turn on only once SQL 20261016000200 is applied and
   // the credits ledger is live (supabase/README.md, "Creator beta flow").
   filmRequests: true,
+  // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
+  lookEditor: false,
   // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once
   // SQL 20261017000900 is applied and the Privacy Policy line for it is published (supabase/README.md, "Funnel tracking").
   funnelTracking: false,
