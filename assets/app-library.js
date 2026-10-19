@@ -1152,8 +1152,8 @@
         const wideBox = mapping.melt_wide === undefined ? null : (() => {
           const tick = h('input', { id: 'wide-tick', type: 'checkbox', onchange: () => { mapping.melt_wide = tick.checked; } });
           const groups = U.wideGroups(report);
-          const pick = groups.length > 1 ? h('label', { class: 'field' }, h('span', {}, 'Which columns'), h('select', { 'aria-label': 'Which columns are the years', onchange: e => { mapping.wide_prefix = e.target.value; } },
-            groups.map(g => h('option', { value: g.prefix, selected: g.prefix === mapping.wide_prefix }, U.groupLabel(g))))) : null;
+          const pick = groups.length > 1 ? h('div', {}, h('label', { class: 'field' }, h('span', {}, 'Which columns'), h('select', { 'aria-label': 'Which columns are the years', onchange: e => { mapping.wide_prefix = e.target.value; } },
+            groups.map(g => h('option', { value: g.prefix, selected: g.prefix === mapping.wide_prefix }, U.groupLabel(g))))), h('p', { class: 'form-note wide-examples-note' }, 'The example values shown below are from the default choice (' + U.groupLabel(groups.find(g => g.prefix === mapping.wide_prefix) || groups[0]) + '); they stay as they are when you pick another group.')) : null;
           return h('fieldset', { class: 'choices wide-years' }, h('legend', {}, 'This file has one column for each year'),
             h('p', { class: 'form-note' }, 'Ryagram turns it into one row for each place and year before it draws. Check that the year columns are the ones you mean.'),
             h('label', { class: 'choice' }, tick, h('span', {}, U.WIDE_TICK)), pick);

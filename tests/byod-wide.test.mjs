@@ -73,3 +73,12 @@ test('PAGE: the tick and the group choice are drawn from the report only with by
   assert.ok(lib.includes("h('label', { class: 'choice' }, tick, h('span', {}, U.WIDE_TICK))"));
   assert.ok(lib.includes('byodGuideOn() ? U.WIDE_HELP : U.problem(null, report)'), 'the old words stay for old reports');
 });
+
+test('MORE THAN ONE GROUP (CC1 LOW-1): under the group choice the page says the example values come from the default choice and do not change when another group is picked', () => {
+  const lib = read('assets/app-library.js');
+  assert.ok(lib.includes("class: 'form-note wide-examples-note'"));
+  assert.ok(lib.includes("The example values shown below are from the default choice ("));
+  assert.ok(lib.includes("they stay as they are when you pick another group."));
+  assert.match(lib, /const pick = groups\.length > 1 \? h\('div'[\s\S]*wide-examples-note[\s\S]*\) : null;/, 'only in the several-groups case');
+});
+
