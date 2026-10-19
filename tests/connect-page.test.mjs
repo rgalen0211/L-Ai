@@ -13,7 +13,7 @@ test('DRAFT: marked as a draft with a placeholder address, noindex, no script, s
   assert.match(page, /<p class="shell-banner" role="note"><strong>DRAFT\. Not published\.<\/strong>/);
   assert.doesNotMatch(page, /<script/i);
   assert.match(page, /Content-Security-Policy" content="default-src 'self'; script-src 'self'/);
-  const urls = [...page.matchAll(/https?:\/\/[^\s"<)]+/g)].map(m => m[0]).filter(u => !/fonts\.(googleapis|gstatic)\.com|uselai\.com/.test(u));
+  const urls = [...page.matchAll(/https?:\/\/[^\s"<)]+/g)].map(m => m[0]).filter(u => !/fonts\.(googleapis|gstatic)\.com|uselai\.com|support\.claude\.com/.test(u));
   assert.ok(urls.length >= 3);
   for (const u of urls) assert.match(u, /CONNECTOR-ADDRESS-PENDING/, `a real address must not appear before launch: ${u}`);
   assert.ok(!/supabase\.co/.test(page));
@@ -29,7 +29,7 @@ test('CONTENT: ChatGPT only where the plan allows custom MCP connectors; it cann
   assert.match(page, /not a Custom GPT/);
   assert.match(page, /ask it to start a project/);
   assert.match(page, /<strong>It cannot change your account<\/strong>/);
-  assert.doesNotMatch(page, /Team and Enterprise|confirmed for Business|retiring custom GPTs|December 2026/, 'facts about other companies stay out until each has a source (asked CONNECT)');
+  assert.doesNotMatch(page, /confirmed for Business|retiring custom GPTs|December 2026/, 'facts about OpenAI stay out until each has a source (asked CONNECT); the Claude Team and Enterprise steps now carry the Anthropic page as their source');
   for (const h of ['Claude (claude.ai, Claude Desktop, phone)', 'Claude Code', 'ChatGPT', 'Other assistants', 'Disconnecting']) assert.ok(page.includes(`<h2>${h}</h2>`), h);
 });
 
@@ -55,4 +55,25 @@ test('LIMITS: free previews only (within a daily limit), no full renders, and th
 
 test('NO NEW MAIL ADDRESS: the guide names no mail address until Ryan has confirmed ryagram@ receives mail', () => {
   assert.doesNotMatch(page, /ryagram@uselai|mailto:/);
+});
+
+test('SOURCED FACTS (Claude fact-check 01:50, Q72): two separate Claude paths that follow Anthropic\'s page, the identity choice named honestly, one source link, and no unconfirmed OpenAI claims', () => {
+  const claude = page.slice(page.indexOf('<h2>Claude (claude.ai'), page.indexOf('<h2>Claude Code</h2>'));
+  assert.match(claude, /<h3>Free, Pro or Max<\/h3>/);
+  assert.match(claude, /<h3>Team or Enterprise<\/h3>/);
+  const self = claude.slice(claude.indexOf('<h3>Free, Pro or Max</h3>'), claude.indexOf('<h3>Team or Enterprise</h3>'));
+  const team = claude.slice(claude.indexOf('<h3>Team or Enterprise</h3>'));
+  assert.match(self, /Open Customize, then Connectors\. Press \+ Add, then Add custom connector\./, 'the + Add click is not skipped');
+  assert.match(self, /A Free plan can have one custom connector/);
+  assert.match(team, /An Owner or Primary Owner opens Organization settings, then Connectors, and presses Add, then Custom, then Web\./);
+  assert.match(team, /custom role that includes Manage access to Libraries/);
+  assert.match(team, /Each person then opens Customize, then Connectors, finds Ryagram, and presses Connect\./);
+  assert.doesNotMatch(team, /Press Add, then Connect/, 'a member connects; only the admin adds');
+  for (const part of [self, team]) {
+    assert.match(part, /choose Register automatically\./);
+    assert.match(part, /Use Claude’s published identity \(Recommended\)”, does not work with Ryagram yet/, 'the recommended option is named, and honestly marked as not working yet');
+  }
+  assert.equal((claude.match(/support\.claude\.com\/en\/articles\/11175166-get-started-with-custom-connectors-using-remote-mcp/g) || []).length, 1, 'one source link');
+  assert.doesNotMatch(page, /Free, Pro, Max|Plus|retir|December 2026|11 December/, 'nothing about OpenAI plans or retirement, which no one has confirmed from OpenAI');
+  for (const [, href] of page.matchAll(/<a href="(https?:[^"]+)"/g)) assert.ok(/support\.claude\.com|fonts\./.test(href), `an outside link must be a source we checked: ${href}`);
 });
