@@ -154,6 +154,8 @@ def main():
         check('has not been measured for the tiny model' in post(f'{base}/api/check', {**sl, 'model': 'tiny', 'binds': good}, tok)[1]['listen_words'], 'a model nobody measured says so instead of guessing a time')
         pc = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'b.mkv') + '#100-900']}}, tok)[1]
         check(abs(pc['listen_seconds'] - 1800.8) < 0.01, 'a span counts only its own length')
+        same = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'a.mp4')]}}, tok)[1]
+        check(same['listen_seconds'] == 1800 and same['bind_count'] == 2, 'one file bound to two slots is counted once in the expected wait (the engine listens to it once), while the progress still counts both')
         dm.media_seconds = lambda pth: None
         check('could not read how long the files are' in post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]['listen_words'], 'when the length cannot be read it says so, with no made-up time')
         dm.media_seconds = lambda pth: {'a.mp4': 1800.0, 'b.mkv': 1800.0}.get(pth.name, 60.0)

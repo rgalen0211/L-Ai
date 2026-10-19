@@ -151,7 +151,7 @@ def precheck(body: dict) -> dict:
                 problems.append(f"The slot \u201c{s['label']}\u201d has no file yet.")
             if len(items) > 1 and not s["multiple"]:
                 problems.append(f"The slot \u201c{s['label']}\u201d takes one file; it has {len(items)}.")
-            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b)} for b in items]})
+            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b), "key": f"{b.path}|{b.start_ms}|{b.end_ms}"} for b in items]})
     work = STATE["work"]
     anchor = work if work.exists() else work.parent if work.parent.exists() else Path(work.anchor)
     free_gb = round(shutil.disk_usage(anchor).free / 1e9, 1)
@@ -162,7 +162,8 @@ def precheck(body: dict) -> dict:
         problems.append(f"Only {free_gb} GB free where the work folder is; choose a drive with more room.")
     film = (re.sub(r"[^A-Za-z0-9._-]+", "-", rec["name"]).strip("-")[:60] or "film") if rec else None
     secs = [f["seconds"] for ln in lines for f in ln["files"]]
-    total_s = None if (not secs or any(x is None for x in secs)) else sum(secs)
+    distinct = {f["key"]: f["seconds"] for ln in lines for f in ln["files"]}           # a file (or span) bound to several slots is listened to ONCE: the engine reuses the words it already heard
+    total_s = None if (not secs or any(x is None for x in distinct.values())) else sum(distinct.values())
     return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": len(secs),
             "film_stamped": f"{film}-<date and time>.mp4" if film else None, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
             "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
