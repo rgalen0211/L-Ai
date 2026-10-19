@@ -31,10 +31,10 @@ HERE = Path(__file__).resolve().parent
 MODELS = ("tiny", "base", "small")
 EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
-    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, copy the lines below into a message to ENGINE; nothing was kept as a film."),
+    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
     2: ("Refused: the recipe or one of the files is not right, so nothing was run.", "Read the lines below: they name the file or slot. Fix it, then press Plan again."),
     3: ("The files you chose do not say every word the recipe needs. Nothing was written.", "Add a file that says the missing words, or pick a recipe whose words your files do say, then press Plan again."),
-    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell ENGINE exactly what you chose and the lines below."),
+    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
     5: ("Cancelled.", "Anything half-made is in the work folder; no film was kept. Press Plan to start again."),
 }
 STATE = {"engine": None, "recipes": None, "work": None, "out": None, "token": "", "port": 0, "job": None, "planned": None, "R": None, "E": None}
@@ -424,7 +424,7 @@ JS = r"""(function () {
     if (!r.ok) throw new Error(j.error || 'That did not work.');
     return j;
   }
-  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '';
+  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '';
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
   const fresh = () => { planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
@@ -520,7 +520,7 @@ JS = r"""(function () {
       const c = await api('/api/check', body);
       if (!c.ok) { fresh(); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
       fresh(); $('job-out').replaceChildren(); lastWait = c.listen_words || '';
-      $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now ENGINE\u2019s plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
+      $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now the plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
       await api('/api/plan', body); poll = setInterval(watch, 1200); watch();
     } catch (e) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
     finally { if (!poll) btn.disabled = false; }
@@ -558,7 +558,7 @@ JS = r"""(function () {
     const note = el('p', { class: 'note', id: 'answers-note' });
     const areas = qs.map((q, i) => el('div', { class: 'question' }, el('label', { for: `q${i + 1}` }, `${i + 1}. ${q}`), el('textarea', { id: `q${i + 1}`, rows: '2' })));
     box.replaceChildren(el('div', { class: 'results' }, el('h2', { id: 'h-results' }, 'Your film'),
-      el('video', { controls: true, preload: 'metadata', src: `${j.film_url}?t=${encodeURIComponent(T)}`, 'aria-label': 'The film that was just built' }),
+      el('video', { controls: true, preload: 'metadata', src: `${j.film_url}?t=${encodeURIComponent(T)}#t=0.1`, 'aria-label': 'The film that was just built' }),
       el('p', { class: 'note' }, 'It plays from the file on this computer. Nothing is uploaded.'),
       el('div', { class: 'row' }, el('button', { type: 'button', class: 'button secondary', 'aria-label': 'Open the folder that holds the film', onclick: async ev => {
         const btn = ev.currentTarget; btn.disabled = true;
@@ -589,7 +589,7 @@ JS = r"""(function () {
         el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
       if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Not said anywhere in the files you chose: ${a.gaps.join(', ')}.`));
     }
-    if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `Your recipe looks for the words \u201c${current.find}\u201d and uses them once, so this film is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, put a longer sentence in the recipe.`));
+    if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
     if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s, network attempts: ${j.receipt.network_attempts}. A receipt is beside it.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
     if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
@@ -613,7 +613,7 @@ JS = r"""(function () {
   async function watch() { try { drawJob(await api('/api/job')); } catch (e) { $('job-out').textContent = e.message; } }
   $('build').addEventListener('click', async () => {
     if (!planned || !current) return;
-    try { await api('/api/build', reqBody()); poll = setInterval(watch, 1200); watch(); }
+    try { const rb = reqBody(); builtWords = rb.phrase || current.find; await api('/api/build', rb); poll = setInterval(watch, 1200); watch(); }
     catch (e) { $('job-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
   });
   $('cancel').addEventListener('click', async () => { try { drawJob(await api('/api/cancel', {})); } catch (e) { $('job-out').textContent = e.message; } });
@@ -982,7 +982,7 @@ def start_soundcheck(body: dict) -> dict:
             raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
         fn = STATE.get("gap_fn")
         if fn is None:
-            STATE["sound"] = {"state": "unavailable", "warnings": ["This copy of the engine cannot check the sound of your files."], "checked": 0}
+            STATE["sound"] = {"state": "unavailable", "warnings": ["This copy of the maker cannot check the sound of your files."], "checked": 0}
             return STATE["sound"]
         paths = []
         for items in STATE["E"].parse_binds(pc["args"]).values():

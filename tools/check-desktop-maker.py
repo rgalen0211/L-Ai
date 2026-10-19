@@ -64,7 +64,9 @@ if cmd == "plan":
     print(json.dumps({"ok": not gap, "gaps": ["news"] if gap else [], "clips": [] if gap else clips, "seconds_estimate": 2.96, "would_write": out.name, "model": "base", "network_attempts": 0}))
     sys.exit(3 if gap else 0)
 out.parent.mkdir(parents=True, exist_ok=True)
-out.write_bytes(b"\\x00\\x00\\x00\\x18ftypmp42")
+import os
+real = os.environ.get("STUB_REAL_FILM")
+out.write_bytes(Path(real).read_bytes() if real else b"\\x00\\x00\\x00\\x18ftypmp42")
 if "buildfail.mp4" in joined:
     out.with_suffix(".receipt.json").write_text("{}"); print("a cut failed", file=sys.stderr); sys.exit(1)
 if "slowbuild.mp4" in joined:
@@ -105,9 +107,24 @@ def wait_job(base, tok, states, seconds=30):
     return j
 
 
+def make_real_film(dest):
+    exe = shutil.which('ffmpeg')
+    if not exe:
+        return None
+    r = subprocess.run([exe, '-v', 'error', '-y', '-f', 'lavfi', '-i', 'testsrc=duration=2:size=320x180:rate=10', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', str(dest)], capture_output=True)
+    return dest if r.returncode == 0 and dest.exists() else None
+
+
+REAL_FILM = None
+
+
 def main():
+    global REAL_FILM
     OUT.mkdir(parents=True, exist_ok=True)
-    tmp = Path(tempfile.mkdtemp(prefix='maker-'))          # the computer's own TEMP, nothing assumes a D: drive
+    tmp = Path(tempfile.mkdtemp(prefix='maker-'))
+    REAL_FILM = make_real_film(tmp / 'real-film.mp4')
+    if REAL_FILM:
+        os.environ['STUB_REAL_FILM'] = str(REAL_FILM)          # the computer's own TEMP, nothing assumes a D: drive
     ok = True
 
     def check(cond, what):
@@ -188,6 +205,15 @@ def main():
         check(dm._work_for(typed) != dm._work_for({**sl, 'binds': good}), 'a different phrase gets its own work folder, so the old words are never reused')
         check(post(f'{base}/api/build', {**sl, 'binds': good}, tok)[0] == 400, 'a Build whose words differ from the ones planned is refused')
         check(post(f'{base}/api/check', {**sl, 'binds': good, 'phrase': 'x' * 400}, tok)[1]['find'] == 'x' * 200, 'typed words are cut at 200 letters')
+        # MUST-FAIL: typed words that break ENGINE's own PLAIN rule (paths, shell-looking text, markup, right-to-left controls) are refused with ENGINE's sentence, and nothing runs
+        bad_words = ['..' + chr(92) + '..' + chr(92) + 'Windows', '$(whoami)', 'rm -rf /', '<b>x</b>', 'abc' + chr(0x202e) + 'def', 'a`b', '100%']
+        refused_all, ran = True, False
+        for w in bad_words:
+            pb = post(f'{base}/api/check', {**sl, 'binds': good, 'phrase': w}, tok)[1]
+            refused_all = refused_all and (not pb['ok']) and any('find.text' in x and 'does not match' in x for x in pb['problems'])
+            code, _ = post(f'{base}/api/plan', {**sl, 'binds': good, 'phrase': w}, tok)
+            ran = ran or code == 200 or (dm._work_for({**sl, 'binds': good, 'phrase': w}) / 'recipe-with-typed-words.json').exists()
+        check(refused_all and not ran, 'typed words that break the engine\u2019s PLAIN rule get its own refusal sentence, Plan will not start, and no recipe copy is written')
         post(f'{base}/api/plan', {**sl, 'binds': good}, tok)
         wait_job(base, tok, ('planned',))
         check((dm._work_for({**sl, 'binds': good}) / 'asked-for.txt').read_text() == 'well that is great news', 'planning with nothing typed asks for the recipe\u2019s own words')
@@ -400,10 +426,19 @@ def main():
             page.wait_for_selector('#job-out:has-text("Your film:")', timeout=30000)
             jt = page.inner_text('#job-out')
             check('network attempts: 0' in jt and 'A receipt is beside it.' in jt, f'Build runs ENGINE\u2019s CLI and shows the film, the clip count and the receipt\u2019s network attempts ({jt[:60]!r})')
-            check('so this film is short (2.4 s)' in page.inner_text('#job-out') and '\u201cwell that is great news\u201d' in page.inner_text('#job-out') and 'put a longer sentence in the recipe' in page.inner_text('#job-out'), 'a short film says why it is short, and what to change')
+            check('so it is short (2.4 s)' in page.inner_text('#job-out') and '\u201cwell that is great news\u201d' in page.inner_text('#job-out') and 'type a longer sentence in the box above' in page.inner_text('#job-out'), 'a short film says why it is short, and what to change')
             page.screenshot(path=str(OUT / '04-built.png'), full_page=True)
             # the results view in the page: the film plays from this computer, Open folder, the questions, and the sound warning
             res_before = len(opened)
+            if REAL_FILM:
+                page.locator('#results video').wait_for(state='attached', timeout=10000)
+                page.wait_for_timeout(1500)
+                vs = page.evaluate("""() => { const v = document.querySelector('#results video'); const c = document.createElement('canvas'); c.width = 64; c.height = 36;
+                  let luma = -1; try { c.getContext('2d').drawImage(v, 0, 0, 64, 36); const d = c.getContext('2d').getImageData(0, 0, 64, 36).data; let t = 0; for (let i = 0; i < d.length; i += 4) t += (d[i] + d[i + 1] + d[i + 2]) / 3; luma = t / (d.length / 4); } catch (e) { luma = -2; }
+                  return { ready: v.readyState, paused: v.paused, t: v.currentTime, w: v.videoWidth, luma }; }""")
+                check(vs['ready'] >= 2 and vs['paused'] and vs['w'] > 0 and vs['luma'] > 25, f'before Play the player already shows the film\u2019s first real frame, not a black box ({vs})')
+                page.locator('#results video').scroll_into_view_if_needed()
+                page.locator('#results video').screenshot(path=str(OUT / '09-first-frame.png'))
             check(page.locator('#results video').count() == 1 and '/film?t=' in (page.get_attribute('#results video', 'src') or ''), 'after a build the page shows the film in a player that reads it from this computer')
             check(page.locator('#results textarea').count() == 10 and page.get_by_label('1. Did the start program open the page without help?', exact=False).count() == 1, 'the ten questions are there, each with its own label')
             page.get_by_role('button', name='Open the folder that holds the film').click()
@@ -515,6 +550,10 @@ def main():
             page.wait_for_selector('#job-out .ok', timeout=30000)
             check(page.locator('#build').is_enabled() and 'oh my god' in page.inner_text('#plan-out'), 'typed words are shown in the plan and Build comes on for them')
             page.screenshot(path=str(OUT / '08-typed-words.png'), full_page=True)
+            page.click('#build')
+            page.wait_for_selector('#job-out:has-text("Your film:")', timeout=30000)
+            sf = page.inner_text('#short-film')
+            check('oh my god' in sf and 'great news' not in sf, f'the short-film sentence names the words that were typed and built, not the recipe\u2019s ({sf[:70]!r})')
             check(page.get_by_role('button', name='Choose a file for First footage').count() == 1 and page.locator('summary:has-text("Paste bind lines")').count() == 1, 'the Choose a file button and the paste box are still there')
             check(not page.evaluate('document.documentElement.scrollWidth > window.innerWidth + 1'), 'no sideways scroll')
             check(not outside, f'the page contacted nothing but this server {outside[:3]}')
