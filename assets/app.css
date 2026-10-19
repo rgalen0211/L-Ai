@@ -24,7 +24,7 @@
 .inline-row input{margin:0;flex:1;min-width:0}
 .inline-row .button{flex-shrink:0}
 .actions-row{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0}
-.button.small{min-height:36px;padding:4px 14px;font-size:.85rem}
+.button.small{min-height:40px;padding:4px 14px;font-size:.85rem}
 .project-list,.version-list,.file-list,.job-list{list-style:none;padding:0;margin:0;border-top:1px solid var(--line)}
 .project-list li,.version-list li,.file-list li,.job-list li{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:14px 0;margin:0;border-bottom:1px solid var(--line);font-size:.95rem;color:var(--ink)}
 .project-list a{font-weight:700;font-size:1.05rem;text-decoration:none;margin-right:auto}
@@ -174,7 +174,7 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .look-quick-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
 .look-quick-card{display:grid;gap:4px;padding:14px 12px;min-width:200px}.look-quick-title{font-size:1.15rem}.look-quick-sub{font-size:.8rem;opacity:.75}
 .look-dot{display:inline-block;width:22px;height:22px;border-radius:50%;outline:2px solid transparent}
-.look-swatch-label{font-size:.7rem;opacity:.8;margin-top:2px}
+.look-swatch-label{font-size:.7rem;margin-top:2px}
 .look-sheet{max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px}
 .look-problems{margin:6px 0;padding-left:18px;color:#a11}.look-warnings{margin:6px 0;padding-left:18px;color:#8a5a00}
 .look-locked{margin:14px 0}.look-list li,.look-presets li{padding:10px 0}.look-apply{margin:18px 0}.look-diff ul{margin:8px 0;padding-left:18px}
@@ -201,3 +201,5 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 @media (prefers-reduced-motion:reduce){.spinner{animation:none}}
 /* Funnel on #/admin/ops: the wide tables scroll sideways inside themselves on a phone instead of squeezing every word */
 .funnel-sources,.funnel-weeks{display:block;overflow-x:auto;max-width:100%}.funnel-sources th,.funnel-weeks th{min-width:84px}.funnel-sources td:first-child,.funnel-weeks td:first-child{white-space:nowrap}.funnel-side td{color:var(--muted)}
+/* Accessibility pass (2026-10-18): a folded section's summary is a comfortable tap target */
+.ryagram-app details>summary{min-height:40px;padding:8px 0;box-sizing:border-box;cursor:pointer}
