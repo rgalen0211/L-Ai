@@ -31,6 +31,6 @@ test('REFUSAL IS ANNOUNCED: the builder\'s "can\'t be made yet" sentence and its
 
 test('CACHE-BUST: the three changed assets carry a new version', () => {
   const html = read('app/index.html');
-  assert.match(html, /app\.css\?v=20261019b/);
+  assert.match(html, /app\.css\?v=20261019c/);
   for (const f of ['app-builder.js', 'app-looks.js']) assert.match(html, new RegExp(`${f.replace('.', '\\.')}\\?v=20261019a`));
 });

@@ -203,3 +203,6 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .funnel-sources,.funnel-weeks{display:block;overflow-x:auto;max-width:100%}.funnel-sources th,.funnel-weeks th{min-width:84px}.funnel-sources td:first-child,.funnel-weeks td:first-child{white-space:nowrap}.funnel-side td{color:var(--muted)}
 /* Accessibility pass (2026-10-18): a folded section's summary is a comfortable tap target */
 :where(.ryagram-app details)>summary{min-height:40px;padding:8px 0;box-sizing:border-box;cursor:pointer}
+/* First run at phone width (2026-10-19, tools/check-first-run-phone.py): the project name and the file's Open link are comfortable to tap, and the story box is 16px so iOS does not zoom in when it is focused */
+.project-list a{display:flex;align-items:center;min-height:40px}.file-list a{display:inline-flex;align-items:center;min-height:40px;padding:0 6px}
+@media(max-width:520px){.story,.builder-advanced textarea{font-size:16px}}
