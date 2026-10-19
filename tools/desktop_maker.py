@@ -5,12 +5,13 @@
 
 What it is not: no upload (the page has no file input and the server never sends or receives file bytes, only paths on this computer), no Supabase, no account, no network call of its own. The server
 listens on 127.0.0.1 only; every request must carry a random token that is printed once at start-up and must name the local host (a web page on another site cannot drive it). The page and its script and style
-are served by this server under a strict policy (no inline script or style, no outside connections). Plan changes nothing; Build writes the MP4 and its receipt to the out folder and everything else to the work folder.
-Plan is this tool's own dry run (ENGINE's CLI has only `build` today): it uses ENGINE's own recipe check and bind check, then tests the files, so what Plan accepts is what Build will not refuse at the door.
+are served by this server under a strict policy (no inline script or style, no outside connections). Plan writes no film; Build writes the MP4 and its receipt to the out folder and everything else to the work folder. A file may be a span of a video: slot=FILE#START_MS-END_MS.
+Plan runs ENGINE's own `plan` command (it listens to the files, writes NO film and no receipt, and keeps the words it heard in the work folder so Build does not listen again); before it, this tool runs the door checks (ENGINE's recipe and bind checks, every slot filled, ffmpeg, disk room). Build is allowed only for exactly the files a Plan said were ready.
 Stdlib only. The file picker is the operating system's own dialog (tkinter), opened by the server on this computer."""
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -26,14 +27,16 @@ from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
 MODELS = ("tiny", "base", "small")
-EXIT_WORDS = {
-    0: "Built.",
-    2: "Refused: something about the recipe or the files is not right.",
-    3: "Cannot build: the files do not say every word the recipe needs. Nothing was written.",
-    4: "Blocked: the build tried to use the network, which it must not. Nothing was kept.",
+EXIT_HELP = {
+    0: ("Done.", "Nothing more to do."),
+    1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, copy the lines below into a message to ENGINE; nothing was kept as a film."),
+    2: ("Refused: the recipe or one of the files is not right, so nothing was run.", "Read the lines below: they name the file or slot. Fix it, then press Plan again."),
+    3: ("The files you chose do not say every word the recipe needs. Nothing was written.", "Add a file that says the missing words, or pick a recipe whose words your files do say, then press Plan again."),
+    4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell ENGINE exactly what you chose and the lines below."),
+    5: ("Cancelled.", "Anything half-made is in the work folder; no film was kept. Press Plan to start again."),
 }
-STATE = {"engine": None, "recipes": None, "work": None, "out": None, "token": "", "port": 0, "job": None, "R": None, "E": None}
-LOCK = threading.Lock()
+STATE = {"engine": None, "recipes": None, "work": None, "out": None, "token": "", "port": 0, "job": None, "planned": None, "R": None, "E": None}
+LOCK = threading.RLock()
 
 
 # ---------------------------------------------------------------------------------------------------- engine
@@ -93,15 +96,20 @@ def parse_pasted(text: str) -> tuple[dict, list[str]]:
         f = m.group("file").strip()
         if len(f) >= 2 and f[0] == f[-1] and f[0] in "\"'":
             f = f[1:-1]
-        if re.search(r"#\d+-\d+$", f) and not Path(f).is_file():
-            bad.append(f"line {n}: a start-end range after the file name is not supported by the build yet (use the whole file)")
-            continue
         binds.setdefault(m.group("slot"), []).append(f)
     return binds, bad
 
 
-def plan(body: dict) -> dict:
-    """The dry run. Returns {ok, problems[], lines[], ...}; changes nothing on disk."""
+def _bind_args(raw) -> list[str]:
+    return [f"{slot}={f}" for slot, files in (raw.items() if isinstance(raw, dict) else []) for f in (files if isinstance(files, list) else [])]
+
+
+def _span(b) -> str:
+    return "" if b.start_ms is None else f", only {b.start_ms / 1000:.2f} to {b.end_ms / 1000:.2f} s"
+
+
+def precheck(body: dict) -> dict:
+    """The door checks, before ENGINE's plan is run (fast, writes nothing): ENGINE's own recipe check and bind check, every slot filled, ffmpeg, disk room."""
     R, E = STATE["R"], STATE["E"]
     problems: list[str] = []
     rec = None
@@ -114,16 +122,12 @@ def plan(body: dict) -> dict:
     model = body.get("model") or "base"
     if model not in MODELS:
         problems.append(f"The model must be one of {', '.join(MODELS)}.")
-    raw = body.get("binds") or {}
-    pairs = []
-    for slot, files in (raw.items() if isinstance(raw, dict) else []):
-        for f in (files if isinstance(files, list) else []):
-            pairs.append(f"{slot}={f}")
+    args = _bind_args(body.get("binds") or {})
     binds: dict = {}
-    for pair in pairs:
+    for pair in args:
         try:
-            for slot, files in E.parse_binds([pair]).items():
-                binds.setdefault(slot, []).extend(files)
+            for slot, items in E.parse_binds([pair]).items():
+                binds.setdefault(slot, []).extend(items)
         except E.Refused as e:
             problems.append(str(e))
     lines: list[dict] = []
@@ -132,63 +136,92 @@ def plan(body: dict) -> dict:
         if extra:
             problems.append("Not a slot of this recipe: " + ", ".join(extra))
         for s in rec["slots"]:
-            files = binds.get(s["id"], [])
-            if not files:
+            items = binds.get(s["id"], [])
+            if not items:
                 problems.append(f"The slot \u201c{s['label']}\u201d has no file yet.")
-            if len(files) > 1 and not s["multiple"]:
-                problems.append(f"The slot \u201c{s['label']}\u201d takes one file; it has {len(files)}.")
-            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": p.name, "mb": round(p.stat().st_size / 1e6, 1)} for p in files]})
-    work, out = STATE["work"], STATE["out"]
-    free_gb = round(shutil.disk_usage(work if work.exists() else work.parent if work.parent.exists() else Path(work.anchor)).free / 1e9, 1)
-    ffmpeg = shutil.which("ffmpeg") is not None
-    if not ffmpeg:
+            if len(items) > 1 and not s["multiple"]:
+                problems.append(f"The slot \u201c{s['label']}\u201d takes one file; it has {len(items)}.")
+            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1)} for b in items]})
+    work = STATE["work"]
+    anchor = work if work.exists() else work.parent if work.parent.exists() else Path(work.anchor)
+    free_gb = round(shutil.disk_usage(anchor).free / 1e9, 1)
+    if shutil.which("ffmpeg") is None:
         problems.append("ffmpeg is not on this computer's PATH, and the build cuts the files with it.")
     total_mb = sum(f["mb"] for ln in lines for f in ln["files"])
     if free_gb < max(2.0, total_mb / 1000 * 1.5):
         problems.append(f"Only {free_gb} GB free where the work folder is; choose a drive with more room.")
-    film = None
-    if rec:
-        film = re.sub(r"[^A-Za-z0-9._-]+", "-", rec["name"]).strip("-")[:60] or "film"
-    return {"ok": not problems, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model, "film": f"{film}.mp4" if film else None,
-            "out_dir": str(out), "work_dir": str(work), "free_gb": free_gb, "network": "none (the build has a guard that stops any network attempt)",
-            "steps": ["Listen to each file with the speech model on this computer (the slowest step) and note when each word is said.",
-                      "Find the recipe's words in your files, in order, and plan one cut for each.",
-                      "If any word is not said anywhere in your files, stop: nothing is written.",
-                      "Cut the pieces with ffmpeg and join them into the MP4, with a receipt beside it."]}
+    film = (re.sub(r"[^A-Za-z0-9._-]+", "-", rec["name"]).strip("-")[:60] or "film") if rec else None
+    return {"ok": not problems, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
+            "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
 
 
-# ---------------------------------------------------------------------------------------------------- build job
+def _work_for(body: dict) -> Path:
+    """One work folder for one choice of recipe, files and model, so Build reuses the words Plan already heard instead of listening again."""
+    key = hashlib.sha1(json.dumps([body.get("recipe"), sorted(_bind_args(body.get("binds") or {})), body.get("model")]).encode("utf-8")).hexdigest()[:10]
+    return STATE["work"] / key
 
-def start_build(body: dict) -> dict:
-    with LOCK:
-        job = STATE["job"]
-        if job and job["proc"].poll() is None:
-            raise Problem("A build is already running here. Cancel it or wait for it to finish.")
-    p = plan(body)
-    if not p["ok"]:
-        raise Problem("Press Plan first and fix what it lists: " + " ".join(p["problems"][:3]))
-    out_dir, work = STATE["out"], STATE["work"]
-    out_dir.mkdir(parents=True, exist_ok=True)
+
+def start_job(kind: str, body: dict) -> dict:
+    with LOCK:                                      # held from "is something running" to "the job is stored": two quick presses cannot start two jobs
+        return _start_job_locked(kind, body)
+
+
+def _start_job_locked(kind: str, body: dict) -> dict:
+    job = STATE["job"]
+    if job and job["proc"].poll() is None:
+        raise Problem("Something is already running here. Cancel it or wait for it to finish.")
+    pc = precheck(body)
+    if not pc["ok"]:
+        raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
+    if kind == "build":
+        last = STATE.get("planned")
+        if not last or last != _plan_key(body):
+            raise Problem("Press Plan first for exactly these files, and wait for it to say it is ready.")
+    out_dir = STATE["out"]
     stamp = time.strftime("%Y%m%d-%H%M%S")
-    out = out_dir / f"{Path(p['film']).stem}-{stamp}.mp4"
-    wdir = work / stamp
-    cmd = [sys.executable, "-m", "ryagram.local", "build", str(recipe_path(body["recipe"])), "--out", str(out), "--work-dir", str(wdir), "--model", p["model"]]
-    for slot, files in body["binds"].items():
-        for f in files:
-            cmd += ["--bind", f"{slot}={f}"]
+    out = out_dir / (pc["film"] if kind == "plan" else f"{Path(pc['film']).stem}-{stamp}.mp4")
+    cmd = [sys.executable, "-m", "ryagram.local", kind, str(recipe_path(body["recipe"])), "--work-dir", str(_work_for(body)), "--model", pc["model"], "--out", str(out)]
+    if kind == "plan":
+        cmd.append("--json")
+    for a in pc["args"]:
+        cmd += ["--bind", a]
+    if kind == "build":
+        out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, PYTHONPATH=str(STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
-    proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, encoding="utf-8", errors="replace")
-    job = {"proc": proc, "out": out, "lines": [], "started": time.time(), "cancelled": False, "id": stamp}
-    threading.Thread(target=_pump, args=(job,), daemon=True).start()
-    with LOCK:
-        STATE["job"] = job
-    return {"id": stamp, "film": out.name}
+    proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body)}
+    threading.Thread(target=_pump, args=(job, proc.stderr, "lines"), daemon=True).start()
+    threading.Thread(target=_pump, args=(job, proc.stdout, "stdout"), daemon=True).start()
+    STATE["job"] = job
+    if kind == "plan":
+        STATE["planned"] = None
+    return {"id": stamp, "kind": kind, "film": out.name}
 
 
-def _pump(job):
-    for line in job["proc"].stdout:
-        job["lines"].append(line.rstrip()[:300])
-        del job["lines"][:-60]
+def _plan_key(body: dict) -> str:
+    return json.dumps([body.get("recipe"), sorted(_bind_args(body.get("binds") or {})), body.get("model")])
+
+
+def _pump(job, stream, field):
+    for line in stream:
+        job[field].append(line.rstrip("\n")[:2000] if field == "stdout" else line.rstrip()[:300])
+        if field == "lines":
+            del job["lines"][:-60]
+
+
+def _progress_words(lines) -> str:
+    for ln in reversed(lines):
+        m = re.search(r'"stage":\s*"(listening|planning|cutting)"', ln)
+        if m:
+            return m.group(1)
+    return ""
+
+
+def _discard_outputs(job) -> None:
+    """A build that stopped or was cancelled keeps nothing: ENGINE may leave a film with missing words or a part-written MP4 at --out, so delete it and its receipt here."""
+    if job["kind"] == "build":
+        for f in (job["out"], job["out"].with_suffix(".receipt.json")):
+            f.unlink(missing_ok=True)
 
 
 def job_status() -> dict:
@@ -196,30 +229,48 @@ def job_status() -> dict:
     if not job:
         return {"state": "none"}
     code = job["proc"].poll()
-    base = {"id": job["id"], "seconds": round(time.time() - job["started"]), "lines": job["lines"][-12:], "film": job["out"].name}
+    base = {"id": job["id"], "kind": job["kind"], "seconds": round(time.time() - job["started"]), "lines": job["lines"][-12:], "film": job["out"].name}
     if code is None:
         return {**base, "state": "running"}
+    if code is not None:
+        time.sleep(0.15)                                       # let the readers drain the last lines
     if job["cancelled"]:
-        return {**base, "state": "cancelled", "words": "Cancelled. Anything half-made is in the work folder; nothing was kept as a film."}
-    receipt = None
-    rp = job["out"].with_suffix(".receipt.json")
-    if code == 0 and rp.is_file():
+        _discard_outputs(job)
+        what, nxt = EXIT_HELP[5]
+        return {**base, "state": "cancelled", "words": what, "next": nxt}
+    what, nxt = EXIT_HELP.get(code, EXIT_HELP[1])
+    if code != 0:
+        _discard_outputs(job)
+    out = {**base, "state": "stopped", "code": code, "words": what, "next": nxt}
+    if job["kind"] == "plan" and code in (0, 3):
         try:
-            receipt = json.loads(rp.read_text(encoding="utf-8"))
+            ans = json.loads("\n".join(job["stdout"]))
         except Exception:  # noqa: BLE001
-            receipt = None
-    return {**base, "state": "built" if code == 0 else "stopped", "code": code, "words": EXIT_WORDS.get(code, "The build stopped with an unexpected error."), "receipt": receipt,
-            "path": str(job["out"]) if code == 0 else None}
+            ans = None
+        if ans is not None:
+            out.update(state="planned" if ans.get("ok") else "gaps", plan=ans)
+            if ans.get("ok"):
+                with LOCK:
+                    STATE["planned"] = job["key"]
+                out["words"], out["next"] = "Ready to build. No film has been written yet.", "Press Build. It reuses the words Plan already heard."
+    if job["kind"] == "build" and code == 0:
+        rp = job["out"].with_suffix(".receipt.json")
+        try:
+            out["receipt"] = json.loads(rp.read_text(encoding="utf-8")) if rp.is_file() else None
+        except Exception:  # noqa: BLE001
+            out["receipt"] = None
+        out.update(state="built", path=str(job["out"]))
+    return out
 
 
-def cancel_build() -> dict:
+def cancel_job() -> dict:
     job = STATE["job"]
     if not job or job["proc"].poll() is not None:
         return {"state": "none"}
     job["cancelled"] = True
     pid = job["proc"].pid
     if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)    # my own build, by its PID and its children, never by name
+        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)    # my own job, by its PID and its children, never by name
     else:
         job["proc"].kill()
     job["proc"].wait(timeout=10)
@@ -247,14 +298,14 @@ PAGE = """<!doctype html>
 <body><main>
 <p class="banner" role="note"><strong>INTERNAL PROTOTYPE.</strong> Runs on this computer only. Nothing is uploaded; there is no account.</p>
 <h1>Desktop maker</h1>
-<p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to see what will happen, then Build.</p>
+<p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
 <p id="recipe-note" class="note" role="status"></p></section>
 <section aria-labelledby="h-files"><h2 id="h-files">2. Your files</h2>
 <div id="slots"></div>
 <details class="paste"><summary>Paste bind lines instead</summary>
-<label for="paste">One line for each file, like <code>--bind source-1=C:\\clips\\a.mp4</code> (what <code>library find --emit-binds</code> prints)</label>
+<label for="paste">One line for each file, like <code>--bind source-1=C:\\clips\\a.mp4</code> (what <code>library find --emit-binds</code> prints; a span of a file is <code>slot=FILE#START_MS-END_MS</code>)</label>
 <textarea id="paste" rows="4" spellcheck="false"></textarea><button id="use-paste" type="button" class="button secondary">Use these lines</button>
 <p id="paste-note" class="note" role="status"></p></details>
 <label for="model">Speech model on this computer</label><select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>
@@ -330,37 +381,50 @@ JS = r"""(function () {
       $('paste-note').textContent = notes.length ? 'Not used: ' + notes.join('; ') + '.' : 'Used. Check the slots above, then press Plan.';
     } catch (e) { $('paste-note').textContent = e.message; }
   });
+  function summary(p) {
+    return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'The files and the recipe pass the door checks.'),
+      el('dl', {}, el('dt', {}, 'Film it would write'), el('dd', {}, `${p.film} (in ${p.out_dir})`), el('dt', {}, 'Words it will find'), el('dd', {}, p.find), el('dt', {}, 'Files'),
+        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join('; ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model),
+        el('dt', {}, 'Network'), el('dd', {}, p.network), el('dt', {}, 'Room on the work drive'), el('dd', {}, `${p.free_gb} GB free`)));
+  }
   $('plan').addEventListener('click', async ev => {
     if (!current) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Choose a recipe first.')); return; }
     const btn = ev.currentTarget; btn.disabled = true;
     try {
-      const p = await api('/api/plan', { recipe: current.file, binds, model: $('model').value });
-      planned = p.ok; $('build').disabled = !p.ok;
-      $('plan-out').replaceChildren(p.ok
-        ? el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'Ready to build. Nothing has been written yet.'),
-            el('dl', {}, el('dt', {}, 'Film'), el('dd', {}, `${p.film} (in ${p.out_dir})`), el('dt', {}, 'Words it will find'), el('dd', {}, p.find), el('dt', {}, 'Files'),
-              el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join(', ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model),
-              el('dt', {}, 'Network'), el('dd', {}, p.network), el('dt', {}, 'Room on the work drive'), el('dd', {}, `${p.free_gb} GB free`)),
-            el('p', {}, 'Build will:'), el('ol', {}, p.steps.map(x => el('li', {}, x))))
-        : el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, p.problems.map(x => el('li', {}, x)))));
+      const body = { recipe: current.file, binds, model: $('model').value };
+      const c = await api('/api/check', body);
+      if (!c.ok) { fresh(); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
+      fresh(); $('job-out').replaceChildren();
+      $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now ENGINE\u2019s plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
+      await api('/api/plan', body); poll = setInterval(watch, 1200); watch();
     } catch (e) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
-    finally { btn.disabled = false; }
+    finally { if (!poll) btn.disabled = false; }
   });
   function drawJob(j) {
-    const words = { running: `Building\u2026 ${j.seconds || 0} s`, built: j.words, stopped: j.words, cancelled: j.words };
-    const parts = [el('p', { class: j.state === 'built' ? 'ok' : '' }, words[j.state] || '')];
-    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s, network attempts: ${j.receipt.network_attempts}. A receipt is beside it.`) : null);
-    if (j.state === 'stopped') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
-    if (j.lines && j.lines.length) parts.push(el('div', { class: 'log', 'aria-label': 'What the build printed' }, j.lines.join('\n')));
-    $('job-out').replaceChildren(...parts);
     const running = j.state === 'running';
+    const what = j.kind === 'plan' ? 'Listening to your files' : 'Building';
+    const parts = [];
+    if (running) parts.push(el('p', {}, `${what}\u2026 ${j.seconds || 0} s`));
+    else if (j.words) parts.push(el('p', { class: ['built', 'planned'].includes(j.state) ? 'ok' : 'problems', role: ['built', 'planned'].includes(j.state) ? null : 'alert' }, j.words));
+    if (j.state === 'planned' || j.state === 'gaps') {
+      const a = j.plan;
+      if (a.clips.length) parts.push(el('p', {}, `It would cut ${a.clips.length} clip${a.clips.length === 1 ? '' : 's'}, about ${a.seconds_estimate} s:`),
+        el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
+      if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Not said anywhere in the files you chose: ${a.gaps.join(', ')}.`));
+    }
+    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s, network attempts: ${j.receipt.network_attempts}. A receipt is beside it.`) : null);
+    if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
+    if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
+    if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
+    $('job-out').replaceChildren(...parts);
+    planned = j.state === 'planned' || (j.state === 'built' && planned);
     $('cancel').hidden = !running; $('plan').disabled = running; $('build').disabled = running || !planned;
     if (!running && poll) { clearInterval(poll); poll = null; }
   }
   async function watch() { try { drawJob(await api('/api/job')); } catch (e) { $('job-out').textContent = e.message; } }
   $('build').addEventListener('click', async () => {
     if (!planned || !current) return;
-    try { await api('/api/build', { recipe: current.file, binds, model: $('model').value }); poll = setInterval(watch, 1500); watch(); }
+    try { await api('/api/build', { recipe: current.file, binds, model: $('model').value }); poll = setInterval(watch, 1200); watch(); }
     catch (e) { $('job-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
   });
   $('cancel').addEventListener('click', async () => { try { drawJob(await api('/api/cancel', {})); } catch (e) { $('job-out').textContent = e.message; } });
@@ -369,7 +433,7 @@ JS = r"""(function () {
       recipes = (await api('/api/recipes')).recipes.sort((a, b) => Number(b.ok) - Number(a.ok));      // the ones that work first, so the first choice is a usable one
       $('recipe').replaceChildren(...recipes.map(r => el('option', { value: r.file }, r.ok ? r.name : `${r.file} (refused)`)));
       if (!recipes.length) $('recipe-note').textContent = 'No recipe files (.json) were found in the recipes folder.';
-      drawRecipe(); const j = await api('/api/job'); if (j.state === 'running') { poll = setInterval(watch, 1500); drawJob(j); }
+      drawRecipe(); const j = await api('/api/job'); if (j.state === 'running') { poll = setInterval(watch, 1200); drawJob(j); }
     } catch (e) { $('recipe-note').textContent = e.message; }
   })();
 })();
@@ -446,12 +510,16 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise Problem("Bad request.")
             path = urlparse(self.path).path
-            if path == "/api/plan":
-                self._json(200, plan(body))
+            if path == "/api/check":
+                pc = precheck(body)
+                pc.pop("args", None)
+                self._json(200, pc)
+            elif path == "/api/plan":
+                self._json(200, start_job("plan", body))
             elif path == "/api/build":
-                self._json(200, start_build(body))
+                self._json(200, start_job("build", body))
             elif path == "/api/cancel":
-                self._json(200, cancel_build())
+                self._json(200, cancel_job())
             elif path == "/api/pick":
                 self._json(200, {"files": pick_files(bool(body.get("multiple")))})
             elif path == "/api/paste":
@@ -466,7 +534,7 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None):
-    STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None)
+    STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["R"], STATE["E"] = load_engine(STATE["engine"])
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
@@ -477,8 +545,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Desktop maker (internal prototype): ENGINE's local film build behind a one-page screen. Local only.")
     ap.add_argument("--engine", required=True, help="a Ryagram checkout that has ryagram/local (branch local-mvp)")
     ap.add_argument("--recipes", required=True, help="a folder of recipe .json files")
-    ap.add_argument("--work-dir", default="D:/Ryagram-scratch/desktop-maker/work", help="where the index, cut clips and TEMP go (choose the drive with room)")
-    ap.add_argument("--out-dir", default="D:/Ryagram-scratch/desktop-maker/films", help="where the MP4 and its receipt go")
+    ap.add_argument("--work-dir", default=str(Path.home() / "Desktop maker" / "work"), help="where the index, cut clips and TEMP go (choose the drive with room)")
+    ap.add_argument("--out-dir", default=str(Path.home() / "Desktop maker" / "films"), help="where the MP4 and its receipt go")
     ap.add_argument("--port", type=int, default=8765)
     a = ap.parse_args(argv)
     srv = make_server(Path(a.engine), Path(a.recipes), Path(a.work_dir), Path(a.out_dir), a.port)
