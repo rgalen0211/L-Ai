@@ -202,4 +202,4 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 /* Funnel on #/admin/ops: the wide tables scroll sideways inside themselves on a phone instead of squeezing every word */
 .funnel-sources,.funnel-weeks{display:block;overflow-x:auto;max-width:100%}.funnel-sources th,.funnel-weeks th{min-width:84px}.funnel-sources td:first-child,.funnel-weeks td:first-child{white-space:nowrap}.funnel-side td{color:var(--muted)}
 /* Accessibility pass (2026-10-18): a folded section's summary is a comfortable tap target */
-.ryagram-app details>summary{min-height:40px;padding:8px 0;box-sizing:border-box;cursor:pointer}
+:where(.ryagram-app details)>summary{min-height:40px;padding:8px 0;box-sizing:border-box;cursor:pointer}

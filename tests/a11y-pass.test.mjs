@@ -8,7 +8,7 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').r
 test('TAP TARGETS: small buttons and links are 40 px high, and every folded section\'s summary is at least 40 px', () => {
   const css = read('assets/app.css');
   assert.match(css, /\.button\.small\{min-height:40px;/);
-  assert.match(css, /\.ryagram-app details>summary\{min-height:40px;/);
+  assert.match(css, /:where\(\.ryagram-app details\)>summary\{min-height:40px;/, 'no extra specificity, so the 44 px summaries (.advanced-panel, .ops-details) keep their own size');
 });
 
 test('SWATCH LABELS: a label inside a colour swatch is black or white, whichever reads better, and is no longer faded', () => {
@@ -31,5 +31,6 @@ test('REFUSAL IS ANNOUNCED: the builder\'s "can\'t be made yet" sentence and its
 
 test('CACHE-BUST: the three changed assets carry a new version', () => {
   const html = read('app/index.html');
-  for (const f of ['app.css', 'app-builder.js', 'app-looks.js']) assert.match(html, new RegExp(`${f.replace('.', '\\.')}\\?v=20261019a`));
+  assert.match(html, /app\.css\?v=20261019b/);
+  for (const f of ['app-builder.js', 'app-looks.js']) assert.match(html, new RegExp(`${f.replace('.', '\\.')}\\?v=20261019a`));
 });
