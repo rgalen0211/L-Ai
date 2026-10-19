@@ -9,6 +9,8 @@
   const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, engine_commit, '
     + 'cancel_requested, error_class, error_code, error_detail, progress, progress_note, created_at, started_at, ended_at';
 
+  const LOOK_COLUMNS = 'id, name, title, based_on, spec, is_default, created_at, updated_at';
+
   function ryagramData(client) {
     async function run(promise, fallback) {
       const { data, error } = await promise;
@@ -378,8 +380,68 @@
       adminFilmRequests() { return run(client.rpc('admin_film_requests'), 'Couldn\u2019t load film requests.'); },
       adminFilmRequestSet(id, status, note, url) { return run(client.rpc('admin_film_request_set', { p_id: id, p_status: status, p_note: note || '', p_url: url || null }), 'Couldn\u2019t update that request.'); },
       adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
+      // Engine profiles, "Your look" (SQL 20261017000300). A person reads and deletes only their own rows; every write goes through set_engine_profile(), which refuses any key the
+      // profile schema does not have. The server's answer is the one that counts.
+      listLooks() { return run(client.from('engine_profiles').select(LOOK_COLUMNS).order('name', { ascending: true }), 'Couldn\u2019t load your looks.'); },
+      async getLook(name) {
+        const rows = await run(client.from('engine_profiles').select(LOOK_COLUMNS).eq('name', name), 'Couldn\u2019t load that look.');
+        return rows[0] || null;
+      },
+      async defaultLook() {
+        const rows = await run(client.from('engine_profiles').select(LOOK_COLUMNS).eq('is_default', true), 'Couldn\u2019t load your default look.');
+        return rows[0] || null;
+      },
+      saveLook(spec, makeDefault) { return run(client.rpc('set_engine_profile', { p_spec: spec, p_make_default: makeDefault === true }), 'Couldn\u2019t save that look.'); },
+      deleteLook(id) { return run(client.from('engine_profiles').delete().eq('id', id).select('id'), 'Couldn\u2019t delete that look.'); },
+      // A free contact sheet of a look on the engine's sample story, in the person's own "Profile preview (sample)" project (never a render that costs credits).
+      async lookSheet(story, periods) {
+        const TITLE = 'Profile preview (sample)';
+        const projects = await api.listProjects();
+        // Only OUR sample project is reused and overwritten: its latest story carries the sample story's name. A person's own project that happens to share the title is never touched.
+        let project = null, version = null;
+        for (const cand of projects.filter(p => p.title === TITLE && !p.archived_at)) {
+          const all = (await api.getProject(cand.id)).versions;
+          const last = all[all.length - 1];
+          if (last && last.story_spec && last.story_spec.name === story.name) {
+            project = cand;
+            version = window.ryagramJobs.versionTakesJobs(last.state) ? last : await api.createVersion(cand.id, null);
+            break;
+          }
+        }
+        if (!project) {
+          const made = await api.createProject(TITLE);
+          project = made.project; version = made.version;
+        }
+        await api.saveStory(version.id, story);
+        await api.submitJob(version.id, 'contact_sheet', { periods }, null);
+        return { projectId: project.id, versionId: version.id };
+      },
+      async lookSheetStatus(versionId) {
+        const got = await api.getVersion(versionId);
+        const job = got.jobs.find(j => j.job_type === 'contact_sheet');
+        if (!job) return null;
+        const art = job.state === 'complete' ? got.artifacts.find(a => a.job_id === job.id && a.kind === 'contact_sheet') : null;
+        let url = null;
+        if (art) { try { url = await api.fileUrl(art.storage_path); } catch { url = null; } }
+        return { state: job.state, job, url };
+      },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
+      // The guided builder (the guided-builder function: ENGINE's compileFilm and the listable catalog). A refusal carries every reason in .errors.
+      async builderCall(body) {
+        const { data, error } = await client.functions.invoke('guided-builder', { body });
+        if (error) {
+          let payload = null;
+          try { payload = await error.context.json(); } catch { payload = null; }
+          const err = new Error(payload?.error || (payload?.errors || []).join(' ') || 'Couldn\u2019t reach the film builder. Try again in a minute.');
+          if (payload?.errors) err.errors = payload.errors;
+          throw err;
+        }
+        return data;
+      },
+      builderCatalog() { return api.builderCall({ action: 'catalog' }); },
+      builderDescribe(id) { return api.builderCall({ action: 'describe', dataset: id }); },
+      builderCompile(request) { return api.builderCall({ action: 'compile', request }); },
       // Funnel (SQL 20261017000900): Ryan's counts per step, by week and by source. Admin only.
       // The raw funnel events of the last N days, read as Ryan (the table's own admin-only policy): for the by-day page. Paged, newest first.
       async adminFunnelEvents(days) {

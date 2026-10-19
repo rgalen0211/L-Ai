@@ -48,17 +48,21 @@ test('"ready" is the installed worker allowlist THROUGH THE MOTION GATE (motion_
   assert.deepEqual(plain(usable.map(e => e.id).sort()), plain([...gated].sort()));
   assert.ok(gated.length < D.allow.length, 'the gate holds some allowlisted datasets back');
   for (const id of D.allow) assert.ok(D.entries.some(e => e.id === id), `allowlisted ${id} is missing from the catalog`);
-  for (const id of Object.keys(D.next)) assert.equal(D.entries.find(e => e.id === id)?.status, 'next', id);
+  for (const id of Object.keys(D.next)) {                       // a candidate on the allowlist is usable only if the motion gate lets it through; otherwise it waits as next (not measured) or later (failed)
+    const st = D.entries.find(e => e.id === id)?.status;
+    if (D.allow.includes(id)) assert.ok(gated.includes(id) ? st === 'usable' : ['next', 'later'].includes(st), `${id}: ${st}`);
+    else assert.equal(st, 'next', id);
+  }
   // credit_quote refuses a dataset with no shape row (supabase/phase-2b/credits_ledger.sql).
   const sql = fs.readFileSync(path.join(root, 'supabase/phase-2b/credits_ledger.sql'), 'utf8');
   const seeded = new Set([...sql.matchAll(/\('([a-z0-9_]+)', 'standard'/g)].map(m => m[1]));
   const sectors = [...sql.match(/unnest\(array\[((?:'[a-z_]+',?\s*)+)\]\) sector/)[1].matchAll(/'([a-z_]+)'/g)].map(m => m[1]);
   const suffixes = [...sql.match(/unnest\(array\[((?:'_[a-z_]+',?\s*)+)\]\) suffix/)[1].matchAll(/'(_[a-z_]+)'/g)].map(m => m[1]);
   for (const s of sectors) for (const x of suffixes) seeded.add(`cbp_${s}${x}`);
-  for (const e of usable) {
-    assert.ok(seeded.has(e.id), `${e.id} has no credit_dataset_shapes row`);
-    assert.ok(e.window && e.window.length === 2, `${e.id} needs a ready-made period`);
-  }
+  // The installed worker's allowlist grew from 23 to 83 (tests/catalog-usable.test.mjs). Every usable dataset needs a credit_dataset_shapes row or credit_quote refuses it; the last five
+  // (bps_county_unit_share_1, _2to4, _5plus, bps_us_unit_mix, fhwa_hm212) were priced by CC1's dataset-shapes c886e09 (all 'standard'). A NEW usable dataset without a row fails here.
+  assert.deepEqual(plain(usable.map(e => e.id).filter(id => !seeded.has(id)).sort()), [], 'usable datasets with no credit_dataset_shapes row');
+  for (const e of usable) assert.ok(e.window && e.window.length === 2, `${e.id} needs a ready-made period`);
 });
 
 test('the catalog allow list is the COMMITTED allowlist export (never a machine-local file), and every UpdateCandidate not on it is next or later', t => {
@@ -90,10 +94,12 @@ test('sector rows sit under one family heading, search narrows, and nothing is i
   assert.equal(share.title, 'Share of jobs by industry, by state');
   assert.equal(share.items.length, 18);
   assert.ok(share.items.some(e => e.short === 'Manufacturing'));
-  assert.equal(K.visible(D.entries, { text: 'manufacturing' }).length, 1);                  // ready only
-  assert.ok(K.visible(D.entries, { soon: true, text: 'manufacturing' }).length > 1);
+  const manufacturing = ['cbp_manufacturing_employment', 'cbp_manufacturing_establishments', 'cbp_manufacturing_share', 'cbp_manufacturing_share_state'];
+  assert.deepEqual(plain(K.visible(D.entries, { text: 'manufacturing' }).map(e => e.id).sort()), plain(D.entries.filter(e => manufacturing.includes(e.id) && e.status === 'usable').map(e => e.id).sort()));          // ready only: the ones through the motion gate
+  assert.equal(K.visible(D.entries, { soon: true, text: 'manufacturing' }).length, 4);
   assert.equal(K.visible(D.entries, { text: 'zzzz nothing' }).length, 0);
-  assert.equal(K.visible(D.entries, { text: 'census manufacturing' }).length, 1);            // words are ANDed
+  const readyMfg = D.entries.filter(e => manufacturing.includes(e.id) && e.status === 'usable').length;
+  assert.equal(K.visible(D.entries, { text: 'census manufacturing' }).length, readyMfg);            // words are ANDed; ready only
 });
 
 test('every ready dataset builds a valid story on every offered view, in the worker schema shape', () => {
@@ -127,7 +133,8 @@ test('every ready dataset builds a valid story on every offered view, in the wor
 test('"not drawn before" is said for any view and dataset pair no confirmed template has drawn', () => {
   const obesity = K.viewChoices(D.entries.find(e => e.id === 'state_obesity_fastfood'), T.TEMPLATES);
   assert.deepEqual(plain(obesity.map(c => [c.view, c.tested, !!c.blocked])),
-                   [['map', true, false], ['bars', false, true], ['line', true, false], ['paired', true, false]]);
+                   [['map', true, false], ['bars', false, true], ['line', true, false]]);
+  assert.ok(!K.BUILD_VIEWS.includes('paired'), 'paired is not offered: the server catalog dropped it');
   const sector = K.viewChoices(D.entries.find(e => e.id === 'cbp_retail_share_state'), T.TEMPLATES);
   assert.ok(sector.every(c => !c.tested));
 });
@@ -160,4 +167,18 @@ test('there is no dataset picker or browse list for users: flags stay off, and t
   assert.deepEqual(selects, ['wl-days', 'cost-th-period']);
   const html = fs.readFileSync(path.join(root, 'app/index.html'), 'utf8');
   assert.doesNotMatch(html, /app-catalog/);                       // the browser never loads the catalog
+});
+
+test('HONEST STATUS (CC1 HIGH-1, app side): only a measured dataset is Ready; an unmeasured one says it is not checked, a failed one says it is not available; neither is offered or counted as ready', () => {
+  const e = (id, status, group = 'housing') => ({ id, status, group, title: id, short: id, blurb: '', source: '', level: '' });
+  const entries = [e('a', 'usable'), e('b', 'next'), e('c', 'later')];
+  assert.deepEqual(entries.map(K.statusLabel), ['Ready', 'Not checked yet', 'Not available yet']);
+  assert.equal(K.statusNote(entries[0]), '');
+  assert.match(K.statusNote(entries[1]), /has not yet checked that a film from this data moves smoothly, so you cannot make one yet\./);
+  assert.match(K.statusNote(entries[2]), /did not pass Ryagram.s checks yet, so you cannot make one yet\./);
+  for (const w of [K.statusLabel(entries[1]), K.statusNote(entries[1]), K.statusLabel(entries[2]), K.statusNote(entries[2])]) assert.doesNotMatch(w, /\bReady\b|Coming soon|soon/i, w);
+  assert.deepEqual(K.visible(entries).map(x => x.id), ['a'], 'by default only the measured one is shown');
+  const g = K.layout(entries, { soon: true }).find(x => x.key === 'housing');
+  assert.equal(g.ready, 1, 'only the measured one counts as ready');
+  assert.equal(g.total, 3);
 });
