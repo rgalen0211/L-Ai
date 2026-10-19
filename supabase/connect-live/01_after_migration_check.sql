@@ -16,12 +16,20 @@ union all select 'connect_runner exists, is not a superuser and has no table pri
                and has_table_privilege('connect_runner', c.oid, 'select,insert,update,delete,truncate,references,trigger')) = 0
 -- Counts only what the role can really CALL: a function in a schema it has no USAGE on cannot be reached, and a trigger or event-trigger function can only
 -- be run by the database as a trigger (Supabase's own public.rls_auto_enable is one, executable by everyone), never called by a person or a login.
-union all select 'connect_runner can call exactly 22 functions, all connect_*, and only in the public schema',
+-- ACCEPTED RESIDUAL (Ryan, Q55, 2026-10-18): Supabase's schema net (pg_net) grants USAGE to PUBLIC, owned and granted by supabase_admin, so no project role can
+-- revoke it. The role can therefore call pg_net's own functions (it can make the database send web requests; it still cannot read a table). Exactly the
+-- named pg_net functions, owned by supabase_admin in schema net, are tolerated and counted in the row's NAME; any other extra function still makes the row false.
+-- When Supabase support removes PUBLIC's usage on net, the count reads 0 and this tolerance can be deleted.
+union all select 'connect_runner can call exactly 22 functions, all connect_*, and only in the public schema'
+       || (select case when count(*) = 0 then '' else ' (plus ' || count(*) || ' named pg_net functions in schema net: ACCEPTED RESIDUAL, Ryan Q55)' end
+             from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+            where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
+              and (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')),
        (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-         where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
+         where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype) and not (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')
            and n.nspname not in ('pg_catalog', 'information_schema')) = 22
        and (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-             where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
+             where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype) and not (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')
                and n.nspname not in ('pg_catalog', 'information_schema') and not (n.nspname = 'public' and p.proname like 'connect\_%')) = 0
 union all select 'signed-in people cannot call the tool or authorization-server functions',
        not has_function_privilege('authenticated', 'public.connect_whoami(text)', 'EXECUTE')
