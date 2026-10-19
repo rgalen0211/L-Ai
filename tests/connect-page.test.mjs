@@ -13,7 +13,7 @@ test('DRAFT: marked as a draft with a placeholder address, noindex, no script, s
   assert.match(page, /<p class="shell-banner" role="note"><strong>DRAFT\. Not published\.<\/strong>/);
   assert.doesNotMatch(page, /<script/i);
   assert.match(page, /Content-Security-Policy" content="default-src 'self'; script-src 'self'/);
-  const urls = [...page.matchAll(/https?:\/\/[^\s"<)]+/g)].map(m => m[0]).filter(u => !/fonts\.(googleapis|gstatic)\.com|uselai\.com/.test(u));
+  const urls = [...page.matchAll(/https?:\/\/[^\s"<)]+/g)].map(m => m[0]).filter(u => !/fonts\.(googleapis|gstatic)\.com|uselai\.com|support\.claude\.com/.test(u));
   assert.ok(urls.length >= 3);
   for (const u of urls) assert.match(u, /CONNECTOR-ADDRESS-PENDING/, `a real address must not appear before launch: ${u}`);
   assert.ok(!/supabase\.co/.test(page));
@@ -55,4 +55,14 @@ test('LIMITS: free previews only (within a daily limit), no full renders, and th
 
 test('NO NEW MAIL ADDRESS: the guide names no mail address until Ryan has confirmed ryagram@ receives mail', () => {
   assert.doesNotMatch(page, /ryagram@uselai|mailto:/);
+});
+
+test('SOURCED FACTS (CONNECT 23:53): the Claude steps follow the Anthropic page and the Team/Enterprise rule carries its source link; no ChatGPT plan list and no custom-GPT retirement claim until the OpenAI pages can be read', () => {
+  assert.match(page, /<li>Open Customize, then Connectors, then Add custom connector\.<\/li>/);
+  assert.match(page, /choose Register automatically\./);
+  const p = page.match(/<p>On a Claude Team plan[\s\S]*?<\/p>/)[0];
+  assert.match(p, /only Owners and Primary Owners can add a custom connector/);
+  assert.match(p, /Source: <a href="https:\/\/support\.claude\.com\/en\/articles\/11175166-get-started-with-custom-connectors-using-remote-mcp" rel="noopener noreferrer">/);
+  assert.doesNotMatch(page, /Free, Pro|Plus|retir|December 2026|11 December/, 'nothing about OpenAI plans or retirement, which no one has been able to confirm from OpenAI');
+  for (const [, href] of page.matchAll(/<a href="(https?:[^"]+)"/g)) assert.ok(/support\.claude\.com|fonts\./.test(href), `an outside link must be a source we checked: ${href}`);
 });
