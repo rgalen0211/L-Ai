@@ -313,9 +313,11 @@ PAGE = """<!doctype html>
 <label for="model">Speech model on this computer</label><select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>
 <p class="note">A larger model hears more words and is slower. Use the same one the finder used.</p></section>
 <section aria-labelledby="h-plan"><h2 id="h-plan">3. Plan, then Build</h2>
-<div class="actions"><button id="plan" type="button" class="button secondary">Plan</button><button id="build" type="button" class="button primary" disabled>Build</button><button id="cancel" type="button" class="button secondary" hidden>Cancel</button></div>
-<div id="plan-out" aria-live="polite"></div>
-<div id="job-out" aria-live="polite"></div></section>
+<div class="actions"><button id="plan" type="button" class="button secondary" aria-describedby="why">Plan</button><button id="build" type="button" class="button primary" aria-describedby="why" disabled>Build</button><button id="cancel" type="button" class="button secondary" hidden>Cancel</button></div>
+<p id="why" class="note">Build turns on after a Plan says the files are ready.</p>
+<p id="job-status" class="sr-only" role="status"></p>
+<div id="plan-out"></div>
+<div id="job-out"></div></section>
 </main><script src="/maker.js"></script></body></html>
 """
 
@@ -330,7 +332,7 @@ textarea{font-family:ui-monospace,Consolas,monospace;font-size:.9rem}
 .button.primary{background:var(--brand);color:var(--paper)}.button:disabled{opacity:.5;cursor:not-allowed}.button:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 .slot{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}.slot h3{margin:0 0 4px;font-size:1rem}.slot ul{margin:6px 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
-.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
+.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
 .panel dt{font-weight:700}.panel dd{margin:0 0 6px}.log{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:8px 10px;max-height:240px;overflow:auto}
 .paste{margin:14px 0}.paste summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}code{background:var(--soft);padding:1px 5px;border-radius:5px}
 @media(max-width:600px){main{padding:12px}}
@@ -348,8 +350,10 @@ JS = r"""(function () {
     if (!r.ok) throw new Error(j.error || 'That did not work.');
     return j;
   }
-  let recipes = [], current = null, binds = {}, planned = false, poll = null;
-  const fresh = () => { planned = false; $('build').disabled = true; $('plan-out').replaceChildren(); };
+  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '';
+  const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
+  const why = text => { $('why').textContent = text; };
+  const fresh = () => { planned = false; $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
   function drawSlots() {
     const box = $('slots'); box.replaceChildren();
     if (!current) return;
@@ -362,7 +366,7 @@ JS = r"""(function () {
           try { const r = await api('/api/pick', { multiple: s.multiple }); if (r.files.length) { binds[s.id] = s.multiple ? (binds[s.id] || []).concat(r.files) : r.files.slice(0, 1); fresh(); drawSlots(); } }
           catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
         } }, files.length ? 'Add or change' : 'Choose a file\u2026'),
-        files.length ? el('button', { type: 'button', class: 'button secondary', onclick: () => { binds[s.id] = []; fresh(); drawSlots(); } }, 'Clear') : null)));
+        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; fresh(); drawSlots(); } }, 'Clear') : null)));
     }
   }
   function drawRecipe() {
@@ -421,6 +425,15 @@ JS = r"""(function () {
     $('job-out').replaceChildren(...parts);
     planned = j.state === 'planned' || (j.state === 'built' && planned);
     $('cancel').hidden = !running; $('plan').disabled = running; $('build').disabled = running || !planned;
+    why(running ? 'A job is running, so Plan and Build are off until it ends. You can cancel it.' : planned ? 'The plan is ready. Press Build.' : 'Build turns on after a Plan says the files are ready.');
+    if (j.state !== lastState) {                                  // announce a change once, not every poll
+      lastState = j.state;
+      if (running) say(j.kind === 'plan' ? 'Listening to your files.' : 'Building the film.');
+      else if (j.state === 'planned') say(`Plan ready: ${j.plan.clips.length} clip${j.plan.clips.length === 1 ? '' : 's'}, about ${j.plan.seconds_estimate} seconds. Build is now on.`);
+      else if (j.state === 'gaps') say(`Cannot build yet. Not said anywhere in your files: ${j.plan.gaps.join(', ')}.`);
+      else if (j.state === 'built') say(`The film is built: ${j.path}`);
+      else if (j.words) say(j.words + (j.next ? ' ' + j.next : ''));
+    }
     if (!running && poll) { clearInterval(poll); poll = null; }
   }
   async function watch() { try { drawJob(await api('/api/job')); } catch (e) { $('job-out').textContent = e.message; } }
