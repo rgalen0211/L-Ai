@@ -74,14 +74,25 @@ def serve():
 def tab_walk(p):
     """Tab through the main area with the keyboard; report controls reached without a visible focus mark, and whether focus got stuck."""
     p.evaluate("(() => { const m = document.querySelector('main') || document.body; const had = m.hasAttribute('tabindex'); if (!had) m.setAttribute('tabindex', '-1'); m.focus(); window.scrollTo(0, 0); if (!had) m.removeAttribute('tabindex'); })()")   # start the Tab walk at the top of the main area
-    n_ctrl = p.evaluate("[...(document.querySelector('main')||document.body).querySelectorAll('input:not([type=hidden]),select,textarea,button:not([disabled]),a[href],summary')].filter(e => { const r = e.getBoundingClientRect(); return (r.width > 0 && r.height > 0) || e.type === 'radio' || e.type === 'checkbox'; }).filter((e, i, all) => e.type !== 'radio' || all.findIndex(x => x.type === 'radio' && x.name === e.name) === i).length")  # a radio group takes one Tab stop (arrows move inside it)
+    all_ctrl = p.evaluate("""() => {
+      const seen = new Set(), out = [];
+      for (const e of (document.querySelector('main') || document.body).querySelectorAll('input:not([type=hidden]),select,textarea,button:not([disabled]),a[href],summary')) {
+        const r = e.getBoundingClientRect(); const isRadio = e.type === 'radio';
+        if (!((r.width > 0 && r.height > 0) || isRadio || e.type === 'checkbox')) continue;
+        const d = e.closest('details:not([open])'); if (d && !(e.tagName === 'SUMMARY' && e.parentElement === d)) continue;     // inside a folded section: reached by opening it
+        if (e.closest('[hidden]')) continue;
+        const key = isRadio ? 'radio:' + e.name : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 24);
+        if (seen.has(key)) continue; seen.add(key); out.push(key);
+      }
+      return out; }""")  # a radio group takes one Tab stop (arrows move inside it)
+    n_ctrl = len(all_ctrl)
     ids, noring, stuck = [], [], 0
     prev = None
     for _ in range(min(n_ctrl + 12, 60)):
         p.keyboard.press('Tab')
         info = p.evaluate("""() => { const e = document.activeElement; if (!e || e === document.body) return null; const s = getComputedStyle(e); const w = e.closest('label,.builder-card') || e; const ws = getComputedStyle(w);
           const ring = (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || (s.boxShadow && s.boxShadow !== 'none') || (ws.outlineStyle !== 'none' && parseFloat(ws.outlineWidth) > 0 && w.matches(':focus-within')) || (ws.boxShadow && ws.boxShadow !== 'none' && w.matches(':focus-within'));
-          return { d: e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 24), ring: !!ring, inMain: !!e.closest('main') }; }""")
+          return { d: e.type === 'radio' ? 'radio:' + e.name : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 24), ring: !!ring, inMain: !!e.closest('main') }; }""")
         if info is None:
             continue
         if prev == info['d']:
@@ -91,6 +102,7 @@ def tab_walk(p):
             ids.append(info['d'])
             if not info['ring']:
                 noring.append(info['d'])
+    tab_walk.missed = [c for c in all_ctrl if c not in set(ids)]
     return n_ctrl, len(set(ids)), sorted(set(noring)), stuck > 3
 
 
@@ -112,7 +124,7 @@ def main():
                 findings.append(f'{where}: message not in a live region: {v}')
         n, reached, noring, trapped = tab_walk(p)
         if reached < n * 0.8:
-            findings.append(f'{where}: keyboard reaches {reached} of about {n} controls')
+            findings.append(f'{where}: keyboard reaches {reached} of about {n} controls (missed: {", ".join(tab_walk.missed[:5])})')
         for d in noring:
             findings.append(f'{where}: no visible focus mark on {d}')
         if trapped:
