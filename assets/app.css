@@ -169,6 +169,12 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .look-sheet{max-width:100%;height:auto;border:1px solid var(--line);border-radius:10px}
 .look-problems{margin:6px 0;padding-left:18px;color:#a11}.look-warnings{margin:6px 0;padding-left:18px;color:#8a5a00}
 .look-locked{margin:14px 0}.look-list li,.look-presets li{padding:10px 0}.look-apply{margin:18px 0}.look-diff ul{margin:8px 0;padding-left:18px}
+/* Connecting an AI: the consent page and the Connected AIs list (assets/app-connect.js) */
+.consent-where,.consent-can,.consent-always{margin:18px 0;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.consent-where h2,.consent-can h2,.consent-always h2{margin:0 0 8px;font-size:1.05rem}
+.consent-uri{margin:6px 0;word-break:break-all}.consent-uri code{font-size:.95rem}.consent-scopes{list-style:none;margin:0;padding:0}.consent-scopes li{margin:0 0 8px}.consent-scopes input[type=checkbox]{width:20px;min-height:20px;height:20px;flex:none}
+.connected-list li{padding:12px 0}
+.consent-expiry-warn{font-weight:700;color:var(--danger,#9b1c1c)}
+.consent-who{font-size:clamp(1.8rem,5vw,2.4rem)}.consent-calls-itself{margin-top:-6px;word-break:break-word}
 /* Header and sign-in basics (consumer audit): Help and Account are words, links are comfortable to tap, the sign-in page has a way forward */
 .app-nav-link{padding:10px 4px;min-height:40px;display:inline-flex;align-items:center}
 .app-foot a,.sign-in-help a,.form-intro a{display:inline-block;padding:10px 2px}
