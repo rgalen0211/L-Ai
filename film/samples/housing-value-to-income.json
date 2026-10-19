@@ -1,0 +1,110 @@
+{
+ "sample": true,
+ "title": "DRAFT: How Many Years of Income Is a Home Worth?",
+ "summary": {
+  "headline": "The Price of a Home vs. a Paycheck",
+  "subhead": "DRAFT page: the title is a placeholder for Ryan to choose, and the film is not uploaded yet.",
+  "window": {
+   "start": "2009",
+   "end": "2024"
+  },
+  "area": "U.S. counties and county equivalents (50 states and DC)",
+  "datasets": [
+   {
+    "label": "Median home value and median household income, by county (ACS 5-year estimates)",
+    "credit": "Source: U.S. Census Bureau, American Community Survey 5-year estimates, tables B25077 and B19013",
+    "sources": [
+     {
+      "name": "U.S. Census Bureau, American Community Survey 5-year estimates, 2005-2009 (table B25077 median value of owner-occupied housing units; table B19013 median household income)",
+      "url": "https://api.census.gov/data/2009/acs/acs5",
+      "license": "Public domain (17 USC 105), U.S. Census Bureau; attribution requested."
+     },
+     {
+      "name": "American Community Survey 5-year estimates, 2010-2014",
+      "url": "https://api.census.gov/data/2014/acs/acs5",
+      "license": "Public domain (17 USC 105), U.S. Census Bureau; attribution requested."
+     },
+     {
+      "name": "American Community Survey 5-year estimates, 2015-2019",
+      "url": "https://api.census.gov/data/2019/acs/acs5",
+      "license": "Public domain (17 USC 105), U.S. Census Bureau; attribution requested."
+     },
+     {
+      "name": "American Community Survey 5-year estimates, 2020-2024",
+      "url": "https://api.census.gov/data/2024/acs/acs5",
+      "license": "Public domain (17 USC 105), U.S. Census Bureau; attribution requested."
+     },
+     {
+      "name": "How to cite Census data",
+      "url": "https://www.census.gov/about/policies/citation.html"
+     }
+    ],
+    "method": "The multiple is median home value divided by median household income, county by county. A county is shown as confidently above 5x only when its whole margin of error (90%, approximate) is above 5, and confidently below only when the whole margin is below; otherwise it is uncertain. The margin of a ratio of two medians is the Census's approximation formula, not a published Census interval.",
+    "retrieved": "2026-10-19",
+    "values_are": "partly derived",
+    "derivations": [
+     {
+      "measure": "Home value to household income (the multiple)",
+      "method": "median home value divided by median household income, per county and per five-year window"
+     }
+    ],
+    "breaks": [
+     {
+      "period": "2020-2024 window",
+      "what": "Connecticut's eight counties are replaced by nine planning regions, and Alaska's Valdez-Cordova area is split into the Chugach and Copper River areas. Each window is drawn on its own published map; nothing is converted between them, so those areas are not comparable across the change."
+     }
+    ]
+   }
+  ],
+  "measures": [
+   {
+    "label": "Median home value to median household income, by county",
+    "unit": "multiple, x"
+   }
+  ],
+  "read": [
+   "Home value is the owners' own estimate of what their home is worth. It is not a sale price.",
+   "Income is the median for all households in the county, before taxes. Homes and households are different groups, so this is a ratio of two medians, not what a buyer earns or can borrow.",
+   "Each frame is a five-year survey window, not a single year. The film shows four windows; nothing is drawn between them.",
+   "5x is our storytelling line, not an official standard.",
+   "Plain grey means the Census has no usable number for that county. Hatched grey (diagonal lines) means the margin of error is more than 30% of the multiple, so the county is too uncertain to call; it is never coloured by a band. Neither is ever drawn as zero.",
+   "The counter counts counties confidently above 5x. It is not a share of Americans or of homes.",
+   "The 2020-2024 window includes the pandemic years."
+  ],
+  "chart": {
+   "title": "Share of counties confidently above 5x",
+   "note": "Draft numbers, pending the R2 recheck. These are shares of counties, not of people or homes.",
+   "items": [
+    {
+     "label": "2005-2009",
+     "value": 4.6
+    },
+    {
+     "label": "2010-2014",
+     "value": 2.6
+    },
+    {
+     "label": "2015-2019",
+     "value": 2.9
+    },
+    {
+     "label": "2020-2024",
+     "value": 6.1
+    }
+   ]
+  },
+  "uploaded_data": false,
+  "film": {
+   "seconds": null,
+   "width": 1920,
+   "height": 1080,
+   "fps": 30
+  },
+  "engine": {}
+ },
+ "published_at": null,
+ "video_url": null,
+ "video_pending": true,
+ "poster_url": null,
+ "preview_url": null
+}

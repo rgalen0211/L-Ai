@@ -26,3 +26,7 @@
 .film-poster{display:block;width:100%;height:auto;border-radius:12px;background:#14141a}
 .film-sample{margin:0 0 20px;padding:12px 16px;border:1px dashed var(--line);border-left:3px solid var(--wheat);border-radius:10px;background:var(--paper);color:var(--muted);font-size:.92rem}
 .film-cta>div{min-width:0;flex:1 1 280px}.film-cta>div p{margin:0 0 4px}
+.film-slot{box-sizing:border-box;width:100%;display:flex;align-items:center;justify-content:center;min-height:200px;aspect-ratio:16/9;padding:24px;border:1px dashed var(--line);border-radius:12px;background:var(--paper);color:var(--muted);text-align:center}
+.film-chart{display:block;width:100%;max-width:640px;height:auto}
+.film-chart-bar{fill:var(--brand,#175c52)}
+.film-chart-label,.film-chart-value{font-size:15px;fill:currentColor;font-family:inherit}

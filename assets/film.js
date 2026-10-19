@@ -74,6 +74,37 @@
         h('ul', {}, s.measures.map(m => h('li', {}, m.label, m.unit ? h('span', { class: 'film-unit' }, ` (${m.unit})`) : null)))] : null);
   }
 
+  // "How to read this": plain sentences the film's maker wrote. Text only, never HTML.
+  function readSection(lines) {
+    return h('section', { class: 'film-section', 'aria-labelledby': 'read-title' },
+      h('h2', { id: 'read-title' }, 'How to read this'),
+      h('ul', {}, lines.map(x => h('li', {}, x))));
+  }
+
+  // A small static bar chart (SVG, text only): a few summary shares the film's maker chose, with a note. Built with SVG attributes, not inline CSS (the page's policy has no inline styles).
+  const SVGNS = 'http://www.w3.org/2000/svg';
+  function svg(tag, attrs = {}, ...kids) {
+    const el = document.createElementNS(SVGNS, tag);
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v));
+    for (const k of kids) if (k != null) el.append(k);
+    return el;
+  }
+  function chartSection(c) {
+    const items = (c.items || []).filter(x => x && typeof x.value === 'number' && isFinite(x.value) && x.value >= 0);
+    if (!items.length) return null;
+    const max = Math.max(...items.map(x => x.value)) || 1;
+    const rowH = 38, left = 110, right = 70, width = 640, barMax = width - left - right;
+    const bars = items.map((x, i) => svg('g', {},
+      svg('text', { x: left - 10, y: i * rowH + 24, 'text-anchor': 'end', class: 'film-chart-label' }, x.label),
+      svg('rect', { x: left, y: i * rowH + 6, width: Math.max(2, Math.round(x.value / max * barMax)), height: 24, rx: 4, class: 'film-chart-bar' }),
+      svg('text', { x: left + Math.max(2, Math.round(x.value / max * barMax)) + 8, y: i * rowH + 24, class: 'film-chart-value' }, `${x.value}%`)));
+    const text = items.map(x => `${x.label}: ${x.value}%`).join('; ');
+    return h('section', { class: 'film-section', 'aria-labelledby': 'chart-title' },
+      h('h2', { id: 'chart-title' }, c.title || 'Summary'),
+      svg('svg', { viewBox: `0 0 ${width} ${items.length * rowH + 4}`, role: 'img', 'aria-label': `${c.title || 'Summary'}. ${text}`, class: 'film-chart' }, ...bars),
+      c.note ? h('p', { class: 'film-meta' }, c.note) : null);
+  }
+
   function receipt(page) {
     const s = page.summary || {}, f = s.film || {}, e = s.engine || {};
     const rows = [
@@ -101,6 +132,8 @@
     const video = page.video_url
       ? h('video', { controls: true, playsinline: true, preload: 'metadata', poster: safeUrl(page.poster_url) || null, src: safeUrl(page.video_url) || null,
                      width: String(s.film?.width || 1920), height: String(s.film?.height || 1080) })
+      : page.video_pending
+        ? h('div', { class: 'film-slot', role: 'img', 'aria-label': 'The film will appear here when it is published' }, 'The film will appear here when it is published.')
       : page.sample && posterUrl
         ? h('img', { class: 'film-poster', src: posterUrl, alt: `The last frame of the film: ${s.headline || page.title}, ${s.window ? `${s.window.start} to ${s.window.end}` : ''}`, width: String(s.film?.width || 1920), height: String(s.film?.height || 1080) })
         : h('p', { class: 'film-gone' }, 'This film is no longer stored, but its sources are below.');
@@ -115,6 +148,8 @@
         h('div', {}, h('p', {}, 'Have a question? Ryagram makes the data answer it.'),
           h('p', { class: 'film-meta' }, 'Ryagram is opening by invitation. Join the waitlist and we will tell you when it is your turn.')),
         h('a', { class: 'button primary', href: cta }, 'Make your own data film')),
+      s.read?.length ? readSection(s.read) : null,
+      s.chart ? chartSection(s.chart) : null,
       sourcesSection(s),
       receipt(page)].filter(Boolean));
     document.getElementById('cta-top').setAttribute('href', cta);
