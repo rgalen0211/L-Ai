@@ -5,6 +5,8 @@
 //   * the database layer names only connect_* functions.
 import { test, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import { handleRequest } from '../supabase/functions/connect-core/router.ts';
 import { handleOAuth, authorizationServerMetadata, openIdShapedMetadata } from '../supabase/functions/connect-core/oauth.ts';
 import { validateCimd, forgetCimdCache, CIMD_MAX_BYTES, CIMD_ALLOWED } from '../supabase/functions/connect-core/cimd.ts';
 import { ConnectDb } from '../supabase/functions/connect/db.ts';
@@ -151,4 +153,29 @@ test('the database mapping names only connect_cimd_client for this path, with th
   assert.match(calls[0][0], /^select public\.connect_cimd_client\(\$1::text, \$2::text::text\[\]\) as r$/);
   assert.equal(calls[0][1][0], CLAUDE);
   assert.doesNotMatch(calls[0][0], /owner|user_id/i);
+});
+
+// ---- the setting: OFF unless it says exactly "on" (CC1 02:04 MED-1)
+test('the function turns CIMD on only when CONNECT_CIMD is exactly "on"; the default is off', () => {
+  const src = fs.readFileSync('supabase/functions/connect/index.ts', 'utf8');
+  assert.match(src, /const cimdOn = \(Deno\.env\.get\("CONNECT_CIMD"\) \?\? ""\)\.trim\(\)\.toLowerCase\(\) === "on";/);
+  assert.match(src, /cimd: cimdOn \? \{ fetch: defaultCimdFetcher, allowed: CIMD_ALLOWED \} : undefined,/);
+  assert.doesNotMatch(src, /cimd: \{ fetch: defaultCimdFetcher/);                               // never passed unconditionally
+});
+
+test('the whole router with CIMD off (the default): no flag in either metadata document, and an https client_id is refused with nothing fetched', async () => {
+  const w = world();
+  const deps = { store: w.deps(false).store, consentUrl: CONSENT, publicBase: BASE, mcp: { data: null, policy: null, deps: {}, verifyToken: async () => null, dataFor: () => null } };
+  for (const route of ['/.well-known/oauth-authorization-server', '/.well-known/openid-configuration']) {
+    const r = await handleRequest(new Request(BASE + route), deps);
+    const md = await r.json();
+    assert.equal(md.client_id_metadata_document_supported, undefined, route);
+    assert.ok(md.registration_endpoint, 'registration is still offered');
+  }
+  const r = await handleRequest(authorize(CLAUDE), deps);
+  assert.equal(r.status, 400); assert.deepEqual(w.fetched, []); assert.deepEqual(w.registered, []);
+  // and with it on, the same router advertises and accepts
+  const on = { ...deps, cimd: w.deps(true).cimd };
+  assert.equal((await (await handleRequest(new Request(BASE + '/.well-known/oauth-authorization-server'), on)).json()).client_id_metadata_document_supported, true);
+  assert.equal((await handleRequest(authorize(CLAUDE), on)).status, 302);
 });

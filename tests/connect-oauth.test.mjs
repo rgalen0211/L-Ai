@@ -147,7 +147,7 @@ test('the function entry holds no Supabase key and reads only its own settings',
   const src = fs.readFileSync('supabase/functions/connect/index.ts', 'utf8');
   assert.doesNotMatch(src, /SERVICE_ROLE|service_role|ANON_KEY|getUser|createClient/);
   // SUPABASE_URL is the project's public address (used only to build the issuer address), not a key
-  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_PUBLIC_URL', 'SUPABASE_URL']);
+  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CIMD', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_PUBLIC_URL', 'SUPABASE_URL']);
   assert.match(src, /projectUrl\)\s*\?\s*`\$\{projectUrl\}\/functions\/v1\/connect`/);          // and only ever turned into the issuer address
   assert.equal([...src.matchAll(/projectUrl/g)].length, 3);
 });

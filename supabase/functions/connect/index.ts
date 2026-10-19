@@ -6,6 +6,7 @@
 //   CONNECT_DB_URL        pooler (transaction mode) connection string for the role connect_runner. That role can execute connect_* only.
 //   CONNECT_CONSENT_URL   e.g. https://uselai.com/app/#/connect/consent?request=   (the request id is appended)
 //   CONNECT_APP_URL       e.g. https://uselai.com/app/
+//   CONNECT_CIMD          (optional, default off) "on" = accept Claude's published identity; ONLY after the cimd migration is applied to that project
 //   CONNECT_PUBLIC_URL    (recommended) https://<ref>.supabase.co/functions/v1/connect  pins the issuer address; if absent the platform's SUPABASE_URL is used
 // There is NO Supabase key here: not the service role, not the anon key. The function never reads a Supabase JWT.
 import postgres from "npm:postgres@3.4.5";
@@ -19,6 +20,9 @@ import { ConnectDb } from "./db.ts";
 const dbUrl = Deno.env.get("CONNECT_DB_URL") ?? "";
 const consentUrl = Deno.env.get("CONNECT_CONSENT_URL") ?? "";
 const appUrl = Deno.env.get("CONNECT_APP_URL") ?? "https://uselai.com/app/";
+// "Use Claude's published identity" (client ID metadata documents) is OFF unless this setting is exactly "on". It must stay off wherever the SQL
+// migration 20261019000100_connect_cimd.sql has not been applied: with it on, the metadata tells Claude to use that method and every sign-in would fail.
+const cimdOn = (Deno.env.get("CONNECT_CIMD") ?? "").trim().toLowerCase() === "on";
 // The address clients are told to use. Inside the platform the request's own Host is an internal name (edge-runtime.supabase.com, found by the
 // pre-flight), so it must not be derived from the request. CONNECT_PUBLIC_URL pins it; without that, the platform's own project address
 // (SUPABASE_URL, a public address and NOT a key) plus /functions/v1/connect. Never the request headers on the platform.
@@ -41,7 +45,7 @@ Deno.serve(async (req) => {
     if (!sql || !consentUrl) return json(503, { error: "This connection is not set up yet." });
     return await handleRequest(req, {
       store: db.authStore(), consentUrl, publicBase,
-      cimd: { fetch: defaultCimdFetcher, allowed: CIMD_ALLOWED },
+      cimd: cimdOn ? { fetch: defaultCimdFetcher, allowed: CIMD_ALLOWED } : undefined,
       mcp: {
         data: null as never, policy: db.policy(), deps: { compile },
         async verifyToken(token: string) { return await db.verify(await sha256hex(token)); },
