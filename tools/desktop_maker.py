@@ -139,6 +139,7 @@ def precheck(body: dict) -> dict:
                 binds.setdefault(slot, []).extend(items)
         except E.Refused as e:
             problems.append(str(e))
+    remember_dirs([b.path for items in binds.values() for b in items])
     lines: list[dict] = []
     if rec:
         extra = sorted(set(binds) - {s["id"] for s in rec["slots"]})
@@ -356,7 +357,7 @@ textarea{font-family:ui-monospace,Consolas,monospace;font-size:.9rem}
 .button.primary{background:var(--brand);color:var(--paper)}.button:disabled{opacity:.5;cursor:not-allowed}.button:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 .slot{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}.slot h3{margin:0 0 4px;font-size:1rem}.slot ul{margin:6px 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
-video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}.question textarea{min-height:76px}.warn{border:1px solid #d4a017;background:rgba(212,160,23,.12);border-radius:10px;padding:10px 14px;margin:10px 0}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
+video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}.question textarea{min-height:76px}.warn{border:1px solid #d4a017;background:rgba(212,160,23,.12);border-radius:10px;padding:10px 14px;margin:10px 0}.slot.drop-over{outline:3px dashed var(--brand);outline-offset:3px;background:var(--soft)}.drop-note{margin:6px 0}.drop-note ul{list-style:none;padding:0}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
 .panel dt{font-weight:700}.panel dd{margin:0 0 6px}.log{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:8px 10px;max-height:240px;overflow:auto}
 .paste{margin:14px 0}.paste summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}code{background:var(--soft);padding:1px 5px;border-radius:5px}
 @media(max-width:600px){main{padding:12px}}
@@ -383,16 +384,55 @@ JS = r"""(function () {
     if (!current) return;
     for (const s of current.slots) {
       const files = binds[s.id] || [];
-      box.append(el('div', { class: 'slot' }, el('h3', {}, s.label), el('p', { class: 'note' }, s.multiple ? 'One or more video files.' : 'One video file.'),
+      const dropNote = el('p', { class: 'note drop-note' });
+      const zone = el('div', { class: 'slot', role: 'group', 'aria-label': `${s.label}: you can drop a video file here` }, el('h3', {}, s.label), el('p', { class: 'note' }, (s.multiple ? 'One or more video files.' : 'One video file.') + ' Drag a video file here from a folder window, or press Choose a file.'), dropNote,
         files.length ? el('ul', {}, files.map(f => el('li', {}, f))) : el('p', { class: 'note' }, 'No file chosen yet.'),
         el('div', { class: 'row' }, el('button', { type: 'button', class: 'button secondary', 'aria-label': `Choose a file for ${s.label}`, onclick: async ev => {
           const btn = ev.currentTarget; btn.disabled = true;      // (currentTarget is gone after an await, so keep the button)
           try { const r = await api('/api/pick', { multiple: s.multiple }); if (r.files.length) { binds[s.id] = s.multiple ? (binds[s.id] || []).concat(r.files) : r.files.slice(0, 1); fresh(); drawSlots(); } }
           catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
         } }, files.length ? 'Add or change' : 'Choose a file\u2026'),
-        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; fresh(); drawSlots(); } }, 'Clear') : null)));
+        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; fresh(); drawSlots(); } }, 'Clear') : null));
+      zone.append();
+      wireDrop(zone, s, dropNote);
+      box.append(zone);
     }
   }
+  // A page is not told where a dropped file lives, only its name, size and time, so the server finds it on this computer (it reads folder listings only; nothing is opened or sent).
+  function wireDrop(zone, s, note) {
+    const stop = ev => { ev.preventDefault(); ev.stopPropagation(); };
+    zone.addEventListener('dragenter', ev => { stop(ev); zone.classList.add('drop-over'); });
+    zone.addEventListener('dragover', ev => { stop(ev); zone.classList.add('drop-over'); });
+    zone.addEventListener('dragleave', ev => { stop(ev); zone.classList.remove('drop-over'); });
+    zone.addEventListener('drop', async ev => {
+      stop(ev); zone.classList.remove('drop-over');
+      const dropped = [...(ev.dataTransfer && ev.dataTransfer.files ? ev.dataTransfer.files : [])];
+      if (!dropped.length) { note.textContent = 'I did not receive a file. Drag a video file from a folder window.'; return; }
+      note.textContent = 'Looking for the file on this computer\u2026';
+      const got = [], problems = [];
+      for (const f of (s.multiple ? dropped : dropped.slice(0, 1))) {
+        try {
+          const r = await api('/api/locate', { name: f.name, size: f.size, mtime_ms: f.lastModified });
+          if (r.matches.length === 1) got.push(r.matches[0]);
+          else if (r.matches.length > 1) { problems.push({ name: f.name, choices: r.matches }); }
+          else problems.push({ name: f.name, none: true, timed_out: r.timed_out });
+        } catch (e) { problems.push({ name: f.name, error: e.message }); }
+      }
+      if (got.length) { binds[s.id] = s.multiple ? (binds[s.id] || []).concat(got) : got.slice(0, 1); fresh(); drawSlots(); say(`Added ${got.length} file${got.length === 1 ? '' : 's'} to ${s.label}.`); }
+      const again = [...document.querySelectorAll('.slot')].find(z => z.getAttribute('aria-label').startsWith(s.label + ':'));
+      const out = again ? again.querySelector('.drop-note') : note;
+      const lines = [];
+      for (const pr of problems) {
+        if (pr.error) lines.push(el('p', {}, `${pr.name}: ${pr.error}`));
+        else if (pr.none) lines.push(el('p', {}, `I could not find where ${pr.name} is on this computer${pr.timed_out ? ' in the time I had' : ''}. Press Choose a file instead.`));
+        else lines.push(el('div', {}, el('p', {}, `More than one file looks like ${pr.name}. Which one?`), el('ul', {}, pr.choices.map(c => el('li', {}, el('button', { type: 'button', class: 'button secondary', onclick: () => { binds[s.id] = s.multiple ? (binds[s.id] || []).concat([c]) : [c]; fresh(); drawSlots(); } }, c))))));
+      }
+      out.replaceChildren(...lines);
+      if (!lines.length) out.textContent = '';
+    });
+  }
+  window.addEventListener('dragover', ev => ev.preventDefault());      // a file dropped outside a slot must not make the browser open it
+  window.addEventListener('drop', ev => ev.preventDefault());
   function drawRecipe() {
     const r = recipes.find(x => x.file === $('recipe').value);
     current = r && r.ok ? r : null; binds = {}; fresh();
@@ -677,7 +717,11 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/answers":
                 self._json(200, {"path": save_answers(body.get("answers"))})
             elif path == "/api/pick":
-                self._json(200, {"files": pick_files(bool(body.get("multiple")))})
+                got = pick_files(bool(body.get("multiple")))
+                remember_dirs(got)
+                self._json(200, {"files": got})
+            elif path == "/api/locate":
+                self._json(200, locate(body.get("name"), body.get("size"), body.get("mtime_ms")))
             elif path == "/api/paste":
                 binds, bad = parse_pasted(body.get("text"))
                 self._json(200, {"binds": binds, "bad": bad})
@@ -702,6 +746,79 @@ QUESTIONS = [
     "Would you use this again next week? What would stop you?",
 ]
 NL = chr(10)
+SEARCH_SECONDS = 12.0
+SKIP_DIRS = {"$recycle.bin", "system volume information", "windows", "program files", "program files (x86)", "programdata", "appdata", "node_modules", "__pycache__"}
+
+
+def _default_search_roots() -> list:
+    home = Path.home()
+    return [home / n for n in ("Videos", "Downloads", "Desktop", "Documents", "Movies") if (home / n).is_dir()]
+
+
+def remember_dirs(paths) -> None:
+    """The folders the person's files came from, newest first: a file dropped later is looked for there before anywhere else."""
+    for pth in paths:
+        d = str(Path(pth).parent)
+        recent = STATE.setdefault("recent_dirs", [])
+        if d in recent:
+            recent.remove(d)
+        recent.insert(0, d)
+        del recent[20:]
+
+
+def locate(name, size, mtime_ms, limit_s=None) -> dict:
+    """A browser page is never told where a dropped file lives (only its name, size and modified time), so find it: the folders the person's files came from first, then the usual places
+    (Videos, Downloads, Desktop, Documents, or the --search folders). A match needs the same name, the same size in bytes and the same modified time (to 2 s). Only listings are read; no file is
+    opened, copied or sent anywhere. Stops after SEARCH_SECONDS and says so."""
+    base = Path(str(name or "")).name
+    if Path(base).suffix.lower() not in STATE["E"].VIDEO_EXTS:
+        raise Problem(f"{base or 'That'} is not a video file this tool reads ({', '.join(STATE['E'].VIDEO_EXTS)}).")
+    try:
+        size = int(size)
+        mtime = float(mtime_ms) / 1000 if mtime_ms else None
+    except (TypeError, ValueError):
+        raise Problem("Bad request.") from None
+    deadline = time.time() + (limit_s if limit_s is not None else SEARCH_SECONDS)
+    found: list[str] = []
+    timed_out = False
+
+    def walk(root):
+        nonlocal timed_out
+        stack = [Path(root)]
+        while stack:
+            if time.time() >= deadline:
+                timed_out = True
+                return
+            d = stack.pop()
+            try:
+                it = os.scandir(d)
+            except OSError:
+                continue
+            with it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            if e.name.lower() not in SKIP_DIRS and not e.name.startswith("."):
+                                stack.append(Path(e.path))
+                        elif e.name.lower() == base.lower():
+                            st = e.stat()
+                            if st.st_size == size and (mtime is None or abs(st.st_mtime - mtime) <= 2):
+                                full = str(Path(e.path).resolve())
+                                if full not in found:
+                                    found.append(full)
+                    except OSError:
+                        continue
+
+    for group in (list(STATE.get("recent_dirs", [])), [str(r) for r in STATE.get("search_roots", [])]):
+        for root in group:
+            walk(root)
+            if timed_out or len(found) >= 6:
+                break
+        if found or timed_out:
+            break
+    return {"matches": found[:6], "timed_out": timed_out}
+
+
 GAP_WARN_MS = 500
 LISTEN_SECONDS_PER_MINUTE = {"base": 6}          # measured once, on one PC: Plan listened to about 66 minutes of video in 383 s with base (5.8 s a minute); the other models are not measured
 SHORT_FILM_SECONDS = 5.0
@@ -829,11 +946,13 @@ class LocalServer(ThreadingHTTPServer):
     allow_reuse_address = False         # on Windows SO_REUSEADDR lets a second server share a port that is already in use; here a busy port must be an error so the next free one is taken
 
 
-def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None):
+def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["questions"] = load_questions(questions)
+    STATE["search_roots"] = [Path(x) for x in search] if search else _default_search_roots()
     STATE["R"], STATE["E"] = load_engine(STATE["engine"])
     STATE["gap_warn_ms"] = GAP_WARN_MS
+    STATE["recent_dirs"] = []
     STATE["gap_fn"] = _gap_fn()
     STATE["sound"] = None
     STATE["last_film"] = None
@@ -850,12 +969,12 @@ def find_engine() -> Path | None:
     return None
 
 
-def bind_free_port(engine, recipes, work, out, first: int, questions=None):
+def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None):
     """Start on the asked port, or the next free one (up to 10 more), so a second start does not fail with an error screen."""
     last = None
     for port in range(first, first + 11) if first else (0,):
         try:
-            return make_server(engine, recipes, work, out, port, questions=questions)
+            return make_server(engine, recipes, work, out, port, questions=questions, search=search)
         except OSError as e:
             last = e
     raise SystemExit(f"Could not open a local port ({last}). Close any other Desktop maker window and try again.")
@@ -868,6 +987,7 @@ def main(argv=None) -> int:
     ap.add_argument("--work-dir", default=str(Path.home() / "Desktop maker" / "work"), help="where the index, cut clips and TEMP go (choose the drive with room)")
     ap.add_argument("--out-dir", default=str(Path.home() / "Desktop maker" / "films"), help="where the MP4 and its receipt go")
     ap.add_argument("--port", type=int, default=8765, help="0 picks any free port")
+    ap.add_argument("--search", action="append", default=[], help="a folder to look in for a file you drop onto a slot (repeat for more; default: Videos, Downloads, Desktop and Documents)")
     ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     a = ap.parse_args(argv)
@@ -877,7 +997,7 @@ def main(argv=None) -> int:
     recipes = Path(a.recipes) if a.recipes else engine / "recipes"
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
-    srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None)
+    srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None)
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)

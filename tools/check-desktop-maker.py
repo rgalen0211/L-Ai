@@ -6,6 +6,7 @@ only that one function. Screenshots go to the out folder.
     python tools/check-desktop-maker.py <path to a Ryagram checkout with ryagram/local and its plan command> [outdir]       (default D:/Ryagram-scratch/WEB/engine-lr, D:/Ryagram-scratch/WEB/maker-shots)
 """
 import importlib.util
+import os
 import json
 import shutil
 import sys
@@ -288,6 +289,36 @@ def main():
             j = wait_job(base, tok, ('stopped', 'cancelled'))
             names = sorted(f.name for f in (tmp / 'films').glob('*') if not f.name.startswith('my-answers'))
             check(j['state'] in ('stopped', 'cancelled') and len(names) == 2, f'a build that {how} keeps no film and no receipt (only the one earlier film and its receipt remain: {len(names)} files)')
+        # ---- a file dropped on a slot: the page knows only its name, size and modified time, so the server finds it
+        print('drop')
+        other = tmp / 'other' / 'sub'
+        other.mkdir(parents=True)
+        shutil.copy2(clips / 'a.mp4', other / 'a.mp4')                 # the same file in a second folder
+        (other / 'b.mkv').write_bytes(b'a different size')             # same name, different size: not the one
+        (clips / 'node_modules').mkdir()
+        (clips / 'node_modules' / 'c.mp4').write_bytes(b'hidden in a skipped folder')
+        dm.STATE['search_roots'] = [clips, tmp / 'other']
+        dm.STATE['recent_dirs'] = []
+
+        def st(f):
+            x = f.stat()
+            return x.st_size, int(x.st_mtime * 1000)
+
+        sz, mt = st(clips / 'b.mkv')
+        lb = post(f'{base}/api/locate', {'name': 'b.mkv', 'size': sz, 'mtime_ms': mt}, tok)[1]
+        check(lb['matches'] == [str((clips / 'b.mkv').resolve())] and not lb['timed_out'], 'a dropped file is found by its name, size and modified time (the same name with another size is not taken)')
+        sa, ma = st(clips / 'a.mp4')
+        la = post(f'{base}/api/locate', {'name': 'a.mp4', 'size': sa, 'mtime_ms': ma}, tok)[1]
+        check(len(la['matches']) == 2, 'the same file in two folders gives two matches, for the person to choose')
+        check(post(f'{base}/api/locate', {'name': 'b.mkv', 'size': sz + 1, 'mtime_ms': mt}, tok)[1]['matches'] == [] and post(f'{base}/api/locate', {'name': 'b.mkv', 'size': sz, 'mtime_ms': mt + 60000}, tok)[1]['matches'] == [], 'a wrong size or a different modified time finds nothing')
+        check(post(f'{base}/api/locate', {'name': 'notes.txt', 'size': 1, 'mtime_ms': 0}, tok)[0] == 400, 'a file that is not a video is refused')
+        check(post(f'{base}/api/locate', {'name': '../../secret/b.mkv', 'size': sz, 'mtime_ms': mt}, tok)[1]['matches'] == lb['matches'], 'a dropped name with folder tricks is cut to its file name, so it cannot point elsewhere')
+        sc = (clips / 'node_modules' / 'c.mp4').stat()
+        check(post(f'{base}/api/locate', {'name': 'c.mp4', 'size': sc.st_size, 'mtime_ms': int(sc.st_mtime * 1000)}, tok)[1]['matches'] == [], 'folders like node_modules are not searched')
+        check(dm.locate('b.mkv', sz, mt, limit_s=0)['timed_out'] is True, 'the search stops at its time limit and says so')
+        dm.remember_dirs([other / 'a.mp4'])
+        check(dm.locate('a.mp4', sa, ma)['matches'] == [str((other / 'a.mp4').resolve())], 'folders the person already used are searched first, and a match there ends the search')
+        dm.STATE['recent_dirs'] = []
         # ---- the page
         dm.pick_files = lambda multiple: [str(clips / 'a.mp4'), str(clips / 'b.mkv')] if multiple else [str(clips / 'a.mp4')]
         films_before = len(list((tmp / 'films').glob('*.mp4')))
@@ -398,6 +429,44 @@ def main():
             page.click('#cancel')
             page.get_by_text('Cancelled.', exact=False).first.wait_for(timeout=15000)
             check(page.locator('#build').is_disabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_after, 'Cancel stops the job, Build stays off, and no film was kept')
+            # drag a file from a folder window onto a slot (the page sends only its name, size and modified time)
+            def drop(label, name, size=0, mtime=0, target=None):
+                return page.evaluate("""([label, name, size, mtime]) => {
+                  const zone = [...document.querySelectorAll('.slot')].find(z => z.getAttribute('aria-label').startsWith(label + ':'));
+                  const dt = new DataTransfer();
+                  if (name) dt.items.add(new File([new Uint8Array(size)], name, { lastModified: mtime }));
+                  const ev = new DragEvent('drop', { dataTransfer: dt, bubbles: true, cancelable: true });
+                  zone.dispatchEvent(ev);
+                  return ev.defaultPrevented; }""", [label, name, size, mtime])
+            for lbl in ('First footage', 'Second footage'):
+                clear = page.get_by_role('button', name=f'Clear the files for {lbl}')
+                if clear.count():
+                    clear.click()
+            dm.STATE['search_roots'] = [clips, tmp / 'other']
+            dm.STATE['recent_dirs'] = []
+            sz, mt = st(clips / 'b.mkv')
+            drop('Second footage', 'b.mkv', sz, mt)
+            page.locator('.slot').nth(1).get_by_text(str((clips / 'b.mkv').resolve())).wait_for(timeout=10000)
+            check(True, 'dropping a file on a slot fills it with its real path on this computer (no typing)')
+            sa, ma = st(clips / 'a.mp4')
+            drop('First footage', 'a.mp4', sa, ma)
+            page.locator('.slot').first.get_by_text('More than one file looks like a.mp4. Which one?').wait_for(timeout=10000)
+            page.screenshot(path=str(OUT / '07-drop-choose.png'), full_page=True)
+            page.locator('.slot').first.locator('.drop-note button').first.click()
+            page.locator('.slot').first.locator('ul li').first.wait_for(timeout=10000)
+            check(page.locator('.slot').first.locator('ul li').count() == 1 and 'a.mp4' in page.locator('.slot').first.inner_text(), 'two files look alike: the page asks which one, and the choice fills the slot')
+            drop('First footage', 'nothere.mp4', 3, 12345)
+            page.locator('.slot').first.get_by_text('I could not find where nothere.mp4 is on this computer').wait_for(timeout=15000)
+            check('Press Choose a file instead.' in page.locator('.slot').first.inner_text(), 'a file it cannot find says so and points to Choose a file')
+            drop('First footage', '')
+            page.locator('.slot').first.get_by_text('I did not receive a file').wait_for(timeout=5000)
+            check(True, 'a drop with no file says so in words')
+            prevented = page.evaluate("""() => { const ev = new DragEvent('drop', { dataTransfer: new DataTransfer(), bubbles: true, cancelable: true }); document.body.dispatchEvent(ev); return ev.defaultPrevented; }""")
+            check(prevented, 'a file dropped outside a slot is ignored (the browser does not open it)')
+            page.click('#plan')
+            page.wait_for_selector('#job-out .ok, #plan-out .problems', timeout=30000)
+            check('pass the door checks' in page.inner_text('#plan-out') or page.locator('#job-out .ok').count() == 1, 'files that were dropped plan like any others')
+            check(page.get_by_role('button', name='Choose a file for First footage').count() == 1 and page.locator('summary:has-text("Paste bind lines")').count() == 1, 'the Choose a file button and the paste box are still there')
             check(not page.evaluate('document.documentElement.scrollWidth > window.innerWidth + 1'), 'no sideways scroll')
             check(not outside, f'the page contacted nothing but this server {outside[:3]}')
             check(not errors, f'no page errors {errors}')
