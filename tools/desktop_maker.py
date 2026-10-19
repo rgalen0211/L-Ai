@@ -197,6 +197,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     STATE["job"] = job
     if kind == "plan":
         STATE["planned"] = None
+        STATE["sound"] = None
     return {"id": stamp, "kind": kind, "film": out.name}
 
 
@@ -261,7 +262,8 @@ def job_status() -> dict:
             out["receipt"] = json.loads(rp.read_text(encoding="utf-8")) if rp.is_file() else None
         except Exception:  # noqa: BLE001
             out["receipt"] = None
-        out.update(state="built", path=str(job["out"]))
+        out.update(state="built", path=str(job["out"]), film_url="/film")
+        STATE["last_film"] = str(job["out"])
     return out
 
 
@@ -317,7 +319,9 @@ PAGE = """<!doctype html>
 <p id="why" class="note">Build turns on after a Plan says the files are ready.</p>
 <p id="job-status" class="sr-only" role="status"></p>
 <div id="plan-out"></div>
-<div id="job-out"></div></section>
+<div id="job-out"></div>
+<div id="sound-out"></div>
+<div id="results"></div></section>
 </main><script src="/maker.js"></script></body></html>
 """
 
@@ -332,7 +336,7 @@ textarea{font-family:ui-monospace,Consolas,monospace;font-size:.9rem}
 .button.primary{background:var(--brand);color:var(--paper)}.button:disabled{opacity:.5;cursor:not-allowed}.button:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--brand);outline-offset:2px}
 .slot{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}.slot h3{margin:0 0 4px;font-size:1rem}.slot ul{margin:6px 0;padding-left:20px}.slot li{margin:2px 0;word-break:break-all}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
-.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
+video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}.question textarea{min-height:76px}.warn{border:1px solid #d4a017;background:rgba(212,160,23,.12);border-radius:10px;padding:10px 14px;margin:10px 0}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
 .panel dt{font-weight:700}.panel dd{margin:0 0 6px}.log{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:8px 10px;max-height:240px;overflow:auto}
 .paste{margin:14px 0}.paste summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}code{background:var(--soft);padding:1px 5px;border-radius:5px}
 @media(max-width:600px){main{padding:12px}}
@@ -353,7 +357,7 @@ JS = r"""(function () {
   let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '';
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
-  const fresh = () => { planned = false; $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
+  const fresh = () => { planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
   function drawSlots() {
     const box = $('slots'); box.replaceChildren();
     if (!current) return;
@@ -406,6 +410,53 @@ JS = r"""(function () {
     } catch (e) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
     finally { if (!poll) btn.disabled = false; }
   });
+  function drawSound(j) {
+    const box = $('sound-out');
+    if (!j || j.state === 'none') { box.replaceChildren(); return; }
+    const parts = [];
+    if (j.state === 'running') parts.push(el('p', { class: 'note' }, `Checking the sound of your files\u2026 ${j.checked || 0} of ${j.of || ''}`));
+    if (j.warnings && j.warnings.length) parts.push(el('div', { class: 'warn', role: 'group', 'aria-label': 'Warnings about the sound of your files' }, el('strong', {}, 'Check this before you rely on the film:'), el('ul', {}, j.warnings.map(w => el('li', {}, w)))));
+    else if (j.state === 'done') parts.push(el('p', { class: 'note' }, 'The sound of your files has no gaps that matter.'));
+    box.replaceChildren(...parts);
+  }
+  let soundFor = '', soundPoll = null;
+  async function checkSound(body) {
+    const key = JSON.stringify(body);
+    if (soundFor === key) return;
+    soundFor = key;
+    try {
+      let j = await api('/api/sound', body); drawSound(j);
+      if (j.state === 'running') {
+        soundPoll = setInterval(async () => {
+          try { j = await api('/api/sound'); drawSound(j); if (j.state !== 'running') { clearInterval(soundPoll); soundPoll = null; if (j.warnings.length) say(j.warnings.join(' ')); } } catch (e) { clearInterval(soundPoll); soundPoll = null; }
+        }, 1500);
+      } else if (j.warnings && j.warnings.length) say(j.warnings.join(' '));
+    } catch (e) { $('sound-out').replaceChildren(el('p', { class: 'note' }, e.message)); }
+  }
+  let resultsFor = '';
+  async function drawResults(j) {
+    const box = $('results');
+    if (!j || j.state !== 'built') { if (j && j.state === 'running') { resultsFor = ''; box.replaceChildren(); } return; }
+    if (resultsFor === j.id) return;
+    resultsFor = j.id;
+    const qs = (await api('/api/questions')).questions;
+    const note = el('p', { class: 'note', id: 'answers-note' });
+    const areas = qs.map((q, i) => el('div', { class: 'question' }, el('label', { for: `q${i + 1}` }, `${i + 1}. ${q}`), el('textarea', { id: `q${i + 1}`, rows: '2' })));
+    box.replaceChildren(el('div', { class: 'results' }, el('h2', { id: 'h-results' }, 'Your film'),
+      el('video', { controls: true, preload: 'metadata', src: `${j.film_url}?t=${encodeURIComponent(T)}`, 'aria-label': 'The film that was just built' }),
+      el('p', { class: 'note' }, 'It plays from the file on this computer. Nothing is uploaded.'),
+      el('div', { class: 'row' }, el('button', { type: 'button', class: 'button secondary', 'aria-label': 'Open the folder that holds the film', onclick: async ev => {
+        const btn = ev.currentTarget; btn.disabled = true;
+        try { const r = await api('/api/open-folder', {}); note.textContent = `Opened ${r.folder}`; } catch (e) { note.textContent = e.message; } finally { btn.disabled = false; }
+      } }, 'Open folder')),
+      el('h3', {}, 'A few questions about your first run'),
+      el('p', { class: 'note' }, 'A few words each is fine. Your answers are saved in a text file next to the film, on this computer. Nothing is sent.'),
+      el('form', { id: 'answers-form', onsubmit: async ev => {
+        ev.preventDefault();
+        const btn = $('save-answers'); btn.disabled = true;
+        try { const r = await api('/api/answers', { answers: areas.map(a => a.querySelector('textarea').value) }); note.textContent = `Saved in ${r.path}`; say(`Your answers are saved in ${r.path}`); } catch (e) { note.textContent = e.message; } finally { btn.disabled = false; }
+      } }, areas, el('button', { id: 'save-answers', type: 'submit', class: 'button primary' }, 'Save my answers')), note));
+  }
   function drawJob(j) {
     const running = j.state === 'running';
     const what = j.kind === 'plan' ? 'Listening to your files' : 'Building';
@@ -426,6 +477,8 @@ JS = r"""(function () {
     planned = j.state === 'planned' || (j.state === 'built' && planned);
     $('cancel').hidden = !running; $('plan').disabled = running; $('build').disabled = running || !planned;
     why(running ? 'A job is running, so Plan and Build are off until it ends. You can cancel it.' : planned ? 'The plan is ready. Press Build.' : 'Build turns on after a Plan says the files are ready.');
+    if (j.state === 'planned') checkSound({ recipe: current.file, binds, model: $('model').value });
+    drawResults(j);
     if (j.state !== lastState) {                                  // announce a change once, not every poll
       lastState = j.state;
       if (running) say(j.kind === 'plan' ? 'Listening to your files.' : 'Building the film.');
@@ -454,7 +507,7 @@ JS = r"""(function () {
 })();
 """
 
-CSP = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
+CSP = "default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'"
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -511,8 +564,60 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/job":
             if self._auth():
                 self._json(200, job_status())
+        elif path == "/api/sound":
+            if self._auth():
+                self._json(200, STATE.get("sound") or {"state": "none"})
+        elif path == "/api/questions":
+            if self._auth():
+                self._json(200, {"questions": STATE["questions"]})
+        elif path == "/film":
+            self._film()
         else:
             self._json(404, {"error": "Not found."})
+
+    def _film(self):
+        """Play the last built film in the page: only that one file, with Range so the player can seek. The token is in the address because a video element cannot send a header."""
+        if not self._auth(query_ok=True):
+            return
+        f = last_film()
+        if not f:
+            self._json(404, {"error": "No film has been built yet."})
+            return
+        size = f.stat().st_size
+        start, end, code = 0, size - 1, 200
+        m = re.match(r"bytes=([0-9]*)-([0-9]*)$", (self.headers.get("Range") or "").strip())
+        if m and (m.group(1) or m.group(2)):
+            if m.group(1):
+                start = int(m.group(1))
+                end = int(m.group(2)) if m.group(2) else size - 1
+            else:
+                start = max(0, size - int(m.group(2)))
+            end = min(end, size - 1)
+            if start > end:
+                self.send_response(416)
+                self.send_header("Content-Range", f"bytes */{size}")
+                self.end_headers()
+                return
+            code = 206
+        self.send_response(code)
+        self.send_header("Content-Type", "video/mp4")
+        self.send_header("Accept-Ranges", "bytes")
+        self.send_header("Content-Length", str(end - start + 1))
+        if code == 206:
+            self.send_header("Content-Range", f"bytes {start}-{end}/{size}")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("X-Content-Type-Options", "nosniff")
+        self.end_headers()
+        with open(f, "rb") as fh:
+            fh.seek(start)
+            left = end - start + 1
+            while left > 0:
+                chunk = fh.read(min(65536, left))
+                if not chunk:
+                    break
+                self.wfile.write(chunk)
+                left -= len(chunk)
 
     def do_POST(self):  # noqa: N802
         if not self._auth():
@@ -535,6 +640,16 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, start_job("build", body))
             elif path == "/api/cancel":
                 self._json(200, cancel_job())
+            elif path == "/api/sound":
+                self._json(200, start_soundcheck(body))
+            elif path == "/api/open-folder":
+                f = last_film()
+                if not f:
+                    raise Problem("Build a film first.")
+                open_in_folder(f)
+                self._json(200, {"folder": str(f.parent)})
+            elif path == "/api/answers":
+                self._json(200, {"path": save_answers(body.get("answers"))})
             elif path == "/api/pick":
                 self._json(200, {"files": pick_files(bool(body.get("multiple")))})
             elif path == "/api/paste":
@@ -548,13 +663,123 @@ class Handler(BaseHTTPRequestHandler):
             self._json(500, {"error": f"Unexpected: {type(e).__name__}: {str(e)[:200]}"})
 
 
+QUESTIONS = [
+    "Did the start program open the page without help? If not, what did the black window say?",
+    "Which step was most confusing, and what did you expect to see instead?",
+    "Did every sentence on the page make sense? Write down any word you did not understand.",
+    "Did the model download work? How long did it take?",
+    "Did the plan show what you expected it to find? What was missing or wrong?",
+    "Did you trust the Plan before pressing Build? What would have made you trust it more?",
+    "How long did Plan and Build take, and did that feel too slow, fine, or fast?",
+    "Is the film what you wanted? What would you change first?",
+    "Did anything make you worry about your videos or privacy? What?",
+    "Would you use this again next week? What would stop you?",
+]
+NL = chr(10)
+GAP_WARN_MS = 500
+
+
+def load_questions(path) -> list[str]:
+    """The questions the page asks after a build: FACES' ten by default, or one per line from a file (Ryan edits that list)."""
+    if not path:
+        return list(QUESTIONS)
+    lines = [ln.strip() for ln in Path(path).read_text(encoding="utf-8").splitlines()]
+    qs = [re.sub(r"^[0-9]+[.)]\s*", "", ln) for ln in lines if ln and not ln.startswith("#")]
+    return qs[:30] or list(QUESTIONS)
+
+
+def last_film():
+    f = STATE.get("last_film")
+    return Path(f) if f and Path(f).is_file() else None
+
+
+def open_in_folder(path) -> None:
+    """Show the film in the computer's own file window (only ever the last built film; the page sends no path)."""
+    path = str(path)
+    if os.name == "nt":
+        subprocess.Popen(["explorer", "/select," + path])
+    elif sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", path])
+    else:
+        subprocess.Popen(["xdg-open", str(Path(path).parent)])
+
+
+def save_answers(answers) -> str:
+    """The answers go in a plain text file NEXT TO THE FILM, on this computer; nothing is sent anywhere. An earlier file is never overwritten."""
+    film = last_film()
+    if not film:
+        raise Problem("Build a film first; the answers are saved next to it.")
+    qs = STATE["questions"]
+    if not isinstance(answers, list):
+        raise Problem("Bad request.")
+    target = film.parent / "my-answers.txt"
+    if target.exists():
+        target = film.parent / f"my-answers-{time.strftime('%Y%m%d-%H%M%S')}.txt"
+    out = ["Desktop maker: my answers", f"Film: {film.name}", f"Written: {time.strftime('%Y-%m-%d %H:%M')}", ""]
+    for i, q in enumerate(qs, 1):
+        a = str(answers[i - 1] if i - 1 < len(answers) else "").strip()[:3000]
+        out += [f"{i}. {q}", a or "(no answer)", ""]
+    target.write_text(NL.join(out), encoding="utf-8")
+    return str(target)
+
+
+def _gap_fn():
+    """WORKER's sound check (drift-fix): decode_gap_ms(path) -> milliseconds of sound a plain read would lose, or None. Absent in an older engine copy."""
+    try:
+        from ryagram.library.transcribe import decode_gap_ms  # noqa: PLC0415
+        return decode_gap_ms
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def start_soundcheck(body: dict) -> dict:
+    """After a READY plan: check the sound of each distinct chosen file in the background, so Plan is not slowed. Only files of the plan that was just made are checked."""
+    with LOCK:
+        if STATE.get("planned") != _plan_key(body):
+            raise Problem("Press Plan for exactly these files first.")
+        pc = precheck(body)
+        if not pc["ok"]:
+            raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
+        fn = STATE.get("gap_fn")
+        if fn is None:
+            STATE["sound"] = {"state": "unavailable", "warnings": ["This copy of the engine cannot check the sound of your files."], "checked": 0}
+            return STATE["sound"]
+        paths = []
+        for items in STATE["E"].parse_binds(pc["args"]).values():
+            for b in items:
+                if b.path not in paths:
+                    paths.append(b.path)
+        job = {"state": "running", "warnings": [], "checked": 0, "of": len(paths)}
+        STATE["sound"] = job
+    threading.Thread(target=_soundcheck, args=(job, fn, paths), daemon=True).start()
+    return job
+
+
+def _soundcheck(job, fn, paths):
+    for path in paths:
+        try:
+            ms = fn(path)
+        except Exception:  # noqa: BLE001
+            ms = None
+        if ms is None:
+            job["warnings"].append(f"Could not check the sound in {path.name}.")
+        elif ms >= GAP_WARN_MS:
+            job["warnings"].append(f"The sound in {path.name} has gaps that add up to {ms / 1000:.1f} seconds. Words in it may be timed wrongly, so check the film before you rely on it.")
+        job["checked"] += 1
+    job["state"] = "done"
+
+
 class LocalServer(ThreadingHTTPServer):
     allow_reuse_address = False         # on Windows SO_REUSEADDR lets a second server share a port that is already in use; here a busy port must be an error so the next free one is taken
 
 
-def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None):
+def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
+    STATE["questions"] = load_questions(questions)
     STATE["R"], STATE["E"] = load_engine(STATE["engine"])
+    STATE["gap_fn"] = _gap_fn()
+    STATE["sound"] = None
+    STATE["last_film"] = None
     srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
     return srv
@@ -568,12 +793,12 @@ def find_engine() -> Path | None:
     return None
 
 
-def bind_free_port(engine, recipes, work, out, first: int):
+def bind_free_port(engine, recipes, work, out, first: int, questions=None):
     """Start on the asked port, or the next free one (up to 10 more), so a second start does not fail with an error screen."""
     last = None
     for port in range(first, first + 11) if first else (0,):
         try:
-            return make_server(engine, recipes, work, out, port)
+            return make_server(engine, recipes, work, out, port, questions=questions)
         except OSError as e:
             last = e
     raise SystemExit(f"Could not open a local port ({last}). Close any other Desktop maker window and try again.")
@@ -586,6 +811,7 @@ def main(argv=None) -> int:
     ap.add_argument("--work-dir", default=str(Path.home() / "Desktop maker" / "work"), help="where the index, cut clips and TEMP go (choose the drive with room)")
     ap.add_argument("--out-dir", default=str(Path.home() / "Desktop maker" / "films"), help="where the MP4 and its receipt go")
     ap.add_argument("--port", type=int, default=8765, help="0 picks any free port")
+    ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     a = ap.parse_args(argv)
     engine = Path(a.engine) if a.engine else find_engine()
@@ -594,7 +820,7 @@ def main(argv=None) -> int:
     recipes = Path(a.recipes) if a.recipes else engine / "recipes"
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
-    srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port)
+    srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None)
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)

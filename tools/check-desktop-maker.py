@@ -62,6 +62,8 @@ if "buildfail.mp4" in joined:
 if "slowbuild.mp4" in joined:
     print("joining ...", file=sys.stderr, flush=True); time.sleep(60)
 out.with_suffix(".receipt.json").write_text(json.dumps({"schema": "ryagram.local-receipt/0", "recipe": "stub", "film": out.name, "seconds": 2.4, "model": "base", "network_attempts": 0, "clips": clips, "reused_words": (work / "heard.txt").is_file(), "work": str(work), "wall_seconds": 0.1}))
+with open(out, "ab") as fh:
+    fh.write(bytes(range(256)) * 20)
 print("built", out.name)
 '''
 
@@ -114,7 +116,7 @@ def main():
         (recipes / 'broken.json').write_text(json.dumps({"schema": "ryagram.recipe/0", "name": "x", "slots": []}), encoding='utf8')
         clips = tmp / 'clips'
         clips.mkdir()
-        for n in ('a.mp4', 'b.mkv', 'slow.mp4', 'gap.mp4', 'boom.mp4', 'net.mp4', 'refuse.mp4', 'buildfail.mp4', 'slowbuild.mp4'):
+        for n in ('a.mp4', 'b.mkv', 'slow.mp4', 'gap.mp4', 'boom.mp4', 'net.mp4', 'refuse.mp4', 'buildfail.mp4', 'slowbuild.mp4', 'drift.mp4'):
             (clips / n).write_bytes(b'not really a video; the checks only look at the name and that it exists')
         (clips / 'notes.txt').write_text('x')
         srv = dm.make_server(eng, recipes, tmp / 'work', tmp / 'films', port=0, token='testtoken')
@@ -156,6 +158,61 @@ def main():
             post(f'{base}/api/plan', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / fname)]}}, tok)
             j = wait_job(base, tok, ('planned', 'gaps', 'stopped'))
             check(j['state'] == state and j.get('code') == code and needle in j['words'] and nxt in j['next'], f'exit code {code} ({fname}): {j.get("words", "")[:60]!r} then {j.get("next", "")[:40]!r}')
+        # ---- the results view: play the film (byte ranges), open its folder, save the answers next to it, the sound warning
+        print('results')
+        film = films[0]
+        data = film.read_bytes()
+        opened = []
+        dm.open_in_folder = lambda path: opened.append(str(path))
+        req = urllib.request.Request(f'{base}/film?t=testtoken')
+        with urllib.request.urlopen(req, timeout=10) as r:
+            body, ctype = r.read(), r.headers.get('Content-Type')
+        check(body == data and ctype == 'video/mp4', 'the last built film is served to the page, byte for byte, as video/mp4')
+        req = urllib.request.Request(f'{base}/film?t=testtoken', headers={'Range': 'bytes=10-19'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            check(r.status == 206 and r.read() == data[10:20] and r.headers.get('Content-Range') == f'bytes 10-19/{len(data)}', 'a byte range is answered with 206 and exactly those bytes, so the player can seek')
+        req = urllib.request.Request(f'{base}/film?t=testtoken', headers={'Range': 'bytes=-5'})
+        with urllib.request.urlopen(req, timeout=10) as r:
+            check(r.status == 206 and r.read() == data[-5:], 'a suffix range gives the last bytes')
+        try:
+            urllib.request.urlopen(urllib.request.Request(f'{base}/film?t=testtoken', headers={'Range': 'bytes=999999-'}), timeout=10)
+            check(False, 'a range past the end is refused with 416')
+        except urllib.error.HTTPError as e:
+            check(e.code == 416, 'a range past the end is refused with 416')
+        check(get(f'{base}/film')[0] == 403 and get(f'{base}/film/../../x?t=testtoken')[0] == 404, 'the film address needs the token, and no other file can be asked for')
+        check(post(f'{base}/api/open-folder', {}, tok)[1].get('folder') == str(film.parent) and opened == [str(film)], 'Open folder shows the last built film in the computer\u2019s own file window (the page sends no path)')
+        qs = json.loads(get(f'{base}/api/questions', tok)[2])['questions']
+        check(len(qs) == 10 and qs[0].startswith('Did the start program open the page'), 'the ten first-run questions are offered')
+        r1 = post(f'{base}/api/answers', {'answers': ['yes', 'the plan button'] + [''] * 8}, tok)[1]
+        a1 = Path(r1['path'])
+        check(a1.name == 'my-answers.txt' and a1.parent == film.parent and 'yes' in a1.read_text(encoding='utf8') and 'the plan button' in a1.read_text(encoding='utf8') and '(no answer)' in a1.read_text(encoding='utf8'), 'the answers are saved in my-answers.txt NEXT TO THE FILM, with each question and answer')
+        r2 = post(f'{base}/api/answers', {'answers': ['second time']}, tok)[1]
+        check(Path(r2['path']).name != 'my-answers.txt' and 'yes' in a1.read_text(encoding='utf8'), 'a second save makes a new file and never overwrites the first')
+        check(post(f'{base}/api/answers', {'answers': 'x'}, tok)[0] == 400, 'a bad answers request is refused')
+        # the sound check
+        for name, fn, expect in (('a file with gaps', lambda pth: 2000 if 'drift' in pth.name else 0, 'The sound in drift.mp4 has gaps that add up to 2.0 seconds. Words in it may be timed wrongly, so check the film before you rely on it.'),
+                                 ('a file that cannot be measured', lambda pth: None, 'Could not check the sound in a.mp4.')):
+            dm.STATE['gap_fn'] = fn
+            bd = {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'drift.mp4')]}
+            if name == 'a file with gaps':
+                check(post(f'{base}/api/sound', {**sl, 'binds': bd}, tok)[0] == 400, 'the sound check is refused before a Plan for those files')
+            post(f'{base}/api/plan', {**sl, 'binds': bd}, tok)
+            wait_job(base, tok, ('planned',))
+            post(f'{base}/api/sound', {**sl, 'binds': bd}, tok)
+            end = time.time() + 10
+            sd = {}
+            while time.time() < end:
+                sd = json.loads(get(f'{base}/api/sound', tok)[2])
+                if sd.get('state') != 'running':
+                    break
+                time.sleep(0.2)
+            check(sd.get('state') == 'done' and expect in sd.get('warnings', []), f'{name}: the warning says it in words ({(sd.get("warnings") or ["none"])[0][:70]!r})')
+        dm.STATE['gap_fn'] = None
+        post(f'{base}/api/plan', {**sl, 'binds': good}, tok)
+        wait_job(base, tok, ('planned',))
+        sd = post(f'{base}/api/sound', {**sl, 'binds': good}, tok)[1]
+        check(sd['state'] == 'unavailable' and 'cannot check the sound' in sd['warnings'][0], 'an engine copy without the sound check says so once, instead of staying silent')
+        dm.STATE['gap_fn'] = lambda pth: 2000 if 'drift' in pth.name else 0
         # a build that fails, or is cancelled, keeps no film and no receipt (ENGINE may leave a part-written one); two quick presses start one job
         for fname, how in (('buildfail.mp4', 'fails'), ('slowbuild.mp4', 'is cancelled')):
             bb = {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / fname)]}
@@ -176,7 +233,7 @@ def main():
                 time.sleep(1.0)
                 post(f'{base}/api/cancel', {}, tok)
             j = wait_job(base, tok, ('stopped', 'cancelled'))
-            names = sorted(f.name for f in (tmp / 'films').glob('*'))
+            names = sorted(f.name for f in (tmp / 'films').glob('*') if not f.name.startswith('my-answers'))
             check(j['state'] in ('stopped', 'cancelled') and len(names) == 2, f'a build that {how} keeps no film and no receipt (only the one earlier film and its receipt remain: {len(names)} files)')
         # ---- the page
         dm.pick_files = lambda multiple: [str(clips / 'a.mp4'), str(clips / 'b.mkv')] if multiple else [str(clips / 'a.mp4')]
@@ -226,7 +283,34 @@ def main():
             jt = page.inner_text('#job-out')
             check('network attempts: 0' in jt and 'A receipt is beside it.' in jt, f'Build runs ENGINE\u2019s CLI and shows the film, the clip count and the receipt\u2019s network attempts ({jt[:60]!r})')
             page.screenshot(path=str(OUT / '04-built.png'), full_page=True)
+            # the results view in the page: the film plays from this computer, Open folder, the questions, and the sound warning
+            res_before = len(opened)
+            check(page.locator('#results video').count() == 1 and '/film?t=' in (page.get_attribute('#results video', 'src') or ''), 'after a build the page shows the film in a player that reads it from this computer')
+            check(page.locator('#results textarea').count() == 10 and page.get_by_label('1. Did the start program open the page without help?', exact=False).count() == 1, 'the ten questions are there, each with its own label')
+            page.get_by_role('button', name='Open the folder that holds the film').click()
+            page.locator('#answers-note:has-text("Opened")').wait_for()
+            check(len(opened) == res_before + 1, 'Open folder asks the computer to show the film (and says where)')
+            page.fill('#q8', 'It is what I wanted; I would make it longer.')
+            page.fill('#q10', 'Nothing would stop me.')
+            page.click('#save-answers')
+            page.locator('#answers-note:has-text("Saved in")').wait_for()
+            saved = [f for f in (tmp / 'films').glob('my-answers*.txt') if 'I would make it longer' in f.read_text(encoding='utf8')]
+            check(len(saved) == 1 and 'Nothing would stop me.' in saved[0].read_text(encoding='utf8'), 'Save my answers writes them next to the film, and the page says where')
+            page.locator('#job-status:has-text("Your answers are saved in")').wait_for(state='attached', timeout=5000)
+            check('Your answers are saved in' in page.text_content('#job-status'), 'a screen reader is told once that the answers are saved')
+            page.screenshot(path=str(OUT / '04b-results.png'), full_page=True)
             films_after = len(list((tmp / 'films').glob('*.mp4')))
+            # a chosen file with gaps in its sound: the page warns after a ready Plan, and Build is still allowed
+            dm.pick_files = lambda multiple: [str(clips / 'drift.mp4')]
+            page.get_by_role('button', name='Choose a file for Second footage').click()
+            page.locator('.slot').nth(1).get_by_text('drift.mp4').wait_for()
+            page.click('#plan')
+            page.wait_for_selector('#sound-out .warn', timeout=30000)
+            wt = page.inner_text('#sound-out')
+            check('The sound in drift.mp4 has gaps that add up to 2.0 seconds' in wt and 'Check this before you rely on the film' in wt and page.locator('#build').is_enabled(), 'a file whose sound has gaps gets a plain warning in the page, and Build is still the person\u2019s choice')
+            page.locator('#job-status:has-text("2.0 seconds")').wait_for(state='attached', timeout=5000)
+            check('2.0 seconds' in page.text_content('#job-status'), 'and a screen reader is told')
+            page.screenshot(path=str(OUT / '06-sound-warning.png'), full_page=True)
             # a plan that stops: the words and what to do next
             dm.pick_files = lambda multiple: [str(clips / 'gap.mp4')]
             page.get_by_role('button', name='Choose a file for Second footage').click()
