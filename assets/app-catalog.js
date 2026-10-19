@@ -29,7 +29,7 @@
     'bps-unit-share': 'Share of new housing by building size, by county'
   };
   const STATUS_ORDER = { usable: 0, next: 1, later: 2 };
-  const BUILD_VIEWS = ['map', 'bars', 'line', 'paired'];       // what a story from the catalog can use
+  const BUILD_VIEWS = ['map', 'bars', 'line'];                 // what a story from the catalog can use (the server catalog no longer offers 'paired')
 
   // What contact sheets have shown for the exact story the catalog builds (engine main 56f652e,
   // 2026-10-04). A view that fails the engine's own checks is not offered: it would stop at the gate.
@@ -88,7 +88,13 @@
     return out;
   }
 
-  const statusLabel = e => (e.status === 'usable' ? 'Ready' : 'Coming soon');
+  // Honest about what a dataset is. 'Ready' is only a dataset Ryagram has measured and can make a film from (status usable). A dataset ENGINE has not measured yet is 'next': we have not
+  // checked that a film from it moves smoothly, so it is not offered. One that was measured and failed is 'later': it did not pass the checks yet. Neither is ever called ready or
+  // offered to start a film from; visible() leaves them out unless the (off) catalogComingSoon flag is on, and then they carry these words.
+  const statusLabel = e => (e.status === 'usable' ? 'Ready' : e.status === 'next' ? 'Not checked yet' : 'Not available yet');
+  const statusNote = e => (e.status === 'usable' ? ''
+    : e.status === 'next' ? 'Ryagram has not yet checked that a film from this data moves smoothly, so you cannot make one yet.'
+      : 'A film from this data did not pass Ryagram’s checks yet, so you cannot make one yet.');
 
   // Views a story from this dataset can use, each marked by whether Ryagram has drawn that
   // combination before (a confirmed template), so the page can say so.
@@ -102,7 +108,7 @@
       .map(v => ({ view: v, tested: tested.has(v) && !blocked[v], blocked: blocked[v] || '' }));
   }
 
-  const VIEW_LABELS = { map: 'Map', bars: 'Bar race (top 10)', line: 'Lines (top 6)', paired: 'Map and bar race together' };
+  const VIEW_LABELS = { map: 'Map', bars: 'Bar race (top 10)', line: 'Lines (top 6)' };
 
   // The story options for a catalog dataset, for window.ryagramTemplates.buildFor().
   function storyInfo(entry, view) {
@@ -116,5 +122,5 @@
              hold: view === 'bars' ? 3 : undefined, headline: entry.family ? '' : entry.title, tplLabel: 'catalog' };
   }
 
-  window.ryagramCatalog = { MEASURED, GROUPS, FAMILIES, BUILD_VIEWS, VIEW_LABELS, data, load, visible, layout, statusLabel, viewChoices, storyInfo };
+  window.ryagramCatalog = { MEASURED, GROUPS, FAMILIES, BUILD_VIEWS, VIEW_LABELS, data, load, visible, layout, statusLabel, statusNote, viewChoices, storyInfo };
 })();

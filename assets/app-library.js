@@ -51,6 +51,10 @@
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
+  const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
+  // "Your look" (the profile editor) shows once SQL 20261017000300 is applied (lookEditor: true), or in mock mode.
+  const looksOn = () => window.ryagramConfig?.lookEditor === true || !!window.ryagramMock;
   // Full renders go through request_final_render (and its approval queue) once SQL 20261017000500/600 are applied (renderOrders: true), or in mock mode.
   // Ryan 2026-10-18: the same words on the delivery page and the public film page (assets/film.js).
   const AI_LABEL = 'AI-assisted (Ryagram)';
@@ -78,6 +82,10 @@
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
+        else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
+        else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'clean-light', onStop);
+        else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
         else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
         else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
         else if (requestsOn() && hash === '#/request') view = await requestView();
@@ -161,6 +169,12 @@
       try { await work(); } finally { button.disabled = false; button.textContent = was; }
     }
 
+    // The guided builder (assets/app-builder.js): built once, with this page's helpers.
+    let builderCache = null;
+    const builderUi = () => builderCache || (builderCache = window.ryagramBuilder.create({ h, data, busy, showError, errorLine, date }));
+    // "Your look" (assets/app-looks.js): built once, with this page's helpers.
+    let looksCache = null;
+    const looksUi = () => looksCache || (looksCache = window.ryagramLooks.create({ h, data, busy, showError, errorLine, date }));
     // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
     let connectCache = null;
     const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
@@ -200,10 +214,12 @@
       const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
+      const buildLink = builderOn() ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step')) : null;
+      const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
       return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
-              credits, creditsNote, requestLink, adminLinks, form, list, help];
+              credits, creditsNote, buildLink, looksLink, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -680,7 +696,9 @@
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, 'Your account'),
         email ? h('p', { class: 'meta' }, `Signed in as ${email}`) : null,
-        h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm)
+        h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm),
+        looksOn() ? h('section', { class: 'account-section', 'aria-labelledby': 'acct-look' }, h('h2', { id: 'acct-look' }, 'Your look'),
+          h('p', { class: 'form-note' }, 'How your films look and move: colours, shape, pacing. New films start with your default look.'), h('p', {}, h('a', { class: 'button secondary', href: '#/looks' }, 'Edit your look'))) : null
       ];
       let helpSection = null;
       if (window.ryagramAccount) {
@@ -942,6 +960,7 @@
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
       }) : null;
+      const lookApply = looksOn() && !locked ? await looksUi().applyPanel(project, v, locked, newId => { location.hash = `#/v/${newId}`; }) : null;
       // BYOD guide: a line near the top for people who want their own spreadsheet (the upload sits in the folded Advanced panel at the bottom, which a new person does not look in).
       let advanced = null;
       const byodPointer = uploads && byodGuideOn() && !locked
@@ -954,10 +973,13 @@
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
         if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
+        const styled = looksOn() ? await looksUi().withDefaultLook(built) : { story: built, used: null, warnings: [] };
+        built = styled.story;
         const result = await data.saveStory(v.id, built);
         v.story_spec = built;
         story.value = JSON.stringify(built, null, 2);
-        saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.';
+        saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.'
+          + (styled.used ? ` Using your look: ${styled.used} (change it under Your look).` : '') + (styled.warnings.length ? ` Note: ${styled.warnings.join(' ')}` : '');
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
         return true;
@@ -991,6 +1013,7 @@
         sources.el,
         jobs.el,
         files.el,
+        lookApply,
         // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
         advanced = h('details', { class: 'advanced-panel', id: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
           h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
@@ -1456,6 +1479,7 @@
       const previewButton = h('button', { class: 'button secondary', type: 'button' }, 'Make preview');
       const finalButton = h('button', { class: 'button primary', type: 'button' }, 'Render final film');
       const finalNote = h('p', { class: 'form-note' });
+      // (outside the run controls on purpose: a finished render makes the version "complete", which hides the controls, and "Open your film" must stay reachable then)
       const orderBox = h('div', { class: 'order-box', 'aria-live': 'polite' });
       let openOrders = false;                                        // an order waiting or running keeps the page polling
       const lockedNote = h('p', { class: 'form-note', hidden: true });
@@ -1468,7 +1492,7 @@
           h('div', { class: 'inline-row' }, winStart, winEnd, previewButton)),
         h('div', { class: 'run-step' },
           h('span', { class: 'step-label' }, '3. Final film'),
-          finalNote, finalButton, orderBox),
+          finalNote, finalButton),
         h('p', { class: 'form-note run-timing' }, 'Jobs keep running if you leave this page.'));
 
       async function submit(button, type, params, ladder) {
@@ -1707,7 +1731,7 @@
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
         h('p', { class: 'form-note' }, 'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'),
-        controls, balanceNote, lockedNote, error, listEl);
+        controls, orderBox, balanceNote, lockedNote, error, listEl);
 
       return {
         el,
