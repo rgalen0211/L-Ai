@@ -190,8 +190,8 @@ def main():
         check(Path(r2['path']).name != 'my-answers.txt' and 'yes' in a1.read_text(encoding='utf8'), 'a second save makes a new file and never overwrites the first')
         check(post(f'{base}/api/answers', {'answers': 'x'}, tok)[0] == 400, 'a bad answers request is refused')
         # the sound check
-        for name, fn, expect in (('a file with gaps', lambda pth: 2000 if 'drift' in pth.name else 0, 'The sound in drift.mp4 has gaps that add up to 2.0 seconds. Words in it may be timed wrongly, so check the film before you rely on it.'),
-                                 ('a file that cannot be measured', lambda pth: None, 'Could not check the sound in a.mp4.')):
+        for name, fn, expect in (('a file with gaps', lambda pth: 2000 if 'drift' in pth.name else 0, 'Some of the sound in drift.mp4 is missing (about 2.0 seconds in all). Its words are timed correctly, but anything said in the missing parts cannot be found.'),
+                                 ('a file that cannot be measured', lambda pth: None, 'Could not check the sound in a.mp4, so any missing parts would not be noticed.')):
             dm.STATE['gap_fn'] = fn
             bd = {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'drift.mp4')]}
             if name == 'a file with gaps':
@@ -207,6 +207,31 @@ def main():
                     break
                 time.sleep(0.2)
             check(sd.get('state') == 'done' and expect in sd.get('warnings', []), f'{name}: the warning says it in words ({(sd.get("warnings") or ["none"])[0][:70]!r})')
+        # the threshold is the library's own (GAP_WARN_MS), not a number of the maker's
+        import types
+        lib = sys.modules['ryagram.library']
+        saved = getattr(lib, 'transcribe', None)
+        fake = types.ModuleType('ryagram.library.transcribe')
+        fake.GAP_WARN_MS = 3000
+        fake.decode_gap_ms = lambda pth: 2000 if 'drift' in pth.name else 0
+        lib.transcribe = fake
+        sys.modules['ryagram.library.transcribe'] = fake
+        got = dm._gap_fn()
+        check(got is fake.decode_gap_ms and dm.STATE['gap_warn_ms'] == 3000, 'the maker reads the warning threshold from the library (GAP_WARN_MS), and finds decode_gap_ms there')
+        dm.STATE['gap_fn'] = got
+        bd = {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'drift.mp4')]}
+        post(f'{base}/api/plan', {**sl, 'binds': bd}, tok)
+        wait_job(base, tok, ('planned',))
+        post(f'{base}/api/sound', {**sl, 'binds': bd}, tok)
+        end = time.time() + 10
+        while time.time() < end and json.loads(get(f'{base}/api/sound', tok)[2]).get('state') == 'running':
+            time.sleep(0.2)
+        sd = json.loads(get(f'{base}/api/sound', tok)[2])
+        check(sd['state'] == 'done' and sd['warnings'] == [], 'with the library’s threshold at 3000 ms a 2000 ms gap is not warned about (the maker follows the library)')
+        if saved is not None:
+            lib.transcribe = saved
+            sys.modules['ryagram.library.transcribe'] = saved
+        dm.STATE['gap_warn_ms'] = dm.GAP_WARN_MS
         dm.STATE['gap_fn'] = None
         post(f'{base}/api/plan', {**sl, 'binds': good}, tok)
         wait_job(base, tok, ('planned',))
@@ -307,7 +332,7 @@ def main():
             page.click('#plan')
             page.wait_for_selector('#sound-out .warn', timeout=30000)
             wt = page.inner_text('#sound-out')
-            check('The sound in drift.mp4 has gaps that add up to 2.0 seconds' in wt and 'Check this before you rely on the film' in wt and page.locator('#build').is_enabled(), 'a file whose sound has gaps gets a plain warning in the page, and Build is still the person\u2019s choice')
+            check('Some of the sound in drift.mp4 is missing (about 2.0 seconds in all)' in wt and 'cannot be found' in wt and 'timed wrongly' not in wt and 'Check this before you rely on the film' in wt and page.locator('#build').is_enabled(), 'a file whose sound has gaps gets a plain warning in the page, and Build is still the person\u2019s choice')
             page.locator('#job-status:has-text("2.0 seconds")').wait_for(state='attached', timeout=5000)
             check('2.0 seconds' in page.text_content('#job-status'), 'and a screen reader is told')
             page.screenshot(path=str(OUT / '06-sound-warning.png'), full_page=True)

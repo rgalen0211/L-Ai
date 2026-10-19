@@ -726,8 +726,9 @@ def save_answers(answers) -> str:
 def _gap_fn():
     """WORKER's sound check (drift-fix): decode_gap_ms(path) -> milliseconds of sound a plain read would lose, or None. Absent in an older engine copy."""
     try:
-        from ryagram.library.transcribe import decode_gap_ms  # noqa: PLC0415
-        return decode_gap_ms
+        from ryagram.library import transcribe as tr  # noqa: PLC0415
+        STATE["gap_warn_ms"] = int(getattr(tr, "GAP_WARN_MS", GAP_WARN_MS))      # the library's own threshold, so the maker and `library index` cannot drift apart
+        return tr.decode_gap_ms
     except Exception:  # noqa: BLE001
         return None
 
@@ -762,9 +763,10 @@ def _soundcheck(job, fn, paths):
         except Exception:  # noqa: BLE001
             ms = None
         if ms is None:
-            job["warnings"].append(f"Could not check the sound in {path.name}.")
-        elif ms >= GAP_WARN_MS:
-            job["warnings"].append(f"The sound in {path.name} has gaps that add up to {ms / 1000:.1f} seconds. Words in it may be timed wrongly, so check the film before you rely on it.")
+            job["warnings"].append(f"Could not check the sound in {path.name}, so any missing parts would not be noticed.")
+        elif ms >= STATE.get("gap_warn_ms", GAP_WARN_MS):
+            # the same sentence `library index` prints (WORKER): with the fix in the engine, words ARE timed on the file's own clock, so they are right; what is missing cannot be found
+            job["warnings"].append(f"Some of the sound in {path.name} is missing (about {ms / 1000:.1f} seconds in all). Its words are timed correctly, but anything said in the missing parts cannot be found.")
         job["checked"] += 1
     job["state"] = "done"
 
@@ -777,6 +779,7 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["questions"] = load_questions(questions)
     STATE["R"], STATE["E"] = load_engine(STATE["engine"])
+    STATE["gap_warn_ms"] = GAP_WARN_MS
     STATE["gap_fn"] = _gap_fn()
     STATE["sound"] = None
     STATE["last_film"] = None
