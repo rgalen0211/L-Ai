@@ -351,7 +351,8 @@ def main():
             page.locator('.slot').nth(1).get_by_text('slow.mp4').wait_for()
             page.click('#plan')
             page.wait_for_selector('#cancel:not([hidden])', timeout=15000)
-            check(page.inner_text('#job-status') == 'Listening to your files.' and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
+            page.locator('#job-status:has-text("Listening to your files.")').wait_for(state='attached', timeout=5000)      # the status line is set a moment after the change, on purpose
+            check(page.text_content('#job-status') == 'Listening to your files.' and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
             page.click('#cancel')
             page.get_by_text('Cancelled.', exact=False).first.wait_for(timeout=15000)
             check(page.locator('#build').is_disabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_after, 'Cancel stops the job, Build stays off, and no film was kept')
