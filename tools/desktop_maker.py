@@ -40,8 +40,7 @@ PLAIN_MODELS = (
     ("medium", "Most accurate (slower)", 1530),
 )
 SHOW_ORDER = ("base", "small", "medium", "tiny")          # the quickest test goes last
-DEFAULT_MODEL = "base"      # r8.1: FAST stays the default (the one get-model.bat fetches and the one that is timed) until Ryan chooses Balanced
-GET_ARG = {"small": "balanced", "tiny": "quickest"}       # what tools\get-model.bat takes; no argument fetches the Fast one (base) as before
+DEFAULT_MODEL = "small"     # Balanced: Ryan chose it on 2026-10-20 17:18 ("almost not worth doing anything less")
 EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
     1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
@@ -211,16 +210,80 @@ def models_present(root) -> list[str]:
     return [m for m, _l, _s in PLAIN_MODELS if any(root.glob(f"models--Systran--faster-whisper-{m}/snapshots/*/model.bin"))]
 
 
-GET_MODEL = r"tools\get-model.bat"
-
-
 def missing_model_sentence(model: str) -> str:
     label, mb = model_label(model), model_mb(model)
-    if model in GET_ARG:
-        how = f"Open a PowerShell window in the Ryagram folder, type  {GET_MODEL} {GET_ARG[model]}  and press Enter (it needs the internet for a few minutes)"
-    else:
-        how = f"Double-click {GET_MODEL} once (it needs the internet for a few minutes)"
-    return f"The \u201c{label}\u201d listening model is not on this computer yet (about {mb} MB, downloaded once). {how}, then press Plan again."
+    return (f"The \u201c{label}\u201d listening model is not on this computer yet (about {mb} MB, downloaded once). "
+            f"Press \u201cDownload the listening model\u201d on this page, wait for it to finish, then press Plan again.")
+
+
+def _download_mod():
+    """tools/model_download.py sits beside this file: the ONE place this app fetches a listening model (fixed host, pinned sizes and SHA-256)."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import model_download
+    return model_download
+
+
+DL = {"state": "idle", "model": "", "done": 0, "total": 0, "file": "", "message": "", "cancel": None}
+DL_LOCK = threading.Lock()
+
+
+def model_dl_status() -> dict:
+    with DL_LOCK:
+        d = {k: DL[k] for k in ("state", "model", "done", "total", "file", "message")}
+    d["can"] = bool(os.environ.get("RYAGRAM_MODEL_DIR"))
+    d["host"] = _download_mod().HOST
+    return d
+
+
+def _model_dl_run(model: str, root: str, cancel) -> None:
+    md = _download_mod()
+
+    def progress(done, total, name):
+        with DL_LOCK:
+            DL.update(done=done, total=total, file=name)
+
+    try:
+        md.download(model, root, progress=progress, cancel=cancel)
+        end, msg, ev = "done", f"Done. The \u201c{model_label(model)}\u201d listening model is ready.", "model_download_done"
+    except md.Cancelled:
+        end, msg, ev = "cancelled", "Cancelled. Nothing was kept.", "model_download_cancelled"
+    except md.ModelRefused as e:
+        end, msg, ev = "failed", str(e), "model_download_failed"
+    except Exception:  # noqa: BLE001
+        end, msg, ev = "failed", "Something unexpected went wrong with the download. Nothing was kept. Try again; if it happens again, tell Ryan.", "model_download_failed"
+    with DL_LOCK:
+        DL.update(state=end, message=msg, cancel=None)
+    act(ev, model=model)
+
+
+def model_dl_start(model: str) -> dict:
+    md = _download_mod()
+    root = os.environ.get("RYAGRAM_MODEL_DIR")
+    if not root:
+        raise Problem("This copy does not know where to keep the listening model, so it cannot download one.")
+    if model not in offered_models():
+        raise Problem("Pick one of the choices in the listening list on the page.")
+    try:
+        info = md.model_info(model)
+    except md.ModelRefused as e:
+        raise Problem(str(e)) from None
+    with DL_LOCK:
+        if DL["state"] == "running":
+            raise Problem("A download is already running.")
+        cancel = threading.Event()
+        DL.update(state="running", model=model, done=0, total=info["total_bytes"], file="", message="", cancel=cancel)
+    act("model_download_started", model=model)
+    threading.Thread(target=_model_dl_run, args=(model, root, cancel), daemon=True).start()
+    return model_dl_status()
+
+
+def model_dl_cancel() -> dict:
+    with DL_LOCK:
+        c = DL.get("cancel")
+    if c is not None:
+        c.set()
+    return model_dl_status()
 
 
 def precheck(body: dict) -> dict:
@@ -765,7 +828,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -804,6 +867,7 @@ ACTIVITY_EVENTS = {
     "ui_recipe_changed": ("recipe",), "ui_model_changed": ("model",), "ui_words_edited": ("chars",), "ui_slot_cleared": (),
     "problem_shown": ("endpoint",), "error_shown": ("endpoint", "exception"), "log_off": (), "log_on": (), "log_full": (), "words_skipped": ("count",),
     "signin_started": (), "signin_done": (), "signin_ended": (), "signin_removed": (),
+    "model_download_started": ("model",), "model_download_done": ("model",), "model_download_failed": ("model",), "model_download_cancelled": ("model",),
     "node_on": (), "node_off": (), "node_job_done": (), "node_job_failed": (), "node_job_refused": (),
     "image_added": ("count",), "image_refused": (), "image_rights": ("ok",), "image_removed": (), "rule_saved": ("count",), "occurrences_listed": ("count",),
 }
@@ -919,7 +983,11 @@ PAGE = """<!doctype html>
 <textarea id="paste" rows="4" spellcheck="false"></textarea><button id="use-paste" type="button" class="button secondary">Use these lines</button>
 <p id="paste-note" class="note" role="status"></p></details>
 <label for="model">How carefully to listen</label><select id="model"></select>
-<p class="note" id="model-hint">Balanced works for most videos. Pick Fast for a quick try.</p></section>
+<p class="note" id="model-hint">Balanced works for most videos. Pick Fast for a quick try.</p>
+<div id="model-dl" hidden><p class="note" id="model-dl-note"></p>
+<div class="row"><button id="model-dl-go" type="button" class="button primary">Download the listening model</button><button id="model-dl-stop" type="button" class="button secondary" hidden>Cancel</button></div>
+<progress id="model-dl-bar" max="100" value="0" hidden aria-label="Download progress"></progress>
+<p class="note" id="model-dl-status" role="status"></p></div></section>
 <section aria-labelledby="h-plan"><h2 id="h-plan">3. Plan, then Build</h2>
 <div class="actions"><button id="plan" type="button" class="button secondary" aria-describedby="why">Plan</button><button id="build" type="button" class="button primary" aria-describedby="why" disabled>Build</button><button id="cancel" type="button" class="button secondary" hidden>Cancel</button></div>
 <p id="why" class="note">Build turns on after a Plan says the files are ready.</p>
@@ -1030,11 +1098,42 @@ JS = r"""(function () {
     try { drawNode(await api('/api/node-switch', { on: box.checked })); } catch (e) { $('node-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
   });
   api('/api/signin').then(r => { drawSignin(r); refreshNode(); }).catch(() => {});
+  let modelChoices = [], dlLast = { state: 'idle', can: false }, dlTimer = null;
+  function drawDl(d) {
+    dlLast = d;
+    const c = modelChoices.find(x => x.name === $('model').value);
+    const running = d.state === 'running';
+    const show = d.can && c && (c.ready === false || running || d.state === 'failed');
+    $('model-dl').hidden = !show;
+    if (!show) return;
+    $('model-dl-note').textContent = `This downloads the ${c.label} listening model once (about ${c.mb} MB) from ${d.host}. Nothing of yours is sent, and every file is checked before it is kept.`;
+    $('model-dl-go').disabled = running; $('model-dl-stop').hidden = !running; $('model-dl-bar').hidden = !running;
+    if (running) {
+      $('model-dl-bar').value = d.total ? Math.round(100 * d.done / d.total) : 0;
+      $('model-dl-status').textContent = `${Math.round(d.done / 1048576)} of ${Math.round(d.total / 1048576)} MB`;
+    } else { $('model-dl-status').textContent = d.state === 'failed' || d.state === 'cancelled' ? d.message : ''; }
+  }
+  async function dlPoll(was) {
+    clearTimeout(dlTimer);
+    try {
+      const d = await api('/api/model-download');
+      if (was === 'running' && d.state === 'done') { say(d.message); await loadModels(); return; }
+      drawDl(d);
+      if (d.state === 'running') dlTimer = setTimeout(() => dlPoll('running'), 700);
+    } catch (e) { /* the card keeps what it had */ }
+  }
+  $('model-dl-go').addEventListener('click', async () => {
+    $('model-dl-go').disabled = true;
+    try { drawDl(await api('/api/model-download', { model: $('model').value })); dlPoll('running'); } catch (e) { $('model-dl-status').textContent = e.message; $('model-dl-go').disabled = false; }
+  });
+  $('model-dl-stop').addEventListener('click', async () => { try { await api('/api/model-cancel', {}); } catch (e) { /* the next poll shows the end */ } });
   async function loadModels() {
     try {
       const r = await api('/api/models');
+      modelChoices = r.choices;
       $('model').replaceChildren(...r.choices.map(c => el('option', { value: c.name }, c.label + (c.ready === false ? ` \u2013 not downloaded yet (about ${c.mb} MB)` : c.ready ? ' \u2013 ready' : ` \u2013 about ${c.mb} MB, downloaded once`))));
       $('model').value = r.default; $('model-hint').textContent = r.hint;
+      dlPoll();
     } catch (e) { /* the page still works; the server then uses its own default */ }
   }
   const WORDS_NOTE = $('words-note').textContent;
@@ -1107,7 +1206,7 @@ JS = r"""(function () {
     drawSlots();
   }
   $('recipe').addEventListener('change', () => { drawRecipe(); ev('recipe_changed', { recipe: $('recipe').value.replace(/\.json$/i, '') }); });
-  $('model').addEventListener('change', () => { fresh(); ev('model_changed', { model: $('model').value }); });
+  $('model').addEventListener('change', () => { fresh(); drawDl(dlLast); ev('model_changed', { model: $('model').value }); });
   $('words').addEventListener('input', fresh);
   $('words').addEventListener('change', () => ev('words_edited', { chars: $('words').value.length }));
   // what the engine is asked: the words go along only when they differ from the recipe file's own
@@ -1363,6 +1462,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(404, {"error": "Not found."})
             elif self._auth():
                 self._json(200, overlays_view())
+        elif path == "/api/model-download":
+            if self._auth():
+                self._json(200, model_dl_status())
         elif path == "/api/models":
             if self._auth():
                 ch = model_choices()
@@ -1483,6 +1585,10 @@ class Handler(BaseHTTPRequestHandler):
                 binds, bad = parse_pasted(body.get("text"))
                 act("paste_used", lines=sum(len(v) for v in binds.values()), not_used=len(bad))
                 self._json(200, {"binds": binds, "bad": bad})
+            elif path == "/api/model-download":
+                self._json(200, model_dl_start(str(body.get("model") or "")))
+            elif path == "/api/model-cancel":
+                self._json(200, model_dl_cancel())
             elif path == "/api/node-switch":
                 self._json(200, node_switch(body.get("on") is True))
             elif path in ("/api/signin-start", "/api/signin-poll", "/api/signin-cancel", "/api/signin-check", "/api/signin-remove"):
@@ -1888,7 +1994,7 @@ def main(argv=None) -> int:
     mroot = os.environ.get("RYAGRAM_MODEL_DIR")
     if mroot:
         have = models_present(mroot)
-        print(f"Listening model folder: {mroot} ({'found: ' + ', '.join(model_label(m) for m in have) if have else 'no model there yet: double-click ' + GET_MODEL + ' once'})", flush=True)
+        print(f"Listening model folder: {mroot} ({'found: ' + ', '.join(model_label(m) for m in have) if have else 'no model there yet: use the Download button on the page'})", flush=True)
     print("Leave this window open while you use it. Close it, or press Ctrl+C, to stop.", flush=True)
     print("If the page does not look right or a button does nothing, copy the address above into Microsoft Edge or Google Chrome.", flush=True)
     if a.open:

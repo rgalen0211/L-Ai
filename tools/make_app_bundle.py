@@ -30,7 +30,7 @@ sys.path.insert(0, str(HERE))
 from verify_bundle import sha256_file, APP_DIRS, SKIP_NAMES, SKIP_SUFFIX           # noqa: E402
 
 LARGE_BYTES = 1_000_000
-RUNTIME_TOOLS = ("desktop_maker.py", "ryagram_signin.py", "ryagram_node.py", "verify_bundle.py", "get-model.bat")
+RUNTIME_TOOLS = ("desktop_maker.py", "ryagram_signin.py", "ryagram_node.py", "verify_bundle.py", "model_download.py")
 FORBIDDEN_NAMES = {"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
 FORBIDDEN_DIRS = {".git", "node_modules", "RYAN-ONLY", "faces", "my-answers"}
 FORBIDDEN_SUFFIX = {".dump", ".log", ".env", ".pem", ".key", ".pfx", ".sqlite", ".db"}
@@ -187,7 +187,7 @@ def write_start_files(out: Path, has_model: bool) -> None:
     txt = ("RYAGRAM\r\n\r\n1. Double-click  Open Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
            "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one Ryan read to you. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
-           + ("" if has_model else "4. The first time, run  tools\\get-model.bat  once to download the listening model.\r\n"))
+           + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n"))
     (out / "START-HERE.txt").write_bytes(txt.encode("ascii"))
 
 

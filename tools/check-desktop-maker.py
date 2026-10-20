@@ -412,6 +412,8 @@ def main():
             page.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
             print('page')
             page.goto(f'{base}/?t=testtoken&advanced=1', wait_until='load')        # advanced=1 shows the paste box these checks use (r8 hides it from Sam)
+            page.wait_for_function("document.getElementById('model').options.length > 0")
+            page.select_option('#model', 'base')      # the default is Balanced now (Ryan 17:18); these expectations are the measured Fast timing
             page.wait_for_selector('#recipe option', state='attached', timeout=10000)
             opts = page.locator('#recipe option').all_inner_texts()
             check('well that is great news' in opts and any('broken.json (refused)' in o for o in opts), f'recipes are listed, and a refused one says so ({opts})')

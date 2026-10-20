@@ -11,6 +11,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 import urllib.error
 import urllib.request
 from pathlib import Path
@@ -89,7 +90,7 @@ def main():
         m = get(f'{base}/api/models', 'tok')
         check([c['label'] for c in m['choices']] == ['Fast (rough)', 'Balanced (recommended)', 'Quickest test (very rough)'], f"the choices read in plain words, Fast first, the quickest test last ({[c['label'] for c in m['choices']]})")
         check([c['mb'] for c in m['choices']] == [142, 464, 75], 'the download sizes are the real model folders: Fast 142, Balanced 464, Quickest 75 MB')
-        check(m['default'] == 'base' and all(c['ready'] is None for c in m['choices']), 'r8.1: with no model folder known the default is FAST (the one get-model.bat fetches and the one timed) and nothing is claimed about what is downloaded')
+        check(m['default'] == 'small' and all(c['ready'] is None for c in m['choices']), 'r9 (Ryan 17:18): with no model folder known the default is BALANCED and nothing is claimed about what is downloaded')
         check(m['hint'] == 'Balanced works for most videos. Pick Fast for a quick try.', f"the hint is the agreed sentence, without promising a choice that is not offered ({m['hint']!r})")
         check(not names_in(json.dumps([c['label'] for c in m['choices']]) + m['hint']), 'MUST-FAIL: no Whisper name (tiny, base, small, medium, whisper) in any label or the hint')
         check(names_in('<select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>') == ['base', 'small', 'tiny'], 'MUST-FAIL fixture: the r8 list WOULD be caught by this name check')
@@ -99,9 +100,9 @@ def main():
         by = {c['name']: c['ready'] for c in m['choices']}
         check(by == {'base': True, 'small': False, 'tiny': False} and m['default'] == 'base', f"only Fast downloaded: Fast is ready, the others say so, and the DEFAULT is Fast (never a missing download) ({by}, {m['default']})")
         os.environ['RYAGRAM_MODEL_DIR'] = str(models_dir('base', 'small'))
-        check(get(f'{base}/api/models', 'tok')['default'] == 'base', 'r8.1: with Balanced downloaded as well the default is still Fast until Ryan chooses; Balanced is one pick away')
+        check(get(f'{base}/api/models', 'tok')['default'] == 'small', 'r9: with Balanced downloaded as well the default is Balanced')
         os.environ['RYAGRAM_MODEL_DIR'] = str(models_dir())
-        check(get(f'{base}/api/models', 'tok')['default'] == 'base', 'r8.1: with nothing downloaded the default is Fast, whose door check says to double-click get-model.bat')
+        check(get(f'{base}/api/models', 'tok')['default'] == 'small', 'r9: with nothing downloaded the default is still Balanced, whose door check points at the Download button')
 
         Emod.MODELS = tuple(real_models) + ('medium',)
         m = get(f'{base}/api/models', 'tok')
@@ -115,9 +116,9 @@ def main():
         sl = {'recipe': 'great-news.json', 'binds': {'source-1': [str(clip)]}}
         pc = post(f'{base}/api/check', {**sl, 'model': 'small'}, 'tok')
         miss = ' '.join(pc['problems'])
-        check('Balanced (recommended)' in miss and 'about 464 MB' in miss and 'get-model.bat balanced' in miss and not names_in(miss), f'a missing Balanced model is named in plain words with its size and the one line to type ({miss[:150]!r})')
+        check('Balanced (recommended)' in miss and 'about 464 MB' in miss and 'Download the listening model' in miss and 'get-model' not in miss and not names_in(miss), f'a missing Balanced model is named in plain words with its size and the button to press ({miss[:150]!r})')
         pc = post(f'{base}/api/check', {**sl, 'model': 'tiny'}, 'tok')
-        check('Quickest test' in ' '.join(pc['problems']) and 'get-model.bat quickest' in ' '.join(pc['problems']) and not names_in(' '.join(pc['problems'])), 'and so is the quickest test')
+        check('Quickest test' in ' '.join(pc['problems']) and 'Download the listening model' in ' '.join(pc['problems']) and not names_in(' '.join(pc['problems'])), 'and so is the quickest test')
         ok = post(f'{base}/api/check', {**sl, 'model': 'base'}, 'tok')
         check(not [p for p in ok['problems'] if 'listening model' in p] and ok['model_label'] == 'Fast (rough)', 'a downloaded choice raises no model problem and the plan summary names it in plain words')
         pc = post(f'{base}/api/check', {**sl, 'model': 'huge'}, 'tok')
@@ -141,6 +142,98 @@ def main():
         page = dm.PAGE
         sel = re.search(r'<label for="model">.*?</p>', page, re.S).group(0)
         check('<select id="model"></select>' in sel and not names_in(re.sub(r'<[^>]+>', ' ', sel)), 'the page has no model name in the list or around it (the options are filled in from the server)')
+
+        print('\nthe Download button, as the app runs it (the network part is a stand-in here; tools/check-model-download.py tries the real downloader)')
+
+        def post_err(url, body):
+            try:
+                return 200, post(url, body, 'tok')
+            except urllib.error.HTTPError as e:
+                return e.code, json.loads(e.read())
+
+        def wait_for(pred, secs=5):
+            end = time.time() + secs
+            while time.time() < end:
+                st = get(f'{base}/api/model-download', 'tok')
+                if pred(st):
+                    return st
+                time.sleep(0.05)
+            return get(f'{base}/api/model-download', 'tok')
+
+        mdl = dm._download_mod()
+        real_dl = mdl.download
+        gate, plan = threading.Event(), {'end': 'ok'}
+
+        def fake_dl(model, root, progress=None, cancel=None, net=None):
+            progress(10_000_000, mdl.model_info(model)['total_bytes'], 'model.bin')
+            while not gate.is_set():
+                if cancel.is_set():
+                    raise mdl.Cancelled()
+                time.sleep(0.02)
+            if plan['end'] == 'refuse':
+                raise mdl.ModelRefused('model.bin is not the file it should be (its check number is different), so it was deleted. Nothing was kept.')
+            if plan['end'] == 'boom':
+                raise RuntimeError('secret internal detail C:/Users/x')
+            f = Path(root) / 'models--Systran--faster-whisper-small' / 'snapshots' / 'x' / 'model.bin'
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.write_bytes(b'x')
+
+        mdl.download = fake_dl
+        try:
+            os.environ.pop('RYAGRAM_MODEL_DIR', None)
+            st = get(f'{base}/api/model-download', 'tok')
+            code, err = post_err(f'{base}/api/model-download', {'model': 'small'})
+            check(st['can'] is False and st['state'] == 'idle' and code == 400 and 'where to keep' in json.dumps(err), 'without a models folder the app says so in words and starts nothing')
+            os.environ['RYAGRAM_MODEL_DIR'] = str(models_dir())
+            check(get(f'{base}/api/model-download', 'tok')['can'] is True and get(f'{base}/api/model-download', 'tok')['host'] == 'huggingface.co', 'with a models folder the button is possible and the page can name the one host')
+            for bad in ('huge', 'medium', '', '../x'):
+                code, err = post_err(f'{base}/api/model-download', {'model': bad})
+                check(code == 400 and not names_in(json.dumps(err)), f'MUST-FAIL: the model {bad!r} cannot be started')
+            check(get(f'{base}/api/model-download', 'tok')['state'] == 'idle', 'and nothing was started by those refusals')
+            Emod.MODELS = ('tiny', 'small')
+            code, err = post_err(f'{base}/api/model-download', {'model': 'base'})
+            Emod.MODELS = real_models
+            check(code == 400 and get(f'{base}/api/model-download', 'tok')['state'] == 'idle', 'MUST-FAIL: a model that has a pin but that the engine does not offer cannot be started either')
+
+            code, st = post_err(f'{base}/api/model-download', {'model': 'small'})
+            st = wait_for(lambda x: x['done'] > 0)
+            check(code == 200 and st['state'] == 'running' and st['total'] == mdl.model_info('small')['total_bytes'] and st['done'] == 10_000_000, f"starting shows a running download with the pinned total and its progress ({st['state']}, {st['done']}/{st['total']})")
+            code, err = post_err(f'{base}/api/model-download', {'model': 'small'})
+            check(code == 400 and 'already running' in json.dumps(err), 'MUST-FAIL: a second start while one is running is refused')
+            post(f'{base}/api/model-cancel', {}, 'tok')
+            st = wait_for(lambda x: x['state'] != 'running')
+            check(st['state'] == 'cancelled' and 'Nothing was kept' in st['message'], f"Cancel ends it in plain words ({st['state']}, {st['message']!r})")
+            ready = {c['name']: c['ready'] for c in get(f'{base}/api/models', 'tok')['choices']}
+            check(ready['small'] is False, 'and Balanced is still not ready after a cancel')
+
+            plan['end'] = 'refuse'
+            post(f'{base}/api/model-download', {'model': 'small'}, 'tok')
+            wait_for(lambda x: x['done'] > 0)
+            gate.set()
+            st = wait_for(lambda x: x['state'] != 'running')
+            check(st['state'] == 'failed' and 'check number' in st['message'] and 'Nothing was kept' in st['message'], f"a refused file ends as 'failed' with the plain sentence ({st['state']})")
+            gate.clear()
+            plan['end'] = 'boom'
+            post(f'{base}/api/model-download', {'model': 'small'}, 'tok')
+            wait_for(lambda x: x['done'] > 0)
+            gate.set()
+            st = wait_for(lambda x: x['state'] != 'running')
+            check(st['state'] == 'failed' and 'secret' not in st['message'] and 'Users' not in st['message'] and 'tell Ryan' in st['message'], 'MUST-FAIL: an unexpected error shows a plain sentence and no internal text or path')
+            gate.clear()
+            plan['end'] = 'ok'
+            post(f'{base}/api/model-download', {'model': 'small'}, 'tok')
+            wait_for(lambda x: x['done'] > 0)
+            gate.set()
+            st = wait_for(lambda x: x['state'] != 'running')
+            ready = {c['name']: c['ready'] for c in get(f'{base}/api/models', 'tok')['choices']}
+            check(st['state'] == 'done' and 'ready' in st['message'] and ready['small'] is True, f"a finished download ends as 'done' and the list says Balanced is ready ({st['state']}, {ready})")
+            pc = post(f'{base}/api/check', {**sl, 'model': 'small'}, 'tok')
+            check(not [p for p in pc['problems'] if 'listening model' in p], 'and the door check no longer asks for the model')
+            check('id="model-dl-go"' in dm.PAGE and 'Download the listening model' in dm.PAGE and 'id="model-dl-bar"' in dm.PAGE and 'id="model-dl-stop"' in dm.PAGE, 'the page has the button, the progress bar and Cancel')
+            check('get-model' not in dm.PAGE and 'get-model' not in dm.JS, 'MUST-FAIL: the page no longer tells a person to run a script or type a command for the model')
+        finally:
+            gate.set()
+            mdl.download = real_dl
         srv.shutdown()
         srv.server_close()
     finally:
