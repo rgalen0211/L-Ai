@@ -143,7 +143,7 @@ def leak_scan(root: Path) -> list:
         if parts & FORBIDDEN_DIRS:
             found.append(f"{rel}: a folder that must never travel ({sorted(parts & FORBIDDEN_DIRS)[0]})")
             continue
-        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Start Ryagram.bat")
+        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Open Ryagram.bat")
         # the file-type rule is for OUR folders; a library may legitimately ship a .pem (certifi's public CA list) or a .db, so libraries are held to the NAME rule only
         if p.name in FORBIDDEN_NAMES or (ours and p.suffix.lower() in FORBIDDEN_SUFFIX):
             found.append(f"{rel}: a file that must never travel")
@@ -157,6 +157,7 @@ def leak_scan(root: Path) -> list:
 
 
 def write_start_files(out: Path, has_model: bool) -> None:
+    # The file is called "Open Ryagram.bat" and not "Start ...": from a command line, cmd /c "Start X.bat" runs cmd's own START command instead of the file.
     bat = "\r\n".join([
         "@echo off",
         "rem Starts the Ryagram desktop app from THIS folder, with this folder's own Python. Nothing is installed; nothing outside this folder is changed except the sign-in kept in Windows.",
@@ -182,8 +183,8 @@ def write_start_files(out: Path, has_model: bool) -> None:
         "if errorlevel 1 pause",
         "",
     ])
-    (out / "Start Ryagram.bat").write_bytes(bat.encode("ascii"))
-    txt = ("RYAGRAM\r\n\r\n1. Double-click  Start Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
+    (out / "Open Ryagram.bat").write_bytes(bat.encode("ascii"))
+    txt = ("RYAGRAM\r\n\r\n1. Double-click  Open Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
            "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one Ryan read to you. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
            + ("" if has_model else "4. The first time, run  tools\\get-model.bat  once to download the listening model.\r\n"))
