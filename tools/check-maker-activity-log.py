@@ -2,8 +2,8 @@
 run a stand-in `ryagram.local`. Everything is written under one throwaway folder (TEMP, or --base), never to C:\\ unless TEMP is there; the home, AppData and LocalAppData the program could reach are
 replaced with EMPTY folders and must still be empty at the end.
 
-    python tools/check-maker-activity-log.py [<a Ryagram checkout with ryagram/local>] [<scratch base folder>]
-      defaults: D:/Ryagram-scratch/WEB/engine-lr and a new folder under TEMP
+    python tools/check-maker-activity-log.py <the kit's own folder, e.g. D:/Ryagram-scratch/sam-kit-v11c-r8, or a current Ryagram checkout> [<scratch base folder>]
+      the engine folder is REQUIRED (an older engine has no sound check and two rows would fail for that reason alone; the check says so in words); the scratch folder defaults to a new one under TEMP
 
 What it proves
   A  what the log can say: only fixed events and fields; hostile values written as "?"; a file name, folder, typed word, answer, user name or computer name never reaches the file
@@ -28,7 +28,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/engine-lr')
+if len(sys.argv) < 2:
+    sys.exit("Give the engine folder: the kit's own folder (the one that holds ryagram/local) or a current Ryagram checkout. There is no default, because an older engine has no sound check and would fail two rows for that reason alone.")
+ENGINE = Path(sys.argv[1])
 BASE = Path(sys.argv[2]) if len(sys.argv) > 2 else None
 spec = importlib.util.spec_from_file_location('desktop_maker', ROOT / 'tools' / 'desktop_maker.py')
 dm = importlib.util.module_from_spec(spec)
@@ -197,6 +199,9 @@ def main():
         check('secret' not in lines(tmp / 'unit' / dm.ACTIVITY_NAME)[-1] and 'private' not in (tmp / 'unit' / dm.ACTIVITY_NAME).read_text(encoding='utf-8'), 'a field the event does not list is dropped')
 
         s = Session(tmp, 'one')
+        if dm.STATE.get('gap_fn') is None:
+            print(f"STOP: the engine in {ENGINE} has no sound check (ryagram.library.transcribe.decode_gap_ms), so the sound_started / sound_done rows cannot be tested. Use the kit's own folder or a current Ryagram checkout.")
+            return 2
         j, j2 = full_flow(s, clips)
         recs = lines(s.log)
         names = [r['ev'] for r in recs]
