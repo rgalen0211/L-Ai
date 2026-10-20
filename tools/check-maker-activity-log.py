@@ -316,7 +316,7 @@ def main():
         check(page.index('A note about a small log') < page.index('1. Recipe'), 'the notice comes BEFORE the first step')
         check("api('/api/log'" in js and "api('/api/log', { on: box.checked })" in js, 'the page script shows the real path and sends the switch')
         w = {'1 old text gone': 'pass the door checks' not in js and 'Your files are ready to use.' in js,
-             '2': 'Use the same one the finder used' not in page and 'Pick the same one you used before, or leave it as it is.' in page,
+             '2 (r9: replaced by the plain-words speech list, see check-maker-models.py)': 'Use the same one the finder used' not in page and 'Pick the same one you used before' not in page and 'id="model-hint"' in page,
              '3 hidden': '<details class="paste" hidden>' in page and "get('advanced') === '1'" in js,
              '4': 'network attempts:' not in js and 'Nothing went online (' in js and 'A list of where each word came from is saved beside the film.' in js,
              '5': "f.mb < 1 ? 'under 1 MB'" in js,
