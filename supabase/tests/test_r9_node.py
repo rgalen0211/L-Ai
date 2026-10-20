@@ -408,6 +408,7 @@ class Review1411(R9):
     # MED-1: the node role's WHOLE reach, from the catalogs
     NODE_FNS = sorted(["public.node_account(text)", "public.node_claim(text)", "public.node_device_begin(text,text,text)",
                        "public.node_device_exchange(text,text)", "public.node_heartbeat(text,uuid,numeric,text,jsonb)",
+                       "public.node_hit(text,text,integer,integer)",
                        "public.node_register_artifact(text,uuid,artifact_kind,bigint,text,numeric,integer,integer)",
                        "public.node_report_state(text,uuid,job_state,text,text,text,boolean)",
                        "public.node_retry(text,uuid,text,text)", "public.node_signout(text)"])
@@ -534,6 +535,77 @@ class Web114(R9):
         self.make_tester(SAM, True)
         self.assertTrue(self.db.as_(SAM).one("select local_compute from account_settings where owner_id = %s", SAM))
         self.assertIsNone(self.db.as_(BOB).one("select local_compute from account_settings where owner_id = %s", SAM))
+
+
+class NodeHit(R9):
+    # CONNECT 100: the edge function's rate counter
+    def test_the_counter_allows_max_then_refuses_per_caller_and_bucket(self):
+        r = self.runner()
+        got = [r.one("select node_hit(%s, 'poll', 2, 60)", h("ip1")) for _ in range(3)]
+        self.assertEqual(got, [True, True, False])
+        self.assertTrue(self.runner().one("select node_hit(%s, 'poll', 2, 60)", h("ip2")))     # another caller
+        self.assertTrue(self.runner().one("select node_hit(%s, 'code', 2, 60)", h("ip1")))     # another bucket
+
+    def test_bad_arguments_and_other_roles_are_refused(self):
+        for args in (("not-a-hash", "poll", 2, 60), (h("x"), "BAD BUCKET", 2, 60), (h("x"), "poll", 0, 60), (h("x"), "poll", 2, 0)):
+            self.runner_denied("select node_hit(%s, %s, %s, %s)", *args)
+        for who in (SAM, "anon"):
+            self.denied(who, "select node_hit(%s, 'poll', 2, 60)", h("x"))
+        self.runner_denied("select count(*) from node_buckets")
+
+    def test_old_windows_are_swept(self):
+        self.runner().one("select node_hit(%s, 'poll', 2, 60)", h("old"))
+        self.admin("update node_buckets set window_start = now() - interval '2 days' returning 1")
+        self.runner().one("select node_device_begin(%s, 'SWEP-SWEP', 'X')", h("sw"))
+        self.assertEqual(self.admin("select count(*) from node_buckets"), 0)
+
+
+class Review1525(R9):
+    def run_to_uploading(self):
+        self.make_tester()
+        tok = self.node()
+        job = self.submit(SAM, self.version(SAM), "contact_sheet")
+        self.assertEqual(self.claim_node(tok), job)
+        r = self.runner()
+        for st in ("running", "validating", "uploading"):
+            r.one("select state from node_report_state(%s, %s, %s, p_engine_commit => 'abc1234', p_engine_dirty => false)", h(tok), job, st)
+        path = self.runner().one("select node_register_artifact(%s, %s, 'contact_sheet', 100, %s)", h(tok), job, "a" * 64)
+        self.admin("update jobs set state = state where id = %s returning 1", job)
+        return tok, job, path
+
+    def store(self, path, size):
+        self.admin("insert into storage.objects (bucket_id, name, metadata) values ('ryagram-artifacts', %s, "
+                   "jsonb_build_object('size', %s::bigint, 'mimetype', 'image/png')) returning name", path, size)
+
+    def write_metering(self, job):
+        self.admin("update job_metering set wall_s = 2.5 where job_id = %s returning 1", job)
+
+    # MED-2: register 100 bytes, store 200, and complete is refused (must-fail); the right size completes
+    def test_a_stored_size_that_differs_from_the_registered_one_cannot_complete(self):
+        tok, job, path = self.run_to_uploading()
+        self.store(path, 200)
+        self.runner_denied("select state from node_report_state(%s, %s, 'complete')", h(tok), job)
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", job), "uploading")
+
+    def test_a_missing_file_cannot_complete(self):
+        tok, job, path = self.run_to_uploading()
+        self.runner_denied("select state from node_report_state(%s, %s, 'complete')", h(tok), job)
+
+    def test_the_right_size_passes_the_size_check(self):
+        tok, job, path = self.run_to_uploading()
+        self.store(path, 100)
+        try:
+            self.runner().one("select state from node_report_state(%s, %s, 'complete')", h(tok), job)
+        except psycopg.Error as e:                         # the worker's own later checks (metering, receipt) may refuse;
+            self.assertNotIn("not the size", str(e))       # what matters here is that the SIZE check passed
+
+    # LOW: a per-person cap on looking at and deciding codes
+    def test_checking_codes_is_capped_per_person(self):
+        d = self.db.as_(SAM)
+        for _ in range(60):
+            d.one("select device_request_check('ZZZZ-ZZZZ')")
+        self.denied(SAM, "select device_request_check('ZZZZ-ZZZZ')")
+        self.assertEqual(self.db.as_(BOB).one("select device_request_check('ZZZZ-ZZZZ') ->> 'state'"), "unknown")
 
 
 if __name__ == "__main__":

@@ -16,6 +16,10 @@
 
 begin;
 
+-- node_runner is created NOLOGIN here. The 'node' edge function connects AS node_runner (NODE_DB_URL), so the APPLY row
+-- includes Ryan's own step, as for connect_runner: from a file OUTSIDE every repo, in the SQL Editor,
+--   alter role node_runner login password '<a new random password>';
+-- and that password goes only into the function's secrets. It is never in a migration, a repo, a log or a chat.
 do $$ begin
   if not exists (select 1 from pg_roles where rolname = 'node_runner') then
     create role node_runner nologin noinherit;
@@ -150,10 +154,48 @@ revoke all on public.device_codes, public.node_tokens from public, anon, authent
 create table ryagram_private.node_tx (txid bigint primary key, owner_id uuid not null, token_id uuid not null);
 revoke all on ryagram_private.node_tx from public, anon, authenticated, service_role, node_runner;
 
+-- CONNECT 100: fixed-window rate counters for the 'node' edge function (a copy of connect_anon_hit, its own table)
+create table public.node_buckets (
+  who text not null,
+  bucket text not null,
+  window_start timestamptz not null,
+  n int not null default 0,
+  primary key (who, bucket, window_start));
+alter table public.node_buckets enable row level security;
+revoke all on public.node_buckets from public, anon, authenticated, service_role, node_runner;
+
+create function public.node_hit(p_caller text, p_bucket text, p_max int, p_window_s int) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare w timestamptz; c int;
+begin
+  if p_caller is null or p_caller !~ '^[0-9a-f]{64}$' or p_bucket !~ '^[a-z0-9_]{1,30}$' or p_window_s not between 1 and 86400 or p_max < 1 then
+    raise exception 'bad limit' using errcode = '22023'; end if;
+  w := to_timestamp(floor(extract(epoch from now()) / p_window_s) * p_window_s);
+  insert into public.node_buckets (who, bucket, window_start, n) values (p_caller, p_bucket, w, 1)
+    on conflict (who, bucket, window_start) do update set n = public.node_buckets.n + 1
+    returning public.node_buckets.n into c;
+  return c <= p_max;
+end $$;
+
+-- a per-person fixed-window cap (the codes are 31^8, so guessing is already impractical; this closes it cheaply)
+create function ryagram_private.node_user_hit(p_user uuid, p_bucket text, p_max int, p_window_s int) returns void
+language plpgsql security definer set search_path = '' as $$
+declare w timestamptz; c int;
+begin
+  w := to_timestamp(floor(extract(epoch from now()) / p_window_s) * p_window_s);
+  insert into public.node_buckets (who, bucket, window_start, n) values ('user:' || p_user, p_bucket, w, 1)
+    on conflict (who, bucket, window_start) do update set n = public.node_buckets.n + 1
+    returning public.node_buckets.n into c;
+  if c > p_max then
+    raise exception 'Too many tries. Wait a few minutes and try again.' using errcode = 'PT429';
+  end if;
+end $$;
+
 -- MED-3: ended sign-in codes go after a day; node_tx rows of finished transactions go at once
 create function ryagram_private.node_sweep() returns void
 language sql security definer set search_path = '' as $$
   delete from public.device_codes where expires_at < now() - interval '1 day';
+  delete from public.node_buckets where window_start < now() - interval '1 day';
   delete from ryagram_private.node_tx where txid < txid_snapshot_xmin(txid_current_snapshot());
 $$;
 
@@ -184,6 +226,7 @@ create function public.device_request_check(p_user_code text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_app_session(); d public.device_codes;
 begin
+  perform ryagram_private.node_user_hit(me, 'code_check', 60, 3600);
   select * into d from public.device_codes where user_code = upper(btrim(p_user_code));
   if not found then return jsonb_build_object('state', 'unknown'); end if;
   if d.state <> 'pending' then return jsonb_build_object('state', 'used'); end if;
@@ -197,6 +240,7 @@ create function public.device_decide(p_user_code text, p_approve boolean) return
 language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_app_session(); d public.device_codes;
 begin
+  perform ryagram_private.node_user_hit(me, 'code_decide', 20, 3600);
   update public.device_codes
     set state = case when p_approve then 'approved' else 'denied' end,
         user_id = case when p_approve then me end, decided_at = now()
@@ -450,9 +494,19 @@ create function public.node_report_state(p_access_hash text, p_job_id uuid, p_st
                                          p_error_detail text default null, p_engine_commit text default null,
                                          p_engine_dirty boolean default null) returns public.jobs
 language plpgsql security definer set search_path = '' as $$
-declare me uuid := ryagram_private.node_actor(p_access_hash);
+declare me uuid := ryagram_private.node_actor(p_access_hash); bad text;
 begin
   perform ryagram_private.node_job(me, p_job_id);
+  if p_state = 'complete' then
+    -- a signed upload URL does not hold an upload to the size the node CLAIMED: compare what is stored (storage keeps the
+    -- size; it keeps no sha256, so the hash is the file's own receipt's job, not checkable here)
+    select string_agg(a.kind::text, ', ') into bad from public.artifacts a
+      left join storage.objects o on o.bucket_id = a.bucket and o.name = a.storage_path
+      where a.job_id = p_job_id and (o.name is null or coalesce((o.metadata ->> 'size')::bigint, -1) <> a.bytes);
+    if bad is not null then
+      raise exception 'The stored file is not the size this computer registered (%): not completed.', bad using errcode = '42501';
+    end if;
+  end if;
   return public.report_state(p_job_id, p_state, p_error_code, p_error_detail, p_engine_commit, p_engine_dirty);
 end $$;
 
@@ -494,6 +548,7 @@ end $$;
 -- ----------------------------------------------------------------------------------------- grants
 revoke execute on function
   public.node_device_begin(text, text, text), public.node_device_exchange(text, text), public.node_account(text),
+  public.node_hit(text, text, int, int),
   public.node_signout(text), public.node_claim(text),
   public.node_heartbeat(text, uuid, numeric, text, jsonb),
   public.node_report_state(text, uuid, public.job_state, text, text, text, boolean),
@@ -502,6 +557,7 @@ revoke execute on function
   from public, anon, authenticated, service_role;
 grant execute on function
   public.node_device_begin(text, text, text), public.node_device_exchange(text, text), public.node_account(text),
+  public.node_hit(text, text, int, int),
   public.node_signout(text), public.node_claim(text),
   public.node_heartbeat(text, uuid, numeric, text, jsonb),
   public.node_report_state(text, uuid, public.job_state, text, text, text, boolean),
@@ -517,7 +573,7 @@ grant execute on function public.device_request_check(text), public.device_decid
   public.admin_local_compute_audit(),
   public.admin_set_local_compute(uuid, boolean, text) to authenticated;
 revoke execute on function ryagram_private.node_actor(text), ryagram_private.in_node_tx(), ryagram_private.node_job(uuid, uuid),
-  ryagram_private.node_sweep(), ryagram_private.masked_email(uuid),
+  ryagram_private.node_sweep(), ryagram_private.masked_email(uuid), ryagram_private.node_user_hit(uuid, text, int, int),
   ryagram_private.jobs_place(), ryagram_private.jobs_place_fixed() from public, anon, authenticated, service_role, node_runner;
 
 commit;
