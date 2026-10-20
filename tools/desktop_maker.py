@@ -389,6 +389,8 @@ def _discard_outputs(job) -> None:
 
 def job_status() -> dict:
     out = _job_status()
+    if out.get("state") == "planned":
+        STATE["last_plan"] = out.get("plan")
     job = STATE["job"]
     if job and not job.get("logged") and out.get("state") in JOB_STATES:
         job["logged"] = True
@@ -482,6 +484,264 @@ def cancel_job() -> dict:
     return job_status()
 
 
+# ---------------------------------------------------------------------------------------------------- maker v2: pictures and rules (OFF unless started with --v2)
+# CONNECT's share of CONNECT-MAKER-V2-DESIGN.md section 5: accept pictures like videos, check them, take the person's rights tick, build the rule "every time WORDS are said, show PICTURE for
+# N seconds", list where the rule would fire in the built film, and save it all as overlays.json (docs/maker-v2-engine-contract.md). ENGINE's part (word times, the finishing pass that draws
+# the pictures) is NOT here: until it exists the occurrences are APPROXIMATE (words spread evenly over each clip) and the page says plainly that nothing is drawn into the film yet.
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+MAX_IMAGE_BYTES = 20_000_000
+MAX_IMAGE_PIXELS = 25_000_000
+RULE_MODES = ("full", "centre", "corner", "lower_third")
+RULE_LIMITS = {"seconds": (0.5, 10.0), "fade_s": (0.0, 1.0), "phrase_chars": 200, "rules": 20, "images": 20}
+OVERLAYS_SCHEMA = "ryagram.maker-overlays/0"
+
+
+def _sniff_image(head: bytes):
+    """(kind, width, height, animated) from a picture file's own first bytes; kind None when it is not a png, jpeg or webp."""
+    if head[:8] == b"\x89PNG\r\n\x1a\n":
+        i, w, h, anim = 8, None, None, False
+        while i + 8 <= len(head):
+            ln, typ = int.from_bytes(head[i:i + 4], "big"), head[i + 4:i + 8]
+            if typ == b"IHDR" and i + 16 <= len(head):
+                w, h = int.from_bytes(head[i + 8:i + 12], "big"), int.from_bytes(head[i + 12:i + 16], "big")
+            if typ == b"acTL":
+                anim = True
+            if typ in (b"IDAT", b"IEND"):
+                break
+            i += 12 + ln
+        return ("png", w, h, anim) if w else (None, None, None, False)
+    if head[:3] == b"\xff\xd8\xff":
+        i = 2
+        while i + 9 < len(head):
+            if head[i] != 0xFF:
+                i += 1
+                continue
+            m = head[i + 1]
+            if 0xC0 <= m <= 0xCF and m not in (0xC4, 0xC8, 0xCC):
+                return "jpeg", (head[i + 7] << 8) | head[i + 8], (head[i + 5] << 8) | head[i + 6], False
+            i += 2 + ((head[i + 2] << 8) | head[i + 3])
+        return "jpeg", None, None, False
+    if head[:4] == b"RIFF" and head[8:12] == b"WEBP":
+        tag = head[12:16]
+        if tag == b"VP8X" and len(head) >= 30:
+            return "webp", 1 + int.from_bytes(head[24:27], "little"), 1 + int.from_bytes(head[27:30], "little"), bool(head[20] & 0x02)
+        if tag == b"VP8L" and len(head) >= 25 and head[20] == 0x2F:
+            bits = int.from_bytes(head[21:25], "little")
+            return "webp", (bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1, False
+        if tag == b"VP8 " and len(head) >= 30 and head[23:26] == b"\x9d\x01\x2a":
+            return "webp", int.from_bytes(head[26:28], "little") & 0x3FFF, int.from_bytes(head[28:30], "little") & 0x3FFF, False
+        return "webp", None, None, False
+    return None, None, None, False
+
+
+def inspect_image(path) -> dict:
+    """Is this file a real, still, reasonably sized picture? Judged by its own bytes, never by its name. {ok, name, problem, kind, width, height, bytes, sha256, id}."""
+    p = Path(path)
+    out = {"ok": False, "name": p.name, "problem": ""}
+    if p.suffix.lower() not in IMAGE_EXTS:
+        out["problem"] = f"{p.name} is not a picture type this tool reads (png, jpg or webp)."
+        return out
+    try:
+        size = p.stat().st_size
+        with open(p, "rb") as fh:
+            head = fh.read(1 << 20)
+    except OSError:
+        out["problem"] = f"{p.name} could not be read."
+        return out
+    if size > MAX_IMAGE_BYTES:
+        out["problem"] = f"{p.name} is larger than {MAX_IMAGE_BYTES // 1_000_000} MB."
+        return out
+    kind, w, h, anim = _sniff_image(head)
+    want = {".png": "png", ".jpg": "jpeg", ".jpeg": "jpeg", ".webp": "webp"}[p.suffix.lower()]
+    if kind is None:
+        out["problem"] = f"{p.name} does not look like a real picture (its first bytes are something else)."
+    elif kind != want:
+        out["problem"] = f"{p.name} is named like a {want.upper()} picture but is really a {kind.upper()} one; rename it or save it again."
+    elif anim:
+        out["problem"] = f"{p.name} is an animated picture; use a single still picture."
+    elif not w or not h:
+        out["problem"] = f"The size of {p.name} could not be read, so it cannot be used."
+    elif w * h > MAX_IMAGE_PIXELS:
+        out["problem"] = f"{p.name} has more than {MAX_IMAGE_PIXELS // 1_000_000} million pixels ({w} x {h}); use a smaller copy."
+    if out["problem"]:
+        return out
+    hs = hashlib.sha256()
+    with open(p, "rb") as fh:
+        for blk in iter(lambda: fh.read(1 << 20), b""):
+            hs.update(blk)
+    out.update(ok=True, kind=kind, width=w, height=h, bytes=size, sha256=hs.hexdigest(), id="img-" + hs.hexdigest()[:8])
+    return out
+
+
+def pick_images() -> list[str]:
+    """The operating system's own file window for pictures (own process, as for videos)."""
+    code = ("import tkinter as tk\nfrom tkinter import filedialog\nr = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+            "res = filedialog.askopenfilenames(title='Choose pictures', filetypes=[('Pictures', '*.png *.jpg *.jpeg *.webp')])\n"
+            "import json; print(json.dumps(list(res)))")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=600)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1])
+    except Exception:  # noqa: BLE001
+        return []
+
+
+def _words(text) -> list[str]:
+    return re.findall(r"[a-z0-9']+", str(text or "").lower().replace("’", "'"))
+
+
+def clean_rule(r, images: dict) -> dict:
+    """One rule as the person typed it, or a sentence for the person. Needs a real picture the person has ticked the rights box for."""
+    if not isinstance(r, dict):
+        raise Problem("A rule is not in the right form.")
+    phrase = " ".join(str(r.get("phrase") or "").split())[:RULE_LIMITS["phrase_chars"]]
+    if not _words(phrase):
+        raise Problem("Type the word or short phrase the rule listens for.")
+    img = images.get(str(r.get("image_id")))
+    if not img:
+        raise Problem("Choose one of the pictures you added.")
+    if not img.get("rights"):
+        raise Problem(f"Tick “I have the right to use this picture” for {img['name']} first.")
+    try:
+        seconds, fade = float(r.get("seconds", 2.0)), float(r.get("fade_s", 0.2))
+    except (TypeError, ValueError):
+        raise Problem("The seconds and the fade must be numbers.") from None
+    lo, hi = RULE_LIMITS["seconds"]
+    if not lo <= seconds <= hi:
+        raise Problem(f"Show a picture for between {lo:g} and {hi:g} seconds.")
+    lo, hi = RULE_LIMITS["fade_s"]
+    if not lo <= fade <= hi or fade * 2 > seconds:
+        raise Problem(f"The fade must be between {lo:g} and {hi:g} seconds and at most half of the time the picture is shown.")
+    mode = str(r.get("mode") or "full")
+    if mode not in RULE_MODES:
+        raise Problem("Choose where the picture goes from the list.")
+    return {"phrase": phrase, "image_id": img["id"], "seconds": round(seconds, 2), "mode": mode, "fade_s": round(fade, 2)}
+
+
+def find_occurrences(plan: dict | None, phrase: str, pad_ms: int = 0) -> list[dict]:
+    """Where the phrase is said in the BUILT film, from the plan's clips (their words and lengths). APPROXIMATE until ENGINE reports word times: the words of a clip are spread evenly over
+    its length. A phrase may run across two clips. Returns [{at_s, approximate}]."""
+    want = _words(phrase)
+    if not plan or not want:
+        return []
+    flat, t = [], 0.0                                           # (word, time the word starts in the film)
+    for c in plan.get("clips", []):
+        ws = _words(c.get("words"))
+        dur = (c.get("duration_ms") or 0) / 1000.0
+        for k, w in enumerate(ws):
+            flat.append((w, t + pad_ms / 1000.0 + dur * k / max(1, len(ws))))
+        t += dur + 2 * pad_ms / 1000.0
+    seq = [w for w, _ in flat]
+    return [{"at_s": round(flat[i][1], 2), "approximate": True} for i in range(len(seq) - len(want) + 1) if seq[i:i + len(want)] == want]
+
+
+def images_view() -> list[dict]:
+    return [{"id": i["id"], "name": i["name"], "width": i["width"], "height": i["height"], "bytes": i["bytes"], "rights": bool(i.get("rights"))} for i in STATE["images"].values()]
+
+
+def overlays_view() -> dict:
+    plan = STATE.get("last_plan")
+    pad = 0
+    occ, warn = [], []
+    for k, r in enumerate(STATE["rules"]):
+        hits = find_occurrences(plan, r["phrase"], pad)
+        occ.append({"rule": k, "at_s": [h["at_s"] for h in hits], "approximate": all(h["approximate"] for h in hits)})
+        if plan and not hits:
+            warn.append(f"“{r['phrase']}” is not said in the film the plan found, so this rule would never show its picture.")
+    if STATE["rules"] and not plan:
+        warn.append("Press Plan to see where each rule would show its picture.")
+    return {"images": images_view(), "rules": list(STATE["rules"]), "occurrences": occ, "warnings": warn}
+
+
+def write_overlays() -> None:
+    """The stub interface for ENGINE: overlays.json in the work folder (paths stay on this computer; a receipt names pictures by name and hash only)."""
+    ov = overlays_view()
+    doc = {"schema": OVERLAYS_SCHEMA, "saved": time.strftime("%Y-%m-%d %H:%M:%S"),
+           "images": [{"id": i["id"], "file_name": i["name"], "path": i["path"], "sha256": i["sha256"], "width": i["width"], "height": i["height"], "bytes": i["bytes"], "rights_ticked": bool(i.get("rights"))}
+                      for i in STATE["images"].values()],
+           "rules": STATE["rules"], "occurrences": ov["occurrences"]}
+    STATE["work"].mkdir(parents=True, exist_ok=True)
+    (STATE["work"] / "overlays.json").write_text(json.dumps(doc, indent=1), encoding="utf-8")
+
+
+def _add_images(paths) -> dict:
+    added, refused = 0, []
+    for pth in paths:
+        if len(STATE["images"]) >= RULE_LIMITS["images"]:
+            refused.append({"name": Path(pth).name, "problem": f"At most {RULE_LIMITS['images']} pictures at a time."})
+            continue
+        res = inspect_image(pth)
+        if not res["ok"]:
+            refused.append({"name": res["name"], "problem": res["problem"]})
+            act("image_refused")
+            continue
+        if res["id"] not in STATE["images"]:
+            STATE["images"][res["id"]] = {**res, "path": str(Path(pth).resolve()), "rights": False}
+            added += 1
+    if added:
+        act("image_added", count=added)
+        remember_dirs([i["path"] for i in STATE["images"].values()])
+    return {**overlays_view(), "refused": refused}
+
+
+def v2_post(path: str, body: dict) -> dict:
+    if path == "/api/image/pick":
+        return _add_images(pick_images())
+    if path == "/api/image/locate":
+        found = locate(body.get("name"), body.get("size"), body.get("mtime_ms"), exts=IMAGE_EXTS)
+        if len(found["matches"]) == 1:
+            return _add_images(found["matches"])
+        why = "More than one file looks like that one; use Add a picture instead." if found["matches"] else "I could not find where that file is on this computer; use Add a picture instead."
+        return {**overlays_view(), "refused": [{"name": Path(str(body.get("name") or "file")).name, "problem": why}]}
+    if path == "/api/image/rights":
+        img = STATE["images"].get(str(body.get("id")))
+        if not img:
+            raise Problem("That picture is not in the list.")
+        img["rights"] = bool(body.get("ok"))
+        act("image_rights", ok=img["rights"])
+        if not img["rights"]:
+            STATE["rules"] = [r for r in STATE["rules"] if r["image_id"] != img["id"]]
+        write_overlays()
+        return overlays_view()
+    if path == "/api/image/remove":
+        img = STATE["images"].pop(str(body.get("id")), None)
+        if img:
+            STATE["rules"] = [r for r in STATE["rules"] if r["image_id"] != img["id"]]
+            act("image_removed")
+            write_overlays()
+        return overlays_view()
+    if path == "/api/overlays":
+        rules = body.get("rules")
+        if not isinstance(rules, list) or len(rules) > RULE_LIMITS["rules"]:
+            raise Problem(f"At most {RULE_LIMITS['rules']} rules.")
+        STATE["rules"] = [clean_rule(r, STATE["images"]) for r in rules]
+        ov = overlays_view()
+        act("rule_saved", count=len(STATE["rules"]))
+        act("occurrences_listed", count=sum(len(o["at_s"]) for o in ov["occurrences"]))
+        write_overlays()
+        return ov
+    raise Problem("Not found.")
+
+
+V2_HTML = """<section id="v2" aria-labelledby="h-v2"><h2 id="h-v2">4. Pictures to show when a word is said (test feature)</h2>
+<p class="note" id="v2-note">Test feature: your pictures and rules are saved and checked here, but this test version does not draw them into the film yet.</p>
+<div class="row"><button id="v2-add" type="button" class="button secondary">Add a picture&hellip;</button></div>
+<p class="note" id="v2-dropnote">Or drag a picture file onto this box. Pictures: png, jpg or webp, one still picture each (not animated).</p>
+<ul id="v2-images"></ul><p id="v2-refused" class="problems" role="alert"></p>
+<h3>A rule</h3>
+<label for="v2-phrase">Every time this is said</label><input id="v2-phrase" type="text" maxlength="200" autocomplete="off" spellcheck="false">
+<label for="v2-image">show this picture</label><select id="v2-image"></select>
+<label for="v2-seconds">for this many seconds</label><input id="v2-seconds" type="number" min="0.5" max="10" step="0.5" value="2">
+<label for="v2-mode">placed</label><select id="v2-mode"><option value="full">Full frame</option><option value="centre">Centre</option><option value="corner">Corner</option><option value="lower_third">Lower third</option></select>
+<label for="v2-fade">fading in and out over this many seconds</label><input id="v2-fade" type="number" min="0" max="1" step="0.1" value="0.2">
+<div class="actions"><button id="v2-rule" type="button" class="button secondary">Add this rule</button></div>
+<p id="v2-ruleerr" class="problems" role="alert"></p><ul id="v2-rules"></ul><div id="v2-occ" role="status"></div></section>
+"""
+
+
+def page_html() -> str:
+    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "")
+
+
 def pick_files(multiple: bool) -> list[str]:
     """The operating system's own file dialog, opened in its own process (tkinter must own its thread). Returns paths on this computer."""
     code = ("import tkinter as tk\nfrom tkinter import filedialog\nr = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
@@ -508,7 +768,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -547,6 +807,7 @@ ACTIVITY_EVENTS = {
     "ui_recipe_changed": ("recipe",), "ui_model_changed": ("model",), "ui_words_edited": ("chars",), "ui_slot_cleared": (),
     "problem_shown": ("endpoint",), "error_shown": ("endpoint", "exception"), "log_off": (), "log_on": (), "log_full": (), "words_skipped": ("count",),
     "signin_started": (), "signin_done": (), "signin_ended": (), "signin_removed": (),
+    "image_added": ("count",), "image_refused": (), "image_rights": ("ok",), "image_removed": (), "rule_saved": ("count",), "occurrences_listed": ("count",),
 }
 CLIENT_EVENTS = {"recipe_changed": "ui_recipe_changed", "model_changed": "ui_model_changed", "words_edited": "ui_words_edited", "slot_cleared": "ui_slot_cleared"}
 
@@ -665,6 +926,7 @@ PAGE = """<!doctype html>
 <div id="job-out"></div>
 <div id="sound-out"></div>
 <div id="results"></div></section>
+<!--V2-->
 </main><script src="/maker.js"></script></body></html>
 """
 
@@ -946,6 +1208,7 @@ JS = r"""(function () {
     why(running ? 'A job is running, so Plan and Build are off until it ends. You can cancel it.' : planned ? 'The plan is ready. Press Build.' : 'Build turns on after a Plan says the files are ready.');
     if (j.state === 'planned') checkSound(reqBody());
     drawResults(j);
+    if (v2 && j.state === 'planned') v2.refresh();
     if (j.state !== lastState) {                                  // announce a change once, not every poll
       lastState = j.state;
       if (running) say(j.kind === 'plan' ? ('Listening to your files. ' + lastWait).trim() : 'Building the film.');
@@ -963,6 +1226,41 @@ JS = r"""(function () {
     catch (e) { $('job-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
   });
   $('cancel').addEventListener('click', async () => { try { drawJob(await api('/api/cancel', {})); } catch (e) { $('job-out').textContent = e.message; } });
+  function makeV2() {
+    const fmtKb = b => b < 1e6 ? `${Math.max(1, Math.round(b / 1000))} KB` : `${(b / 1e6).toFixed(1)} MB`;
+    const clock = n => `${Math.floor(n / 60)}:${String(Math.floor(n % 60)).padStart(2, '0')}`;
+    let st = { images: [], rules: [], occurrences: [], warnings: [] };
+    const put = r => { st = r; draw(); const bad = (r.refused || []).map(x => x.problem).join(' '); $('v2-refused').textContent = bad; };
+    const rules = () => st.rules.map(({ phrase, image_id, seconds, mode, fade_s }) => ({ phrase, image_id, seconds, mode, fade_s }));
+    async function saveRules(list) { try { $('v2-ruleerr').textContent = ''; put(await api('/api/overlays', { rules: list })); } catch (e) { $('v2-ruleerr').textContent = e.message; } }
+    function draw() {
+      $('v2-images').replaceChildren(...st.images.map(i => el('li', {}, `${i.name} (${i.width} x ${i.height} px, ${fmtKb(i.bytes)}) `,
+        el('label', { class: 'v2-right' }, el('input', { type: 'checkbox', checked: i.rights, onchange: async ev => { try { put(await api('/api/image/rights', { id: i.id, ok: ev.currentTarget.checked })); } catch (e) { $('v2-refused').textContent = e.message; } } }), ' I have the right to use this picture'),
+        el('button', { type: 'button', class: 'button secondary', 'aria-label': `Remove ${i.name}`, onclick: async () => { put(await api('/api/image/remove', { id: i.id })); } }, 'Remove'))));
+      const sel = $('v2-image'), keep = sel.value;
+      sel.replaceChildren(...st.images.map(i => el('option', { value: i.id }, i.name)));
+      if (keep) sel.value = keep;
+      const modeWords = { full: 'full frame', centre: 'in the centre', corner: 'in the corner', lower_third: 'in the lower third' };
+      $('v2-rules').replaceChildren(...st.rules.map((r, k) => {
+        const im = st.images.find(i => i.id === r.image_id), o = (st.occurrences[k] || {}).at_s || [];
+        return el('li', {}, `Every time “${r.phrase}” is said, show ${im ? im.name : 'a picture'} for ${r.seconds} s, ${modeWords[r.mode]}, fading over ${r.fade_s} s. `,
+          o.length ? `Found ${o.length} time${o.length === 1 ? '' : 's'} (about ${o.map(clock).join(', ')}; approximate). ` : '',
+          el('button', { type: 'button', class: 'button secondary', 'aria-label': `Remove the rule for ${r.phrase}`, onclick: () => saveRules(rules().filter((_, j) => j !== k)) }, 'Remove'));
+      }));
+      $('v2-occ').replaceChildren(...st.warnings.map(w => el('p', { class: 'warn' }, w)));
+    }
+    $('v2-add').addEventListener('click', async ev => { const b = ev.currentTarget; b.disabled = true; try { put(await api('/api/image/pick', {})); } catch (e) { $('v2-refused').textContent = e.message; } finally { b.disabled = false; } });
+    $('v2-rule').addEventListener('click', () => saveRules(rules().concat([{ phrase: $('v2-phrase').value, image_id: $('v2-image').value, seconds: Number($('v2-seconds').value), mode: $('v2-mode').value, fade_s: Number($('v2-fade').value) }])));
+    const box = $('v2');
+    box.addEventListener('dragover', ev => ev.preventDefault());
+    box.addEventListener('drop', async ev => {
+      ev.preventDefault(); ev.stopPropagation();
+      for (const f of [...(ev.dataTransfer && ev.dataTransfer.files ? ev.dataTransfer.files : [])]) { try { put(await api('/api/image/locate', { name: f.name, size: f.size, mtime_ms: f.lastModified })); } catch (e) { $('v2-refused').textContent = e.message; } }
+    });
+    api('/api/overlays').then(put).catch(() => {});
+    return { refresh: () => api('/api/overlays').then(put).catch(() => {}) };
+  }
+  const v2 = $('v2') ? makeV2() : null;
   (async () => {
     try {
       await loadModels();
@@ -1019,7 +1317,7 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/":
             if self._auth(query_ok=True):
                 act("page_opened")
-                self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
+                self._send(200, page_html().encode("utf-8"), "text/html; charset=utf-8")
         elif path == "/api/log":
             if self._auth():
                 a = STATE["activity"]
@@ -1034,6 +1332,11 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/signin":
             if self._auth():
                 self._json(200, signin_status())
+        elif path == "/api/overlays":
+            if not STATE.get("v2"):
+                self._json(404, {"error": "Not found."})
+            elif self._auth():
+                self._json(200, overlays_view())
         elif path == "/api/models":
             if self._auth():
                 ch = model_choices()
@@ -1136,6 +1439,11 @@ class Handler(BaseHTTPRequestHandler):
                 given = [str(i) for i, x in enumerate(body.get("answers") or [], 1) if i <= 30 and str(x).strip()]
                 act("answers_saved", answered=" ".join(given), count=len(given))
                 self._json(200, {"path": saved})
+            elif path.startswith("/api/image/") or path == "/api/overlays":
+                if not STATE.get("v2"):
+                    self._json(404, {"error": "Not found."})
+                else:
+                    self._json(200, v2_post(path, body))
             elif path == "/api/pick":
                 got = pick_files(bool(body.get("multiple")))
                 remember_dirs(got)
@@ -1210,13 +1518,13 @@ def remember_dirs(paths) -> None:
         del recent[20:]
 
 
-def locate(name, size, mtime_ms, limit_s=None) -> dict:
+def locate(name, size, mtime_ms, limit_s=None, exts=None) -> dict:
     """A browser page is never told where a dropped file lives (only its name, size and modified time), so find it: the folders the person's files came from first, then the usual places
     (Videos, Downloads, Desktop, Documents, or the --search folders). A match needs the same name, the same size in bytes and the same modified time (to 2 s). Only listings are read; no file is
     opened, copied or sent anywhere. Stops after SEARCH_SECONDS and says so."""
     base = Path(str(name or "")).name
-    if Path(base).suffix.lower() not in STATE["E"].VIDEO_EXTS:
-        raise Problem(f"{base or 'That'} is not a video file this tool reads ({', '.join(STATE['E'].VIDEO_EXTS)}).")
+    if Path(base).suffix.lower() not in (exts or STATE["E"].VIDEO_EXTS):
+        raise Problem(f"{base or 'That'} is not a {'picture' if exts else 'video'} file this tool reads ({', '.join(exts or STATE['E'].VIDEO_EXTS)}).")
     try:
         size = int(size)
         mtime = float(mtime_ms) / 1000 if mtime_ms else None
@@ -1444,7 +1752,7 @@ def signin_do(what: str) -> dict:
         raise Problem(str(e)) from None
 
 
-def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None, activity: bool = True,
+def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None, activity: bool = True, v2: bool = False,
                 site: str | None = None, approval_hosts=(), signin_store=None, signin_transport=None, signin_clock=None):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["questions"] = load_questions(questions)
@@ -1456,6 +1764,8 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
     STATE["sound"] = None
     STATE["last_film"] = None
     STATE["attempts"] = {"plan": 0, "build": 0}
+    STATE["v2"] = bool(v2)
+    STATE["images"], STATE["rules"], STATE["last_plan"] = {}, [], None
     STATE["activity"] = ActivityLog(STATE["out"], enabled=activity and not (STATE["out"] / ACTIVITY_OFF_NAME).exists())
     STATE["signin"], STATE["signin_unavailable"] = None, ""
     if site:                                        # r9: sign in to a Ryagram account. Off (no card, no network) unless a site address is given.
@@ -1481,12 +1791,12 @@ def find_engine() -> Path | None:
     return None
 
 
-def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None, activity: bool = True, **signin):
+def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None, activity: bool = True, v2: bool = False, **signin):
     """Start on the asked port, or the next free one (up to 10 more), so a second start does not fail with an error screen."""
     last = None
     for port in range(first, first + 11) if first else (0,):
         try:
-            return make_server(engine, recipes, work, out, port, questions=questions, search=search, activity=activity, **signin)
+            return make_server(engine, recipes, work, out, port, questions=questions, search=search, activity=activity, v2=v2, **signin)
         except OSError as e:
             last = e
     raise SystemExit(f"Could not open a local port ({last}). Close any other Desktop maker window and try again.")
@@ -1501,6 +1811,7 @@ def main(argv=None) -> int:
     ap.add_argument("--port", type=int, default=8765, help="0 picks any free port")
     ap.add_argument("--search", action="append", default=[], help="a folder to look in for a file you drop onto a slot (repeat for more; default: Videos, Downloads, Desktop and Documents)")
     ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
+    ap.add_argument("--v2", action="store_true", help="TEST: show the pictures-and-rules section (images as inputs, the every-time-a-word-is-said rule); off by default")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     ap.add_argument("--site", default=os.environ.get("RYAGRAM_SITE", ""), help="r9, off unless given: the Ryagram site's node address (https://...), to show the Sign in card")
@@ -1513,7 +1824,7 @@ def main(argv=None) -> int:
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
     try:
-        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log, site=a.site or None, approval_hosts=a.approval_host)
+        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log, site=a.site or None, approval_hosts=a.approval_host, v2=a.v2 or os.environ.get("RYAGRAM_MAKER_V2") == "1")
     except ModuleNotFoundError as e:
         raise SystemExit(f"A part of Python that the maker needs is missing ({e.name}). Most likely the speech add-on is not installed. "
                          + ADDON_STEP)
