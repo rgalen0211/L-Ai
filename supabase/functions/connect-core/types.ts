@@ -38,17 +38,22 @@ export interface ProjectRow { id: string; title: string; created_at: string; upd
 export interface Quote { credits: number; free: boolean; available: number }
 export interface Link { kind: string; url: string; expires_in_s: number }
 
+/** For a job that runs on the person's own computer: when any of their signed-in computers last called the site, and what that computer calls itself (untrusted text). */
+export interface LocalNode { last_seen_at: string | null; computer_name: string | null }
+
 /** What the tools need from the database, ALWAYS as the signed-in person (RLS / connect_* functions). */
 export interface Data extends Omit<UserData, "submitJob"> {
   /** A final render also names the contact sheet and preview it stands on (the database re-checks the ladder). */
-  submitJob(versionId: string, jobType: string, params: Record<string, unknown>, sheetId?: string, previewId?: string): Promise<{ id: string; state: string }>;
+  submitJob(versionId: string, jobType: string, params: Record<string, unknown>, sheetId?: string, previewId?: string): Promise<{ id: string; state: string; run_on?: string }>;
   whoami(): Promise<{ label: string; available: number; held: number }>;
   listProjects(): Promise<ProjectRow[]>;
   createProject(title: string): Promise<{ id: string; title: string; version_id: string; number: number }>;
   /** The version a project's tools work on (newest). null when the project is not the person's. */
   currentVersionId(projectId: string): Promise<string | null>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
-  jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null }) | null>;
+  jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null;
+    /** r9: where the job runs. 'owner_local' = on the person's own computer, made by their Ryagram desktop app. Absent = the house. */
+    run_on?: string; node?: LocalNode | null }) | null>;
   links(versionId: string, jobId: string | null): Promise<Link[]>;
 }
 

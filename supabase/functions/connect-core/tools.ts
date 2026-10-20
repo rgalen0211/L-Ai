@@ -5,7 +5,7 @@ import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStory } from "./story_check.ts";
-import { LIMITS, type Data, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
+import { LIMITS, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 const uuid = { type: "string", pattern: UUID };
@@ -154,6 +154,10 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
       "costs_credits", { credits: q.credits, data: { started: false, credits: q.credits } });
   }
   const job = await ctx.data.submitJob(versionId, jobType, params);
+  if (job.run_on === "owner_local") {
+    return ok(`${label} queued (job ${job.id}). It is free, and it will be made on the person's own computer by their Ryagram app, so it waits until that app is open. Use job_status to follow it.`,
+      { job_id: job.id, state: job.state, started: true, credits_held: 0, run_on: "owner_local" });
+  }
   return ok(`${label} queued (job ${job.id}). It is free. Use job_status to follow it.`,
     { job_id: job.id, state: job.state, started: true, credits_held: 0 });
 }
@@ -201,6 +205,36 @@ const PLAIN: Record<string, string> = {
   cancelled: "cancelled",
 };
 
+// ---------------------------------------------------------------------------------------------- r9: jobs that run on the person's own computer
+// A job marked owner_local is made by the person's Ryagram desktop app, not by the house. While that computer is asleep or the app is closed the job simply waits.
+// It is NEVER called failed for waiting: the words say what it is waiting for, when that computer was last seen, and what to do. (NEXT-CONNECT 101)
+const PLAIN_LOCAL: Record<string, string> = {
+  queued: "waiting for your Ryagram app on your computer", claimed: "picked up by your Ryagram app", running: "being made on your computer",
+  validating: "being checked on your computer", uploading: "being sent from your computer to Ryagram",
+};
+const MIN = 60, HOUR = 3600, DAY = 86400;
+/** "5 minutes ago", never a clock time (no time zone to get wrong). null when the time is not known. */
+export function agoWords(iso: string | null | undefined, now: number = Date.now()): { words: string; seconds: number } | null {
+  const t = iso ? Date.parse(iso) : NaN;
+  if (!Number.isFinite(t)) return null;
+  const sec = Math.max(0, Math.round((now - t) / 1000));
+  const plural = (n: number, w: string) => `${n} ${w}${n === 1 ? "" : "s"} ago`;
+  if (sec < 90) return { words: "a moment ago", seconds: sec };
+  if (sec < HOUR) return { words: plural(Math.round(sec / MIN), "minute"), seconds: sec };
+  if (sec < 2 * DAY) return { words: plural(Math.round(sec / HOUR), "hour"), seconds: sec };
+  return { words: plural(Math.floor(sec / DAY), "day"), seconds: sec };
+}
+/** What a waiting local job says about the computer it waits for. The computer's name is typed by whoever started its sign-in, so it is untrusted text. */
+export function localSeen(node: LocalNode | null | undefined, now: number = Date.now()): string {
+  const ago = agoWords(node?.last_seen_at, now);
+  if (!ago) return " No computer of yours has been seen yet: open the Ryagram app on your computer and switch on “This computer renders my site films”.";
+  const raw = (node?.computer_name ?? "").replace(/[ --​-‏‪-‮⁠-⁩﻿]/g, "").trim().slice(0, 40);
+  const name = raw ? ` ${untrusted("computer-name", raw)}` : "";
+  const hint = ago.seconds > DAY ? " Is the app open on that computer, and is “This computer renders my site films” switched on?"
+    : " It makes the film when it is open and that switch is on.";
+  return ` Your Ryagram app${name} was last seen ${ago.words}.${hint}`;
+}
+
 const jobStatus: ToolDef = {
   name: "job_status", title: "Job status", scope: "read", readOnly: true,
   description: "The state of a job (a contact sheet, preview or render): queued, running, finished, or why it stopped. Poll every 15 to 30 seconds; jobs can take minutes.",
@@ -208,13 +242,17 @@ const jobStatus: ToolDef = {
   async run(a, ctx) {
     const j = await ctx.data.jobById(String(a.job_id));
     if (!j) return NOT_YOURS("job");
-    const bits = [`${j.job_type.replace("_", " ")} ${PLAIN[j.state] ?? j.state}`];
-    if (j.state === "queued" && j.queue_position != null) bits.push(`position ${j.queue_position} in the queue`);
+    const local = j.run_on === "owner_local" ? PLAIN_LOCAL[j.state] : undefined;
+    const bits = [`${j.job_type.replace("_", " ")} ${local ?? PLAIN[j.state] ?? j.state}`];
+    if (!local && j.state === "queued" && j.queue_position != null) bits.push(`position ${j.queue_position} in the queue`);
     if (j.progress != null && IN_PROGRESS.has(j.state)) bits.push(`${Math.round(Number(j.progress) * 100)}% done`);
     let text = bits.join(", ") + ".";
+    const waiting = !!local && j.state === "queued";
+    if (waiting) text += localSeen(j.node) + " It has not failed: it waits for that computer.";
     if (j.error_detail) text += `\nWhat Ryagram said:\n${untrusted("job-error", j.error_detail.slice(0, 1500))}`;
     if (j.state === "complete") text += " Use get_film_link to open the results.";
-    return ok(text, { job_id: j.id, job_type: j.job_type, state: j.state, progress: j.progress ?? null, queue_position: j.queue_position ?? null, error_code: j.error_code });
+    return ok(text, { job_id: j.id, job_type: j.job_type, state: j.state, progress: j.progress ?? null, queue_position: local ? null : (j.queue_position ?? null), error_code: j.error_code,
+      ...(j.run_on === "owner_local" ? { run_on: "owner_local", waiting_for: waiting ? "your_computer" : null, last_seen_at: j.node?.last_seen_at ?? null } : {}) });
   },
 };
 
@@ -229,7 +267,15 @@ const filmLink: ToolDef = {
       return refuse("Link limit for today reached (this protects the person's download allowance). Open the project in the Ryagram app.", "rate");
     }
     const links = await ctx.data.links(pv.versionId, (a.job_id as string | undefined) ?? null);
-    if (!links.length) return ok("Nothing is finished yet for this project. Use make_contact_sheet or make_preview, then job_status.", { links: [] });
+    if (!links.length) {
+      const pending = pv.view.jobs.find((j) => IN_PROGRESS.has(j.state) && (!a.job_id || j.id === a.job_id));
+      const jb = pending ? await ctx.data.jobById(pending.id) : null;
+      if (jb && jb.run_on === "owner_local" && PLAIN_LOCAL[jb.state]) {
+        return ok(`Nothing is finished yet. The ${jb.job_type.replace("_", " ")} is ${PLAIN_LOCAL[jb.state]}.${jb.state === "queued" ? localSeen(jb.node) + " It has not failed: it waits for that computer." : ""}`,
+          { links: [], waiting_for: jb.state === "queued" ? "your_computer" : null, last_seen_at: jb.node?.last_seen_at ?? null });
+      }
+      return ok("Nothing is finished yet for this project. Use make_contact_sheet or make_preview, then job_status.", { links: [] });
+    }
     return ok(links.map((l) => l.expires_in_s > 0 ? `${l.kind}: ${l.url} (valid ${Math.round(l.expires_in_s / 60)} minutes)`
       : `Open ${l.url} and sign in to see the finished results in Ryagram.`).join("\n"), { links });
   },
