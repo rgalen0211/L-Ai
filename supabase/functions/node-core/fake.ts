@@ -48,6 +48,7 @@ export class FakeNodeWorld implements NodeDb {
 
   async hit(caller: string, bucket: string, max: number, windowSeconds: number): Promise<boolean> {
     this.calls.push("hit");
+    if (!/^[0-9a-f]{64}$/.test(caller ?? "") || !/^[a-z0-9_]{1,30}$/.test(bucket) || !(windowSeconds >= 1 && windowSeconds <= 86400) || !(max >= 1)) throw err("22023", "bad limit");     // WORKER rev4 node_hit refuses these
     const k = bucket + "|" + caller, t = this.now(), arr = (this.hitLog.get(k) ?? []).filter((x) => t - x < windowSeconds * 1000);
     if (arr.length >= max) { this.hitLog.set(k, arr); return false; }
     arr.push(t); this.hitLog.set(k, arr); return true;

@@ -87,7 +87,7 @@ async function caller(req: Request, salt: string): Promise<string> {
   const cf = req.headers.get("cf-connecting-ip")?.trim();
   const xff = req.headers.get("x-forwarded-for")?.split(",").map((x) => x.trim()).filter(Boolean) ?? [];
   const ip = cf || xff[xff.length - 1] || "unknown";
-  return (await sha256hex(salt + "|" + ip)).slice(0, 32);
+  return await sha256hex(salt + "|" + ip);                  // the FULL 64 hex characters: the database's node_hit refuses anything else (found by the local end-to-end harness)
 }
 
 /** The shape the database's register_artifact gives: owner/project/version/job/filename. Anything else is never signed (the signing key bypasses every RLS). (CC1 15:25 MED-3.) */
