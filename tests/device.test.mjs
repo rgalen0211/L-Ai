@@ -89,7 +89,7 @@ test('MUST-FAIL: a denied code approves nothing and cannot be approved afterward
 test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, the computer\'s own name as untrusted text, when it was asked for and where, has Approve and Deny, and decides only inside a button handler', () => {
   const src = read('assets/app-device.js');
   for (const text of ["const WARN = 'Approve only if this code is on YOUR screen right now", "h('strong', {}, 'Check before you approve. ')", "'The name it gave itself (not checked)'", "'Asked at'", "'Roughly where (a guess from its network)'",
-                      "'Approve this computer'", "'Deny'", 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.', 'Approve signs this computer in. Deny signs nothing in.', 'Nothing was signed in. If you did not start this, you can ignore it.']) assert.ok(src.includes(text), text);
+                      "'Approve this computer'", "'Deny'", 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.', 'Approve signs this computer in. Deny signs nothing in.', 'If you did not start this, you can ignore it.']) assert.ok(src.includes(text), text);
   const view = src.slice(src.indexOf('async function deviceView'), src.indexOf('// ---- the account page'));
   assert.equal([...view.matchAll(/data\.deviceDecide\(/g)].length, 1);                                       // one decide call, inside the button handler
   assert.match(view, /const decide = async \(button, yes\) => \{[\s\S]*data\.deviceDecide[\s\S]*\};\s*approve\.addEventListener\('click'/);
@@ -154,4 +154,14 @@ test('HYPHEN (found by the local E2E run): the page sends the code as XXXX-XXXX,
   assert.equal((await data.deviceRequestCheck('ABCD2345')).state, 'unknown', 'the unhyphenated form is not what the server stores');
   assert.equal((await data.deviceRequestCheck(D.showCode('ABCD2345'))).state, 'pending');
   await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);
+});
+
+test('THE ANSWER REPLACES THE QUESTION (FACES 16:12 fix 1): after Approve the heading says the computer is signed in and the confirmation is normal-size text with the date as "It works until <date>"; after Deny the heading says nothing was signed in', () => {
+  const src = read('assets/app-device.js');
+  assert.match(src, /heading\.textContent = yes \? 'This computer is signed in' : 'Nothing was signed in';/);
+  assert.match(src, /`It works until \$\{until\}\.`/);
+  assert.match(src, /h\('p', \{ class: 'device-consent' \}, 'Go back to the Ryagram app\.'\)/);
+  assert.match(src, /'You can remove this computer any time: Account, then Computers signed in\.'/);
+  assert.doesNotMatch(src, /signed in until \$\{/);                                                            // one phrasing of the date across site and app: "Works until ..."
+  assert.match(src, /const heading = h\('h1', \{ tabindex: '-1' \}, 'Approve this computer\?'\);/);
 });

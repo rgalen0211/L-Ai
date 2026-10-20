@@ -59,6 +59,7 @@
       const input = h('input', { id: 'device-code', type: 'text', maxlength: '12', autocomplete: 'off', spellcheck: 'false', 'aria-describedby': 'device-code-note', value: prefill ? showCode(prefill) : '' });
       const check = h('button', { class: 'button primary', type: 'button' }, 'Check this code');
       const formBox = h('div', { class: 'device-form' });
+      const heading = h('h1', { tabindex: '-1' }, 'Approve this computer?');
 
       async function show(code) {
         let c;
@@ -81,9 +82,13 @@
               const r = await data.deviceDecide(showCode(code), yes);
               approve.disabled = deny.disabled = true;
               formBox.hidden = true;                                                                  // the answer is given: no form left that looks unfinished
+              const until = r && r.expires_at ? date(r.expires_at) : r && r.token_days ? date(new Date(Date.now() + Number(r.token_days) * 86400000).toISOString()) : null;
+              heading.textContent = yes ? 'This computer is signed in' : 'Nothing was signed in';              // the answer replaces the question (FACES 16:12 fix 1)
+              heading.focus();
               out.replaceChildren(yes
-                ? h('p', { class: 'form-note', role: 'status' }, `This computer is signed in until ${r && r.expires_at ? date(r.expires_at) : r && r.token_days ? date(new Date(Date.now() + Number(r.token_days) * 86400000).toISOString()) : 'it expires'}. You can remove it any time: Account, then Computers signed in. Go back to the Ryagram app.`)
-                : h('p', { class: 'form-note', role: 'status' }, 'Nothing was signed in. If you did not start this, you can ignore it.'));
+                ? h('div', { class: 'device-done', role: 'status' }, h('p', { class: 'device-consent' }, until ? `It works until ${until}.` : 'It works for 30 days.'),
+                    h('p', { class: 'device-consent' }, 'Go back to the Ryagram app.'), h('p', { class: 'form-note' }, 'You can remove this computer any time: Account, then Computers signed in.'))
+                : h('div', { class: 'device-done', role: 'status' }, h('p', { class: 'device-consent' }, 'If you did not start this, you can ignore it.')));
             } catch (err) { showError(error, err); }
           });
         };
@@ -121,7 +126,7 @@
       if (prefill) show(prefill);                    // a link carried the code: look it up (a check only; nothing is approved until a button is pressed)
       formBox.append(h('label', { for: 'device-code' }, 'The code shown in the app'), input,
         h('p', { id: 'device-code-note', class: 'form-note' }, 'Eight characters, like ABCD-2345.'), h('div', { class: 'actions-row' }, check));
-      return [back, h('h1', { tabindex: '-1' }, 'Approve this computer?'),
+      return [back, heading,
         h('p', { class: 'form-intro' }, 'The Ryagram app on a computer is asking to sign in to your account.'),
         (bad ? h('p', { class: 'app-error', role: 'alert' }, BAD_CODE) : null),
         formBox, error, out];
