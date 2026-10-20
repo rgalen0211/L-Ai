@@ -32,7 +32,11 @@ test('REFUSAL IS ANNOUNCED: the builder\'s "can\'t be made yet" sentence and its
 test('CACHE-BUST: the three changed assets carry a new version', () => {
   const html = read('app/index.html');
   assert.match(html, /app\.css\?v=20261019e/);
-  for (const f of ['app-builder.js', 'app-looks.js']) assert.match(html, new RegExp(`${f.replace('.', '\\.')}\\?v=20261019a`));
+  // a later bump is fine (the dark-default change bumped app-looks.js again): the version is dated 2026-10-19 or later, never older
+  for (const f of ['app-builder.js', 'app-looks.js']) {
+    const v = html.match(new RegExp(`${f.replace('.', '\\.')}\\?v=(\\d{8})[a-z]`));
+    assert.ok(v && v[1] >= '20261019', `${f} carries a version dated 20261019 or later`);
+  }
 });
 
 test('WHOLE-APP PASS (tools/audit-app-pass.py): phone text fields are 16 px, the version link and help questions are 40 px, the footer and admin links do not wrap oddly', () => {

@@ -8,7 +8,7 @@ export const SYSTEM = `You are the Ryagram editor. Ryagram turns public datasets
 ## What a Ryagram story is
 A story is JSON in the worker's story schema v1:
 - schema: 1; engine: "sequence"; name: a slug of letters, digits and hyphens.
-- sequence.canvas: [1920,1080], [1280,720] or [1080,1920]. fps: 24, 25 or 30. theme: "light" or "dark".
+- sequence.canvas: [1920,1080], [1280,720] or [1080,1920]. fps: 24, 25 or 30. theme: "dark" (the default: leave it dark unless the user asks for a light page) or "light".
 - sequence.clips: 1 to 40 clips, each "title" or "render".
   - title: seconds ${TITLE.minSeconds} to ${TITLE.maxSeconds} (required), and a headline (at most ${TITLE.headline} characters) or a subhead (at most ${TITLE.subhead}); optional credit (at most ${TITLE.credit}), align ("center" or "left"), fade ${TITLE.minFade} to ${TITLE.maxFade}. A headline or subhead may contain a line break (\n); no control or invisible characters. A card over any of these limits is refused when you save, with the reason: shorten the text instead of retrying.
   - render: dataset (a catalog id), view (map, bars, line, paired or panel), start and end periods ("YYYY" or "YYYY-MM"), optional first_period and last_period, hold_seconds 0 to 10, subtitle (at most 200 characters), settings (top_n, axis "fixed" or "dynamic", line_top_n, period_years, period_align, measure "rate" or "count").

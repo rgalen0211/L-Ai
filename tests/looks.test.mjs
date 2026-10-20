@@ -202,3 +202,17 @@ test('SAMPLE PROJECT (CC1 LOW-2): only our own sample project is reused; a perso
   assert.equal(again.projectId, q.projectId, 'the second sheet reuses our sample project');
   assert.equal(client.db.projects.length, 2);
 });
+
+test('DARK BY DEFAULT (Ryan 15:50 2026-10-19): the Theme radio lists Dark first, a new look with no preset named starts from a DARK preset, and the three light presets stay selectable', () => {
+  const theme = L.SECTIONS.flatMap(s => s.fields).find(f => f.path === 'look.theme');
+  assert.deepEqual(plain(theme.options), [['dark', 'Dark'], ['light', 'Light']], 'Dark is listed first');
+  const presets = plain(P.listPresets());
+  for (const id of ['clean-light', 'print-mono', 'warm-documentary']) assert.equal(presets.find(p => p.id === id)?.theme, 'light', `${id} is still a selectable light preset`);
+  const src = read('assets/app-looks.js');
+  const m = src.match(/const DEFAULT_PRESET = '([a-z0-9-]+)'/);
+  assert.ok(m, 'app-looks.js names its default preset');
+  assert.equal(presets.find(p => p.id === m[1])?.theme, 'dark', 'the default preset is a dark one');
+  assert.match(src, /listPresets\(\)\.some\(p => p\.id === key\) \? key : DEFAULT_PRESET/, 'an unknown preset key falls back to the default, not to a light preset');
+  assert.doesNotMatch(read('assets/app-library.js'), /editorView\('new', m\[1\] \|\| 'clean-light'/, 'the new-look route does not default to a light preset');
+  assert.equal(P.forkPreset(m[1], 'mine').look.theme, 'dark', 'a look forked from the default is dark');
+});
