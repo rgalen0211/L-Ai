@@ -1,7 +1,7 @@
 // The real database layer: every call is a node_* function, run as the role node_runner, which can execute NOTHING else (WORKER's r9_node_draft.sql).
 // No function takes an owner id; the person is resolved inside the database from the token's SHA-256 hash, on every call. The query function is injected
 // (index.ts wires npm:postgres), so this mapping is plain TypeScript and unit-testable. The function names marked REQUESTED are not in the 49033a5 draft yet.
-import type { DeviceState, NodeAccount, NodeDb, NodeJob } from "../node-core/types.ts";
+import type { ExchangeResult, NodeAccount, NodeDb, NodeJob } from "../node-core/types.ts";
 
 export type Query = (sql: string, params: unknown[]) => Promise<Record<string, unknown>[]>;
 
@@ -23,11 +23,10 @@ export class NodeSql implements NodeDb {
   }
 
   hit(caller: string, bucket: string, max: number, windowSeconds: number) { return this.scalar<boolean>("node_hit", ["text", "text", "int", "int"], [caller, bucket, max, windowSeconds]); }      // REQUESTED
-  async deviceBegin(deviceHash: string, userCode: string, deviceName: string) { return String(await this.scalar("node_device_begin", ["text", "text", "text"], [deviceHash, userCode, deviceName])); }
-  deviceState(deviceHash: string) { return this.scalar<DeviceState>("node_device_state", ["text"], [deviceHash]); }                                                                         // REQUESTED
-  async deviceExchange(deviceHash: string, accessHash: string) { return String(await this.scalar("node_device_exchange", ["text", "text"], [deviceHash, accessHash])); }
-  async account(accessHash: string): Promise<NodeAccount> { return await this.scalar<NodeAccount>("node_account", ["text"], [accessHash]); }                                                  // REQUESTED, returns jsonb
-  async signout(accessHash: string) { return !!(await this.scalar<boolean>("node_signout", ["text"], [accessHash])); }                                                                       // REQUESTED
+  deviceBegin(deviceHash: string, userCode: string, computerName: string) { return this.scalar<{ user_code: string; expires_in: number; interval: number }>("node_device_begin", ["text", "text", "text"], [deviceHash, userCode, computerName]); }
+  deviceExchange(deviceHash: string, tokenHash: string) { return this.scalar<ExchangeResult>("node_device_exchange", ["text", "text"], [deviceHash, tokenHash]); }
+  account(accessHash: string) { return this.scalar<{ account: NodeAccount }>("node_account", ["text"], [accessHash]); }
+  signout(accessHash: string) { return this.scalar<{ ok: boolean }>("node_signout", ["text"], [accessHash]); }
   claim(accessHash: string): Promise<NodeJob | null> { return this.row("node_claim", ["text"], [accessHash]) as Promise<NodeJob | null>; }
   async heartbeat(accessHash: string, jobId: string, progress: number | null, note: string | null, detail: unknown | null) {
     return !!(await this.scalar<boolean>("node_heartbeat", ["text", "uuid", "numeric", "text", "jsonb"], [accessHash, jobId, progress, note, detail]));

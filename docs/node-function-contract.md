@@ -1,6 +1,6 @@
 # The `node` edge function: contract with WORKER's SQL (NEXT-CONNECT 100, r9 M4)
 
-**DRAFT for CC1 and WORKER. Nothing is deployed or applied.** `supabase/functions/node-core/` is the logic (runs under Node in tests and Deno on Supabase), `supabase/functions/node/` is the thin Deno entry and the real database mapping, `supabase/functions/node-core/fake.ts` is an in-memory copy of the SQL rules, and `tests/node-function.test.mjs` is the proof (19 tests, 24 deliberate breakages all fail it). It is the connector's twin: an opaque token, hashed, resolved to a person inside the database, no Supabase session in the app.
+**DRAFT for CC1 and WORKER. Nothing is deployed or applied.** `supabase/functions/node-core/` is the logic (runs under Node in tests and Deno on Supabase), `supabase/functions/node/` is the thin Deno entry and the real database mapping, `supabase/functions/node-core/fake.ts` is an in-memory copy of the SQL rules, and `tests/node-function.test.mjs` is the proof (20 tests, 26 deliberate breakages all fail it). It is the connector's twin: an opaque token, hashed, resolved to a person inside the database, no Supabase session in the app.
 
 ## 1. Calls (the app's contract is in `tools/ryagram_signin.py` on `maker-r9-signin-id`)
 
@@ -18,13 +18,11 @@
 
 Everything else is 404. There is no route to the job list, credits, orders, projects or any other account.
 
-## 2. What this needs from WORKER's `r9_node_draft.sql` (49033a5) that is not there yet
+## 2. Against WORKER's SQL: r9-node-draft rev3 (3ce2c65)
 
-1. **`node_device_state(p_device_code_hash text) returns text`**: `pending | approved | denied | expired | used | unknown`, no side effect. `node_device_exchange` raises one message for all of them, so the app could not tell "not yet" from "denied" from "ended".
-2. **`node_account(p_access_hash text) returns jsonb`**: `{email, device_name, local_compute, expires_at}` from the live token (email read inside the security-definer function; the node role never sees `auth.users`).
-3. **`node_signout(p_access_hash text) returns boolean`**: revokes THIS token (the person's own Remove on the website stays `remove_computer`).
-4. **`node_hit(p_caller text, p_bucket text, p_max int, p_window int) returns boolean`**: the open endpoints' rate limit, a copy of `connect_anon_hit` for the node role (the connector's can only be run by `connect_runner`). The caller is a salted hash, never an address.
-5. CC1's MED-1 applies unchanged: the node role may execute exactly the node_* functions, which with these four are eleven (`node_device_begin`, `node_device_state`, `node_device_exchange`, `node_account`, `node_signout`, `node_hit`, `node_claim`, `node_heartbeat`, `node_report_state`, `node_retry`, `node_register_artifact`); the grant test must list exactly these.
+Aligned. The function calls exactly these, as `node_runner`: `node_device_begin(device_hash, user_code, computer_name)` (jsonb: user_code, expires_in, interval), `node_device_exchange(device_hash, token_hash)` (jsonb: the state, the interval on slow_down, and on ok the expires_in and account; the database owns the states and the poll interval, and mints the token once from the hash we give it), `node_account`, `node_signout`, `node_claim`, `node_heartbeat`, `node_report_state`, `node_retry`, `node_register_artifact`. The email arrives masked by the database (s***@example.com) and is passed on as is. Rev3 also pins a job to the TOKEN that claimed it, so a second computer of the same person cannot touch it (tested here as "one computer, one job").
+
+**Still requested from WORKER (one function):** `node_hit(p_caller text, p_bucket text, p_max int, p_window int) returns boolean`, a copy of `connect_anon_hit` for the node role, so making codes is limited PER CALLER (6 a minute) and polling per caller (120 a minute). Rev3 only caps the whole table at 500 waiting codes, which one caller could fill. Without it the function cannot rate-limit by caller. CC1's MED-1 (the grant test) then counts ten node functions: the nine above plus `node_hit`.
 
 ## 3. Rules and where each is proven (all in `tests/node-function.test.mjs`)
 

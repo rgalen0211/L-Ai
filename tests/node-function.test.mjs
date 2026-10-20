@@ -56,7 +56,7 @@ test('SIGN-IN: a code in the right shape, an approval page on the trusted host, 
   const t = await call('POST', '/device/token', { body: { device_code: c.json.device_code } });
   assert.equal(t.status, 200);
   assert.match(t.json.node_token, /^rgn_[A-Za-z0-9_-]{43}$/);
-  assert.deepEqual(t.json.account, { email: 'alice@example.test', computer_name: 'Sam-PC', local_compute: true });
+  assert.deepEqual(t.json.account, { email: 'a***@example.test', computer_name: 'Sam-PC', local_compute: true });
   assert.ok(t.json.expires_in > 29 * 86400);
 });
 
@@ -92,7 +92,9 @@ test('SINGLE USE: the token is handed over once; asking again, or a code never i
   assert.equal(world.tokens.size, 1);
   assert.equal(world.approve(c.json.user_code, BOB), false, 'a used code cannot be approved again');
   const dh = await sha256hex(c.json.device_code);
-  await assert.rejects(() => world.deviceExchange(dh, 'f'.repeat(64)), { code: 'PT401' }, 'MUST-FAIL (database rule): even asked directly, a used code is not exchanged twice');
+  const direct = await world.deviceExchange(dh, 'f'.repeat(64));
+  assert.equal(direct.state, 'expired_token', 'MUST-FAIL (database rule): even asked directly, a used code is not exchanged twice');
+  assert.equal(world.tokens.size, 1);
   for (const dc of ['x'.repeat(43), 'short', '', 5, null]) {
     const r = await call('POST', '/device/token', { body: { device_code: dc } });
     assert.equal(r.status, 400); assert.equal(r.json.error, 'expired_token');
@@ -162,10 +164,10 @@ test('ACCOUNT, SIGN-OUT AND REMOVE: the account is the token\'s owner; Remove is
   const { world, call, signIn } = setup();
   const tok = await signIn(ALICE, 'Alice-PC');
   const a = await call('GET', '/account', { bearer: tok });
-  assert.deepEqual([a.status, a.json.account.email, a.json.account.computer_name, a.json.account.local_compute], [200, 'alice@example.test', 'Alice-PC', true]);
+  assert.deepEqual([a.status, a.json.account.email, a.json.account.computer_name, a.json.account.local_compute], [200, 'a***@example.test', 'Alice-PC', true]);
   assert.match(a.json.account.approved_until, /^\d{4}-\d{2}-\d{2}$/);
   const bobTok = await signIn(BOB, 'Bob-PC');
-  assert.equal((await call('GET', '/account', { bearer: bobTok })).json.account.email, 'bob@example.test', 'each token is its own person');
+  assert.equal((await call('GET', '/account', { bearer: bobTok })).json.account.email, 'b***@example.test', 'each token is its own person');
   world.removeAll();                                                                                       // the website's Remove
   assert.equal((await call('GET', '/account', { bearer: tok })).status, 401, 'the removed computer\'s very next call is refused');
   assert.equal((await call('POST', '/node/claim', { bearer: tok, body: {} })).status, 401);
@@ -229,6 +231,7 @@ test('THE JOB MUST BE HELD: heartbeat, state, retry and artifact on a job this c
   const tok = await signIn(ALICE);
   const art = { kind: 'preview', bytes: 10, sha256: 'a'.repeat(64) };
   world.addJob({ id: J(13), owner_id: BOB, run_on: 'owner_local', state: 'claimed' }); world.jobs.get(J(13)).worker_user_id = ALICE;       // owner and holder disagree
+  world.jobs.get(J(13)).node_token_id = [...world.tokens.values()].find(t => t.owner === ALICE).id;       // even with her token id and her as holder, a job OWNED by someone else is refused
   for (const id of [J(10), J(11), J(12), J(13), J(99)]) {
     for (const [r, b] of [['/node/heartbeat', {}], ['/node/state', { state: 'running' }], ['/node/retry', { error_code: 'x' }], ['/node/artifact', art]]) {
       const x = await call('POST', r, { bearer: tok, body: { job_id: id, owner_id: BOB, user_id: BOB, ...b } });
@@ -239,6 +242,17 @@ test('THE JOB MUST BE HELD: heartbeat, state, retry and artifact on a job this c
   for (const bad of ['', 'nope', J(10).toUpperCase().replace(/8000/, 'ZZZZ'), 5, null]) {
     assert.equal((await call('POST', '/node/heartbeat', { bearer: tok, body: { job_id: bad } })).status, 400);
   }
+});
+
+test('ONE COMPUTER, ONE JOB (rev3 pins the job to the token): a second computer signed in by the same person cannot touch the first computer job', async () => {
+  const { world, call, signIn } = setup();
+  const a = await signIn(ALICE, 'Desk'), b = await signIn(ALICE, 'Laptop');
+  world.addJob({ id: J(70), owner_id: ALICE, run_on: 'owner_local', job_type: 'preview' });
+  assert.equal((await call('POST', '/node/claim', { bearer: a, body: {} })).json.job.id, J(70));
+  for (const [r, body] of [['/node/heartbeat', {}], ['/node/state', { state: 'running' }], ['/node/retry', { error_code: 'x' }]]) {
+    assert.equal((await call('POST', r, { bearer: b, body: { job_id: J(70), ...body } })).status, 403, `the laptop cannot ${r} the desk's job`);
+  }
+  assert.equal((await call('POST', '/node/heartbeat', { bearer: a, body: { job_id: J(70) } })).status, 200, '(control) the desk can');
 });
 
 test('THE STATES A NODE MAY SET: running, validating, uploading, complete, failed; nothing else', async () => {
