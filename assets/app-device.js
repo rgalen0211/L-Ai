@@ -13,6 +13,8 @@
   const CODE = new RegExp(`^[${ALPHABET}]{8}$`);
   const EXPIRED = 'This code has ended. Start again in the Ryagram app.';
   const BAD_CODE = "That code doesn't look right. Codes never use the letters O, I or L or the numbers 0 or 1. Check the app and try again.";
+  // WORKER's rev2 draft (191fc78): device_request_check returns { state: 'unknown' | 'used' | 'expired' | 'pending', computer_name, requested_at, rough_location, expires_at } instead of raising.
+  const STATE_WORDS = { unknown: 'That code was not found. Check the code in the app and type it again.', used: 'That code has already been used.', expired: 'That code has ended. Start again in the Ryagram app.' };
   const WARN = 'Approve only if this code is on YOUR screen right now, in the Ryagram app you just opened. If someone sent you this link or code, press Deny.';
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
@@ -71,8 +73,9 @@
       async function show(code) {
         let c;
         try { c = await data.deviceRequestCheck(code); } catch (err) { out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, err.message)); return; }
-        if (!c || !c.device_name) {                                                              // WORKER's draft SQL returns the facts or raises; no 'allowed' flag
-          out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, 'That code can’t be used.'), h('p', { class: 'form-note' }, 'Nothing was approved. You can close this page.'));
+        const named = c && (c.computer_name || c.device_name);
+        if (!c || (c.state && c.state !== 'pending') || !named) {                                 // only a pending code shows facts; the others say why in words
+          out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, (c && STATE_WORDS[c.state]) || 'That code can’t be used.'), h('p', { class: 'form-note' }, 'Nothing was approved. You can close this page.'));
           return;
         }
         let me = '';
@@ -108,9 +111,9 @@
         out.replaceChildren(
           h('p', { class: 'device-warn', role: 'note' }, h('strong', {}, 'Check before you approve. '), WARN),
           h('dl', { class: 'device-facts' },
-            h('dt', {}, 'The name it gave itself (not checked)'), h('dd', {}, c.device_name ? String(c.device_name).slice(0, 80) : 'no name'),
-            h('dt', {}, 'Asked at'), h('dd', {}, (c.asked_at || c.requested_at) ? new Date(c.asked_at || c.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not known'),
-            h('dt', {}, 'Roughly where (a guess from its network)'), h('dd', {}, c.approx_place ? String(c.approx_place).slice(0, 80) : 'not known')),
+            h('dt', {}, 'The name it gave itself (not checked)'), h('dd', {}, String(named).slice(0, 80)),
+            h('dt', {}, 'Asked at'), h('dd', {}, (c.requested_at || c.asked_at) ? new Date(c.requested_at || c.asked_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not known'),
+            h('dt', {}, 'Roughly where (a guess from its network)'), h('dd', {}, (c.rough_location || c.approx_place) ? String(c.rough_location || c.approx_place).slice(0, 80) : 'not known')),
           me ? h('p', { class: 'device-who' }, 'You are signed in as ', h('strong', {}, me.slice(0, 120)), '. This computer will join this account. Not you? Sign out first.') : '',
           h('p', { class: 'device-consent' }, 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.'),
           h('p', { class: 'form-note' }, 'Approve signs this computer in. Deny signs nothing in.'),
@@ -142,13 +145,13 @@
         let rows;
         try { rows = (await data.myComputers()).filter(r => !r.revoked_at); } catch (err) { list.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list connected-list' }, rows.map(r => h('li', {},
-          h('strong', {}, String(r.device_name || r.name || 'A computer').slice(0, 80)),
+          h('strong', {}, String(r.computer_name || r.device_name || r.name || 'A computer').slice(0, 80)),
           h('span', { class: 'meta' }, ` added ${date(r.created_at)}, ${r.last_used_at ? 'last seen ' + ago(r.last_used_at) : 'not seen yet'}, stops working on ${date(r.expires_at)}`),
           h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
-            if (!confirm(`Remove ${r.device_name || r.name || 'this computer'}? It is signed out straight away.`)) return;
+            if (!confirm(`Remove ${r.computer_name || r.device_name || r.name || 'this computer'}? It is signed out straight away.`)) return;
             error.hidden = true;
             await busy(event.currentTarget, 'Removing…', async () => {
-              try { await data.removeComputer(r.id); await draw(); list.prepend(h('p', { class: 'form-note', role: 'status' }, `${r.device_name || r.name || 'The computer'} is removed.`)); }
+              try { await data.removeComputer(r.id); await draw(); list.prepend(h('p', { class: 'form-note', role: 'status' }, `${r.computer_name || r.device_name || r.name || 'The computer'} is removed.`)); }
               catch (err) { showError(error, err); }
             });
           } }, 'Remove this computer')))) : h('p', { class: 'form-note' }, tester ? 'No computer is signed in. Your films wait until you sign one in with the Ryagram app.' : 'No computer is signed in to your account.'));
