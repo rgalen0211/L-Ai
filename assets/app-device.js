@@ -30,6 +30,12 @@
     const code = m[1] ? normalizeCode(m[1]) : null;
     return { page: true, code, bad: !!m[1] && !code };               // a code in the link that is not a real code is said so, not silently dropped
   };
+  // A computer just approved has not been heard from yet; that must not read like a failure (FACES 16:12 fix 4): "waiting for the app to finish signing in" for the first 3 minutes, "not seen yet" only after that.
+  function seenWords(r, now = Date.now()) {
+    if (r.last_used_at) return now - Date.parse(r.last_used_at) < 120000 ? 'last used just now' : 'last seen ' + ago(r.last_used_at, now);
+    const minutes = (now - Date.parse(r.created_at)) / 60000;
+    return Number.isFinite(minutes) && minutes < 3 ? 'waiting for the app to finish signing in' : 'not seen yet';
+  }
   const ago = (iso, now = Date.now()) => {
     if (!iso) return 'never';
     const d = Math.max(0, Math.round((now - Date.parse(iso)) / 86400000));
@@ -69,6 +75,7 @@
       const input = h('input', { id: 'device-code', type: 'text', maxlength: '12', autocomplete: 'off', spellcheck: 'false', 'aria-describedby': 'device-code-note', value: prefill ? showCode(prefill) : '' });
       const check = h('button', { class: 'button primary', type: 'button' }, 'Check this code');
       const formBox = h('div', { class: 'device-form' });
+      const heading = h('h1', { tabindex: '-1' }, 'Approve this computer?');
 
       async function show(code) {
         let c;
@@ -91,9 +98,13 @@
               const r = await data.deviceDecide(showCode(code), yes);
               approve.disabled = deny.disabled = true;
               formBox.hidden = true;                                                                  // the answer is given: no form left that looks unfinished
+              const until = r && r.expires_at ? date(r.expires_at) : r && r.token_days ? date(new Date(Date.now() + Number(r.token_days) * 86400000).toISOString()) : null;
+              heading.textContent = yes ? 'This computer is signed in' : 'Nothing was signed in';              // the answer replaces the question (FACES 16:12 fix 1)
+              heading.focus();
               out.replaceChildren(yes
-                ? h('p', { class: 'form-note', role: 'status' }, `This computer is signed in until ${r && r.expires_at ? date(r.expires_at) : r && r.token_days ? date(new Date(Date.now() + Number(r.token_days) * 86400000).toISOString()) : 'it expires'}. You can remove it any time: Account, then Computers signed in. Go back to the Ryagram app.`)
-                : h('p', { class: 'form-note', role: 'status' }, 'Nothing was signed in. If you did not start this, you can ignore it.'));
+                ? h('div', { class: 'device-done', role: 'status' }, h('p', { class: 'device-consent' }, until ? `It works until ${until}.` : 'It works for 30 days.'),
+                    h('p', { class: 'device-consent' }, 'Go back to the Ryagram app.'), h('p', { class: 'form-note' }, 'You can remove this computer any time: Account, then Computers signed in.'))
+                : h('div', { class: 'device-done', role: 'status' }, h('p', { class: 'device-consent' }, 'If you did not start this, you can ignore it.')));
             } catch (err) { showError(error, err); }
           });
         };
@@ -131,7 +142,7 @@
       if (prefill) show(prefill);                    // a link carried the code: look it up (a check only; nothing is approved until a button is pressed)
       formBox.append(h('label', { for: 'device-code' }, 'The code shown in the app'), input,
         h('p', { id: 'device-code-note', class: 'form-note' }, 'Eight characters, like ABCD-2345.'), h('div', { class: 'actions-row' }, check));
-      return [back, h('h1', { tabindex: '-1' }, 'Approve this computer?'),
+      return [back, heading,
         h('p', { class: 'form-intro' }, 'The Ryagram app on a computer is asking to sign in to your account.'),
         (bad ? h('p', { class: 'app-error', role: 'alert' }, BAD_CODE) : null),
         formBox, error, out];
@@ -147,7 +158,7 @@
         try { rows = (await data.myComputers()).filter(r => !r.revoked_at); } catch (err) { list.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list connected-list' }, rows.map(r => h('li', {},
           h('strong', {}, String(r.computer_name || r.device_name || r.name || 'A computer').slice(0, 80)),
-          h('span', { class: 'meta' }, ` added ${date(r.created_at)}, ${r.last_used_at ? 'last seen ' + ago(r.last_used_at) : 'not seen yet'}, stops working on ${date(r.expires_at)}`),
+          h('span', { class: 'meta' }, ` added ${date(r.created_at)}, ${seenWords(r)}, works until ${date(r.expires_at)}`),
           h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
             if (!confirm(`Remove ${r.computer_name || r.device_name || r.name || 'this computer'}? It is signed out straight away.`)) return;
             error.hidden = true;
@@ -159,7 +170,7 @@
       }
       await draw();
       return h('section', { class: 'account-section', 'aria-labelledby': 'acct-computers' }, h('h2', { id: 'acct-computers' }, 'Computers signed in'),
-        tester ? h('p', { class: 'device-tester', role: 'note' }, h('strong', {}, 'Your films render on your own computer. '), 'They are made on a computer you sign in here, not on Ryagram’s machine, and cost you no credits. If none is signed in, your film waits.') : null,
+        tester ? h('p', { class: 'device-tester', role: 'note' }, h('strong', {}, 'Your films are made on your own computer. '), 'It is a computer you sign in here, not Ryagram’s machine, and it costs you no credits. If none is signed in, your film waits.') : null,
         h('p', { class: 'form-note' }, 'Computers where you use the Ryagram app. Removing one signs it out at once.'), list, error);
     }
 
@@ -198,7 +209,7 @@
       offBtn.addEventListener('click', () => change(offBtn, false));
       await drawHistory();
       return [back, h('h1', { tabindex: '-1' }, 'Tester computers'),
-        h('p', { class: 'form-intro' }, 'A tester account renders its films on its own computer instead of Ryagram’s machine, and pays no credits for them. Only an admin can change this, and every change is written down.'),
+        h('p', { class: 'form-intro' }, 'A tester account makes its films on its own computer instead of Ryagram’s machine, and pays no credits for them. Only an admin can change this, and every change is written down.'),
         h('label', { for: 'tester-email' }, 'Account email'), email,
         h('label', { for: 'tester-reason' }, 'Why (a few words, saved in the history)'), reason,
         h('p', { id: 'tester-reason-note', class: 'form-note' }, `${REASON_MIN} to ${REASON_MAX} characters.`),
@@ -209,5 +220,5 @@
     return { deviceView, computersSection, testerAdminView };
   }
 
-  window.ryagramDevice = { checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();

@@ -269,8 +269,9 @@ def main():
             check('You are signed in as sam@example.test' in t, "the page says which account the computer will join")
             check('Approve only if this code is on YOUR screen right now' in t, 'the page warns to approve only a code on your own screen')
             s.get_by_role('button', name='Approve this computer').click()
-            s.wait_for_selector('text=This computer is signed in until', timeout=15000)
+            s.wait_for_selector('h1:has-text("This computer is signed in")', timeout=15000)
             shot(s, '04-sam-approved')
+            check('It works until' in body(s) and 'Go back to the Ryagram app.' in body(s), 'the answer replaces the question: the heading says the computer is signed in, with the date and the next step')
             check(owner.execute('select state from public.device_codes where user_code = %s', (code,)).fetchone()[0] == 'approved', 'the database: the code is approved')
 
             print('\n5. the app collects its token (SQL), Sam looks at his account')
@@ -281,8 +282,8 @@ def main():
             s.wait_for_timeout(1000)
             card = s.locator('section[aria-labelledby=acct-computers]').inner_text()
             shot(s, '05-sam-account-tester-card')
-            check('Your films render on your own computer.' in card, 'the tester card says the films render on his own computer')
-            check('DESKTOP-SAM-PC' in card and 'not seen yet' in card, 'the computer is listed with "not seen yet"')
+            check('Your films are made on your own computer.' in card, 'the tester card says the films are made on his own computer')
+            check('DESKTOP-SAM-PC' in card and 'waiting for the app to finish signing in' in card and 'works until' in card, 'the fresh computer is listed as waiting for the app, with a works-until date (not a failure-looking "not seen yet")')
 
             print('\n6. Sam removes the computer')
             s.once('dialog', lambda d: d.accept())

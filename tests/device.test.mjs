@@ -89,7 +89,7 @@ test('MUST-FAIL: a denied code approves nothing and cannot be approved afterward
 test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, the computer\'s own name as untrusted text, when it was asked for and where, has Approve and Deny, and decides only inside a button handler', () => {
   const src = read('assets/app-device.js');
   for (const text of ["const WARN = 'Approve only if this code is on YOUR screen right now", "h('strong', {}, 'Check before you approve. ')", "'The name it gave itself (not checked)'", "'Asked at'", "'Roughly where (a guess from its network)'",
-                      "'Approve this computer'", "'Deny'", 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.', 'Approve signs this computer in. Deny signs nothing in.', 'Nothing was signed in. If you did not start this, you can ignore it.']) assert.ok(src.includes(text), text);
+                      "'Approve this computer'", "'Deny'", 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.', 'Approve signs this computer in. Deny signs nothing in.', 'If you did not start this, you can ignore it.']) assert.ok(src.includes(text), text);
   const view = src.slice(src.indexOf('async function deviceView'), src.indexOf('// ---- the account page'));
   assert.equal([...view.matchAll(/data\.deviceDecide\(/g)].length, 1);                                       // one decide call, inside the button handler
   assert.match(view, /const decide = async \(button, yes\) => \{[\s\S]*data\.deviceDecide[\s\S]*\};\s*approve\.addEventListener\('click'/);
@@ -133,7 +133,7 @@ test('FACES\' FIXES (13:55, with CC1 13:55): the consent sentence is normal size
   assert.doesNotMatch(src, /The computer calls itself/);
   assert.match(src, /formBox\.hidden = true;/);
   assert.match(src, /not seen yet/);
-  assert.match(src, /stops working on \$\{date\(r\.expires_at\)\}/);
+  assert.match(src, /works until \$\{date\(r\.expires_at\)\}/);
   assert.match(src, /\(bad \? h\('p', \{ class: 'app-error', role: 'alert' \}, BAD_CODE\) : null\)/);
 });
 
@@ -146,10 +146,10 @@ test('TESTER CARD (NEXT-WEB 113): a tester account is told plainly that its film
   const broken = win.ryagramData({ ...fake, from: () => { throw new Error('network'); }, auth: fake.auth });
   assert.equal(await broken.myLocalCompute(), false, 'fails closed');
   const src = read('assets/app-device.js');
-  assert.match(src, /h\('strong', \{\}, 'Your films render on your own computer\. '\), 'They are made on a computer you sign in here, not on Ryagram.s machine, and cost you no credits\. If none is signed in, your film waits\.'/);
+  assert.match(src, /h\('strong', \{\}, 'Your films are made on your own computer\. '\), 'It is a computer you sign in here, not Ryagram.s machine, and it costs you no credits\. If none is signed in, your film waits\.'/);
   assert.match(src, /tester \? h\('p', \{ class: 'device-tester', role: 'note' \}/);                                   // only a tester sees it
   assert.match(src, /tester \? 'No computer is signed in\. Your films wait until you sign one in with the Ryagram app\.' : 'No computer is signed in to your account\.'/);
-  assert.match(src, /'last seen ' \+ ago\(r\.last_used_at\) : 'not seen yet'/);
+  assert.match(src, /\$\{seenWords\(r\)\}/);                                                                      // the list row says last seen, waiting, or not seen yet through one helper
   assert.match(src, /Remove this computer/);
   assert.match(read('assets/app-library.js'), /if \(desktopOn\(\)\) sections\.push\(await deviceUi\(\)\.computersSection\(\)\);/);       // still behind desktopApp (off)
 });
@@ -171,4 +171,28 @@ test('HYPHEN (found by the local E2E run): the page sends the code as XXXX-XXXX,
   assert.equal((await data.deviceRequestCheck('ABCD2345')).state, 'unknown', 'the unhyphenated form is not what the server stores');
   assert.equal((await data.deviceRequestCheck(D.showCode('ABCD2345'))).state, 'pending');
   await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);
+});
+
+test('THE ANSWER REPLACES THE QUESTION (FACES 16:12 fix 1): after Approve the heading says the computer is signed in and the confirmation is normal-size text with the date as "It works until <date>"; after Deny the heading says nothing was signed in', () => {
+  const src = read('assets/app-device.js');
+  assert.match(src, /heading\.textContent = yes \? 'This computer is signed in' : 'Nothing was signed in';/);
+  assert.match(src, /`It works until \$\{until\}\.`/);
+  assert.match(src, /h\('p', \{ class: 'device-consent' \}, 'Go back to the Ryagram app\.'\)/);
+  assert.match(src, /'You can remove this computer any time: Account, then Computers signed in\.'/);
+  assert.doesNotMatch(src, /signed in until \$\{/);                                                            // one phrasing of the date across site and app: "Works until ..."
+  assert.match(src, /const heading = h\('h1', \{ tabindex: '-1' \}, 'Approve this computer\?'\);/);
+});
+
+test('FACES\' FIXES 2, 4, 5 (16:12): "made on your own computer" (no "render"); a freshly approved computer says it is waiting for the app, then last used just now, then not seen yet only after 3 minutes; one phrasing of the date, "works until"', () => {
+  const now = Date.parse('2026-10-20T12:00:00Z');
+  const at = m => new Date(now - m * 60000).toISOString();
+  assert.equal(D.seenWords({ created_at: at(1), last_used_at: null }, now), 'waiting for the app to finish signing in');
+  assert.equal(D.seenWords({ created_at: at(2.9), last_used_at: null }, now), 'waiting for the app to finish signing in');
+  assert.equal(D.seenWords({ created_at: at(3.1), last_used_at: null }, now), 'not seen yet');
+  assert.equal(D.seenWords({ created_at: at(10), last_used_at: at(1) }, now), 'last used just now');
+  assert.equal(D.seenWords({ created_at: at(5000), last_used_at: at(1500) }, now), 'last seen yesterday');
+  assert.equal(D.seenWords({ created_at: 'nonsense', last_used_at: null }, now), 'not seen yet');
+  const src = read('assets/app-device.js');
+  assert.match(src, /, works until \$\{date\(r\.expires_at\)\}`/);
+  assert.doesNotMatch(src, /stops working on|render on your own|renders its films/);
 });
