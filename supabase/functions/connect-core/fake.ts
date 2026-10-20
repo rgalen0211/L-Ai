@@ -3,6 +3,7 @@
 // It mirrors the real rules that matter (editable states, one job in progress per type, ladder, holds) but is
 // NOT the authority: the SQL functions are. It lives in the repo only for tests and local development.
 import type { Job } from "../ai-editor/tools.ts";
+import type { DrawIssue, DrawResult, DrawStore } from "./drawtest.ts";
 import type { CallLog, Data, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null };
@@ -26,6 +27,8 @@ export class FakeWorld {
   logs: CallLog[] = [];
   finals = false;
   engine = "fake0001";
+  drawIssues = new Map<string, DrawIssue & { userId: string; used: boolean }>();   // draw-and-return test (drawtest.ts)
+  drawResults: (DrawResult & { userId: string })[] = [];
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
@@ -72,7 +75,7 @@ export class FakeWorld {
       if (t === "final_render") credits = 40;
       return { credits, free, available: user.credits - user.held };
     };
-    return {
+    const data: Data = {
       whoami: async () => ({ label: u().label, available: u().credits - u().held, held: u().held }),
       listProjects: async () => [...u().projects].reverse(),
       createProject: async (title) => {
@@ -126,6 +129,20 @@ export class FakeWorld {
       },
       links: async (vid, jid): Promise<Link[]> => u().jobs.filter((j) => j.version_id === vid && j.state === "complete" && (!jid || j.id === jid))
         .map((j) => ({ kind: j.job_type, url: `https://fake.ryagram.invalid/${j.id}?sig=test`, expires_in_s: 900 })),
+    };
+    return Object.assign(data, { drawTest: this.drawStore(userId) });
+  }
+
+  /** The draw-and-return test's store: a person's own nonces only, each usable once (the SQL function does the same). */
+  drawStore(userId: string): DrawStore {
+    return {
+      issue: async (i) => { this.drawIssues.set(i.nonce, { ...i, userId, used: false }); },
+      take: async (nonce) => {
+        const i = this.drawIssues.get(nonce);
+        if (!i || i.userId !== userId || i.used) return null;
+        i.used = true; return i;
+      },
+      save: async (r) => { this.drawResults.push({ ...r, userId }); },
     };
   }
 }
