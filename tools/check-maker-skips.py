@@ -64,7 +64,10 @@ STUB_NEW = STUB_MAIN.replace('''    print(json.dumps({"ok": not gaps and bool(cl
     sys.exit(0 if clips else 3)''').replace('''if gaps:
     print("refused: some words are not said", file=sys.stderr); sys.exit(3)''', '''if not clips:
     print("refused: nothing is said", file=sys.stderr); sys.exit(3)''').replace('''"network_attempts": 0, "asked_for"''', '''"network_attempts": 0, "complete": not gaps, "skipped": [{"word": g, "reason": "not said anywhere in the files you chose"} for g in gaps], "forged": [], "asked_for"''')
-assert STUB_NEW != STUB_MAIN
+# find.op 'every' with more places than the clip cap (CC1 MED-1, 2026-10-20): the stand-in says 5 more places exist than the film holds, in the plan and in the receipt
+STUB_NEW = STUB_NEW.replace('"gaps": gaps, "skipped": gaps,', '"found": (len(clips) + 5 if rec["find"]["op"] == "every" else 0), "cut_off": (5 if rec["find"]["op"] == "every" else 0), "gaps": gaps, "skipped": gaps,', 1)
+STUB_NEW = STUB_NEW.replace('"network_attempts": 0, "complete": not gaps', '"network_attempts": 0, "found": (len(clips) + 5 if rec["find"]["op"] == "every" else 0), "cut_off": (5 if rec["find"]["op"] == "every" else 0), "complete": not gaps', 1)
+assert STUB_NEW != STUB_MAIN and 'cut_off' in STUB_NEW
 FAILED = []
 
 
@@ -172,6 +175,21 @@ def main(stub=None, label=''):
                 check('EVERY time it is said' in page.inner_text('#words-note') and 'EVERY time' not in plain, 'choosing the every-time recipe changes the hint under the words box to say it takes every time the words are said')
                 page.select_option('#recipe', label='any words')
                 check(page.inner_text('#words-note') == plain, 'and choosing the other recipe puts the original hint back')
+                if 'ENGINE 21' in label:
+                    for label_, want in (('any words', 0), ('Every time a word is said', 1)):
+                        page.goto(f'{base}/?t=tok', wait_until='load')
+                        page.wait_for_selector('#recipe option', state='attached', timeout=10000)
+                        page.select_option('#recipe', label=label_)
+                        page.get_by_role('button', name='Choose a file for Your footage').click()
+                        page.wait_for_selector('.slot li')
+                        run_plan('the baby')
+                        txt_ = page.inner_text('#job-out')
+                        check(page.locator('#cut-off-note').count() == want and (not want or ('said 7 times' in txt_ and 'first 2' in txt_ and '5 more are not in it' in txt_)),
+                              ('MUST-FAIL (CC1 MED-1): ' if want else 'control: ') + f'the plan from the "{label_}" recipe ' + ('says the words are said 7 times, the film holds the first 2, 5 more are not in it' if want else 'says nothing about a cut-off'))
+                        if want:
+                            page.click('#build')
+                            page.wait_for_selector('#job-out:has-text("Your film:")', timeout=40000)
+                            check(page.locator('#cut-off-built').count() == 1 and '5 more are not in it' in page.inner_text('#cut-off-built'), 'MUST-FAIL: the finished film says the same')
                 for label_, want in (('any words', 1), ('Every time a word is said', 0)):
                     page.goto(f'{base}/?t=tok', wait_until='load')
                     page.wait_for_selector('#recipe option', state='attached', timeout=10000)
