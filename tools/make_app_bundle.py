@@ -170,7 +170,7 @@ def write_start_files(out: Path, has_model: bool) -> None:
         'set "RYAGRAM_MODEL_DIR=%~dp0models"',
         'set "PYTHONNOUSERSITE=1"',
         'set "PYTHONDONTWRITEBYTECODE=1"',
-        '"%~dp0python\\python.exe" -I "%~dp0tools\\verify_bundle.py" "%~dp0"',
+        '"%~dp0python\\python.exe" -I "%~dp0tools\\verify_bundle.py" "%~dp0."',
         "if errorlevel 1 (",
         "  echo.",
         "  echo Do not go on. Close this window and tell Ryan what is written above.",
