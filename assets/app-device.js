@@ -61,8 +61,8 @@
       async function show(code) {
         let c;
         try { c = await data.deviceRequestCheck(code); } catch (err) { out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, err.message)); return; }
-        if (!c || c.allowed !== true) {
-          out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, c && c.reason ? c.reason : 'That code can’t be used.'), h('p', { class: 'form-note' }, 'Nothing was approved. You can close this page.'));
+        if (!c || !c.device_name) {                                                              // WORKER's draft SQL returns the facts or raises; no 'allowed' flag
+          out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, 'That code can’t be used.'), h('p', { class: 'form-note' }, 'Nothing was approved. You can close this page.'));
           return;
         }
         let me = '';
@@ -78,7 +78,7 @@
               approve.disabled = deny.disabled = true;
               formBox.hidden = true;                                                                  // the answer is given: no form left that looks unfinished
               out.replaceChildren(yes
-                ? h('p', { class: 'form-note', role: 'status' }, `This computer is signed in until ${r && r.expires_at ? date(r.expires_at) : 'it expires'}. You can remove it any time: Account, then Computers signed in. Go back to the Ryagram app.`)
+                ? h('p', { class: 'form-note', role: 'status' }, `This computer is signed in until ${r && r.expires_at ? date(r.expires_at) : r && r.token_days ? date(new Date(Date.now() + Number(r.token_days) * 86400000).toISOString()) : 'it expires'}. You can remove it any time: Account, then Computers signed in. Go back to the Ryagram app.`)
                 : h('p', { class: 'form-note', role: 'status' }, 'Nothing was signed in. If you did not start this, you can ignore it.'));
             } catch (err) { showError(error, err); }
           });
@@ -99,7 +99,7 @@
           h('p', { class: 'device-warn', role: 'note' }, h('strong', {}, 'Check before you approve. '), WARN),
           h('dl', { class: 'device-facts' },
             h('dt', {}, 'The name it gave itself (not checked)'), h('dd', {}, c.device_name ? String(c.device_name).slice(0, 80) : 'no name'),
-            h('dt', {}, 'Asked at'), h('dd', {}, c.requested_at ? new Date(c.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not known'),
+            h('dt', {}, 'Asked at'), h('dd', {}, (c.asked_at || c.requested_at) ? new Date(c.asked_at || c.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not known'),
             h('dt', {}, 'Roughly where (a guess from its network)'), h('dd', {}, c.approx_place ? String(c.approx_place).slice(0, 80) : 'not known')),
           me ? h('p', { class: 'device-who' }, 'You are signed in as ', h('strong', {}, me.slice(0, 120)), '. This computer will join this account. Not you? Sign out first.') : '',
           h('p', { class: 'device-consent' }, 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.'),
@@ -129,15 +129,15 @@
       const list = h('div');
       async function draw() {
         let rows;
-        try { rows = await data.myComputers(); } catch (err) { list.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
+        try { rows = (await data.myComputers()).filter(r => !r.revoked_at); } catch (err) { list.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list connected-list' }, rows.map(r => h('li', {},
-          h('strong', {}, String(r.name || 'A computer').slice(0, 80)),
+          h('strong', {}, String(r.device_name || r.name || 'A computer').slice(0, 80)),
           h('span', { class: 'meta' }, ` added ${date(r.created_at)}, ${r.last_used_at ? 'last used ' + ago(r.last_used_at) : 'not used yet'}, stops working on ${date(r.expires_at)}`),
           h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
-            if (!confirm(`Remove ${r.name || 'this computer'}? It is signed out straight away.`)) return;
+            if (!confirm(`Remove ${r.device_name || r.name || 'this computer'}? It is signed out straight away.`)) return;
             error.hidden = true;
             await busy(event.currentTarget, 'Removing…', async () => {
-              try { await data.removeComputer(r.id); await draw(); list.prepend(h('p', { class: 'form-note', role: 'status' }, `${r.name || 'The computer'} is removed.`)); }
+              try { await data.removeComputer(r.id); await draw(); list.prepend(h('p', { class: 'form-note', role: 'status' }, `${r.device_name || r.name || 'The computer'} is removed.`)); }
               catch (err) { showError(error, err); }
             });
           } }, 'Remove this computer')))) : h('p', { class: 'form-note' }, 'No computer is signed in to your account.'));

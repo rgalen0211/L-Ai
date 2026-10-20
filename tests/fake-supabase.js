@@ -501,26 +501,26 @@
       disconnect_ai({ p_client_id }) { db.connected = (db.connected || []).filter(c => c.client_id !== p_client_id); return { data: null, error: null }; },
       // Mock of the DRAFT device-code functions (r9 M2; the real ones are CONNECT's and WORKER's and do not exist yet). User codes are 8 characters from ABCDEFGHJKMNPQRSTUVWXYZ23456789.
       // ABCD2345 is a good code; ABCDEFGH is an ended one; anything else is not found. Checking and approving need a signed-in session; a code can be decided once.
+      // Shapes follow WORKER's DRAFT SQL (branch r9-node-draft 49033a5, supabase/r9-drafts/r9_node_draft.sql): device_request_check returns { device_name, asked_at, expires_at } or RAISES 'That code is not valid any more. Start again on your computer.';
+      // device_decide returns { device_name, approved, token_days }; my_computers returns every token row (id, device_name, created_at, expires_at, revoked_at, last_used_at); remove_computer(p_token) sets revoked_at.
       device_request_check({ p_user_code }) {
         if (!session) return fail('Sign in first.');
-        if (p_user_code === 'ABCD2345') return { data: { allowed: true, reason: null, device_name: 'DESKTOP-SAM-PC', requested_at: new Date(Date.now() - 60000).toISOString(), approx_place: 'Austin, Texas', expires_at: new Date(Date.now() + 540000).toISOString() }, error: null };
-        if (p_user_code === 'ABCDEFGH') return { data: { allowed: false, reason: 'That code has ended. Start again in the Ryagram app.' }, error: null };
-        return { data: { allowed: false, reason: 'That code was not found. Check the code in the app and type it again.' }, error: null };
+        if (p_user_code === 'ABCD2345' && !(db.deviceDecisions || []).includes(p_user_code)) return { data: { device_name: 'DESKTOP-SAM-PC', asked_at: new Date(Date.now() - 60000).toISOString(), expires_at: new Date(Date.now() + 540000).toISOString() }, error: null };
+        return fail('That code is not valid any more. Start again on your computer.');
       },
       device_decide({ p_user_code, p_approve }) {
         if (!session) return fail('Sign in first.');
         db.deviceDecisions = db.deviceDecisions || [];
-        if (p_user_code !== 'ABCD2345') return fail('That code was not found.');
-        if (db.deviceDecisions.includes(p_user_code)) return fail('That code was already used.');
+        if (p_user_code !== 'ABCD2345' || db.deviceDecisions.includes(p_user_code)) return fail('That code is not valid any more. Start again on your computer.');
         db.deviceDecisions.push(p_user_code);
-        if (!p_approve) return { data: { ok: true, expires_at: null }, error: null };
-        const expires = new Date(Date.now() + 30 * 86400000).toISOString();
-        db.computers = db.computers || [];
-        db.computers.push({ id: 'dev-1', name: 'DESKTOP-SAM-PC', created_at: now(), last_used_at: null, expires_at: expires });
-        return { data: { ok: true, expires_at: expires }, error: null };
+        if (p_approve) {
+          db.computers = db.computers || [];
+          db.computers.push({ id: 'dev-1', device_name: 'DESKTOP-SAM-PC', created_at: now(), expires_at: new Date(Date.now() + 30 * 86400000).toISOString(), revoked_at: null, last_used_at: null });
+        }
+        return { data: { device_name: 'DESKTOP-SAM-PC', approved: p_approve === true, token_days: 30 }, error: null };
       },
       my_computers() { return { data: structuredClone(db.computers || []), error: null }; },
-      remove_computer({ p_id }) { db.computers = (db.computers || []).filter(c => c.id !== p_id); return { data: null, error: null }; },
+      remove_computer({ p_token }) { const c = (db.computers || []).find(x => x.id === p_token && !x.revoked_at); if (c) c.revoked_at = now(); return { data: !!c, error: null }; },
       // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.
       admin_set_auto_render({ p_on }) {
         if (seed.nonAdmin) return fail('Only an admin can do this.');

@@ -52,22 +52,23 @@ test('DATA: check, decide (once), list and remove go through the four draft func
   const client = createFakeClient();
   const data = win.ryagramData(client);
   const c = await data.deviceRequestCheck('ABCD2345');
-  assert.equal(c.allowed, true);
   assert.equal(c.device_name, 'DESKTOP-SAM-PC');
-  assert.equal((await data.deviceRequestCheck('ABCDEFGH')).allowed, false);
-  assert.match((await data.deviceRequestCheck('ABCDEFGH')).reason, /ended/);
-  assert.match((await data.deviceRequestCheck('ZZZZ2222')).reason, /not found/);
+  assert.ok(c.asked_at && c.expires_at, 'the facts the draft SQL returns');
+  await assert.rejects(data.deviceRequestCheck('ABCDEFGH'), /not valid any more/);                         // ended or unknown: the server raises, the page shows its sentence
+  await assert.rejects(data.deviceRequestCheck('ZZZZ2222'), /not valid any more/);
   assert.deepEqual(plain(await data.myComputers()), []);
   const r = await data.deviceDecide('ABCD2345', true);
-  assert.equal(r.ok, true);
-  assert.ok(r.expires_at);
-  await assert.rejects(data.deviceDecide('ABCD2345', true), /already used/);                              // MUST-FAIL: a used code is refused
-  await assert.rejects(data.deviceDecide('ABCD2345', false), /already used/);
+  assert.equal(r.approved, true);
+  assert.equal(r.token_days, 30);
+  await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);                         // MUST-FAIL: a used code is refused
+  await assert.rejects(data.deviceDecide('ABCD2345', false), /not valid any more/);
+  await assert.rejects(data.deviceRequestCheck('ABCD2345'), /not valid any more/);                         // and looking at a used code shows nothing
   const list = plain(await data.myComputers());
   assert.equal(list.length, 1);
-  assert.equal(list[0].name, 'DESKTOP-SAM-PC');
-  await data.removeComputer('dev-1');
-  assert.deepEqual(plain(await data.myComputers()), []);
+  assert.equal(list[0].device_name, 'DESKTOP-SAM-PC');
+  assert.equal(list[0].revoked_at, null);
+  assert.equal(await data.removeComputer('dev-1'), true);
+  assert.ok(plain(await data.myComputers())[0].revoked_at, 'a removed computer is marked revoked; the page hides revoked rows');
 });
 
 test('MUST-FAIL: Approve without a signed-in session is refused, and so is a check; nothing is recorded', async () => {
@@ -82,7 +83,7 @@ test('MUST-FAIL: a denied code approves nothing and cannot be approved afterward
   const data = win.ryagramData(createFakeClient());
   await data.deviceDecide('ABCD2345', false);
   assert.deepEqual(plain(await data.myComputers()), []);
-  await assert.rejects(data.deviceDecide('ABCD2345', true), /already used/);
+  await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);
 });
 
 test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, the computer\'s own name as untrusted text, when it was asked for and where, has Approve and Deny, and decides only inside a button handler', () => {
@@ -114,7 +115,7 @@ test('WIRING AND FLAG: the route and the account section exist only behind deskt
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-device.js') > 0 && html.indexOf('app-device.js') < html.indexOf('app-library.js'));
   const src = read('assets/app-device.js');
-  assert.match(src, /confirm\(`Remove \$\{r\.name \|\| 'this computer'\}\? It is signed out straight away\.`\)/);
+  assert.match(src, /confirm\(`Remove \$\{r\.device_name \|\| r\.name \|\| 'this computer'\}\? It is signed out straight away\.`\)/);
   assert.match(src, /await data\.removeComputer\(r\.id\); await draw\(\);/);
 });
 
