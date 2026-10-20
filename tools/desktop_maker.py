@@ -30,6 +30,18 @@ from urllib.parse import parse_qs, urlparse
 
 HERE = Path(__file__).resolve().parent
 MODELS = ("tiny", "base", "small")
+#: What a person sees instead of a speech-model name (Ryan 12:22: Sam would not know which to pick). The Whisper names stay in the receipt and the activity log only.
+#: The sizes are the real model folders on disk (tiny 75, base 142, small 464 MB). A choice is offered only if the ENGINE offers that model (engine.MODELS), so
+#: "Most accurate" appears the day the engine adds the medium model; today the biggest offered is the Balanced one.
+PLAIN_MODELS = (
+    ("tiny", "Quickest test (very rough)", 75),
+    ("base", "Fast (rough)", 142),
+    ("small", "Balanced (recommended)", 464),
+    ("medium", "Most accurate (slower)", 1530),
+)
+SHOW_ORDER = ("base", "small", "medium", "tiny")          # the quickest test goes last
+DEFAULT_MODEL = "small"
+GET_ARG = {"small": "balanced", "tiny": "quickest"}       # what tools\get-model.bat takes; no argument fetches the Fast one (base) as before
 EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
     1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
@@ -157,17 +169,58 @@ def faster_whisper_missing() -> bool:
     return importlib.util.find_spec("faster_whisper") is None
 
 
+def offered_models() -> tuple:
+    """The models this engine will run, as far as the maker knows them."""
+    known = {n for n, _l, _m in PLAIN_MODELS}
+    got = tuple(m for m in tuple(getattr(STATE.get("E"), "MODELS", ()) or ()) if m in known)
+    return got or MODELS
+
+
+def model_label(name) -> str:
+    return next((l for n, l, _m in PLAIN_MODELS if n == name), "this setting")
+
+
+def model_mb(name) -> int:
+    return next((m for n, _l, m in PLAIN_MODELS if n == name), 0)
+
+
+def model_choices() -> list:
+    """What the list on the page offers, in the order a person reads it: the name for a person, the size, and whether it is already on this computer (None = not known)."""
+    root = os.environ.get("RYAGRAM_MODEL_DIR")
+    have = models_present(root) if root else None
+    off = offered_models()
+    return [{"name": n, "label": model_label(n), "mb": model_mb(n), "ready": (n in have) if have is not None else None} for n in SHOW_ORDER if n in off]
+
+
+def default_model(choices=None) -> str:
+    """Balanced when it is ready (or when nothing is known); else the first choice that IS on this computer, so the first Plan never starts on a missing download."""
+    choices = choices if choices is not None else model_choices()
+    by = {c["name"]: c for c in choices}
+    if DEFAULT_MODEL in by and by[DEFAULT_MODEL]["ready"] is not False:
+        return DEFAULT_MODEL
+    return next((c["name"] for c in choices if c["ready"]), DEFAULT_MODEL if DEFAULT_MODEL in by else (choices[0]["name"] if choices else DEFAULT_MODEL))
+
+
+def model_hint() -> str:
+    return "Balanced works for most videos. Pick Fast for a quick try" + (", Most accurate if words come out wrong" if "medium" in offered_models() else "") + "."
+
+
 def models_present(root) -> list[str]:
     """Which listening models have their weights in this folder (the layout the engine's model download writes: models--Systran--faster-whisper-<size>/snapshots/<id>/model.bin)."""
     root = Path(root)
-    return [m for m in MODELS if any(root.glob(f"models--Systran--faster-whisper-{m}/snapshots/*/model.bin"))]
+    return [m for m, _l, _s in PLAIN_MODELS if any(root.glob(f"models--Systran--faster-whisper-{m}/snapshots/*/model.bin"))]
 
 
 GET_MODEL = r"tools\get-model.bat"
 
 
 def missing_model_sentence(model: str) -> str:
-    return f"The listening model ({model}) is not on this computer yet. Double-click {GET_MODEL} once (it needs the internet for a few minutes), then press Plan again."
+    label, mb = model_label(model), model_mb(model)
+    if model in GET_ARG:
+        how = f"Open a PowerShell window in the Ryagram folder, type  {GET_MODEL} {GET_ARG[model]}  and press Enter (it needs the internet for a few minutes)"
+    else:
+        how = f"Double-click {GET_MODEL} once (it needs the internet for a few minutes)"
+    return f"The \u201c{label}\u201d listening model is not on this computer yet (about {mb} MB, downloaded once). {how}, then press Plan again."
 
 
 def precheck(body: dict) -> dict:
@@ -181,11 +234,11 @@ def precheck(body: dict) -> dict:
         problems.append(str(e))
     except Exception as e:  # noqa: BLE001
         problems.append(f"The recipe is refused: {str(e)[:200]}")
-    model = body.get("model") or "base"
-    if model not in MODELS:
-        problems.append(f"The model must be one of {', '.join(MODELS)}.")
+    model = body.get("model") or default_model()
+    if model not in offered_models():
+        problems.append("Pick one of the choices in the listening list on the page.")
     mroot = os.environ.get("RYAGRAM_MODEL_DIR")
-    if model in MODELS and mroot and model not in models_present(mroot):
+    if model in offered_models() and mroot and model not in models_present(mroot):
         problems.append(missing_model_sentence(model))
     if faster_whisper_missing():
         problems.append('The speech add-on is not installed on this PC. Type this in a PowerShell window, then press Plan again:  python -m pip install faster-whisper "av<19"')
@@ -224,7 +277,7 @@ def precheck(body: dict) -> dict:
     total_s = None if (not secs or any(x is None for x in distinct.values())) else sum(distinct.values())
     return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": len(secs),
             "film_stamped": f"{film}-<date and time>.mp4" if film else None, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
-            "film": f"{film}.mp4" if film else None, "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
+            "film": f"{film}.mp4" if film else None, "model_label": model_label(model), "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
 
 
 def _work_for(body: dict) -> Path:
@@ -432,7 +485,7 @@ FIELD_RULES = {
     "os": _one_of("Windows", "Darwin", "Linux"), "ok": lambda v: isinstance(v, bool), "problems": _kinds,
     "files": _is_int, "kind": _one_of("plan", "build"), "state": _one_of(*JOB_STATES), "code": _is_int, "seconds": _is_int, "clips": _is_int, "gaps": _is_int,
     "film_seconds": _is_int, "network_attempts": _is_int, "attempt": _is_int, "video_minutes": _is_int, "phrase_chars": _is_int, "words_changed": lambda v: isinstance(v, bool),
-    "model": _one_of(*MODELS), "recipe": lambda v: isinstance(v, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", v) is not None, "multiple": lambda v: isinstance(v, bool),
+    "model": _one_of(*[n for n, _l, _s in PLAIN_MODELS]), "recipe": lambda v: isinstance(v, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", v) is not None, "multiple": lambda v: isinstance(v, bool),
     "result": _one_of("found", "none", "many", "error"), "timed_out": lambda v: isinstance(v, bool), "lines": _is_int, "not_used": _is_int, "warnings": _is_int,
     "checked": _is_int, "answered": _numbers, "count": _is_int, "endpoint": _one_of(*ENDPOINTS), "exception": _one_of("ValueError", "KeyError", "TypeError", "IndexError", "AttributeError", "OSError", "FileNotFoundError", "PermissionError", "RuntimeError", "UnicodeError", "JSONDecodeError", "TimeoutExpired", "ModuleNotFoundError", "ImportError"),
     "chars": _is_int,
@@ -552,8 +605,8 @@ PAGE = """<!doctype html>
 <label for="paste">One line for each file, like <code>--bind source-1=C:\\clips\\a.mp4</code> (what <code>library find --emit-binds</code> prints; a span of a file is <code>slot=FILE#START_MS-END_MS</code>)</label>
 <textarea id="paste" rows="4" spellcheck="false"></textarea><button id="use-paste" type="button" class="button secondary">Use these lines</button>
 <p id="paste-note" class="note" role="status"></p></details>
-<label for="model">Speech model on this computer</label><select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>
-<p class="note">A larger model hears more words and is slower. Pick the same one you used before, or leave it as it is.</p></section>
+<label for="model">How carefully to listen</label><select id="model"></select>
+<p class="note" id="model-hint">Balanced works for most videos. Pick Fast for a quick try.</p></section>
 <section aria-labelledby="h-plan"><h2 id="h-plan">3. Plan, then Build</h2>
 <div class="actions"><button id="plan" type="button" class="button secondary" aria-describedby="why">Plan</button><button id="build" type="button" class="button primary" aria-describedby="why" disabled>Build</button><button id="cancel" type="button" class="button secondary" hidden>Cancel</button></div>
 <p id="why" class="note">Build turns on after a Plan says the files are ready.</p>
@@ -603,6 +656,13 @@ JS = r"""(function () {
     try { const r = await api('/api/log', { on: box.checked }); box.checked = r.on; $('log-state').textContent = r.on ? 'The log is on.' : 'The log is off. Nothing is being written.'; }
     catch (e) { $('log-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
   });
+  async function loadModels() {
+    try {
+      const r = await api('/api/models');
+      $('model').replaceChildren(...r.choices.map(c => el('option', { value: c.name }, c.label + (c.ready === false ? ` \u2013 not downloaded yet (about ${c.mb} MB)` : c.ready ? ' \u2013 ready' : ` \u2013 about ${c.mb} MB, downloaded once`))));
+      $('model').value = r.default; $('model-hint').textContent = r.hint;
+    } catch (e) { /* the page still works; the server then uses its own default */ }
+  }
   let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '';
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
@@ -689,7 +749,7 @@ JS = r"""(function () {
   function summary(p) {
     return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'Your files are ready to use.'),
       el('dl', {}, el('dt', {}, 'Film it would write'), el('dd', {}, `${p.film_stamped} (in ${p.out_dir}; the date and time are added so an earlier film is never replaced)`), el('dt', {}, 'Words it will find'), el('dd', {}, p.find), el('dt', {}, 'Files'),
-        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb < 1 ? 'under 1 MB' : f.mb + ' MB'})`).join('; ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
+        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb < 1 ? 'under 1 MB' : f.mb + ' MB'})`).join('; ')))), el('dt', {}, 'How carefully it listens'), el('dd', {}, p.model_label || p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
         el('dt', {}, 'Network'), el('dd', {}, p.network), el('dt', {}, 'Room on the work drive'), el('dd', {}, `${p.free_gb} GB free`)));
   }
   $('plan').addEventListener('click', async ev => {
@@ -774,7 +834,7 @@ JS = r"""(function () {
     if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s. Nothing went online (${j.receipt.network_attempts} connections). A list of where each word came from is saved beside the film.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
     if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
-    if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
+    if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', role: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
     $('job-out').replaceChildren(...parts);
     planned = j.state === 'planned' || (j.state === 'built' && planned);
     $('cancel').hidden = !running; $('plan').disabled = running; $('build').disabled = running || !planned;
@@ -800,6 +860,7 @@ JS = r"""(function () {
   $('cancel').addEventListener('click', async () => { try { drawJob(await api('/api/cancel', {})); } catch (e) { $('job-out').textContent = e.message; } });
   (async () => {
     try {
+      await loadModels();
       recipes = (await api('/api/recipes')).recipes.sort((a, b) => Number(b.ok) - Number(a.ok));      // the ones that work first, so the first choice is a usable one
       $('recipe').replaceChildren(...recipes.map(r => el('option', { value: r.file }, r.ok ? r.name : `${r.file} (refused)`)));
       if (!recipes.length) $('recipe-note').textContent = 'No recipe files (.json) were found in the recipes folder.';
@@ -865,6 +926,10 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/favicon.ico":
             self.send_response(204)
             self.end_headers()
+        elif path == "/api/models":
+            if self._auth():
+                ch = model_choices()
+                self._json(200, {"choices": ch, "default": default_model(ch), "hint": model_hint()})
         elif path == "/api/recipes":
             if self._auth():
                 self._json(200, {"recipes": list_recipes(STATE["recipes"])})
@@ -1093,8 +1158,11 @@ def locate(name, size, mtime_ms, limit_s=None) -> dict:
 GAP_WARN_MS = 500
 # Measured on one PC with the base model, the v9-lean kit: 24 minutes of video took 145 s, and 67 minutes took 234 s (CONNECT's dress rehearsal). Those two points give about 90 s to start plus 2 s for each minute of video.
 # (The first estimate, 6 s a minute from one earlier run of 66 minutes in 383 s, showed about 7 minutes for a plan that took under 4.) The other models are not measured.
-LISTEN_START_SECONDS = {"base": 90}
-LISTEN_SECONDS_PER_MINUTE = {"base": 2}
+# "small" (the Balanced choice) is ESTIMATED from the base numbers above and a measured ratio, not measured on real footage: on this PC (2026-10-20, synthetic speech, real engine) the same plan took
+# 2.3x as long for 1 minute of video (37.8 s against 16.5 s) and 2.4x for 4 minutes (84.4 s against 34.6 s), with about 2.6x the time per minute. So: start 90 -> 190 s, per minute 2 -> 5 s.
+# "tiny" and "medium" are not measured, and say so.
+LISTEN_START_SECONDS = {"base": 90, "small": 190}
+LISTEN_SECONDS_PER_MINUTE = {"base": 2, "small": 5}
 SHORT_FILM_SECONDS = 5.0
 
 
@@ -1126,12 +1194,12 @@ def wait_words(total_s, model: str) -> str:
     minutes = total_s / 60
     length = f"{minutes:.0f} minute{'' if round(minutes) == 1 else 's'}" if minutes >= 1 else "under a minute"
     if per is None:
-        return f"{length} of video to listen to. How long that takes has not been measured for the {model} model; the base model takes about {LISTEN_START_SECONDS['base']} seconds to start and then about {LISTEN_SECONDS_PER_MINUTE['base']} seconds for each minute of video."
+        return f"{length} of video to listen to. How long that takes has not been measured for the \u201c{model_label(model)}\u201d choice; the \u201c{model_label('base')}\u201d choice takes about {LISTEN_START_SECONDS['base']} seconds to start and then about {LISTEN_SECONDS_PER_MINUTE['base']} seconds for each minute of video."
     secs = listen_expect_s(total_s, model)
     wait = "under a minute" if secs < 60 else f"about {round(secs / 60)} minute{'' if round(secs / 60) == 1 else 's'}"
     if total_s < 300:
         wait += ", often much less"
-    return f"{length} of video to listen to: expect {wait} (about {LISTEN_START_SECONDS[model]} seconds to start, then about {per} seconds for each minute of video with the {model} model, measured on one computer; less if you have planned these files before)."
+    return f"{length} of video to listen to: expect {wait} (about {LISTEN_START_SECONDS[model]} seconds to start, then about {per} seconds for each minute of video with the \u201c{model_label(model)}\u201d choice, measured on one computer; less if you have planned these files before)."
 
 
 def load_questions(path) -> list[str]:
@@ -1298,7 +1366,7 @@ def main(argv=None) -> int:
     mroot = os.environ.get("RYAGRAM_MODEL_DIR")
     if mroot:
         have = models_present(mroot)
-        print(f"Listening model folder: {mroot} ({'found: ' + ', '.join(have) if have else 'no model there yet: double-click ' + GET_MODEL + ' once'})", flush=True)
+        print(f"Listening model folder: {mroot} ({'found: ' + ', '.join(model_label(m) for m in have) if have else 'no model there yet: double-click ' + GET_MODEL + ' once'})", flush=True)
     print("Leave this window open while you use it. Close it, or press Ctrl+C, to stop.", flush=True)
     print("If the page does not look right or a button does nothing, copy the address above into Microsoft Edge or Google Chrome.", flush=True)
     if a.open:

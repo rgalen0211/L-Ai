@@ -11,12 +11,18 @@ call py -c "import sys" >nul 2>nul && set "PY=py"
 if not defined PY call python -c "import sys" >nul 2>nul && set "PY=python"
 if not defined PY goto nopython
 if not defined RYAGRAM_MODEL_DIR set "RYAGRAM_MODEL_DIR=%CD%\models"
+rem No word after the file name fetches the Fast one (as always). "balanced" fetches the Balanced one (bigger), "quickest" the Quickest test.
+set "MODEL=base"
+set "SIZE=about 150 MB"
+set "EXTRA=%*"
+if /i "%~1"=="balanced" (set "MODEL=small" & set "SIZE=about 460 MB" & set "EXTRA=")
+if /i "%~1"=="quickest" (set "MODEL=tiny" & set "SIZE=about 75 MB" & set "EXTRA=")
 set "LOG=%RYAGRAM_MODEL_DIR%.get-model.log"
-echo This downloads the listening model once, about 150 MB. It is the only step that uses the internet.
+echo This downloads the listening model once, %SIZE%. It is the only step that uses the internet.
 echo It will be saved in: %RYAGRAM_MODEL_DIR%
 echo Please wait. This can take a few minutes, and nothing is shown while it works.
 echo.
-call %PY% -m ryagram.library models --get base %* > "%LOG%" 2>&1
+call %PY% -m ryagram.library models --get %MODEL% %EXTRA% > "%LOG%" 2>&1
 if errorlevel 1 goto failed
 echo Done. You can close this window and double-click start-maker.bat.
 pause

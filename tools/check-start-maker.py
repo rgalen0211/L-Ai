@@ -120,7 +120,7 @@ def main():
                         return json.loads(r.read().decode()).get('problems', [])
                 except urllib.error.HTTPError as e:
                     return json.loads(e.read().decode()).get('problems', [])
-            sentence = 'The listening model (base) is not on this computer yet. Double-click ' + GET + ' once'
+            sentence = 'The \u201cFast (rough)\u201d listening model is not on this computer yet (about 142 MB, downloaded once). Double-click ' + GET + ' once'
             check(any(sentence in x for x in problems_at(base, tok)), "Plan's door check says in ONE plain sentence what to do when the model is missing")
             # a second start takes the next free port
             p2, log2, f2 = start(folder, args=('--port', str(port)))
@@ -136,7 +136,7 @@ def main():
         p5, log5, f5 = start(folder_m, args=('--port', '0'))
         procs.append((p5, f5))
         url5, txt5 = url_from(log5, p5)
-        check('found: base' in txt5, 'with the model in the same models folder the black window says it is found (' + str([x for x in txt5.splitlines() if 'model folder' in x][:1]) + ')')
+        check('found: Fast (rough)' in txt5, 'with the model in the same models folder the black window says it is found (' + str([x for x in txt5.splitlines() if 'model folder' in x][:1]) + ')')
         if url5:
             probs5 = problems_at(url5.split('/?t=')[0], url5.split('/?t=')[1])
             check(not any('listening model' in x for x in probs5), 'and the door check no longer mentions the model')

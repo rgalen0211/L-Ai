@@ -191,8 +191,8 @@ def main():
         # ---- the expected wait in plain words, from the length of the files
         dm.media_seconds = lambda pth: {'a.mp4': 1800.0, 'b.mkv': 1800.0}.get(pth.name, 60.0)
         pc = post(f'{base}/api/check', {**sl, 'binds': good}, tok)[1]
-        check(pc['listen_seconds'] == 3600 and '60 minutes of video to listen to: expect about 4 minutes' in pc['listen_words'] and 'about 90 seconds to start, then about 2 seconds for each minute of video with the base model' in pc['listen_words'], f'the expected wait is stated from the files\u2019 length ({pc["listen_words"][:90]!r})')
-        check('has not been measured for the tiny model' in post(f'{base}/api/check', {**sl, 'model': 'tiny', 'binds': good}, tok)[1]['listen_words'], 'a model nobody measured says so instead of guessing a time')
+        check(pc['listen_seconds'] == 3600 and '60 minutes of video to listen to: expect about 4 minutes' in pc['listen_words'] and 'about 90 seconds to start, then about 2 seconds for each minute of video with the \u201cFast (rough)\u201d choice' in pc['listen_words'], f'the expected wait is stated from the files\u2019 length ({pc["listen_words"][:90]!r})')
+        check('has not been measured for the \u201cQuickest test (very rough)\u201d choice' in post(f'{base}/api/check', {**sl, 'model': 'tiny', 'binds': good}, tok)[1]['listen_words'], 'a model nobody measured says so instead of guessing a time')
         pc = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'b.mkv') + '#100-900']}}, tok)[1]
         check(abs(pc['listen_seconds'] - 1800.8) < 0.01, 'a span counts only its own length')
         same = post(f'{base}/api/check', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / 'a.mp4')]}}, tok)[1]
@@ -444,7 +444,7 @@ def main():
             page.click('#plan')
             page.wait_for_selector('#job-out .ok', timeout=30000)
             pt = page.inner_text('#plan-out') + page.inner_text('#job-out')
-            check('How long the listening takes' in pt and '60 minutes of video to listen to: expect about 4 minutes' in pt and 'well-that-is-great-news-<date and time>.mp4' in pt, 'the plan summary says how long the listening will take, and the real file name')
+            check('How long the listening takes' in pt and '60 minutes of video to listen to: expect about 8 minutes' in pt and 'well-that-is-great-news-<date and time>.mp4' in pt, 'the plan summary says how long the listening will take, and the real file name')
             check('Ready to build. No film has been written yet.' in pt and 'only 0.10 to 0.90 s' in pt and 'It would cut 2 clips, about 2.96 s' in pt and '\u201cnews\u201d from b.mkv' in pt, 'Plan shows the clips ENGINE\u2019s plan found, the span in seconds, and that no film is written yet')
             check(page.locator('#build').is_enabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_before, 'Build is on after a ready Plan, and Plan wrote no film')
             check('Plan ready: 2 clips, about 2.96 seconds. Build is now on.' in page.inner_text('#job-status') and page.get_attribute('#job-status', 'role') == 'status', 'a screen reader is told once, in the quiet status line, that the plan is ready')
@@ -521,7 +521,7 @@ def main():
             page.locator('#job-out:has-text("Listening to file 3 of 3: slow.mp4")').wait_for(timeout=15000)
             check('so far, expected about' in page.inner_text('#job-out'), 'the running line names the file, the time so far and the expected time in all')
             page.locator('#job-status:has-text("Listening to your files.")').wait_for(state='attached', timeout=5000)      # the status line is set a moment after the change, on purpose
-            check(page.text_content('#job-status').startswith('Listening to your files. 61 minutes of video to listen to: expect about 4 minutes') and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
+            check(page.text_content('#job-status').startswith('Listening to your files. 61 minutes of video to listen to: expect about 8 minutes') and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
             page.click('#cancel')
             page.get_by_text('Cancelled.', exact=False).first.wait_for(timeout=15000)
             check(page.locator('#build').is_disabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_after, 'Cancel stops the job, Build stays off, and no film was kept')
