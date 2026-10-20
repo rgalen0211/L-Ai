@@ -31,3 +31,7 @@
 .pv-endcard-actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:6px}
 .pv-endcard .button.secondary{color:#f2f2ef;border-color:#b6b5ae;background:transparent}
 .pv-endcard .button.secondary:hover{border-color:#f2f2ef}
+/* A phone's film box is about 200 px tall: the end card must fit it (FACES 16:53 found the heading and the Make your own data film button cut off at 428, 390, 375 and 360 px).
+   Compact spacing and type under 640 px keep the heading, the line and both buttons inside the card; the theme choices get a 44 px tap area. */
+@media (max-width:640px){.pv-endcard{gap:6px;padding:10px 12px}.pv-endcard-mark{font-size:1.3rem}.pv-endcard-line{font-size:.72rem;line-height:1.25}.pv-endcard-actions{gap:8px;margin-top:2px}.pv-endcard .button{padding:6px 12px;min-height:36px;font-size:.85rem}}
+.pv-theme .choice{min-height:44px;padding:0 8px;margin-right:10px}.pv-theme .choice input{width:22px;height:22px}
