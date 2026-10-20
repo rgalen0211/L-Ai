@@ -30,6 +30,15 @@ const db = new NodeSql(async (text, params) => {
 });
 
 const storage = {
+  // The stored object's size (Supabase Storage object info). NOT run against the real Storage API by CONNECT: see docs/node-function-contract.md.
+  async size(path: string): Promise<number | null> {
+    const r = await fetch(`${projectUrl}/storage/v1/object/info/${BUCKET}/${path.split("/").map(encodeURIComponent).join("/")}`, { headers: { Authorization: `Bearer ${uploadKey}`, apikey: uploadKey } });
+    if (r.status === 404 || r.status === 400) return null;
+    if (!r.ok) throw Object.assign(new Error("size"), { code: "SIZE" });
+    const j = await r.json() as { size?: number; metadata?: { size?: number } };
+    const n = j.size ?? j.metadata?.size;
+    return typeof n === "number" ? n : null;
+  },
   // Supabase Storage "create signed upload URL" for exactly this path. The key stays in this function.
   async signUpload(path: string): Promise<string> {
     const r = await fetch(`${projectUrl}/storage/v1/object/upload/sign/${BUCKET}/${path.split("/").map(encodeURIComponent).join("/")}`, {

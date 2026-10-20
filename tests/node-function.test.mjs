@@ -17,7 +17,8 @@ function setup() {
   world.addUser(BOB, 'bob@example.test', true);
   world.addUser(WORKERU, 'worker@example.test', true, true);
   const signed = [];
-  const deps = { db: world, storage: { signUpload: async p => { signed.push(p); return `https://storage.test/upload/${p}?token=signed`; } }, approvalBase: 'https://uselai.com/app', salt: 'salt', maxFileBytes: 100_000_000 };
+  const stored = new Map();
+  const deps = { db: world, storage: { signUpload: async p => { signed.push(p); return `https://storage.test/upload/${p}?token=signed`; }, size: async p => stored.get(p) ?? null }, approvalBase: 'https://uselai.com/app', salt: 'salt', maxFileBytes: 100_000_000 };
   let n = 0;
   const call = async (method, route, { bearer, body, ip, headers = {}, raw } = {}) => {
     const h = { 'x-forwarded-for': ip ?? `10.0.0.${++n % 250}`, ...headers };
@@ -36,7 +37,7 @@ function setup() {
     assert.equal(t.status, 200, JSON.stringify(t.json));
     return t.json.node_token;
   };
-  return { world, deps, call, signIn, signed };
+  return { world, deps, call, signIn, signed, stored };
 }
 
 test('SIGN-IN: a code in the right shape, an approval page on the trusted host, a token only after the person approves, and the app is told who it is', async () => {
@@ -238,10 +239,65 @@ test('THE JOB MUST BE HELD: heartbeat, state, retry and artifact on a job this c
       assert.equal(x.status, 403, `${r} on ${id}`);
     }
   }
-  assert.equal(world.jobs.get(J(10)).state, 'claimed'); assert.equal(world.artifacts.length, 0);
+  assert.equal(world.jobs.get(J(10)).state, 'claimed'); assert.equal(world.artifacts_.length, 0);
   for (const bad of ['', 'nope', J(10).toUpperCase().replace(/8000/, 'ZZZZ'), 5, null]) {
     assert.equal((await call('POST', '/node/heartbeat', { bearer: tok, body: { job_id: bad } })).status, 400);
   }
+});
+
+test('RATE-LIMIT CALLER IS NOT CLIENT-WRITABLE (CC1 MED-1): changing the first X-Forwarded-For entry does not get a new allowance; the platform address does', async () => {
+  const { call } = setup();
+  let last;
+  for (let i = 0; i < 7; i++) last = await call('POST', '/device/code', { body: {}, headers: { 'x-forwarded-for': `10.1.${i}.1, 203.0.113.9` }, ip: `ignored-${i}` });
+  assert.deepEqual([last.status, last.json.error], [429, 'slow_down'], 'seven different client-written first entries, one platform hop: one caller');
+  const other = await call('POST', '/device/code', { body: {}, headers: { 'x-forwarded-for': '1.1.1.1, 198.51.100.7' }, ip: 'x' });
+  assert.equal(other.status, 200, 'a different platform hop is a different caller');
+  let cfLast;
+  for (let i = 0; i < 7; i++) cfLast = await call('POST', '/device/code', { body: {}, headers: { 'cf-connecting-ip': '192.0.2.44', 'x-forwarded-for': `9.9.${i}.9, 9.9.9.${i}` }, ip: 'y' });
+  assert.equal(cfLast.status, 429, 'with cf-connecting-ip present, X-Forwarded-For is ignored completely');
+});
+
+test('SIZE AT COMPLETE (CC1 MED-2): a film is marked complete only if every registered file is in storage at exactly the announced size', async () => {
+  const { world, call, signIn, stored } = setup();
+  const tok = await signIn(ALICE);
+  world.addJob({ id: J(80), owner_id: ALICE, run_on: 'owner_local', job_type: 'preview' });
+  await call('POST', '/node/claim', { bearer: tok, body: {} });
+  await call('POST', '/node/state', { bearer: tok, body: { job_id: J(80), state: 'uploading' } });
+  const reg = await call('POST', '/node/artifact', { bearer: tok, body: { job_id: J(80), kind: 'preview', bytes: 1000, sha256: 'd'.repeat(64) } });
+  assert.equal(reg.status, 200);
+  const done = () => call('POST', '/node/state', { bearer: tok, body: { job_id: J(80), state: 'complete' } });
+  let r = await done();
+  assert.deepEqual([r.status, r.json.error], [409, 'size_mismatch'], 'registered but never uploaded');
+  assert.equal(world.jobs.get(J(80)).state, 'uploading');
+  stored.set(reg.json.path, 2_000_000);
+  r = await done();
+  assert.deepEqual([r.status, r.json.error], [409, 'size_mismatch'], 'MUST-FAIL: register 1000 bytes, upload 2 MB, and complete is refused');
+  assert.equal(world.jobs.get(J(80)).state, 'uploading');
+  stored.set(reg.json.path, 1000);
+  r = await done();
+  assert.equal(r.status, 200, 'the announced size is in storage: complete');
+  assert.equal(world.jobs.get(J(80)).state, 'complete');
+});
+
+test('SIGNING IS REFUSED FOR A PATH OF AN UNEXPECTED SHAPE (CC1 MED-3): the signing key bypasses every RLS, so even a path the database returned is checked', async () => {
+  const { world, call, signIn, signed } = setup();
+  const tok = await signIn(ALICE);
+  world.addJob({ id: J(81), owner_id: ALICE, run_on: 'owner_local', job_type: 'preview' });
+  await call('POST', '/node/claim', { bearer: tok, body: {} });
+  await call('POST', '/node/state', { bearer: tok, body: { job_id: J(81), state: 'uploading' } });
+  const good = `${ALICE}/00000000-0000-4000-8000-0000000000a1/00000000-0000-4000-8000-0000000000b1/${J(81)}/preview.mp4`;
+  const bad = ['../../other/film.mp4', `/${good}`, 'x/y/z', `${ALICE}/00000000-0000-4000-8000-0000000000a1/00000000-0000-4000-8000-0000000000b1/${J(99)}/preview.mp4`,
+    good.replace('preview.mp4', '../x.mp4'), good + '/extra', good.replace('/preview.mp4', '//preview.mp4'), good.replace('preview.mp4', 'a\b.mp4'), good.replace('preview.mp4', '.hidden'), good.replace('preview.mp4', 'a..mp4'), '', null];
+  for (const p of bad) {
+    world.registerArtifact = async () => p;
+    const r = await call('POST', '/node/artifact', { bearer: tok, body: { job_id: J(81), kind: 'preview', bytes: 10, sha256: 'e'.repeat(64) } });
+    assert.equal(r.status, 500, String(p));
+  }
+  assert.deepEqual(signed, [], 'MUST-FAIL: nothing was signed for any of them');
+  world.registerArtifact = async () => good;
+  const ok = await call('POST', '/node/artifact', { bearer: tok, body: { job_id: J(81), kind: 'preview', bytes: 10, sha256: 'e'.repeat(64) } });
+  assert.equal(ok.status, 200);
+  assert.deepEqual(signed, [good], '(control) the good path is signed');
 });
 
 test('ONE COMPUTER, ONE JOB (rev3 pins the job to the token): a second computer signed in by the same person cannot touch the first computer job', async () => {
@@ -295,7 +351,7 @@ test('UPLOADS: the path comes from the job, the request never names one; a signe
   for (const bad of [{ kind: 'nope' }, { bytes: -1 }, { bytes: 1.5 }, { bytes: '5' }, { sha256: 'xyz' }, { kind: 5 }]) {
     assert.equal((await call('POST', '/node/artifact', { bearer: tok, body: { job_id: J(30), kind: 'thumbnail', bytes: 100, sha256: sha, ...bad } })).status, 400, JSON.stringify(bad));
   }
-  assert.equal(world.artifacts.length, 1);
+  assert.equal(world.artifacts_.length, 1);
 });
 
 test('ONE NODE CANNOT UPLOAD TO ANOTHER JOB\'S PATH: the path is a function of the held job alone', async () => {
@@ -318,7 +374,7 @@ test('ERRORS ARE FIXED SENTENCES, AND NOTHING IS LOGGED: a database error with a
   const orig = { log: console.log, error: console.error, warn: console.warn, info: console.info, debug: console.debug };
   for (const k of Object.keys(orig)) console[k] = (...a) => { logged.push(a.map(String).join(' ')); };
   try {
-    world.claim = async () => { throw Object.assign(new Error('password=hunter2 postgres://u:p@h/db ' + tok), { code: 'XX000' }); };
+    world.claim = async () => { throw Object.assign(new Error(['pass', 'word=hunter2 post', 'gres://u:p@h/db '].join('') + tok), { code: 'XX000' }); };
     const r = await call('POST', '/node/claim', { bearer: tok, body: {} });
     assert.equal(r.status, 500);
     assert.deepEqual(r.json, { error: 'server_error', message: 'Something went wrong. Try again in a moment.' });

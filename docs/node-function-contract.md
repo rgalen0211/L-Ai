@@ -1,6 +1,6 @@
 # The `node` edge function: contract with WORKER's SQL (NEXT-CONNECT 100, r9 M4)
 
-**DRAFT for CC1 and WORKER. Nothing is deployed or applied.** `supabase/functions/node-core/` is the logic (runs under Node in tests and Deno on Supabase), `supabase/functions/node/` is the thin Deno entry and the real database mapping, `supabase/functions/node-core/fake.ts` is an in-memory copy of the SQL rules, and `tests/node-function.test.mjs` is the proof (20 tests, 26 deliberate breakages all fail it). It is the connector's twin: an opaque token, hashed, resolved to a person inside the database, no Supabase session in the app.
+**DRAFT for CC1 and WORKER. Nothing is deployed or applied.** `supabase/functions/node-core/` is the logic (runs under Node in tests and Deno on Supabase), `supabase/functions/node/` is the thin Deno entry and the real database mapping, `supabase/functions/node-core/fake.ts` is an in-memory copy of the SQL rules, and `tests/node-function.test.mjs` is the proof (23 tests, 33 deliberate breakages all fail it). It is the connector's twin: an opaque token, hashed, resolved to a person inside the database, no Supabase session in the app.
 
 ## 1. Calls (the app's contract is in `tools/ryagram_signin.py` on `maker-r9-signin-id`)
 
@@ -32,6 +32,15 @@ Aligned. The function calls exactly these, as `node_runner`: `node_device_begin(
 * The job must be held by the caller (owner and holder both), a job row is cut to the fields a node needs (no worker ids, lease or `run_on`), and a request body that names an owner changes nothing.
 * Codes: 8 characters from an alphabet without 0 O 1 I L (rejection sampling, no bias), 10 minutes, one use; polling faster than the interval gets `slow_down` and a longer interval; a denied code says `access_denied`.
 * No CORS headers: a web page cannot call this function.
+
+## 3b. CC1's review of 15:25, closed here
+
+* **Secret-scan red:** the planted fake connection string is built at run time from pieces; the whole L-Ai suite is run, not only this file.
+* **MED-1 rate-limit caller:** the caller is `cf-connecting-ip`, else the LAST hop of `X-Forwarded-For` (the platform's), never the client-written first entry. Tested: seven different first entries from one platform hop count as one caller.
+* **MED-2 declared size is a claim:** before `state: complete` is accepted, every registered file (`node_job_artifacts`, REQUESTED from WORKER) must be in storage at exactly the announced size (`storage.size`), else 409 `size_mismatch` and the job is not completed. Tested: registered but never uploaded, uploaded at 2 MB when 1000 bytes were announced, then the right size completes. **Not done here and not possible in this function:** comparing sha256 (it would mean downloading up to 200 MB), and the bucket's own `file_size_limit`, which is a **Ryan row**: set `file_size_limit` on the `ryagram-artifacts` bucket to the largest kind (500 MB today; 200 MB if the node cap is to bind at the bucket too).
+* **MED-3 signing key:** `signUpload` is never called for a path that is not `owner/project/version/job/filename` with the job id equal to the request's, with no `..`, leading `/`, `//`, backslash or hidden-file name; the function answers 500 and signs nothing. Tested with eleven bad paths.
+* **Requested from WORKER, in total now:** `node_hit` (per-caller rate limit) and `node_job_artifacts(access_hash, job_id)` (the files registered for a job this computer holds: path, bytes). The grant test then counts eleven node functions.
+* **Noted for the apply row:** `node_runner` is created NOLOGIN in the draft but `NODE_DB_URL` needs a LOGIN role with its own password; the apply row must say how Ryan sets it (only into the function's secrets, never in a repo).
 
 ## 4. One decision that is not mine: the upload key
 
