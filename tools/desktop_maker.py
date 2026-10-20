@@ -1000,7 +1000,7 @@ JS = r"""(function () {
     if (st.state === 'signed_in') {
       const fmtDate = s => { const d = new Date(s + 'T12:00:00'); return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
       const ago = n => n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`;
-      body.replaceChildren(...[el('p', { id: 'signin-who' }, `Signed in as ${st.email || '(your account)'}. This computer is called \u201c${st.computer_name}\u201d. Approved until ${st.approved_until ? fmtDate(st.approved_until) : '(unknown)'}.`),
+      body.replaceChildren(...[el('p', { id: 'signin-who' }, `Signed in as ${st.email || '(your account)'}. This computer is called \u201c${st.computer_name}\u201d. Works until ${st.approved_until ? fmtDate(st.approved_until) : '(unknown)'}.`),
         el('p', { class: 'note', id: 'signin-checked' }, st.days_since_check != null ? `Last checked ${ago(st.days_since_check)}. Site features on this computer pause after 7 days without a check; your own clip films never do.` : 'Not checked yet.'),
         st.note ? el('p', { class: st.paused ? 'warn' : 'note', role: 'status', id: 'signin-note' }, st.note) : null,
         el('div', { class: 'row' }, el('button', { type: 'button', id: 'signin-check', class: 'button secondary', onclick: ev => siCall('check', ev.currentTarget) }, 'Check my account'),

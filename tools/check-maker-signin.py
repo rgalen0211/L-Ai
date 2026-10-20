@@ -194,7 +194,7 @@ def main():
             clock.add(30)
             page.wait_for_selector('#signin-who', timeout=20000)
             who = page.inner_text('#signin-who')
-            check('sam@example.test' in who and 'Approved until' in who, f'signed in: {who}')
+            check('sam@example.test' in who and 'Works until' in who, f'signed in: {who}')
             check(page.get_by_role('button', name='Remove from this computer').count() == 1 and page.get_by_role('button', name='Check my account').count() == 1, 'Check my account and Remove from this computer are there')
             kept = page.inner_text('#signin-kept')
             check(kept.startswith('Your sign-in is kept on this computer in Windows, under your account, not in a file.') and 'Programs you run can read it' in kept and 'saved sign-ins' in kept and 'remove it any time' in kept, 'the page says plainly where the sign-in is kept and that programs you run can read it, without a scary word')
@@ -202,7 +202,7 @@ def main():
             body_txt = page.inner_text('#signin-body')
             check('null' not in body_txt and 'undefined' not in body_txt, 'MUST-FAIL: no stray "null" or "undefined" in the signed-in card')
             import re as _re
-            check(_re.search(r'Approved until [A-Z][a-z]{2} \d{1,2}, \d{4}\.', body_txt) is not None and not _re.search(r'20\d\d-\d\d-\d\d', body_txt), 'dates read like Feb 14, 2027, not 2027-02-14')
+            check(_re.search(r'Works until [A-Z][a-z]{2} \d{1,2}, \d{4}\.', body_txt) is not None and not _re.search(r'20\d\d-\d\d-\d\d', body_txt), 'dates read like Feb 14, 2027, not 2027-02-14')
             check('Last checked today.' in page.inner_text('#signin-checked') and 'your own clip films never do' in page.inner_text('#signin-checked'), 'and the last check says today, and that clip films never pause')
 
             a11y('signed in', base)
