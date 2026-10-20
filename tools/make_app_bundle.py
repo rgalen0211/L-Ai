@@ -78,11 +78,14 @@ def requirement_closure(roots) -> dict:
             raise Refused(f"The library '{name}' is not installed on this PC, so it cannot be copied. (Ryan row: it would have to be installed first.)")
         seen[key] = d.version
         for r in d.requires or []:
-            if "extra ==" in r:
-                continue
-            n = re.split(r"[<>=!~ ;(\[]", r.strip(), maxsplit=1)[0]
-            if n:
-                walk(n)
+            try:
+                from packaging.requirements import Requirement          # installed beside pip/huggingface_hub; needed to read "only on Python < 3.11" style conditions
+            except ImportError:
+                raise Refused("The 'packaging' library is not installed on this PC, and it is needed to read which libraries apply to this Python. (Ryan row: it would have to be installed first.)") from None
+            req = Requirement(r)
+            if req.marker is not None and not req.marker.evaluate({"extra": ""}):
+                continue                                                # a library only for another Python, another system, or an optional extra
+            walk(req.name)
     for r in roots:
         walk(r)
     return seen
