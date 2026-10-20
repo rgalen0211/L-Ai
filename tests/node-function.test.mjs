@@ -17,8 +17,8 @@ function setup() {
   world.addUser(BOB, 'bob@example.test', true);
   world.addUser(WORKERU, 'worker@example.test', true, true);
   const signed = [];
-  const stored = new Map();
-  const deps = { db: world, storage: { signUpload: async p => { signed.push(p); return `https://storage.test/upload/${p}?token=signed`; }, size: async p => stored.get(p) ?? null }, approvalBase: 'https://uselai.com/app', salt: 'salt', maxFileBytes: 100_000_000 };
+  const stored = world.stored;
+  const deps = { db: world, storage: { signUpload: async p => { signed.push(p); return `https://storage.test/upload/${p}?token=signed`; } }, approvalBase: 'https://uselai.com/app', salt: 'salt', maxFileBytes: 100_000_000 };
   let n = 0;
   const call = async (method, route, { bearer, body, ip, headers = {}, raw } = {}) => {
     const h = { 'x-forwarded-for': ip ?? `10.0.0.${++n % 250}`, ...headers };
@@ -268,11 +268,11 @@ test('SIZE AT COMPLETE (CC1 MED-2): a film is marked complete only if every regi
   assert.equal(reg.status, 200);
   const done = () => call('POST', '/node/state', { bearer: tok, body: { job_id: J(80), state: 'complete' } });
   let r = await done();
-  assert.deepEqual([r.status, r.json.error], [409, 'size_mismatch'], 'registered but never uploaded');
+  assert.deepEqual([r.status, r.json.error], [403, 'forbidden'], 'registered but never uploaded');
   assert.equal(world.jobs.get(J(80)).state, 'uploading');
   stored.set(reg.json.path, 2_000_000);
   r = await done();
-  assert.deepEqual([r.status, r.json.error], [409, 'size_mismatch'], 'MUST-FAIL: register 1000 bytes, upload 2 MB, and complete is refused');
+  assert.deepEqual([r.status, r.json.error], [403, 'forbidden'], 'MUST-FAIL: register 1000 bytes, upload 2 MB, and complete is refused (by the database, as in rev4)');
   assert.equal(world.jobs.get(J(80)).state, 'uploading');
   stored.set(reg.json.path, 1000);
   r = await done();

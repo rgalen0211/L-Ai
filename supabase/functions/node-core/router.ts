@@ -162,14 +162,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     }
     if (route === "/node/state") {
       if (typeof b.state !== "string" || !NODE_STATES.includes(b.state)) return fail(400, "invalid_request", "That request was not valid.");
-      if (b.state === "complete") {
-        // A declared size is only a claim (CC1 15:25 MED-2): before the film is marked complete, every registered file must be in storage at exactly the size announced.
-        for (const a of await d.db.artifacts(h, jobId)) {
-          if (!pathOk(a.path, jobId) || (await d.storage.size(a.path)) !== a.bytes) {
-            return fail(409, "size_mismatch", "A finished file is missing or is not the size it was announced as, so the film was not marked complete.");
-          }
-        }
-      }
+      // At "complete" the DATABASE (rev4 report_state) compares every registered file with what Storage actually holds and refuses a missing or wrong-sized one (42501, so 403 here).
       const j = await d.db.reportState(h, jobId, b.state, optStr(b.error_code, 80), optStr(b.error_detail, 2000), optStr(b.engine_commit, 80), typeof b.engine_dirty === "boolean" ? b.engine_dirty : null);
       return reply(200, { job: publicJob(j) });
     }

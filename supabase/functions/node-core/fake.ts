@@ -24,6 +24,7 @@ export class FakeNodeWorld implements NodeDb {
   devices = new Map<string, Device>();
   tokens = new Map<string, Token>();
   jobs = new Map<string, NodeJob & { run_on: string; worker_user_id: string | null }>();
+  stored = new Map<string, number>();                                      // what Storage holds: path -> bytes (tests set it)
   artifacts_: { job: string; kind: string; path: string; bytes: number }[] = [];
   hitLog = new Map<string, number[]>();
   calls: string[] = [];                                     // every database function the function called, in order (the tests read it)
@@ -120,6 +121,11 @@ export class FakeNodeWorld implements NodeDb {
   async reportState(accessHash: string, jobId: string, state: string): Promise<NodeJob> {
     this.calls.push("node_report_state");
     const j = this.held(this.actor(accessHash), jobId);
+    if (state === "complete") {                                       // rev4: every registered file must be in Storage at exactly the registered size
+      for (const a of this.artifacts_.filter((x) => x.job === jobId)) {
+        if (this.stored.get(a.path) !== a.bytes) throw err("42501", "The stored file is not the size this computer registered: not completed.");
+      }
+    }
     j.state = state;
     return { ...j };
   }
@@ -128,11 +134,6 @@ export class FakeNodeWorld implements NodeDb {
     const j = this.held(this.actor(accessHash), jobId);
     j.state = "queued"; j.worker_user_id = null;
     return "requeued";
-  }
-  async artifacts(accessHash: string, jobId: string) {
-    this.calls.push("node_job_artifacts");
-    this.held(this.actor(accessHash), jobId);
-    return this.artifacts_.filter((a) => a.job === jobId).map((a) => ({ path: a.path, bytes: a.bytes }));
   }
   async registerArtifact(accessHash: string, jobId: string, kind: string, bytes: number): Promise<string> {
     this.calls.push("node_register_artifact");
