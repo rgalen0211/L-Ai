@@ -160,8 +160,8 @@ test('SOURCE: the editor has no validator of its own, no raw HTML, no inline sty
   assert.doesNotMatch(ui.replace(/'[^']*profile[^']*'/g, ''), /h\([^)]*'[^']*[Pp]rofile[ ,.]/);          // words on screen: "look", not "profile"
 });
 
-test('FLAG: the editor ships OFF (lookEditor: false) until the engine branch is merged and SQL 20261017000300 is applied; the routes and links wait for it', () => {
-  assert.match(read('assets/ryagram-config.js'), /lookEditor: false,/);
+test('FLAG: the editor is ON (lookEditor: true) now that the engine branch is merged and SQL 20261017000300 is applied on the live project; the routes and links follow the flag', () => {
+  assert.match(read('assets/ryagram-config.js'), /lookEditor: true,/);
   const lib = read('assets/app-library.js');
   assert.match(lib, /const looksOn = \(\) => window\.ryagramConfig\?\.lookEditor === true \|\| !!window\.ryagramMock;/);
   for (const re of [/looksOn\(\) && hash === '#\/looks'/, /looksOn\(\) && \(m = hash\.match\(\/\^#\\\/looks\\\/new/, /looksOn\(\) && \(m = hash\.match\(\/\^#\\\/looks\\\/edit/]) assert.match(lib, re);
