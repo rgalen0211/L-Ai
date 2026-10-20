@@ -227,10 +227,10 @@ export function agoWords(iso: string | null | undefined, now: number = Date.now(
 /** What a waiting local job says about the computer it waits for. The computer's name is typed by whoever started its sign-in, so it is untrusted text. */
 export function localSeen(node: LocalNode | null | undefined, now: number = Date.now()): string {
   const ago = agoWords(node?.last_seen_at, now);
-  if (!ago) return " No computer of yours has been seen yet: open the Ryagram app on your computer and switch on “This computer renders my site films”.";
-  const raw = (node?.computer_name ?? "").replace(/[ --​-‏‪-‮⁠-⁩﻿]/g, "").trim().slice(0, 40);
+  if (!ago) return " No computer of yours has been seen yet: open the Ryagram app on your computer and switch on \u201cThis computer renders my site films\u201d.";
+  const raw = (node?.computer_name ?? "").replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g, "").trim().slice(0, 40);
   const name = raw ? ` ${untrusted("computer-name", raw)}` : "";
-  const hint = ago.seconds > DAY ? " Is the app open on that computer, and is “This computer renders my site films” switched on?"
+  const hint = ago.seconds > DAY ? " Is the app open on that computer, and is \u201cThis computer renders my site films\u201d switched on?"
     : " It makes the film when it is open and that switch is on.";
   return ` Your Ryagram app${name} was last seen ${ago.words}.${hint}`;
 }
