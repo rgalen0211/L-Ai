@@ -405,6 +405,17 @@ try:
     check(events.count("node_job_failed") == 2, "(log: fixed words only)")
 finally:
     srv.close()
+srv, app, loop, clock, d, events = world("h1b")
+try:
+    queue(srv, JID(44))
+    sign_in(srv, app, clock)
+    loop.set_switch(True)
+    loop.uploader = lambda url, path, ctype, hosts: None             # a file that is announced to the site but never actually arrives
+    r = loop.step()
+    check(r == "failed" and states(srv)[JID(44)] == "failed" and uploads(srv) == [], "MUST-FAIL: files announced but never uploaded: the site refuses 'complete' (size check), the job is NOT complete, and the app reports it failed")
+    check("did not accept the finished film as complete" in json.dumps(loop.status()) or "could not be made" in loop.status()["last"], "and the page does not claim the film was sent")
+finally:
+    srv.close()
 srv, app, loop, clock, d, events = world("h2", renderer=lambda job, work, progress: (_ for _ in ()).throw(rn.RenderFailed("disk_busy", retry=True)))
 try:
     queue(srv, JID(42))

@@ -227,7 +227,9 @@ class NodeLoop:
             self._report(jid, "uploading")
             for kind, path in files:
                 self._upload(jid, kind, path)
-            self._report(jid, "complete")
+            status, r = self._report(jid, "complete")
+            if status != 200:                                              # the site checks every file is there at the announced size before it says complete
+                raise NodeError("The site did not accept the finished film as complete, so it was not marked done.", "not_complete")
             with self._lock:
                 self.last = "The last film was made and sent."
                 self._set("idle", "Done. Waiting for the next film.")
