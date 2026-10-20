@@ -241,6 +241,9 @@ language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_app_session(); d public.device_codes;
 begin
   perform ryagram_private.node_user_hit(me, 'code_decide', 20, 3600);
+  if p_approve and not coalesce((select s.local_compute from public.account_settings s where s.owner_id = me), false) then
+    raise exception 'This account is not set up to render on its own computer yet.' using errcode = '42501';
+  end if;
   update public.device_codes
     set state = case when p_approve then 'approved' else 'denied' end,
         user_id = case when p_approve then me end, decided_at = now()

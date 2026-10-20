@@ -23,7 +23,8 @@ import test_2a_core as core  # noqa: E402
 
 ROOT = core.ROOT
 LEDGER = ROOT / "phase-2b" / "credits_ledger.sql"
-DRAFT = Path(os.environ.get("R9_DRAFT_SQL") or ROOT / "r9-drafts" / "r9_node_draft.sql")   # a mutant copy, for the must-fail probe
+DRAFT = Path(os.environ.get("R9_DRAFT_SQL") or ROOT / "r9-drafts" / "r9_node_draft.sql")
+ROLLBACK = ROOT / "r9-drafts" / "r9_node_rollback.sql"   # a mutant copy, for the must-fail probe
 RYAN, OTHER, WORKER, WORKER2 = core.RYAN, core.OTHER, core.WORKER, core.WORKER2
 SAM, BOB, ADMIN = (str(uuid.UUID(int=i)) for i in (201, 202, 203))
 _server = None
@@ -283,11 +284,22 @@ class Node(R9):
         self.runner().one("select node_device_begin(%s, 'WKWK-WKWK', 'Worker-PC')", h("wcode"))
         self.denied(WORKER, "select device_decide('WKWK-WKWK', true)")
 
-    def test_a_node_without_the_flag_cannot_claim(self):
-        job = self.submit(SAM, self.version(SAM), "contact_sheet")
+    def test_an_account_without_the_flag_cannot_approve_a_computer(self):
+        # CC1 16:24 (5): no half-state; a person who is not a tester cannot sign a computer in at all
+        self.runner().one("select node_device_begin(%s, 'NFGG-NFGG', 'X')", h("nf"))
+        self.denied(SAM, "select device_decide('NFGG-NFGG', true)")
+        self.assertEqual(self.admin("select state from device_codes where user_code = 'NFGG-NFGG'"), "pending")
+        self.db.as_(SAM).one("select device_decide('NFGG-NFGG', false)")       # denying is always allowed
+        self.make_tester()
+        self.runner().one("select node_device_begin(%s, 'YFGG-YFGG', 'X')", h("yf"))
+        self.db.as_(SAM).one("select device_decide('YFGG-YFGG', true)")        # control: a tester can
+
+    def test_a_node_whose_flag_was_turned_off_cannot_claim(self):
+        self.make_tester()
         tok = self.node()
+        self.make_tester(SAM, False)
+        self.submit(SAM, self.version(SAM), "contact_sheet")
         self.runner_denied("select id from node_claim(%s)", h(tok))
-        self.assertEqual(self.admin("select run_on::text from jobs where id = %s", job), "house")
 
     def test_the_runner_has_no_table_access(self):
         for t in ("jobs", "node_tokens", "device_codes", "account_settings", "local_compute_audit", "ryagram_private.node_tx"):
@@ -310,6 +322,7 @@ class Node(R9):
         self.admin("update device_codes set next_poll_at = now() where device_hash = %s returning 1", h(code))
 
     def test_a_device_code_is_exchanged_once(self):
+        self.make_tester()
         self.runner().one("select node_device_begin(%s, 'XYZW-QRST', 'Sam-PC')", h("c1"))
         self.assertEqual(self.exchange("c1", "t1"), "authorization_pending")                 # not approved yet
         self.assertEqual(self.exchange("c1", "t1"), "slow_down")                             # polled too fast
@@ -340,6 +353,7 @@ class Node(R9):
 
     # CC1 13:48, the device page's promises enforced in SQL
     def test_deciding_an_expired_or_used_code_is_refused(self):
+        self.make_tester()
         self.runner().one("select node_device_begin(%s, 'EXPD-EXPD', 'X')", h("e1"))
         self.admin("update device_codes set expires_at = now() - interval '1 second' where user_code = 'EXPD-EXPD' returning 1")
         self.denied(SAM, "select device_decide('EXPD-EXPD', true)")
@@ -606,6 +620,50 @@ class Review1525(R9):
             d.one("select device_request_check('ZZZZ-ZZZZ')")
         self.denied(SAM, "select device_request_check('ZZZZ-ZZZZ')")
         self.assertEqual(self.db.as_(BOB).one("select device_request_check('ZZZZ-ZZZZ') ->> 'state'"), "unknown")
+
+
+class Rollback(R9):
+    """The exact undo of the draft: run it on an applied database and it must look like the database before the draft."""
+    def defs(self, db, fn):
+        with psycopg.connect(_server.get_uri(database=db), autocommit=True) as c:
+            return c.execute("select pg_get_functiondef(%s::regprocedure)", (fn,)).fetchone()[0]
+
+    def test_rollback_restores_the_live_functions_and_removes_everything_added(self):
+        self.make_tester()
+        local = self.submit(SAM, self.version(SAM), "contact_sheet")          # a queued tester job
+        house = self.submit(BOB, self.version(BOB), "contact_sheet")
+        me = self.db.c.info.dbname
+        self.db.as_(None).c.execute(ROLLBACK.read_text(encoding="utf-8"))
+        # the tester's queued job is CANCELLED, never handed to the house worker at 0 credits
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", local), "cancelled")
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", house), "queued")
+        self.assertEqual(self.db.as_(WORKER).one("select id from claim_next_job()"), house)
+        for fn in ("public.claim_next_job()", "ryagram_private.require_worker()"):
+            self.assertEqual(self.defs(me, fn), self.defs("tmplr9base", fn), f"{fn} is not back to the live text")
+        left = self.admin("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace "
+                          "where n.nspname in ('public', 'ryagram_private') and (p.proname like 'node%%' or p.proname like 'device%%' "
+                          "or p.proname in ('my_computers', 'remove_computer', 'admin_storage_usage', 'admin_local_compute_audit', "
+                          "'admin_set_local_compute', 'admin_set_local_compute_by_email', 'masked_email', 'jobs_place', 'jobs_place_fixed', 'in_node_tx'))")
+        self.assertEqual(left, 0)
+        cols = self.admin("select count(*) from information_schema.columns where (table_name = 'jobs' and column_name in ('run_on', 'node_token_id')) "
+                          "or (table_name = 'account_settings' and column_name = 'local_compute')")
+        self.assertEqual(cols, 0)
+        for t in ("node_tokens", "device_codes", "node_buckets", "local_compute_audit"):
+            self.assertIsNone(self.admin("select to_regclass(%s)::text", "public." + t))
+        self.assertIsNone(self.admin("select to_regtype('public.job_place')::text"))
+        role = self.admin("select rolcanlogin from pg_roles where rolname = 'node_runner'")
+        self.assertIn(role, (None, False))               # dropped, or (shared test server) kept with no login
+        if role is not None:
+            self.assertEqual(self.admin("select count(*) from pg_proc p where has_function_privilege('node_runner', p.oid, 'EXECUTE') "
+                                        "and p.pronamespace in ('public'::regnamespace, 'ryagram_private'::regnamespace)"), 0)
+
+    def test_must_fail_a_rollback_that_forgets_the_claim_is_caught(self):
+        me = self.db.c.info.dbname
+        sql = ROLLBACK.read_text(encoding="utf-8")
+        a = sql.index("create or replace function public.claim_next_job()")
+        b = sql.index("end $$;", a) + len("end $$;")
+        self.db.as_(None).c.execute(sql[:a] + sql[b:])                  # the same rollback WITHOUT the restored claim
+        self.assertNotEqual(self.defs(me, "public.claim_next_job()"), self.defs("tmplr9base", "public.claim_next_job()"))
 
 
 if __name__ == "__main__":
