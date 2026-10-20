@@ -57,6 +57,14 @@ out.write_bytes(b"\\x00\\x00\\x00\\x18ftypmp42" + bytes(range(256)) * 20)
 out.with_suffix(".receipt.json").write_text(json.dumps({"schema": "ryagram.local-receipt/0", "film": out.name, "seconds": 0.6 * len(clips), "clips": clips, "network_attempts": 0, "asked_for": " ".join(tokens)}))
 print("built", out.name)
 '''
+# ENGINE 21's contract (never-dead-end): Plan exits 0 and says ok/skipped when SOME words are missing; Build builds from what exists and the receipt lists skipped [{word, reason}];
+# only "not one clip" is a refusal (exit 3).
+STUB_NEW = STUB_MAIN.replace('''    print(json.dumps({"ok": not gaps and bool(clips), "gaps": gaps, "clips": clips, "seconds_estimate": 0.6 * len(clips), "would_write": out.name, "model": "base", "network_attempts": 0}))
+    sys.exit(3 if (gaps or not clips) else 0)''', '''    print(json.dumps({"ok": bool(clips), "buildable": bool(clips), "complete": not gaps, "gaps": gaps, "skipped": gaps, "forged": [], "clips": clips, "seconds_estimate": 0.6 * len(clips), "would_write": out.name, "model": "base", "network_attempts": 0}))
+    sys.exit(0 if clips else 3)''').replace('''if gaps:
+    print("refused: some words are not said", file=sys.stderr); sys.exit(3)''', '''if not clips:
+    print("refused: nothing is said", file=sys.stderr); sys.exit(3)''').replace('''"network_attempts": 0, "asked_for"''', '''"network_attempts": 0, "complete": not gaps, "skipped": [{"word": g, "reason": "not said anywhere in the files you chose"} for g in gaps], "forged": [], "asked_for"''')
+assert STUB_NEW != STUB_MAIN
 FAILED = []
 
 
@@ -66,11 +74,13 @@ def check(c, what):
         FAILED.append(what)
 
 
-def main():
+def main(stub=None, label=''):
+    stub = stub or STUB_MAIN
+    print(label + 'engine under test')
     tmp = Path(tempfile.mkdtemp(prefix='maker-skips-', dir=BASE if BASE else None))
     try:
         shutil.copytree(ENGINE / 'ryagram', tmp / 'engine' / 'ryagram', ignore=shutil.ignore_patterns('__pycache__'))
-        (tmp / 'engine' / 'ryagram' / 'local' / '__main__.py').write_text(STUB_MAIN, encoding='utf8')
+        (tmp / 'engine' / 'ryagram' / 'local' / '__main__.py').write_text(stub, encoding='utf8')
         (tmp / 'recipes').mkdir()
         (tmp / 'recipes' / 'any-words.json').write_text(json.dumps(RECIPE), encoding='utf8')
         clips = tmp / 'Sam Videos'
@@ -108,7 +118,9 @@ def main():
                   'the plan is made WITHOUT the missing word and the page says plainly which word was left out')
             check(page.locator('#build').is_enabled() and 'Ready to build' in txt, 'Build is on: no dead end')
             check('Exit code' not in page.inner_text('body') and 'code 3' not in page.inner_text('body'), 'MUST-FAIL: no "Exit code" anywhere on the page')
-            check('the baby' in page.inner_text('#plan-out').lower() and 'brooks' not in page.inner_text('#plan-out dl').lower(), 'the plan summary lists the words it WILL find, without the missing one')
+            new_engine = 'ENGINE 21' in label
+            check(('the baby' in page.inner_text('#plan-out').lower()) and (new_engine or 'brooks' not in page.inner_text('#plan-out dl').lower()),
+                  'the plan summary shows the words' + (' as typed (the engine itself skips and lists the missing one)' if new_engine else ' it WILL find, without the missing one'))
             check(page.input_value('#words') == 'Brooks the baby', 'the box still shows what the person typed (nothing was rewritten behind their back)')
             page.click('#build')
             page.wait_for_selector('#job-out:has-text("Your film:")', timeout=40000)
@@ -117,7 +129,8 @@ def main():
             nj = json.loads(notes[0].read_text(encoding='utf-8')) if notes else {}
             check(len(notes) == 1 and nj.get('skipped') == ['brooks'] and nj.get('typed') == 'Brooks the baby' and nj.get('built_from_words') == 'the baby', f'a note beside the film lists what was left out, what was typed and what was built ({nj})')
             rec = json.loads(sorted(out_dir.glob('*.receipt.json'))[0].read_text(encoding='utf-8'))
-            check(rec['asked_for'] == 'the baby', 'the film was built from the words that exist')
+            check(rec['asked_for'] == ('brooks the baby' if new_engine else 'the baby') and (not new_engine or [x['word'] for x in rec['skipped']] == ['brooks']),
+                  'the film was built from the words that exist' + (' and the engine receipt lists the skipped word' if new_engine else ''))
 
             print('\nseveral missing words, and nothing at all')
             fresh_page()
@@ -151,4 +164,4 @@ def main():
 
 
 if __name__ == '__main__':
-    sys.exit(main())
+    sys.exit(max(main(STUB_MAIN, 'older engine (plan stops on a gap): '), main(STUB_NEW, 'ENGINE 21 (never a dead end): ')))

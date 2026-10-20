@@ -415,6 +415,9 @@ def _job_status() -> dict:
             ans = None
         if ans is not None:
             out.update(state="planned" if ans.get("ok") else "gaps", plan=ans)
+            if ans.get("skipped") and not job.get("skip_logged"):
+                job["skip_logged"] = True
+                act("words_skipped", count=len(ans["skipped"]))
             if not ans.get("ok"):
                 gone = {w for g in ans.get("gaps", []) for w in _wordlist(g)}
                 kept = [w for w in _wordlist(job.get("find", "")) if w not in gone]
@@ -430,11 +433,16 @@ def _job_status() -> dict:
             out["receipt"] = json.loads(rp.read_text(encoding="utf-8")) if rp.is_file() else None
         except Exception:  # noqa: BLE001
             out["receipt"] = None
-        out.update(state="built", path=str(job["out"]), film_url="/film", skipped=(job["note"] or {}).get("skipped", []) if job.get("note") else [])
-        if job.get("note") and not job.get("noted"):
+        eng = [str(x.get("word", "")) if isinstance(x, dict) else str(x) for x in ((out.get("receipt") or {}).get("skipped") or [])]
+        left_out = _wordlist(" ".join(eng)) or list((job.get("note") or {}).get("skipped") or [])        # the engine's own list first; else the words the maker left out itself
+        out.update(state="built", path=str(job["out"]), film_url="/film", skipped=left_out)
+        if left_out and not job.get("noted"):
             job["noted"] = True
+            find, note = job.get("find", ""), job.get("note") or {}
+            doc = {"schema": "ryagram.maker-notes/0", "typed": note.get("typed") or find, "built_from_words": note.get("built_from_words") or " ".join(w for w in _wordlist(find) if w not in set(left_out)),
+                   "skipped": left_out, "written": time.strftime("%Y-%m-%d %H:%M")}
             try:
-                job["out"].with_suffix(".maker-notes.json").write_text(json.dumps({"schema": "ryagram.maker-notes/0", **job["note"], "written": time.strftime("%Y-%m-%d %H:%M")}, indent=1, ensure_ascii=False), encoding="utf-8")
+                job["out"].with_suffix(".maker-notes.json").write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
             except OSError:
                 pass
         STATE["last_film"] = str(job["out"])
@@ -859,7 +867,8 @@ JS = r"""(function () {
       if (a.clips.length) parts.push(el('p', {}, `It would cut ${a.clips.length} clip${a.clips.length === 1 ? '' : 's'}, about ${a.seconds_estimate} s:`),
         el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
       if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Nobody says these words in the videos you chose: ${a.gaps.join(', ')}. Try different words above, or add more videos.`));
-      if (j.state === 'planned' && skippedNow.length) parts.push(el('p', { class: 'warn', role: 'status', id: 'skipped-note' }, `Left out, because nobody says ${skippedNow.length === 1 ? 'it' : 'them'} in your videos: ${skippedNow.join(', ')}. The film will be made without ${skippedNow.length === 1 ? 'it' : 'them'}.`));
+      const miss = skippedNow.length ? skippedNow : (Array.isArray(a.skipped) ? a.skipped.map(x => typeof x === 'string' ? x : (x && x.word) || '').filter(Boolean) : []);
+      if (j.state === 'planned' && miss.length) parts.push(el('p', { class: 'warn', role: 'status', id: 'skipped-note' }, `Left out, because nobody says ${miss.length === 1 ? 'it' : 'them'} in your videos: ${miss.join(', ')}. The film will be made without ${miss.length === 1 ? 'it' : 'them'}.`));
     }
     if (j.state === 'built' && j.skipped && j.skipped.length) parts.push(el('p', { class: 'warn', id: 'skipped-built' }, `Left out, because nobody says ${j.skipped.length === 1 ? 'it' : 'them'} in your videos: ${j.skipped.join(', ')}. A note listing ${j.skipped.length === 1 ? 'it' : 'them'} is saved next to the film.`));
     if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
