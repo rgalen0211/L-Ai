@@ -58,6 +58,35 @@
     { path: 'reserved.brand.credit_line', kind: 'text', label: 'Credit line', max: 160 }
   ];
 
+  // ---------------------------------------------------------------- the shared options list (assets/options.json, built into options-data.js)
+  // Plain labels, one line of help and the grouping a person sees come from the shared list of options (wording only: it is never the validator, the engine's check and the database decide what is accepted).
+  // A field with no row keeps its own label and goes under "More", so a missing row never hides a control (tests/options.test.mjs fails if one is missing).
+  const optionsList = () => window.ryagramOptions || null;
+  function plain(f) {
+    const O = optionsList();
+    const o = O && O.byPath[f.path];
+    if (!o) return f;
+    const g = { ...f, label: o.label, help: o.help };
+    if (f.kind === 'radio' && Array.isArray(o.choices)) {
+      g.options = f.options.map(([v, l]) => { const c = o.choices.find(x => JSON.stringify(x.value) === JSON.stringify(v)); return [v, c ? c.label : l]; });
+      if (f.note) g.note = Object.fromEntries(Object.entries(f.note).map(([k, text]) => { const i = f.options.findIndex(([, l]) => l === k); return [i >= 0 ? g.options[i][1] : k, text]; }));
+    }
+    return g;
+  }
+  function optionSections() {
+    const O = optionsList();
+    if (!O) return SECTIONS;
+    const all = SECTIONS.flatMap(s => s.fields);
+    const placed = new Set();
+    const out = O.groups.filter(g => g.id === 'look' || g.id === 'size').map(g => ({
+      id: g.id, title: g.label, help: g.help,
+      fields: O.options.filter(o => o.group === g.id && o.status === 'built' && o.path).map(o => all.find(f => f.path === o.path)).filter(Boolean).map(f => { placed.add(f.path); return f; })
+    }));
+    const rest = all.filter(f => !placed.has(f.path));
+    return rest.length ? [...out, { id: 'more', title: 'More', help: '', fields: rest }] : out;
+  }
+  const comingLater = () => { const O = optionsList(); return O ? O.options.filter(o => o.status === 'planned' && o.group === 'later') : []; };
+
   // ---------------------------------------------------------------- pure helpers (tested in node)
   const clone = x => JSON.parse(JSON.stringify(x));
   function getPath(obj, path) { return path.split('.').reduce((n, k) => (n && typeof n === 'object' ? n[k] : undefined), obj); }
@@ -323,6 +352,7 @@
           c.refresh = () => { input.value = getPath(profile, f.path) || ''; };
           wrap.append(h('label', { for: id, class: 'look-label' }, f.label), input);
         }
+        if (f.help) wrap.append(h('p', { class: 'form-note look-help' }, f.help));
         wrap.append(note);
         controls.push(c);
         return wrap;
@@ -393,13 +423,15 @@
         });
       }
       const form = h('form', { class: 'look-form', onsubmit: event => { event.preventDefault(); persist(false); } });
-      const sectionEls = SECTIONS.map(s => h('fieldset', { class: 'look-section' }, h('legend', {}, s.title), s.fields.map(field)));
+      const sectionEls = optionSections().map(s => h('fieldset', { class: 'look-section' }, h('legend', {}, s.title), s.help ? h('p', { class: 'form-note' }, s.help) : null, s.fields.map(f => field(plain(f)))));
+      const coming = comingLater();
+      const comingEls = coming.length ? h('fieldset', { class: 'look-section look-coming' }, h('legend', {}, 'Coming later'), h('p', { class: 'form-note' }, 'Not built yet. Shown so you can see what is planned.'), h('ul', {}, coming.map(o => h('li', {}, h('strong', {}, o.label), ` (${o.owner})`)))) : null;
       const laterEls = h('fieldset', { class: 'look-section look-later' }, h('legend', {}, 'Later (stored, not applied yet)'), h('p', { class: 'form-note' }, LATER_TEXT), LATER.map(field));
       form.append(
         h('div', { class: 'look-row' }, h('label', { for: 'look-name', class: 'look-label' }, 'Name (letters, digits, hyphens)'), nameInput,
           mode === 'edit' ? h('p', { id: 'look-name-note', class: 'form-note' }, 'The name can’t change once saved; make a copy under a new name by starting a new look.') : null),
         h('div', { class: 'look-row' }, h('label', { for: 'look-title', class: 'look-label' }, 'Title'), titleInput),
-        ...sectionEls, laterEls,
+        ...sectionEls, comingEls, laterEls,
         h('div', { class: 'actions-row' }, save, saveDefault, h('a', { class: 'button secondary', href: '#/looks' }, 'Cancel')), error);
       saveDefault.addEventListener('click', () => persist(true));
       controls.forEach(c => c.refresh && c.refresh());
@@ -476,6 +508,6 @@
     return { listView, editorView, applyPanel, withDefaultLook, lockedPanel };
   }
 
-  window.ryagramLooks = { create, SECTIONS, LATER, LOCKED_TEXT, LATER_TEXT, QUICK_NOTE, SAMPLE_TITLE, getPath, setPath, check, toProblem, problemsFor, quickLook, mix,
+  window.ryagramLooks = { create, SECTIONS, LATER, plain, optionSections, comingLater, LOCKED_TEXT, LATER_TEXT, QUICK_NOTE, SAMPLE_TITLE, getPath, setPath, check, toProblem, problemsFor, quickLook, mix,
                           hashProfile, canonical, diffWords, uniqueName };
 })();

@@ -1,0 +1,586 @@
+// GENERATED from assets/options.json by tools/make-options-data.mjs. Do not edit by hand: change options.json and run the generator.
+// The shared list of film options (wording, control type, defaults). It is never the validator: the engine's schema check, run by the server, decides what is accepted.
+window.ryagramOptions = (() => {
+  const data = {
+  "_about": "options.json: WORDING, CONTROL TYPE AND DEFAULTS ONLY. It is never the validator: every value from a menu, the desktop app or a connected AI passes the same server-side schema check before anything renders. Field paths are the engine's profile schema. status: built = the engine accepts it; planned = named, not built; reserved = stored, not applied yet. Owner of fields: ENGINE; owner of wording: WEB. assets/options-data.js is GENERATED from this file by tools/make-options-data.mjs.",
+  "version": 1,
+  "groups": [
+    {
+      "id": "look",
+      "label": "Look",
+      "help": "Colours and shapes."
+    },
+    {
+      "id": "size",
+      "label": "Size and speed",
+      "help": "How big the film is and how it moves."
+    },
+    {
+      "id": "words",
+      "label": "Words on screen",
+      "help": "The question and key a viewer reads first."
+    },
+    {
+      "id": "later",
+      "label": "Coming later",
+      "help": "Shown greyed out, with who is building it."
+    }
+  ],
+  "options": [
+    {
+      "id": "theme",
+      "path": "look.theme",
+      "group": "look",
+      "label": "Page",
+      "help": "Dark or light page behind the film. Dark is the default.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "dark",
+          "label": "Dark"
+        },
+        {
+          "value": "light",
+          "label": "Light"
+        }
+      ],
+      "default": "dark",
+      "status": "built"
+    },
+    {
+      "id": "page_background",
+      "path": "look.page_background",
+      "group": "look",
+      "label": "Page colour",
+      "help": "Leave blank to use the page's own colour.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "text_muted",
+      "path": "look.text_muted",
+      "group": "look",
+      "label": "Quiet text colour",
+      "help": "Source lines and small print.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "ramp_low",
+      "path": "look.ramp.low",
+      "group": "look",
+      "label": "Map colour for low values",
+      "help": "The colour of the lowest numbers.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "note": "ENGINE's dark-ramp rule refuses a low colour too close to the page; the page shows the engine's own sentence"
+    },
+    {
+      "id": "ramp_high",
+      "path": "look.ramp.high",
+      "group": "look",
+      "label": "Map colour for high values",
+      "help": "The colour of the highest numbers.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "ramp_mode",
+      "path": "look.ramp.mode",
+      "group": "look",
+      "label": "Map fill",
+      "help": "Solid or hatched fill.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "solid",
+          "label": "Solid"
+        },
+        {
+          "value": "hatch",
+          "label": "Hatched"
+        }
+      ],
+      "default": "hatch",
+      "status": "built"
+    },
+    {
+      "id": "ramp_continuous",
+      "path": "look.ramp.continuous",
+      "group": "look",
+      "label": "Smooth colours",
+      "help": "Colours blend smoothly instead of in bands.",
+      "control": "toggle",
+      "default": null,
+      "status": "built"
+    },
+    {
+      "id": "ramp_steps",
+      "path": "look.ramp.steps",
+      "group": "look",
+      "label": "Number of colour bands",
+      "help": "How many colour bands the map uses. Auto lets the engine choose.",
+      "control": "steps",
+      "default": null,
+      "status": "built"
+    },
+    {
+      "id": "hatch_line_color",
+      "path": "look.hatch_line_color",
+      "group": "look",
+      "label": "Hatch line colour",
+      "help": "Only used when the map fill is hatched.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "dots_color",
+      "path": "look.dots.color",
+      "group": "look",
+      "label": "Dot colour",
+      "help": "Places drawn as dots.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "dots_baseline_color",
+      "path": "look.dots.baseline_color",
+      "group": "look",
+      "label": "Dot colour at the start",
+      "help": "Where a dot starts from.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "dots_radius",
+      "path": "look.dots.radius",
+      "group": "look",
+      "label": "Dot size",
+      "help": "Bigger dots are easier to see on a phone.",
+      "control": "slider",
+      "min": 0.5,
+      "max": 6,
+      "step": 0.5,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0.5,
+        "max": 6
+      }
+    },
+    {
+      "id": "state_fill",
+      "path": "look.state.fill",
+      "group": "look",
+      "label": "Place fill",
+      "help": "The fill of places with data.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "state_no_data_fill",
+      "path": "look.state.no_data_fill",
+      "group": "look",
+      "label": "No-data colour",
+      "help": "Places with no number for the year.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      }
+    },
+    {
+      "id": "state_outline_width",
+      "path": "look.state.outline_width",
+      "group": "look",
+      "label": "Outline thickness",
+      "help": "The line around each place. 0 hides it.",
+      "control": "slider",
+      "min": 0,
+      "max": 4,
+      "step": 0.5,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 4
+      }
+    },
+    {
+      "id": "bars_swap_seconds",
+      "path": "look.bars.swap_seconds",
+      "group": "look",
+      "label": "How fast bars swap places",
+      "help": "Seconds a bar takes to move when its rank changes.",
+      "control": "slider",
+      "min": 0,
+      "max": 1.5,
+      "step": 0.1,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 1.5
+      }
+    },
+    {
+      "id": "bars_label_width",
+      "path": "look.bars.label_width",
+      "group": "look",
+      "label": "Space for names",
+      "help": "Width of the name column, in pixels. Advanced.",
+      "control": "number",
+      "min": 60,
+      "max": 600,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 60,
+        "max": 600
+      },
+      "advanced": true
+    },
+    {
+      "id": "bars_value_width",
+      "path": "look.bars.value_width",
+      "group": "look",
+      "label": "Space for numbers",
+      "help": "Width of the number column, in pixels. Advanced.",
+      "control": "number",
+      "min": 40,
+      "max": 400,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 40,
+        "max": 400
+      },
+      "advanced": true
+    },
+    {
+      "id": "canvas",
+      "path": "look.canvas",
+      "group": "size",
+      "label": "Size",
+      "help": "Widescreen for YouTube; vertical for Shorts.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": [
+            1920,
+            1080
+          ],
+          "label": "Widescreen (1920 x 1080)"
+        },
+        {
+          "value": [
+            1280,
+            720
+          ],
+          "label": "Smaller widescreen (1280 x 720)"
+        },
+        {
+          "value": [
+            1080,
+            1920
+          ],
+          "label": "Vertical for Shorts (1080 x 1920)",
+          "status": "planned",
+          "note": "the schema accepts it but a true vertical layout is not built yet (ENGINE profile note); BUILDER's vertical work; show greyed with 'not ready yet'"
+        }
+      ],
+      "default": [
+        1920,
+        1080
+      ],
+      "status": "built",
+      "hard": {
+        "enum": "the three sizes"
+      }
+    },
+    {
+      "id": "fps",
+      "path": "look.fps",
+      "group": "size",
+      "label": "Smoothness",
+      "help": "Frames per second. 30 is smooth; 24 looks more like cinema.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": 24,
+          "label": "24"
+        },
+        {
+          "value": 25,
+          "label": "25"
+        },
+        {
+          "value": 30,
+          "label": "30 (recommended)"
+        }
+      ],
+      "default": 30,
+      "status": "built",
+      "hard": {
+        "enum": [
+          24,
+          25,
+          30
+        ]
+      }
+    },
+    {
+      "id": "hold_seconds",
+      "path": "pacing.hold_seconds",
+      "group": "size",
+      "label": "Pause at the end",
+      "help": "How long the last picture stays on screen.",
+      "control": "slider",
+      "min": 0,
+      "max": 10,
+      "step": 0.5,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 10
+      },
+      "soft": {
+        "above": 2,
+        "text": "A pause over 2 seconds can feel long. You can keep it."
+      }
+    },
+    {
+      "id": "transition_kind",
+      "path": "pacing.transition.kind",
+      "group": "size",
+      "label": "Between scenes",
+      "help": "How one scene gives way to the next.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "cut",
+          "label": "Straight cut"
+        },
+        {
+          "value": "crossfade",
+          "label": "Crossfade"
+        },
+        {
+          "value": "fade",
+          "label": "Fade through the page colour"
+        }
+      ],
+      "default": null,
+      "status": "built"
+    },
+    {
+      "id": "transition_seconds",
+      "path": "pacing.transition.seconds",
+      "group": "size",
+      "label": "Scene change length",
+      "help": "Seconds the change takes.",
+      "control": "slider",
+      "min": 0,
+      "max": 3,
+      "step": 0.1,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 3
+      }
+    },
+    {
+      "id": "title_fade",
+      "path": "pacing.title_card.fade",
+      "group": "size",
+      "label": "Title fade",
+      "help": "Seconds the title card fades in.",
+      "control": "slider",
+      "min": 0,
+      "max": 2,
+      "step": 0.1,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 2
+      }
+    },
+    {
+      "id": "title_align",
+      "path": "pacing.title_card.align",
+      "group": "size",
+      "label": "Title position",
+      "help": "Centre or left.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "center",
+          "label": "Centre"
+        },
+        {
+          "value": "left",
+          "label": "Left"
+        }
+      ],
+      "default": "center",
+      "status": "built"
+    },
+    {
+      "id": "clarity_question",
+      "path": "clips[].clarity.question",
+      "group": "words",
+      "label": "Question under the title",
+      "help": "The one question this film answers, up to 120 characters. It stays on screen.",
+      "control": "text",
+      "maxLength": 120,
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE (clarity-option-a, unmerged)",
+      "hard": {
+        "maxLength": 120
+      }
+    },
+    {
+      "id": "clarity_detail",
+      "path": "clips[].clarity.detail",
+      "group": "words",
+      "label": "A line of detail",
+      "help": "Optional, under the question.",
+      "control": "text",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE"
+    },
+    {
+      "id": "clarity_fade",
+      "path": "clips[].clarity.fade_seconds",
+      "group": "words",
+      "label": "How fast the data fades in",
+      "help": "0 turns the fade off.",
+      "control": "slider",
+      "min": 0,
+      "max": 3,
+      "step": 0.1,
+      "default": 0.6,
+      "status": "planned",
+      "owner": "ENGINE",
+      "hard": {
+        "min": 0,
+        "max": 3
+      }
+    },
+    {
+      "id": "clarity_key",
+      "path": "clips[].clarity.key",
+      "group": "words",
+      "label": "The colour key",
+      "help": "2 to 8 marks along the colour bar, each with a plain label.",
+      "control": "list",
+      "minItems": 2,
+      "maxItems": 8,
+      "status": "planned",
+      "owner": "ENGINE",
+      "hard": {
+        "minItems": 2,
+        "maxItems": 8
+      },
+      "note": "stops are increasing and each inside the colour ramp's own range; the page shows the engine's sentence when refused"
+    },
+    {
+      "id": "music",
+      "group": "later",
+      "label": "Music",
+      "help": "A track under the film. Needs the audio block merged and a licence answer for uploads.",
+      "control": "choice",
+      "status": "planned",
+      "owner": "ENGINE, WEB; counsel for uploads"
+    },
+    {
+      "id": "captions",
+      "group": "later",
+      "label": "Captions",
+      "help": "Burned-in captions and a .srt file.",
+      "control": "toggle",
+      "status": "planned",
+      "owner": "BUILDER, WEB"
+    },
+    {
+      "id": "glow",
+      "group": "later",
+      "label": "Glow on map edges",
+      "help": "A soft glow on the outer edge of each landmass, never per county (Ryan 10-20). Setting name: UNKNOWN to WEB.",
+      "control": "toggle",
+      "status": "planned",
+      "owner": "ENGINE"
+    },
+    {
+      "id": "borders",
+      "group": "later",
+      "label": "Use each year's borders",
+      "help": "Switch a map to the borders of each year, for example Connecticut's counties then planning regions.",
+      "control": "toggle",
+      "status": "planned",
+      "owner": "ENGINE (time-varying geography)"
+    },
+    {
+      "id": "fonts",
+      "path": "reserved.fonts",
+      "group": "later",
+      "label": "Fonts",
+      "help": "Stored, not applied yet.",
+      "control": "choice",
+      "status": "reserved",
+      "owner": "BUILDER"
+    },
+    {
+      "id": "brand",
+      "path": "reserved.brand",
+      "group": "later",
+      "label": "Channel name and credit line",
+      "help": "Stored, not applied yet.",
+      "control": "text",
+      "status": "reserved",
+      "owner": "BUILDER"
+    }
+  ]
+};
+  const byPath = Object.create(null);
+  for (const o of data.options) if (o.path) byPath[o.path] = o;
+  return Object.freeze({ data, groups: data.groups, options: data.options, byPath });
+})();

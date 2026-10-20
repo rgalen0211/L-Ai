@@ -91,7 +91,7 @@ def main():
                 check(p.locator('.look-form button[type=submit]').is_enabled(), 'fixed colours enable Save again')
                 p.get_by_label('Vertical').check()
                 check(p.locator('.look-vertical-note:not([hidden])').count() == 1 and 'no vertical layout' in p.inner_text('.look-layout'), 'Vertical shows the engine warning beside the option')
-                p.get_by_label('16:9 HD').check()
+                p.get_by_label('Widescreen (1920 x 1080)').check()
                 # a sample sheet
                 p.click('text=Make a sample sheet')
                 p.wait_for_selector('.look-sheet', timeout=60000)
