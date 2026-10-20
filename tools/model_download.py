@@ -57,6 +57,9 @@ PINS = {
 }
 
 
+PROXY_NOTE = "If this network needs a proxy, that is the reason: Ryagram does not use a proxy."
+
+
 class ModelRefused(Exception):
     """Plain words for the person; nothing of the model is kept."""
 
@@ -164,7 +167,7 @@ def download(model: str, root, progress=None, cancel=None, net: Net = None) -> P
             except urllib.error.HTTPError as e:
                 raise ModelRefused(f"The download server answered {e.code} for {f['name']}. Nothing was kept.") from None
             except (urllib.error.URLError, OSError, http.client.HTTPException):
-                raise ModelRefused("The download could not reach the server. Check the internet and try again. Nothing was kept.") from None
+                raise ModelRefused("The download could not reach the server. Check the internet and try again. " + PROXY_NOTE + " Nothing was kept.") from None
             with resp:
                 check_hop(resp.geturl(), net)
                 if getattr(resp, "status", 200) != 200:
