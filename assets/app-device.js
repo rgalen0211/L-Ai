@@ -12,6 +12,7 @@
   const ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
   const CODE = new RegExp(`^[${ALPHABET}]{8}$`);
   const EXPIRED = 'This code has ended. Start again in the Ryagram app.';
+  const BAD_CODE = "That code doesn't look right. Codes never use the letters O, I or L or the numbers 0 or 1. Check the app and try again.";
   const WARN = 'Approve only if this code is on YOUR screen right now, in the Ryagram app you just opened. If someone sent you this link or code, press Deny.';
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
@@ -23,8 +24,9 @@
   // #/device or #/device?code=ABCD-2345 (hyphen optional, any case). Anything else is not this page.
   const codeFromHash = hash => {
     const m = /^#\/device(?:\?code=([A-Za-z0-9-]+))?$/.exec(hash || '');
-    if (!m) return { page: false, code: null };
-    return { page: true, code: m[1] ? normalizeCode(m[1]) : null };
+    if (!m) return { page: false, code: null, bad: false };
+    const code = m[1] ? normalizeCode(m[1]) : null;
+    return { page: true, code, bad: !!m[1] && !code };               // a code in the link that is not a real code is said so, not silently dropped
   };
   const ago = (iso, now = Date.now()) => {
     if (!iso) return 'never';
@@ -48,12 +50,13 @@
     const { h, data, busy, showError, errorLine, date, whoami } = ctx;
 
     // ---- the approval page
-    async function deviceView(prefill) {
+    async function deviceView(prefill, bad) {
       const back = h('a', { href: '#/', class: 'back' }, '← All projects');
       const error = errorLine();
       const out = h('div', { class: 'device-out', 'aria-live': 'polite' });
       const input = h('input', { id: 'device-code', type: 'text', maxlength: '12', autocomplete: 'off', spellcheck: 'false', 'aria-describedby': 'device-code-note', value: prefill ? showCode(prefill) : '' });
       const check = h('button', { class: 'button primary', type: 'button' }, 'Check this code');
+      const formBox = h('div', { class: 'device-form' });
 
       async function show(code) {
         let c;
@@ -73,9 +76,10 @@
             try {
               const r = await data.deviceDecide(code, yes);
               approve.disabled = deny.disabled = true;
+              formBox.hidden = true;                                                                  // the answer is given: no form left that looks unfinished
               out.replaceChildren(yes
                 ? h('p', { class: 'form-note', role: 'status' }, `This computer is signed in until ${r && r.expires_at ? date(r.expires_at) : 'it expires'}. You can remove it any time: Account, then Computers signed in. Go back to the Ryagram app.`)
-                : h('p', { class: 'form-note', role: 'status' }, 'Nothing was approved. You can close this page.'));
+                : h('p', { class: 'form-note', role: 'status' }, 'Nothing was signed in. If you did not start this, you can ignore it.'));
             } catch (err) { showError(error, err); }
           });
         };
@@ -94,27 +98,29 @@
         out.replaceChildren(
           h('p', { class: 'device-warn', role: 'note' }, h('strong', {}, 'Check before you approve. '), WARN),
           h('dl', { class: 'device-facts' },
-            h('dt', {}, 'Code'), h('dd', {}, h('code', {}, showCode(code))),
-            h('dt', {}, 'The computer calls itself'), h('dd', {}, c.device_name ? String(c.device_name).slice(0, 80) : 'no name'),
-            h('dt', {}, 'Asked for'), h('dd', {}, c.requested_at ? new Date(c.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not known'),
-            h('dt', {}, 'Roughly where'), h('dd', {}, c.approx_place ? String(c.approx_place).slice(0, 80) : 'not known')),
+            h('dt', {}, 'The name it gave itself (not checked)'), h('dd', {}, c.device_name ? String(c.device_name).slice(0, 80) : 'no name'),
+            h('dt', {}, 'Asked at'), h('dd', {}, c.requested_at ? new Date(c.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not known'),
+            h('dt', {}, 'Roughly where (a guess from its network)'), h('dd', {}, c.approx_place ? String(c.approx_place).slice(0, 80) : 'not known')),
           me ? h('p', { class: 'device-who' }, 'You are signed in as ', h('strong', {}, me.slice(0, 120)), '. This computer will join this account. Not you? Sign out first.') : '',
-          h('p', { class: 'form-note' }, 'If you approve, this computer can use your Ryagram account for 30 days. It cannot spend your credits, and you can remove it any time.'),
+          h('p', { class: 'device-consent' }, 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.'),
+          h('p', { class: 'form-note' }, 'Approve signs this computer in. Deny signs nothing in.'),
           expiryLine, h('div', { class: 'actions-row' }, approve, deny));
       }
 
       check.addEventListener('click', async () => {
         error.hidden = true;
         const code = normalizeCode(input.value);
-        if (!code) { showError(error, new Error('Type the 8 characters shown in the app, like ABCD-2345.')); return; }
+        if (!code) { showError(error, new Error(BAD_CODE)); return; }
         await busy(check, 'Checking…', () => show(code));
       });
       input.addEventListener('keydown', ev => { if (ev.key === 'Enter') { ev.preventDefault(); check.click(); } });
       if (prefill) show(prefill);                    // a link carried the code: look it up (a check only; nothing is approved until a button is pressed)
+      formBox.append(h('label', { for: 'device-code' }, 'The code shown in the app'), input,
+        h('p', { id: 'device-code-note', class: 'form-note' }, 'Eight characters, like ABCD-2345.'), h('div', { class: 'actions-row' }, check));
       return [back, h('h1', { tabindex: '-1' }, 'Approve this computer?'),
         h('p', { class: 'form-intro' }, 'The Ryagram app on a computer is asking to sign in to your account.'),
-        h('label', { for: 'device-code' }, 'The code shown in the app'), input,
-        h('p', { id: 'device-code-note', class: 'form-note' }, 'Eight characters, like ABCD-2345.'), h('div', { class: 'actions-row' }, check), error, out];
+        (bad ? h('p', { class: 'app-error', role: 'alert' }, BAD_CODE) : null),
+        formBox, error, out];
     }
 
     // ---- the account page's list
@@ -126,7 +132,7 @@
         try { rows = await data.myComputers(); } catch (err) { list.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list connected-list' }, rows.map(r => h('li', {},
           h('strong', {}, String(r.name || 'A computer').slice(0, 80)),
-          h('span', { class: 'meta' }, ` signed in ${date(r.created_at)}, last used ${ago(r.last_used_at)}, ends ${date(r.expires_at)}`),
+          h('span', { class: 'meta' }, ` added ${date(r.created_at)}, ${r.last_used_at ? 'last used ' + ago(r.last_used_at) : 'not used yet'}, stops working on ${date(r.expires_at)}`),
           h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
             if (!confirm(`Remove ${r.name || 'this computer'}? It is signed out straight away.`)) return;
             error.hidden = true;
@@ -144,5 +150,5 @@
     return { deviceView, computersSection };
   }
 
-  window.ryagramDevice = { ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();

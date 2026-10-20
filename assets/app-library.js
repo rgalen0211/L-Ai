@@ -90,7 +90,7 @@
         else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
         else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
         else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
-        else if (desktopOn() && window.ryagramDevice.codeFromHash(hash).page) view = await deviceUi().deviceView(window.ryagramDevice.codeFromHash(hash).code);
+        else if (desktopOn() && window.ryagramDevice.codeFromHash(hash).page) view = await deviceUi().deviceView(window.ryagramDevice.codeFromHash(hash).code, window.ryagramDevice.codeFromHash(hash).bad);
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);

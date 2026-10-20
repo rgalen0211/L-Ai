@@ -24,10 +24,10 @@ test('CODE: eight characters from an alphabet with no look-alikes, any case, spa
 });
 
 test('ROUTE: #/device and #/device?code=... are this page; a bad code in the link is dropped (the person types it), anything else is not this page', () => {
-  assert.deepEqual(plain(D.codeFromHash('#/device')), { page: true, code: null });
-  assert.deepEqual(plain(D.codeFromHash('#/device?code=ABCD-2345')), { page: true, code: 'ABCD2345' });
-  assert.deepEqual(plain(D.codeFromHash('#/device?code=abcd2345')), { page: true, code: 'ABCD2345' });
-  assert.deepEqual(plain(D.codeFromHash('#/device?code=ABCD0000')), { page: true, code: null });
+  assert.deepEqual(plain(D.codeFromHash('#/device')), { page: true, code: null, bad: false });
+  assert.deepEqual(plain(D.codeFromHash('#/device?code=ABCD-2345')), { page: true, code: 'ABCD2345', bad: false });
+  assert.deepEqual(plain(D.codeFromHash('#/device?code=abcd2345')), { page: true, code: 'ABCD2345', bad: false });
+  assert.deepEqual(plain(D.codeFromHash('#/device?code=ABCD0000')), { page: true, code: null, bad: true });                       // a bad code in the link is SAID, not silently dropped
   for (const other of ['#/devices', '#/device/ABCD2345', '#/device?code=ABCD-2345&x=1', '#/device?x=1', '#/account', '', null, undefined, '#/connect/consent?request=x']) assert.equal(D.codeFromHash(other).page, false, String(other));
 });
 
@@ -87,8 +87,8 @@ test('MUST-FAIL: a denied code approves nothing and cannot be approved afterward
 
 test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, the computer\'s own name as untrusted text, when it was asked for and where, has Approve and Deny, and decides only inside a button handler', () => {
   const src = read('assets/app-device.js');
-  for (const text of ["const WARN = 'Approve only if this code is on YOUR screen right now", "h('strong', {}, 'Check before you approve. ')", "'The computer calls itself'", "'Asked for'", "'Roughly where'",
-                      "'Approve this computer'", "'Deny'", 'It cannot spend your credits, and you can remove it any time.', 'for 30 days']) assert.ok(src.includes(text), text);
+  for (const text of ["const WARN = 'Approve only if this code is on YOUR screen right now", "h('strong', {}, 'Check before you approve. ')", "'The name it gave itself (not checked)'", "'Asked at'", "'Roughly where (a guess from its network)'",
+                      "'Approve this computer'", "'Deny'", 'If you approve, this computer can make films for you for 30 days. It cannot spend your credits or change your account. You can remove it any time.', 'Approve signs this computer in. Deny signs nothing in.', 'Nothing was signed in. If you did not start this, you can ignore it.']) assert.ok(src.includes(text), text);
   const view = src.slice(src.indexOf('async function deviceView'), src.indexOf('// ---- the account page'));
   assert.equal([...view.matchAll(/data\.deviceDecide\(/g)].length, 1);                                       // one decide call, inside the button handler
   assert.match(view, /const decide = async \(button, yes\) => \{[\s\S]*data\.deviceDecide[\s\S]*\};\s*approve\.addEventListener\('click'/);
@@ -96,7 +96,8 @@ test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, t
   assert.doesNotMatch(view.slice(view.indexOf('if (prefill)')), /deviceDecide/);
   assert.match(view, /String\(c\.device_name\)\.slice\(0, 80\)/);                                             // the name is cut and shown as text
   assert.match(view, /if \(e\.state === 'expired'\) \{ approve\.disabled = true;/);
-  assert.match(view, /if \(!code\) \{ showError\(error, new Error\('Type the 8 characters shown in the app, like ABCD-2345\.'\)\); return; \}/);
+  assert.match(view, /if \(!code\) \{ showError\(error, new Error\(BAD_CODE\)\); return; \}/);
+  assert.equal(D.BAD_CODE, "That code doesn't look right. Codes never use the letters O, I or L or the numbers 0 or 1. Check the app and try again.");
 });
 
 test('NO TOKEN, NO HTML: the page never reads, stores or shows a token or secret, and writes nothing but text nodes', () => {
@@ -107,7 +108,7 @@ test('NO TOKEN, NO HTML: the page never reads, stores or shows a token or secret
 test('WIRING AND FLAG: the route and the account section exist only behind desktopApp (off), the script loads before the library, and Remove confirms and then re-lists', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /const desktopOn = \(\) => window\.ryagramConfig\?\.desktopApp === true \|\| !!window\.ryagramMock;/);
-  assert.match(lib, /desktopOn\(\) && window\.ryagramDevice\.codeFromHash\(hash\)\.page\) view = await deviceUi\(\)\.deviceView\(window\.ryagramDevice\.codeFromHash\(hash\)\.code\)/);
+  assert.match(lib, /desktopOn\(\) && window\.ryagramDevice\.codeFromHash\(hash\)\.page\) view = await deviceUi\(\)\.deviceView\(window\.ryagramDevice\.codeFromHash\(hash\)\.code, window\.ryagramDevice\.codeFromHash\(hash\)\.bad\)/);
   assert.match(lib, /if \(desktopOn\(\)\) sections\.push\(await deviceUi\(\)\.computersSection\(\)\);/);
   assert.match(read('assets/ryagram-config.js'), /desktopApp: false,/);
   const html = read('app/index.html');
@@ -120,6 +121,17 @@ test('WIRING AND FLAG: the route and the account section exist only behind deskt
 test('WHICH ACCOUNT (CC1 13:48): above Approve the page says "You are signed in as <email>" so someone in a second account sees which account the computer will join; the email comes from the app\'s own session, cut to 120 characters, as text', () => {
   const src = read('assets/app-device.js');
   assert.match(src, /'You are signed in as ', h\('strong', \{\}, me\.slice\(0, 120\)\), '\. This computer will join this account\. Not you\? Sign out first\.'/);
-  assert.ok(src.indexOf("'device-who'") < src.indexOf("class: 'form-note' }, 'If you approve"), 'the account line comes before the 30-day line and the buttons');
+  assert.ok(src.indexOf("'device-who'") < src.indexOf("class: 'device-consent' }, 'If you approve"), 'the account line comes before the consent sentence and the buttons');
   assert.match(read('assets/app-library.js'), /whoami: async \(\) => \(window\.ryagramApp\?\.client \? \(await window\.ryagramApp\.client\.auth\.getSession\(\)\)\.data\.session\?\.user\?\.email \|\| '' : ''\)/);
+});
+
+test('FACES\' FIXES (13:55, with CC1 13:55): the consent sentence is normal size and plain; the name is labelled "(not checked)"; no second copy of the code; the form goes away once answered; Deny says what it did; the account list says "not used yet" and "stops working on"', () => {
+  const src = read('assets/app-device.js');
+  assert.match(src, /h\('p', \{ class: 'device-consent' \}, 'If you approve, this computer can make films for you for 30 days\. It cannot spend your credits or change your account\. You can remove it any time\.'\)/);
+  assert.doesNotMatch(src.slice(src.indexOf('async function deviceView'), src.indexOf('// ---- the account page')), /'Code'/);   // no second copy of the code
+  assert.doesNotMatch(src, /The computer calls itself/);
+  assert.match(src, /formBox\.hidden = true;/);
+  assert.match(src, /not used yet/);
+  assert.match(src, /stops working on \$\{date\(r\.expires_at\)\}/);
+  assert.match(src, /\(bad \? h\('p', \{ class: 'app-error', role: 'alert' \}, BAD_CODE\) : null\)/);
 });
