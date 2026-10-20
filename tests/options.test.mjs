@@ -7,6 +7,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
 import { execFileSync } from 'node:child_process';
+import path from 'node:path';
+import os from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { checkAgainst } from '../supabase/functions/_shared/schema_check.ts';
 
@@ -21,10 +24,14 @@ const source = JSON.parse(read('assets/options.json'));
 const STORY_SCHEMA_JSON = JSON.parse(read('supabase/functions/_shared/story.schema.json'));
 const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
-test('GENERATED: assets/options-data.js is exactly what tools/make-options-data.mjs builds from assets/options.json', () => {
-  const before = read('assets/options-data.js');
-  execFileSync(process.execPath, [new URL('../tools/make-options-data.mjs', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')], { cwd: new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1') });
-  assert.equal(read('assets/options-data.js'), before, 'options-data.js is stale: run node tools/make-options-data.mjs');
+test('GENERATED: assets/options-data.js is exactly what tools/make-options-data.mjs builds from assets/options.json (line endings aside)', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'options-gen-'));
+  const tmp = path.join(dir, 'options-data.js');
+  try {
+    execFileSync(process.execPath, [fileURLToPath(new URL('../tools/make-options-data.mjs', import.meta.url)), tmp]);
+    const eol = x => x.split('\r\n').join('\n');
+    assert.equal(eol(read('assets/options-data.js')), eol(fs.readFileSync(tmp, 'utf8')), 'options-data.js is stale: run node tools/make-options-data.mjs');
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
   assert.deepEqual(plain(O.data), source);
 });
 

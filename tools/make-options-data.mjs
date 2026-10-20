@@ -12,5 +12,7 @@ window.ryagramOptions = (() => {
   return Object.freeze({ data, groups: data.groups, options: data.options, byPath });
 })();
 `;
-fs.writeFileSync(new URL('assets/options-data.js', root), out);
+// An optional first argument writes somewhere else (the test builds into a temp file and compares, so the checked-out file is never touched).
+const target = process.argv[2] ? process.argv[2] : new URL('assets/options-data.js', root);
+fs.writeFileSync(target, out);
 console.log('options-data.js written:', src.options.length, 'rows');
