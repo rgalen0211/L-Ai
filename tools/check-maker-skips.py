@@ -172,6 +172,16 @@ def main(stub=None, label=''):
                 check('EVERY time it is said' in page.inner_text('#words-note') and 'EVERY time' not in plain, 'choosing the every-time recipe changes the hint under the words box to say it takes every time the words are said')
                 page.select_option('#recipe', label='any words')
                 check(page.inner_text('#words-note') == plain, 'and choosing the other recipe puts the original hint back')
+                for label_, want in (('any words', 1), ('Every time a word is said', 0)):
+                    page.goto(f'{base}/?t=tok', wait_until='load')
+                    page.wait_for_selector('#recipe option', state='attached', timeout=10000)
+                    page.select_option('#recipe', label=label_)
+                    page.get_by_role('button', name='Choose a file for Your footage').click()
+                    page.wait_for_selector('.slot li')
+                    run_plan('the baby')
+                    page.click('#build')
+                    page.wait_for_selector('#job-out:has-text("Your film:")', timeout=40000)
+                    check(page.locator('#short-film').count() == want, ('MUST-FAIL (CC1 LOW-1): ' if not want else 'control: ') + f'a short film from the "{label_}" recipe ' + ('gets the "uses them once" sentence' if want else 'gets NO "uses them once" sentence (it takes every time, not once)'))
             else:
                 print('  SKIPPED: this engine does not know the op "every", so the recipe is listed as refused; run with a checkout that has recipe-every to test the hint')
             check(not errors, f'no page errors {errors[:2]}')
