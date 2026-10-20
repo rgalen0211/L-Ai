@@ -12,3 +12,6 @@ supabase/functions/_shared/listing_decisions.json text eol=lf
 supabase/functions/_shared/motion_record.txt text eol=lf
 supabase/functions/_shared/motion_baseline.txt text eol=lf
 supabase/functions/_shared/motion_skip_named.txt text eol=lf
+# The connector option list is vendored from WEB's list; a test hashes its bytes and the deployed function reads it: LF on every checkout.
+supabase/functions/_shared/options_list.json text eol=lf
+supabase/functions/_shared/options_list.ts text eol=lf

@@ -1,6 +1,6 @@
 // GENERATED from options_list.json by tools/gen_options_list_ts.mjs. Do not edit; tests/connect-options.test.mjs compares the two.
 // Source: WEB's merged options.draft.json (the shared list) with RENDERER's engine fields and plain help. WORDING AND DISPLAY ONLY; the story schema is the validator.
-export const OPTIONS_SHA256 = "c2260e94a163566b0f2cfde6e1a7596c6db1e38c5ae603a3111a9f14f86b1750";
+export const OPTIONS_SHA256 = "1de0978638bc9bb05219e5c05d3d9b3def0b9603721bdf6ce01149ad61ec3908";
 export interface HelpDetail { changes?: string; use_when?: string; example?: string; careful?: string }
 export interface Option { id: string; path?: string | null; group: string; label: string; help: string; control: string; default?: unknown; status: string; source: string; connector: string; connector_note?: string; same_as?: string; hard?: Record<string, unknown> | null; choices?: { value: unknown; label: string; [k: string]: unknown }[]; help_detail?: HelpDetail; owner?: string | null; [extra: string]: unknown }
 export const OPTION_GROUPS: { id: string; label: string; help?: string }[] = [
