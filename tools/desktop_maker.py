@@ -312,6 +312,9 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     job = STATE["job"]
     if job and job["proc"].poll() is None:
         raise Problem("Something is already running here. Cancel it or wait for it to finish.")
+    gate = signin_gate()
+    if not gate["clip_films"]:                       # the 7-day offline grace ran out: a local rule only, nothing is authorised on the server
+        raise Problem(gate["note"])
     pc = precheck(body)
     if not pc["ok"]:
         raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
@@ -505,7 +508,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -543,6 +546,7 @@ ACTIVITY_EVENTS = {
     "sound_done": ("checked", "warnings"), "folder_opened": (), "answers_saved": ("answered", "count"),
     "ui_recipe_changed": ("recipe",), "ui_model_changed": ("model",), "ui_words_edited": ("chars",), "ui_slot_cleared": (),
     "problem_shown": ("endpoint",), "error_shown": ("endpoint", "exception"), "log_off": (), "log_on": (), "log_full": (), "words_skipped": ("count",),
+    "signin_started": (), "signin_done": (), "signin_ended": (), "signin_removed": (),
 }
 CLIENT_EVENTS = {"recipe_changed": "ui_recipe_changed", "model_changed": "ui_model_changed", "words_edited": "ui_words_edited", "slot_cleared": "ui_slot_cleared"}
 
@@ -638,6 +642,7 @@ PAGE = """<!doctype html>
 <section class="logbox" aria-labelledby="h-log"><h2 id="h-log">A note about a small log</h2>
 <p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help Ryan make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time, or untick the box below to stop it.</p>
 <label class="logswitch" for="log-on"><input id="log-on" type="checkbox" checked> Keep this log</label><p id="log-state" class="note" role="status"></p></section>
+<section class="logbox" id="signin" aria-labelledby="h-signin" hidden><h2 id="h-signin">Your Ryagram account</h2><div id="signin-body"></div><p id="signin-msg" class="note" role="status"></p></section>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
@@ -678,6 +683,8 @@ video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{
 .panel dt{font-weight:700}.panel dd{margin:0 0 6px}.log{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:8px 10px;max-height:240px;overflow:auto}
 .logbox{border:1px solid var(--line);border-radius:12px;padding:4px 16px 10px;margin:12px 0;background:var(--paper)}.logbox h2{margin:.6em 0 .2em}.logswitch{display:flex;align-items:center;gap:10px;font-weight:400;min-height:44px}.logswitch input{width:auto;min-height:0;margin:0}
 .paste{margin:14px 0}.paste summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}code{background:var(--soft);padding:1px 5px;border-radius:5px}
+a{color:var(--brand);text-underline-offset:.15em}
+.code{display:inline-block;font:700 1.6rem/1.2 ui-monospace,Consolas,monospace;letter-spacing:.12em;background:var(--soft);border:1px solid var(--line);padding:.35em .6em;border-radius:8px;margin:.2em 0}
 @media(max-width:600px){main{padding:12px}}
 """
 
@@ -701,6 +708,43 @@ JS = r"""(function () {
     try { const r = await api('/api/log', { on: box.checked }); box.checked = r.on; $('log-state').textContent = r.on ? 'The log is on.' : 'The log is off. Nothing is being written.'; }
     catch (e) { $('log-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
   });
+  // ---- r9: Sign in to Ryagram (shown only when the server was started with a site address). No password is typed here; the token never reaches this page.
+  let siTimer = null;
+  const siMsg = t => { $('signin-msg').textContent = t || ''; };
+  async function siCall(name, btn) {
+    if (btn) btn.disabled = true;
+    try { const r = await api('/api/signin-' + name, {}); drawSignin(r); if (r.message) siMsg(r.message); }
+    catch (e) { siMsg(e.message); if (btn) btn.disabled = false; }
+  }
+  function drawSignin(st) {
+    const box = $('signin'), body = $('signin-body');
+    clearTimeout(siTimer);
+    if (!st || !st.enabled) { box.hidden = true; return; }
+    box.hidden = false;
+    document.querySelector('.banner').replaceChildren(el('strong', {}, 'INTERNAL PROTOTYPE.'), ' Runs on this computer only. Your videos are never uploaded. Signing in only tells the Ryagram website that this computer is yours.');
+    siMsg('');
+    if (st.state === 'unavailable') { body.replaceChildren(el('p', { class: 'problems', role: 'alert' }, st.message)); return; }
+    if (st.state === 'waiting') {
+      body.replaceChildren(el('p', {}, 'On the Ryagram website, check that the code is this one, then press Approve:'), el('p', { class: 'code', id: 'signin-code', 'aria-label': 'Your code: ' + st.user_code.split('').join(' ') }, st.user_code),
+        el('p', {}, el('a', { id: 'signin-open', href: st.open_url, target: '_blank', rel: 'noopener noreferrer' }, 'Open the approval page on the Ryagram website')),
+        el('p', { class: 'note' }, `Only approve a code you can see on THIS screen right now. It ends in about ${Math.max(1, Math.round(st.seconds_left / 60))} minute${Math.round(st.seconds_left / 60) === 1 ? '' : 's'}.`),
+        el('button', { type: 'button', id: 'signin-cancel', class: 'button secondary', onclick: ev => siCall('cancel', ev.currentTarget) }, 'Cancel'));
+      siTimer = setTimeout(() => siCall('poll'), Math.max(1, st.interval || 5) * 1000);
+      return;
+    }
+    if (st.state === 'signed_in') {
+      body.replaceChildren(el('p', { id: 'signin-who' }, `Signed in as ${st.email || '(your account)'}. This computer is called \u201c${st.computer_name}\u201d. Approved until ${st.approved_until || '(unknown)'}.`),
+        el('p', { class: 'note' }, st.last_checked ? `Last checked on ${st.last_checked}.` : 'Not checked yet.'),
+        st.note ? el('p', { class: st.clip_films ? 'note' : 'problems', role: 'status', id: 'signin-note' }, st.note) : null,
+        el('div', { class: 'row' }, el('button', { type: 'button', id: 'signin-check', class: 'button secondary', onclick: ev => siCall('check', ev.currentTarget) }, 'Check my account'),
+          el('button', { type: 'button', id: 'signin-remove', class: 'button secondary', onclick: ev => siCall('remove', ev.currentTarget) }, 'Remove from this computer')),
+        el('p', { class: 'note' }, 'The sign-in is kept in the Windows Credential Manager on this computer, not in any file. Any program running as you can read it, as it can read a browser cookie.'));
+      return;
+    }
+    body.replaceChildren(el('p', {}, 'Sign in to link this computer to your Ryagram account. You do not type a password here: the website shows you a short code to check, and you approve this computer there.'),
+      el('button', { type: 'button', id: 'signin-start', class: 'button primary', onclick: ev => siCall('start', ev.currentTarget) }, 'Sign in to Ryagram'));
+  }
+  api('/api/signin').then(drawSignin).catch(() => {});
   async function loadModels() {
     try {
       const r = await api('/api/models');
@@ -987,6 +1031,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/favicon.ico":
             self.send_response(204)
             self.end_headers()
+        elif path == "/api/signin":
+            if self._auth():
+                self._json(200, signin_status())
         elif path == "/api/models":
             if self._auth():
                 ch = model_choices()
@@ -1102,6 +1149,8 @@ class Handler(BaseHTTPRequestHandler):
                 binds, bad = parse_pasted(body.get("text"))
                 act("paste_used", lines=sum(len(v) for v in binds.values()), not_used=len(bad))
                 self._json(200, {"binds": binds, "bad": bad})
+            elif path in ("/api/signin-start", "/api/signin-poll", "/api/signin-cancel", "/api/signin-check", "/api/signin-remove"):
+                self._json(200, signin_do(path[len("/api/signin-"):]))
             elif path == "/api/log":
                 STATE["activity"].set_enabled(bool(body.get("on")))
                 self._json(200, {"on": STATE["activity"].enabled, "path": str(STATE["activity"].path)})
@@ -1361,7 +1410,42 @@ class LocalServer(ThreadingHTTPServer):
     allow_reuse_address = False         # on Windows SO_REUSEADDR lets a second server share a port that is already in use; here a busy port must be an error so the next free one is taken
 
 
-def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None, activity: bool = True):
+def _signin_mod():
+    """tools/ryagram_signin.py sits beside this file; load it only when a site was given (r9)."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import ryagram_signin
+    return ryagram_signin
+
+
+def signin_gate() -> dict:
+    """What the account state lets this computer do. No site configured, or signed out = everything on, exactly as r8."""
+    s = STATE.get("signin")
+    return s.gate() if s is not None else {"clip_films": True, "node": False, "note": ""}
+
+
+def signin_status() -> dict:
+    s = STATE.get("signin")
+    if s is not None:
+        return s.status()
+    if STATE.get("signin_unavailable"):
+        return {"enabled": True, "state": "unavailable", "message": STATE["signin_unavailable"]}
+    return {"enabled": False}
+
+
+def signin_do(what: str) -> dict:
+    s = STATE.get("signin")
+    if s is None:
+        raise Problem(STATE.get("signin_unavailable") or "Signing in is not turned on in this copy.")
+    mod = _signin_mod()
+    try:
+        return {"start": s.begin, "poll": s.poll, "cancel": s.cancel, "check": s.check, "remove": s.remove}[what]()
+    except mod.SignInError as e:
+        raise Problem(str(e)) from None
+
+
+def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None, activity: bool = True,
+                site: str | None = None, approval_hosts=(), signin_store=None, signin_transport=None, signin_clock=None):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["questions"] = load_questions(questions)
     STATE["search_roots"] = [Path(x) for x in search] if search else _default_search_roots()
@@ -1373,6 +1457,16 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
     STATE["last_film"] = None
     STATE["attempts"] = {"plan": 0, "build": 0}
     STATE["activity"] = ActivityLog(STATE["out"], enabled=activity and not (STATE["out"] / ACTIVITY_OFF_NAME).exists())
+    STATE["signin"], STATE["signin_unavailable"] = None, ""
+    if site:                                        # r9: sign in to a Ryagram account. Off (no card, no network) unless a site address is given.
+        mod = _signin_mod()
+        try:
+            kw = {"transport": signin_transport} if signin_transport else {}
+            if signin_clock:
+                kw["clock"] = signin_clock
+            STATE["signin"] = mod.SignIn(site, signin_store or mod.default_store(), STATE["work"], computer_name=platform.node(), approval_hosts=approval_hosts, log=lambda ev: act(ev), **kw)
+        except mod.SignInError as e:
+            STATE["signin_unavailable"] = str(e)
     srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
     act("session_start", maker=MAKER_REVISION, python=f"{sys.version_info.major}.{sys.version_info.minor}", os=platform.system())
@@ -1387,12 +1481,12 @@ def find_engine() -> Path | None:
     return None
 
 
-def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None, activity: bool = True):
+def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None, activity: bool = True, **signin):
     """Start on the asked port, or the next free one (up to 10 more), so a second start does not fail with an error screen."""
     last = None
     for port in range(first, first + 11) if first else (0,):
         try:
-            return make_server(engine, recipes, work, out, port, questions=questions, search=search, activity=activity)
+            return make_server(engine, recipes, work, out, port, questions=questions, search=search, activity=activity, **signin)
         except OSError as e:
             last = e
     raise SystemExit(f"Could not open a local port ({last}). Close any other Desktop maker window and try again.")
@@ -1409,6 +1503,8 @@ def main(argv=None) -> int:
     ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
+    ap.add_argument("--site", default=os.environ.get("RYAGRAM_SITE", ""), help="r9, off unless given: the Ryagram site's node address (https://...), to show the Sign in card")
+    ap.add_argument("--approval-host", action="append", default=[], help="a host the site may send you to, to approve this computer (repeat for more), for example uselai.com")
     a = ap.parse_args(argv)
     engine = Path(a.engine) if a.engine else find_engine()
     if not engine:
@@ -1417,7 +1513,7 @@ def main(argv=None) -> int:
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
     try:
-        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log)
+        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log, site=a.site or None, approval_hosts=a.approval_host)
     except ModuleNotFoundError as e:
         raise SystemExit(f"A part of Python that the maker needs is missing ({e.name}). Most likely the speech add-on is not installed. "
                          + ADDON_STEP)
