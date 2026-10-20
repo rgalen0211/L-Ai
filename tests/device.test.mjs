@@ -52,23 +52,23 @@ test('DATA: check, decide (once), list and remove go through the four draft func
   const client = createFakeClient();
   const data = win.ryagramData(client);
   const c = await data.deviceRequestCheck('ABCD2345');
-  assert.equal(c.device_name, 'DESKTOP-SAM-PC');
-  assert.ok(c.asked_at && c.expires_at, 'the facts the draft SQL returns');
-  await assert.rejects(data.deviceRequestCheck('ABCDEFGH'), /not valid any more/);                         // ended or unknown: the server raises, the page shows its sentence
-  await assert.rejects(data.deviceRequestCheck('ZZZZ2222'), /not valid any more/);
+  assert.equal(c.state, 'pending');
+  assert.equal(c.computer_name, 'DESKTOP-SAM-PC');
+  assert.ok(c.requested_at && c.expires_at, 'the facts the rev2 draft SQL returns');
+  assert.equal((await data.deviceRequestCheck('ABCDEFGH')).state, 'expired');                              // the server answers with a state, it does not raise
+  assert.equal((await data.deviceRequestCheck('ZZZZ2222')).state, 'unknown');
   assert.deepEqual(plain(await data.myComputers()), []);
   const r = await data.deviceDecide('ABCD2345', true);
   assert.equal(r.approved, true);
   assert.equal(r.token_days, 30);
   await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);                         // MUST-FAIL: a used code is refused
   await assert.rejects(data.deviceDecide('ABCD2345', false), /not valid any more/);
-  await assert.rejects(data.deviceRequestCheck('ABCD2345'), /not valid any more/);                         // and looking at a used code shows nothing
+  assert.equal((await data.deviceRequestCheck('ABCD2345')).state, 'used');                                 // and looking at a used code says so, with no facts
   const list = plain(await data.myComputers());
   assert.equal(list.length, 1);
-  assert.equal(list[0].device_name, 'DESKTOP-SAM-PC');
-  assert.equal(list[0].revoked_at, null);
+  assert.equal(list[0].computer_name, 'DESKTOP-SAM-PC');
   assert.equal(await data.removeComputer('dev-1'), true);
-  assert.ok(plain(await data.myComputers())[0].revoked_at, 'a removed computer is marked revoked; the page hides revoked rows');
+  assert.deepEqual(plain(await data.myComputers()), [], 'a removed computer is no longer listed');
 });
 
 test('MUST-FAIL: Approve without a signed-in session is refused, and so is a check; nothing is recorded', async () => {
@@ -95,7 +95,7 @@ test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, t
   assert.match(view, /const decide = async \(button, yes\) => \{[\s\S]*data\.deviceDecide[\s\S]*\};\s*approve\.addEventListener\('click'/);
   assert.match(view, /if \(prefill\) show\(prefill\);/);                                                      // a link only triggers a CHECK
   assert.doesNotMatch(view.slice(view.indexOf('if (prefill)')), /deviceDecide/);
-  assert.match(view, /String\(c\.device_name\)\.slice\(0, 80\)/);                                             // the name is cut and shown as text
+  assert.match(view, /String\(named\)\.slice\(0, 80\)/);                                             // the name is cut and shown as text
   assert.match(view, /if \(e\.state === 'expired'\) \{ approve\.disabled = true;/);
   assert.match(view, /if \(!code\) \{ showError\(error, new Error\(BAD_CODE\)\); return; \}/);
   assert.equal(D.BAD_CODE, "That code doesn't look right. Codes never use the letters O, I or L or the numbers 0 or 1. Check the app and try again.");
@@ -115,7 +115,7 @@ test('WIRING AND FLAG: the route and the account section exist only behind deskt
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-device.js') > 0 && html.indexOf('app-device.js') < html.indexOf('app-library.js'));
   const src = read('assets/app-device.js');
-  assert.match(src, /confirm\(`Remove \$\{r\.device_name \|\| r\.name \|\| 'this computer'\}\? It is signed out straight away\.`\)/);
+  assert.match(src, /confirm\(`Remove \$\{r\.computer_name \|\| r\.device_name \|\| r\.name \|\| 'this computer'\}\? It is signed out straight away\.`\)/);
   assert.match(src, /await data\.removeComputer\(r\.id\); await draw\(\);/);
 });
 
@@ -135,4 +135,13 @@ test('FACES\' FIXES (13:55, with CC1 13:55): the consent sentence is normal size
   assert.match(src, /not used yet/);
   assert.match(src, /stops working on \$\{date\(r\.expires_at\)\}/);
   assert.match(src, /\(bad \? h\('p', \{ class: 'app-error', role: 'alert' \}, BAD_CODE\) : null\)/);
+});
+
+test('REV2 STATES (WORKER 191fc78): a code that is not pending says why in words and shows no facts; the page reads computer_name, requested_at and rough_location', () => {
+  const src = read('assets/app-device.js');
+  assert.match(src, /const STATE_WORDS = \{ unknown: 'That code was not found\. Check the code in the app and type it again\.', used: 'That code has already been used\.', expired: 'That code has ended\. Start again in the Ryagram app\.' \};/);
+  assert.match(src, /if \(!c \|\| \(c\.state && c\.state !== 'pending'\) \|\| !named\) \{/);
+  assert.match(src, /c\.computer_name \|\| c\.device_name/);
+  assert.match(src, /c\.rough_location \|\| c\.approx_place/);
+  assert.match(src, /r\.computer_name \|\| r\.device_name \|\| r\.name/);
 });
