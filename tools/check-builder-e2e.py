@@ -47,7 +47,7 @@ def main():
         print(('  ok   ' if cond else '  FAIL ') + what)
         ok = ok and bool(cond)
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8')
-    check(re.search(r'guidedBuilder:\s*false', cfg), 'the committed config has guidedBuilder false')
+    check(re.search(r'guidedBuilder:\s*true', cfg), 'the committed config has guidedBuilder true')
     flipped = re.sub(r'guidedBuilder:\s*false', 'guidedBuilder: true', cfg)
     try:
         with sync_playwright() as pw:

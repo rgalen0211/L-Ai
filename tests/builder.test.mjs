@@ -108,7 +108,7 @@ test('WIRING AND FLAG: #/build and its link exist only behind guidedBuilder (off
   assert.match(lib, /builderOn\(\) && hash === '#\/build'\) view = await builderUi\(\)\.builderView\(onStop\)/);
   assert.match(lib, /const buildLink = builderOn\(\)/);
   const cfg = read('assets/ryagram-config.js');
-  assert.match(cfg, /guidedBuilder: false,/);
+  assert.match(cfg, /guidedBuilder: true,/);
   assert.match(cfg, /catalog: false,/);
   assert.match(cfg, /catalogComingSoon: false/);
   const html = read('app/index.html');
