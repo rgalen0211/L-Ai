@@ -479,6 +479,10 @@
       deviceRequestCheck(code) { return run(client.rpc('device_request_check', { p_user_code: code }), 'Couldn\u2019t check that code.'); },
       deviceDecide(code, approve) { return run(client.rpc('device_decide', { p_user_code: code, p_approve: approve === true }), 'Couldn\u2019t record your answer.'); },
       myComputers() { return run(client.rpc('my_computers'), 'Couldn\u2019t load your computers.'); },
+      // r9 tester flag (WORKER's draft: account_settings.local_compute, set only by an admin; the owner reads their own row). FAILS CLOSED: an error or no row means "not a tester".
+      async myLocalCompute() {
+        try { const rows = await run(client.from('account_settings').select('local_compute'), 'Couldn’t load your settings.'); return Array.isArray(rows) && rows.length > 0 && rows[0].local_compute === true; } catch { return false; }
+      },
       removeComputer(id) { return run(client.rpc('remove_computer', { p_token: id }), 'Couldn\u2019t remove that computer.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
       adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },

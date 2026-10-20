@@ -132,7 +132,24 @@ test('FACES\' FIXES (13:55, with CC1 13:55): the consent sentence is normal size
   assert.doesNotMatch(src.slice(src.indexOf('async function deviceView'), src.indexOf('// ---- the account page')), /'Code'/);   // no second copy of the code
   assert.doesNotMatch(src, /The computer calls itself/);
   assert.match(src, /formBox\.hidden = true;/);
-  assert.match(src, /not used yet/);
+  assert.match(src, /not seen yet/);
   assert.match(src, /stops working on \$\{date\(r\.expires_at\)\}/);
   assert.match(src, /\(bad \? h\('p', \{ class: 'app-error', role: 'alert' \}, BAD_CODE\) : null\)/);
+});
+
+test('TESTER CARD (NEXT-WEB 113): a tester account is told plainly that its films render on its own computer, the list says last seen, and an empty list says the film waits; a non-tester sees none of that', async () => {
+  const seedTester = { account_settings: [{ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true }] };
+  assert.equal(await win.ryagramData(createFakeClient(seedTester)).myLocalCompute(), true);
+  assert.equal(await win.ryagramData(createFakeClient()).myLocalCompute(), false);                                   // no row: not a tester
+  assert.equal(await win.ryagramData(createFakeClient({ account_settings: [{ owner_id: 'u-ryan', local_compute: false }] })).myLocalCompute(), false);
+  const fake = createFakeClient(seedTester);
+  const broken = win.ryagramData({ ...fake, from: () => { throw new Error('network'); }, auth: fake.auth });
+  assert.equal(await broken.myLocalCompute(), false, 'fails closed');
+  const src = read('assets/app-device.js');
+  assert.match(src, /h\('strong', \{\}, 'Your films render on your own computer\. '\), 'They are made on a computer you sign in here, not on Ryagram.s machine, and cost you no credits\. If none is signed in, your film waits\.'/);
+  assert.match(src, /tester \? h\('p', \{ class: 'device-tester', role: 'note' \}/);                                   // only a tester sees it
+  assert.match(src, /tester \? 'No computer is signed in\. Your films wait until you sign one in with the Ryagram app\.' : 'No computer is signed in to your account\.'/);
+  assert.match(src, /'last seen ' \+ ago\(r\.last_used_at\) : 'not seen yet'/);
+  assert.match(src, /Remove this computer/);
+  assert.match(read('assets/app-library.js'), /if \(desktopOn\(\)\) sections\.push\(await deviceUi\(\)\.computersSection\(\)\);/);       // still behind desktopApp (off)
 });

@@ -769,6 +769,7 @@
       }
     };
 
+    if (typeof location !== 'undefined' && /[?&]tester/.test(location.search || '') && !db.account_settings.length) db.account_settings.push({ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true });      // ?tester: a tester account in mock mode
     let session = user ? { user } : null;
     const authListeners = new Set();
     const client = {

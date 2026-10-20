@@ -127,12 +127,13 @@
     async function computersSection() {
       const error = errorLine();
       const list = h('div');
+      const tester = data.myLocalCompute ? await data.myLocalCompute() : false;                  // a tester's films render on their own computer
       async function draw() {
         let rows;
         try { rows = (await data.myComputers()).filter(r => !r.revoked_at); } catch (err) { list.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
         list.replaceChildren(rows.length ? h('ul', { class: 'project-list connected-list' }, rows.map(r => h('li', {},
           h('strong', {}, String(r.device_name || r.name || 'A computer').slice(0, 80)),
-          h('span', { class: 'meta' }, ` added ${date(r.created_at)}, ${r.last_used_at ? 'last used ' + ago(r.last_used_at) : 'not used yet'}, stops working on ${date(r.expires_at)}`),
+          h('span', { class: 'meta' }, ` added ${date(r.created_at)}, ${r.last_used_at ? 'last seen ' + ago(r.last_used_at) : 'not seen yet'}, stops working on ${date(r.expires_at)}`),
           h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
             if (!confirm(`Remove ${r.device_name || r.name || 'this computer'}? It is signed out straight away.`)) return;
             error.hidden = true;
@@ -140,10 +141,11 @@
               try { await data.removeComputer(r.id); await draw(); list.prepend(h('p', { class: 'form-note', role: 'status' }, `${r.device_name || r.name || 'The computer'} is removed.`)); }
               catch (err) { showError(error, err); }
             });
-          } }, 'Remove this computer')))) : h('p', { class: 'form-note' }, 'No computer is signed in to your account.'));
+          } }, 'Remove this computer')))) : h('p', { class: 'form-note' }, tester ? 'No computer is signed in. Your films wait until you sign one in with the Ryagram app.' : 'No computer is signed in to your account.'));
       }
       await draw();
       return h('section', { class: 'account-section', 'aria-labelledby': 'acct-computers' }, h('h2', { id: 'acct-computers' }, 'Computers signed in'),
+        tester ? h('p', { class: 'device-tester', role: 'note' }, h('strong', {}, 'Your films render on your own computer. '), 'They are made on a computer you sign in here, not on Ryagram’s machine, and cost you no credits. If none is signed in, your film waits.') : null,
         h('p', { class: 'form-note' }, 'Computers where you use the Ryagram app. Removing one signs it out at once.'), list, error);
     }
 
