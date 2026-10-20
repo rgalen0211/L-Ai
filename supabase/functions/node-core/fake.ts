@@ -24,7 +24,7 @@ export class FakeNodeWorld implements NodeDb {
   devices = new Map<string, Device>();
   tokens = new Map<string, Token>();
   jobs = new Map<string, NodeJob & { run_on: string; worker_user_id: string | null }>();
-  artifacts: { job: string; kind: string; path: string; bytes: number }[] = [];
+  artifacts_: { job: string; kind: string; path: string; bytes: number }[] = [];
   hitLog = new Map<string, number[]>();
   calls: string[] = [];                                     // every database function the function called, in order (the tests read it)
   claimsEnabled = true;
@@ -128,6 +128,11 @@ export class FakeNodeWorld implements NodeDb {
     j.state = "queued"; j.worker_user_id = null;
     return "requeued";
   }
+  async artifacts(accessHash: string, jobId: string) {
+    this.calls.push("node_job_artifacts");
+    this.held(this.actor(accessHash), jobId);
+    return this.artifacts_.filter((a) => a.job === jobId).map((a) => ({ path: a.path, bytes: a.bytes }));
+  }
   async registerArtifact(accessHash: string, jobId: string, kind: string, bytes: number): Promise<string> {
     this.calls.push("node_register_artifact");
     const j = this.held(this.actor(accessHash), jobId);
@@ -136,7 +141,7 @@ export class FakeNodeWorld implements NodeDb {
     const f = FILES[kind];
     if (bytes > f.max) throw err("22023", "too big");
     const path = `${j.owner_id}/${j.project_id}/${j.version_id}/${j.id}/${f.name}`;           // derived from the JOB; nothing the request said
-    this.artifacts.push({ job: jobId, kind, path, bytes });
+    this.artifacts_.push({ job: jobId, kind, path, bytes });
     return path;
   }
 }

@@ -35,6 +35,10 @@ export class NodeSql implements NodeDb {
     const r = await this.row("node_report_state", ["text", "uuid", "public.job_state", "text", "text", "text", "boolean"], [accessHash, jobId, state, errorCode, errorDetail, engineCommit, engineDirty]);
     return (r ?? {}) as NodeJob;
   }
+  async artifacts(accessHash: string, jobId: string) {                                                                                                                                    // REQUESTED
+    const r = await this.scalar<{ path: string; bytes: number; sha256?: string }[] | null>("node_job_artifacts", ["text", "uuid"], [accessHash, jobId]);
+    return r ?? [];
+  }
   async retry(accessHash: string, jobId: string, errorCode: string, errorDetail: string | null) { return String(await this.scalar("node_retry", ["text", "uuid", "text", "text"], [accessHash, jobId, errorCode, errorDetail])); }
   async registerArtifact(accessHash: string, jobId: string, kind: string, bytes: number, sha256: string, durationS: number | null, width: number | null, height: number | null) {
     return String(await this.scalar("node_register_artifact", ["text", "uuid", "public.artifact_kind", "bigint", "text", "numeric", "int", "int"], [accessHash, jobId, kind, bytes, sha256, durationS, width, height]));

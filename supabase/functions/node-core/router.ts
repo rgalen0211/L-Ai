@@ -81,9 +81,21 @@ function publicJob(j: NodeJob): NodeJob {
   return o;
 }
 
+/** Who is calling, for the rate limits. NEVER a value the client can write: the platform's own cf-connecting-ip, else the LAST hop of X-Forwarded-For (the one the
+ *  platform's proxy appended); the first entries are whatever the client sent. (CC1 15:25 MED-1.) */
 async function caller(req: Request, salt: string): Promise<string> {
-  const ip = req.headers.get("x-forwarded-for")?.split(",")[0].trim() || req.headers.get("cf-connecting-ip") || "unknown";
+  const cf = req.headers.get("cf-connecting-ip")?.trim();
+  const xff = req.headers.get("x-forwarded-for")?.split(",").map((x) => x.trim()).filter(Boolean) ?? [];
+  const ip = cf || xff[xff.length - 1] || "unknown";
   return (await sha256hex(salt + "|" + ip)).slice(0, 32);
+}
+
+/** The shape the database's register_artifact gives: owner/project/version/job/filename. Anything else is never signed (the signing key bypasses every RLS). (CC1 15:25 MED-3.) */
+const SEG = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+function pathOk(path: unknown, jobId: string): path is string {
+  if (typeof path !== "string" || path.length > 300 || path.includes("..") || path.startsWith("/") || path.includes("//") || path.includes("\\")) return false;
+  const m = new RegExp(`^(${SEG})/(${SEG})/(${SEG})/(${SEG})/[A-Za-z0-9][A-Za-z0-9._-]{0,80}$`, "i").exec(path);
+  return !!m && m[4].toLowerCase() === jobId.toLowerCase();
 }
 
 export async function handleNode(req: Request, route: string, d: NodeDeps): Promise<Response> {
@@ -150,6 +162,14 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     }
     if (route === "/node/state") {
       if (typeof b.state !== "string" || !NODE_STATES.includes(b.state)) return fail(400, "invalid_request", "That request was not valid.");
+      if (b.state === "complete") {
+        // A declared size is only a claim (CC1 15:25 MED-2): before the film is marked complete, every registered file must be in storage at exactly the size announced.
+        for (const a of await d.db.artifacts(h, jobId)) {
+          if (!pathOk(a.path, jobId) || (await d.storage.size(a.path)) !== a.bytes) {
+            return fail(409, "size_mismatch", "A finished file is missing or is not the size it was announced as, so the film was not marked complete.");
+          }
+        }
+      }
       const j = await d.db.reportState(h, jobId, b.state, optStr(b.error_code, 80), optStr(b.error_detail, 2000), optStr(b.engine_commit, 80), typeof b.engine_dirty === "boolean" ? b.engine_dirty : null);
       return reply(200, { job: publicJob(j) });
     }
@@ -165,6 +185,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     if (bytes > cap) return fail(413, "too_large", `That file is larger than this computer may upload (${Math.round(cap / 1_000_000)} MB).`);
     if (typeof b.sha256 !== "string" || !SHA256.test(b.sha256)) return fail(400, "invalid_request", "That request was not valid.");
     const path = await d.db.registerArtifact(h, jobId, b.kind, bytes, b.sha256, optNum(b.duration_s), optNum(b.width), optNum(b.height));
+    if (!pathOk(path, jobId)) return fail(500, "server_error", "Something went wrong. Try again in a moment.");          // nothing is signed for a path of an unexpected shape
     return reply(200, { path, upload_url: await d.storage.signUpload(path) });
   } catch (e) {
     return dbError(e);
