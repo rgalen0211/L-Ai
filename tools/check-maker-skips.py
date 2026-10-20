@@ -41,7 +41,7 @@ cmd = a[1]
 rec = json.loads(Path(a[2]).read_text(encoding="utf-8"))
 work = Path(a[a.index("--work-dir") + 1]); out = Path(a[a.index("--out") + 1])
 tokens = re.findall(r"[a-z0-9']+", rec["find"]["text"].lower())
-MISSING = {"brooks", "zork"}
+MISSING = {"brooks", "zork", "not"}
 gaps = [t for t in tokens if t in MISSING]
 have = [t for t in tokens if t not in MISSING]
 clips = [{"n": i + 1, "words": w, "file_name": "show.mp4", "slot": "source-1", "start_ms": 1000 * i, "end_ms": 1000 * i + 600, "duration_ms": 600} for i, w in enumerate(have)]
@@ -135,6 +135,20 @@ def main(stub=None, label=''):
             check(rec['asked_for'] == ('brooks the baby' if new_engine else 'the baby') and (not new_engine or [x['word'] for x in rec['skipped']] == ['brooks']),
                   'the film was built from the words that exist' + (' and the engine receipt lists the skipped word' if new_engine else ''))
 
+            check(page.locator('#meaning-risk').count() == 0, 'MUST-FAIL: a harmless missing word (a name) raises NO meaning warning')
+            print('\na missing "not" changes the meaning (CC1 13:31, HIGH-2)')
+            fresh_page()
+            run_plan('I did not say it')
+            check(page.locator('#meaning-risk').count() == 1 and '\u201cnot\u201d' in page.inner_text('#meaning-risk') and 'changes what is said' in page.inner_text('#meaning-risk'),
+                  'the warning names the word and says plainly that it changes what is said, on the plan, before Build')
+            check(page.locator('#build').is_enabled(), 'and Build stays available: it is a warning, not a block (refusing outright is Ryan\u2019s call)')
+            first = page.locator('#job-out').evaluate("el => el.firstElementChild && el.firstElementChild.id")
+            check(first == 'meaning-risk', f'the warning comes FIRST in the plan output ({first})')
+            page.click('#build')
+            page.wait_for_selector('#job-out:has-text("Your film:")', timeout=40000)
+            check(page.locator('#meaning-risk-built').count() == 1, 'the finished screen repeats it')
+            nj = json.loads(sorted(out_dir.glob('*.maker-notes.json'))[-1].read_text(encoding='utf-8'))
+            check(nj.get('meaning_risk') == ['not'], f'the note beside the film records it ({nj.get("meaning_risk")})')
             print('\nseveral missing words, and nothing at all')
             fresh_page()
             run_plan('Brooks the zork baby')
