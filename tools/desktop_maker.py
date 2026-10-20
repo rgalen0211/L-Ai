@@ -76,7 +76,7 @@ def list_recipes(folder: Path) -> list[dict]:
             out.append({"file": p.name, "ok": False, "problem": str(e)[:200]})
             continue
         out.append({"file": p.name, "ok": True, "name": rec["name"], "slots": [{"id": s["id"], "label": s["label"], "multiple": bool(s["multiple"]), "accepts": s["accepts"]} for s in rec["slots"]],
-                    "find": (rec.get("find") or {}).get("text", ""), "has_find": isinstance(rec.get("find"), dict)})
+                    "find": (rec.get("find") or {}).get("text", ""), "has_find": isinstance(rec.get("find"), dict), "op": (rec.get("find") or {}).get("op", "words")})
     return out
 
 
@@ -692,6 +692,7 @@ JS = r"""(function () {
       $('model').value = r.default; $('model-hint').textContent = r.hint;
     } catch (e) { /* the page still works; the server then uses its own default */ }
   }
+  const WORDS_NOTE = $('words-note').textContent;
   let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '', eff = null, skippedNow = [], autoTried = false;
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
@@ -757,6 +758,7 @@ JS = r"""(function () {
     current = r && r.ok ? r : null; binds = {}; fresh();
     $('recipe-note').textContent = !r ? '' : !r.ok ? `This recipe is refused: ${r.problem}` : '';
     $('words').value = ''; $('words').placeholder = current ? current.find : ''; $('words').disabled = !current || !current.has_find;
+    $('words-note').textContent = current && current.op === 'every' ? 'Type one word or a short phrase. The film shows EVERY time it is said in your videos, one after another.' : WORDS_NOTE;
     drawSlots();
   }
   $('recipe').addEventListener('change', () => { drawRecipe(); ev('recipe_changed', { recipe: $('recipe').value.replace(/\.json$/i, '') }); });

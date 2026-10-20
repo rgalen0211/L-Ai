@@ -83,6 +83,9 @@ def main(stub=None, label=''):
         (tmp / 'engine' / 'ryagram' / 'local' / '__main__.py').write_text(stub, encoding='utf8')
         (tmp / 'recipes').mkdir()
         (tmp / 'recipes' / 'any-words.json').write_text(json.dumps(RECIPE), encoding='utf8')
+        every = json.loads(json.dumps(RECIPE))
+        every['name'], every['find']['op'] = 'Every time a word is said', 'every'
+        (tmp / 'recipes' / 'every-time.json').write_text(json.dumps(every), encoding='utf8')
         clips = tmp / 'Sam Videos'
         clips.mkdir()
         (clips / 'show.mp4').write_bytes(b'not really a video')
@@ -146,6 +149,17 @@ def main(stub=None, label=''):
             fresh_page()
             run_plan('the baby')
             check(page.locator('#skipped-note').count() == 0 and page.locator('#build').is_enabled(), 'words that are all said plan exactly as before, with no note')
+            print('the every-time recipe explains itself')
+            page.goto(f'{base}/?t=tok', wait_until='load')
+            page.wait_for_selector('#recipe option', state='attached', timeout=10000)
+            plain = page.inner_text('#words-note')
+            if 'Every time a word is said' in page.locator('#recipe option').all_inner_texts():
+                page.select_option('#recipe', label='Every time a word is said')
+                check('EVERY time it is said' in page.inner_text('#words-note') and 'EVERY time' not in plain, 'choosing the every-time recipe changes the hint under the words box to say it takes every time the words are said')
+                page.select_option('#recipe', label='any words')
+                check(page.inner_text('#words-note') == plain, 'and choosing the other recipe puts the original hint back')
+            else:
+                print('  SKIPPED: this engine does not know the op "every", so the recipe is listed as refused; run with a checkout that has recipe-every to test the hint')
             check(not errors, f'no page errors {errors[:2]}')
             b.close()
 
