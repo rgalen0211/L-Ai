@@ -45,6 +45,16 @@
     return { state: 'ok', text: `This code ends at ${at}.` };
   }
 
+  // The admin form's own pre-check (the server checks again; WORKER's draft needs 3 to 300 characters of reason). A courtesy, never the gate.
+  const REASON_MIN = 3, REASON_MAX = 300;
+  function checkTesterForm(email, reason) {
+    const e = String(email || '').trim(), r = String(reason || '').trim();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e)) return 'Type the account email, like name@example.com.';
+    if (r.length < REASON_MIN) return 'Say why, in a few words.';
+    if (r.length > REASON_MAX) return `Keep the reason under ${REASON_MAX + 1} characters.`;
+    return null;
+  }
+
   // ---------------------------------------------------------------- the screens
   function create(ctx) {
     const { h, data, busy, showError, errorLine, date, whoami } = ctx;
@@ -149,8 +159,51 @@
         h('p', { class: 'form-note' }, 'Computers where you use the Ryagram app. Removing one signs it out at once.'), list, error);
     }
 
-    return { deviceView, computersSection };
+    // ---- admin: who is a tester (an admin-only page; the server is the gate, every change is written to an audit row)
+    async function testerAdminView() {
+      const back = h('a', { href: '#/', class: 'back' }, '← All projects');
+      const error = errorLine();
+      const email = h('input', { id: 'tester-email', type: 'email', autocomplete: 'off', maxlength: '200', spellcheck: 'false' });
+      const reason = h('input', { id: 'tester-reason', type: 'text', autocomplete: 'off', maxlength: String(REASON_MAX), 'aria-describedby': 'tester-reason-note' });
+      const status = h('p', { class: 'form-note', role: 'status' });
+      const history = h('div', { class: 'tester-history' });
+      async function drawHistory() {
+        let rows;
+        try { rows = await data.adminLocalComputeAudit(); } catch (err) { history.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
+        history.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
+          h('strong', {}, String(r.user_email || 'an account').slice(0, 120)),
+          h('span', { class: 'meta' }, ` ${r.was_on ? 'on' : 'off'} to ${r.turned_on ? 'on' : 'off'} by ${String(r.set_by_email || 'an admin').slice(0, 120)}, ${new Date(r.at).toLocaleString()}`),
+          h('p', { class: 'form-note' }, 'Why: ', String(r.reason || '').slice(0, REASON_MAX))))) : h('p', { class: 'form-note' }, 'No changes yet.'));
+      }
+      const change = async (button, on) => {
+        error.hidden = true; status.textContent = '';
+        const problem = checkTesterForm(email.value, reason.value);
+        if (problem) { showError(error, new Error(problem)); return; }
+        await busy(button, on ? 'Turning on…' : 'Turning off…', async () => {
+          try {
+            await data.adminSetLocalCompute(email.value, on, reason.value);
+            status.textContent = `${email.value.trim()} is ${on ? 'now' : 'no longer'} a tester. The change is in the history below.`;
+            reason.value = '';
+            await drawHistory();
+          } catch (err) { showError(error, err); }
+        });
+      };
+      const onBtn = h('button', { class: 'button primary', type: 'button' }, 'Turn on');
+      const offBtn = h('button', { class: 'button secondary', type: 'button' }, 'Turn off');
+      onBtn.addEventListener('click', () => change(onBtn, true));
+      offBtn.addEventListener('click', () => change(offBtn, false));
+      await drawHistory();
+      return [back, h('h1', { tabindex: '-1' }, 'Tester computers'),
+        h('p', { class: 'form-intro' }, 'A tester account renders its films on its own computer instead of Ryagram’s machine, and pays no credits for them. Only an admin can change this, and every change is written down.'),
+        h('label', { for: 'tester-email' }, 'Account email'), email,
+        h('label', { for: 'tester-reason' }, 'Why (a few words, saved in the history)'), reason,
+        h('p', { id: 'tester-reason-note', class: 'form-note' }, `${REASON_MIN} to ${REASON_MAX} characters.`),
+        h('div', { class: 'actions-row' }, onBtn, offBtn), status, error,
+        h('h2', {}, 'History'), history];
+    }
+
+    return { deviceView, computersSection, testerAdminView };
   }
 
-  window.ryagramDevice = { BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();

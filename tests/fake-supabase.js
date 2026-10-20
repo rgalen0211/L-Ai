@@ -360,7 +360,7 @@
       ...rpcsExtra,
       sync_version_sources({ p_version }) { return syncSources(p_version); },
       // Mock: the mock user is an admin; three films' worth of made-up signup counts.
-      is_app_admin() { return { data: true, error: null }; },
+      is_app_admin() { return { data: adminMock(), error: null }; },
       waitlist_by_film({ p_days }) {
         const rows = [
           ['2026-10-03', 'r002-industry-story', 'youtube', 3], ['2026-10-03', null, null, 1],
@@ -519,6 +519,20 @@
         }
         return { data: { device_name: 'DESKTOP-SAM-PC', approved: p_approve === true, token_days: 30 }, error: null };
       },
+      // Mock of the DRAFT admin tester functions (PROPOSED names; WORKER's draft takes a user id). Admin only; every change writes an audit row. Known accounts: sam@example.com, maya@example.com;
+      // worker@example.com is a worker (refused). Seed { admin: false } or ?nonadmin makes the caller a plain account.
+      admin_set_local_compute_by_email({ p_email, p_on, p_reason }) {
+        if (!adminMock()) return fail('Admins only.');
+        if (!p_reason || p_reason.trim().length < 3) return fail('Say why, in a few words.');
+        const known = { 'sam@example.com': 'u-sam', 'maya@example.com': 'u-maya', 'worker@example.com': 'u-worker' };
+        if (!(p_email in known)) return fail('No such account.');
+        if (p_email === 'worker@example.com') return fail('A worker account is not a person and cannot be a tester.');
+        db.testers = db.testers || {}; db.testerAudit = db.testerAudit || [];
+        const was = !!db.testers[p_email]; db.testers[p_email] = p_on === true;
+        db.testerAudit.unshift({ user_email: p_email, was_on: was, turned_on: p_on === true, set_by_email: 'ryan@example.com', reason: p_reason.trim(), at: new Date().toISOString() });
+        return { data: p_on === true, error: null };
+      },
+      admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
       my_computers() { return { data: structuredClone(db.computers || []), error: null }; },
       remove_computer({ p_token }) { const c = (db.computers || []).find(x => x.id === p_token && !x.revoked_at); if (c) c.revoked_at = now(); return { data: !!c, error: null }; },
       // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.
@@ -770,6 +784,7 @@
     };
 
     if (typeof location !== 'undefined' && /[?&]tester/.test(location.search || '') && !db.account_settings.length) db.account_settings.push({ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true });      // ?tester: a tester account in mock mode
+    const adminMock = () => !(seed.admin === false || (typeof location !== 'undefined' && /[?&]nonadmin/.test(location.search || '')));
     let session = user ? { user } : null;
     const authListeners = new Set();
     const client = {

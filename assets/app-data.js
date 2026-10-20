@@ -483,6 +483,10 @@
       async myLocalCompute() {
         try { const rows = await run(client.from('account_settings').select('local_compute'), 'Couldn’t load your settings.'); return Array.isArray(rows) && rows.length > 0 && rows[0].local_compute === true; } catch { return false; }
       },
+      // Admin: set or clear the tester flag (r9 DRAFT, mock backend). WORKER's draft function takes a user id (admin_set_local_compute(p_user uuid, ...)); the admin types an EMAIL, so these two names are PROPOSALS
+      // for an email variant and a read of the audit rows (the draft revokes direct reads of local_compute_audit). Admin only on the server; every change writes an audit row.
+      adminSetLocalCompute(email, on, reason) { return run(client.rpc('admin_set_local_compute_by_email', { p_email: String(email || '').trim(), p_on: on === true, p_reason: String(reason || '').trim() }), 'Couldn’t change that account.'); },
+      adminLocalComputeAudit() { return run(client.rpc('admin_local_compute_audit'), 'Couldn’t load the tester history.'); },
       removeComputer(id) { return run(client.rpc('remove_computer', { p_token: id }), 'Couldn\u2019t remove that computer.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
       adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },

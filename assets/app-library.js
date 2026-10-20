@@ -97,6 +97,7 @@
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
         else if (funnelOn() && hash === '#/admin/funnel' && await data.isAppAdmin()) view = await funnelAdminView(onStop);
+        else if (desktopOn() && hash === '#/admin/tester' && await data.isAppAdmin()) view = await deviceUi().testerAdminView();
         else if (ordersOn() && hash === '#/admin/renders' && await data.isAppAdmin()) view = await rendersAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
@@ -216,7 +217,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []), ...(desktopOn() ? [' \u00b7 ', h('a', { href: '#/admin/tester' }, 'Tester computers')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       const buildLink = builderOn() ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step')) : null;
