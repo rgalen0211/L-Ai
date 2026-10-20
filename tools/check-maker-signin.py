@@ -245,6 +245,21 @@ def main():
             srv.shutdown()
             srv.server_close()
 
+            print('\nG. with pictures on (--v2) the card still works beside them')
+            clock.add(1)
+            srv, base = start(tmp, site=url, signin_store=store, signin_clock=clock, v2=True)
+            load(base)
+            check(page.locator('#signin').is_visible() and page.locator('#v2-images').count() == 1, 'both the Sign in card and the pictures section are on the page')
+            page.get_by_role('button', name='Sign in to Ryagram').click()
+            page.wait_for_selector('#signin-code', timeout=10000)
+            site.approve(page.inner_text('#signin-code'), 'sam@example.test')
+            clock.add(30)
+            page.wait_for_selector('#signin-who', timeout=20000)
+            check('sam@example.test' in page.inner_text('#signin-who') and not errors, f'signing in works with --v2 on, and the page has no script errors ({errors[:2]})')
+            check(page.locator('#plan').is_enabled(), 'and Plan is still there')
+            srv.shutdown()
+            srv.server_close()
+
             print('\nF. no Credential Manager here')
             real_platform = sys.platform
             try:
