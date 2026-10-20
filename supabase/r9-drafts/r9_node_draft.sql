@@ -30,6 +30,7 @@ alter table public.account_settings add column local_compute boolean not null de
 create table public.local_compute_audit (
   id bigint generated always as identity primary key,
   user_id uuid not null references auth.users (id) on delete cascade,
+  was_on boolean not null,
   turned_on boolean not null,
   set_by uuid not null references auth.users (id),
   reason text not null check (char_length(btrim(reason)) between 3 and 300),
@@ -39,9 +40,9 @@ revoke all on public.local_compute_audit from public, anon, authenticated, servi
 
 create function public.admin_set_local_compute(p_user uuid, p_on boolean, p_reason text) returns boolean
 language plpgsql security definer set search_path = '' as $$
-declare me uuid := ryagram_private.require_admin();
+declare me uuid := ryagram_private.require_admin(); old boolean;
 begin
-  if p_reason is null or char_length(btrim(p_reason)) < 3 then
+  if p_reason is null or char_length(btrim(p_reason)) not between 3 and 300 then
     raise exception 'Say why, in a few words.' using errcode = '22023';
   end if;
   if not exists (select 1 from auth.users where id = p_user) then
@@ -50,15 +51,37 @@ begin
   if exists (select 1 from public.workers where user_id = p_user) then
     raise exception 'A worker account is not a person and cannot be a tester.' using errcode = '42501';
   end if;
+  old := coalesce((select s.local_compute from public.account_settings s where s.owner_id = p_user), false);
   insert into public.account_settings (owner_id, local_compute) values (p_user, coalesce(p_on, false))
     on conflict (owner_id) do update set local_compute = excluded.local_compute;
-  insert into public.local_compute_audit (user_id, turned_on, set_by, reason) values (p_user, coalesce(p_on, false), me, btrim(p_reason));
+  insert into public.local_compute_audit (user_id, was_on, turned_on, set_by, reason) values (p_user, old, coalesce(p_on, false), me, btrim(p_reason));
   if not coalesce(p_on, false) then
     update public.jobs set state = 'cancelled', error_code = 'cancelled', error_class = 'cancelled', ended_at = now(),
         error_detail = 'Rendering on your own computer was switched off for this account, so this job will not run.'
       where owner_id = p_user and run_on = 'owner_local' and state = 'queued';
   end if;
   return coalesce(p_on, false);
+end $$;
+
+-- WEB 114: an admin knows an EMAIL, not an id
+create function public.admin_set_local_compute_by_email(p_email text, p_on boolean, p_reason text) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := ryagram_private.require_admin(); u uuid;
+begin
+  select id into u from auth.users where lower(email) = lower(btrim(p_email));
+  if u is null then raise exception 'No such account.' using errcode = 'PT404'; end if;
+  return public.admin_set_local_compute(u, p_on, p_reason);
+end $$;
+
+-- WEB 114: the history, newest first (admin only; the table itself stays unreadable from the API)
+create function public.admin_local_compute_audit() returns table (user_email text, was_on boolean, turned_on boolean,
+                                                                 set_by_email text, reason text, at timestamptz)
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := ryagram_private.require_admin();
+begin
+  return query select (select u.email from auth.users u where u.id = a.user_id)::text, a.was_on, a.turned_on,
+                      (select u.email from auth.users u where u.id = a.set_by)::text, a.reason, a.at
+               from public.local_compute_audit a order by a.at desc, a.id desc;
 end $$;
 
 -- ----------------------------------------------------------------------------------------- where a job runs
@@ -486,10 +509,12 @@ grant execute on function
   public.node_register_artifact(text, uuid, public.artifact_kind, bigint, text, numeric, int, int)
   to node_runner;
 revoke execute on function public.device_request_check(text), public.device_decide(text, boolean), public.my_computers(),
-  public.remove_computer(uuid), public.admin_storage_usage(),
+  public.remove_computer(uuid), public.admin_storage_usage(), public.admin_set_local_compute_by_email(text, boolean, text),
+  public.admin_local_compute_audit(),
   public.admin_set_local_compute(uuid, boolean, text) from public, anon, node_runner;
 grant execute on function public.device_request_check(text), public.device_decide(text, boolean), public.my_computers(),
-  public.remove_computer(uuid), public.admin_storage_usage(),
+  public.remove_computer(uuid), public.admin_storage_usage(), public.admin_set_local_compute_by_email(text, boolean, text),
+  public.admin_local_compute_audit(),
   public.admin_set_local_compute(uuid, boolean, text) to authenticated;
 revoke execute on function ryagram_private.node_actor(text), ryagram_private.in_node_tx(), ryagram_private.node_job(uuid, uuid),
   ryagram_private.node_sweep(), ryagram_private.masked_email(uuid),

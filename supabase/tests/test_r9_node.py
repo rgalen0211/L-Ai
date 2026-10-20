@@ -510,5 +510,31 @@ class Review1411(R9):
         self.assertIs(self.runner().one("select node_heartbeat(%s, %s, 0.5)", h(a), job), False)
 
 
+class Web114(R9):
+    # WEB 113/114's three gaps
+    def test_an_admin_sets_the_flag_by_email_and_others_cannot(self):
+        self.assertTrue(self.db.as_(ADMIN).one("select admin_set_local_compute_by_email('SAM@x', true, 'r9 tester')"))
+        self.assertTrue(self.admin("select local_compute from account_settings where owner_id = %s", SAM))
+        for who in (SAM, BOB):
+            self.denied(who, "select admin_set_local_compute_by_email('sam@x', false, 'nope')")
+        self.denied(ADMIN, "select admin_set_local_compute_by_email('nobody@nowhere', true, 'who')")
+        self.denied(ADMIN, "select admin_set_local_compute_by_email('worker@x', true, 'worker')")
+        self.denied(ADMIN, "select admin_set_local_compute_by_email('sam@x', true, 'no')")          # 2 characters: the SERVER refuses
+
+    def test_the_history_has_old_and_new_and_is_admin_only(self):
+        self.make_tester(SAM, True)
+        self.make_tester(SAM, False)
+        rows = self.db.as_(ADMIN).all("select user_email, was_on, turned_on, set_by_email, reason from admin_local_compute_audit()")
+        self.assertEqual(rows, [("sam@x", True, False, "admin@x", "r9 tester"), ("sam@x", False, True, "admin@x", "r9 tester")])
+        for who in (SAM, BOB):
+            self.denied(who, "select count(*) from admin_local_compute_audit()")
+        self.runner_denied("select count(*) from admin_local_compute_audit()")
+
+    def test_the_owner_reads_their_own_flag_and_no_one_elses(self):
+        self.make_tester(SAM, True)
+        self.assertTrue(self.db.as_(SAM).one("select local_compute from account_settings where owner_id = %s", SAM))
+        self.assertIsNone(self.db.as_(BOB).one("select local_compute from account_settings where owner_id = %s", SAM))
+
+
 if __name__ == "__main__":
     unittest.main()
