@@ -1,0 +1,3394 @@
+{
+  "_about": "DRAFT options.json (WEB, 2026-10-20, NEXT-WEB 106). WORDING, CONTROL TYPE AND DEFAULTS ONLY. It is NEVER the validator: every value, from a menu, the desktop app or a connected AI, passes the same server-side schema check before anything renders (CC1 13:27). Field paths are the engine's profile schema (tests/fixtures/profile.schema.json: look.*, pacing.*, reserved.*) and ENGINE's frozen clarity names (clarity-option-a 365d0e6, unmerged). ENGINE owns the fields, WEB owns the wording. status: built = the engine accepts it today; planned = named but not built or not merged; reserved = stored, not applied yet. hard = limits the server enforces; soft = a warning only, for taste (never size, time, render caps, rate limits or credits). VERSION 1 (NEXT-WEB 117, 2026-10-20): the 34 profile rows plus RENDERER's 128 engine story rows (their plain labels kept; WEB wrote the 70 advanced labels and help) and 10 gap rows. source: profile = a look or pacing field (the editor and the saved looks); story = a field of the story itself. same_as: the story row a profile row compiles into (the story field wins when both are set: ENGINE to confirm). connector: yes = the connected AI can set it through the connector (the server check stays the validator); no = not accepted today. help_detail = RENDERER's long viewer's-eye help (changes, use_when, example, careful) for a connected AI to read out; ENGINE-TO-CONFIRM items stay marked there.",
+  "version": 1,
+  "groups": [
+    {
+      "id": "look",
+      "label": "Look",
+      "help": "Colours and shapes."
+    },
+    {
+      "id": "size",
+      "label": "Size and speed",
+      "help": "How big the film is and how it moves."
+    },
+    {
+      "id": "words",
+      "label": "Words on screen",
+      "help": "The question and key a viewer reads first."
+    },
+    {
+      "id": "later",
+      "label": "Coming later",
+      "help": "Shown greyed out, with who is building it."
+    },
+    {
+      "id": "chart",
+      "label": "Chart",
+      "help": "What the chart shows and how."
+    },
+    {
+      "id": "story",
+      "label": "The film",
+      "help": "Name, data and years: chosen when the film is made."
+    },
+    {
+      "id": "brand",
+      "label": "Channel and credit",
+      "help": "Channel name, handle and credit line."
+    },
+    {
+      "id": "outro",
+      "label": "Closing card",
+      "help": "The card at the end."
+    },
+    {
+      "id": "advanced",
+      "label": "Advanced",
+      "help": "Shown only when a chart type needs it."
+    }
+  ],
+  "families": {
+    "chart_type": {
+      "rows": "clip.render.view",
+      "changes": "Which picture the film draws: a map, bars (a ranking race), a line, a map beside a bar race (paired), a panel, or stacked shares.",
+      "use_when": "Map for 'where', bars for 'who is biggest', line for 'how did it change over time', shares for 'what is it made of'.",
+      "example": "Film 4 and Film 6 are maps; the biggest-cities film is a bar race.",
+      "careful": "Each type has its own limits (the living-map view has no vertical layout yet)."
+    },
+    "years": {
+      "rows": "clip.render.start, clip.render.end, clip.render.first_period, clip.render.last_period",
+      "changes": "Which years the scene covers.",
+      "use_when": "To cut a longer dataset to the years you want to tell.",
+      "example": "Film 6 runs 1990 to 2024.",
+      "careful": "A year with no published data cannot be shown; the engine checks that the years you ask for exist."
+    },
+    "hold_per_year": {
+      "rows": "clip.render.hold_seconds",
+      "changes": "How long each year stays on screen before the next.",
+      "use_when": "Longer on the years that matter (a peak or a collapse), shorter elsewhere.",
+      "example": "Two seconds a year, slowing to three on the turns in the housing film.",
+      "careful": "Too fast and a viewer cannot take in the change; too slow and the film drags."
+    },
+    "bars_count": {
+      "rows": "clip.render.settings.top_n, style_overrides.bars.top_n",
+      "changes": "How many bars are on screen: the top 1 to 20.",
+      "use_when": "Ten is a good default; fewer for a short film.",
+      "example": "Top 10 cities.",
+      "careful": "More bars make the names small."
+    },
+    "bars_scale": {
+      "rows": "clip.render.settings.axis, style_overrides.bars.axis",
+      "changes": "Whether the bars' scale stays fixed for the whole film or follows the data as it grows.",
+      "use_when": "Fixed shows real growth; dynamic keeps the biggest bar always full width.",
+      "example": "Fixed, so a city that doubles visibly doubles.",
+      "careful": "A fixed scale starts small if the data grows a lot."
+    },
+    "rate_or_count": {
+      "rows": "clip.render.settings.measure, style_overrides.bars.measure",
+      "changes": "Whether the bars show a rate (per person) or a count.",
+      "use_when": "A rate when places differ a lot in size; a count when size is the point.",
+      "example": "Permits per 1,000 residents, not raw permits.",
+      "careful": "The film's title and key must say which one it is."
+    },
+    "cards": {
+      "rows": "clip.title.headline, clip.title.subhead, clip.title.credit, clip.title.seconds, clip.title.fade, clip.title.align",
+      "changes": "The text cards before and after the data: a headline, a subhead, a credit, how long they stay and how they fade.",
+      "use_when": "An opening card that says what the film is, and a closing card that says what to remember.",
+      "example": "Film 6 opens on 'Boom, Bust and Back'.",
+      "careful": "A card has a reading-speed limit (about 250 words a minute) and a length limit, so long text is refused; claims on a card must match the facts file."
+    },
+    "chart_subtitle": {
+      "rows": "clip.render.subtitle",
+      "changes": "The line under the chart title that changes with the story, for example '2009: 1.9 per 1,000, the floor'.",
+      "use_when": "To narrate the turning points.",
+      "example": "'2005: 7.4 per 1,000, the most homes permitted per person in the run.'",
+      "careful": "Up to 200 characters; any number in it must match the data."
+    },
+    "closing_card": {
+      "rows": "outro.seconds, outro.next_line",
+      "changes": "How long the Ryagram closing card stays (5 to 20 seconds) and one short line on it.",
+      "use_when": "Every film ends on it; change the line to point to your next film.",
+      "example": "'Next: the biggest cities, 1900 to 2020.'",
+      "careful": "The Ryagram credit stays on every film."
+    },
+    "channel_brand": {
+      "rows": "brand.channel, brand.handle, brand.credit_line, brand.logo_asset",
+      "changes": "Your channel name, handle, credit line and logo on the closing card.",
+      "use_when": "On every film you publish.",
+      "example": "Your channel name and your @handle.",
+      "careful": "A logo must be an uploaded file."
+    },
+    "callouts": {
+      "rows": "clip.render.settings.callouts[]",
+      "changes": "A short note that appears beside a place at a chosen year, with its source.",
+      "use_when": "To point at something the viewer should not miss.",
+      "example": "'1900: Columbus had 125,560 residents, Dayton 85,333.' with the Census source.",
+      "careful": "Every callout needs a source; up to 12 per scene; it must not cover the data, and it appears and leaves on a timer."
+    },
+    "declared_stills": {
+      "rows": "clip.render.settings.declared_stills[]",
+      "changes": "Years you tell the engine are meant to hold still, so a deliberate pause is not mistaken for a stuck film.",
+      "use_when": "When a year is a pause by design, such as a hold on a peak.",
+      "example": "The 2009 floor held for three seconds.",
+      "careful": "Up to 8; each is a year, a length and a reason."
+    },
+    "line_chart": {
+      "rows": "clip.render.settings.line_top_n, line_axis_max, line_band.*",
+      "changes": "The settings of a line chart: how many lines, the top of the scale, and a shaded band for a range.",
+      "use_when": "For a line film.",
+      "example": "A shaded band marking the 2007 to 2009 recession.",
+      "careful": "Advanced."
+    },
+    "network_roads": {
+      "rows": "clip.render.settings.network_*, style_overrides.network.*",
+      "changes": "The road-network film: the base layer, context roads, how roads are revealed and the route shields.",
+      "use_when": "Only for the roads film.",
+      "example": "Interstate shields drawn along each route as it opens.",
+      "careful": "Advanced and specific to that film."
+    },
+    "shares": {
+      "rows": "clip.render.settings.shares_*",
+      "changes": "The stacked-shares chart: which groups, their order, their colours and how many decimals.",
+      "use_when": "For 'what is it made of' films.",
+      "example": "Housing permits by building size: one unit, two to four, five or more.",
+      "careful": "Colours must stay clearly apart; the shares must add up to the whole."
+    },
+    "frame_pacing": {
+      "rows": "clip.render.settings.keyframes_per_year, final_hold_seconds, period_years, period_align",
+      "changes": "How smoothly each year is drawn, how long the final picture holds, and how years are grouped.",
+      "use_when": "Rarely; the film's defaults are tuned.",
+      "example": "More pictures per year for a very slow, smooth map.",
+      "careful": "Advanced; more pictures means a longer, heavier render."
+    }
+  },
+  "options": [
+    {
+      "id": "theme",
+      "path": "look.theme",
+      "group": "look",
+      "label": "Page",
+      "help": "Dark or light page behind the film. Dark is the default.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "dark",
+          "label": "Dark"
+        },
+        {
+          "value": "light",
+          "label": "Light"
+        }
+      ],
+      "default": "dark",
+      "status": "built",
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_theme",
+      "help_detail": {
+        "changes": "The page behind the whole film: near-black (dark) or white (light). Text and map colours flip with it.",
+        "use_when": "Dark is the default and the look every Ryagram film so far uses. Choose light only for a white-page setting, such as a slide that will be printed or placed on a white website.",
+        "example": "Film 6 (new homes approved by state) is dark; the early Film 4 was light.",
+        "careful": "A colour ramp that looks good on one page can fail on the other; the engine checks that the lowest colour stands apart from the page."
+      }
+    },
+    {
+      "id": "page_background",
+      "path": "look.page_background",
+      "group": "look",
+      "label": "Page colour",
+      "help": "Leave blank to use the page's own colour.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_page_background",
+      "help_detail": {
+        "changes": "The exact colour of the page. Blank keeps the look's own page.",
+        "use_when": "Only to match a brand colour. Most films should leave it blank.",
+        "example": "A near-black blue page for a channel whose logo sits on that blue.",
+        "careful": "A very bright page makes the map's low colours hard to see; the quiet text colour must still be readable on it."
+      }
+    },
+    {
+      "id": "text_muted",
+      "path": "look.text_muted",
+      "group": "look",
+      "label": "Quiet text colour",
+      "help": "Source lines and small print.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_text_muted",
+      "help_detail": {
+        "changes": "The colour of the small print: sources, footnotes and secondary labels.",
+        "use_when": "Rarely. Change it only if the small print is hard to read on your page colour.",
+        "example": "A lighter grey for the source line on a very dark page.",
+        "careful": "Too close to the page and the source line becomes unreadable, which is a credit problem as well as a looks problem."
+      }
+    },
+    {
+      "id": "ramp_low",
+      "path": "look.ramp.low",
+      "group": "look",
+      "label": "Map colour for low values",
+      "help": "The colour of the lowest numbers.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "note": "ENGINE's dark-ramp rule refuses a low colour too close to the page; the page shows the engine's own sentence",
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_choropleth_low",
+      "help_detail": {
+        "changes": "The map colour of the lowest numbers.",
+        "use_when": "When the default colours do not suit the subject. Pick colours that suggest the subject (warm for heat, cool for cold).",
+        "example": "Film 6 uses a deep violet (#5b3f66) for the lowest permit counts.",
+        "careful": "On a dark page the lowest colour must stand clearly apart from the page and from the no-data grey, or low values will look like nothing. The engine refuses a colour that is too close and says so in a sentence."
+      }
+    },
+    {
+      "id": "ramp_high",
+      "path": "look.ramp.high",
+      "group": "look",
+      "label": "Map colour for high values",
+      "help": "The colour of the highest numbers.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_choropleth_high",
+      "help_detail": {
+        "changes": "The map colour of the highest numbers.",
+        "use_when": "Together with the low colour, to match the subject.",
+        "example": "Film 6 uses a pale cream (#ffe9b8) for the highest permit counts, so the busiest places glow.",
+        "careful": "Keep it clearly different from the low colour; for a two-sided scale (above and below an average) the middle colour matters too."
+      }
+    },
+    {
+      "id": "ramp_mode",
+      "path": "look.ramp.mode",
+      "group": "look",
+      "label": "Map fill",
+      "help": "WORDING TO CONFIRM WITH ENGINE: what 'hatch' looks like to a viewer.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "solid",
+          "label": "Solid"
+        },
+        {
+          "value": "hatch",
+          "label": "Hatched"
+        }
+      ],
+      "default": "hatch",
+      "status": "built",
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_choropleth_mode",
+      "help_detail": {
+        "changes": "Whether each colour band is a flat colour (solid) or a line pattern (hatched).",
+        "use_when": "Solid is the everyday choice. Hatched marks bands with a pattern so they stay apart when colours are close, or in black and white. ENGINE-TO-CONFIRM: the exact viewer look of hatch.",
+        "example": "The housing-supply map draws its bands from light to dark purple, with a separate hatched swatch for counties with no permit office.",
+        "careful": "Hatching is drawn as pictures, so it is only available in the vector look; it is not a smooth colour scale."
+      }
+    },
+    {
+      "id": "ramp_continuous",
+      "path": "look.ramp.continuous",
+      "group": "look",
+      "label": "Smooth colours",
+      "help": "Colours blend smoothly instead of in bands.",
+      "control": "toggle",
+      "default": null,
+      "status": "built",
+      "source": "profile",
+      "connector": "yes",
+      "help_detail": {
+        "changes": "Colours blend smoothly from low to high instead of stepping in bands.",
+        "use_when": "When you want the picture to move: on a smooth scale a county changes colour a little every frame, so the film visibly flows.",
+        "example": "Film 6 uses smooth colours and moves all the way through; a banded map changes only when a county crosses a band, so long stretches look still.",
+        "careful": "A banded map often fails the engine's \"does the film actually move\" check (the housing-supply sheet did: only about 40% of frames changed against a 90% floor). Smooth colours cost the exact band labels."
+      }
+    },
+    {
+      "id": "hatch_line_color",
+      "path": "look.hatch_line_color",
+      "group": "look",
+      "label": "Hatch line colour",
+      "help": "Only used when the map fill is hatched.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_hatch_line_color",
+      "help_detail": {
+        "changes": "The colour of the hatch lines.",
+        "use_when": "Only when the map fill is hatched.",
+        "example": "A light line on a dark band.",
+        "careful": "It must show against every band colour it sits on."
+      }
+    },
+    {
+      "id": "dots_color",
+      "path": "look.dots.color",
+      "group": "look",
+      "label": "Dot colour",
+      "help": "Places drawn as dots.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_dots_color",
+      "help_detail": {
+        "changes": "The colour of the dots on a dot map.",
+        "use_when": "When places are drawn as dots rather than filled areas.",
+        "example": "Amber for single-family homes in the housing dot test.",
+        "careful": "Dots of different kinds must stay clearly apart, also for colour-blind viewers; the engine checks the gap between classes."
+      }
+    },
+    {
+      "id": "dots_baseline_color",
+      "path": "look.dots.baseline_color",
+      "group": "look",
+      "label": "Dot colour at the start",
+      "help": "Where a dot starts from.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_dots_baseline_color",
+      "help_detail": {
+        "changes": "The colour of dots counted at the starting year.",
+        "use_when": "When you want to show new dots against the ones that were already there.",
+        "example": "Grey baseline dots, then coloured dots for the new ones.",
+        "careful": "Choose a baseline that sits quietly behind the new colour."
+      }
+    },
+    {
+      "id": "dots_radius",
+      "path": "look.dots.radius",
+      "group": "look",
+      "label": "Dot size",
+      "help": "Bigger dots are easier to see on a phone.",
+      "control": "slider",
+      "min": 0.5,
+      "max": 6.0,
+      "step": 0.5,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0.5,
+        "max": 6.0
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_dots_radius",
+      "help_detail": {
+        "changes": "How big each dot is.",
+        "use_when": "Bigger for phones and small screens, smaller when the map is crowded.",
+        "example": "A larger dot for a Shorts version that will be watched on a phone.",
+        "careful": "Too big and dots overlap and hide each other; the engine checks that a dot is mostly its own colour."
+      }
+    },
+    {
+      "id": "state_fill",
+      "path": "look.state.fill",
+      "group": "look",
+      "label": "Place fill",
+      "help": "The fill of places with data.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_state_fill",
+      "help_detail": {
+        "changes": "The colour of places that have data but no colour of their own yet.",
+        "use_when": "Rarely; the map's colours normally cover it.",
+        "example": "A neutral dark grey for the land before the data fades in.",
+        "careful": "Keep it clearly different from the no-data colour so the two do not read as the same thing."
+      }
+    },
+    {
+      "id": "state_no_data_fill",
+      "path": "look.state.no_data_fill",
+      "group": "look",
+      "label": "No-data colour",
+      "help": "Places with no number for the year.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_state_no_data_fill",
+      "help_detail": {
+        "changes": "The colour of places with no number for that year.",
+        "use_when": "When the default grey is hard to tell apart from your low colour or the page.",
+        "example": "Film 4 draws the Connecticut areas that are not shown in a warm grey (#c4bfb7) so they cannot be mistaken for a low value.",
+        "careful": "If this colour matches another status colour (for example 'not shown' and 'not applicable') the engine fails the film, because a viewer cannot tell them apart."
+      }
+    },
+    {
+      "id": "state_outline_width",
+      "path": "look.state.outline_width",
+      "group": "look",
+      "label": "Outline thickness",
+      "help": "The line around each place. 0 hides it.",
+      "control": "slider",
+      "min": 0,
+      "max": 4,
+      "step": 0.5,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 4
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_state_outline_width",
+      "help_detail": {
+        "changes": "The thickness of the line around each state or county. 0 hides it.",
+        "use_when": "Thicker for a map of states, thinner or zero for a crowded county map.",
+        "example": "1 pixel on the county maps.",
+        "careful": "A thick outline on thousands of small counties hides the colours."
+      }
+    },
+    {
+      "id": "bars_swap_seconds",
+      "path": "look.bars.swap_seconds",
+      "group": "look",
+      "label": "How fast bars swap places",
+      "help": "Seconds a bar takes to move when its rank changes.",
+      "control": "slider",
+      "min": 0,
+      "max": 1.5,
+      "step": 0.1,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 1.5
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_bars_swap_seconds",
+      "help_detail": {
+        "changes": "How long a bar takes to move when it passes another.",
+        "use_when": "Shorter for a lively race, longer for a calm one.",
+        "example": "Half a second is the film default.",
+        "careful": "When many bars change places in one year, the moves happen one after another; a longer swap makes a cluster take longer and keeps the order and the printed numbers apart for longer (Ryan's Q139)."
+      }
+    },
+    {
+      "id": "bars_label_width",
+      "path": "look.bars.label_width",
+      "group": "look",
+      "label": "Space for names",
+      "help": "Width of the name column, in pixels. Advanced.",
+      "control": "number",
+      "min": 60,
+      "max": 600,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 60,
+        "max": 600
+      },
+      "advanced": true,
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_bars_label_width",
+      "help_detail": {
+        "changes": "How much room the names get on a bar chart.",
+        "use_when": "Wider if a name is cut off.",
+        "example": "A wider column for 'Los Angeles-Long Beach'.",
+        "careful": "Advanced: a very wide name column shrinks the bars."
+      }
+    },
+    {
+      "id": "bars_value_width",
+      "path": "look.bars.value_width",
+      "group": "look",
+      "label": "Space for numbers",
+      "help": "Width of the number column, in pixels. Advanced.",
+      "control": "number",
+      "min": 40,
+      "max": 400,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 40,
+        "max": 400
+      },
+      "advanced": true,
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_style_overrides_bars_value_width",
+      "help_detail": {
+        "changes": "How much room the numbers get at the end of a bar.",
+        "use_when": "Wider for big numbers.",
+        "example": "A wider column for population counts in the millions.",
+        "careful": "Advanced."
+      }
+    },
+    {
+      "id": "canvas",
+      "path": "look.canvas",
+      "group": "size",
+      "label": "Size",
+      "help": "Widescreen for YouTube; vertical for Shorts.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": [
+            1920,
+            1080
+          ],
+          "label": "Widescreen (1920 x 1080)"
+        },
+        {
+          "value": [
+            1280,
+            720
+          ],
+          "label": "Smaller widescreen (1280 x 720)"
+        },
+        {
+          "value": [
+            1080,
+            1920
+          ],
+          "label": "Vertical for Shorts (1080 x 1920)",
+          "status": "planned",
+          "note": "the schema accepts it but a true vertical layout is not built yet (ENGINE profile note); BUILDER's vertical work; show greyed with 'not ready yet'"
+        }
+      ],
+      "default": [
+        1920,
+        1080
+      ],
+      "status": "built",
+      "hard": {
+        "enum": "the three sizes"
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_canvas",
+      "help_detail": {
+        "changes": "The shape of the picture: widescreen (YouTube), 720p, or vertical (Shorts).",
+        "use_when": "Widescreen for YouTube; vertical for Shorts and phone-first posts.",
+        "example": "Film 4 is 1920x1080; the Shorts drafts are 1080x1920.",
+        "careful": "A vertical picture needs its own layout; not every chart type has one yet, and the engine refuses a vertical film that is not laid out for it."
+      }
+    },
+    {
+      "id": "fps",
+      "path": "look.fps",
+      "group": "size",
+      "label": "Smoothness",
+      "help": "Frames per second. 30 is smooth; 24 looks more like cinema.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": 24,
+          "label": "24"
+        },
+        {
+          "value": 25,
+          "label": "25"
+        },
+        {
+          "value": 30,
+          "label": "30 (recommended)"
+        }
+      ],
+      "default": 30,
+      "status": "built",
+      "hard": {
+        "enum": [
+          24,
+          25,
+          30
+        ]
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_fps",
+      "help_detail": {
+        "changes": "How many pictures are drawn each second.",
+        "use_when": "30 is smooth and is the default; 24 looks like cinema.",
+        "example": "All our films use 30.",
+        "careful": "Fewer frames per second means each year's change takes fewer pictures, so changes look steppier."
+      }
+    },
+    {
+      "id": "hold_seconds",
+      "path": "pacing.hold_seconds",
+      "group": "size",
+      "label": "Pause at the end",
+      "help": "How long the last picture stays on screen.",
+      "control": "slider",
+      "min": 0,
+      "max": 10,
+      "step": 0.5,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 10
+      },
+      "soft": {
+        "above": 2,
+        "text": "A pause over 2 seconds can feel long. You can keep it."
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "sequence_hold_seconds",
+      "help_detail": {
+        "changes": "How long the last picture stays on screen at the end.",
+        "use_when": "Long enough to read the final number and the source line.",
+        "example": "A second and a half for the final hold.",
+        "careful": "Too short and a viewer cannot read the last frame."
+      }
+    },
+    {
+      "id": "transition_kind",
+      "path": "pacing.transition.kind",
+      "group": "size",
+      "label": "Between scenes",
+      "help": "How one scene gives way to the next.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "cut",
+          "label": "Straight cut"
+        },
+        {
+          "value": "crossfade",
+          "label": "Crossfade"
+        },
+        {
+          "value": "fade",
+          "label": "Fade through the page colour"
+        }
+      ],
+      "default": null,
+      "status": "built",
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "clip_render_transition_kind",
+      "help_detail": {
+        "changes": "How one scene gives way to the next: a hard cut, a crossfade or a fade through black.",
+        "use_when": "A crossfade for a gentle change between a card and the chart.",
+        "example": "A 0.7-second crossfade between the map scenes in the housing film.",
+        "careful": "Long fades eat into the time a card has to be read."
+      }
+    },
+    {
+      "id": "transition_seconds",
+      "path": "pacing.transition.seconds",
+      "group": "size",
+      "label": "Scene change length",
+      "help": "Seconds the change takes.",
+      "control": "slider",
+      "min": 0,
+      "max": 3,
+      "step": 0.1,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 3
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "clip_render_transition_seconds",
+      "help_detail": {
+        "changes": "How long the change between scenes takes.",
+        "use_when": "Short for a brisk film.",
+        "example": "0.7 seconds.",
+        "careful": "Up to 3 seconds; longer is not allowed."
+      }
+    },
+    {
+      "id": "title_fade",
+      "path": "pacing.title_card.fade",
+      "group": "size",
+      "label": "Title fade",
+      "help": "Seconds the title card fades in.",
+      "control": "slider",
+      "min": 0,
+      "max": 2,
+      "step": 0.1,
+      "default": null,
+      "status": "built",
+      "hard": {
+        "min": 0,
+        "max": 2
+      },
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "clip_title_fade",
+      "help_detail": {
+        "changes": "How long the title card takes to fade in.",
+        "use_when": "A short fade for a clean open.",
+        "example": "0.3 seconds on our title cards.",
+        "careful": "Keep it short so the words are readable as soon as they appear."
+      }
+    },
+    {
+      "id": "title_align",
+      "path": "pacing.title_card.align",
+      "group": "size",
+      "label": "Title position",
+      "help": "Centre or left.",
+      "control": "choice",
+      "choices": [
+        {
+          "value": "center",
+          "label": "Centre"
+        },
+        {
+          "value": "left",
+          "label": "Left"
+        }
+      ],
+      "default": "center",
+      "status": "built",
+      "source": "profile",
+      "connector": "yes",
+      "same_as": "clip_title_align",
+      "help_detail": {
+        "changes": "Whether the title text is centred or left-aligned.",
+        "use_when": "Centre is the default; left suits a long headline.",
+        "example": "Left-aligned for a three-line headline.",
+        "careful": "Cards are limited in length so the text stays readable at the film's reading speed."
+      }
+    },
+    {
+      "id": "clarity_question",
+      "path": "clips[].clarity.question",
+      "group": "words",
+      "label": "Question under the title",
+      "help": "The one question this film answers, up to 120 characters. It stays on screen.",
+      "control": "text",
+      "maxLength": 120,
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE (clarity-option-a, unmerged)",
+      "hard": {
+        "maxLength": 120
+      },
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "Adds one line under the title that states the question the film answers, and keeps it on screen the whole time.",
+        "use_when": "Always, for a data film: it tells a viewer what they are looking at from the first second.",
+        "example": "Film 4: which counties got richer than the U.S. average, and which fell behind.",
+        "careful": "Planned (ENGINE clarity-option-a, not yet merged). Up to 120 characters; keep it a question or a plain statement, not a slogan."
+      }
+    },
+    {
+      "id": "clarity_detail",
+      "path": "clips[].clarity.detail",
+      "group": "words",
+      "label": "A line of detail",
+      "help": "Optional, under the question.",
+      "control": "text",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE",
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "An optional second line of detail under the question.",
+        "use_when": "To say what the colours or the measure mean.",
+        "example": "'Blue is above the U.S. average, orange is below.'",
+        "careful": "Planned. Keep it short."
+      }
+    },
+    {
+      "id": "clarity_fade",
+      "path": "clips[].clarity.fade_seconds",
+      "group": "words",
+      "label": "How fast the data fades in",
+      "help": "0 turns the fade off.",
+      "control": "slider",
+      "min": 0,
+      "max": 3,
+      "step": 0.1,
+      "default": 0.6,
+      "status": "planned",
+      "owner": "ENGINE",
+      "hard": {
+        "min": 0,
+        "max": 3
+      },
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "How quickly the data fades in from a plain map at the start. 0 turns it off.",
+        "use_when": "Leave it short (about half a second) so the data appears smoothly but never abruptly.",
+        "example": "Film 4 uses 0.6 seconds: the map starts plain, and the first year's colours fade in over 18 frames.",
+        "careful": "Planned. With the fade on, the film is that many frames longer, because the fade happens before the first year is shown; every year from the first is drawn at full strength."
+      }
+    },
+    {
+      "id": "clarity_key",
+      "path": "clips[].clarity.key",
+      "group": "words",
+      "label": "The colour key",
+      "help": "2 to 8 marks along the colour bar, each with a plain label.",
+      "control": "list",
+      "minItems": 2,
+      "maxItems": 8,
+      "status": "planned",
+      "owner": "ENGINE",
+      "hard": {
+        "minItems": 2,
+        "maxItems": 8
+      },
+      "note": "stops are increasing and each inside the colour ramp's own range; the page shows the engine's sentence when refused",
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "The colour key: a bar under the map with 2 to 8 marks and a plain label on each.",
+        "use_when": "Always on a map: it is how a viewer reads a colour as a number.",
+        "example": "Film 4's key reads from below to above the U.S. average.",
+        "careful": "Planned. Labels must stay readable and must not collide; the engine checks the key fits."
+      }
+    },
+    {
+      "id": "music",
+      "group": "later",
+      "label": "Music",
+      "help": "A track under the film. Needs the audio block merged and a licence answer for uploads.",
+      "control": "choice",
+      "status": "planned",
+      "owner": "ENGINE, WEB; counsel for uploads",
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "A music track under the film.",
+        "use_when": "For a finished film; the track and its licence are part of the film's record.",
+        "example": "Film 4's track and mix are recorded in a music receipt.",
+        "careful": "Planned. Needs the audio block merged and a licence answer."
+      }
+    },
+    {
+      "id": "captions",
+      "group": "later",
+      "label": "Captions",
+      "help": "Burned-in captions and a .srt file.",
+      "control": "toggle",
+      "status": "planned",
+      "owner": "BUILDER, WEB",
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "Burned-in captions and a caption file.",
+        "use_when": "When the film has speech or a voice-over.",
+        "example": "Open captions on a Short.",
+        "careful": "Planned."
+      }
+    },
+    {
+      "id": "borders",
+      "group": "later",
+      "label": "Use each year's borders",
+      "help": "Switch a map to the borders of each year, for example Connecticut's counties then planning regions.",
+      "control": "toggle",
+      "status": "planned",
+      "owner": "ENGINE (time-varying geography)",
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "At the right date, the map switches to the borders of that year.",
+        "use_when": "When places change: Connecticut moved from 8 counties to 9 planning regions in 2024; Europe and Asia have more such changes.",
+        "example": "A county map that uses the old Connecticut counties up to 2023 and the new regions from 2024.",
+        "careful": "Planned/partly built (time-varying geography, on main for Connecticut). The frame where both sets of places exist needs plain words (Q135), and values across the switch are not comparable unless the film says so."
+      }
+    },
+    {
+      "id": "fonts",
+      "path": "reserved.fonts",
+      "group": "later",
+      "label": "Fonts",
+      "help": "Stored, not applied yet.",
+      "control": "choice",
+      "status": "reserved",
+      "owner": "BUILDER",
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "The typeface used on the film.",
+        "use_when": "To match a brand.",
+        "example": "Your channel's font.",
+        "careful": "Stored, not applied yet."
+      }
+    },
+    {
+      "id": "brand",
+      "path": "reserved.brand",
+      "group": "later",
+      "label": "Channel name and credit line",
+      "help": "Stored, not applied yet.",
+      "control": "text",
+      "status": "reserved",
+      "owner": "BUILDER",
+      "source": "profile",
+      "connector": "no",
+      "connector_note": "not built or not applied yet",
+      "help_detail": {
+        "changes": "Your channel name and credit line on the closing card.",
+        "use_when": "On every film you publish.",
+        "example": "'Made with Ryagram' with your channel name.",
+        "careful": "Stored, not applied yet; the engine's own Ryagram mark stays on the closing card."
+      }
+    },
+    {
+      "id": "engine",
+      "path": "engine",
+      "group": "advanced",
+      "label": "Film engine",
+      "help": "Which drawing engine makes the film. It is always the sequence engine today; leave it.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "sequence"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "name",
+      "path": "name",
+      "group": "story",
+      "label": "Film name",
+      "help": "Short name for the project (letters, numbers, dashes).",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 64
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "notes",
+      "path": "notes",
+      "group": "story",
+      "label": "Notes",
+      "help": "Your own notes; never drawn.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 4000
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "schema",
+      "path": "schema",
+      "group": "advanced",
+      "label": "Story format version",
+      "help": "The version of the story format. It is always 1; leave it.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          1
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_canvas",
+      "path": "sequence.canvas",
+      "group": "size",
+      "label": "Size",
+      "help": "Frame size: 1920x1080, 1280x720 or vertical 1080x1920.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          [
+            1920,
+            1080
+          ],
+          [
+            1280,
+            720
+          ],
+          [
+            1080,
+            1920
+          ]
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_clips",
+      "path": "sequence.clips",
+      "group": "advanced",
+      "label": "Scenes",
+      "help": "The scenes of the film in order: title cards and charts. From 1 to 40.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 40,
+        "minItems": 1
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_title_align",
+      "path": "sequence.clips[].align",
+      "group": "words",
+      "label": "Card alignment",
+      "help": "Centre or left.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "center",
+          "left"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_title_credit",
+      "path": "sequence.clips[].credit",
+      "group": "words",
+      "label": "Card credit",
+      "help": "A small credit under the card.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 160
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_title_fade",
+      "path": "sequence.clips[].fade",
+      "group": "size",
+      "label": "Card fade",
+      "help": "Seconds the card fades in and out.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 2.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_title_headline",
+      "path": "sequence.clips[].headline",
+      "group": "words",
+      "label": "Card headline",
+      "help": "The big line on a card.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 160
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_title_id",
+      "path": "sequence.clips[].id",
+      "group": "advanced",
+      "label": "Title card name",
+      "help": "A short name for this title card, only so scenes can be told apart. Up to 40 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 40
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_title_kind",
+      "path": "sequence.clips[].kind",
+      "group": "advanced",
+      "label": "Scene type: title card",
+      "help": "Marks this scene as a title card.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "title"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_title_seconds",
+      "path": "sequence.clips[].seconds",
+      "group": "size",
+      "label": "Card length",
+      "help": "Seconds the card stays on screen.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.5,
+        "maximum": 12.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_title_subhead",
+      "path": "sequence.clips[].subhead",
+      "group": "words",
+      "label": "Card subhead",
+      "help": "The line under the headline.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 320
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_title_transition_kind",
+      "path": "sequence.clips[].transition.kind",
+      "group": "size",
+      "label": "Between scenes",
+      "help": "Cut, crossfade or fade.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "cut",
+          "crossfade",
+          "fade"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_title_transition_seconds",
+      "path": "sequence.clips[].transition.seconds",
+      "group": "size",
+      "label": "Between-scenes length",
+      "help": "Seconds the change takes.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 3.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_dataset",
+      "path": "sequence.clips[].dataset",
+      "group": "story",
+      "label": "Data",
+      "help": "Which dataset the scene draws.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 64
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_end",
+      "path": "sequence.clips[].end",
+      "group": "story",
+      "label": "Last year",
+      "help": "Last period shown.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_first_period",
+      "path": "sequence.clips[].first_period",
+      "group": "advanced",
+      "label": "First period of this chart",
+      "help": "The first year (or month) this chart shows. Leave blank to use the film's own start.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_hold_seconds",
+      "path": "sequence.clips[].hold_seconds",
+      "group": "size",
+      "label": "Hold on each year",
+      "help": "Seconds each year stays before moving on.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 10.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_id",
+      "path": "sequence.clips[].id",
+      "group": "advanced",
+      "label": "Chart name",
+      "help": "A short name for this chart scene, only so scenes can be told apart. Up to 40 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 40
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_kind",
+      "path": "sequence.clips[].kind",
+      "group": "advanced",
+      "label": "Scene type: chart",
+      "help": "Marks this scene as a chart.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "render"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_last_period",
+      "path": "sequence.clips[].last_period",
+      "group": "advanced",
+      "label": "Last period of this chart",
+      "help": "The last year (or month) this chart shows.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_axis",
+      "path": "sequence.clips[].settings.axis",
+      "group": "chart",
+      "label": "Bar scale",
+      "help": "Fixed or following the data.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "fixed",
+          "dynamic"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_settings_callouts",
+      "path": "sequence.clips[].settings.callouts",
+      "group": "advanced",
+      "label": "Notes on the chart",
+      "help": "Short written notes that appear at a chosen moment, each with its place, how long it stays and, if you like, its source. Up to 12.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 12,
+        "minItems": 1
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_at",
+      "path": "sequence.clips[].settings.callouts.at",
+      "group": "advanced",
+      "label": "When the note appears",
+      "help": "The year (or month) at which this note shows.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_entity",
+      "path": "sequence.clips[].settings.callouts.entity",
+      "group": "advanced",
+      "label": "Place the note points to",
+      "help": "The place or item this note is about, for example a state name. Up to 40 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 40
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_id",
+      "path": "sequence.clips[].settings.callouts.id",
+      "group": "advanced",
+      "label": "Note name",
+      "help": "A short name for this note, only so notes can be told apart. Up to 40 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 40
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_position",
+      "path": "sequence.clips[].settings.callouts.position",
+      "group": "advanced",
+      "label": "Where the note sits",
+      "help": "Where on the screen the note appears, for example top left or top centre.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "left-top",
+          "centre-top",
+          "right-top",
+          "left-middle",
+          "centre-middle",
+          "right-middle",
+          "left-bottom",
+          "centre-bottom",
+          "right-bottom"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_seconds",
+      "path": "sequence.clips[].settings.callouts.seconds",
+      "group": "advanced",
+      "label": "How long the note stays",
+      "help": "Seconds the note stays on screen, from 0.5 to 20.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.5,
+        "maximum": 20.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_source_name",
+      "path": "sequence.clips[].settings.callouts.source.name",
+      "group": "advanced",
+      "label": "Note source",
+      "help": "Who the note's fact comes from, shown with the note. Up to 120 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 120
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_source_url",
+      "path": "sequence.clips[].settings.callouts.source.url",
+      "group": "advanced",
+      "label": "Note source link",
+      "help": "A full web address for the source. Up to 500 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 500
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_callouts_text",
+      "path": "sequence.clips[].settings.callouts.text",
+      "group": "advanced",
+      "label": "Note text",
+      "help": "The sentence shown on screen. Up to 400 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 400
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_declared_stills",
+      "path": "sequence.clips[].settings.declared_stills",
+      "group": "advanced",
+      "label": "Pauses that are meant",
+      "help": "Stretches where the picture holds still on purpose, so the motion check does not flag them. Up to 8.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 8,
+        "minItems": 1
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_final_hold_seconds",
+      "path": "sequence.clips[].settings.final_hold_seconds",
+      "group": "size",
+      "label": "Final hold",
+      "help": "Seconds the last picture stays.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1.6,
+        "maximum": 10.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_settings_keyframes_per_year",
+      "path": "sequence.clips[].settings.keyframes_per_year",
+      "group": "size",
+      "label": "Smoothness per year",
+      "help": "Pictures drawn per year (2 to 24).",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 2,
+        "maximum": 24
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_settings_line_axis_max",
+      "path": "sequence.clips[].settings.line_axis_max",
+      "group": "advanced",
+      "label": "Top of the line chart's scale",
+      "help": "Fix the highest value on a line chart's side scale instead of letting it fit the data.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 1000000000.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_line_band_first_period",
+      "path": "sequence.clips[].settings.line_band.first_period",
+      "group": "advanced",
+      "label": "Shaded band: from",
+      "help": "The first year of a shaded band behind a line chart.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_line_band_high",
+      "path": "sequence.clips[].settings.line_band.high",
+      "group": "advanced",
+      "label": "Shaded band: top value",
+      "help": "The top of the band, in the chart's own units.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": -1000000000.0,
+        "maximum": 1000000000.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_line_band_label",
+      "path": "sequence.clips[].settings.line_band.label",
+      "group": "advanced",
+      "label": "Shaded band: label",
+      "help": "The words shown on the band, such as 'Recession'. Up to 120 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 120
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_line_band_last_period",
+      "path": "sequence.clips[].settings.line_band.last_period",
+      "group": "advanced",
+      "label": "Shaded band: to",
+      "help": "The last year of the band.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_line_band_low",
+      "path": "sequence.clips[].settings.line_band.low",
+      "group": "advanced",
+      "label": "Shaded band: bottom value",
+      "help": "The bottom of the band, in the chart's own units. It must not be above the top.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": -1000000000.0,
+        "maximum": 1000000000.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_line_top_n",
+      "path": "sequence.clips[].settings.line_top_n",
+      "group": "advanced",
+      "label": "How many lines to show",
+      "help": "How many places a line chart draws, from 1 to 20.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 20
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_measure",
+      "path": "sequence.clips[].settings.measure",
+      "group": "chart",
+      "label": "Rate or count",
+      "help": "Rate or count.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "rate",
+          "count"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_settings_network_base_groups",
+      "path": "sequence.clips[].settings.network_base_groups",
+      "group": "advanced",
+      "label": "Road groups open at the start",
+      "help": "Groups of roads drawn from the first frame as the starting network. Up to 6.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 6,
+        "minItems": 1
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_base_label",
+      "path": "sequence.clips[].settings.network_base_label",
+      "group": "advanced",
+      "label": "Label for the starting roads",
+      "help": "The words for the roads already there at the start. Up to 120 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 120
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_context_at",
+      "path": "sequence.clips[].settings.network_context.at",
+      "group": "advanced",
+      "label": "When background roads appear",
+      "help": "The year the background road layer fades in.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_context_classes",
+      "path": "sequence.clips[].settings.network_context.classes",
+      "group": "advanced",
+      "label": "Background road types",
+      "help": "Which kinds of road the background layer draws. Up to 5.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 5,
+        "minItems": 1
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_context_credit",
+      "path": "sequence.clips[].settings.network_context.credit",
+      "group": "advanced",
+      "label": "Background roads credit",
+      "help": "The source credit shown for the background layer. Up to 200 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 200
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_context_fade_seconds",
+      "path": "sequence.clips[].settings.network_context.fade_seconds",
+      "group": "advanced",
+      "label": "Background roads fade",
+      "help": "Seconds the background layer takes to fade in, from 0.1 to 10.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.1,
+        "maximum": 10.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_context_label",
+      "path": "sequence.clips[].settings.network_context.label",
+      "group": "advanced",
+      "label": "Background roads label",
+      "help": "The words for the background layer in the key. Up to 120 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 120
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_context_layer",
+      "path": "sequence.clips[].settings.network_context.layer",
+      "group": "advanced",
+      "label": "Background roads data",
+      "help": "Which road dataset the background layer comes from: primary and secondary roads (TIGER) or the National Highway Planning Network.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "tiger_prisecroads",
+          "ntad_nhpn"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_readout_label",
+      "path": "sequence.clips[].settings.network_readout_label",
+      "group": "advanced",
+      "label": "Counter label",
+      "help": "The words next to the running total on a roads film, such as 'Interstate miles'. Up to 60 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 60
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_network_reveal",
+      "path": "sequence.clips[].settings.network_reveal",
+      "group": "advanced",
+      "label": "How new roads appear",
+      "help": "Roads appear mile by mile ('milepost') or fade in whole ('fade').",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "milepost",
+          "fade"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_period_align",
+      "path": "sequence.clips[].settings.period_align",
+      "group": "advanced",
+      "label": "Where each period sits",
+      "help": "Whether a period's number marks its end or its start.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "end",
+          "start"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_period_years",
+      "path": "sequence.clips[].settings.period_years",
+      "group": "advanced",
+      "label": "Years per step",
+      "help": "How many years one step of the film covers, from 1 to 10.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_shares_colors",
+      "path": "sequence.clips[].settings.shares_colors",
+      "group": "advanced",
+      "label": "Colours of the groups",
+      "help": "A colour for each group in a shares chart. Up to 30.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxProperties": 30
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_shares_decimals",
+      "path": "sequence.clips[].settings.shares_decimals",
+      "group": "advanced",
+      "label": "Decimal places in shares",
+      "help": "How many decimals the percentages show, from 0 to 3.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0,
+        "maximum": 3
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_shares_groups",
+      "path": "sequence.clips[].settings.shares_groups",
+      "group": "advanced",
+      "label": "Group names",
+      "help": "The groups a shares chart is made of. Up to 12.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxProperties": 12
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_shares_order",
+      "path": "sequence.clips[].settings.shares_order",
+      "group": "advanced",
+      "label": "Order of the groups",
+      "help": "The stacking order of the groups, bottom to top. It must name every group. Up to 30.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 30,
+        "minItems": 1
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_shares_scale",
+      "path": "sequence.clips[].settings.shares_scale",
+      "group": "advanced",
+      "label": "Shares as percent or count",
+      "help": "Show each group as a percentage of the whole ('share') or as a raw number ('count').",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "share",
+          "count"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "clip_render_settings_top_n",
+      "path": "sequence.clips[].settings.top_n",
+      "group": "chart",
+      "label": "Bars shown",
+      "help": "How many bars are on screen.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 20
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_start",
+      "path": "sequence.clips[].start",
+      "group": "story",
+      "label": "First year",
+      "help": "First period shown.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 10
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_subtitle",
+      "path": "sequence.clips[].subtitle",
+      "group": "words",
+      "label": "Chart subtitle",
+      "help": "The line under the chart title.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 200
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_transition_kind",
+      "path": "sequence.clips[].transition.kind",
+      "group": "size",
+      "label": "Between scenes",
+      "help": "Cut, crossfade or fade.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "cut",
+          "crossfade",
+          "fade"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_transition_seconds",
+      "path": "sequence.clips[].transition.seconds",
+      "group": "size",
+      "label": "Between-scenes length",
+      "help": "Seconds the change takes.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 3.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "clip_render_view",
+      "path": "sequence.clips[].view",
+      "group": "chart",
+      "label": "Chart type",
+      "help": "Map, bars, line, paired, panel or shares.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "map",
+          "bars",
+          "line",
+          "paired",
+          "panel",
+          "shares"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_fps",
+      "path": "sequence.fps",
+      "group": "size",
+      "label": "Smoothness",
+      "help": "Frames per second: 24, 25 or 30.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          24,
+          25,
+          30
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_hold_seconds",
+      "path": "sequence.hold_seconds",
+      "group": "size",
+      "label": "Pause at the end",
+      "help": "Seconds the last picture stays on screen.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 10.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_bars_axis",
+      "path": "sequence.style_overrides.bars.axis",
+      "group": "chart",
+      "label": "Bar scale",
+      "help": "Fixed for the whole film, or it follows the data.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "fixed",
+          "dynamic"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_bars_label_width",
+      "path": "sequence.style_overrides.bars.label_width",
+      "group": "chart",
+      "label": "Name column width",
+      "help": "Width reserved for the names.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 60,
+        "maximum": 600
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_bars_measure",
+      "path": "sequence.style_overrides.bars.measure",
+      "group": "chart",
+      "label": "Rate or count",
+      "help": "Show a rate (per person) or a count.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "rate",
+          "count"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_bars_swap_seconds",
+      "path": "sequence.style_overrides.bars.swap_seconds",
+      "group": "chart",
+      "label": "Bar swap speed",
+      "help": "How long two bars take to swap places.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 1.5
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_bars_top_n",
+      "path": "sequence.style_overrides.bars.top_n",
+      "group": "chart",
+      "label": "Bars shown",
+      "help": "How many bars are on screen (1 to 20).",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 20
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_bars_value_width",
+      "path": "sequence.style_overrides.bars.value_width",
+      "group": "chart",
+      "label": "Number column width",
+      "help": "Width reserved for the numbers.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 40,
+        "maximum": 400
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_choropleth_cap",
+      "path": "sequence.style_overrides.choropleth.cap",
+      "group": "look",
+      "label": "Top of the colour scale",
+      "help": "Values above this share the top colour. Blank for none.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": -1000000000.0,
+        "maximum": 1000000000.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_choropleth_high",
+      "path": "sequence.style_overrides.choropleth.high",
+      "group": "look",
+      "label": "Map colour for high values",
+      "help": "The colour of the highest numbers.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_choropleth_low",
+      "path": "sequence.style_overrides.choropleth.low",
+      "group": "look",
+      "label": "Map colour for low values",
+      "help": "The colour of the lowest numbers.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_choropleth_mode",
+      "path": "sequence.style_overrides.choropleth.mode",
+      "group": "look",
+      "label": "Map fill",
+      "help": "Solid colours or hatched bands.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "solid",
+          "hatch"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_choropleth_single_label",
+      "path": "sequence.style_overrides.choropleth.single_label",
+      "group": "words",
+      "label": "Name for the one-colour key",
+      "help": "Words under the key when the map has one colour.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 80
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_choropleth_steps",
+      "path": "sequence.style_overrides.choropleth.steps",
+      "group": "look",
+      "label": "Colour steps",
+      "help": "How many colour bands, or auto.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "auto"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_districts_dash_off",
+      "path": "sequence.style_overrides.districts.dash_off",
+      "group": "advanced",
+      "label": "District outline: gap",
+      "help": "Length of the gap in a dashed district outline, from 0 to 40.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0,
+        "maximum": 40
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_districts_dash_on",
+      "path": "sequence.style_overrides.districts.dash_on",
+      "group": "advanced",
+      "label": "District outline: dash",
+      "help": "Length of each dash in a dashed district outline, from 0 to 40.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0,
+        "maximum": 40
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_districts_ghost",
+      "path": "sequence.style_overrides.districts.ghost",
+      "group": "advanced",
+      "label": "District ghost colour",
+      "help": "Colour of the faint outline of earlier districts.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_districts_ghost_opacity",
+      "path": "sequence.style_overrides.districts.ghost_opacity",
+      "group": "advanced",
+      "label": "District ghost strength",
+      "help": "How visible the outline of earlier districts is, from 0 (not at all) to 1.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 1.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_districts_line",
+      "path": "sequence.style_overrides.districts.line",
+      "group": "advanced",
+      "label": "District line colour",
+      "help": "Colour of district outlines.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_districts_opacity",
+      "path": "sequence.style_overrides.districts.opacity",
+      "group": "advanced",
+      "label": "District line strength",
+      "help": "How solid district outlines are, from 0 to 1.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 1.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_districts_width",
+      "path": "sequence.style_overrides.districts.width",
+      "group": "advanced",
+      "label": "District line thickness",
+      "help": "How thick district outlines are, from 0 to 4.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 4.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_dots_baseline_color",
+      "path": "sequence.style_overrides.dots.baseline_color",
+      "group": "advanced",
+      "label": "Dot colour at the start",
+      "help": "Where a dot starts from.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_dots_baseline_value",
+      "path": "sequence.style_overrides.dots.baseline_value",
+      "group": "advanced",
+      "label": "Value that sits on the baseline",
+      "help": "The number a dot starts at before it moves, from 1 to 1,000,000.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 1000000
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_dots_color",
+      "path": "sequence.style_overrides.dots.color",
+      "group": "look",
+      "label": "Dot colour",
+      "help": "Colour of the dots.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_dots_min_spacing",
+      "path": "sequence.style_overrides.dots.min_spacing",
+      "group": "advanced",
+      "label": "Space between dots",
+      "help": "The least gap between two dots, from 0 to 40 pixels.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 40.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_dots_placement_note",
+      "path": "sequence.style_overrides.dots.placement_note",
+      "group": "advanced",
+      "label": "Note about dot placement",
+      "help": "A short note shown with a dot map that explains how the dots are placed. Up to 200 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 200
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_dots_radius",
+      "path": "sequence.style_overrides.dots.radius",
+      "group": "look",
+      "label": "Dot size",
+      "help": "Radius of each dot.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.5,
+        "maximum": 6.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_dots_value",
+      "path": "sequence.style_overrides.dots.value",
+      "group": "look",
+      "label": "Value of one dot",
+      "help": "How many units one dot stands for.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 1000000
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_hatch_band_method",
+      "path": "sequence.style_overrides.hatch.band_method",
+      "group": "look",
+      "label": "How bands are cut",
+      "help": "Equal counts, equal widths, or break points you set.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "quantile",
+          "equal",
+          "breaks"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_hatch_bands",
+      "path": "sequence.style_overrides.hatch.bands",
+      "group": "look",
+      "label": "Number of hatch bands",
+      "help": "How many bands the hatched map uses.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 8
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_hatch_breaks",
+      "path": "sequence.style_overrides.hatch.breaks",
+      "group": "look",
+      "label": "Band break points",
+      "help": "Where one band ends and the next begins.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 8,
+        "minItems": 1
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_hatch_line_color",
+      "path": "sequence.style_overrides.hatch.line_color",
+      "group": "look",
+      "label": "Hatch line colour",
+      "help": "Colour of the hatch lines.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_layout_no_data_ambiguous_note",
+      "path": "sequence.style_overrides.layout.no_data_ambiguous_note",
+      "group": "advanced",
+      "label": "Note when 'no data' is unclear",
+      "help": "A short note explaining a place with no number when the reason is not obvious. Up to 120 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 120
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_layout_no_data_label",
+      "path": "sequence.style_overrides.layout.no_data_label",
+      "group": "words",
+      "label": "No-data words",
+      "help": "The key wording for places with no data.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 80
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_network_base_alpha",
+      "path": "sequence.style_overrides.network.base_alpha",
+      "group": "advanced",
+      "label": "Starting roads strength",
+      "help": "How solid the starting roads look, from 0 to 1.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 1.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_base_color",
+      "path": "sequence.style_overrides.network.base_color",
+      "group": "advanced",
+      "label": "Starting roads colour",
+      "help": "Colour of the roads already open at the start.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_base_dash",
+      "path": "sequence.style_overrides.network.base_dash",
+      "group": "advanced",
+      "label": "Starting roads dashes",
+      "help": "Dash and gap lengths for the starting roads: two numbers.",
+      "control": "list",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxItems": 2,
+        "minItems": 2
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_base_width",
+      "path": "sequence.style_overrides.network.base_width",
+      "group": "advanced",
+      "label": "Starting roads thickness",
+      "help": "How thick the starting roads are, from 1 to 12.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 12
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_color",
+      "path": "sequence.style_overrides.network.color",
+      "group": "advanced",
+      "label": "New roads colour",
+      "help": "Colour of roads as they are built.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_context_alpha",
+      "path": "sequence.style_overrides.network.context_alpha",
+      "group": "advanced",
+      "label": "Background roads strength",
+      "help": "How solid the background roads look, from 0 to 1.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 1.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_context_color",
+      "path": "sequence.style_overrides.network.context_color",
+      "group": "advanced",
+      "label": "Background roads colour",
+      "help": "Colour of the background road layer.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_context_width",
+      "path": "sequence.style_overrides.network.context_width",
+      "group": "advanced",
+      "label": "Background roads thickness",
+      "help": "How thick the background roads are, from 0.1 to 8.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.1,
+        "maximum": 8.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_key_label",
+      "path": "sequence.style_overrides.network.key_label",
+      "group": "advanced",
+      "label": "Roads key label",
+      "help": "The words for the roads in the key. Up to 120 characters.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 120
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_shields_clearance_px",
+      "path": "sequence.style_overrides.network.shields.clearance_px",
+      "group": "advanced",
+      "label": "Road shield clearance",
+      "help": "Space kept free around each road-number shield, in pixels, from 1 to 500.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1.0,
+        "maximum": 500.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_shields_min_gap_px",
+      "path": "sequence.style_overrides.network.shields.min_gap_px",
+      "group": "advanced",
+      "label": "Road shield minimum gap",
+      "help": "The least distance between two shields along a road, from 20 to 2000 pixels.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 20.0,
+        "maximum": 2000.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_shields_min_piece_px",
+      "path": "sequence.style_overrides.network.shields.min_piece_px",
+      "group": "advanced",
+      "label": "Shortest road piece with a shield",
+      "help": "A road shorter than this gets no shield, from 10 to 2000 pixels.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 10.0,
+        "maximum": 2000.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_shields_repeat_miles",
+      "path": "sequence.style_overrides.network.shields.repeat_miles",
+      "group": "advanced",
+      "label": "Road shield repeat",
+      "help": "A shield repeats every this many miles, from 50 to 5000.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 50.0,
+        "maximum": 5000.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_shields_size_px",
+      "path": "sequence.style_overrides.network.shields.size_px",
+      "group": "advanced",
+      "label": "Road shield size",
+      "help": "Size of each shield in pixels, from 10 to 200.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 10.0,
+        "maximum": 200.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_network_width",
+      "path": "sequence.style_overrides.network.width",
+      "group": "advanced",
+      "label": "New roads thickness",
+      "help": "How thick new roads are as they are built, from 1 to 12.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 1,
+        "maximum": 12
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes",
+      "advanced": true
+    },
+    {
+      "id": "sequence_style_overrides_page_background",
+      "path": "sequence.style_overrides.page.background",
+      "group": "look",
+      "label": "Page colour",
+      "help": "Leave blank to use the page colour of the chosen look.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_state_fill",
+      "path": "sequence.style_overrides.state.fill",
+      "group": "look",
+      "label": "Land colour",
+      "help": "Colour of land with no data drawn.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_state_no_data_fill",
+      "path": "sequence.style_overrides.state.no_data_fill",
+      "group": "look",
+      "label": "No-data colour",
+      "help": "Colour for places with no data.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_state_outline_width",
+      "path": "sequence.style_overrides.state.outline_width",
+      "group": "look",
+      "label": "Outline thickness",
+      "help": "Thickness of the state or county outlines.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 0.0,
+        "maximum": 4.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_style_overrides_text_muted",
+      "path": "sequence.style_overrides.text.muted",
+      "group": "look",
+      "label": "Quiet text colour",
+      "help": "Source lines and small print.",
+      "control": "colour",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "pattern": "#RRGGBB"
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "sequence_theme",
+      "path": "sequence.theme",
+      "group": "look",
+      "label": "Page",
+      "help": "Dark or light page behind the film. Dark is the default.",
+      "control": "choice",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "enum": [
+          "light",
+          "dark"
+        ]
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "brand_channel",
+      "path": "brand.channel",
+      "group": "brand",
+      "label": "Channel name",
+      "help": "Your channel name on the closing card.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 60
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "brand_handle",
+      "path": "brand.handle",
+      "group": "brand",
+      "label": "Channel handle",
+      "help": "Your @handle.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 31
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "brand_credit_line",
+      "path": "brand.credit_line",
+      "group": "brand",
+      "label": "Credit line",
+      "help": "A line crediting you.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 160
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "brand_logo_asset",
+      "path": "brand.logo_asset",
+      "group": "brand",
+      "label": "Logo",
+      "help": "An uploaded logo for the closing card.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 36
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "outro_seconds",
+      "path": "outro.seconds",
+      "group": "outro",
+      "label": "Closing card length",
+      "help": "Seconds the Ryagram closing card stays.",
+      "control": "number",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "minimum": 5.0,
+        "maximum": 20.0
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "outro_next_line",
+      "path": "outro.next_line",
+      "group": "outro",
+      "label": "Line after the credits",
+      "help": "One short line on the closing card.",
+      "control": "text",
+      "default": null,
+      "status": "built",
+      "hard": {
+        "maxLength": 80
+      },
+      "owner": "ENGINE field, WEB words",
+      "source": "story",
+      "connector": "yes"
+    },
+    {
+      "id": "excluded_fill",
+      "path": "sequence.style_overrides.state.excluded_fill",
+      "group": "look",
+      "label": "Colour for \"not shown\" places",
+      "help": "The colour of places left out on purpose, such as Connecticut before its change, so they differ from \"no data\".",
+      "control": "colour",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE decides: allow",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "glow_strength",
+      "path": "sequence.style_overrides.state.perimeter_glow",
+      "group": "look",
+      "label": "Glow on map edges",
+      "help": "A soft glow on the outer edge of each landmass, never per county. 0 is off, 1 is strongest.",
+      "control": "slider",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE decides: allow (on main, off by default)",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "glow_radius",
+      "path": "sequence.style_overrides.state.perimeter_glow_radius",
+      "group": "advanced",
+      "label": "Glow size",
+      "help": "How far the glow spreads.",
+      "control": "number",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE decides: allow, advanced",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "glow_colour",
+      "path": "sequence.style_overrides.state.perimeter_glow_colour",
+      "group": "advanced",
+      "label": "Glow colour",
+      "help": "The colour of the glow.",
+      "control": "colour",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE decides: allow, advanced",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "diverging_midpoint",
+      "path": "sequence.style_overrides.choropleth.diverging.midpoint",
+      "group": "advanced",
+      "label": "Middle of a two-sided colour scale",
+      "help": "The value where the colours switch sides, for example 100 percent of the U.S. average.",
+      "control": "number",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE decides: allow, advanced",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "state_insets",
+      "path": "sequence.clips[].settings.state_insets",
+      "group": "size",
+      "label": "Alaska and Hawaii insets",
+      "help": "Show Alaska and Hawaii in small boxes beside the main map, or leave them out.",
+      "control": "toggle",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE decides: allow",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "platform",
+      "path": "sequence.platform",
+      "group": "size",
+      "label": "Where the film will be shown",
+      "help": "Pick YouTube Shorts to keep text clear of the buttons and captions that sit over a vertical video.",
+      "control": "choice",
+      "default": null,
+      "status": "planned",
+      "owner": "ENGINE decides: allow; tied to Size = vertical",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "bar_race_extras",
+      "path": "sequence.clips[].settings.bar_race",
+      "group": "advanced",
+      "label": "Bar race extras",
+      "help": "A fixed group of bars, a different colour for negative values, rows left unranked.",
+      "control": "list",
+      "default": null,
+      "status": "engine-only",
+      "owner": "ENGINE: one design question; engine-only for now",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "swap_at_mark",
+      "path": "sequence.style_overrides.bars.swap_at_mark",
+      "group": "chart",
+      "label": "Bars swap at the year mark",
+      "help": "Make bars change places exactly at each year mark, so the order always matches the printed numbers.",
+      "control": "toggle",
+      "default": null,
+      "status": "planned",
+      "owner": "waits for the answer on the bar-order question (Q139)",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    },
+    {
+      "id": "richer_views",
+      "path": "sequence.clips[].settings.living",
+      "group": "advanced",
+      "label": "Richer views",
+      "help": "Settings for the living map, the scoreboard, cards and method notes.",
+      "control": "list",
+      "default": null,
+      "status": "engine-only",
+      "owner": "ENGINE: engine-only until each view is offered",
+      "source": "story",
+      "connector": "no",
+      "connector_note": "the worker story schema does not accept it today (RENDERER-OPTIONS-FIELDS section 3)"
+    }
+  ]
+}
