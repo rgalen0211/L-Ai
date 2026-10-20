@@ -4,6 +4,7 @@
 import { callTool, type Env } from "./dispatch.ts";
 import { TOOLS } from "./tools.ts";
 import { LIMITS, type Principal } from "./types.ts";
+import { noteHandshake, type DrawStore } from "./drawtest.ts";
 
 export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 export const SERVER_INFO = { name: "ryagram", title: "Ryagram", version: "1.0.0" };
@@ -76,6 +77,8 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
   switch (msg.method) {
     case "initialize": {
       const asked = String(msg.params?.protocolVersion ?? "");
+      // draw-and-return probe only (off unless enableDrawTest ran): note what the host offers, e.g. sampling. Claims, never trusted.
+      if (TOOLS.some((t) => t.name === "draw_test_start")) await noteHandshake((deps.dataFor(token, principal) as unknown as { drawTest?: DrawStore }).drawTest, principal.clientId, msg.params);
       return json(200, { jsonrpc: "2.0", id: msg.id, result: {
         protocolVersion: PROTOCOLS.includes(asked) ? asked : PROTOCOLS[0],
         capabilities: { tools: { listChanged: false } },

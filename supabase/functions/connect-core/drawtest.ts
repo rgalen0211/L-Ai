@@ -36,6 +36,21 @@ export interface DrawStore {
   issue(i: DrawIssue): Promise<void>;
   take(nonce: string): Promise<DrawIssue | null>;      // the person's own, unused, unexpired; marks it used
   save(r: DrawResult): Promise<void>;
+  /** What the host said about itself at initialize: the one place a stateless server can learn whether it offers sampling. */
+  handshake?(h: Handshake): Promise<void>;
+}
+export interface Handshake { at: number; clientId: string | null; clientName: string; clientVersion: string; protocol: string; capabilityKeys: string[]; sampling: boolean; elicitation: boolean; roots: boolean }
+
+/** Called by the MCP face on initialize, only when the probe is switched on. Claims, cleaned and capped; never throws. */
+export async function noteHandshake(store: DrawStore | null | undefined, clientId: string | null | undefined, params: unknown): Promise<void> {
+  if (!store?.handshake) return;
+  try {
+    const p = (params && typeof params === "object" ? params : {}) as Record<string, any>;
+    const caps = p.capabilities && typeof p.capabilities === "object" && !Array.isArray(p.capabilities) ? p.capabilities as Record<string, unknown> : {};
+    const keys = Object.keys(caps).slice(0, 20).map((k) => clean(k, 30)).filter(Boolean);
+    await store.handshake({ at: Date.now(), clientId: clientId ?? null, clientName: clean(p.clientInfo?.name, 60), clientVersion: clean(p.clientInfo?.version, 30),
+      protocol: clean(p.protocolVersion, 12), capabilityKeys: keys, sampling: "sampling" in caps, elicitation: "elicitation" in caps, roots: "roots" in caps });
+  } catch { /* recording what a host says is never allowed to break the handshake */ }
 }
 
 // ---------------------------------------------------------------------------------------------- bytes
@@ -120,7 +135,7 @@ const obj = (properties: Record<string, unknown> = {}, required: string[] = []) 
 const ok = (text: string, data?: Record<string, unknown>, extra: Partial<ToolResult> = {}): ToolResult => ({ text, data, ...extra });
 const refuse = (text: string, code: string, extra: Partial<ToolResult> = {}): ToolResult => ({ text, isError: true, code, ...extra });
 const store = (ctx: ToolCtx): DrawStore | null => (ctx.data as unknown as { drawTest?: DrawStore }).drawTest ?? null;
-const clean = (v: unknown, max: number) => String(v ?? "").replace(/[^\p{L}\p{N} ._()\-:/]/gu, "").trim().slice(0, max);
+function clean(v: unknown, max: number) { return String(v ?? "").replace(/[^\p{L}\p{N} ._()\-:/]/gu, "").trim().slice(0, max); }
 const newNonce = () => { const b = new Uint8Array(12); crypto.getRandomValues(b); return hex(b); };
 const seedOf = (nonce: string) => parseInt(nonce.slice(0, 8), 16) >>> 0;
 

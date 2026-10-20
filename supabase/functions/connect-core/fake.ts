@@ -3,7 +3,7 @@
 // It mirrors the real rules that matter (editable states, one job in progress per type, ladder, holds) but is
 // NOT the authority: the SQL functions are. It lives in the repo only for tests and local development.
 import type { Job } from "../ai-editor/tools.ts";
-import type { DrawIssue, DrawResult, DrawStore } from "./drawtest.ts";
+import type { DrawIssue, DrawResult, DrawStore, Handshake } from "./drawtest.ts";
 import type { CallLog, Data, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null };
@@ -29,6 +29,7 @@ export class FakeWorld {
   engine = "fake0001";
   drawIssues = new Map<string, DrawIssue & { userId: string; used: boolean }>();   // draw-and-return test (drawtest.ts)
   drawResults: (DrawResult & { userId: string })[] = [];
+  handshakes: (Handshake & { userId: string })[] = [];
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
@@ -143,6 +144,7 @@ export class FakeWorld {
         i.used = true; return i;
       },
       save: async (r) => { this.drawResults.push({ ...r, userId }); },
+      handshake: async (h) => { this.handshakes.push({ ...h, userId }); },
     };
   }
 }

@@ -183,3 +183,18 @@ test('over MCP: the tools are listed, an echo round trip works, and the biggest 
   const body = JSON.stringify({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'draw_test_submit', arguments: { nonce: n2, image_base64: toBase64(buf) } } });
   assert.ok(body.length < LIMITS.maxBodyBytes, `a maximum-size submit (${body.length} bytes) fits the ${LIMITS.maxBodyBytes} byte body limit`);
 });
+
+test('initialize: the host\'s own capabilities are noted (sampling yes or no), as cleaned claims; odd input never breaks the handshake', async () => {
+  const { w } = world();
+  const deps = { data: w.data(A.userId), policy: w.policy(), deps: { compile }, verifyToken: w.verifyToken, dataFor: (t, p) => w.data(p.userId), resourceMetadataUrl: 'https://x.test/m' };
+  w.issue('tok-a', A);
+  const init = (params) => handleMcp(new Request('https://x.test/mcp', { method: 'POST', headers: { 'content-type': 'application/json', authorization: 'Bearer tok-a' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'initialize', params }) }), deps);
+  let r = await (await init({ protocolVersion: '2025-06-18', capabilities: { sampling: {}, roots: { listChanged: true } }, clientInfo: { name: 'Fancy Host <b>', version: '1.2.3' } })).json();
+  assert.equal(r.result.protocolVersion, '2025-06-18');
+  r = await (await init({ protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'Plain Host', version: '9' } })).json();
+  assert.ok(r.result);
+  for (const weird of [null, 'x', { capabilities: 5, clientInfo: 7 }, { capabilities: ['sampling'] }]) assert.ok((await (await init(weird)).json()).result, 'MUST-FAIL: a strange initialize still answers');
+  const [a, b] = w.handshakes;
+  assert.deepEqual([a.sampling, a.roots, a.elicitation, a.clientName, a.clientVersion, a.clientId], [true, true, false, 'Fancy Host b', '1.2.3', A.clientId]);
+  assert.deepEqual([b.sampling, b.capabilityKeys.length], [false, 0]);
+});
