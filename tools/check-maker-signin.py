@@ -8,7 +8,7 @@ What it proves
   B  with one: the card, the code on screen, the approval link on the trusted host only, approval by the "website", then 'Signed in as ...'; the page polls on its own
   C  the token and the device secret are in NO page, no status the page can fetch, no file under the work and films folders, and the activity log holds only fixed events (no email, no computer name, no code)
   D  Remove from this computer; a computer removed on the website is signed out at Check my account
-  E  the 7-day grace: after 8 days without a check Plan and Build say 'connect once' and start nothing; Check my account renews it
+  E  the 7-day grace: after 8 days without a check the card says the node is paused, Plan and Build STILL work (clip films are never blocked, CC1 14:14); Check my account renews it
   F  where the Windows Credential Manager is missing, the card says so and offers no Sign in button
 """
 import importlib.util
@@ -214,14 +214,16 @@ def main():
             print('\nE. the 7-day grace')
             clock.add(8 * 86400)
             load(base)
-            check('has not been checked for 7 days' in page.inner_text('#signin-note'), 'after 8 days the card says so in plain words')
+            check('has not been checked for 7 days' in page.inner_text('#signin-note') and 'paused' in page.inner_text('#signin-note') and 'not affected' in page.inner_text('#signin-note'), 'after 8 days the card says in plain words that rendering site films is paused and clip films are not affected')
             a11y('signed in, paused', base)
             msg = plan_message()
-            check('has not been checked for 7 days' in msg and 'Connect to the internet once' in msg, 'MUST-FAIL: Plan says "connect once" and does not start')
-            check(dm.STATE.get('job') is None, 'and nothing was started')
+            check('Ready to build' in msg, 'MUST-FAIL: with the node paused Plan STILL works: a clip film is never blocked by the account')
+            page.click('#build')
+            page.wait_for_selector('#job-out:has-text("Your film:")', timeout=40000)
+            check(True, 'and Build makes the film')
             page.click('#signin-check')
             page.wait_for_function("() => !document.getElementById('signin-note')", timeout=10000)
-            check(True, 'Check my account renews it: the warning is gone')
+            check(True, 'Check my account renews it: the paused note is gone')
             txt2 = plan_message()
             check('Ready to build' in txt2, 'and Plan works again: ' + txt2[:160].replace(chr(10), ' '))
 
