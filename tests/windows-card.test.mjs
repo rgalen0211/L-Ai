@@ -67,13 +67,20 @@ test('A READY CARD: one https link with the file name, the name and SHA-256 on s
   assert.equal(all(c, n => n.tag === 'button').length, 0, 'no disabled button once it is ready');
 });
 
-test('THE THREE PLAIN STEPS AND THE RUN-ANYWAY RULE (CC1 16:17): the steps match CONNECT\'s and FACES\' words; Run anyway only if the name and SHA-256 match; anyone else asking, say no', async () => {
+test('THE THREE PLAIN STEPS AND THE RUN-ANYWAY RULE (CC1 16:17): the steps match CONNECT\'s and FACES\' words (FACES 18:54: check step before Open it, space needed, Chrome and memory for site films, undo line); Run anyway only if the name and SHA-256 match; anyone else asking, say no', async () => {
   const t = text(await card(TESTER, GOOD));
   for (const s of ['unzip it into a folder', 'double-click Open Ryagram', 'Windows protected your PC', 'More info, then Run anyway', 'but only if the file name is exactly', 'and the SHA-256 matches',
                    'If anyone else ever asks you to press Run anyway, say no.', 'Download the listening model', 'Balanced is already chosen for you, about 464 MB', 'Sign in to Ryagram', 'approve the code on this website',
-                   'Get-FileHash <the file> -Algorithm SHA256']) assert.ok(t.includes(s), s);
+                   'Get-FileHash ' + GOOD.fileName + ' -Algorithm SHA256', 'about 1.1 GB free', 'looks like a small window or gear icon', 'the only file to double-click', 'Check it.', 'must equal the SHA-256 above',
+                   'need nothing more', 'Google Chrome installed and about 5 GB of free memory', 'To remove it, delete the folder', 'Remove this computer', 'just below this card']) assert.ok(t.includes(s), s);
   const steps = all(await card(TESTER, GOOD), n => n.tag === 'ol');
-  assert.equal(steps[0].kids.length, 3, 'three steps');
+  assert.equal(steps[0].kids.length, 4, 'four steps');
+});
+
+test('NOT READY: the check line keeps a placeholder, and the check step comes before Open it', async () => {
+  const t = text(await card(TESTER, null));
+  assert.ok(t.includes('Get-FileHash <the file> -Algorithm SHA256'));
+  assert.ok(t.indexOf('Check it.') < t.indexOf('Open it.'));
 });
 
 test('THE PERSONAL-USE NOTICE SLOT (wording is the lawyer\'s, never a session\'s): present and hidden until a notice is put in; the card itself writes none', async () => {

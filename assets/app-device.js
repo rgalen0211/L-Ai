@@ -203,11 +203,14 @@
           ? h('a', { class: 'button primary', href: rel.url, rel: 'noopener', download: rel.fileName }, 'Download Ryagram for Windows')
           : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'Ryan will put the file here when it is ready.')),
         h('ol', { class: 'windows-steps' },
-          h('li', {}, h('strong', {}, 'Download '), `${name} and unzip it into a folder on a drive with plenty of room (right-click, Extract all).`),
-          h('li', {}, h('strong', {}, 'Open it. '), 'Open the folder and double-click ', h('strong', {}, 'Open Ryagram'), '. The first time, Windows may say "Windows protected your PC": press More info, then Run anyway, ',
+          h('li', {}, h('strong', {}, 'Download '), `${name} and unzip it into a folder on a drive with room to spare (right-click, Extract all). It needs about 582 MB unpacked, plus the listening model (Balanced is about 464 MB): about 1.1 GB free in all.`),
+          h('li', {}, h('strong', {}, 'Check it. '), 'Optional, but do it: open PowerShell in the folder you downloaded to and paste this line: ', h('code', {}, `Get-FileHash ${ready ? rel.fileName : '<the file>'} -Algorithm SHA256`),
+            '. The 64 characters it prints must equal the SHA-256 above.'),
+          h('li', {}, h('strong', {}, 'Open it. '), 'In the unzipped folder, double-click ', h('strong', {}, 'Open Ryagram'), ' (it looks like a small window or gear icon, and it is the only file to double-click; the folder holds many). The first time, Windows may say "Windows protected your PC": press More info, then Run anyway, ',
             h('strong', {}, 'but only if the file name is exactly '), ready ? h('code', {}, rel.fileName) : 'the one shown above', ' and the SHA-256 matches. If anyone else ever asks you to press Run anyway, say no.'),
           h('li', {}, h('strong', {}, 'First run. '), 'Press ', h('strong', {}, 'Download the listening model'), ' (Balanced is already chosen for you, about 464 MB), then press ', h('strong', {}, 'Sign in to Ryagram'), ' and approve the code on this website.')),
-        h('p', { class: 'form-note' }, 'To check the SHA-256, open PowerShell and run: ', h('code', {}, 'Get-FileHash <the file> -Algorithm SHA256')),
+        h('p', { class: 'form-note' }, 'Films from your own clips need nothing more. Films you order on the website and make on this computer also need Google Chrome installed and about 5 GB of free memory (Edge is untested).'),
+        h('p', { class: 'form-note' }, 'To remove it, delete the folder. To sign this computer out, press Remove this computer in the "Computers signed in" list just below this card.'),
         h('p', { class: 'form-note windows-notice', hidden: !(rel.personalUseNotice), 'data-slot': 'personal-use-notice' }, rel.personalUseNotice ? String(rel.personalUseNotice).slice(0, 1200) : ''));
     }
 
