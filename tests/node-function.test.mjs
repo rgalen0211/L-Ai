@@ -119,11 +119,12 @@ test('EXPIRY AND DENIAL: an ended code cannot be approved or exchanged; a denied
 });
 
 test('RATE LIMITS: the seventh code in a minute is 429; polling faster than the interval is slow_down with a longer interval', async () => {
-  const { call } = setup();
+  const { world, call } = setup();
   let last;
   for (let i = 0; i < 7; i++) last = await call('POST', '/device/code', { body: {}, ip: '9.9.9.9' });
   assert.deepEqual([last.status, last.json.error], [429, 'slow_down']);
   const other = await call('POST', '/device/code', { body: {}, ip: '8.8.8.8' });
+  assert.ok([...world.hitLog.keys()].every(k => /^[a-z0-9_]{1,30}\|[0-9a-f]{64}$/.test(k)), 'MUST-FAIL (found by the local harness): the rate-limit caller is the full 64-hex hash, which is all that node_hit accepts');
   assert.equal(other.status, 200, 'another caller is not limited by the first');
   const { json } = other;
   const a = await call('POST', '/device/token', { body: { device_code: json.device_code } });
