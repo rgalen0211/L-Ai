@@ -130,7 +130,7 @@ def main():
                 page.get_by_role('button', name='Choose a file for Second footage').click()
                 page.locator('.slot').nth(1).get_by_text('gap.mp4').wait_for()
                 page.click('#plan')
-                page.wait_for_selector('#job-out:has-text("Not said anywhere")', timeout=30000)
+                page.wait_for_selector('#job-out:has-text("Nobody says these words")', timeout=30000)
                 scan(page, f'{tag} a word is missing')
                 pick['f'] = lambda multiple: [str(clips / 'slow.mp4')]
                 page.get_by_role('button', name='Choose a file for Second footage').click()

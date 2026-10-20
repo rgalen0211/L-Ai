@@ -89,7 +89,7 @@ def main():
         m = get(f'{base}/api/models', 'tok')
         check([c['label'] for c in m['choices']] == ['Fast (rough)', 'Balanced (recommended)', 'Quickest test (very rough)'], f"the choices read in plain words, Fast first, the quickest test last ({[c['label'] for c in m['choices']]})")
         check([c['mb'] for c in m['choices']] == [142, 464, 75], 'the download sizes are the real model folders: Fast 142, Balanced 464, Quickest 75 MB')
-        check(m['default'] == 'small' and all(c['ready'] is None for c in m['choices']), 'with no model folder known the default is Balanced and nothing is claimed about what is downloaded')
+        check(m['default'] == 'base' and all(c['ready'] is None for c in m['choices']), 'r8.1: with no model folder known the default is FAST (the one get-model.bat fetches and the one timed) and nothing is claimed about what is downloaded')
         check(m['hint'] == 'Balanced works for most videos. Pick Fast for a quick try.', f"the hint is the agreed sentence, without promising a choice that is not offered ({m['hint']!r})")
         check(not names_in(json.dumps([c['label'] for c in m['choices']]) + m['hint']), 'MUST-FAIL: no Whisper name (tiny, base, small, medium, whisper) in any label or the hint')
         check(names_in('<select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>') == ['base', 'small', 'tiny'], 'MUST-FAIL fixture: the r8 list WOULD be caught by this name check')
@@ -99,9 +99,9 @@ def main():
         by = {c['name']: c['ready'] for c in m['choices']}
         check(by == {'base': True, 'small': False, 'tiny': False} and m['default'] == 'base', f"only Fast downloaded: Fast is ready, the others say so, and the DEFAULT is Fast (never a missing download) ({by}, {m['default']})")
         os.environ['RYAGRAM_MODEL_DIR'] = str(models_dir('base', 'small'))
-        check(get(f'{base}/api/models', 'tok')['default'] == 'small', 'with Balanced downloaded the default is Balanced')
+        check(get(f'{base}/api/models', 'tok')['default'] == 'base', 'r8.1: with Balanced downloaded as well the default is still Fast until Ryan chooses; Balanced is one pick away')
         os.environ['RYAGRAM_MODEL_DIR'] = str(models_dir())
-        check(get(f'{base}/api/models', 'tok')['default'] == 'small', 'with nothing downloaded the default is still Balanced (the recommended one), and its door check says how to get it')
+        check(get(f'{base}/api/models', 'tok')['default'] == 'base', 'r8.1: with nothing downloaded the default is Fast, whose door check says to double-click get-model.bat')
 
         Emod.MODELS = tuple(real_models) + ('medium',)
         m = get(f'{base}/api/models', 'tok')

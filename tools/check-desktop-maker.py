@@ -251,7 +251,7 @@ def main():
         receipt = json.loads(films[0].with_suffix('.receipt.json').read_text()) if films else {}
         check(j['state'] == 'built' and len(films) == 1 and receipt.get('reused_words') is True, 'Build writes the film and its receipt, in the SAME work folder as Plan, so the words Plan heard are reused')
         # every exit code in words, with what to do next
-        for fname, state, code, needle, nxt in (('gap.mp4', 'gaps', 3, 'do not say every word', 'Add a file'), ('boom.mp4', 'stopped', 1, 'unexpected', 'Press Plan again'),
+        for fname, state, code, needle, nxt in (('gap.mp4', 'gaps', 3, 'Nobody says some of these words', 'Try different words'), ('boom.mp4', 'stopped', 1, 'unexpected', 'Press Plan again'),
                                                 ('net.mp4', 'stopped', 4, 'network', 'Do not use this film'), ('refuse.mp4', 'stopped', 2, 'Refused', 'Fix it')):
             post(f'{base}/api/plan', {**sl, 'binds': {'source-1': [str(clips / 'a.mp4')], 'source-2': [str(clips / fname)]}}, tok)
             j = wait_job(base, tok, ('planned', 'gaps', 'stopped'))
@@ -444,7 +444,7 @@ def main():
             page.click('#plan')
             page.wait_for_selector('#job-out .ok', timeout=30000)
             pt = page.inner_text('#plan-out') + page.inner_text('#job-out')
-            check('How long the listening takes' in pt and '60 minutes of video to listen to: expect about 8 minutes' in pt and 'well-that-is-great-news-<date and time>.mp4' in pt, 'the plan summary says how long the listening will take, and the real file name')
+            check('How long the listening takes' in pt and '60 minutes of video to listen to: expect about 4 minutes' in pt and 'well-that-is-great-news-<date and time>.mp4' in pt, 'the plan summary says how long the listening will take, and the real file name')
             check('Ready to build. No film has been written yet.' in pt and 'only 0.10 to 0.90 s' in pt and 'It would cut 2 clips, about 2.96 s' in pt and '\u201cnews\u201d from b.mkv' in pt, 'Plan shows the clips ENGINE\u2019s plan found, the span in seconds, and that no film is written yet')
             check(page.locator('#build').is_enabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_before, 'Build is on after a ready Plan, and Plan wrote no film')
             check('Plan ready: 2 clips, about 2.96 seconds. Build is now on.' in page.inner_text('#job-status') and page.get_attribute('#job-status', 'role') == 'status', 'a screen reader is told once, in the quiet status line, that the plan is ready')
@@ -508,9 +508,9 @@ def main():
             page.get_by_role('button', name='Choose a file for Second footage').click()
             page.locator('.slot').nth(1).get_by_text('gap.mp4').wait_for()
             page.click('#plan')
-            page.wait_for_selector('#job-out:has-text("Not said anywhere")', timeout=30000)
+            page.wait_for_selector('#job-out:has-text("Nobody says these words")', timeout=30000)
             gt = page.inner_text('#job-out')
-            check('do not say every word' in gt and 'news' in gt and 'Next: Add a file' in gt and page.locator('#build').is_disabled(), 'a plan with a missing word says which word, what to do next, and keeps Build off')
+            check('Nobody says some of these words' in gt and 'news' in gt and 'Next: Try different words' in gt and 'Exit code' not in gt and page.locator('#build').is_disabled(), 'a plan with a missing word says which word, what to do next, and keeps Build off')
             page.screenshot(path=str(OUT / '05-gap.png'), full_page=True)
             # cancel a slow plan
             dm.pick_files = lambda multiple: [str(clips / 'slow.mp4')]
@@ -521,7 +521,7 @@ def main():
             page.locator('#job-out:has-text("Listening to file 3 of 3: slow.mp4")').wait_for(timeout=15000)
             check('so far, expected about' in page.inner_text('#job-out'), 'the running line names the file, the time so far and the expected time in all')
             page.locator('#job-status:has-text("Listening to your files.")').wait_for(state='attached', timeout=5000)      # the status line is set a moment after the change, on purpose
-            check(page.text_content('#job-status').startswith('Listening to your files. 61 minutes of video to listen to: expect about 8 minutes') and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
+            check(page.text_content('#job-status').startswith('Listening to your files. 61 minutes of video to listen to: expect about 4 minutes') and 'cancel it' in page.inner_text('#why') and page.get_attribute('#build', 'aria-describedby') == 'why', 'while a plan runs the status line says so once, and the off buttons say why')
             page.click('#cancel')
             page.get_by_text('Cancelled.', exact=False).first.wait_for(timeout=15000)
             check(page.locator('#build').is_disabled() and len(list((tmp / 'films').glob('*.mp4'))) == films_after, 'Cancel stops the job, Build stays off, and no film was kept')

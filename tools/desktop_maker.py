@@ -40,13 +40,13 @@ PLAIN_MODELS = (
     ("medium", "Most accurate (slower)", 1530),
 )
 SHOW_ORDER = ("base", "small", "medium", "tiny")          # the quickest test goes last
-DEFAULT_MODEL = "small"
+DEFAULT_MODEL = "base"      # r8.1: FAST stays the default (the one get-model.bat fetches and the one that is timed) until Ryan chooses Balanced
 GET_ARG = {"small": "balanced", "tiny": "quickest"}       # what tools\get-model.bat takes; no argument fetches the Fast one (base) as before
 EXIT_HELP = {
     0: ("Done.", "Nothing more to do."),
     1: ("Something unexpected went wrong.", "Press Plan again. If it happens again, send the lines below to Ryan; nothing was kept as a film."),
     2: ("Refused: the recipe or one of the files is not right, so nothing was run.", "Read the lines below: they name the file or slot. Fix it, then press Plan again."),
-    3: ("The files you chose do not say every word the recipe needs. Nothing was written.", "Add a file that says the missing words, or pick a recipe whose words your files do say, then press Plan again."),
+    3: ("Nobody says some of these words in your videos.", "Try different words, or add more videos."),
     4: ("Blocked: the build tried to use the network, which it must not. Nothing was kept.", "Do not use this film. Tell Ryan exactly what you chose, and send him the lines below."),
     5: ("Cancelled.", "Anything half-made is in the work folder; no film was kept. Press Plan to start again."),
 }
@@ -286,6 +286,10 @@ def _work_for(body: dict) -> Path:
     return STATE["work"] / key
 
 
+def _wordlist(text) -> list[str]:
+    return re.findall(r"[a-z0-9']+", str(text or "").lower().replace("’", "'"))
+
+
 def start_job(kind: str, body: dict) -> dict:
     with LOCK:                                      # held from "is something running" to "the job is stored": two quick presses cannot start two jobs
         return _start_job_locked(kind, body)
@@ -316,6 +320,12 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
     job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body),
            "of": pc["bind_count"], "done": 0, "current": "", "expect_s": listen_expect_s(pc["listen_seconds"], pc["model"])}
+    skipped = body.get("skipped") if isinstance(body.get("skipped"), list) else []
+    skipped = _wordlist(" ".join(str(x) for x in skipped))[:20]
+    job["find"] = _phrase(body) or pc["find"]
+    job["note"] = {"typed": " ".join(str(body.get("typed") or "").split())[:200], "built_from_words": job["find"], "skipped": skipped} if skipped else None
+    if skipped:
+        act("words_skipped", count=len(skipped))
     threading.Thread(target=_pump, args=(job, proc.stderr, "lines"), daemon=True).start()
     threading.Thread(target=_pump, args=(job, proc.stdout, "stdout"), daemon=True).start()
     STATE["job"] = job
@@ -405,6 +415,11 @@ def _job_status() -> dict:
             ans = None
         if ans is not None:
             out.update(state="planned" if ans.get("ok") else "gaps", plan=ans)
+            if not ans.get("ok"):
+                gone = {w for g in ans.get("gaps", []) for w in _wordlist(g)}
+                kept = [w for w in _wordlist(job.get("find", "")) if w not in gone]
+                if ans.get("clips") and kept and gone:
+                    out["skip_phrase"] = " ".join(kept)                  # what is left to say once the missing words are left out
             if ans.get("ok"):
                 with LOCK:
                     STATE["planned"] = job["key"]
@@ -415,7 +430,13 @@ def _job_status() -> dict:
             out["receipt"] = json.loads(rp.read_text(encoding="utf-8")) if rp.is_file() else None
         except Exception:  # noqa: BLE001
             out["receipt"] = None
-        out.update(state="built", path=str(job["out"]), film_url="/film")
+        out.update(state="built", path=str(job["out"]), film_url="/film", skipped=(job["note"] or {}).get("skipped", []) if job.get("note") else [])
+        if job.get("note") and not job.get("noted"):
+            job["noted"] = True
+            try:
+                job["out"].with_suffix(".maker-notes.json").write_text(json.dumps({"schema": "ryagram.maker-notes/0", **job["note"], "written": time.strftime("%Y-%m-%d %H:%M")}, indent=1, ensure_ascii=False), encoding="utf-8")
+            except OSError:
+                pass
         STATE["last_film"] = str(job["out"])
     return out
 
@@ -497,7 +518,7 @@ ACTIVITY_EVENTS = {
     "files_picked": ("multiple", "count"), "file_dropped": ("result", "timed_out"), "paste_used": ("lines", "not_used"), "sound_started": ("files",),
     "sound_done": ("checked", "warnings"), "folder_opened": (), "answers_saved": ("answered", "count"),
     "ui_recipe_changed": ("recipe",), "ui_model_changed": ("model",), "ui_words_edited": ("chars",), "ui_slot_cleared": (),
-    "problem_shown": ("endpoint",), "error_shown": ("endpoint", "exception"), "log_off": (), "log_on": (), "log_full": (),
+    "problem_shown": ("endpoint",), "error_shown": ("endpoint", "exception"), "log_off": (), "log_on": (), "log_full": (), "words_skipped": ("count",),
 }
 CLIENT_EVENTS = {"recipe_changed": "ui_recipe_changed", "model_changed": "ui_model_changed", "words_edited": "ui_words_edited", "slot_cleared": "ui_slot_cleared"}
 
@@ -591,7 +612,7 @@ PAGE = """<!doctype html>
 <p class="banner" role="note"><strong>INTERNAL PROTOTYPE.</strong> Runs on this computer only. Nothing is uploaded; there is no account.</p>
 <h1>Desktop maker</h1>
 <section class="logbox" aria-labelledby="h-log"><h2 id="h-log">A note about a small log</h2>
-<p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help Ryan make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time.</p>
+<p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help Ryan make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time, or untick the box below to stop it.</p>
 <label class="logswitch" for="log-on"><input id="log-on" type="checkbox" checked> Keep this log</label><p id="log-state" class="note" role="status"></p></section>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
@@ -663,10 +684,10 @@ JS = r"""(function () {
       $('model').value = r.default; $('model-hint').textContent = r.hint;
     } catch (e) { /* the page still works; the server then uses its own default */ }
   }
-  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '';
+  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '', eff = null, skippedNow = [], autoTried = false;
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
-  const fresh = () => { planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
+  const fresh = keep => { if (!keep) { eff = null; skippedNow = []; } planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
   function drawSlots() {
     const box = $('slots'); box.replaceChildren();
     if (!current) return;
@@ -735,7 +756,7 @@ JS = r"""(function () {
   $('words').addEventListener('input', fresh);
   $('words').addEventListener('change', () => ev('words_edited', { chars: $('words').value.length }));
   // what the engine is asked: the words go along only when they differ from the recipe file's own
-  const reqBody = () => { const w = $('words').value.replace(/\s+/g, ' ').trim(); const b = { recipe: current.file, binds, model: $('model').value }; if (w && w !== current.find) b.phrase = w; return b; };
+  const reqBody = () => { const w = $('words').value.replace(/\s+/g, ' ').trim(); const b = { recipe: current.file, binds, model: $('model').value }; if (w && w !== current.find) b.phrase = w; if (eff) { b.typed = b.phrase || current.find; b.phrase = eff; b.skipped = skippedNow; } return b; };
   $('use-paste').addEventListener('click', async () => {
     try {
       const r = await api('/api/paste', { text: $('paste').value });
@@ -752,20 +773,22 @@ JS = r"""(function () {
         el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb < 1 ? 'under 1 MB' : f.mb + ' MB'})`).join('; ')))), el('dt', {}, 'How carefully it listens'), el('dd', {}, p.model_label || p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
         el('dt', {}, 'Network'), el('dd', {}, p.network), el('dt', {}, 'Room on the work drive'), el('dd', {}, `${p.free_gb} GB free`)));
   }
-  $('plan').addEventListener('click', async ev => {
+  $('plan').addEventListener('click', () => runPlan(false));
+  async function runPlan(auto) {
+    if (!auto) { eff = null; skippedNow = []; autoTried = false; }
     if (!current) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Choose a recipe first.')); return; }
     if (current.has_find && !$('words').value.replace(/\s+/g, ' ').trim()) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Type a short phrase one of your videos really says.')); return; }
-    const btn = ev.currentTarget; btn.disabled = true;
+    const btn = $('plan'); btn.disabled = true;
     try {
       const body = reqBody();
       const c = await api('/api/check', body);
-      if (!c.ok) { fresh(); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
-      fresh(); $('job-out').replaceChildren(); lastWait = c.listen_words || '';
+      if (!c.ok) { fresh(true); $('plan-out').replaceChildren(el('div', { class: 'panel' }, el('p', { role: 'alert' }, 'Not ready yet:'), el('ul', { class: 'problems' }, c.problems.map(x => el('li', {}, x))))); return; }
+      fresh(true); $('job-out').replaceChildren(); lastWait = c.listen_words || '';
       $('plan-out').replaceChildren(summary(c), el('p', { class: 'note' }, 'Now the plan listens to your files and says what it would build. It writes no film. It keeps the words it hears, so Build does not listen again.'));
       await api('/api/plan', body); poll = setInterval(watch, 1200); watch();
     } catch (e) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, e.message)); }
     finally { if (!poll) btn.disabled = false; }
-  });
+  }
   function drawSound(j) {
     const box = $('sound-out');
     if (!j || j.state === 'none') { box.replaceChildren(); return; }
@@ -814,6 +837,13 @@ JS = r"""(function () {
       } }, areas, el('button', { id: 'save-answers', type: 'submit', class: 'button primary' }, 'Save my answers')), note));
   }
   function drawJob(j) {
+    if (j.state === 'gaps' && j.skip_phrase && !autoTried) {              // never a dead end: plan again without the words nobody says
+      autoTried = true; eff = j.skip_phrase; skippedNow = j.plan.gaps.slice();
+      if (poll) { clearInterval(poll); poll = null; }
+      say(`Nobody says ${skippedNow.join(', ')} in your videos, so I am planning the film without ${skippedNow.length === 1 ? 'it' : 'them'}.`);
+      runPlan(true);
+      return;
+    }
     const running = j.state === 'running';
     const what = j.kind === 'plan' ? 'Listening to your files' : 'Building';
     const parts = [];
@@ -828,12 +858,14 @@ JS = r"""(function () {
       const a = j.plan;
       if (a.clips.length) parts.push(el('p', {}, `It would cut ${a.clips.length} clip${a.clips.length === 1 ? '' : 's'}, about ${a.seconds_estimate} s:`),
         el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
-      if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Not said anywhere in the files you chose: ${a.gaps.join(', ')}.`));
+      if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Nobody says these words in the videos you chose: ${a.gaps.join(', ')}. Try different words above, or add more videos.`));
+      if (j.state === 'planned' && skippedNow.length) parts.push(el('p', { class: 'warn', role: 'status', id: 'skipped-note' }, `Left out, because nobody says ${skippedNow.length === 1 ? 'it' : 'them'} in your videos: ${skippedNow.join(', ')}. The film will be made without ${skippedNow.length === 1 ? 'it' : 'them'}.`));
     }
+    if (j.state === 'built' && j.skipped && j.skipped.length) parts.push(el('p', { class: 'warn', id: 'skipped-built' }, `Left out, because nobody says ${j.skipped.length === 1 ? 'it' : 'them'} in your videos: ${j.skipped.join(', ')}. A note listing ${j.skipped.length === 1 ? 'it' : 'them'} is saved next to the film.`));
     if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
     if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s. Nothing went online (${j.receipt.network_attempts} connections). A list of where each word came from is saved beside the film.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
-    if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
+    if (j.state === 'stopped') parts.push(el('p', { class: 'note' }, 'Something stopped it. Press Plan again. If it stops again, copy the text above and send it to Ryan.'));
     if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', role: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
     $('job-out').replaceChildren(...parts);
     planned = j.state === 'planned' || (j.state === 'built' && planned);
@@ -845,7 +877,7 @@ JS = r"""(function () {
       lastState = j.state;
       if (running) say(j.kind === 'plan' ? ('Listening to your files. ' + lastWait).trim() : 'Building the film.');
       else if (j.state === 'planned') say(`Plan ready: ${j.plan.clips.length} clip${j.plan.clips.length === 1 ? '' : 's'}, about ${j.plan.seconds_estimate} seconds. Build is now on.`);
-      else if (j.state === 'gaps') say(`Cannot build yet. Not said anywhere in your files: ${j.plan.gaps.join(', ')}.`);
+      else if (j.state === 'gaps') say(`Nobody says these words in your videos: ${j.plan.gaps.join(', ')}. Try different words, or add more videos.`);
       else if (j.state === 'built') say(`The film is built: ${j.path}`);
       else if (j.words) say(j.words + (j.next ? ' ' + j.next : ''));
     }
