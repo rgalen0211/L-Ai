@@ -286,6 +286,19 @@ def _work_for(body: dict) -> Path:
     return STATE["work"] / key
 
 
+#: words whose absence turns a sentence into its opposite (CC1 13:31): leaving one out is not a harmless gap, so it is shown before Build, first, as a warning.
+NEGATIONS = {"not", "no", "never", "none", "nobody", "nothing", "nowhere", "neither", "nor", "without", "cannot", "hardly", "barely", "refuse", "deny", "denied"}
+
+
+def meaning_risk(words) -> list[str]:
+    out = []
+    for w in words or []:
+        for t in _wordlist(w):
+            if (t in NEGATIONS or t.endswith("n't")) and t not in out:
+                out.append(t)
+    return out
+
+
 def _wordlist(text) -> list[str]:
     return re.findall(r"[a-z0-9']+", str(text or "").lower().replace("’", "'"))
 
@@ -415,6 +428,9 @@ def _job_status() -> dict:
             ans = None
         if ans is not None:
             out.update(state="planned" if ans.get("ok") else "gaps", plan=ans)
+            risk = meaning_risk(list(ans.get("meaning_risk") or []) + list(ans.get("skipped") or []) + list((job.get("note") or {}).get("skipped") or []))
+            if risk:
+                out["meaning_risk"] = risk
             if ans.get("skipped") and not job.get("skip_logged"):
                 job["skip_logged"] = True
                 act("words_skipped", count=len(ans["skipped"]))
@@ -435,12 +451,12 @@ def _job_status() -> dict:
             out["receipt"] = None
         eng = [str(x.get("word", "")) if isinstance(x, dict) else str(x) for x in ((out.get("receipt") or {}).get("skipped") or [])]
         left_out = _wordlist(" ".join(eng)) or list((job.get("note") or {}).get("skipped") or [])        # the engine's own list first; else the words the maker left out itself
-        out.update(state="built", path=str(job["out"]), film_url="/film", skipped=left_out)
+        out.update(state="built", path=str(job["out"]), film_url="/film", skipped=left_out, meaning_risk=meaning_risk(left_out))
         if left_out and not job.get("noted"):
             job["noted"] = True
             find, note = job.get("find", ""), job.get("note") or {}
             doc = {"schema": "ryagram.maker-notes/0", "typed": note.get("typed") or find, "built_from_words": note.get("built_from_words") or " ".join(w for w in _wordlist(find) if w not in set(left_out)),
-                   "skipped": left_out, "written": time.strftime("%Y-%m-%d %H:%M")}
+                   "skipped": left_out, "meaning_risk": meaning_risk(left_out), "written": time.strftime("%Y-%m-%d %H:%M")}
             try:
                 job["out"].with_suffix(".maker-notes.json").write_text(json.dumps(doc, indent=1, ensure_ascii=False), encoding="utf-8")
             except OSError:
@@ -866,12 +882,14 @@ JS = r"""(function () {
     else if (j.words) parts.push(el('p', { class: ['built', 'planned'].includes(j.state) ? 'ok' : 'problems', role: ['built', 'planned'].includes(j.state) ? null : 'alert' }, j.words));
     if (j.state === 'planned' || j.state === 'gaps') {
       const a = j.plan;
+      if (j.state === 'planned' && j.meaning_risk && j.meaning_risk.length) parts.unshift(el('p', { class: 'problems', role: 'alert', id: 'meaning-risk' }, `This changes what is said: ${j.meaning_risk.map(w => '\u201c' + w + '\u201d').join(', ')} ${j.meaning_risk.length === 1 ? 'is' : 'are'} missing from your videos, so the film will not say what you typed. Check your words above before you make the film.`));
       if (a.clips.length) parts.push(el('p', {}, `It would cut ${a.clips.length} clip${a.clips.length === 1 ? '' : 's'}, about ${a.seconds_estimate} s:`),
         el('ol', {}, a.clips.map(c => el('li', {}, `\u201c${c.words}\u201d from ${c.file_name}, ${(c.start_ms / 1000).toFixed(2)} to ${(c.end_ms / 1000).toFixed(2)} s`))));
       if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Nobody says these words in the videos you chose: ${a.gaps.join(', ')}. Try different words above, or add more videos.`));
       const miss = skippedNow.length ? skippedNow : (Array.isArray(a.skipped) ? a.skipped.map(x => typeof x === 'string' ? x : (x && x.word) || '').filter(Boolean) : []);
       if (j.state === 'planned' && miss.length) parts.push(el('p', { class: 'warn', role: 'status', id: 'skipped-note' }, `Left out, because nobody says ${miss.length === 1 ? 'it' : 'them'} in your videos: ${miss.join(', ')}. The film will be made without ${miss.length === 1 ? 'it' : 'them'}.`));
     }
+    if (j.state === 'built' && j.meaning_risk && j.meaning_risk.length) parts.unshift(el('p', { class: 'problems', role: 'alert', id: 'meaning-risk-built' }, `This film does not say what you typed: ${j.meaning_risk.map(w => '\u201c' + w + '\u201d').join(', ')} had to be left out, which changes the meaning.`));
     if (j.state === 'built' && j.skipped && j.skipped.length) parts.push(el('p', { class: 'warn', id: 'skipped-built' }, `Left out, because nobody says ${j.skipped.length === 1 ? 'it' : 'them'} in your videos: ${j.skipped.join(', ')}. A note listing ${j.skipped.length === 1 ? 'it' : 'them'} is saved next to the film.`));
     if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
     if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s. Nothing went online (${j.receipt.network_attempts} connections). A list of where each word came from is saved beside the film.`) : null);
