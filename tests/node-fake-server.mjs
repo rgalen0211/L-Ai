@@ -16,7 +16,7 @@ const uploads = [];
 let PORT = 0;
 const deps = {
   db: world, approvalBase: 'http://127.0.0.1:0/app', salt: 'test-salt', maxFileBytes: 100_000_000,
-  storage: { size: async p => { const u = [...uploads].reverse().find(x => x.path === p); return u ? u.bytes : null; }, signUpload: async p => `http://127.0.0.1:${PORT}/__upload/${p}?token=signed-${crypto.randomBytes(6).toString('hex')}` },
+  storage: { signUpload: async p => `http://127.0.0.1:${PORT}/__upload/${p}?token=signed-${crypto.randomBytes(6).toString('hex')}` },
 };
 const readBody = req => new Promise(res => { const c = []; req.on('data', x => c.push(x)); req.on('end', () => res(Buffer.concat(c))); });
 
@@ -26,6 +26,7 @@ const srv = http.createServer(async (req, res) => {
   const send = (code, obj) => { const b = Buffer.from(JSON.stringify(obj)); res.writeHead(code, { 'Content-Type': 'application/json', 'Content-Length': b.length }); res.end(b); };
   if (u.pathname.startsWith('/__upload/')) {
     if (req.method !== 'PUT' || !u.searchParams.get('token')?.startsWith('signed-')) return send(403, { error: 'no' });
+    world.stored.set(decodeURIComponent(u.pathname.slice('/__upload/'.length)), body.length);
     uploads.push({ path: decodeURIComponent(u.pathname.slice('/__upload/'.length)), bytes: body.length, sha256: crypto.createHash('sha256').update(body).digest('hex'), type: req.headers['content-type'], auth: req.headers.authorization ?? null });
     return send(200, { ok: true });
   }

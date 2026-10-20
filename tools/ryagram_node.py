@@ -89,7 +89,7 @@ def put_file(url: str, path: Path, content_type: str, allowed_hosts, timeout: fl
 
 
 class NodeLoop:
-    def __init__(self, signin, folder, *, renderer=None, validate=None, datasets=None, uploader=put_file, clock=time.time, log=None, work_root=None):
+    def __init__(self, signin, folder, *, renderer=None, validate=None, datasets=None, uploader=put_file, clock=time.time, log=None, work_root=None, engine_commit=None):
         self.signin = signin
         self.folder = Path(folder)
         self.renderer = renderer
@@ -98,6 +98,7 @@ class NodeLoop:
         self.clock = clock
         self._log = log or (lambda ev: None)
         self.work_root = Path(work_root) if work_root else self.folder / "node-jobs"
+        self.engine_commit = engine_commit          # the commit of the engine that renders (a string or a callable): the site refuses 'complete' without it (found by the local end-to-end harness)
         self.empty_polls = 0
         self.next_at = 0.0
         self.state = {"phase": "off", "message": "", "job": None, "uploads": []}
@@ -186,6 +187,10 @@ class NodeLoop:
 
     def _report(self, job_id, state, code=None, detail=None):
         body = {"job_id": job_id, "state": state}
+        commit = self.engine_commit() if callable(self.engine_commit) else self.engine_commit
+        if commit and state in ("running", "validating", "uploading", "complete"):
+            body["engine_commit"] = str(commit)[:40]
+            body["engine_dirty"] = False
         if code:
             body["error_code"] = code
         if detail:

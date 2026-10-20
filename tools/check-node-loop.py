@@ -113,7 +113,7 @@ def world(name, flagged=True, renderer="ok", datasets=None, validate="accept", c
         rend = lambda job, work, progress: good_render(job, work, progress)           # noqa: E731
     elif callable(renderer):
         rend = renderer
-    loop = rn.NodeLoop(app, d, renderer=rend, validate=(lambda job: job) if validate == "accept" else validate, datasets=datasets, clock=clock, log=events.append, work_root=d / "jobs")
+    loop = rn.NodeLoop(app, d, renderer=rend, validate=(lambda job: job) if validate == "accept" else validate, datasets=datasets, clock=clock, log=events.append, work_root=d / "jobs", engine_commit="abc1234")
     return srv, app, loop, clock, d, events
 
 
