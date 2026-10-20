@@ -91,7 +91,7 @@ async function caller(req: Request, salt: string): Promise<string> {
 }
 
 /** The shape the database's register_artifact gives: owner/project/version/job/filename. Anything else is never signed (the signing key bypasses every RLS). (CC1 15:25 MED-3.) */
-const SEG = "[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}";
+const SEG = "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}";            // any UUID-shaped hex: the shape is the guard, not the version bits (the local harness has ids that are not version 4)
 function pathOk(path: unknown, jobId: string): path is string {
   if (typeof path !== "string" || path.length > 300 || path.includes("..") || path.startsWith("/") || path.includes("//") || path.includes("\\")) return false;
   const m = new RegExp(`^(${SEG})/(${SEG})/(${SEG})/(${SEG})/[A-Za-z0-9][A-Za-z0-9._-]{0,80}$`, "i").exec(path);

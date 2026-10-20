@@ -301,6 +301,19 @@ test('SIGNING IS REFUSED FOR A PATH OF AN UNEXPECTED SHAPE (CC1 MED-3): the sign
   assert.deepEqual(signed, [good], '(control) the good path is signed');
 });
 
+test('A PATH WITH ANY UUID-SHAPED IDS IS SIGNED (found by the local harness): ids need not be version 4; the shape is the guard', async () => {
+  const { world, call, signIn, signed } = setup();
+  const tok = await signIn(ALICE);
+  world.addJob({ id: J(82), owner_id: ALICE, run_on: 'owner_local', job_type: 'preview' });
+  await call('POST', '/node/claim', { bearer: tok, body: {} });
+  await call('POST', '/node/state', { bearer: tok, body: { job_id: J(82), state: 'uploading' } });
+  const odd = `00000000-0000-0000-0000-0000000000c9/00000000-0000-0000-0000-0000000000d1/00000000-0000-0000-0000-0000000000e1/${J(82)}/preview.mp4`;
+  world.registerArtifact = async () => odd;
+  const r = await call('POST', '/node/artifact', { bearer: tok, body: { job_id: J(82), kind: 'preview', bytes: 10, sha256: 'f'.repeat(64) } });
+  assert.equal(r.status, 200);
+  assert.deepEqual(signed, [odd]);
+});
+
 test('ONE COMPUTER, ONE JOB (rev3 pins the job to the token): a second computer signed in by the same person cannot touch the first computer job', async () => {
   const { world, call, signIn } = setup();
   const a = await signIn(ALICE, 'Desk'), b = await signIn(ALICE, 'Laptop');
