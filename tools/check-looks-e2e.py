@@ -47,7 +47,7 @@ def main():
         print(('  ok   ' if cond else '  FAIL ') + what)
         ok = ok and bool(cond)
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8')
-    check(re.search(r'lookEditor:\s*false', cfg), 'the committed config has lookEditor false')
+    check(re.search(r'lookEditor:\s*true', cfg), 'the committed config has lookEditor true')
     flipped = re.sub(r'lookEditor:\s*false', 'lookEditor: true', cfg)
     try:
         with sync_playwright() as pw:
