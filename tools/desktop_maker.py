@@ -765,7 +765,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -804,6 +804,7 @@ ACTIVITY_EVENTS = {
     "ui_recipe_changed": ("recipe",), "ui_model_changed": ("model",), "ui_words_edited": ("chars",), "ui_slot_cleared": (),
     "problem_shown": ("endpoint",), "error_shown": ("endpoint", "exception"), "log_off": (), "log_on": (), "log_full": (), "words_skipped": ("count",),
     "signin_started": (), "signin_done": (), "signin_ended": (), "signin_removed": (),
+    "node_on": (), "node_off": (), "node_job_done": (), "node_job_failed": (), "node_job_refused": (),
     "image_added": ("count",), "image_refused": (), "image_rights": ("ok",), "image_removed": (), "rule_saved": ("count",), "occurrences_listed": ("count",),
 }
 CLIENT_EVENTS = {"recipe_changed": "ui_recipe_changed", "model_changed": "ui_model_changed", "words_edited": "ui_words_edited", "slot_cleared": "ui_slot_cleared"}
@@ -901,6 +902,10 @@ PAGE = """<!doctype html>
 <p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help Ryan make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time, or untick the box below to stop it.</p>
 <label class="logswitch" for="log-on"><input id="log-on" type="checkbox" checked> Keep this log</label><p id="log-state" class="note" role="status"></p></section>
 <section class="logbox" id="signin" aria-labelledby="h-signin" hidden><h2 id="h-signin">Your Ryagram account</h2><div id="signin-body"></div><p id="signin-msg" class="note" role="status"></p></section>
+<section class="logbox" id="node" aria-labelledby="h-node" hidden><h2 id="h-node">This computer renders my site films</h2>
+<p id="node-what">While this is on, this computer checks the Ryagram site about every half minute for a film you ordered there, makes it here, and sends back only the finished film. Your own videos never leave this computer, and it uses no credits.</p>
+<label class="logswitch" for="node-on"><input id="node-on" type="checkbox"> Let this computer make my site films</label>
+<p id="node-state" class="note" role="status"></p><ul id="node-uploads"></ul></section>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
@@ -982,6 +987,7 @@ JS = r"""(function () {
     box.hidden = false;
     document.querySelector('.banner').replaceChildren(el('strong', {}, 'INTERNAL PROTOTYPE.'), ' Runs on this computer only. Your videos are never uploaded. Signing in only tells the Ryagram website that this computer is yours.');
     siMsg('');
+    if (st.state !== 'signed_in') drawNode(null); else refreshNode();
     if (st.state === 'unavailable') { body.replaceChildren(el('p', { class: 'problems', role: 'alert' }, st.message)); return; }
     if (st.state === 'waiting') {
       body.replaceChildren(el('p', {}, 'On the Ryagram website, check that the code is this one, then press Approve:'), el('p', { class: 'code', id: 'signin-code', 'aria-label': 'Your code: ' + st.user_code.split('').join(' ') }, st.user_code),
@@ -1005,7 +1011,25 @@ JS = r"""(function () {
     body.replaceChildren(el('p', {}, 'Sign in to link this computer to your Ryagram account. That is how the website can send your site films to be made on this computer, if your account allows it. Your own videos never leave this computer. You do not type a password here: the website shows you a short code to check, and you approve this computer there.'),
       el('button', { type: 'button', id: 'signin-start', class: 'button primary', onclick: ev => siCall('start', ev.currentTarget) }, 'Sign in to Ryagram'));
   }
-  api('/api/signin').then(drawSignin).catch(() => {});
+  // ---- r9 M4: the switch for "this computer renders my site films" (only for a signed-in account that the site says may; off until the person turns it on)
+  let nodeTimer = null;
+  function drawNode(n) {
+    clearTimeout(nodeTimer);
+    const box = $('node');
+    if (!n || !n.enabled || !n.allowed && n.phase !== 'paused') { box.hidden = true; return; }
+    const g = n.message || '';
+    box.hidden = false;
+    $('node-on').checked = !!n.on;
+    $('node-state').textContent = (!n.on ? 'It is off. Nothing is being checked.' : (g || 'Waiting for a film to make.')) + (n.last ? ' ' + n.last : '');
+    $('node-uploads').replaceChildren(...(n.uploads || []).map(u => el('li', {}, `${u.name} (${Math.max(1, Math.round(u.bytes / 1024))} KB)`)));
+    if (n.on) nodeTimer = setTimeout(refreshNode, 5000);
+  }
+  async function refreshNode() { try { drawNode(await api('/api/node')); } catch (e) { /* the card keeps what it had */ } }
+  $('node-on').addEventListener('change', async ev2 => {
+    const box = ev2.currentTarget; box.disabled = true;
+    try { drawNode(await api('/api/node-switch', { on: box.checked })); } catch (e) { $('node-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
+  });
+  api('/api/signin').then(r => { drawSignin(r); refreshNode(); }).catch(() => {});
   async function loadModels() {
     try {
       const r = await api('/api/models');
@@ -1331,6 +1355,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/signin":
             if self._auth():
                 self._json(200, signin_status())
+        elif path == "/api/node":
+            if self._auth():
+                self._json(200, node_status())
         elif path == "/api/overlays":
             if not STATE.get("v2"):
                 self._json(404, {"error": "Not found."})
@@ -1456,6 +1483,8 @@ class Handler(BaseHTTPRequestHandler):
                 binds, bad = parse_pasted(body.get("text"))
                 act("paste_used", lines=sum(len(v) for v in binds.values()), not_used=len(bad))
                 self._json(200, {"binds": binds, "bad": bad})
+            elif path == "/api/node-switch":
+                self._json(200, node_switch(body.get("on") is True))
             elif path in ("/api/signin-start", "/api/signin-poll", "/api/signin-cancel", "/api/signin-check", "/api/signin-remove"):
                 self._json(200, signin_do(path[len("/api/signin-"):]))
             elif path == "/api/log":
@@ -1725,6 +1754,35 @@ def _signin_mod():
     return ryagram_signin
 
 
+def _node_mod():
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import ryagram_node
+    return ryagram_node
+
+
+def node_status() -> dict:
+    n = STATE.get("node")
+    if n is None:
+        return {"enabled": False}
+    st = n.status()
+    st["enabled"] = True
+    return st
+
+
+def node_switch(on: bool) -> dict:
+    n = STATE.get("node")
+    if n is None:
+        raise Problem("Signing in is not turned on in this copy.")
+    st = n.set_switch(bool(on))
+    if on:
+        n.start()
+    else:
+        n.stop()
+    st = node_status()
+    return st
+
+
 def signin_status() -> dict:
     s = STATE.get("signin")
     if s is not None:
@@ -1746,7 +1804,7 @@ def signin_do(what: str) -> dict:
 
 
 def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None, activity: bool = True, v2: bool = False,
-                site: str | None = None, approval_hosts=(), signin_store=None, signin_transport=None, signin_clock=None):
+                site: str | None = None, approval_hosts=(), signin_store=None, signin_transport=None, signin_clock=None, node_renderer=None, node_datasets=None, node_validate=None):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["questions"] = load_questions(questions)
     STATE["search_roots"] = [Path(x) for x in search] if search else _default_search_roots()
@@ -1770,6 +1828,9 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
             STATE["signin"] = mod.SignIn(site, signin_store or mod.default_store(), STATE["work"], computer_name=platform.node(), approval_hosts=approval_hosts, log=lambda ev: act(ev), **kw)
         except mod.SignInError as e:
             STATE["signin_unavailable"] = str(e)
+    STATE["node"] = None
+    if STATE.get("signin") is not None:              # r9 M4: "this computer renders my site films". OFF until the person switches it on; no renderer yet = it takes no jobs.
+        STATE["node"] = _node_mod().NodeLoop(STATE["signin"], STATE["work"], renderer=node_renderer, datasets=node_datasets, validate=node_validate, log=lambda ev: act(ev))
     srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
     act("session_start", maker=MAKER_REVISION, python=f"{sys.version_info.major}.{sys.version_info.minor}", os=platform.system())

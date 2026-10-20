@@ -351,6 +351,26 @@ class SignIn:
         self._log("signin_done")
         return self.status()
 
+    def api(self, method: str, path: str, body=None):
+        """A call to the site as THIS computer. The node token is attached here and nowhere else; it is never returned. A 401 means the computer was removed
+        (or the token ended): it is signed out here at once and the caller gets a plain error."""
+        with self._lock:
+            tok = self._token()
+        if not tok:
+            raise SignInError("This computer is not signed in to Ryagram.", "state")
+        status, obj = self.transport(method, path, body, tok)
+        if status == 401:
+            with self._lock:
+                self._forget()
+                self._wait = None
+            self._log("signin_removed")
+            raise SignInError("This computer was removed from your account, so it is signed out here.", "removed")
+        return status, obj
+
+    def allowed_hosts(self) -> set:
+        """The only hosts this computer may send anything to: the site's API host. Signed upload addresses are checked against this too."""
+        return {self.host.split(":")[0] if not self.host.startswith("[") else self.host}
+
     def cancel(self) -> dict:
         with self._lock:
             self._wait = None

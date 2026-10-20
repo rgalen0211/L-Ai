@@ -156,7 +156,7 @@ def main():
         check(get(f'{base}/')[0] == 403, 'the page without the token is refused')
         check(get(f'{base}/api/recipes', {'Host': 'evil.example', **tok})[0] == 403, 'a request that names another host is refused (no DNS rebinding)')
         st, h, body = get(f'{base}/?t=testtoken')
-        check(st == 200 and b'type="file"' not in body and all(b'type="text"' in t or b'id="log-on"' in t for t in re.findall(rb'<input[^>]*>', body)), 'the page has no file input (its one text box is for the words to find; the other is the log switch): nothing can be uploaded')
+        check(st == 200 and b'type="file"' not in body and all(b'type="text"' in t or b'id="log-on"' in t or b'id="node-on"' in t for t in re.findall(rb'<input[^>]*>', body)), 'the page has no file input (its one text box is for the words to find; the others are the log switch and the r9 node switch, both checkboxes): nothing can be uploaded')
         check(b'<details class="paste" hidden>' in body, 'r8: the paste-bind box is hidden unless the address carries advanced=1')
         check("default-src 'none'" in h.get('Content-Security-Policy', '') and "connect-src 'self'" in h['Content-Security-Policy'], 'a strict policy: only this server, no inline script')
         check(post(f'{base}/api/check', {'recipe': '../../etc/x.json', 'binds': {}}, tok)[1]['problems'][0].startswith('That recipe is not in the recipes folder'), 'a recipe name with folder tricks is refused')
