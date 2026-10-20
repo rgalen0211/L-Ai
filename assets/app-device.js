@@ -45,7 +45,7 @@
 
   // ---------------------------------------------------------------- the screens
   function create(ctx) {
-    const { h, data, busy, showError, errorLine, date } = ctx;
+    const { h, data, busy, showError, errorLine, date, whoami } = ctx;
 
     // ---- the approval page
     async function deviceView(prefill) {
@@ -62,6 +62,8 @@
           out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, c && c.reason ? c.reason : 'That code can’t be used.'), h('p', { class: 'form-note' }, 'Nothing was approved. You can close this page.'));
           return;
         }
+        let me = '';
+        try { me = whoami ? String(await whoami() || '') : ''; } catch { me = ''; }                // which account the computer would join (CC1 13:48)
         const approve = h('button', { class: 'button primary', type: 'button' }, 'Approve this computer');
         const deny = h('button', { class: 'button secondary', type: 'button' }, 'Deny');
         const expiryLine = h('p', { class: 'form-note device-expiry', role: 'status' });
@@ -96,6 +98,7 @@
             h('dt', {}, 'The computer calls itself'), h('dd', {}, c.device_name ? String(c.device_name).slice(0, 80) : 'no name'),
             h('dt', {}, 'Asked for'), h('dd', {}, c.requested_at ? new Date(c.requested_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : 'not known'),
             h('dt', {}, 'Roughly where'), h('dd', {}, c.approx_place ? String(c.approx_place).slice(0, 80) : 'not known')),
+          me ? h('p', { class: 'device-who' }, 'You are signed in as ', h('strong', {}, me.slice(0, 120)), '. This computer will join this account. Not you? Sign out first.') : '',
           h('p', { class: 'form-note' }, 'If you approve, this computer can use your Ryagram account for 30 days. It cannot spend your credits, and you can remove it any time.'),
           expiryLine, h('div', { class: 'actions-row' }, approve, deny));
       }

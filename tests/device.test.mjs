@@ -116,3 +116,10 @@ test('WIRING AND FLAG: the route and the account section exist only behind deskt
   assert.match(src, /confirm\(`Remove \$\{r\.name \|\| 'this computer'\}\? It is signed out straight away\.`\)/);
   assert.match(src, /await data\.removeComputer\(r\.id\); await draw\(\);/);
 });
+
+test('WHICH ACCOUNT (CC1 13:48): above Approve the page says "You are signed in as <email>" so someone in a second account sees which account the computer will join; the email comes from the app\'s own session, cut to 120 characters, as text', () => {
+  const src = read('assets/app-device.js');
+  assert.match(src, /'You are signed in as ', h\('strong', \{\}, me\.slice\(0, 120\)\), '\. This computer will join this account\. Not you\? Sign out first\.'/);
+  assert.ok(src.indexOf("'device-who'") < src.indexOf("class: 'form-note' }, 'If you approve"), 'the account line comes before the 30-day line and the buttons');
+  assert.match(read('assets/app-library.js'), /whoami: async \(\) => \(window\.ryagramApp\?\.client \? \(await window\.ryagramApp\.client\.auth\.getSession\(\)\)\.data\.session\?\.user\?\.email \|\| '' : ''\)/);
+});

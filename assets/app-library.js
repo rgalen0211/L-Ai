@@ -182,7 +182,7 @@
     let connectCache = null;
     const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
     let deviceCache = null;
-    const deviceUi = () => deviceCache || (deviceCache = window.ryagramDevice.create({ h, data, busy, showError, errorLine, date }));
+    const deviceUi = () => deviceCache || (deviceCache = window.ryagramDevice.create({ h, data, busy, showError, errorLine, date, whoami: async () => (window.ryagramApp?.client ? (await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '' : '') }));
 
     // --- #/  all projects
     async function libraryView() {
