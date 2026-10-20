@@ -9,8 +9,8 @@ What it proves (CC1 13:20 and 13:34 are the source of the must-fails)
      a short or odd token, no account; a redirect is not followed
   D  the clock: the client keeps to the polling interval itself, a slow_down grows it, an expired code is refused, a used code is refused, a denied code stores nothing
   E  removing this computer, with and without the internet; a computer removed on the website is signed out at the next check; the server wins over the cache
-  F  the 7-day offline grace gates ONLY local clip films and the node note; signed out is the r8 behaviour
-  G  the real Windows Credential Manager: a throwaway entry round-trips, is CRED_TYPE_GENERIC and persisted for THIS computer only (never the roaming kind), and is deleted afterwards; there is no file fallback
+  F  the 7-day offline grace pauses ONLY the node and says so; local clip films are never blocked by the account (CC1 14:14); signed out is the r8 behaviour
+  G  (only with RYAGRAM_TEST_REAL_STORE=1, because it writes one throwaway entry into the real vault of whoever runs it) the real Windows Credential Manager: a throwaway entry round-trips, is CRED_TYPE_GENERIC and persisted for THIS computer only (never the roaming kind), and is deleted afterwards; there is no file fallback
   H  the fake site itself keeps the server rules CC1 listed (alphabet, 10 minutes, single use, hashed secrets, rate limit, a node token is refused on the connector door), so WORKER and WEB can match it
 """
 import ctypes
@@ -326,9 +326,9 @@ store.delete(app.target)
 check(app.status()["state"] == "signed_out" and not (folder / si.CACHE_NAME).exists(), "if the credential entry is deleted behind the app's back, it is signed out and the cache goes too")
 
 # ---------------------------------------------------------------------------------------------------------------- F
-print("\nF. the 7-day grace gates only the app's own local things")
+print("\nF. the 7-day grace pauses only the node")
 clock, site, store, app, folder, events = setup("f")
-check(app.gate() == {"clip_films": True, "node": False, "note": ""}, "signed out: nothing is gated (the r8 behaviour; whether r9 requires sign-in is Ryan's call)")
+check(app.gate() == {"clip_films": True, "node": False, "paused": False, "note": ""}, "signed out: nothing is gated (the r8 behaviour; whether r9 requires sign-in is Ryan's call)")
 sign_in(clock, site, app, local=True)
 g = app.gate()
 check(g["clip_films"] and g["node"], "signed in on a flagged account, freshly checked: clip films on, the node switch allowed")
@@ -337,24 +337,24 @@ g = app.gate()
 check(g["clip_films"] and g["node"], "just under 7 days offline: still allowed")
 clock.add(10000)
 g = app.gate()
-check(g["clip_films"] is False and g["node"] is False and "7 days" in g["note"], f"MUST-FAIL: over 7 days without a check: clip films say 'connect once', and the node is paused ({g['note'][:60]}...)")
+check(g["clip_films"] is True and g["node"] is False and g["paused"] is True and "7 days" in g["note"] and "paused" in g["note"] and "clip films are not affected" in g["note"].lower(), f"MUST-FAIL: over 7 days without a check: the node is PAUSED and the note says so, but clip films are NOT blocked ({g['note'][:60]}...)")
 st = app.status()
-check(st["clip_films"] is False and st["note"] == g["note"] and st["grace_days_left"] == 0, "the page sees the same sentence")
+check(st["clip_films"] is True and st["paused"] is True and st["note"] == g["note"] and st["grace_days_left"] == 0, "the page sees the same sentence")
 app.check()
 g = app.gate()
-check(g["clip_films"] and g["node"], "one successful check renews the 7 days")
+check(g["clip_films"] and g["node"] and not g["paused"], "one successful check renews the 7 days: the node is back")
 clock2, site2, store2, app2, folder2, ev2 = setup("f2")
 sign_in(clock2, site2, app2, local=False)
 check(app2.gate()["node"] is False and "does not render" in app2.gate()["note"], "an account without the tester flag: no node, a plain note, clip films still work")
 c = json.loads((folder2 / si.CACHE_NAME).read_text(encoding="utf-8"))
 c["last_ok"] = 0
 (folder2 / si.CACHE_NAME).write_text(json.dumps(c), encoding="utf-8")
-check(app2.gate()["clip_films"] is False, "a missing last-checked time counts as 'not checked' (it never counts as fresh)")
+check(app2.gate()["paused"] is True and app2.gate()["clip_films"] is True, "a missing last-checked time counts as 'not checked' (it never counts as fresh) and still never blocks a clip film")
 check("authoris" not in json.dumps(app.gate()).lower(), "the gate is local words only: it names no permission and no server action")
 
 # ---------------------------------------------------------------------------------------------------------------- G
 print("\nG. the real Windows Credential Manager")
-if sys.platform == "win32":
+if sys.platform == "win32" and os.environ.get("RYAGRAM_TEST_REAL_STORE") == "1":
     real = si.default_store()
     target = "Ryagram/test/" + secrets.token_hex(6)
     secret = secrets.token_urlsafe(40)
@@ -379,7 +379,7 @@ if sys.platform == "win32":
     real.delete(target)
     check(True, "deleting something already gone is quiet")
 else:
-    print("  (not Windows: the real-store rows are skipped here)")
+    print("  SKIPPED: the real-store rows write one throwaway entry into the real Windows vault of whoever runs this; set RYAGRAM_TEST_REAL_STORE=1 to run them")
 saved = sys.platform
 try:
     sys.platform = "linux"

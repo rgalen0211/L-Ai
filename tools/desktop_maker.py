@@ -312,9 +312,6 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     job = STATE["job"]
     if job and job["proc"].poll() is None:
         raise Problem("Something is already running here. Cancel it or wait for it to finish.")
-    gate = signin_gate()
-    if not gate["clip_films"]:                       # the 7-day offline grace ran out: a local rule only, nothing is authorised on the server
-        raise Problem(gate["note"])
     pc = precheck(body)
     if not pc["ok"]:
         raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
@@ -735,7 +732,7 @@ JS = r"""(function () {
     if (st.state === 'signed_in') {
       body.replaceChildren(el('p', { id: 'signin-who' }, `Signed in as ${st.email || '(your account)'}. This computer is called \u201c${st.computer_name}\u201d. Approved until ${st.approved_until || '(unknown)'}.`),
         el('p', { class: 'note' }, st.last_checked ? `Last checked on ${st.last_checked}.` : 'Not checked yet.'),
-        st.note ? el('p', { class: st.clip_films ? 'note' : 'problems', role: 'status', id: 'signin-note' }, st.note) : null,
+        st.note ? el('p', { class: st.paused ? 'warn' : 'note', role: 'status', id: 'signin-note' }, st.note) : null,
         el('div', { class: 'row' }, el('button', { type: 'button', id: 'signin-check', class: 'button secondary', onclick: ev => siCall('check', ev.currentTarget) }, 'Check my account'),
           el('button', { type: 'button', id: 'signin-remove', class: 'button secondary', onclick: ev => siCall('remove', ev.currentTarget) }, 'Remove from this computer')),
         el('p', { class: 'note' }, 'The sign-in is kept in the Windows Credential Manager on this computer, not in any file. Any program running as you can read it, as it can read a browser cookie.'));
@@ -1416,12 +1413,6 @@ def _signin_mod():
         sys.path.insert(0, str(HERE))
     import ryagram_signin
     return ryagram_signin
-
-
-def signin_gate() -> dict:
-    """What the account state lets this computer do. No site configured, or signed out = everything on, exactly as r8."""
-    s = STATE.get("signin")
-    return s.gate() if s is not None else {"clip_films": True, "node": False, "note": ""}
 
 
 def signin_status() -> dict:

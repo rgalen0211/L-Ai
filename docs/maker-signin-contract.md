@@ -7,8 +7,8 @@
 The person presses **Sign in to Ryagram**. The app asks the site for a short code, shows it, and opens the approval page. The person approves **this computer** on the website while signed in there. The app then holds a narrow, opaque **node token** and nothing else. No password is ever typed into the app.
 
 * The token is kept in the **Windows Credential Manager**: CRED_TYPE_GENERIC, persisted for this computer only (CRED_PERSIST_LOCAL_MACHINE, never the roaming kind), target `Ryagram/node/<site host>`. If the Credential Manager is missing the app refuses to sign in. **There is no file fallback.** Any program running as the person can read the entry, as it can read a browser cookie; the card says so.
-* A small non-secret file in the work folder (`ryagram-account.json`) holds email, computer name, approved-until date, the local-compute flag and the time of the last successful check. It holds no token and no device secret (tested).
-* **Offline grace, 7 days.** The cached state may gate only the app's own local clip films and the "node paused" message. It authorises nothing on the server, and the server always wins: a check that the site refuses signs the computer out at once.
+* A small non-secret file in the work folder (`ryagram-account.json`) holds email, computer name, approved-until date, the local-compute flag and the time of the last successful check. It holds no token and no device secret (tested). **It is never put into a kit zip, a receipt or the activity log** (the log check proves the log; a kit builder must leave the work folder out).
+* **Offline grace, 7 days.** The cached state pauses ONLY the "this computer renders my site films" node, and says so on the card. **Local clip films are never blocked by the account** (CC1 14:14: they are local and free, and a person who never signed in can always make them; blocking them would make signing in worse and teach people to sign out). It authorises nothing on the server, and the server always wins: a check that the site refuses signs the computer out at once.
 * Off unless the maker is started with `--site https://.../node` (or `RYAGRAM_SITE`) and, if the approval page lives on another host, `--approval-host uselai.com`. With no site, the maker is exactly r8.
 
 ## 2. The HTTP API the app calls (the "node" edge function)
@@ -49,6 +49,6 @@ WORKER's M3 tables behind them: `device_codes` (user_code unique, device_hash, c
 ## 5. How to run the tests (no site, no account, no network beyond 127.0.0.1)
 
 ```
-python tools/check-signin-client.py <scratch folder>                 # the client against the fake site, plus the real Credential Manager with a throwaway entry
+python tools/check-signin-client.py <scratch folder>                 # the client against the fake site (set RYAGRAM_TEST_REAL_STORE=1 to also write one throwaway entry into the real Credential Manager)
 python tools/check-maker-signin.py <engine folder> <scratch folder>  # the page, in real Chrome, with a fake site and a fake store
 ```

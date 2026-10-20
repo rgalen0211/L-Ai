@@ -6,8 +6,8 @@ token. The token is kept in the Windows Credential Manager (CRED_TYPE_GENERIC, p
 not in a file, a log, a receipt, the kit, a URL or any page text. What IS kept in a file is non-secret account state (email, computer name, dates) so the page can
 say who is signed in and the 7-day offline grace can be counted.
 
-WHAT IT DOES NOT DO (CC1 13:20 and 13:34, the plan's section 12). The cached state only ever gates the app's own LOCAL clip films and the "node paused"
-message; it authorises nothing on the server. Any program running as the person can read the Credential Manager entry, as it can read a browser cookie: that
+WHAT IT DOES NOT DO (CC1 13:20, 13:34 and 14:14). The 7-day offline grace pauses ONLY the "this computer renders my site films" node and says so; local clip
+films are never blocked by the account (they are local and free, and a person who never signed in can always make them). The cached state authorises nothing on the server. Any program running as the person can read the Credential Manager entry, as it can read a browser cookie: that
 is said to the person in the page, not hidden. The token is never put in a query string. A server reply that names an approval address on a host we were not told about is refused.
 
 THE SITE API THIS TALKS TO (the contract; tools/fake_ryagram_site.py is the executable copy used by the tests; names are proposals until WORKER's SQL and WEB's
@@ -34,7 +34,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-GRACE_SECONDS = 7 * 24 * 3600                      # CC1 13:34 point 5: gates local clip films and the "node paused" note ONLY
+GRACE_SECONDS = 7 * 24 * 3600                      # CC1 13:34 point 5 and 14:14: pauses the node and says so; never blocks a local clip film
 TARGET_PREFIX = "Ryagram/node/"                    # CC1 13:34 point 6: Ryagram/node/<site>
 CACHE_NAME = "ryagram-account.json"
 USER_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789"        # no 0, O, 1, I or L (CC1 13:34 point 1)
@@ -262,20 +262,21 @@ class SignIn:
             g = self.gate()
             out.update(state="signed_in", email=c.get("email", ""), computer_name=c.get("computer_name", self.computer), approved_until=c.get("approved_until"),
                        last_checked=_iso(last_ok) if last_ok else "", grace_days_left=max(0, int((last_ok + GRACE_SECONDS - now) // 86400)) if last_ok else 0,
-                       clip_films=g["clip_films"], node_allowed=g["node"], note=g["note"])
+                       clip_films=g["clip_films"], node_allowed=g["node"], paused=g["paused"], note=g["note"])
             return out
 
     def gate(self) -> dict:
-        """What the cached state lets the APP do on this computer. It never authorises anything on the server."""
+        """What the cached state lets the APP do on this computer. Clip films are ALWAYS allowed; only the node can pause. It never authorises anything on the server."""
         with self._lock:
             if not self._token():
-                return {"clip_films": True, "node": False, "note": ""}           # signed out = the r8 behaviour; sign-in is optional until Ryan decides otherwise
+                return {"clip_films": True, "node": False, "paused": False, "note": ""}           # signed out = the r8 behaviour; sign-in is optional until Ryan decides otherwise
             c = self._read_cache() or {}
             last_ok = float(c.get("last_ok") or 0)
             fresh = last_ok > 0 and self.clock() - last_ok <= GRACE_SECONDS
             if not fresh:
-                return {"clip_films": False, "node": False, "note": "Your account has not been checked for 7 days. Connect to the internet once and press Check my account, then you can make films again."}
-            return {"clip_films": True, "node": bool(c.get("local_compute")),
+                return {"clip_films": True, "node": False, "paused": True,
+                        "note": "Your account has not been checked for 7 days, so rendering site films on this computer is paused. Your own clip films are not affected. Connect to the internet once and press Check my account to turn it back on."}
+            return {"clip_films": True, "node": bool(c.get("local_compute")), "paused": False,
                     "note": "" if c.get("local_compute") else "This account does not render site films on this computer."}
 
     # ---- the steps
