@@ -26,9 +26,34 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 HARNESS = Path(__file__).resolve().parent
-E2E_DB_REPO = Path(r"D:\Ryagram-scratch\CONNECT\L-Ai-e2e")           # WORKER rev4 12d2f71: the SQL and the test helpers
-APP_REPO = Path(r"D:\Ryagram-scratch\CONNECT\L-Ai-node-app")         # maker-r9-node: the app AND the function code
-ENGINE = Path(r"D:\Ryagram-scratch\CONNECT\Ryagram-recipe-every")    # for the worker's own validate_job
+
+
+def _repo(var, default=None):
+    v = os.environ.get(var) or default
+    if not v:
+        sys.exit(f"{var} is not set. Give the repo folder it names (see run.ps1 -Help). Nothing was started.")
+    return Path(v).resolve()
+
+
+APP_REPO = _repo("R9E2E_APP_REPO", str(HARNESS.parents[1]))          # default: the repo this script sits in (tools/r9-e2e/ -> repo root): the app AND the function code
+E2E_DB_REPO = _repo("R9E2E_DB_REPO")                                  # an L-Ai checkout at WORKER's r9-node-draft: the SQL and the test helpers
+ENGINE = _repo("R9E2E_ENGINE")                                        # a Ryagram checkout, for the worker's own validate_job
+
+
+def _git(repo, *args):
+    return subprocess.run(["git", "-C", str(repo), *args], capture_output=True, text=True).stdout.strip()
+
+
+print("HEADS UNDER TEST (the run is only evidence for exactly these):")
+_dirty = []
+for _name, _repo_path in (("app + function code", APP_REPO), ("sql (r9-node-draft)", E2E_DB_REPO), ("engine", ENGINE)):
+    _head, _branch = _git(_repo_path, "rev-parse", "HEAD"), _git(_repo_path, "rev-parse", "--abbrev-ref", "HEAD")
+    _changed = _git(_repo_path, "status", "--porcelain", "--untracked-files=no")
+    print(f"  {_name:22s} {_head[:12] or '(not a git repo)'}  {_branch:24s} {_repo_path}{'   DIRTY' if _changed else ''}", flush=True)
+    if not _head or _changed:
+        _dirty.append(_name)
+if _dirty:
+    sys.exit("REFUSING TO RUN: not a clean git checkout: " + ", ".join(_dirty) + ". Commit or stash, so a pass names exact heads.")
 sys.path.insert(0, str(E2E_DB_REPO / "supabase" / "tests"))
 sys.path.insert(0, str(APP_REPO / "tools"))
 sys.path.insert(0, str(ENGINE))
@@ -224,7 +249,7 @@ def main():
         State.deno_port = dport
         env = dict(os.environ, PORT=str(dport), BRIDGE_URL=f"http://127.0.0.1:{gport}/__bridge/q", SUPABASE_URL=f"http://127.0.0.1:{gport}", NODE_UPLOAD_KEY=KEY,
                    NODE_APPROVAL_URL=f"http://127.0.0.1:{gport}/app", NODE_SALT="e2e-salt", FN_ROOT=(APP_REPO / "supabase" / "functions").as_uri())
-        deno = subprocess.Popen(["deno", "run", "--no-lock", f"--allow-net=127.0.0.1", "--allow-env", f"--allow-read={APP_REPO}", str(HARNESS / "serve.ts")], env=env,
+        deno = subprocess.Popen(["deno", "run", "--no-lock", f"--allow-net=127.0.0.1", "--allow-env=PORT,BRIDGE_URL,SUPABASE_URL,NODE_UPLOAD_KEY,NODE_APPROVAL_URL,NODE_SALT,FN_ROOT", f"--allow-read={APP_REPO}", str(HARNESS / "serve.ts")], env=env,
                                 stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
         line = deno.stdout.readline()
         check("LISTENING" in line, f"the node function is serving under Deno ({line.strip()[:60]})")
