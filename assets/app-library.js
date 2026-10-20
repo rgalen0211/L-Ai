@@ -714,7 +714,7 @@
         helpSection = acct.helpSection();
       }
       if (connectOn()) sections.push(await connectUi().connectedSection());
-      if (desktopOn()) sections.push(await deviceUi().computersSection());
+      if (desktopOn()) { const computers = await deviceUi().computersSection(); if (computers) sections.push(computers); }          // null for an account that is not a tester and has no computer
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.

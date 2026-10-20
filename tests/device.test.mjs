@@ -110,7 +110,7 @@ test('WIRING AND FLAG: the route and the account section exist only behind deskt
   const lib = read('assets/app-library.js');
   assert.match(lib, /const desktopOn = \(\) => window\.ryagramConfig\?\.desktopApp === true \|\| !!window\.ryagramMock;/);
   assert.match(lib, /desktopOn\(\) && window\.ryagramDevice\.codeFromHash\(hash\)\.page\) view = await deviceUi\(\)\.deviceView\(window\.ryagramDevice\.codeFromHash\(hash\)\.code, window\.ryagramDevice\.codeFromHash\(hash\)\.bad\)/);
-  assert.match(lib, /if \(desktopOn\(\)\) sections\.push\(await deviceUi\(\)\.computersSection\(\)\);/);
+  assert.match(lib, /if \(desktopOn\(\)\) \{ const computers = await deviceUi\(\)\.computersSection\(\); if \(computers\) sections\.push\(computers\); \}/);
   assert.match(read('assets/ryagram-config.js'), /desktopApp: false,/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-device.js') > 0 && html.indexOf('app-device.js') < html.indexOf('app-library.js'));
@@ -151,7 +151,7 @@ test('TESTER CARD (NEXT-WEB 113): a tester account is told plainly that its film
   assert.match(src, /tester \? 'No computer is signed in\. Your films wait until you sign one in with the Ryagram app\.' : 'No computer is signed in to your account\.'/);
   assert.match(src, /\$\{seenWords\(r\)\}/);                                                                      // the list row says last seen, waiting, or not seen yet through one helper
   assert.match(src, /Remove this computer/);
-  assert.match(read('assets/app-library.js'), /if \(desktopOn\(\)\) sections\.push\(await deviceUi\(\)\.computersSection\(\)\);/);       // still behind desktopApp (off)
+  assert.match(read('assets/app-library.js'), /if \(desktopOn\(\)\) \{ const computers = await deviceUi\(\)\.computersSection\(\);/);       // still behind desktopApp (off)
 });
 
 test('REV2 STATES (WORKER 191fc78): a code that is not pending says why in words and shows no facts; the page reads computer_name, requested_at and rough_location', () => {
@@ -195,4 +195,17 @@ test('FACES\' FIXES 2, 4, 5 (16:12): "made on your own computer" (no "render"); 
   const src = read('assets/app-device.js');
   assert.match(src, /, works until \$\{date\(r\.expires_at\)\}`/);
   assert.doesNotMatch(src, /stops working on|render on your own|renders its films/);
+});
+
+test('ONLY A FLAGGED ACCOUNT SEES COMPUTERS SIGNED IN (CC1 16:24 point 5): a non-tester with no computer gets no section; a tester gets it; a non-tester who already has a computer still can manage it', async () => {
+  const src = read('assets/app-device.js');
+  assert.match(src, /if \(!tester\) \{[\s\S]*if \(!mine\.length\) return null;/);
+  assert.match(read('assets/app-library.js'), /const computers = await deviceUi\(\)\.computersSection\(\); if \(computers\) sections\.push\(computers\);/);
+  assert.equal([...read('assets/app-library.js').matchAll(/deviceUi\(\)\.computersSection\(/g)].length, 1);
+  // the mock: no flag and no computer -> myLocalCompute false and an empty list, so the page returns null; with a computer or the flag it does not
+  const plain0 = win.ryagramData(createFakeClient());
+  assert.equal(await plain0.myLocalCompute(), false);
+  assert.deepEqual(JSON.parse(JSON.stringify(await plain0.myComputers())), []);
+  await plain0.deviceDecide('ABCD-2345', true);                                                                  // an approved computer: the account now has one
+  assert.equal((await plain0.myComputers()).length, 1);
 });

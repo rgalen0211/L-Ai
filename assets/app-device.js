@@ -153,6 +153,11 @@
       const error = errorLine();
       const list = h('div');
       const tester = data.myLocalCompute ? await data.myLocalCompute() : false;                  // a tester's films render on their own computer
+      if (!tester) {                                                                           // CC1 16:24 point 5: only a flagged account (or one that already has a computer) sees this section
+        let mine = [];
+        try { mine = (await data.myComputers()).filter(r => !r.revoked_at); } catch { mine = []; }
+        if (!mine.length) return null;
+      }
       async function draw() {
         let rows;
         try { rows = (await data.myComputers()).filter(r => !r.revoked_at); } catch (err) { list.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
