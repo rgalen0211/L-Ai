@@ -105,9 +105,10 @@ def main():
                 ctx = b.new_context(color_scheme=scheme, **opts)
                 page = ctx.new_page()
                 tag = f'{size} {scheme}'
-                page.goto(f'{base}/?t=t', wait_until='load')
+                page.goto(f'{base}/?t=t&advanced=1', wait_until='load')        # r8: advanced=1 shows the paste box this walk uses
                 page.wait_for_selector('#recipe option', state='attached')
                 scan(page, f'{tag} start')
+                page.fill('#words', 'well that is great news')                    # r8: the words box now starts empty (the example is only a placeholder)
                 page.click('#plan')
                 page.wait_for_selector('#plan-out .problems')
                 scan(page, f'{tag} door check refused')

@@ -16,6 +16,7 @@ import argparse
 import hashlib
 import json
 import os
+import platform
 import re
 import secrets
 import shutil
@@ -268,6 +269,10 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     if kind == "plan":
         STATE["planned"] = None
         STATE["sound"] = None
+    STATE["attempts"][kind] = STATE["attempts"].get(kind, 0) + 1
+    ls = pc["listen_seconds"]
+    act("job_start", kind=kind, attempt=STATE["attempts"][kind], recipe=recipe_stem(body), model=pc["model"], files=pc["bind_count"],
+        video_minutes=-1 if ls is None else int(round(ls / 60)), phrase_chars=len(_phrase(body)), words_changed=bool(_phrase(body)))
     return {"id": stamp, "kind": kind, "film": out.name}
 
 
@@ -304,6 +309,22 @@ def _discard_outputs(job) -> None:
 
 
 def job_status() -> dict:
+    out = _job_status()
+    job = STATE["job"]
+    if job and not job.get("logged") and out.get("state") in JOB_STATES:
+        job["logged"] = True
+        try:
+            plan = out.get("plan") or {}
+            rc = out.get("receipt") or {}
+            act("job_end", kind=job["kind"], state=out["state"], code=int(out.get("code", 0)), seconds=int(out.get("seconds", 0)),
+                clips=len(plan.get("clips", [])) if plan else len(rc.get("clips", [])), gaps=len(plan.get("gaps", [])) if plan else 0,
+                film_seconds=int(round(rc.get("seconds", 0))), network_attempts=int(rc.get("network_attempts", 0)))
+        except Exception:  # noqa: BLE001
+            pass
+    return out
+
+
+def _job_status() -> dict:
     job = STATE["job"]
     if not job:
         return {"state": "none"}
@@ -373,6 +394,141 @@ def pick_files(multiple: bool) -> list[str]:
         return []
 
 
+# ---------------------------------------------------------------------------------------------------- activity log (kit r8)
+# A LOCAL activity log, so Ryan can see where a first-time person got stuck. It is one text file (one JSON object a line) in the OUT folder, next to
+# the films and my-answers.txt, and it NEVER leaves this computer: this program has no network code, and the log code imports none and opens no socket.
+# What can be written is fixed HERE, in ACTIVITY_EVENTS: each event, the only fields it may carry, and for every field a rule that a value must satisfy
+# (a number, a yes/no, or a word from a short fixed list). Anything else is written as "?". So a file name, a folder, the words the person typed, an answer, a
+# user name or a computer name CANNOT reach the file whatever the page sends. It stops growing at ACTIVITY_MAX_BYTES. A failure to write is ignored (the log
+# never breaks the maker), and deleting the file or the folder is fine: the next line makes them again. Off: the page switch writes one last line and then
+# no line at all; the choice is remembered by an empty marker file in the same folder; --no-activity-log starts it off.
+ACTIVITY_NAME = "maker-activity-log.jsonl"
+ACTIVITY_OFF_NAME = "maker-activity-log.off"
+ACTIVITY_MAX_BYTES = 2_000_000
+MAKER_REVISION = "r8"
+PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log")
+JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
+
+
+def _is_int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def _one_of(*words):
+    return lambda v: isinstance(v, str) and v in words
+
+
+def _kinds(v):
+    return isinstance(v, str) and all(w in PROBLEM_KINDS for w in v.split()) and len(v) <= 80
+
+
+def _numbers(v):
+    return isinstance(v, str) and re.fullmatch(r"[0-9]{1,2}( [0-9]{1,2}){0,29}", v) is not None
+
+
+FIELD_RULES = {
+    "maker": _one_of(MAKER_REVISION), "python": lambda v: isinstance(v, str) and re.fullmatch(r"[0-9]{1,2}\.[0-9]{1,2}", v) is not None,
+    "os": _one_of("Windows", "Darwin", "Linux"), "ok": lambda v: isinstance(v, bool), "problems": _kinds,
+    "files": _is_int, "kind": _one_of("plan", "build"), "state": _one_of(*JOB_STATES), "code": _is_int, "seconds": _is_int, "clips": _is_int, "gaps": _is_int,
+    "film_seconds": _is_int, "network_attempts": _is_int, "attempt": _is_int, "video_minutes": _is_int, "phrase_chars": _is_int, "words_changed": lambda v: isinstance(v, bool),
+    "model": _one_of(*MODELS), "recipe": lambda v: isinstance(v, str) and re.fullmatch(r"[a-z0-9][a-z0-9-]{0,30}", v) is not None, "multiple": lambda v: isinstance(v, bool),
+    "result": _one_of("found", "none", "many", "error"), "timed_out": lambda v: isinstance(v, bool), "lines": _is_int, "not_used": _is_int, "warnings": _is_int,
+    "checked": _is_int, "answered": _numbers, "count": _is_int, "endpoint": _one_of(*ENDPOINTS), "exception": _one_of("ValueError", "KeyError", "TypeError", "IndexError", "AttributeError", "OSError", "FileNotFoundError", "PermissionError", "RuntimeError", "UnicodeError", "JSONDecodeError", "TimeoutExpired", "ModuleNotFoundError", "ImportError"),
+    "chars": _is_int,
+}
+ACTIVITY_EVENTS = {
+    "session_start": ("maker", "python", "os"), "session_end": (), "page_opened": (),
+    "check": ("ok", "problems", "files"), "job_start": ("kind", "attempt", "recipe", "model", "files", "video_minutes", "phrase_chars", "words_changed"),
+    "job_end": ("kind", "state", "code", "seconds", "clips", "gaps", "film_seconds", "network_attempts"), "cancel_pressed": (),
+    "files_picked": ("multiple", "count"), "file_dropped": ("result", "timed_out"), "paste_used": ("lines", "not_used"), "sound_started": ("files",),
+    "sound_done": ("checked", "warnings"), "folder_opened": (), "answers_saved": ("answered", "count"),
+    "ui_recipe_changed": ("recipe",), "ui_model_changed": ("model",), "ui_words_edited": ("chars",), "ui_slot_cleared": (),
+    "problem_shown": ("endpoint",), "error_shown": ("endpoint", "exception"), "log_off": (), "log_on": (), "log_full": (),
+}
+CLIENT_EVENTS = {"recipe_changed": "ui_recipe_changed", "model_changed": "ui_model_changed", "words_edited": "ui_words_edited", "slot_cleared": "ui_slot_cleared"}
+
+
+class ActivityLog:
+    def __init__(self, folder, enabled: bool = True):
+        self.folder = Path(folder)
+        self.enabled = bool(enabled)
+        self.session = secrets.token_hex(3)
+        self.n = 0
+        self.lock = threading.Lock()
+
+    @property
+    def path(self) -> Path:
+        return self.folder / ACTIVITY_NAME
+
+    def log(self, ev: str, **fields) -> bool:
+        """One line, or nothing. Never raises."""
+        if not self.enabled or ev not in ACTIVITY_EVENTS:
+            return False
+        try:
+            rec = {"t": time.strftime("%Y-%m-%d %H:%M:%S"), "s": self.session, "ev": ev}
+            for k in ACTIVITY_EVENTS[ev]:
+                if k in fields:
+                    v = fields[k]
+                    rec[k] = v if FIELD_RULES[k](v) else "?"
+            with self.lock:
+                self.folder.mkdir(parents=True, exist_ok=True)
+                if self.path.exists() and self.path.stat().st_size > ACTIVITY_MAX_BYTES:
+                    return False
+                self.n += 1
+                rec["n"] = self.n
+                with open(self.path, "a", encoding="utf-8") as fh:
+                    fh.write(json.dumps(rec, ensure_ascii=True, separators=(",", ":")) + "\n")
+            return True
+        except Exception:  # noqa: BLE001
+            return False
+
+    def set_enabled(self, on: bool) -> None:
+        """The page switch. Turning off writes one last line first; the choice is remembered by an empty marker file."""
+        marker = self.folder / ACTIVITY_OFF_NAME
+        if on:
+            try:
+                marker.unlink(missing_ok=True)
+            except OSError:
+                pass
+            if not self.enabled:
+                self.enabled = True
+                self.log("log_on")
+        else:
+            self.log("log_off")
+            self.enabled = False
+            try:
+                self.folder.mkdir(parents=True, exist_ok=True)
+                marker.write_bytes(b"")
+            except OSError:
+                pass
+
+
+def act(ev: str, **fields) -> None:
+    a = STATE.get("activity")
+    if a is not None:
+        a.log(ev, **fields)
+
+
+def problem_kinds(problems) -> str:
+    kinds: list[str] = []
+    for p in problems:
+        t = str(p).lower()
+        k = ("model" if "listening model" in t else "addon" if "speech add-on" in t else "ffmpeg" if "ffmpeg" in t else "disk" if "gb free" in t
+             else "slot_empty" if "has no file yet" in t else "slot_many" if "takes one file" in t else "recipe" if "recipe" in t
+             else "file" if ("not found" in t or "bind" in t or "file" in t) else "other")
+        if k not in kinds:
+            kinds.append(k)
+    return " ".join(kinds)
+
+
+def recipe_stem(body: dict) -> str:
+    try:
+        return recipe_path(body.get("recipe")).stem[:31]
+    except Exception:  # noqa: BLE001
+        return "?"
+
+
 # ---------------------------------------------------------------------------------------------------- the page
 
 PAGE = """<!doctype html>
@@ -381,6 +537,9 @@ PAGE = """<!doctype html>
 <body><main>
 <p class="banner" role="note"><strong>INTERNAL PROTOTYPE.</strong> Runs on this computer only. Nothing is uploaded; there is no account.</p>
 <h1>Desktop maker</h1>
+<section class="logbox" aria-labelledby="h-log"><h2 id="h-log">A note about a small log</h2>
+<p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help Ryan make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time.</p>
+<label class="logswitch" for="log-on"><input id="log-on" type="checkbox" checked> Keep this log</label><p id="log-state" class="note" role="status"></p></section>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
@@ -389,12 +548,12 @@ PAGE = """<!doctype html>
 <p id="words-note" class="note">The film is cut from these words, in this order. Change them here if you like; the recipe file stays as it is.</p></section>
 <section aria-labelledby="h-files"><h2 id="h-files">2. Your files</h2>
 <div id="slots"></div>
-<details class="paste"><summary>Paste bind lines instead</summary>
+<details class="paste" hidden><summary>Paste bind lines instead</summary>
 <label for="paste">One line for each file, like <code>--bind source-1=C:\\clips\\a.mp4</code> (what <code>library find --emit-binds</code> prints; a span of a file is <code>slot=FILE#START_MS-END_MS</code>)</label>
 <textarea id="paste" rows="4" spellcheck="false"></textarea><button id="use-paste" type="button" class="button secondary">Use these lines</button>
 <p id="paste-note" class="note" role="status"></p></details>
 <label for="model">Speech model on this computer</label><select id="model"><option>tiny</option><option selected>base</option><option>small</option></select>
-<p class="note">A larger model hears more words and is slower. Use the same one the finder used.</p></section>
+<p class="note">A larger model hears more words and is slower. Pick the same one you used before, or leave it as it is.</p></section>
 <section aria-labelledby="h-plan"><h2 id="h-plan">3. Plan, then Build</h2>
 <div class="actions"><button id="plan" type="button" class="button secondary" aria-describedby="why">Plan</button><button id="build" type="button" class="button primary" aria-describedby="why" disabled>Build</button><button id="cancel" type="button" class="button secondary" hidden>Cancel</button></div>
 <p id="why" class="note">Build turns on after a Plan says the files are ready.</p>
@@ -419,6 +578,7 @@ textarea{font-family:ui-monospace,Consolas,monospace;font-size:.9rem}
 .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}.actions{display:flex;gap:12px;flex-wrap:wrap;margin:10px 0}
 video{width:100%;max-height:60vh;background:#000;border-radius:10px}.results h3{margin:1.2em 0 .3em;font-size:1.05rem}.question textarea{min-height:76px}.warn{border:1px solid #d4a017;background:rgba(212,160,23,.12);border-radius:10px;padding:10px 14px;margin:10px 0}.slot.drop-over{outline:3px dashed var(--brand);outline-offset:3px;background:var(--soft)}.drop-note{margin:6px 0}.drop-note ul{list-style:none;padding:0}.sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}.problems{color:var(--bad);padding-left:20px}.ok{color:var(--brand);font-weight:700}.panel{border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin:12px 0;background:var(--paper)}
 .panel dt{font-weight:700}.panel dd{margin:0 0 6px}.log{font-family:ui-monospace,Consolas,monospace;font-size:.85rem;white-space:pre-wrap;background:var(--soft);border-radius:8px;padding:8px 10px;max-height:240px;overflow:auto}
+.logbox{border:1px solid var(--line);border-radius:12px;padding:4px 16px 10px;margin:12px 0;background:var(--paper)}.logbox h2{margin:.6em 0 .2em}.logswitch{display:flex;align-items:center;gap:10px;font-weight:400;min-height:44px}.logswitch input{width:auto;min-height:0;margin:0}
 .paste{margin:14px 0}.paste summary{cursor:pointer;min-height:44px;display:flex;align-items:center;font-weight:700}code{background:var(--soft);padding:1px 5px;border-radius:5px}
 @media(max-width:600px){main{padding:12px}}
 """
@@ -428,6 +588,7 @@ JS = r"""(function () {
   const T = new URLSearchParams(location.search).get('t') || sessionStorage.getItem('maker-token') || '';
   try { sessionStorage.setItem('maker-token', T); } catch (e) { /* the page still works without it */ }
   const $ = id => document.getElementById(id);
+  if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // Ryan's box; Sam never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
     const r = await fetch(path, { method: body ? 'POST' : 'GET', headers: { 'X-Maker-Token': T, 'Content-Type': 'application/json' }, body: body ? JSON.stringify(body) : undefined });
@@ -435,6 +596,13 @@ JS = r"""(function () {
     if (!r.ok) throw new Error(j.error || 'That did not work.');
     return j;
   }
+  const ev = (name, extra) => { api('/api/event', Object.assign({ name }, extra || {})).catch(() => {}); };
+  api('/api/log').then(r => { $('log-path').textContent = r.path; $('log-on').checked = r.on; $('log-state').textContent = r.on ? '' : 'The log is off. Nothing is being written.'; }).catch(() => { $('log-path').textContent = '(unavailable)'; });
+  $('log-on').addEventListener('change', async ev2 => {
+    const box = ev2.currentTarget; box.disabled = true;
+    try { const r = await api('/api/log', { on: box.checked }); box.checked = r.on; $('log-state').textContent = r.on ? 'The log is on.' : 'The log is off. Nothing is being written.'; }
+    catch (e) { $('log-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
+  });
   let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '';
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
@@ -452,7 +620,7 @@ JS = r"""(function () {
           try { const r = await api('/api/pick', { multiple: s.multiple }); if (r.files.length) { binds[s.id] = s.multiple ? (binds[s.id] || []).concat(r.files) : r.files.slice(0, 1); fresh(); drawSlots(); } }
           catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
         } }, files.length ? 'Add or change' : 'Choose a file\u2026'),
-        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; fresh(); drawSlots(); } }, 'Clear') : null));
+        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; fresh(); drawSlots(); ev('slot_cleared'); } }, 'Clear') : null));
       zone.append();
       wireDrop(zone, s, dropNote);
       box.append(zone);
@@ -499,12 +667,13 @@ JS = r"""(function () {
     const r = recipes.find(x => x.file === $('recipe').value);
     current = r && r.ok ? r : null; binds = {}; fresh();
     $('recipe-note').textContent = !r ? '' : !r.ok ? `This recipe is refused: ${r.problem}` : '';
-    $('words').value = current ? current.find : ''; $('words').disabled = !current || !current.has_find;
+    $('words').value = ''; $('words').placeholder = current ? current.find : ''; $('words').disabled = !current || !current.has_find;
     drawSlots();
   }
-  $('recipe').addEventListener('change', drawRecipe);
-  $('model').addEventListener('change', fresh);
+  $('recipe').addEventListener('change', () => { drawRecipe(); ev('recipe_changed', { recipe: $('recipe').value.replace(/\.json$/i, '') }); });
+  $('model').addEventListener('change', () => { fresh(); ev('model_changed', { model: $('model').value }); });
   $('words').addEventListener('input', fresh);
+  $('words').addEventListener('change', () => ev('words_edited', { chars: $('words').value.length }));
   // what the engine is asked: the words go along only when they differ from the recipe file's own
   const reqBody = () => { const w = $('words').value.replace(/\s+/g, ' ').trim(); const b = { recipe: current.file, binds, model: $('model').value }; if (w && w !== current.find) b.phrase = w; return b; };
   $('use-paste').addEventListener('click', async () => {
@@ -518,13 +687,14 @@ JS = r"""(function () {
     } catch (e) { $('paste-note').textContent = e.message; }
   });
   function summary(p) {
-    return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'The files and the recipe pass the door checks.'),
+    return el('div', { class: 'panel' }, el('p', { class: 'ok' }, 'Your files are ready to use.'),
       el('dl', {}, el('dt', {}, 'Film it would write'), el('dd', {}, `${p.film_stamped} (in ${p.out_dir}; the date and time are added so an earlier film is never replaced)`), el('dt', {}, 'Words it will find'), el('dd', {}, p.find), el('dt', {}, 'Files'),
-        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb} MB)`).join('; ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
+        el('dd', {}, p.slots.map(s => el('div', {}, `${s.label}: `, s.files.map(f => `${f.name} (${f.mb < 1 ? 'under 1 MB' : f.mb + ' MB'})`).join('; ')))), el('dt', {}, 'Speech model'), el('dd', {}, p.model), el('dt', {}, 'How long the listening takes'), el('dd', {}, p.listen_words),
         el('dt', {}, 'Network'), el('dd', {}, p.network), el('dt', {}, 'Room on the work drive'), el('dd', {}, `${p.free_gb} GB free`)));
   }
   $('plan').addEventListener('click', async ev => {
     if (!current) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Choose a recipe first.')); return; }
+    if (current.has_find && !$('words').value.replace(/\s+/g, ' ').trim()) { $('plan-out').replaceChildren(el('p', { class: 'problems', role: 'alert' }, 'Type a short phrase one of your videos really says.')); return; }
     const btn = ev.currentTarget; btn.disabled = true;
     try {
       const body = reqBody();
@@ -601,7 +771,7 @@ JS = r"""(function () {
       if (a.gaps.length) parts.push(el('p', { class: 'problems', role: 'alert' }, `Not said anywhere in the files you chose: ${a.gaps.join(', ')}.`));
     }
     if (j.state === 'built' && j.receipt && j.receipt.seconds < 5 && current) parts.push(el('p', { class: 'note', id: 'short-film' }, `The film looks for the words \u201c${builtWords || current.find}\u201d and uses them once, so it is short (${j.receipt.seconds.toFixed(1)} s). For a longer film, type a longer sentence in the box above (or put it in the recipe).`));
-    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s, network attempts: ${j.receipt.network_attempts}. A receipt is beside it.`) : null);
+    if (j.state === 'built') parts.push(el('p', {}, `Your film: ${j.path}`), j.receipt ? el('p', { class: 'note' }, `${j.receipt.clips.length} clip(s), ${j.receipt.seconds.toFixed(1)} s. Nothing went online (${j.receipt.network_attempts} connections). A list of where each word came from is saved beside the film.`) : null);
     if (j.next && !running) parts.push(el('p', {}, el('strong', {}, 'Next: '), j.next));
     if (j.state === 'stopped' || j.state === 'gaps') parts.push(el('p', { class: 'note' }, `Exit code ${j.code}.`));
     if (j.lines && j.lines.length && (running || j.state === 'stopped')) parts.push(el('div', { class: 'log', 'aria-label': 'What it printed' }, j.lines.join('\n')));
@@ -682,7 +852,12 @@ class Handler(BaseHTTPRequestHandler):
         path = urlparse(self.path).path
         if path == "/":
             if self._auth(query_ok=True):
+                act("page_opened")
                 self._send(200, PAGE.encode("utf-8"), "text/html; charset=utf-8")
+        elif path == "/api/log":
+            if self._auth():
+                a = STATE["activity"]
+                self._json(200, {"on": a.enabled, "path": str(a.path)})
         elif path == "/maker.js":
             self._send(200, JS.encode("utf-8"), "text/javascript; charset=utf-8") if self._host_ok() else self._json(403, {"error": "no"})
         elif path == "/maker.css":
@@ -765,12 +940,14 @@ class Handler(BaseHTTPRequestHandler):
             if path == "/api/check":
                 pc = precheck(body)
                 pc.pop("args", None)
+                act("check", ok=bool(pc["ok"]), problems=problem_kinds(pc["problems"]), files=int(pc["bind_count"]))
                 self._json(200, pc)
             elif path == "/api/plan":
                 self._json(200, start_job("plan", body))
             elif path == "/api/build":
                 self._json(200, start_job("build", body))
             elif path == "/api/cancel":
+                act("cancel_pressed")
                 self._json(200, cancel_job())
             elif path == "/api/sound":
                 self._json(200, start_soundcheck(body))
@@ -779,23 +956,49 @@ class Handler(BaseHTTPRequestHandler):
                 if not f:
                     raise Problem("Build a film first.")
                 open_in_folder(f)
+                act("folder_opened")
                 self._json(200, {"folder": str(f.parent)})
             elif path == "/api/answers":
-                self._json(200, {"path": save_answers(body.get("answers"))})
+                saved = save_answers(body.get("answers"))
+                given = [str(i) for i, x in enumerate(body.get("answers") or [], 1) if i <= 30 and str(x).strip()]
+                act("answers_saved", answered=" ".join(given), count=len(given))
+                self._json(200, {"path": saved})
             elif path == "/api/pick":
                 got = pick_files(bool(body.get("multiple")))
                 remember_dirs(got)
+                act("files_picked", multiple=bool(body.get("multiple")), count=len(got))
                 self._json(200, {"files": got})
             elif path == "/api/locate":
-                self._json(200, locate(body.get("name"), body.get("size"), body.get("mtime_ms")))
+                found = locate(body.get("name"), body.get("size"), body.get("mtime_ms"))
+                act("file_dropped", result="many" if len(found["matches"]) > 1 else "found" if found["matches"] else "none", timed_out=bool(found["timed_out"]))
+                self._json(200, found)
             elif path == "/api/paste":
                 binds, bad = parse_pasted(body.get("text"))
+                act("paste_used", lines=sum(len(v) for v in binds.values()), not_used=len(bad))
                 self._json(200, {"binds": binds, "bad": bad})
+            elif path == "/api/log":
+                STATE["activity"].set_enabled(bool(body.get("on")))
+                self._json(200, {"on": STATE["activity"].enabled, "path": str(STATE["activity"].path)})
+            elif path == "/api/event":
+                name = CLIENT_EVENTS.get(str(body.get("name")))
+                if not name:
+                    raise Problem("Bad request.")
+                extra = {}
+                if name == "ui_recipe_changed":
+                    extra["recipe"] = recipe_stem({"recipe": str(body.get("recipe", "")) + ".json"})
+                elif name == "ui_model_changed":
+                    extra["model"] = body.get("model")
+                elif name == "ui_words_edited":
+                    extra["chars"] = min(200, max(0, int(body.get("chars") or 0)))
+                act(name, **extra)
+                self._json(200, {"ok": True})
             else:
                 self._json(404, {"error": "Not found."})
         except Problem as e:
+            act("problem_shown", endpoint=urlparse(self.path).path.rpartition("/")[2])
             self._json(400, {"error": str(e)})
         except Exception as e:  # noqa: BLE001
+            act("error_shown", endpoint=urlparse(self.path).path.rpartition("/")[2], exception=type(e).__name__)
             self._json(500, {"error": f"Unexpected: {type(e).__name__}: {str(e)[:200]}"})
 
 
@@ -926,6 +1129,8 @@ def wait_words(total_s, model: str) -> str:
         return f"{length} of video to listen to. How long that takes has not been measured for the {model} model; the base model takes about {LISTEN_START_SECONDS['base']} seconds to start and then about {LISTEN_SECONDS_PER_MINUTE['base']} seconds for each minute of video."
     secs = listen_expect_s(total_s, model)
     wait = "under a minute" if secs < 60 else f"about {round(secs / 60)} minute{'' if round(secs / 60) == 1 else 's'}"
+    if total_s < 300:
+        wait += ", often much less"
     return f"{length} of video to listen to: expect {wait} (about {LISTEN_START_SECONDS[model]} seconds to start, then about {per} seconds for each minute of video with the {model} model, measured on one computer; less if you have planned these files before)."
 
 
@@ -1002,6 +1207,7 @@ def start_soundcheck(body: dict) -> dict:
                     paths.append(b.path)
         job = {"state": "running", "warnings": [], "checked": 0, "of": len(paths)}
         STATE["sound"] = job
+    act("sound_started", files=len(paths))
     threading.Thread(target=_soundcheck, args=(job, fn, paths), daemon=True).start()
     return job
 
@@ -1019,13 +1225,14 @@ def _soundcheck(job, fn, paths):
             job["warnings"].append(f"{path.name} has about {ms / 1000:.1f} s of silence where its sound has gaps or starts late (the file is damaged or oddly made); its words are timed correctly, but nothing said in a gap can be found.")
         job["checked"] += 1
     job["state"] = "done"
+    act("sound_done", checked=job["checked"], warnings=len(job["warnings"]))
 
 
 class LocalServer(ThreadingHTTPServer):
     allow_reuse_address = False         # on Windows SO_REUSEADDR lets a second server share a port that is already in use; here a busy port must be an error so the next free one is taken
 
 
-def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None):
+def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None, activity: bool = True):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["questions"] = load_questions(questions)
     STATE["search_roots"] = [Path(x) for x in search] if search else _default_search_roots()
@@ -1035,8 +1242,11 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
     STATE["gap_fn"] = _gap_fn()
     STATE["sound"] = None
     STATE["last_film"] = None
+    STATE["attempts"] = {"plan": 0, "build": 0}
+    STATE["activity"] = ActivityLog(STATE["out"], enabled=activity and not (STATE["out"] / ACTIVITY_OFF_NAME).exists())
     srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
+    act("session_start", maker=MAKER_REVISION, python=f"{sys.version_info.major}.{sys.version_info.minor}", os=platform.system())
     return srv
 
 
@@ -1048,12 +1258,12 @@ def find_engine() -> Path | None:
     return None
 
 
-def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None):
+def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None, activity: bool = True):
     """Start on the asked port, or the next free one (up to 10 more), so a second start does not fail with an error screen."""
     last = None
     for port in range(first, first + 11) if first else (0,):
         try:
-            return make_server(engine, recipes, work, out, port, questions=questions, search=search)
+            return make_server(engine, recipes, work, out, port, questions=questions, search=search, activity=activity)
         except OSError as e:
             last = e
     raise SystemExit(f"Could not open a local port ({last}). Close any other Desktop maker window and try again.")
@@ -1068,6 +1278,7 @@ def main(argv=None) -> int:
     ap.add_argument("--port", type=int, default=8765, help="0 picks any free port")
     ap.add_argument("--search", action="append", default=[], help="a folder to look in for a file you drop onto a slot (repeat for more; default: Videos, Downloads, Desktop and Documents)")
     ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
+    ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     a = ap.parse_args(argv)
     engine = Path(a.engine) if a.engine else find_engine()
@@ -1077,7 +1288,7 @@ def main(argv=None) -> int:
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
     try:
-        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None)
+        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log)
     except ModuleNotFoundError as e:
         raise SystemExit(f"A part of Python that the maker needs is missing ({e.name}). Most likely the speech add-on is not installed. "
                          + ADDON_STEP)
@@ -1096,7 +1307,7 @@ def main(argv=None) -> int:
     try:
         srv.serve_forever()
     except KeyboardInterrupt:
-        pass
+        act("session_end")
     return 0
 
 
