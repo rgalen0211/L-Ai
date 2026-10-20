@@ -714,6 +714,7 @@
         helpSection = acct.helpSection();
       }
       if (connectOn()) sections.push(await connectUi().connectedSection());
+      if (desktopOn()) { const windows = await deviceUi().windowsAppSection(); if (windows) sections.push(windows); }                // the Windows download card: testers only
       if (desktopOn()) { const computers = await deviceUi().computersSection(); if (computers) sections.push(computers); }          // null for an account that is not a tester and has no computer
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 

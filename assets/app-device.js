@@ -53,6 +53,11 @@
     return { state: 'ok', text: `This code ends at ${at}.` };
   }
 
+  // The release is ready only when it carries an https address, a file name and a 64-hex SHA-256 (Ryan fills assets/windows-release.js when he hosts the file).
+  function windowsReady(rel) {
+    return !!rel && typeof rel.url === 'string' && /^https:\/\/[^\s]+$/.test(rel.url) && typeof rel.fileName === 'string' && /^[A-Za-z0-9._ -]{1,80}$/.test(rel.fileName) && typeof rel.sha256 === 'string' && /^[0-9a-f]{64}$/.test(rel.sha256);
+  }
+
   // The admin form's own pre-check (the server checks again; WORKER's draft needs 3 to 300 characters of reason). A courtesy, never the gate.
   const REASON_MIN = 3, REASON_MAX = 300;
   function checkTesterForm(email, reason) {
@@ -179,6 +184,33 @@
         h('p', { class: 'form-note' }, 'Computers where you use the Ryagram app. Removing one signs it out at once.'), list, error);
     }
 
+    // ---- "Ryagram for Windows": the download card, for tester accounts only (NEXT-WEB 118; Ryan 17:12 and 17:18: download, double-click, done).
+    // Everything the card says about the file comes from window.ryagramWindowsApp (assets/windows-release.js): until Ryan hosts the file the button is OFF and says so. The page makes no network call:
+    // the button is a plain link the person follows. The personal-use notice has a slot (hidden until the lawyer's wording is put in; no session writes it).
+    async function windowsAppSection() {
+      const tester = data.myLocalCompute ? await data.myLocalCompute() : false;
+      if (!tester) return null;                                                               // only an account with the tester flag sees the card
+      const rel = (typeof window !== 'undefined' && window.ryagramWindowsApp) || {};
+      const ready = windowsReady(rel);
+      const name = ready ? rel.fileName : 'the file';
+      return h('section', { class: 'account-section windows-card', 'aria-labelledby': 'acct-windows' }, h('h2', { id: 'acct-windows' }, 'Ryagram for Windows'),
+        h('p', { class: 'form-note' }, 'The Ryagram app for your Windows computer. Your films are made on it.'),
+        h('dl', { class: 'windows-facts' },
+          h('dt', {}, 'File'), h('dd', {}, ready ? h('code', {}, rel.fileName) : 'shown here when the file is ready'),
+          h('dt', {}, 'Size'), h('dd', {}, ready && rel.sizeMb ? `about ${rel.sizeMb} MB. The listening model is downloaded separately, the first time you run it.` : 'shown here when the file is ready'),
+          h('dt', {}, 'SHA-256'), h('dd', {}, ready ? h('code', { class: 'windows-sha' }, rel.sha256) : 'shown here when the file is ready')),
+        ready
+          ? h('a', { class: 'button primary', href: rel.url, rel: 'noopener', download: rel.fileName }, 'Download Ryagram for Windows')
+          : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'Ryan will put the file here when it is ready.')),
+        h('ol', { class: 'windows-steps' },
+          h('li', {}, h('strong', {}, 'Download '), `${name} and unzip it into a folder on a drive with plenty of room (right-click, Extract all).`),
+          h('li', {}, h('strong', {}, 'Open it. '), 'Open the folder and double-click ', h('strong', {}, 'Open Ryagram'), '. The first time, Windows may say "Windows protected your PC": press More info, then Run anyway, ',
+            h('strong', {}, 'but only if the file name is exactly '), ready ? h('code', {}, rel.fileName) : 'the one shown above', ' and the SHA-256 matches. If anyone else ever asks you to press Run anyway, say no.'),
+          h('li', {}, h('strong', {}, 'First run. '), 'Press ', h('strong', {}, 'Download the listening model'), ' (Balanced is already chosen for you, about 464 MB), then press ', h('strong', {}, 'Sign in to Ryagram'), ' and approve the code on this website.')),
+        h('p', { class: 'form-note' }, 'To check the SHA-256, open PowerShell and run: ', h('code', {}, 'Get-FileHash <the file> -Algorithm SHA256')),
+        h('p', { class: 'form-note windows-notice', hidden: !(rel.personalUseNotice), 'data-slot': 'personal-use-notice' }, rel.personalUseNotice ? String(rel.personalUseNotice).slice(0, 1200) : ''));
+    }
+
     // ---- admin: who is a tester (an admin-only page; the server is the gate, every change is written to an audit row)
     async function testerAdminView() {
       const back = h('a', { href: '#/', class: 'back' }, '← All projects');
@@ -222,8 +254,8 @@
         h('h2', {}, 'History'), history];
     }
 
-    return { deviceView, computersSection, testerAdminView };
+    return { deviceView, computersSection, windowsAppSection, testerAdminView };
   }
 
-  window.ryagramDevice = { seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { windowsReady, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();
