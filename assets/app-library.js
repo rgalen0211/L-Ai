@@ -61,6 +61,9 @@
   const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
   // Connecting an AI (the consent page and Connected AIs) shows once CONNECT's SQL and function are live (connectAi: true), or in mock mode.
   const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
+  // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
+  // so signing in as another account cannot inherit the last answer.
+  const connectAllowed = async data => connectOn() && (await data.connectAccess()) === true;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const funnelOn = () => window.ryagramConfig?.funnelTracking === true || !!window.ryagramMock;
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
@@ -87,7 +90,7 @@
         else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
         else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
         else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
-        else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
+        else if (connectOn() && window.ryagramConnect.requestFromHash(hash) && await connectAllowed(data)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
@@ -707,7 +710,7 @@
         sections.push(acct.exportSection(email));
         helpSection = acct.helpSection();
       }
-      if (connectOn()) sections.push(await connectUi().connectedSection());
+      if (await connectAllowed(data)) sections.push(await connectUi().connectedSection());
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.

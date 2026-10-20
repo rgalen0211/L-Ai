@@ -473,6 +473,12 @@
       // Connecting an AI (CONNECT's SQL 20261018000100): the consent page's three calls and the account page's list. App sessions only; the page never sees a token or a code.
       connectConsentCheck(request) { return run(client.rpc('connect_consent_check', { p_request: request }), 'Couldn\u2019t check that connection request.'); },
       connectConsentDecide(request, approve, scopes) { return run(client.rpc('connect_consent_decide', { p_request: request, p_approve: approve === true, p_scopes: scopes || [] }), 'Couldn\u2019t record your answer.'); },
+      // Can this account use AI connections at all? CONNECT's connect_consent_check returns `invited` (connect_person_ok: invited, enabled, not an admin, not a worker) in EVERY answer, even for a request
+      // that does not exist, so the site asks it about the nil request and reads that one field. No new SQL. It FAILS CLOSED: any error or a missing field means "not invited", and the
+      // page then shows nothing. The server stays the real gate (connect_consent_check and decide refuse a non-invited account whatever the page does).
+      async connectAccess() {
+        try { const r = await run(client.rpc('connect_consent_check', { p_request: '00000000-0000-0000-0000-000000000000' }), 'Couldn’t check AI access.'); return !!r && r.invited === true; } catch { return false; }
+      },
       myConnectedAis() { return run(client.rpc('my_connected_ais'), 'Couldn\u2019t load your connected AIs.'); },
       disconnectAi(clientId) { return run(client.rpc('disconnect_ai', { p_client_id: clientId }), 'Couldn\u2019t disconnect that AI.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
