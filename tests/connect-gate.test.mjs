@@ -42,7 +42,7 @@ test('MUST-FAIL: a not-invited account cannot use the consent page by URL: the s
   assert.equal(c.invited, false);
   await assert.rejects(data.connectConsentDecide(GOOD, true, ['read']), /not enabled for AI assistants|invite/);   // and deciding is refused too
   const lib = read('assets/app-library.js');
-  assert.match(lib, /else if \(connectOn\(\) && window\.ryagramConnect\.requestFromHash\(hash\) && await connectAllowed\(data\)\) view = await connectUi\(\)\.consentView/);
+  assert.match(lib, /else if \(connectOn\(\) && window\.ryagramConnect\.requestFromHash\(hash\)\) view = \(await connectAllowed\(data\)\) \? await connectUi\(\)\.consentView\(window\.ryagramConnect\.requestFromHash\(hash\)\) : connectUi\(\)\.inviteOnlyView\(\)/);
 });
 
 test('WIRING: the section and the route both go through connectAllowed, which needs the flag AND a yes; nothing is cached; the flag stays off', () => {
@@ -53,4 +53,13 @@ test('WIRING: the section and the route both go through connectAllowed, which ne
   assert.equal([...lib.matchAll(/connectUi\(\)\.consentView\(/g)].length, 1);
   assert.doesNotMatch(lib, /connectAccessAnswer|connectAccessCache/);                   // never cached across accounts
   assert.match(read('assets/ryagram-config.js'), /connectAi: false,/);
+});
+
+test('PLAIN LINE (CC1 LOW-2): a not-invited account that follows a consent link sees "Connecting an AI is by invitation for now." under a Connect an AI heading, not a blank page', () => {
+  const src = read('assets/app-connect.js');
+  assert.match(src, /const INVITE_ONLY = 'Connecting an AI is by invitation for now\.';/);
+  const view = src.slice(src.indexOf('function inviteOnlyView'), src.indexOf('return { consentView, connectedSection, inviteOnlyView }'));
+  assert.match(view, /h\('h1', \{ tabindex: '-1' \}, 'Connect an AI'\)/);
+  assert.match(view, /role: 'status' \}, INVITE_ONLY\)/);
+  assert.doesNotMatch(view, /data\./, 'it asks the server nothing and offers no button');
 });

@@ -99,7 +99,7 @@ test('NO TOKEN, NO HTML: the page never reads, stores or shows a token, code or 
 test('WIRING AND FLAG: the route and the account section exist only behind connectAi (off), scripts load in order, and Disconnect confirms and then re-lists', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /const connectOn = \(\) => window\.ryagramConfig\?\.connectAi === true \|\| !!window\.ryagramMock;/);
-  assert.match(lib, /connectOn\(\) && window\.ryagramConnect\.requestFromHash\(hash\) && await connectAllowed\(data\)\) view = await connectUi\(\)\.consentView\(window\.ryagramConnect\.requestFromHash\(hash\)\)/);
+  assert.match(lib, /connectOn\(\) && window\.ryagramConnect\.requestFromHash\(hash\)\) view = \(await connectAllowed\(data\)\) \? await connectUi\(\)\.consentView\(window\.ryagramConnect\.requestFromHash\(hash\)\) : connectUi\(\)\.inviteOnlyView\(\)/);
   assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\)\);/);
   assert.match(read('assets/ryagram-config.js'), /connectAi: false,/);
   const html = read('app/index.html');
