@@ -51,19 +51,19 @@ test('EXPIRY: the page says when the code ends, warns at 2 minutes, and gives th
 test('DATA: check, decide (once), list and remove go through the four draft functions with exactly these arguments', async () => {
   const client = createFakeClient();
   const data = win.ryagramData(client);
-  const c = await data.deviceRequestCheck('ABCD2345');
+  const c = await data.deviceRequestCheck('ABCD-2345');
   assert.equal(c.state, 'pending');
   assert.equal(c.computer_name, 'DESKTOP-SAM-PC');
   assert.ok(c.requested_at && c.expires_at, 'the facts the rev2 draft SQL returns');
-  assert.equal((await data.deviceRequestCheck('ABCDEFGH')).state, 'expired');                              // the server answers with a state, it does not raise
-  assert.equal((await data.deviceRequestCheck('ZZZZ2222')).state, 'unknown');
+  assert.equal((await data.deviceRequestCheck('ABCD-EFGH')).state, 'expired');                              // the server answers with a state, it does not raise
+  assert.equal((await data.deviceRequestCheck('ZZZZ-2222')).state, 'unknown');
   assert.deepEqual(plain(await data.myComputers()), []);
-  const r = await data.deviceDecide('ABCD2345', true);
+  const r = await data.deviceDecide('ABCD-2345', true);
   assert.equal(r.approved, true);
   assert.equal(r.token_days, 30);
-  await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);                         // MUST-FAIL: a used code is refused
-  await assert.rejects(data.deviceDecide('ABCD2345', false), /not valid any more/);
-  assert.equal((await data.deviceRequestCheck('ABCD2345')).state, 'used');                                 // and looking at a used code says so, with no facts
+  await assert.rejects(data.deviceDecide('ABCD-2345', true), /not valid any more/);                         // MUST-FAIL: a used code is refused
+  await assert.rejects(data.deviceDecide('ABCD-2345', false), /not valid any more/);
+  assert.equal((await data.deviceRequestCheck('ABCD-2345')).state, 'used');                                 // and looking at a used code says so, with no facts
   const list = plain(await data.myComputers());
   assert.equal(list.length, 1);
   assert.equal(list[0].computer_name, 'DESKTOP-SAM-PC');
@@ -74,16 +74,16 @@ test('DATA: check, decide (once), list and remove go through the four draft func
 test('MUST-FAIL: Approve without a signed-in session is refused, and so is a check; nothing is recorded', async () => {
   const client = createFakeClient({}, SIGNED_OUT);
   const data = win.ryagramData(client);
-  await assert.rejects(data.deviceDecide('ABCD2345', true), /Sign in first/);
-  await assert.rejects(data.deviceRequestCheck('ABCD2345'), /Sign in first/);
+  await assert.rejects(data.deviceDecide('ABCD-2345', true), /Sign in first/);
+  await assert.rejects(data.deviceRequestCheck('ABCD-2345'), /Sign in first/);
   assert.deepEqual(plain(await data.myComputers()), []);
 });
 
 test('MUST-FAIL: a denied code approves nothing and cannot be approved afterwards', async () => {
   const data = win.ryagramData(createFakeClient());
-  await data.deviceDecide('ABCD2345', false);
+  await data.deviceDecide('ABCD-2345', false);
   assert.deepEqual(plain(await data.myComputers()), []);
-  await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);
+  await assert.rejects(data.deviceDecide('ABCD-2345', true), /not valid any more/);
 });
 
 test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, the computer\'s own name as untrusted text, when it was asked for and where, has Approve and Deny, and decides only inside a button handler', () => {
@@ -144,4 +144,14 @@ test('REV2 STATES (WORKER 191fc78): a code that is not pending says why in words
   assert.match(src, /c\.computer_name \|\| c\.device_name/);
   assert.match(src, /c\.rough_location \|\| c\.approx_place/);
   assert.match(src, /r\.computer_name \|\| r\.device_name \|\| r\.name/);
+});
+
+test('HYPHEN (found by the local E2E run): the page sends the code as XXXX-XXXX, the form the server stores; the unhyphenated form is not found', async () => {
+  const src = read('assets/app-device.js');
+  assert.match(src, /data\.deviceRequestCheck\(showCode\(code\)\)/);
+  assert.match(src, /data\.deviceDecide\(showCode\(code\), yes\)/);
+  const data = win.ryagramData(createFakeClient());
+  assert.equal((await data.deviceRequestCheck('ABCD2345')).state, 'unknown', 'the unhyphenated form is not what the server stores');
+  assert.equal((await data.deviceRequestCheck(D.showCode('ABCD2345'))).state, 'pending');
+  await assert.rejects(data.deviceDecide('ABCD2345', true), /not valid any more/);
 });

@@ -62,7 +62,8 @@
 
       async function show(code) {
         let c;
-        try { c = await data.deviceRequestCheck(code); } catch (err) { out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, err.message)); return; }
+        // the server stores the code as XXXX-XXXX, so that is the form we send (found by the local end-to-end run)
+        try { c = await data.deviceRequestCheck(showCode(code)); } catch (err) { out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, err.message)); return; }
         const named = c && (c.computer_name || c.device_name);
         if (!c || (c.state && c.state !== 'pending') || !named) {                                 // only a pending code shows facts; the others say why in words
           out.replaceChildren(h('p', { class: 'app-error', role: 'alert' }, (c && STATE_WORDS[c.state]) || 'That code can’t be used.'), h('p', { class: 'form-note' }, 'Nothing was approved. You can close this page.'));
@@ -77,7 +78,7 @@
           error.hidden = true;
           await busy(button, yes ? 'Approving…' : 'Denying…', async () => {
             try {
-              const r = await data.deviceDecide(code, yes);
+              const r = await data.deviceDecide(showCode(code), yes);
               approve.disabled = deny.disabled = true;
               formBox.hidden = true;                                                                  // the answer is given: no form left that looks unfinished
               out.replaceChildren(yes

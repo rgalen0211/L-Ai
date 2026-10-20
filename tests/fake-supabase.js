@@ -506,17 +506,17 @@
       // (a removed computer is no longer listed); remove_computer(p_token) revokes it.
       device_request_check({ p_user_code }) {
         if (!session) return fail('Sign in first.');
-        if (p_user_code === 'ABCD2345') {
+        if (p_user_code === 'ABCD-2345') {
           if ((db.deviceDecisions || []).includes(p_user_code)) return { data: { state: 'used' }, error: null };
           return { data: { state: 'pending', computer_name: 'DESKTOP-SAM-PC', requested_at: new Date(Date.now() - 60000).toISOString(), rough_location: null, expires_at: new Date(Date.now() + 540000).toISOString() }, error: null };
         }
-        if (p_user_code === 'ABCDEFGH') return { data: { state: 'expired' }, error: null };
+        if (p_user_code === 'ABCD-EFGH') return { data: { state: 'expired' }, error: null };
         return { data: { state: 'unknown' }, error: null };
       },
       device_decide({ p_user_code, p_approve }) {
         if (!session) return fail('Sign in first.');
         db.deviceDecisions = db.deviceDecisions || [];
-        if (p_user_code !== 'ABCD2345' || db.deviceDecisions.includes(p_user_code)) return fail('That code is not valid any more. Start again on your computer.');
+        if (p_user_code !== 'ABCD-2345' || db.deviceDecisions.includes(p_user_code)) return fail('That code is not valid any more. Start again on your computer.');
         db.deviceDecisions.push(p_user_code);
         if (p_approve) {
           db.computers = db.computers || [];
