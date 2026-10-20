@@ -255,6 +255,18 @@ ok, msg = refused(w, "must never travel")
 check(ok, "MUST-FAIL: a .git folder in the kit")
 
 # ================================================================================================== D
+print("\nC2. conditions on libraries are read, not guessed")
+try:
+    md.distribution("faster-whisper")
+    have_fw = True
+except md.PackageNotFoundError:
+    have_fw = False
+if have_fw:
+    cl = mab.requirement_closure(["faster-whisper"])
+    check("faster-whisper" in cl and "ctranslate2" in cl and "exceptiongroup" not in cl and "tomli" not in cl, f"faster-whisper's closure follows its conditions ({len(cl)} libraries, none that only an older Python needs)")
+else:
+    print("  SKIPPED: faster-whisper is not installed here")
+
 print("\nD. no network of its own")
 for f in ("make_app_bundle.py", "verify_bundle.py"):
     src = (HERE / f).read_text(encoding="utf-8")
