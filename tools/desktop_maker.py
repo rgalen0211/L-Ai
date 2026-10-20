@@ -730,15 +730,17 @@ JS = r"""(function () {
       return;
     }
     if (st.state === 'signed_in') {
-      body.replaceChildren(el('p', { id: 'signin-who' }, `Signed in as ${st.email || '(your account)'}. This computer is called \u201c${st.computer_name}\u201d. Approved until ${st.approved_until || '(unknown)'}.`),
-        el('p', { class: 'note' }, st.last_checked ? `Last checked on ${st.last_checked}.` : 'Not checked yet.'),
+      const fmtDate = s => { const d = new Date(s + 'T12:00:00'); return isNaN(d.getTime()) ? s : d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }); };
+      const ago = n => n <= 0 ? 'today' : n === 1 ? 'yesterday' : `${n} days ago`;
+      body.replaceChildren(...[el('p', { id: 'signin-who' }, `Signed in as ${st.email || '(your account)'}. This computer is called \u201c${st.computer_name}\u201d. Approved until ${st.approved_until ? fmtDate(st.approved_until) : '(unknown)'}.`),
+        el('p', { class: 'note', id: 'signin-checked' }, st.days_since_check != null ? `Last checked ${ago(st.days_since_check)}. Site features on this computer pause after 7 days without a check; your own clip films never do.` : 'Not checked yet.'),
         st.note ? el('p', { class: st.paused ? 'warn' : 'note', role: 'status', id: 'signin-note' }, st.note) : null,
         el('div', { class: 'row' }, el('button', { type: 'button', id: 'signin-check', class: 'button secondary', onclick: ev => siCall('check', ev.currentTarget) }, 'Check my account'),
           el('button', { type: 'button', id: 'signin-remove', class: 'button secondary', onclick: ev => siCall('remove', ev.currentTarget) }, 'Remove from this computer')),
-        el('p', { class: 'note' }, 'The sign-in is kept in the Windows Credential Manager on this computer, not in any file. Any program running as you can read it, as it can read a browser cookie.'));
+        el('p', { class: 'note', id: 'signin-kept' }, 'Your sign-in is kept on this computer in Windows, under your account, not in a file. Programs you run can read it, the same as a browser\u2019s saved sign-ins. You can remove it any time.')].filter(Boolean));
       return;
     }
-    body.replaceChildren(el('p', {}, 'Sign in to link this computer to your Ryagram account. You do not type a password here: the website shows you a short code to check, and you approve this computer there.'),
+    body.replaceChildren(el('p', {}, 'Sign in to link this computer to your Ryagram account. That is how the website can send your site films to be made on this computer, if your account allows it. Your own videos never leave this computer. You do not type a password here: the website shows you a short code to check, and you approve this computer there.'),
       el('button', { type: 'button', id: 'signin-start', class: 'button primary', onclick: ev => siCall('start', ev.currentTarget) }, 'Sign in to Ryagram'));
   }
   api('/api/signin').then(drawSignin).catch(() => {});

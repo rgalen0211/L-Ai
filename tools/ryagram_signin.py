@@ -176,7 +176,7 @@ class UrlTransport:
         except urllib.error.HTTPError as e:
             status, raw = e.code, e.read(MAX_REPLY + 1)
         except (urllib.error.URLError, TimeoutError, OSError):
-            raise SignInError("I could not reach the Ryagram site. Check this computer's internet connection and try again.", "offline") from None
+            raise SignInError("I could not reach the Ryagram site. Check this computer's internet connection and try again. You can still make films from your own videos.", "offline") from None
         if len(raw) > MAX_REPLY:
             raise SignInError("The site sent a reply that is too large, so I ignored it.", "bad_reply")
         try:
@@ -261,7 +261,7 @@ class SignIn:
             last_ok = float(c.get("last_ok") or 0)
             g = self.gate()
             out.update(state="signed_in", email=c.get("email", ""), computer_name=c.get("computer_name", self.computer), approved_until=c.get("approved_until"),
-                       last_checked=_iso(last_ok) if last_ok else "", grace_days_left=max(0, int((last_ok + GRACE_SECONDS - now) // 86400)) if last_ok else 0,
+                       last_checked=_iso(last_ok) if last_ok else "", days_since_check=max(0, int((now - last_ok) // 86400)) if last_ok else None, grace_days_left=max(0, int((last_ok + GRACE_SECONDS - now) // 86400)) if last_ok else 0,
                        clip_films=g["clip_films"], node_allowed=g["node"], paused=g["paused"], note=g["note"])
             return out
 
