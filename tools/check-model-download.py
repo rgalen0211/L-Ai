@@ -188,6 +188,12 @@ def main():
             check(got == ok, f"{'MUST-FAIL: ' if not ok else ''}the real settings {'accept' if ok else 'refuse'} {url}")
         check(md.HOST == "huggingface.co" and md.REDIRECT_DOMAINS == ("huggingface.co", "hf.co"), "the written-in host and its content domains are exactly huggingface.co and hf.co")
 
+        # a server that cannot be reached says plainly that a proxy is not used
+        root = fresh(tmp, "b4")
+        dead = md.Net(scheme="http", host="127.0.0.1", port=1, domains=())
+        msg = refused("fake", root, "unreachable", net=dead)
+        check(msg is not None and "proxy" in msg and "does not use a proxy" in msg and left_over(root) == [], f"MUST-FAIL: an unreachable server is refused with a sentence that names the proxy case, and keeps nothing ({(msg or '')[:90]!r})")
+
         # unknown model, unsafe name, no room
         root = fresh(tmp, "c")
         check(refused("whisper-large", root, "unknown") is not None and left_over(root) == [], "MUST-FAIL: a model that has no pin is refused")
