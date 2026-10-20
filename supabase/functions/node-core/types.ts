@@ -27,15 +27,11 @@ export interface NodeDb {
   heartbeat(accessHash: string, jobId: string, progress: number | null, note: string | null, detail: unknown | null): Promise<boolean>;
   reportState(accessHash: string, jobId: string, state: string, errorCode: string | null, errorDetail: string | null, engineCommit: string | null, engineDirty: boolean | null): Promise<NodeJob>;
   retry(accessHash: string, jobId: string, errorCode: string, errorDetail: string | null): Promise<string>;
-  /** REQUESTED from WORKER: node_job_artifacts(access_hash, job_id), the files registered for a job THIS computer holds: [{path, bytes, sha256}]. Used to compare sizes before 'complete'. */
-  artifacts(accessHash: string, jobId: string): Promise<{ path: string; bytes: number; sha256?: string }[]>;
   /** register_artifact through node_register_artifact: validates the job state, kind and size; RETURNS the storage path, which the database derives from the job. */
   registerArtifact(accessHash: string, jobId: string, kind: string, bytes: number, sha256: string, durationS: number | null, width: number | null, height: number | null): Promise<string>;
 }
 
 export interface NodeStorage {
-  /** The size in bytes of the stored object at this path, or null if there is none. The declared size of an upload is a claim; this is the proof. */
-  size(path: string): Promise<number | null>;
   /** A signed upload URL for exactly this one path. The path comes from the database, never from the request. */
   signUpload(path: string): Promise<string>;
 }
