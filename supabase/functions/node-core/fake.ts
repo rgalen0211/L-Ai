@@ -1,8 +1,9 @@
 // An in-memory stand-in for WORKER's r9_node_draft.sql (never applied), with the same rules, so the HTTP face can be proven end to end without a database.
 // The SQL is the authority and has its own tests (supabase/tests/test_r9_node.py); the places where this goes beyond that draft are marked REQUESTED
-// (deviceState, account, signout) and are also listed in docs/node-function-contract.md for WORKER.
-import type { DeviceState, NodeAccount, NodeDb, NodeJob } from "./types.ts";
+// (node_hit) and are also listed in docs/node-function-contract.md for WORKER. Aligned with r9-node-draft rev3 (3ce2c65).
+import type { ExchangeResult, NodeAccount, NodeDb, NodeJob } from "./types.ts";
 
+const mask = (e: string) => e.split("@")[0].slice(0, 1) + "***@" + e.split("@")[1];
 const err = (code: string, m: string) => Object.assign(new Error(m), { code });
 const FILES: Record<string, { name: string; max: number }> = {
   contact_sheet: { name: "sheet.png", max: 20_000_000 }, preview: { name: "preview.mp4", max: 60_000_000 }, final_video: { name: "film.mp4", max: 500_000_000 },
@@ -14,8 +15,8 @@ const ALLOWED: Record<string, string[]> = {
   final_render: ["final_video", "thumbnail", "receipt", "receipt_text", "metering"],
 };
 
-interface Device { userCode: string; name: string; owner?: string; approved: boolean; denied: boolean; used: boolean; expires: number }
-interface Token { owner: string; name: string; expires: number; revoked: boolean }
+interface Device { userCode: string; name: string; owner?: string; approved: boolean; denied: boolean; used: boolean; expires: number; interval: number; nextPoll: number }
+interface Token { id: string; owner: string; name: string; expires: number; revoked: boolean }
 
 export class FakeNodeWorld implements NodeDb {
   now = () => Date.now();
@@ -51,29 +52,28 @@ export class FakeNodeWorld implements NodeDb {
     if (arr.length >= max) { this.hitLog.set(k, arr); return false; }
     arr.push(t); this.hitLog.set(k, arr); return true;
   }
-  async deviceBegin(deviceHash: string, userCode: string, deviceName: string): Promise<string> {
+  async deviceBegin(deviceHash: string, userCode: string, computerName: string) {
     this.calls.push("node_device_begin");
     if (this.devices.has(deviceHash)) throw err("23505", "dup");
-    const expires = this.now() + 600_000;
-    this.devices.set(deviceHash, { userCode, name: deviceName, approved: false, denied: false, used: false, expires });
-    return new Date(expires).toISOString();
+    if ([...this.devices.values()].filter((d) => !d.used && this.now() < d.expires).length >= 500) throw err("PT429", "Too many sign-in codes are waiting right now.");
+    this.devices.set(deviceHash, { userCode, name: computerName, approved: false, denied: false, used: false, expires: this.now() + 600_000, interval: 5, nextPoll: 0 });
+    return { user_code: userCode, expires_in: 600, interval: 5 };
   }
-  async deviceState(deviceHash: string): Promise<DeviceState> {
-    this.calls.push("node_device_state");
-    const d = this.devices.get(deviceHash);
-    if (!d) return "unknown";
-    if (d.used) return "used";
-    if (this.now() >= d.expires) return "expired";
-    return d.denied ? "denied" : d.approved ? "approved" : "pending";
-  }
-  async deviceExchange(deviceHash: string, accessHash: string): Promise<string> {
+  /** node_device_exchange (rev3): the database owns the states and the poll interval; the token is stored only as a hash and minted once. */
+  async deviceExchange(deviceHash: string, tokenHash: string): Promise<ExchangeResult> {
     this.calls.push("node_device_exchange");
     const d = this.devices.get(deviceHash);
-    if (!d || !d.approved || d.used || this.now() >= d.expires) throw err("PT401", "Not approved yet, or the code expired.");
+    if (!d || d.used) return { state: "expired_token" };
+    if (d.denied) return { state: "access_denied" };
+    if (this.now() >= d.expires) return { state: "expired_token" };
+    if (this.now() < d.nextPoll) { d.interval = Math.min(d.interval + 5, 60); d.nextPoll = this.now() + d.interval * 1000; return { state: "slow_down", interval: d.interval }; }
+    d.nextPoll = this.now() + d.interval * 1000;
+    if (!d.approved) return { state: "authorization_pending" };
     d.used = true;
     const expires = this.now() + 30 * 86400_000;
-    this.tokens.set(accessHash, { owner: d.owner!, name: d.name, expires, revoked: false });
-    return new Date(expires).toISOString();
+    this.tokens.set(tokenHash, { id: "tok-" + this.tokens.size, owner: d.owner!, name: d.name, expires, revoked: false });
+    const u = this.users.get(d.owner!)!;
+    return { state: "ok", expires_in: 30 * 86400, account: { email: mask(u.email), computer_name: d.name, local_compute: u.local_compute } };
   }
   /** node_actor: the person comes ONLY from the live token. A worker account is not a person. */
   private actor(accessHash: string): { owner: string; token: Token } {
@@ -83,54 +83,54 @@ export class FakeNodeWorld implements NodeDb {
     if (this.users.get(t.owner)?.worker) throw err("42501", "A worker account is not a person.");
     return { owner: t.owner, token: t };
   }
-  async account(accessHash: string): Promise<NodeAccount> {
+  async account(accessHash: string): Promise<{ account: NodeAccount }> {
     this.calls.push("node_account");
     const { owner, token } = this.actor(accessHash);
     const u = this.users.get(owner)!;
-    return { email: u.email, device_name: token.name, local_compute: u.local_compute, expires_at: new Date(token.expires).toISOString() };
+    return { account: { email: mask(u.email), computer_name: token.name, local_compute: u.local_compute, approved_until: new Date(token.expires).toISOString() } };
   }
-  async signout(accessHash: string): Promise<boolean> {
+  async signout(accessHash: string) {
     this.calls.push("node_signout");
     this.actor(accessHash).token.revoked = true;
-    return true;
+    return { ok: true };
   }
-  private held(owner: string, jobId: string) {
+  private held(a: { owner: string; token: Token }, jobId: string) {
     const j = this.jobs.get(jobId);
-    if (!j || j.owner_id !== owner || j.run_on !== "owner_local" || j.worker_user_id !== owner) throw err("42501", "This computer does not hold that job.");
+    if (!j || j.owner_id !== a.owner || j.run_on !== "owner_local" || j.worker_user_id !== a.owner || (j as { node_token_id?: string }).node_token_id !== a.token.id) throw err("42501", "This computer does not hold that job.");     // rev3: pinned to THIS computer's token
     return j;
   }
   async claim(accessHash: string): Promise<NodeJob | null> {
     this.calls.push("node_claim");
-    const { owner } = this.actor(accessHash);
+    const { owner, token } = this.actor(accessHash);
     if (!this.users.get(owner)!.local_compute) throw err("42501", "This account is not set to render on its own computer.");
     if (!this.claimsEnabled) return null;
     const busy = [...this.jobs.values()].some((j) => j.worker_user_id === owner && ["claimed", "running", "validating", "uploading"].includes(String(j.state)));
     if (busy) return null;
     const j = [...this.jobs.values()].find((x) => x.state === "queued" && x.owner_id === owner && x.run_on === "owner_local");       // never a house job, never another person's
     if (!j) return null;
-    j.state = "claimed"; j.worker_user_id = owner; j.worker_id = "node";
+    j.state = "claimed"; j.worker_user_id = owner; j.worker_id = "node"; (j as { node_token_id?: string }).node_token_id = token.id;
     return { ...j };
   }
   async heartbeat(accessHash: string, jobId: string, _p: number | null, _n: string | null, _d: unknown): Promise<boolean> {
     this.calls.push("node_heartbeat");
-    this.held(this.actor(accessHash).owner, jobId);
+    this.held(this.actor(accessHash), jobId);
     return true;
   }
   async reportState(accessHash: string, jobId: string, state: string): Promise<NodeJob> {
     this.calls.push("node_report_state");
-    const j = this.held(this.actor(accessHash).owner, jobId);
+    const j = this.held(this.actor(accessHash), jobId);
     j.state = state;
     return { ...j };
   }
   async retry(accessHash: string, jobId: string): Promise<string> {
     this.calls.push("node_retry");
-    const j = this.held(this.actor(accessHash).owner, jobId);
+    const j = this.held(this.actor(accessHash), jobId);
     j.state = "queued"; j.worker_user_id = null;
     return "requeued";
   }
   async registerArtifact(accessHash: string, jobId: string, kind: string, bytes: number): Promise<string> {
     this.calls.push("node_register_artifact");
-    const j = this.held(this.actor(accessHash).owner, jobId);
+    const j = this.held(this.actor(accessHash), jobId);
     if (j.state !== "uploading") throw err("42501", "This worker does not hold the job in the uploading state.");
     if (!(ALLOWED[String(j.job_type)] ?? []).includes(kind)) throw err("22023", "not allowed");
     const f = FILES[kind];

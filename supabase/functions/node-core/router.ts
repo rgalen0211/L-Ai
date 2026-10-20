@@ -55,6 +55,7 @@ function dbError(e: unknown): Response {
   if (code === "42501") return fail(403, "forbidden", "This account or this computer is not allowed to do that.");
   if (code === "PT404") return fail(404, "not_found", "That code is not valid any more.");
   if (code === "22023") return fail(400, "invalid_request", "That request was not valid.");
+  if (code === "PT429") return fail(429, "slow_down", "Too many sign-in codes are waiting right now. Try again in a few minutes.");
   return fail(500, "server_error", "Something went wrong. Try again in a moment.");           // no console output of the error: it could hold a value
 }
 
@@ -96,10 +97,10 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
       const name = typeof b.computer_name === "string" ? b.computer_name.replace(/[^\w .\-]/g, "").trim().slice(0, 60) : "";
       const deviceCode = b64url(crypto.getRandomValues(new Uint8Array(32)));
       const code = userCode();
-      const expires = await d.db.deviceBegin(await sha256hex(deviceCode), code, name || "This computer");
-      const secs = Math.max(30, Math.min(CODE_SECONDS, Math.round((Date.parse(expires) - Date.now()) / 1000) || CODE_SECONDS));
+      const begun = await d.db.deviceBegin(await sha256hex(deviceCode), code, name || "This computer");
+      const secs = Math.max(30, Math.min(CODE_SECONDS, Number(begun.expires_in) || CODE_SECONDS));
       const base = d.approvalBase.replace(/\/+$/, "");
-      return reply(200, { device_code: deviceCode, user_code: code, verification_uri: `${base}/#/device`, verification_uri_complete: `${base}/#/device?code=${code}`, expires_in: secs, interval: POLL_INTERVAL });
+      return reply(200, { device_code: deviceCode, user_code: code, verification_uri: `${base}/#/device`, verification_uri_complete: `${base}/#/device?code=${code}`, expires_in: secs, interval: Math.max(1, Math.min(60, Number(begun.interval) || POLL_INTERVAL)) });
     }
     if (route === "/device/token" && method === "POST") {
       const b = await body(req); if (b instanceof Response) return b;
@@ -108,19 +109,16 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
       const deviceHash = await sha256hex(dc);
       const who = await caller(req, d.salt);
       if (!(await d.db.hit(who, "device_poll_ip", 120, 60))) return fail(429, "slow_down", "Too many tries.");
-      if (!(await d.db.hit(deviceHash, "device_poll", 1, POLL_INTERVAL - 1))) return reply(400, { error: "slow_down", interval: POLL_INTERVAL + 5 });
-      const st = await d.db.deviceState(deviceHash);
-      if (st === "pending") return reply(400, { error: "authorization_pending" });
-      if (st === "denied") return reply(400, { error: "access_denied" });
-      if (st !== "approved") return reply(400, { error: "expired_token" });
+      // The database owns the states and the poll interval; the token is minted HERE only so that the database can store its hash, and is handed out only if the database says ok.
       const token = TOKEN_PREFIX + b64url(crypto.getRandomValues(new Uint8Array(32)));
-      const accessHash = await sha256hex(token);
-      let expires: string;
-      try { expires = await d.db.deviceExchange(deviceHash, accessHash); }
-      catch (e) { if ((e as { code?: string })?.code === "PT401") return reply(400, { error: "expired_token" }); throw e; }
-      const a = await d.db.account(accessHash);
-      return reply(200, { node_token: token, expires_in: Math.max(60, Math.round((Date.parse(expires) - Date.now()) / 1000)),
-                          account: { email: a.email ?? "", computer_name: a.device_name, local_compute: !!a.local_compute } });
+      const r = await d.db.deviceExchange(deviceHash, await sha256hex(token));
+      if (r.state === "ok" && r.account) {
+        return reply(200, { node_token: token, expires_in: Math.max(60, Number(r.expires_in) || 30 * 86400),
+                            account: { email: r.account.email ?? "", computer_name: r.account.computer_name, local_compute: !!r.account.local_compute } });
+      }
+      if (r.state === "slow_down") return reply(400, { error: "slow_down", interval: Math.max(POLL_INTERVAL, Math.min(60, Number(r.interval) || POLL_INTERVAL + 5)) });
+      if (r.state === "authorization_pending" || r.state === "access_denied") return reply(400, { error: r.state });
+      return reply(400, { error: "expired_token" });
     }
 
     // ---------------------------------------------------------------- signed in: a rgn_ bearer in the Authorization header, nowhere else
@@ -134,8 +132,8 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     const h = await sha256hex(token);
 
     if (route === "/account") {
-      const a = await d.db.account(h);
-      return reply(200, { account: { email: a.email ?? "", computer_name: a.device_name, local_compute: !!a.local_compute, approved_until: String(a.expires_at).slice(0, 10) } });
+      const a = (await d.db.account(h)).account;
+      return reply(200, { account: { email: a.email ?? "", computer_name: a.computer_name, local_compute: !!a.local_compute, approved_until: String(a.approved_until ?? "").slice(0, 10) } });
     }
     if (route === "/signout") { await d.db.signout(h); return reply(200, { ok: true }); }
     if (route === "/node/claim") {
