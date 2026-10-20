@@ -328,3 +328,9 @@ test('the cap is asked before the SUMMARY call too: paused then means no summary
   assert.equal(c.calls.length, 1);
   assert.equal(w.finished[0][6], null);
 });
+
+test('DARK BY DEFAULT (Ryan 15:50 2026-10-19): the AI editor\'s instructions make the theme dark unless the person asks for light', () => {
+  const src = fs.readFileSync(new URL('../supabase/functions/ai-editor/prompt.ts', import.meta.url), 'utf8');
+  assert.match(src, /theme: "dark" \(the default: leave it dark unless the user asks for a light page\) or "light"/);
+  assert.doesNotMatch(src, /theme: "light" or "dark"\./, 'the old wording that named light first with no default is gone');
+});

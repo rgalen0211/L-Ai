@@ -88,6 +88,11 @@
       emit('jobs', job);
     }
 
+    // Give back what an order was holding (decline, cancel): held goes down, available comes back.
+    function releaseHold(o) {
+      if (ledger && o.hold) { ledger.held -= o.hold; ledger.available += o.hold; o.hold = 0; }
+    }
+
     // The auto_render setting: the database default is OFF, but the mock keeps its older default (ON) unless the seed or ?autorender=off says otherwise; the admin switch then wins.
     function autoRenderNow() {
       if (typeof db.autoRenderSet === 'boolean') return db.autoRenderSet;
@@ -230,7 +235,19 @@
       const columns = head.map((header, index) => ({ index, header: header.slice(0, 80), kind: kinds[index], sample: body.slice(0, 5).map(r => String(r[index] ?? '').slice(0, 40)) }));
       const place = kinds.indexOf('place'), period = kinds.indexOf('period');
       const periods = period >= 0 ? body.map(r => r[period]).filter(Boolean).sort() : [];
-      const wide = head.filter(h => /^(19|20)\d\d$/.test(h)).length >= 3;
+      const yearCols = head.map((h, i) => (/^(19|20)\d\d$/.test(h) ? i : -1)).filter(i => i >= 0);
+      const wide = yearCols.length >= 3;
+      if (wide) {
+        // The real worker melts a wide file IN MEMORY and reports the LONG columns (ENGINE's interface of 12:36): id columns, then 'period', then the measure label.
+        const ids = head.map((h, i) => i).filter(i => !yearCols.includes(i));
+        const years = yearCols.map(i => head[i]);
+        const longCols = [...ids.map(i => ({ index: ids.indexOf(i), header: head[i].slice(0, 80), kind: kinds[i], sample: body.slice(0, 5).map(r => String(r[i] ?? '').slice(0, 40)) })),
+          { index: ids.length, header: 'period', kind: 'period', sample: years.slice(0, 5) },
+          { index: ids.length + 1, header: 'Value', kind: 'number', sample: body.slice(0, 5).map(r => String(r[yearCols[0]] ?? '')) }];
+        const placeAt = ids.findIndex(i => kinds[i] === 'place');
+        return { rows: body.length, columns: longCols, place: placeAt, period: ids.length, wide: true, periods: years.slice().sort(), values: [ids.length + 1], cadence: 'annual',
+                 places: placeAt >= 0 ? [...new Set(body.map(r => r[ids[placeAt]]))] : [], wideGroups: [{ prefix: '', first: years[0], last: years[years.length - 1], count: years.length }] };
+      }
       return { rows: body.length, columns, place, period, wide, periods,
                values: kinds.map((k, i) => (k === 'number' && i !== place && i !== period ? i : -1)).filter(i => i >= 0),
                cadence: periods.some(p => /^\d{4}-\d\d$/.test(p)) ? 'monthly' : 'annual',
@@ -251,6 +268,7 @@
         ds.ingest_report = { format: ds.ext, sha256: 'a'.repeat(64), rows: t.rows, columns: t.columns,
           guess: { place_index: t.place, period_index: t.period, value_indexes: t.values, geography: named.length && named.length <= 52 ? 'us_states' : null,
                    cadence: t.periods.length ? t.cadence : null, wide: t.wide },
+          ...(t.wide ? { wide_groups: t.wideGroups, wide_chosen: t.wideGroups[0].prefix } : {}),
           periods: t.periods.length ? { first: t.periods[0], last: t.periods[t.periods.length - 1], count: new Set(t.periods).size } : null,
           unmatched: { count: 0, names: [] } };
         ds.row_count = t.rows;
@@ -291,7 +309,11 @@
         if (!ds) return fail('Dataset not found.');
         if (!ds.ingest_report) return fail('We haven\u2019t finished reading this file yet.');
         const m = p_mapping || {};
-        if (ds.ingest_report.guess.wide) return fail('This file has its years across the columns. Put the years in one column, with one row per place and year, and upload it again.');
+        // The PROPOSED mapping check for wide files (Q6): a wide file needs melt_wide, a long file must not have it, the prefix must be one of the report's groups.
+        const rep = ds.ingest_report, groups = rep.wide_groups || [];
+        if (m.melt_wide === true && !rep.guess.wide) return fail('This file does not have its years across the columns.');
+        if (rep.guess.wide && !(groups.length && m.melt_wide === true)) return fail('This file has its years across the columns. Tick "These columns are years" and confirm, or put the years in one column and upload it again.');
+        if (m.melt_wide === true && m.wide_prefix !== undefined && m.wide_prefix !== '' && !groups.some(g => g.prefix === m.wide_prefix)) return fail('That choice of year columns is not one of the file\u2019s.');
         if (!Number.isInteger(m.place_index) || !Number.isInteger(m.period_index)) return fail('Choose which column is the place and which is the period.');
         if (m.geography === 'us_counties' && m.state_index == null && !COUNTY_STATES.includes(m.state)) return fail('County names need a state. Choose the state, or the column that has it.');
         if (!m.value_indexes?.length) return fail('Choose 1 to 8 columns of values.');
@@ -521,6 +543,7 @@
         if (o.state !== 'awaiting_approval') return fail(`This request is no longer waiting (${o.state}).`);
         if (p_approve && seed.capReached) return fail('daily_cap: this person has reached their daily credit cap; approve later or decline.');
         o.state = p_approve ? 'running' : 'declined'; o.stages[0].state = p_approve ? 'queued' : 'declined'; o.ended_at = p_approve ? null : now(); o.admin_note = p_note || null;
+        if (!p_approve) releaseHold(o);
         return { data: { id: p_stage, state: o.stages[0].state }, error: null };
       },
       admin_invite_person({ p_name, p_credits }) {
@@ -610,6 +633,11 @@
         const order = { id: id(), owner_id: 'u-ryan', idempotency_key: p_idempotency_key, source: 'app', want: 'final', project_id: db.versions.find(v => v.id === preview.version_id)?.project_id, version_id: preview.version_id,
                         preview_job_id: preview.id, state: 'awaiting_approval', error_code: null, created_at: now(), ended_at: null, stages: [{ stage: 'final_render', state: 'awaiting_approval', credits_quoted: 10, error_code: null, job_id: null }], delivery: null };
         const autoOff = !autoRenderNow();
+        // A full render that waits for approval HOLDS its credits (the database does this); a decline or a cancel gives them back.
+        if (autoOff && ledger) {
+          if (ledger.available < order.stages[0].credits_quoted) return fail('Not enough credits for this render.');
+          ledger.available -= order.stages[0].credits_quoted; ledger.held += order.stages[0].credits_quoted; order.hold = order.stages[0].credits_quoted;
+        }
         if (!autoOff) {
           const r = rpcs.submit_job({ p_version_id: preview.version_id, p_job_type: 'final_render', p_params: {}, p_sheet_job_id: sheet.id, p_preview_job_id: preview.id });
           if (r.error) return r;
@@ -626,7 +654,7 @@
       cancel_render_order({ p_order }) {
         const o = db.render_orders.find(x => x.id === p_order);
         if (!o) return fail('Order not found.');
-        if (['running', 'awaiting_approval'].includes(o.state)) { o.state = 'cancelled'; o.error_code = 'cancelled'; o.ended_at = now(); }
+        if (['running', 'awaiting_approval'].includes(o.state)) { o.state = 'cancelled'; o.error_code = 'cancelled'; o.ended_at = now(); releaseHold(o); }
         return { data: structuredClone({ id: o.id, state: o.state }), error: null };
       },
       submit_job(args) {

@@ -15,10 +15,12 @@
   const QUICK_NOTE = 'Approximate: drawn here from your colours, not by the engine.';
 
   // ---------------------------------------------------------------- the form, as data
+  // The preset a new look starts from when none is named: a DARK one (Ryan 15:50 2026-10-19: all defaults dark). The three light presets stay in the list and selectable.
+  const DEFAULT_PRESET = 'wtds-classic';
   const COLOUR = 'color';
   const SECTIONS = [
     { id: 'look', title: 'Look', fields: [
-      { path: 'look.theme', kind: 'radio', label: 'Theme', options: [['light', 'Light'], ['dark', 'Dark']] },
+      { path: 'look.theme', kind: 'radio', label: 'Theme', options: [['dark', 'Dark'], ['light', 'Light']] },
       { path: 'look.canvas', kind: 'radio', label: 'Shape', options: [[[1920, 1080], '16:9 HD'], [[1280, 720], '720p'], [[1080, 1920], 'Vertical']], note: { 'Vertical': VERTICAL_NOTE } },
       { path: 'look.fps', kind: 'radio', label: 'Frame rate', options: [[24, '24'], [25, '25'], [30, '30']] },
       { path: 'look.page_background', kind: COLOUR, label: 'Page colour' },
@@ -216,7 +218,7 @@
         if (!row) return [h('a', { href: '#/looks', class: 'back' }, '← Your look'), h('h1', { tabindex: '-1' }, 'Look not found'), h('p', {}, 'It may have been deleted.')];
         profile = clone(row.spec); isDefault = !!row.is_default; original = row;
       } else {
-        const presetId = P.listPresets().some(p => p.id === key) ? key : 'clean-light';
+        const presetId = P.listPresets().some(p => p.id === key) ? key : DEFAULT_PRESET;
         profile = P.forkPreset(presetId, uniqueName(existing.map(r => r.name), 'my-look'), `My ${P.listPresets().find(p => p.id === presetId).title.toLowerCase()}`);
       }
       const problemList = h('ul', { class: 'look-problems', role: 'alert' });
@@ -251,10 +253,18 @@
           h('p', { class: 'form-note' }, QUICK_NOTE));
         syncSheetNote();
       }
+      // A label inside a swatch of any colour stays readable: black or white, whichever has more contrast with the swatch.
+      function readableOn(colour) {
+        const m = /^#([0-9a-f]{2})([0-9a-f]{2})([0-9a-f]{2})$/i.exec(String(colour || ''));
+        if (!m) return '';
+        const f = v => { v = parseInt(v, 16) / 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); };
+        const L = 0.2126 * f(m[1]) + 0.7152 * f(m[2]) + 0.0722 * f(m[3]);
+        return L > 0.179 ? '#000000' : '#ffffff';
+      }
       function swatch(colour, child, text, label) {
         const el = h('span', { class: 'look-swatch', title: label ? `${label} ${colour}` : colour }, child, label ? h('span', { class: 'look-swatch-label' }, label) : null);
         el.style.backgroundColor = colour;
-        if (text) { el.style.color = text; }
+        if (text) { el.style.color = text; } else if (label) { el.style.color = readableOn(colour); }
         return el;
       }
       function dot(colour, page) {

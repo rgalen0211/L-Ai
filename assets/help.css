@@ -23,3 +23,5 @@
 .not-found-links{list-style:none;margin:18px 0;padding:0}.not-found-links li{margin:0 0 6px}.not-found-links a{display:inline-block;padding:10px 2px}
 /* Legal page shells: a plain banner that says the page is a placeholder pending legal review */
 .shell-banner{margin:0 0 20px;padding:12px 14px;border:2px solid var(--line,#8a7a5a);border-radius:10px;background:rgba(255,214,102,.12)}
+/* Whole-app pass: the question rows on the help pages are comfortable to tap */
+.faq summary{min-height:40px;padding:8px 0;box-sizing:border-box}

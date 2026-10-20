@@ -14,8 +14,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/workflow-audit.css?v=20261017a">
-<link rel="stylesheet" href="/assets/help.css?v=20261018b">
-</head>
+<link rel="stylesheet" href="/assets/help.css?v=20261019a">
+<link rel="icon" href="/favicon.ico" sizes="any"></head>
 <body>
 <header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
 <main class="container help-main" id="main" data-connect-guide="draft">
@@ -40,12 +40,24 @@
   </ul>
 
   <h2>Claude (claude.ai, Claude Desktop, phone)</h2>
+  <p>How you add it depends on your plan. On Free, Pro and Max you add it yourself. On Team and Enterprise an administrator adds it first, and then each person connects.</p>
+
+  <h3>Free, Pro or Max</h3>
   <ol>
-    <li>Open Settings, then Connectors, then Add custom connector.</li>
-    <li>Name it Ryagram. For the address, paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code>. Leave any client id and secret empty.</li>
+    <li>Open Customize, then Connectors. Press + Add, then Add custom connector. (A Free plan can have one custom connector.)</li>
+    <li>Name it Ryagram. For the address, paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code>. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
     <li>Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
     <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
   </ol>
+
+  <h3>Team or Enterprise</h3>
+  <ol>
+    <li>An Owner or Primary Owner opens Organization settings, then Connectors, and presses Add, then Custom, then Web. (On Enterprise, a person with a custom role that includes Manage access to Libraries can do this too.)</li>
+    <li>They name it Ryagram and paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code> as the address. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
+    <li>Each person then opens Customize, then Connectors, finds Ryagram, and presses Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
+    <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
+  </ol>
+  <p>Source for these steps: <a href="https://support.claude.com/en/articles/11175166-get-started-with-custom-connectors-using-remote-mcp" rel="noopener noreferrer">Anthropic’s help page on custom connectors</a>.</p>
 
   <h2>Claude Code</h2>
   <ol>
