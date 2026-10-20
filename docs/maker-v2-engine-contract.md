@@ -23,3 +23,9 @@ Status: the maker side exists behind `--v2` (or `RYAGRAM_MAKER_V2=1`), OFF by de
 
 ## 3. Defaults the maker uses, pending Ryan (design section 8)
 Occurrences are looked for in the words of the BUILT film; placements are full frame, centre, corner, lower third; no dragging; captions and text overlays are not in this slice.
+
+## 4. What stays on this computer (CC1 13:47, LOW-3)
+* `overlays.json` is **never uploaded and never put into a receipt.** It keeps full file paths, and it lives only in the local work folder.
+* The receipt names a picture by **name and sha256 only**, never by path.
+* ENGINE **re-checks each picture's sha256 before drawing it**, so a file swapped after the person ticked the rights box is refused rather than drawn.
+* A picture rule can put a real person's face beside words in another real person's voice. That is legal row G7 (CC1) in LEGAL-QUESTIONS-FOR-ATTORNEY.md; it does not block a test feature that is off.
