@@ -44,11 +44,16 @@ def setUpModule():
     _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-pg-r9-"), cleanup_mode="stop")
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmplr9")
-        c.execute("create database tmplr9")
-    with psycopg.connect(_server.get_uri(database="tmplr9"), autocommit=True) as c:
+        c.execute("drop database if exists tmplr9base")
+        c.execute("create database tmplr9base")
+    with psycopg.connect(_server.get_uri(database="tmplr9base"), autocommit=True) as c:
         c.execute((ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
-        for path in [*core.MIGRATIONS, LEDGER, DRAFT]:
+        for path in [*core.MIGRATIONS, LEDGER]:
             c.execute(path.read_text(encoding="utf-8"))
+    with psycopg.connect(_server.get_uri(), autocommit=True) as c:
+        c.execute("create database tmplr9 template tmplr9base")
+    with psycopg.connect(_server.get_uri(database="tmplr9"), autocommit=True) as c:
+        c.execute(DRAFT.read_text(encoding="utf-8"))
         c.execute("insert into auth.users (id, email) values (%s,'ryan@x'),(%s,'other@x'),(%s,'worker@x'),(%s,'worker2@x'),"
                   "(%s,'sam@x'),(%s,'bob@x'),(%s,'admin@x')", (RYAN, OTHER, WORKER, WORKER2, SAM, BOB, ADMIN))
         c.execute("insert into public.workers (user_id, name) values (%s, 'ryan-pc'), (%s, 'spare')", (WORKER, WORKER2))
@@ -285,7 +290,7 @@ class Node(R9):
         self.assertEqual(self.admin("select run_on::text from jobs where id = %s", job), "house")
 
     def test_the_runner_has_no_table_access(self):
-        for t in ("jobs", "node_tokens", "node_devices", "account_settings", "local_compute_audit", "ryagram_private.node_tx"):
+        for t in ("jobs", "node_tokens", "device_codes", "account_settings", "local_compute_audit", "ryagram_private.node_tx"):
             self.runner_denied(f"select count(*) from {t}")
 
     def test_a_removed_or_expired_computer_is_refused(self):
@@ -295,44 +300,62 @@ class Node(R9):
         self.assertTrue(self.db.as_(SAM).one("select remove_computer(%s)", tid))
         self.runner_denied("select id from node_claim(%s)", h(tok))
         tok2 = self.node(SAM, "Sam-PC2")
-        self.admin("update node_tokens set expires_at = now() - interval '1 second' where access_hash = %s returning 1", h(tok2))
+        self.admin("update node_tokens set expires_at = now() - interval '1 second' where token_hash = %s returning 1", h(tok2))
         self.runner_denied("select id from node_claim(%s)", h(tok2))
+
+    def exchange(self, code, token):
+        return self.runner().one("select node_device_exchange(%s, %s) ->> 'state'", h(code), h(token))
+
+    def allow_poll(self, code):
+        self.admin("update device_codes set next_poll_at = now() where device_hash = %s returning 1", h(code))
 
     def test_a_device_code_is_exchanged_once(self):
         self.runner().one("select node_device_begin(%s, 'XYZW-QRST', 'Sam-PC')", h("c1"))
-        self.runner_denied("select node_device_exchange(%s, %s)", h("c1"), h("t1"))          # not approved yet
+        self.assertEqual(self.exchange("c1", "t1"), "authorization_pending")                 # not approved yet
+        self.assertEqual(self.exchange("c1", "t1"), "slow_down")                             # polled too fast
         self.db.as_(SAM).one("select device_decide('XYZW-QRST', true)")
-        self.runner().one("select node_device_exchange(%s, %s)", h("c1"), h("t1"))
-        self.runner_denied("select node_device_exchange(%s, %s)", h("c1"), h("t2"))          # replay
+        self.allow_poll("c1")
+        self.assertEqual(self.exchange("c1", "t1"), "ok")
+        self.allow_poll("c1")
+        self.assertEqual(self.exchange("c1", "t2"), "expired_token")                         # replay
+        self.assertEqual(self.admin("select count(*) from node_tokens"), 1)
 
     def test_a_denied_code_can_never_be_approved_and_looking_never_approves(self):
         self.runner().one("select node_device_begin(%s, 'DENY-DENY', 'Odd-PC')", h("d1"))
-        self.assertEqual(self.db.as_(SAM).one("select device_request_check('deny-deny') ->> 'device_name'"), "Odd-PC")
-        self.runner_denied("select node_device_exchange(%s, %s)", h("d1"), h("t1"))         # looking approved nothing
+        self.assertEqual(self.db.as_(SAM).one("select device_request_check('deny-deny') ->> 'computer_name'"), "Odd-PC")
+        self.assertEqual(self.exchange("d1", "t1"), "authorization_pending")                # looking approved nothing
         self.db.as_(SAM).one("select device_decide('DENY-DENY', false)")
         self.denied(SAM, "select device_decide('DENY-DENY', true)")
-        self.runner_denied("select node_device_exchange(%s, %s)", h("d1"), h("t1"))
+        self.allow_poll("d1")
+        try:
+            got = self.exchange("d1", "t1")
+        except psycopg.Error as e:                           # a raise is not the promised answer either
+            got = f"error {e.sqlstate}"
+        self.assertEqual(got, "access_denied")
+        self.assertEqual(self.admin("select count(*) from node_tokens"), 0)
 
     def test_a_code_with_look_alike_characters_is_refused(self):
-        for bad in ("AB0D-EFGH", "ABOD-EFGH", "AB1D-EFGH", "ABID-EFGH"):
+        for bad in ("AB0D-EFGH", "ABOD-EFGH", "AB1D-EFGH", "ABID-EFGH", "ABLD-EFGH"):
             self.runner_denied("select node_device_begin(%s, %s, 'X')", h(bad), bad)
 
     # CC1 13:48, the device page's promises enforced in SQL
     def test_deciding_an_expired_or_used_code_is_refused(self):
         self.runner().one("select node_device_begin(%s, 'EXPD-EXPD', 'X')", h("e1"))
-        self.admin("update node_devices set expires_at = now() - interval '1 second' where user_code = 'EXPD-EXPD' returning 1")
+        self.admin("update device_codes set expires_at = now() - interval '1 second' where user_code = 'EXPD-EXPD' returning 1")
         self.denied(SAM, "select device_decide('EXPD-EXPD', true)")
-        self.denied(SAM, "select device_request_check('EXPD-EXPD')")
+        self.assertEqual(self.db.as_(SAM).one("select device_request_check('EXPD-EXPD') ->> 'state'"), "expired")
         self.node()                                          # approves and exchanges code number 1
-        used = self.admin("select user_code from node_devices where used_at is not null limit 1")
+        used = self.admin("select user_code from device_codes where state = 'used' limit 1")
         self.denied(SAM, "select device_decide(%s, true)", used)
+        self.assertEqual(self.db.as_(SAM).one("select device_request_check(%s) ->> 'state'", used), "used")
+        self.assertEqual(self.db.as_(SAM).one("select device_request_check('ZZZZ-ZZZZ') ->> 'state'"), "unknown")
 
     def test_checking_a_code_changes_nothing(self):
-        self.runner().one("select node_device_begin(%s, 'LKLK-LKLK', 'X')", h("l1"))
-        before = self.admin("select row_to_json(d)::text from node_devices d where user_code = 'LKLK-LKLK'")
+        self.runner().one("select node_device_begin(%s, 'KMKM-KMKM', 'X')", h("l1"))
+        before = self.admin("select row_to_json(d)::text from device_codes d where user_code = 'KMKM-KMKM'")
         for _ in range(3):
-            self.db.as_(SAM).one("select device_request_check('LKLK-LKLK')")
-        self.assertEqual(self.admin("select row_to_json(d)::text from node_devices d where user_code = 'LKLK-LKLK'"), before)
+            self.db.as_(SAM).one("select device_request_check('KMKM-KMKM')")
+        self.assertEqual(self.admin("select row_to_json(d)::text from device_codes d where user_code = 'KMKM-KMKM'"), before)
 
     def test_deciding_needs_an_app_session(self):
         self.runner().one("select node_device_begin(%s, 'APPS-APPS', 'X')", h("a1"))
@@ -351,7 +374,7 @@ class Node(R9):
     def test_a_token_lives_thirty_days(self):
         self.make_tester()
         tok = self.node()
-        days = self.admin("select extract(day from expires_at - created_at) from node_tokens where access_hash = %s", h(tok))
+        days = self.admin("select extract(day from expires_at - created_at) from node_tokens where token_hash = %s", h(tok))
         self.assertEqual(int(days), 30)
 
     def test_the_usage_readout_is_admin_only_and_counts_local_outputs(self):
@@ -380,6 +403,111 @@ class Node(R9):
                    "jsonb_build_object('size', 100, 'mimetype', 'image/png')) returning name", path)
         self.admin("update jobs set worker_user_id = worker_user_id where id = %s returning 1", job)
         self.assertEqual(self.admin("select worker_id, worker_user_id from jobs where id = %s", job), ("node", uuid.UUID(SAM)))
+
+class Review1411(R9):
+    # MED-1: the node role's WHOLE reach, from the catalogs
+    NODE_FNS = sorted(["public.node_account(text)", "public.node_claim(text)", "public.node_device_begin(text,text,text)",
+                       "public.node_device_exchange(text,text)", "public.node_heartbeat(text,uuid,numeric,text,jsonb)",
+                       "public.node_register_artifact(text,uuid,artifact_kind,bigint,text,numeric,integer,integer)",
+                       "public.node_report_state(text,uuid,job_state,text,text,text,boolean)",
+                       "public.node_retry(text,uuid,text,text)", "public.node_signout(text)"])
+
+    def callable_by_runner(self):
+        rows = self.db.as_(None).all("""select p.oid::regprocedure::text from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+                    where p.prokind in ('f', 'p') and has_schema_privilege('node_runner', n.oid, 'USAGE')
+                      and has_function_privilege('node_runner', p.oid, 'EXECUTE')
+                      and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype)
+                      and n.nspname not in ('pg_catalog', 'information_schema')""")
+        return sorted((r[0] if "." in r[0].split("(")[0] else "public." + r[0]).replace(" ", "") for r in rows)
+
+    def test_node_runner_can_call_exactly_the_node_functions(self):
+        self.assertEqual(self.callable_by_runner(), self.NODE_FNS)
+        usage = [r[0] for r in self.db.as_(None).all("select nspname from pg_namespace n where has_schema_privilege('node_runner', n.oid, "
+                                                    "'USAGE') and left(nspname, 3) <> 'pg_' and nspname <> 'information_schema'")]
+        self.assertEqual(usage, ["public"])
+
+    def test_must_fail_one_more_grant_is_seen(self):
+        self.db.as_(None).c.execute("grant execute on function public.my_computers() to node_runner")
+        self.assertNotEqual(self.callable_by_runner(), self.NODE_FNS)
+
+    # MED-2: the two copies of live functions must not drift from the live text
+    def defs(self, db, fn):
+        with psycopg.connect(_server.get_uri(database=db), autocommit=True) as c:
+            return c.execute("select pg_get_functiondef(%s::regprocedure)", (fn,)).fetchone()[0]
+
+    def test_the_copied_functions_equal_live_minus_the_marked_lines(self):
+        for fn in ("public.claim_next_job()", "ryagram_private.require_worker()"):
+            live, draft = self.defs("tmplr9base", fn), self.defs("tmplr9", fn)
+            stripped = "\n".join(l for l in draft.split("\n") if not l.rstrip().endswith("-- WORKER r9"))
+            self.assertNotEqual(live, draft, fn)
+            self.assertEqual(stripped, live, f"{fn}: the draft's copy has drifted from the live function")
+
+    # MED-3: unauthenticated spam has a backstop, and old rows are swept
+    def test_codes_stop_at_500_waiting(self):
+        self.admin("insert into device_codes (device_hash, user_code, computer_name) select md5(i::text) || md5(i::text || 'x'), "
+                   "'K' || lpad(to_hex(i), 3, 'A') || '-ZZZZ', 'x' from generate_series(1, 500) i "
+                   "where lpad(to_hex(i), 3, 'A') ~ '^[A-HJKMNP-Z2-9]{3}$' returning 1")
+        n = self.admin("select count(*) from device_codes")
+        self.admin("insert into device_codes (device_hash, user_code, computer_name) select md5(i::text || 'y') || md5(i::text || 'z'), "
+                   "'P' || lpad(to_hex(i), 3, 'A') || '-ZZZZ', 'x' from generate_series(1, 4095) i "
+                   "where lpad(to_hex(i), 3, 'A') ~ '^[A-HJKMNP-Z2-9]{3}$' limit %s returning 1", 500 - n)
+        self.assertEqual(self.admin("select count(*) from device_codes"), 500)
+        self.runner_denied("select node_device_begin(%s, 'NEWW-NEWW', 'X')", h("over"))
+
+    def test_the_sweep_clears_old_codes_and_finished_node_rows(self):
+        self.make_tester()
+        tok = self.node()
+        for _ in range(3):
+            self.claim_node(tok)
+        self.admin("update device_codes set expires_at = now() - interval '2 days' returning 1")
+        self.runner().one("select node_device_begin(%s, 'SWPS-SWPS', 'X')", h("sweep"))   # begin runs the sweep
+        self.assertEqual(self.admin("select count(*) from device_codes"), 1)
+        self.assertEqual(self.admin("select count(*) from ryagram_private.node_tx"), 0)
+
+    # MED-4: the computer learns WHICH account it joined (masked)
+    def test_the_exchange_and_account_show_the_masked_account(self):
+        self.make_tester()
+        self.runner().one("select node_device_begin(%s, 'WHWH-WHWH', 'Sam-PC')", h("w1"))
+        self.db.as_(SAM).one("select device_decide('WHWH-WHWH', true)")
+        got = self.runner().one("select node_device_exchange(%s, %s)", h("w1"), h("wt"))
+        self.assertEqual((got["state"], got["account"]["email"], got["account"]["computer_name"], got["account"]["local_compute"]),
+                         ("ok", "s***@x", "Sam-PC", True))
+        acc = self.runner().one("select node_account(%s)", h("wt"))["account"]
+        self.assertEqual((acc["email"], acc["computer_name"]), ("s***@x", "Sam-PC"))
+
+    def test_signout_ends_this_computer_only(self):
+        self.make_tester()
+        a, b = self.node(SAM, "A"), self.node(SAM, "B")
+        self.runner().one("select node_signout(%s)", h(a))
+        self.runner_denied("select node_account(%s)", h(a))
+        self.assertEqual(self.runner().one("select node_account(%s) -> 'account' ->> 'computer_name'", h(b)), "B")
+
+    # LOW-5: switching the flag off cancels that person's waiting local jobs, in words
+    def test_flag_off_cancels_waiting_local_jobs(self):
+        self.make_tester()
+        job = self.submit(SAM, self.version(SAM), "contact_sheet")
+        self.make_tester(SAM, False)
+        st, detail = self.admin("select state::text, error_detail from jobs where id = %s", job)
+        self.assertEqual(st, "cancelled")
+        self.assertIn("switched off", detail)
+
+    # LOW-6: a computer name cannot carry control or direction-changing characters
+    def test_the_computer_name_is_cleaned(self):
+        self.runner().one("select node_device_begin(%s, 'NAME-NAME', %s)", h("n1"), "Sam\u202e-PC\u0007\u200b")
+        self.assertEqual(self.admin("select computer_name from device_codes where user_code = 'NAME-NAME'"), "Sam-PC")
+
+    # LOW-7: the job names the computer that claimed it, and only that computer may report on it
+    def test_another_computer_of_the_same_person_cannot_report(self):
+        self.make_tester()
+        a, b = self.node(SAM, "A"), self.node(SAM, "B")
+        job = self.claim_node(a)
+        self.assertIsNone(job)                             # nothing queued yet
+        job = self.submit(SAM, self.version(SAM), "contact_sheet")
+        self.assertEqual(self.claim_node(a), job)
+        tid = self.admin("select id from node_tokens where token_hash = %s", h(a))
+        self.assertEqual(self.admin("select node_token_id from jobs where id = %s", job), tid)
+        self.runner_denied("select node_heartbeat(%s, %s, 0.5)", h(b), job)
+        self.assertIs(self.runner().one("select node_heartbeat(%s, %s, 0.5)", h(a), job), False)
 
 
 if __name__ == "__main__":
