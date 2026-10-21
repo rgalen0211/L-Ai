@@ -5,9 +5,11 @@
 import type { Job } from "../ai-editor/tools.ts";
 import type { CallLog, Data, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
-type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null };
+type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null; run_on?: string };
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
-interface FUser { label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number> }
+/** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
+interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
+interface FUser { label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -33,6 +35,8 @@ export class FakeWorld {
     this.users.set(userId, u);
     return u;
   }
+  /** Make this person's jobs run on their own computer (owner_local), with the computer's last-seen time and name. */
+  setLocal(userId: string, l: FLocal) { this.users.get(userId)!.local = l; }
   invite(userId: string, clientId: string, scopes: Scope[] = ["read", "write", "render_free"]) { this.grants.set(`${userId}|${clientId}`, { scopes }); }
   revoke(userId: string, clientId: string) { this.grants.delete(`${userId}|${clientId}`); }
   issue(token: string, p: Principal) { this.tokens.set(token, p); }
@@ -57,6 +61,7 @@ export class FakeWorld {
     const u = () => { const x = this.users.get(userId); if (!x) throw err("Sign in first.", "PT401"); return x; };
     const advance = (j: FJob) => {                  // each look at a job moves it one step: queued, running, complete
       if (j.state === "complete" || j.state === "failed" || j.state === "cancelled") return;
+      if (j.run_on === "owner_local" && !u().local?.awake) return;            // the computer is asleep or the app is closed: the job waits, it does not move and it does not fail
       j.steps++;
       if (j.steps === 1) { j.state = "running"; j.progress = 0.4; }
       else if (j.steps >= 2) {
@@ -114,15 +119,17 @@ export class FakeWorld {
         user.held += q.credits;
         const j: FJob = { id: id(), job_type: type, state: "queued", attempt: 1, created_at: new Date().toISOString(), story_sha256: v.story_sha256,
           engine_commit: null, error_class: null, error_code: null, error_detail: null, version_id: vid, project_id: v.project_id,
-          params, steps: 0, credits: q.credits, progress: null };
-        user.jobs.push(j); return { id: j.id, state: j.state };
+          params, steps: 0, credits: q.credits, progress: null, ...(user.local ? { run_on: "owner_local" } : {}) };
+        user.jobs.push(j); return { id: j.id, state: j.state, ...(j.run_on ? { run_on: j.run_on } : {}) };
       },
       currentEngine: async () => this.engine,
       readReceipt: async () => null,
       quote: async (vid, t) => quote(vid, t),
       jobById: async (jid) => {
         const j = u().jobs.find((x) => x.id === jid); if (!j) return null; advance(j);
-        return { ...j, queue_position: j.state === "queued" ? 1 : null };
+        const l = u().local;
+        return { ...j, queue_position: j.state === "queued" ? 1 : null,          // the real queue_position() may well count a local job too; the TOOLS must not show it
+                 ...(j.run_on === "owner_local" ? { node: { last_seen_at: l?.lastSeenAt ?? null, computer_name: l?.computerName ?? null } } : {}) };
       },
       links: async (vid, jid): Promise<Link[]> => u().jobs.filter((j) => j.version_id === vid && j.state === "complete" && (!jid || j.id === jid))
         .map((j) => ({ kind: j.job_type, url: `https://fake.ryagram.invalid/${j.id}?sig=test`, expires_in_s: 900 })),
