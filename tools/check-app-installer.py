@@ -211,6 +211,11 @@ def main():
     (inno / "unins000.dat").write_bytes(b"differs per install")
     i, e = folder_try("fo2", good)
     check(i is not None, "and the uninstall record unins000.* may be there and differ")
+    for evil in ("unins_evil.dll", "uninst.dll", "unins000.dll", "unins0001.exe"):
+        (inno / evil).write_bytes(b"x")
+        i, e = folder_try("fo3x", good)
+        check(i is None and e and f"{evil} was added" in e, f"MUST-FAIL (CC1 00:25): an extra file named {evil} is NOT mistaken for the uninstall record ({(e or 'NOT REFUSED')[:60]!r})")
+        (inno / evil).unlink()
     (inno / "ISPP.dll").write_bytes(b"dll-2-CHANGED")
     i, e = folder_try("fo3", good)
     check(i is None and e and "ISPP.dll has been changed" in e, f"MUST-FAIL: a changed DLL beside the compiler refuses it ({(e or 'NOT REFUSED')[:80]!r})")

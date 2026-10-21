@@ -36,6 +36,7 @@ COMPILER_PINS = {
     "0a8757031b33777e4c9cbffee40f11a5062b36d25cbe144c1db73b6102b80ad7": {"thumbprint": "E0AB19C8D38CBF9C44709925122A7A02F8C70CB7", "what": "Inno Setup 6.7.3 ISCC.exe"},
 }
 FOLDER_LIST = HERE / "inno-6.7.3-files.sha256"          # SHA-256 of every file of the verified Inno Setup 6.7.3 folder (not the uninstall record unins000.*, which differs per install)
+UNINS_RECORD = re.compile(r"^unins\d{3}\.(dat|exe|msg)$")       # only the real uninstall record may differ; 'uninst.dll' or 'unins_evil.dll' are NOT it (CC1 00:25)
 SAFE_PATH = re.compile(r"^[A-Za-z0-9 _.()\\/:-]+$")
 VERSION_OK = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
 
@@ -242,7 +243,7 @@ def check_compiler_folder(iscc: Path, listing: dict = None) -> None:
     root = Path(iscc).resolve().parent
     seen = {}
     for p in root.rglob("*"):
-        if p.is_file() and not p.name.lower().startswith("unins"):
+        if p.is_file() and not UNINS_RECORD.match(p.name.lower()):
             seen[p.relative_to(root).as_posix()] = verify_bundle.sha256_file(p)
     bad = sorted([f"{k} was added" for k in seen if k not in listing] + [f"{k} is missing" for k in listing if k not in seen] + [f"{k} has been changed" for k in seen if k in listing and seen[k] != listing[k]])
     if bad:
