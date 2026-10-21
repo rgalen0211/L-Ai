@@ -101,7 +101,8 @@ begin
   begin
     try
       repeat
-        if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+        { the three folders an earlier uninstall KEPT are the person's own work, not strangers' files: a reinstall may go back into that folder }
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') and (not SameText(FindRec.Name, 'films')) and (not SameText(FindRec.Name, 'work')) and (not SameText(FindRec.Name, 'models')) then
           Result := True;
       until Result or (not FindNext(FindRec));
     finally
