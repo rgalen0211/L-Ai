@@ -108,7 +108,7 @@ def main():
             check('copy the address above into Microsoft Edge or Google Chrome' in txt, 'and it says what to do if the page misbehaves in the default browser: use Edge or Chrome')
             # the listening model: found with NO variable set by the person (a double-click has none), in the kit's own models folder
             want = str(folder / 'models')
-            line = 'Listening model folder: ' + want + ' (no model there yet: double-click ' + GET + ' once)'
+            line = 'Listening model folder: ' + want + ' (no model there yet: use the Download button on the page)'
             check(line in txt.replace(chr(13), ''), "a double-click start (a clean environment, no RYAGRAM_MODEL_DIR) looks in the kit's own models folder and says plainly the model is not there yet (" + str([x for x in txt.splitlines() if 'model folder' in x][:1]) + ')')
             tok = url.split('/?t=')[1]
             (tmp / 'a.mp4').write_bytes(b'not a real video')
@@ -120,7 +120,7 @@ def main():
                         return json.loads(r.read().decode()).get('problems', [])
                 except urllib.error.HTTPError as e:
                     return json.loads(e.read().decode()).get('problems', [])
-            sentence = 'The \u201cFast (rough)\u201d listening model is not on this computer yet (about 142 MB, downloaded once). Double-click ' + GET + ' once'
+            sentence = 'The \u201cFast (rough)\u201d listening model is not on this computer yet (about 142 MB, downloaded once). Press “Download the listening model” on this page'
             check(any(sentence in x for x in problems_at(base, tok)), "Plan's door check says in ONE plain sentence what to do when the model is missing")
             # a second start takes the next free port
             p2, log2, f2 = start(folder, args=('--port', str(port)))
