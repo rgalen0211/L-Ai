@@ -93,6 +93,18 @@ test('A ROW WITH NO MEASURED OFFSET is allowed (the receipt has the measured one
   assert.equal(sw.offset_ms, null);
 });
 
+test('A BUILT WORD from CONNECT 112 may carry a play-button name and a clash note; the name is a file name only', () => {
+  const x = clone(plan), b = firstOf(plan, w => w.status === 'syllables');
+  Object.assign(x.lines[b.n - 1].words[b.i], { preview: 'built-brooks.wav', voice_may_clash: true });
+  const p = M.normalize(x), w = p.lines[b.n - 1].words[b.i];
+  assert.equal(w.preview, 'built-brooks.wav');
+  assert.ok(M.flags(p, p.lines[b.n - 1], b.i).some(f => /may not match each other/.test(f)));
+  assert.ok(!M.flags(plan, plan.lines[b.n - 1], b.i).some(f => /may not match/.test(f)));
+  x.lines[b.n - 1].words[b.i].preview = 'C:\\work\\a.wav';
+  refuses(() => M.normalize(x), /file name only, not a path/);
+  assert.equal(M.parse(M.stringify(p)).lines[b.n - 1].words[b.i].preview, 'built-brooks.wav');
+});
+
 test('PLAIN WORDS FOR EACH STATE, and a speaker is never shown as an id', () => {
   const real = firstOf(plan, w => w.status === 'whole'), built = firstOf(plan, w => w.status === 'syllables'), gap = firstOf(plan, w => w.status === 'gap');
   assert.equal(M.statusText(real.w), 'Said as it is');
