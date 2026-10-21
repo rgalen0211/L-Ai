@@ -234,10 +234,17 @@ def main():
         mk_video(fol / 'four.mp4', 520)
         (media / 'empty').mkdir(exist_ok=True)
         saved_expand = getattr(dm.STATE['E'], 'expand_folder', None)
+        if saved_expand is not None:                      # an engine that HAS the function (the combined one): take it away for this one check, as an older engine would not have it
+            del dm.STATE['E'].expand_folder
         picks['folder'] = str(fol)
         st, r = jpost(base, '/api/song/folder', {}, tok)
         check(st == 400 and 'cannot read a whole folder' in r['error'], 'MUST-FAIL: an engine that cannot read folders says so in plain words (not a crash)')
-        dm.STATE['E'].expand_folder = fake_expand
+        if saved_expand is not None:                      # the engine's own function, with its cap lowered to 3 so the 'found 4, uses 3' case is the real one
+            dm.STATE['E'].expand_folder = saved_expand
+            keep_cap = dm.STATE['E'].MAX_FOLDER_FILES
+            dm.STATE['E'].MAX_FOLDER_FILES = 3
+        else:
+            dm.STATE['E'].expand_folder = fake_expand
         picks['folder'] = str(media / 'empty')
         st, r = jpost(base, '/api/song/folder', {}, tok)
         check(st == 400 and 'no videos' in r['error'].lower(), 'MUST-FAIL: an empty folder is refused in words')
@@ -259,6 +266,8 @@ def main():
         st, r = jpost(base, '/api/song/hear', {'kind': 'word', 'n': 1, 'i': 0}, tok)
         st2, h2, b2 = http('GET', base + r['url'], tok) if r else (0, 0, b'')
         check(st == 200 and st2 == 200 and b2[:4] == b'RIFF', 'Hear this word works for a video found through a folder (looked up by its own file name)')
+        if saved_expand is not None:
+            dm.STATE['E'].MAX_FOLDER_FILES = keep_cap
         dm.STATE['E'].expand_folder = saved_expand if saved_expand is not None else fake_expand
 
         print('   build: refusals in plain words, then a plan')
