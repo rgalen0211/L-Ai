@@ -377,7 +377,13 @@ class Ops(core.Base):
                            # anyone who is not signed in) and Ryan's two admin switches (each refuses everyone but is_app_admin() inside)
                            "connect_consent_check(uuid)", "connect_consent_decide(uuid,boolean,text[])", "my_connected_ais()", "disconnect_ai(text)",
                            "admin_set_connect_access(text,boolean)", "admin_connect_allowlist_set(text,text,text,boolean)",
-                           "admin_connect_set_enabled(boolean)", "admin_connect_revoke_all()"}
+                           "admin_connect_set_enabled(boolean)", "admin_connect_revoke_all()",
+                           # r9 render node: the person's own device sign-in page and computers (app session, own rows only, checked
+                           # inside); Ryan's tester switch, its history and the storage view (each refuses everyone but an admin inside).
+                           # The node_* functions are NOT here: they stay closed to anon and authenticated (node_runner only).
+                           "device_request_check(text)", "device_decide(text,boolean)", "my_computers()", "remove_computer(uuid)",
+                           "admin_set_local_compute(uuid,boolean,text)", "admin_set_local_compute_by_email(text,boolean,text)",
+                           "admin_local_compute_audit()", "admin_storage_usage()"}
             for fn in new:
                 if fn in may_sign_in:
                     continue

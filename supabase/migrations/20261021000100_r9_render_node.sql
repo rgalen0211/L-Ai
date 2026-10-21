@@ -1,6 +1,14 @@
--- r9 M3 DRAFT (WORKER, NEXT-WORKER 29, 2026-10-20). NEVER APPLIED, NEVER ON LIVE. Applying it is a later Ryan row.
--- Loaded only by supabase/tests/test_r9_node.py, AFTER every file in migrations/. Design: proposals\R9-REAL-PRODUCT-PLAN.md
--- (CONNECT 97) and proposals\WORKER-R9-REMOTE-NODE-NOTES.md; CC1 13:20 and 13:34.
+-- r9 M3: the render node (WORKER; was supabase/r9-drafts/r9_node_draft.sql rev5 311c92d, CC1 13:20, 13:34, 14:11).
+-- Design: proposals\R9-REAL-PRODUCT-PLAN.md (CONNECT 97) and proposals\WORKER-R9-REMOTE-NODE-NOTES.md.
+-- Tests: supabase/tests/test_r9_node.py (it builds the database from every OTHER migration, then applies this file).
+--
+-- HOW IT IS APPLIED (Ryan's step, proposals\RYAN-GO-LIVE-SESSION.md C2; proof project first, then live):
+--   * BEFORE: the dated export exists (Q160), and phase-2b/credits_ledger.sql is already on the database.
+--   * House claims PAUSED first: this file replaces claim_next_job, which the live worker calls every few seconds.
+--     The exact pause, the wait, the read-only checks and the un-pause: proposals\WORKER-R9-BACKUP-AND-ROLLBACK.md C2.
+--   * ONE transaction (begin ... commit below): it applies whole or not at all.
+--   * AFTER: Ryan gives node_runner its login himself (C3; the statement is in the note below).
+--   * UNDO: supabase/rollbacks/20261021000100_r9_render_node_rollback.sql, the exact reverse, also one transaction.
 --
 -- WHAT IT ADDS
 --   * a tester flag, account_settings.local_compute: set ONLY by an admin, every change in local_compute_audit;

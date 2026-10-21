@@ -1,5 +1,6 @@
-"""r9 M3 DRAFT (supabase/r9-drafts/r9_node_draft.sql) on a local Postgres, with the credits ledger: the tester flag, where a
-job runs, the house worker's claim and the render node. The draft is NEVER applied to live; this suite is how it is reviewed.
+"""r9 M3, the migration supabase/migrations/20261021000100_r9_render_node.sql, on a local Postgres with the credits ledger: the
+tester flag, where a job runs, the house worker's claim and the render node. The database is built from every OTHER migration
+plus the ledger (as live is before r9), then this one file is applied, so "before" and "after" can be compared exactly.
 
 Run from the repo root with TEMP/TMP on D: (the storage rule):
     pgvenv/Scripts/python -m unittest supabase/tests/test_r9_node.py -v
@@ -23,8 +24,10 @@ import test_2a_core as core  # noqa: E402
 
 ROOT = core.ROOT
 LEDGER = ROOT / "phase-2b" / "credits_ledger.sql"
-DRAFT = Path(os.environ.get("R9_DRAFT_SQL") or ROOT / "r9-drafts" / "r9_node_draft.sql")
-ROLLBACK = ROOT / "r9-drafts" / "r9_node_rollback.sql"   # a mutant copy, for the must-fail probe
+R9_MIGRATION = ROOT / "migrations" / "20261021000100_r9_render_node.sql"
+DRAFT = Path(os.environ.get("R9_DRAFT_SQL") or R9_MIGRATION)   # R9_DRAFT_SQL: a mutant copy, for the must-fail probe
+ROLLBACK = ROOT / "rollbacks" / "20261021000100_r9_render_node_rollback.sql"
+BEFORE_R9 = [p for p in core.MIGRATIONS if p.name != R9_MIGRATION.name]
 RYAN, OTHER, WORKER, WORKER2 = core.RYAN, core.OTHER, core.WORKER, core.WORKER2
 SAM, BOB, ADMIN = (str(uuid.UUID(int=i)) for i in (201, 202, 203))
 _server = None
@@ -49,7 +52,7 @@ def setUpModule():
         c.execute("create database tmplr9base")
     with psycopg.connect(_server.get_uri(database="tmplr9base"), autocommit=True) as c:
         c.execute((ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
-        for path in [*core.MIGRATIONS, LEDGER]:
+        for path in [*BEFORE_R9, LEDGER]:
             c.execute(path.read_text(encoding="utf-8"))
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("create database tmplr9 template tmplr9base")

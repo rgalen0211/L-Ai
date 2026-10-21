@@ -1,5 +1,6 @@
--- r9 M3 ROLLBACK (WORKER, 2026-10-20): the exact undo of supabase/r9-drafts/r9_node_draft.sql. NEVER APPLIED.
--- Use ONLY after the draft was applied and must come out. Run in ONE transaction (the SQL Editor runs a pasted script as one).
+-- r9 M3 ROLLBACK (WORKER): the exact undo of supabase/migrations/20261021000100_r9_render_node.sql. NOT a migration: it
+-- lives outside migrations/ so nothing ever applies it automatically. Use ONLY if r9 was applied and must come out, with
+-- house claims PAUSED as for the apply (proposals\WORKER-R9-BACKUP-AND-ROLLBACK.md C2). One transaction (begin ... commit).
 -- BEFORE IT: a dated export of the database exists (proposals\WORKER-R9-BACKUP-AND-ROLLBACK.md).
 -- WHAT IT LOSES: who is a tester and its audit history, every signed-in computer, and which jobs ran or would run on a person's
 -- own computer. Jobs themselves, their files and the credits ledger are untouched.
