@@ -35,6 +35,7 @@ EXPECT_SIGNER = "Pyrsys B.V."                         # READ from the real Inno 
 COMPILER_PINS = {
     "0a8757031b33777e4c9cbffee40f11a5062b36d25cbe144c1db73b6102b80ad7": {"thumbprint": "E0AB19C8D38CBF9C44709925122A7A02F8C70CB7", "what": "Inno Setup 6.7.3 ISCC.exe"},
 }
+FOLDER_LIST = HERE / "inno-6.7.3-files.sha256"          # SHA-256 of every file of the verified Inno Setup 6.7.3 folder (not the uninstall record unins000.*, which differs per install)
 SAFE_PATH = re.compile(r"^[A-Za-z0-9 _.()\\/:-]+$")
 VERSION_OK = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
 
@@ -226,12 +227,34 @@ def check_signature(path: Path, runner=run_signature_check, pins: dict = None) -
         raise Refused(f"{Path(path).name} is not signed by {EXPECT_SIGNER} with the pinned certificate (Windows says: {status or 'nothing'}). The compiler is not used.")
 
 
+def load_folder_list() -> dict:
+    out = {}
+    for line in FOLDER_LIST.read_text(encoding="ascii").splitlines():
+        if len(line) > 66 and line[64:66] == "  ":
+            out[line[66:]] = line[:64]
+    return out
+
+
+def check_compiler_folder(iscc: Path, listing: dict = None) -> None:
+    """ISCC.exe loads ISCmplr.dll, ISPP.dll and the compression DLLs from its own folder: every file in that folder must be exactly one we verified (CC1 00:21). An extra,
+    missing or changed file refuses the compiler. The uninstall record (unins000.*) is the one thing allowed to differ."""
+    listing = load_folder_list() if listing is None else listing
+    root = Path(iscc).resolve().parent
+    seen = {}
+    for p in root.rglob("*"):
+        if p.is_file() and not p.name.lower().startswith("unins"):
+            seen[p.relative_to(root).as_posix()] = verify_bundle.sha256_file(p)
+    bad = sorted([f"{k} was added" for k in seen if k not in listing] + [f"{k} is missing" for k in listing if k not in seen] + [f"{k} has been changed" for k in seen if k in listing and seen[k] != listing[k]])
+    if bad:
+        raise Refused("The compiler's folder is not exactly the verified Inno Setup 6.7.3: " + "; ".join(bad[:4]) + (f" ... and {len(bad) - 4} more" if len(bad) > 4 else "") + ". The compiler is not used.")
+
+
 def need_free(bundle: Path) -> int:
     return int(sum(p.stat().st_size for p in bundle.rglob("*") if p.is_file()) * 1.2) + (200 << 20)
 
 
 def build(bundle: Path, iscc: Path, out: Path, version: str, *, allow_any_drive: bool = False, signature_runner=run_signature_check, compiler_pins: dict = None,
-          check_name: bool = True) -> dict:
+          check_name: bool = True, check_folder: bool = True, folder_pins: dict = None) -> dict:
     if not VERSION_OK.match(version or ""):
         raise Refused("The version label may only hold letters, digits, dot, dash and underscore (up to 20).")
     bundle, out = Path(bundle).resolve(), Path(out).resolve()
@@ -256,6 +279,8 @@ def build(bundle: Path, iscc: Path, out: Path, version: str, *, allow_any_drive:
     if check_name and iscc.name.lower() != "iscc.exe":
         raise Refused("The compiler must be the file ISCC.exe.")
     check_signature(iscc, signature_runner, compiler_pins)
+    if check_folder:
+        check_compiler_folder(iscc, folder_pins)
     out.mkdir(parents=True, exist_ok=True)
     try:
         if shutil.disk_usage(out).free < need_free(bundle):

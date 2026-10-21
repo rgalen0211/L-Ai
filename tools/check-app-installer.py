@@ -91,6 +91,7 @@ def attempt(root, name, **over):
     out = root / name
     kw = dict(bundle=over.pop("bundle"), iscc=over.pop("iscc"), out=over.pop("out", out), version=over.pop("version", "7"), allow_any_drive=True,
               signature_runner=over.pop("sig", GOOD_SIG), check_name=False)
+    kw["check_folder"] = over.pop("check_folder", False)          # the stand-in compiler's folder is not Inno's; the folder rule has its own rows below
     pins = over.pop("pins", None)
     if pins is None:
         pins = {sha(kw["iscc"]): {"thumbprint": THUMB}} if Path(kw["iscc"]).is_file() else {}
@@ -193,6 +194,36 @@ def main():
     refuse("too little free space", "free space", bundle=b, iscc=stub)
     mai.need_free = keep
     check(sha(b / "tools" / "verify_bundle.py") == before["tools/verify_bundle.py"], "the refused runs changed nothing in the good bundle")
+
+    print("\nthe compiler's whole folder is pinned (CC1 00:21)")
+    inno = fresh("inno-folder")
+    (inno / "Languages").mkdir()
+    (inno / "ISCmplr.dll").write_bytes(b"dll-1")
+    (inno / "ISPP.dll").write_bytes(b"dll-2")
+    (inno / "Languages" / "German.isl").write_text("de")
+    shutil.copy2(stub, inno / "iscc.bat")
+    good = {"ISCmplr.dll": sha(inno / "ISCmplr.dll"), "ISPP.dll": sha(inno / "ISPP.dll"), "Languages/German.isl": sha(inno / "Languages" / "German.isl"), "iscc.bat": sha(inno / "iscc.bat")}
+    def folder_try(name, listing):
+        i, e, o = attempt(root, name, bundle=b, iscc=inno / "iscc.bat", check_folder=True, folder_pins=listing)
+        return i, e
+    i, e = folder_try("fo1", good)
+    check(i is not None and e is None, f"a compiler folder that is exactly the verified list is accepted ({e})")
+    (inno / "unins000.dat").write_bytes(b"differs per install")
+    i, e = folder_try("fo2", good)
+    check(i is not None, "and the uninstall record unins000.* may be there and differ")
+    (inno / "ISPP.dll").write_bytes(b"dll-2-CHANGED")
+    i, e = folder_try("fo3", good)
+    check(i is None and e and "ISPP.dll has been changed" in e, f"MUST-FAIL: a changed DLL beside the compiler refuses it ({(e or 'NOT REFUSED')[:80]!r})")
+    (inno / "ISPP.dll").write_bytes(b"dll-2")
+    (inno / "Evil.dll").write_bytes(b"x")
+    i, e = folder_try("fo4", good)
+    check(i is None and e and "Evil.dll was added" in e, f"MUST-FAIL: an extra DLL in the compiler's folder refuses it ({(e or 'NOT REFUSED')[:80]!r})")
+    (inno / "Evil.dll").unlink()
+    (inno / "Languages" / "German.isl").unlink()
+    i, e = folder_try("fo5", good)
+    check(i is None and e and "German.isl is missing" in e, f"MUST-FAIL: a missing file refuses it ({(e or 'NOT REFUSED')[:80]!r})")
+    lst = mai.load_folder_list()
+    check(len(lst) > 100 and "ISCmplr.dll" in lst and all(len(h) == 64 for h in lst.values()) and not any(k.lower().startswith("unins") for k in lst), "the shipped list names every file of the verified Inno folder (ISCmplr.dll and ISPP.dll among them) and none of the uninstall record")
 
     print("\nthe small things CC1 listed")
     odd = fresh("odd '; echo INJECTED; '")
