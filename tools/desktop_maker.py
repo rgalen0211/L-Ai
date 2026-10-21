@@ -798,8 +798,19 @@ V2_HTML = """<section id="v2" aria-labelledby="h-v2"><h2 id="h-v2">4. Pictures t
 """
 
 
+SONG_LINK = '<p><a id="song-link" class="button secondary" href="/song">Sing a line to your music</a></p>'
+
+
+def _song_mod():
+    """tools/maker_song.py when the maker was started with --song, else None (the routes then do not exist)."""
+    if not STATE.get("song_on"):
+        return None
+    import maker_song  # noqa: PLC0415
+    return maker_song
+
+
 def page_html() -> str:
-    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "")
+    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", SONG_LINK if STATE.get("song_on") else "")
 
 
 def pick_files(multiple: bool) -> list[str]:
@@ -962,6 +973,7 @@ PAGE = """<!doctype html>
 <body><main>
 <p class="banner" role="note"><strong>INTERNAL PROTOTYPE.</strong> Runs on this computer only. Nothing is uploaded; there is no account.</p>
 <h1>Desktop maker</h1>
+<!--SONG-->
 <section class="logbox" aria-labelledby="h-log"><h2 id="h-log">A note about a small log</h2>
 <p id="log-notice">This kit keeps a short activity log on this computer, in <code id="log-path">(loading)</code>, to help Ryan make it better. It records which buttons you press and when, how long things took, and counts. It never records file names, the words you type, your answers, or anything from your videos. Nothing is sent anywhere. You can delete the file at any time, or untick the box below to stop it.</p>
 <label class="logswitch" for="log-on"><input id="log-on" type="checkbox" checked> Keep this log</label><p id="log-state" class="note" role="status"></p></section>
@@ -1025,6 +1037,7 @@ JS = r"""(function () {
   const T = new URLSearchParams(location.search).get('t') || sessionStorage.getItem('maker-token') || '';
   try { sessionStorage.setItem('maker-token', T); } catch (e) { /* the page still works without it */ }
   const $ = id => document.getElementById(id);
+  if ($('song-link')) $('song-link').href = '/song?t=' + encodeURIComponent(T);
   if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // Ryan's box; Sam never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
@@ -1410,12 +1423,12 @@ class Handler(BaseHTTPRequestHandler):
         host = (self.headers.get("Host") or "").lower()
         return host in (f"127.0.0.1:{STATE['port']}", f"localhost:{STATE['port']}")
 
-    def _send(self, code: int, body: bytes, ctype: str):
+    def _send(self, code: int, body: bytes, ctype: str, csp: str | None = None):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         self.send_header("Cache-Control", "no-store")
-        self.send_header("Content-Security-Policy", CSP)
+        self.send_header("Content-Security-Policy", csp or CSP)
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "no-referrer")
         self.end_headers()
@@ -1437,7 +1450,15 @@ class Handler(BaseHTTPRequestHandler):
         return True
 
     def do_GET(self):  # noqa: N802
-        path = urlparse(self.path).path
+        u = urlparse(self.path)
+        path = u.path
+        if path.startswith(("/api/song", "/song")):
+            ms = _song_mod()
+            if ms is None:
+                self._json(404, {"error": "Not found."})
+                return
+            if ms.get(path, u.query, self._send, self._json, self._auth, self._host_ok):
+                return
         if path == "/":
             if self._auth(query_ok=True):
                 act("page_opened")
@@ -1537,12 +1558,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             n = int(self.headers.get("Content-Length") or 0)
-            if n > 200_000:
+            if n > (600_000 if urlparse(self.path).path.startswith("/api/song") else 200_000):
                 raise Problem("That request is too large.")
             body = json.loads(self.rfile.read(n) or b"{}")
             if not isinstance(body, dict):
                 raise Problem("Bad request.")
             path = urlparse(self.path).path
+            if path.startswith("/api/song"):
+                ms = _song_mod()
+                if ms is None:
+                    self._json(404, {"error": "Not found."})
+                    return
+                if ms.post(path, body, self._json):
+                    return
             if path == "/api/check":
                 pc = precheck(body)
                 pc.pop("args", None)
@@ -1974,6 +2002,8 @@ def main(argv=None) -> int:
     ap.add_argument("--search", action="append", default=[], help="a folder to look in for a file you drop onto a slot (repeat for more; default: Videos, Downloads, Desktop and Documents)")
     ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
     ap.add_argument("--v2", action="store_true", help="TEST: show the pictures-and-rules section (images as inputs, the every-time-a-word-is-said rule); off by default")
+    ap.add_argument("--song", action="store_true", help="TEST: serve the song page (a line sung to your music, words from your own videos); off by default")
+    ap.add_argument("--song-forge", action="store_true", help="TEST, with --song: build a word nobody says from the sounds of words your videos do say, when the alignment model is on this PC (it is never downloaded by the maker)")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     ap.add_argument("--site", default=os.environ.get("RYAGRAM_SITE", ""), help="r9, off unless given: the Ryagram site's node address (https://...), to show the Sign in card")
@@ -1990,6 +2020,11 @@ def main(argv=None) -> int:
     except ModuleNotFoundError as e:
         raise SystemExit(f"A part of Python that the maker needs is missing ({e.name}). Most likely the speech add-on is not installed. "
                          + ADDON_STEP)
+    if a.song or os.environ.get("RYAGRAM_MAKER_SONG") == "1":
+        STATE["song_on"] = True
+        STATE["song_forge"] = bool(a.song_forge or os.environ.get("RYAGRAM_MAKER_SONG_FORGE") == "1")
+        import maker_song  # noqa: PLC0415
+        maker_song.attach(sys.modules[__name__])
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)
