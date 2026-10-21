@@ -12,3 +12,4 @@ supabase/functions/_shared/listing_decisions.json text eol=lf
 supabase/functions/_shared/motion_record.txt text eol=lf
 supabase/functions/_shared/motion_baseline.txt text eol=lf
 supabase/functions/_shared/motion_skip_named.txt text eol=lf
+*.bat text eol=crlf

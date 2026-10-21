@@ -61,9 +61,18 @@ test('EVERY PAGE has a title and a language; every public page has a description
   }
 });
 
+// Pages under tools/ are LOCAL TOOL pages: the maker serves them on the person's own computer. They are never public, so they must say noindex; only they are exempt from the description and heading rules.
+const LOCAL_TOOL = f => f.startsWith('tools/');
+
+test('LOCAL TOOL PAGES (tools/) say noindex, and no page outside tools/ gets that exemption', () => {
+  for (const f of files.filter(LOCAL_TOOL)) assert.match(pages[f].meta.robots || '', /noindex/i, `${f}: a local tool page must say noindex`);
+  for (const f of SHOULD_BE_INDEXED) assert.ok(!LOCAL_TOOL(f), `${f}: a public page cannot be a local tool page`);
+  for (const f of files.filter(x => !LOCAL_TOOL(x) && !SHOULD_BE_NOINDEX.has(x))) assert.ok(!/noindex/i.test(pages[f].meta.robots || '') || ['film/index.html', 'report/index.html', 'preview-demo/index.html', 'workflow-audit/index.html', 'app/index.html'].includes(f), `${f}: outside tools/ a page is classified, not exempt`);
+});
+
 test('DRAFT, PRIVATE AND NOT-A-DESTINATION PAGES keep search engines away; every page is classified', () => {
   for (const f of SHOULD_BE_NOINDEX) assert.match(pages[f].meta.robots || '', /noindex/i, `${f}: needs noindex`);
-  for (const f of files) assert.ok(SHOULD_BE_NOINDEX.has(f) || SHOULD_BE_INDEXED.has(f) || ['film/index.html', 'report/index.html', 'preview-demo/index.html', 'workflow-audit/index.html'].includes(f), `${f}: a new page must be classified here (indexed or noindex)`);
+  for (const f of files) assert.ok(SHOULD_BE_NOINDEX.has(f) || SHOULD_BE_INDEXED.has(f) || LOCAL_TOOL(f) || ['film/index.html', 'report/index.html', 'preview-demo/index.html', 'workflow-audit/index.html'].includes(f), `${f}: a new page must be classified here (indexed or noindex)`);
 });
 
 test('THE UNLISTED DRAFTS ARE LINKED FROM NOWHERE (connect-ai, the legal-drafts)', () => {
