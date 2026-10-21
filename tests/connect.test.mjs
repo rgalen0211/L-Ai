@@ -101,7 +101,7 @@ test('WIRING AND FLAG: the route and the account section exist only behind conne
   assert.match(lib, /const connectOn = \(\) => window\.ryagramConfig\?\.connectAi === true \|\| !!window\.ryagramMock;/);
   assert.match(lib, /connectOn\(\) && window\.ryagramConnect\.requestFromHash\(hash\)\) view = \(await connectAllowed\(data\)\) \? await connectUi\(\)\.consentView\(window\.ryagramConnect\.requestFromHash\(hash\)\) : connectUi\(\)\.inviteOnlyView\(\)/);
   assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\)\);/);
-  assert.match(read('assets/ryagram-config.js'), /connectAi: false,/);
+  assert.match(read('assets/ryagram-config.js'), /connectAi: true,/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-connect.js') > 0 && html.indexOf('app-connect.js') < html.indexOf('app-library.js'));
   const src = read('assets/app-connect.js');
