@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'; base-uri 'none'; form-action 'none'">
+<meta name="color-scheme" content="light dark">
+<title>Edit your film</title>
+<link rel="stylesheet" href="edit.css">
+</head>
+<body>
+<main>
+  <header class="top" id="top"></header>
+  <p class="vh" id="live" role="status" aria-live="polite"></p>
+  <section class="stage" id="stage" aria-label="Preview of your film"></section>
+  <ol class="strip" id="strip" aria-label="The clips in your film, in order"></ol>
+  <ul class="warns" id="warns" aria-label="Things to look at" hidden></ul>
+  <section class="panel" id="panels" aria-label="Edit your film"></section>
+  <p class="note">The preview is drawn here, on your computer, and costs nothing. It is close to the film, but the render is the real thing: nothing is made until you press Render.</p>
+</main>
+<script src="edit-model.js"></script>
+<script src="fixture.js"></script>
+<script src="edit.js"></script>
+</body>
+</html>
