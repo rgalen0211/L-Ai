@@ -89,7 +89,7 @@
       if (c.slide !== undefined && c.slide !== null) {
         if (!isObj(c.slide) || typeof c.slide.image_id !== 'string') fail(`Slide ${i + 1} must name its picture.`);
         if (ins !== 0) fail('A slide always starts at 0 seconds; change how long it stays with its end.');
-        if (outs > 30) fail('A slide stays up to 30 seconds.');
+        if (outs > 10) fail('A slide stays up to 10 seconds.');
         slide = { image_id: c.slide.image_id };
       }
       let join = null;
@@ -114,6 +114,7 @@
       out.images.push({ id: m.id, file_name: m.file_name, sha256: m.sha256, width: m.width, height: m.height, rights_ticked: m.rights_ticked === true });
     });
 
+    if (out.clips.filter(c => c.slide).length > 10) fail('A film can have up to 10 slides.');
     out.clips.forEach((c, i) => {
       if (!c.slide) return;
       const m = out.images.find(x => x.id === c.slide.image_id);
@@ -318,7 +319,7 @@
       need(edit, 'slides', 'slides');
       const e = clone(edit), m = e.images.find(x => x.id === s.image_id); if (!m) fail('Choose a picture for the slide first.');
       const n = nextId(e, 's'); e.seq = n.seq;
-      const at = s.after === null || s.after === undefined ? 0 : clipIndex(e, s.after) + 1;
+      const at = s.after === null || s.after === undefined ? 0 : s.after === 'end' ? e.clips.length : clipIndex(e, s.after) + 1;
       e.clips.splice(at, 0, { id: n.id, file_name: m.file_name, in_s: 0, out_s: s.seconds === undefined ? 3 : s.seconds, words: [], slide: { image_id: m.id }, join: { kind: 'cut', s: 0 } });
       return normalize(e);
     },

@@ -263,9 +263,9 @@
     });
     if (F.slides) {
       const sel = h('select', { id: 'sl-img', 'aria-label': 'Picture for the slide' }, e.images.map(m => h('option', { value: m.id }, m.file_name)));
-      const after = h('select', { id: 'sl-after', 'aria-label': 'Where the slide goes' }, [h('option', { value: '' }, 'at the start')].concat(e.clips.map((c, i) => h('option', { value: c.id }, `after ${c.slide ? 'slide' : 'clip'} ${i + 1}`))));
+      const after = h('select', { id: 'sl-after', 'aria-label': 'Where the slide goes' }, [h('option', { value: '' }, 'at the start')].concat(e.clips.map((c, i) => h('option', { value: c.id }, `after ${c.slide ? 'slide' : 'clip'} ${i + 1}`)), [h('option', { value: 'end' }, 'at the end')]));
       pane.append(h('fieldset', {}, h('legend', {}, 'Slides'), h('form', { id: 'slide-form', onsubmit: ev => { ev.preventDefault(); const id = $('sl-img').value; apply(x => M.ops.addSlide(x, { image_id: id, seconds: parseFloat($('sl-secs').value), after: $('sl-after').value || null }), 'Slide added.'); } },
-        h('p', {}, 'Show ', sel, ' on its own for ', h('input', { id: 'sl-secs', type: 'number', min: '0.5', max: '30', step: '0.5', value: '3', 'aria-label': 'Seconds the slide stays' }), ' seconds, ', after, '. ',
+        h('p', {}, 'Show ', sel, ' on its own for ', h('input', { id: 'sl-secs', type: 'number', min: '0.5', max: '10', step: '0.5', value: '3', 'aria-label': 'Seconds the slide stays' }), ' seconds, ', after, '. ',
           h('button', { type: 'submit', class: 'primary', disabled: !e.images.length, 'data-key': 'add-slide' }, 'Add this slide')),
         h('p', { class: 'note' }, 'A slide is a picture of your own, such as a title card, shown between clips. Add the picture above first, and tick the rights box.'))));
     }

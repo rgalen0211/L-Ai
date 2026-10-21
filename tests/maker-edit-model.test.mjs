@@ -78,7 +78,11 @@ test('SLIDES: a picture of the person\'s own is its own stretch of the film; it 
   assert.equal(first.clips[0].slide.image_id, PIC.id, 'with no clip named it goes first');
   refuses(() => M.ops.addSlide(base, { image_id: 'nope', seconds: 3 }), /Choose a picture/);
   refuses(() => M.ops.addSlide(withP, { image_id: PIC.id, seconds: 0.2, after: 'c1' }), /at least 0\.3|0\.5|long/);
-  refuses(() => M.ops.addSlide(withP, { image_id: PIC.id, seconds: 31, after: 'c1' }), /up to 30 seconds/);
+  refuses(() => M.ops.addSlide(withP, { image_id: PIC.id, seconds: 11, after: 'c1' }), /up to 10 seconds/);
+  const end = M.ops.addSlide(withPic(), { image_id: PIC.id, seconds: 2, after: 'end' });
+  assert.equal(end.clips[end.clips.length - 1].slide.image_id, PIC.id, 'at the end puts it last');
+  let many = withPic(); for (let i = 0; i < 10; i++) many = M.ops.addSlide(many, { image_id: PIC.id, seconds: 1, after: 'end' });
+  refuses(() => M.ops.addSlide(many, { image_id: PIC.id, seconds: 1, after: 'end' }), /up to 10 slides/);
   refuses(() => M.ops.removeImage(ok, PIC.id), /slide still uses/);
   const nudged = M.ops.nudge(ok, noTick.clips[1].id, 'out', 0.5);
   assert.equal(M.timeline(nudged).clips[1].length_s, 3.5, 'the end buttons change how long a slide stays');
