@@ -46,9 +46,32 @@ test('THE VIDEOS the words are found in: names only, no repeats, at least one', 
   assert.deepEqual(M.normalizeVideos([{ file_name: 'a.mp4' }, { file_name: 'b.mp4' }]), [{ file_name: 'a.mp4' }, { file_name: 'b.mp4' }]);
   refuses(() => M.normalizeVideos([]), /Choose the videos/);
   refuses(() => M.normalizeVideos(null), /Choose the videos/);
-  refuses(() => M.normalizeVideos([{ file_name: 'C:\\v\\a.mp4' }]), /by file name only/);
+  refuses(() => M.normalizeVideos([{ file_name: 'C:\\v\\a.mp4' }]), /never by a full path/);
   refuses(() => M.normalizeVideos([{ file_name: 'a.mp4' }, { file_name: 'a.mp4' }]), /twice/);
-  refuses(() => M.normalizeVideos(Array.from({ length: 301 }, (_, i) => ({ file_name: `v${i}.mp4` }))), /more than 300/);
+  refuses(() => M.normalizeVideos(Array.from({ length: 2001 }, (_, i) => ({ file_name: `v${i}.mp4` }))), /more than 2,000/);
+  assert.deepEqual(M.normalizeVideos([{ file_name: 'my-clips/Season 2/a.mp4', folder: 'my-clips' }, { file_name: 'my-clips\\b.mp4', folder: 'my-clips' }]), [{ file_name: 'my-clips/Season 2/a.mp4', folder: 'my-clips' }, { file_name: 'my-clips/b.mp4', folder: 'my-clips' }]);
+  for (const bad of ['C:\\Users\\me\\a.mp4', '/home/me/a.mp4', '\\\\server\\share\\a.mp4', '../a.mp4', 'a/../b.mp4', 'a//b.mp4', './a.mp4', 'a/b:c.mp4', '']) refuses(() => M.normalizeVideos([{ file_name: bad }]), /never by a full path|folder-relative|file name/);
+  refuses(() => M.normalizeVideos([{ file_name: 'a/x.mp4' }, { file_name: 'a\\x.mp4' }]), /twice/);
+  refuses(() => M.normalizeVideos([{ file_name: 'a.mp4', folder: 'C:\\f' }]), /by name only/);
+});
+
+test('FOLDERS: a folder says how many videos it has and how many this run uses, in plain words; names only', () => {
+  assert.deepEqual(M.normalizeFolder({ name: 'my-clips', found: 1240, used: 300 }), { name: 'my-clips', found: 1240, used: 300 });
+  assert.equal(M.folderNote({ name: 'my-clips', found: 1240, used: 300 }), 'Found 1,240 videos in my-clips; this run uses 300.');
+  assert.equal(M.folderNote({ name: 'my-clips', found: 12, used: 12 }), 'Using all 12 videos in my-clips.');
+  assert.equal(M.folderNote({ name: 'one', found: 1, used: 1 }), 'Using all 1 video in one.');
+  refuses(() => M.normalizeFolder({ name: 'C:\\Users\\me\\clips', found: 3, used: 3 }), /by name only/);
+  refuses(() => M.normalizeFolder({ name: 'a', found: 3, used: 4 }), /does not say how many/);
+  refuses(() => M.normalizeFolder({ name: 'a', found: 'many', used: 1 }), /does not say how many/);
+});
+
+test('A PLAN WORD may name its video by a folder-relative name; a full path is refused', () => {
+  const x = clone(plan), t = firstOf(plan, w => w.status === 'whole' && w.alternatives.length);
+  const w = x.lines[t.n - 1].words[t.i]; w.file_name = 'my-clips\\Season 2\\a.mp4'; w.alternatives[0].file_name = 'my-clips/b.mp4';
+  const p = M.normalize(x), q = p.lines[t.n - 1].words[t.i];
+  assert.equal(q.file_name, 'my-clips/Season 2/a.mp4'); assert.equal(q.alternatives[0].file_name, 'my-clips/b.mp4');
+  w.file_name = 'C:\\v\\a.mp4'; refuses(() => M.normalize(x), /by file name only, not by a full path/);
+  w.file_name = '../a.mp4'; refuses(() => M.normalize(x), /not by a full path/);
 });
 
 test('THE ENGINE\'S PLAN IS VALIDATED: bad plans are refused in plain words, never half-trusted', () => {
@@ -61,7 +84,7 @@ test('THE ENGINE\'S PLAN IS VALIDATED: bad plans are refused in plain words, nev
   bad(x => { x.cast = []; }, /names nobody/);
   bad(x => { x.cast[1].id = x.cast[0].id; }, /repeated id/);
   bad(x => { x.lines[real.n - 1].words[real.i].speaker_id = 'nobody-here'; }, /does not name/);
-  bad(x => { x.lines[real.n - 1].words[real.i].file_name = 'C:\\v\\a.mp4'; }, /by file name only, not by path/);
+  bad(x => { x.lines[real.n - 1].words[real.i].file_name = 'C:\\v\\a.mp4'; }, /by file name only, not by a full path/);
   bad(x => { x.lines[built.n - 1].words[built.i].pieces[1].speaker_id = x.cast.find(c => c.id !== x.lines[built.n - 1].words[built.i].speaker_id).id; }, /mixes two people/);
   bad(x => { x.lines[built.n - 1].words[built.i].pieces = [x.lines[built.n - 1].words[built.i].pieces[0]]; }, /needs its pieces/);
   bad(x => { x.lines[0].words[0].beat_s = 999; x.lines[0].words[0].end_s = 1000; }, /outside the music/);
@@ -192,7 +215,7 @@ test('THE PAGE\'S SOURCE: no HTML built from text, no call but to its own maker,
   assert.doesNotMatch(js, /&t=|[?&]t=\$\{|'t=' \+/, 'the token is never put in an address');
   assert.doesNotMatch(html, /fixture\.js/, 'the real page never loads the practice build');
   assert.match(js, /has\('fixture'\)\) \{ await loadScript\('fixture\.js'\)/, 'the practice build is loaded only for ?fixture');
-  for (const p of ['/api/song', '/api/song/track', '/api/song/videos', '/api/song/guide', '/api/song/build', '/api/song/hear', '/api/song/render']) assert.ok(js.includes(p), p);
+  for (const p of ['/api/song', '/api/song/track', '/api/song/videos', '/api/song/folder', '/api/song/guide', '/api/song/build', '/api/song/hear', '/api/song/render']) assert.ok(js.includes(p), p);
   assert.doesNotMatch(js, /https?:\/\//);
   assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'/);
   assert.doesNotMatch(html, /https?:\/\/|<script>|onclick=|style=/);
