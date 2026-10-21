@@ -23,7 +23,7 @@ ROOT = Path(__file__).resolve().parents[1] / 'tools' / 'maker-song'
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/maker-song-shots')
 PORT = 8198
 TOKEN = 'tok456'
-STATE = {'plan': None, 'saved': [], 'renders': 0, 'builds': [], 'hears': [], 'tracks': 0, 'guides': 0, 'stored': None}
+STATE = {'videos': 0, 'plan': None, 'saved': [], 'renders': 0, 'builds': [], 'hears': [], 'tracks': 0, 'guides': 0, 'stored': None}
 WAV = b'RIFF$\x00\x00\x00WAVEfmt \x10\x00\x00\x00\x01\x00\x01\x00@\x1f\x00\x00@\x1f\x00\x00\x01\x00\x08\x00data\x00\x00\x00\x00'
 
 
@@ -60,6 +60,9 @@ class H(http.server.SimpleHTTPRequestHandler):
         if u.path == '/api/song/track':
             STATE['tracks'] += 1
             return self._json(200, {'track': {'file_name': 'api-track.mp3', 'seconds': 40}})
+        if u.path == '/api/song/videos':
+            STATE['videos'] += 1
+            return self._json(200, {'videos': [{'file_name': 'api-one.mp4'}, {'file_name': 'api-two.mp4'}]})
         if u.path == '/api/song/guide':
             STATE['guides'] += 1
             return self._json(200, {'guide': {'file_name': 'api-singing.wav'}})
@@ -162,6 +165,15 @@ def main():
                 p.get_by_role('button', name='Use the practice words').click()
                 check('4 lines, 20 words' in p.locator('#count').inner_text(), 'the words are counted ("' + p.locator('#count').inner_text() + '")')
                 p.get_by_role('button', name='Build my song').click()
+                check('Choose the videos' in p.locator('#msg').inner_text(), 'a build with no videos says so in plain words')
+                p.get_by_role('button', name='Choose your videos').click()
+                p.wait_for_selector('text=third-video.mp4')
+                check(p.locator('#s-videos li').count() == 3, 'the chosen videos are listed')
+                p.get_by_role('button', name='Take third-video.mp4 out').click()
+                check(p.locator('#s-videos li').count() == 2, 'a video can be taken out')
+                p.get_by_role('button', name='Add more videos').click()
+                check(p.locator('#s-videos li').count() == 3, 'adding more does not repeat one already chosen')
+                p.get_by_role('button', name='Build my song').click()
                 check('Choose your music first' in p.locator('#msg').inner_text(), 'a build with no music says so in plain words')
                 p.get_by_role('button', name='Choose your music').click()
                 p.wait_for_selector('text=my-song.mp3')
@@ -241,6 +253,7 @@ def main():
                 p.goto(f'{base}/song.html?fixture', wait_until='load')
                 p.wait_for_selector('html[data-ready="1"]', timeout=15000)
                 p.get_by_role('button', name='Use the practice words').click()
+                p.get_by_role('button', name='Choose your videos').click()
                 p.get_by_role('button', name='Choose your music').click()
                 p.wait_for_selector('text=my-song.mp3')
                 p.get_by_role('button', name='Build my song').click()
@@ -259,6 +272,7 @@ def main():
                 p.goto(f'{base}/song.html?fixture', wait_until='load')
                 p.wait_for_selector('html[data-ready="1"]', timeout=15000)
                 p.get_by_role('button', name='Use the practice words').click()
+                p.get_by_role('button', name='Choose your videos').click()
                 p.get_by_role('button', name='Choose your music').click()
                 p.wait_for_selector('text=my-song.mp3')
                 p.get_by_role('button', name='Build my song').click()
@@ -275,6 +289,8 @@ def main():
                 p.wait_for_selector('html[data-ready="1"]', timeout=15000)
                 check(p.locator('#s-board').is_hidden() and p.locator('#lyrics').count() == 1, 'with nothing saved, the page starts at the words')
                 p.fill('#lyrics', 'one line of my own\nand a second one')
+                p.get_by_role('button', name='Choose your videos').click()
+                p.wait_for_selector('text=api-two.mp4')
                 p.get_by_role('button', name='Choose your music').click()
                 p.wait_for_selector('text=api-track.mp3')
                 p.get_by_role('button', name='Add a track of just the singing (optional)').click()
@@ -282,7 +298,7 @@ def main():
                 p.get_by_role('button', name='Build my song').click()
                 p.wait_for_selector('#s-board:not([hidden])', timeout=10000)
                 bq = STATE['builds'][-1]
-                check(bq['lines'] == ['one line of my own', 'and a second one'] and bq['track']['file_name'] == 'api-track.mp3' and bq['guide']['file_name'] == 'api-singing.wav', 'the maker received the lines, the track and the singing track by name')
+                check(bq['lines'] == ['one line of my own', 'and a second one'] and bq['track']['file_name'] == 'api-track.mp3' and bq['guide']['file_name'] == 'api-singing.wav' and bq['videos'] == [{'file_name': 'api-one.mp4'}, {'file_name': 'api-two.mp4'}], 'the maker received the lines, the videos, the track and the singing track by name')
                 p.locator('[data-key="hear-line-1"]').click()
                 until(p, "document.getElementById('player').src.startsWith('blob:')")
                 check(STATE['hears'][-1] == {'kind': 'line', 'n': 1} and p.evaluate("document.getElementById('player').src").startswith('blob:') and TOKEN not in p.evaluate("document.getElementById('player').src"), 'Hear asks the maker, fetches the sound with the token in a header, and plays it from a blob: address (no token in any address)')

@@ -45,6 +45,7 @@
     name: 'fixture',
     practiceLyrics: PRACTICE,
     async pickTrack() { return { track: { file_name: 'my-song.mp3', seconds: 40 } }; },
+    async pickVideos() { return { videos: [{ file_name: 'first-video.mp4' }, { file_name: 'second-video.mp4' }, { file_name: 'third-video.mp4' }] }; },
     async pickGuide() { return { guide: { file_name: 'my-guide-vocal.wav' } }; },
     async build(req) { return { plan: build(req.lines, req.track, req.guide) }; },
     async hear() { return null; },                                                // no audio: the page plays a tone for each word so the timing can be heard

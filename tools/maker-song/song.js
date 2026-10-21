@@ -20,6 +20,7 @@
       practiceLyrics: null,
       async pickTrack() { return call('/api/song/track', {}); },
       async pickGuide() { return call('/api/song/guide', {}); },
+      async pickVideos() { return call('/api/song/videos', {}); },
       async build(req) { return call('/api/song/build', req); },
       async hear(req) {                                             // the token travels in a header, never in an address; the sound is played from a blob: address
         const r = await call('/api/song/hear', req);
@@ -39,7 +40,7 @@
   let host = null;
   const loadScript = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => no(new Error('The practice build could not be loaded.')); document.head.append(el); });
 
-  const S = { lyrics: '', track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
+  const S = { lyrics: '', videos: [], track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
   const $ = id => document.getElementById(id);
   const mm = M.mmss;
 
@@ -100,9 +101,17 @@
     const n = $('count'); if (!n) return;
     try { const l = M.parseLyrics(S.lyrics); n.textContent = `${l.length} line${l.length === 1 ? '' : 's'}, ${l.reduce((a, x) => a + M.wordsOf(x).length, 0)} words.`; } catch (e) { n.textContent = ''; }
   }
+  function drawVideos() {
+    const box = $('s-videos'); box.replaceChildren();
+    const ul = h('ul', { class: 'list', 'aria-label': 'The videos your words are found in' });
+    S.videos.forEach(v => ul.append(h('li', {}, h('span', {}, v.file_name), h('button', { type: 'button', 'aria-label': `Take ${v.file_name} out`, onclick: () => { S.videos = S.videos.filter(x => x.file_name !== v.file_name); err(''); drawVideos(); say(`${v.file_name} taken out.`); } }, 'Take out'))));
+    box.append(h('h2', {}, '2. Your videos'), h('p', { class: 'note' }, 'Choose the videos the words are looked up in. The maker finds each word of your song being said in them, and nothing leaves this computer.'),
+      S.videos.length ? ul : h('p', { class: 'note' }, 'No videos chosen yet.'),
+      h('button', { type: 'button', id: 'pick-videos', 'data-key': 'pick-videos', onclick: async () => { try { const r = await host.pickVideos(); if (r && r.videos) { const have = new Set(S.videos.map(v => v.file_name)); S.videos = M.normalizeVideos(S.videos.concat(r.videos.filter(v => !have.has(v.file_name)))); err(''); drawVideos(); say(`${S.videos.length} video${S.videos.length === 1 ? '' : 's'} chosen.`); } } catch (e) { err(e.message); } } }, S.videos.length ? 'Add more videos' : 'Choose your videos'));
+  }
   function drawMusic() {
     const box = $('s-music'); box.replaceChildren();
-    box.append(h('h2', {}, '2. Your music'),
+    box.append(h('h2', {}, '3. Your music'),
       h('p', { class: 'note' }, 'Choose the music the words will be sung over. If it has the singing in it, the maker finds each word’s beat from it. If you have a separate track of just the singing, add it too.'),
       h('div', { class: 'row' },
         h('button', { type: 'button', id: 'pick-track', 'data-key': 'pick-track', onclick: async () => { try { const r = await host.pickTrack(); if (r && r.track) { S.track = r.track; err(''); drawMusic(); say(`${r.track.file_name} chosen.`); } } catch (e) { err(e.message); } } }, S.track ? 'Choose a different track' : 'Choose your music'),
@@ -115,10 +124,11 @@
   async function build() {
     let lines;
     try { lines = M.parseLyrics(S.lyrics); } catch (e) { err(e.message); return; }
+    try { M.normalizeVideos(S.videos); } catch (e) { err(e.message); return; }
     if (!S.track) { err('Choose your music first.'); return; }
     err(''); S.building = true; drawMusic(); say('Building. This can take a few minutes for a long song.');
     try {
-      const r = await host.build({ lines, track: S.track, guide: S.guide });
+      const r = await host.build({ lines, videos: S.videos, track: S.track, guide: S.guide });
       S.plan = M.normalize(r.plan); S.sel = null; S.dirty = true; say('Your song is built. Look at each line, then press Make the film.');
     } catch (e) { err(e instanceof M.SongError ? e.message : (e.message || 'The build did not finish.')); }
     S.building = false; draw();
@@ -130,7 +140,7 @@
     if (!S.plan) { box.hidden = true; return; }
     box.hidden = false;
     const sum = M.summarize(S.plan);
-    box.append(h('h2', {}, '3. Your song, word by word'),
+    box.append(h('h2', {}, '4. Your song, word by word'),
       h('ul', { class: 'sum', id: 'sum', 'aria-label': 'What the build found' }, sum.say.map(t => h('li', {}, t))),
       h('p', { class: 'note' }, 'Each box is a word on its beat. Press one to see who says it, where it comes from, and the other takes you can swap in. The preview and the film can differ a little: the render is the real thing.'));
     S.plan.lines.forEach(line => box.append(drawLine(line)));
@@ -198,7 +208,7 @@
     try { await host.save(M.stringify(S.plan)); S.dirty = false; const r = await host.render(S.plan); say(r.message || 'The render has started.'); } catch (e) { err(e.message); }
     S.rendering = false; drawStatus();
   }
-  function draw() { drawWords(); drawMusic(); drawBoard(); drawStatus(); }
+  function draw() { drawWords(); drawVideos(); drawMusic(); drawBoard(); drawStatus(); }
 
   async function start() {
     try {
@@ -208,7 +218,7 @@
         h('button', { id: 'back', type: 'button', onclick: () => { if (!host.back()) say('This is the practice build: there is no plan to go back to.'); } }, 'Back to Plan'),
         h('button', { id: 'save', type: 'button', onclick: save }, 'Save my song'), h('button', { id: 'render', type: 'button', class: 'primary', onclick: render }, 'Make the film')));
       let prior = null; try { prior = await host.load(); } catch (e) { top.append(h('p', { class: 'msg', role: 'alert' }, e.message)); return; }
-      if (prior) { S.plan = M.normalize(prior); S.track = S.plan.track; S.guide = S.plan.guide; S.lyrics = S.plan.lines.map(l => l.text).join('\n'); }
+      if (prior) { S.plan = M.normalize(prior); S.track = S.plan.track; S.guide = S.plan.guide; S.lyrics = S.plan.lines.map(l => l.text).join('\n'); S.videos = [...new Set(S.plan.lines.flatMap(l => l.words.filter(w => w.file_name).map(w => w.file_name)))].map(n => ({ file_name: n })); }
       draw();
       window.ryagramSong = { get plan() { return S.plan; }, get state() { return S; }, model: M, host, saveText: () => M.stringify(S.plan) };
       document.documentElement.setAttribute('data-ready', '1');
