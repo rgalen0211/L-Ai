@@ -115,6 +115,15 @@ test('ONE SHARED WORKSPACE: the film has a mode, and the tools the page offers f
   } finally { M.FILM_MODES.data.available = keep; }
 });
 
+test('MIXED JOINS are warned (the engine builds one kind of join per film for now), never blocked', () => {
+  assert.ok(!M.warnings(base).some(w => /joins are not all the same/.test(w.text)));
+  const x = clone(base); x.clips[0].join = { kind: 'crossfade', s: 0.3 };
+  assert.ok(M.warnings(M.normalize(x)).some(w => /joins are not all the same/.test(w.text)));
+  for (const c of x.clips.slice(0, -1)) c.join = { kind: 'crossfade', s: 0.3 };
+  assert.ok(!M.warnings(M.normalize(x)).some(w => /joins are not all the same/.test(w.text)), 'the same crossfade everywhere is fine');
+  assert.doesNotThrow(() => M.stringify(M.normalize(x)));
+});
+
 test('THE CLOCK: clips sit end to end, a crossfade overlaps, and every word lands in the FINISHED film', () => {
   const tl = M.timeline(base);
   assert.equal(tl.clips[0].start_s, 0);

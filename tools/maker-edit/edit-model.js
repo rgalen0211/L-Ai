@@ -285,6 +285,8 @@
       const ratio = contrast(edit.look.text_color, box);
       if (ratio < 4.5) w.push({ where: 'look', text: `Caption and text colours are hard to read together (contrast ${ratio.toFixed(1)}; aim for 4.5 or more).` });
     }
+    const joins = new Set(edit.clips.slice(0, -1).map(c => `${c.join.kind}:${c.join.s}`));
+    if (joins.size > 1) w.push({ where: 'joins', text: 'The joins are not all the same. The render builds all cuts, or the same crossfade for every join, for now; mixed joins are not built yet.' });
     edit.clips.forEach((c, i) => { if (!c.slide && c.out_s - c.in_s < 0.5) w.push({ where: c.id, text: `Clip ${i + 1} is very short (${(c.out_s - c.in_s).toFixed(1)} s).` }); });
     return w;
   }
