@@ -481,6 +481,19 @@
       },
       myConnectedAis() { return run(client.rpc('my_connected_ais'), 'Couldn\u2019t load your connected AIs.'); },
       disconnectAi(clientId) { return run(client.rpc('disconnect_ai', { p_client_id: clientId }), 'Couldn\u2019t disconnect that AI.'); },
+      // Signing a computer in (r9 M2 DRAFT, against a MOCK: the function names are proposals; the real device-code SQL is CONNECT's and WORKER's and does not exist yet). App sessions only.
+      deviceRequestCheck(code) { return run(client.rpc('device_request_check', { p_user_code: code }), 'Couldn\u2019t check that code.'); },
+      deviceDecide(code, approve) { return run(client.rpc('device_decide', { p_user_code: code, p_approve: approve === true }), 'Couldn\u2019t record your answer.'); },
+      myComputers() { return run(client.rpc('my_computers'), 'Couldn\u2019t load your computers.'); },
+      // r9 tester flag (WORKER's draft: account_settings.local_compute, set only by an admin; the owner reads their own row). FAILS CLOSED: an error or no row means "not a tester".
+      async myLocalCompute() {
+        try { const rows = await run(client.from('account_settings').select('local_compute'), 'Couldn’t load your settings.'); return Array.isArray(rows) && rows.length > 0 && rows[0].local_compute === true; } catch { return false; }
+      },
+      // Admin: set or clear the tester flag (r9 DRAFT, mock backend). WORKER's draft function takes a user id (admin_set_local_compute(p_user uuid, ...)); the admin types an EMAIL, so these two names are PROPOSALS
+      // for an email variant and a read of the audit rows (the draft revokes direct reads of local_compute_audit). Admin only on the server; every change writes an audit row.
+      adminSetLocalCompute(email, on, reason) { return run(client.rpc('admin_set_local_compute_by_email', { p_email: String(email || '').trim(), p_on: on === true, p_reason: String(reason || '').trim() }), 'Couldn’t change that account.'); },
+      adminLocalComputeAudit() { return run(client.rpc('admin_local_compute_audit'), 'Couldn’t load the tester history.'); },
+      removeComputer(id) { return run(client.rpc('remove_computer', { p_token: id }), 'Couldn\u2019t remove that computer.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
       adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
       adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },

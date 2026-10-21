@@ -360,7 +360,7 @@
       ...rpcsExtra,
       sync_version_sources({ p_version }) { return syncSources(p_version); },
       // Mock: the mock user is an admin; three films' worth of made-up signup counts.
-      is_app_admin() { return { data: true, error: null }; },
+      is_app_admin() { return { data: adminMock(), error: null }; },
       waitlist_by_film({ p_days }) {
         const rows = [
           ['2026-10-03', 'r002-industry-story', 'youtube', 3], ['2026-10-03', null, null, 1],
@@ -503,6 +503,47 @@
       },
       my_connected_ais() { return { data: structuredClone(db.connected || []), error: null }; },
       disconnect_ai({ p_client_id }) { db.connected = (db.connected || []).filter(c => c.client_id !== p_client_id); return { data: null, error: null }; },
+      // Mock of the DRAFT device-code functions (r9 M2; the real ones are CONNECT's and WORKER's and do not exist yet). User codes are 8 characters from ABCDEFGHJKMNPQRSTUVWXYZ23456789.
+      // ABCD2345 is a good code; ABCDEFGH is an ended one; anything else is not found. Checking and approving need a signed-in session; a code can be decided once.
+      // Shapes follow WORKER's rev2 DRAFT SQL (branch r9-node-draft 191fc78): device_request_check returns { state: 'unknown' | 'used' | 'expired' | 'pending', computer_name, requested_at, rough_location, expires_at } and does NOT raise;
+      // device_decide RAISES 'That code is not valid any more. Start again on your computer.' and returns { computer_name, approved, token_days }; my_computers returns id, computer_name, created_at, expires_at, last_used_at
+      // (a removed computer is no longer listed); remove_computer(p_token) revokes it.
+      device_request_check({ p_user_code }) {
+        if (!session) return fail('Sign in first.');
+        if (p_user_code === 'ABCD-2345') {
+          if ((db.deviceDecisions || []).includes(p_user_code)) return { data: { state: 'used' }, error: null };
+          return { data: { state: 'pending', computer_name: 'DESKTOP-SAM-PC', requested_at: new Date(Date.now() - 60000).toISOString(), rough_location: null, expires_at: new Date(Date.now() + 540000).toISOString() }, error: null };
+        }
+        if (p_user_code === 'ABCD-EFGH') return { data: { state: 'expired' }, error: null };
+        return { data: { state: 'unknown' }, error: null };
+      },
+      device_decide({ p_user_code, p_approve }) {
+        if (!session) return fail('Sign in first.');
+        db.deviceDecisions = db.deviceDecisions || [];
+        if (p_user_code !== 'ABCD-2345' || db.deviceDecisions.includes(p_user_code)) return fail('That code is not valid any more. Start again on your computer.');
+        db.deviceDecisions.push(p_user_code);
+        if (p_approve) {
+          db.computers = db.computers || [];
+          db.computers.push({ id: 'dev-1', computer_name: 'DESKTOP-SAM-PC', created_at: now(), expires_at: new Date(Date.now() + 30 * 86400000).toISOString(), last_used_at: null });
+        }
+        return { data: { computer_name: 'DESKTOP-SAM-PC', approved: p_approve === true, token_days: 30 }, error: null };
+      },
+      // Mock of the DRAFT admin tester functions (PROPOSED names; WORKER's draft takes a user id). Admin only; every change writes an audit row. Known accounts: sam@example.com, maya@example.com;
+      // worker@example.com is a worker (refused). Seed { admin: false } or ?nonadmin makes the caller a plain account.
+      admin_set_local_compute_by_email({ p_email, p_on, p_reason }) {
+        if (!adminMock()) return fail('Admins only.');
+        if (!p_reason || p_reason.trim().length < 3) return fail('Say why, in a few words.');
+        const known = { 'sam@example.com': 'u-sam', 'maya@example.com': 'u-maya', 'worker@example.com': 'u-worker' };
+        if (!(p_email in known)) return fail('No such account.');
+        if (p_email === 'worker@example.com') return fail('A worker account is not a person and cannot be a tester.');
+        db.testers = db.testers || {}; db.testerAudit = db.testerAudit || [];
+        const was = !!db.testers[p_email]; db.testers[p_email] = p_on === true;
+        db.testerAudit.unshift({ user_email: p_email, was_on: was, turned_on: p_on === true, set_by_email: 'ryan@example.com', reason: p_reason.trim(), at: new Date().toISOString() });
+        return { data: p_on === true, error: null };
+      },
+      admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
+      my_computers() { return { data: structuredClone(db.computers || []), error: null }; },
+      remove_computer({ p_token }) { const had = (db.computers || []).some(x => x.id === p_token); db.computers = (db.computers || []).filter(x => x.id !== p_token); return { data: had, error: null }; },
       // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.
       admin_set_auto_render({ p_on }) {
         if (seed.nonAdmin) return fail('Only an admin can do this.');
@@ -751,6 +792,8 @@
       }
     };
 
+    if (typeof location !== 'undefined' && /[?&]tester/.test(location.search || '') && !db.account_settings.length) db.account_settings.push({ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true });      // ?tester: a tester account in mock mode
+    const adminMock = () => !(seed.admin === false || (typeof location !== 'undefined' && /[?&]nonadmin/.test(location.search || '')));
     let session = user ? { user } : null;
     const authListeners = new Set();
     const client = {
