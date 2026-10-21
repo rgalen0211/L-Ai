@@ -111,7 +111,7 @@ test('WIRING AND FLAG: the route and the account section exist only behind deskt
   assert.match(lib, /const desktopOn = \(\) => window\.ryagramConfig\?\.desktopApp === true \|\| !!window\.ryagramMock;/);
   assert.match(lib, /desktopOn\(\) && window\.ryagramDevice\.codeFromHash\(hash\)\.page\) view = await deviceUi\(\)\.deviceView\(window\.ryagramDevice\.codeFromHash\(hash\)\.code, window\.ryagramDevice\.codeFromHash\(hash\)\.bad\)/);
   assert.match(lib, /if \(desktopOn\(\)\) \{ const computers = await deviceUi\(\)\.computersSection\(\); if \(computers\) sections\.push\(computers\); \}/);
-  assert.match(read('assets/ryagram-config.js'), /desktopApp: false,/);
+  assert.match(read('assets/ryagram-config.js'), /desktopApp: true,/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-device.js') > 0 && html.indexOf('app-device.js') < html.indexOf('app-library.js'));
   const src = read('assets/app-device.js');

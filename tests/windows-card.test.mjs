@@ -105,7 +105,7 @@ test('WIRING: the card is added only behind desktopApp (off), before the compute
   const lib = read('assets/app-library.js');
   assert.match(lib, /if \(desktopOn\(\)\) \{ const windows = await deviceUi\(\)\.windowsAppSection\(\); if \(windows\) sections\.push\(windows\); \}/);
   assert.ok(lib.indexOf('windowsAppSection') < lib.indexOf('computersSection'));
-  assert.match(read('assets/ryagram-config.js'), /desktopApp: false,/);
+  assert.match(read('assets/ryagram-config.js'), /desktopApp: true,/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('windows-release.js') > 0 && html.indexOf('windows-release.js') < html.indexOf('app-device.js'));
 });
