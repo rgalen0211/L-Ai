@@ -394,7 +394,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
         out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, PYTHONPATH=str(STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
     proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
-    job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body),
+    job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body), "args": list(pc["args"]),
            "of": pc["bind_count"], "done": 0, "current": "", "expect_s": listen_expect_s(pc["listen_seconds"], pc["model"])}
     skipped = body.get("skipped") if isinstance(body.get("skipped"), list) else []
     skipped = _wordlist(" ".join(str(x) for x in skipped))[:20]
@@ -451,6 +451,8 @@ def job_status() -> dict:
     out = _job_status()
     if out.get("state") == "planned":
         STATE["last_plan"] = out.get("plan")
+        if STATE.get("job"):
+            STATE["last_plan_args"] = STATE["job"].get("args") or []
     job = STATE["job"]
     if job and not job.get("logged") and out.get("state") in JOB_STATES:
         job["logged"] = True
@@ -799,6 +801,15 @@ V2_HTML = """<section id="v2" aria-labelledby="h-v2"><h2 id="h-v2">4. Pictures t
 
 
 SONG_LINK = '<p><a id="song-link" class="button secondary" href="/song">Sing a line to your music</a></p>'
+EDIT_LINK = '<p><a id="edit-link" class="button secondary" href="/edit">Edit your film (after Plan)</a></p>'
+
+
+def _edit_mod():
+    """tools/maker_edit.py when the maker was started with --edit, else None (the routes then do not exist)."""
+    if not STATE.get("edit_on"):
+        return None
+    import maker_edit  # noqa: PLC0415
+    return maker_edit
 
 
 def _song_mod():
@@ -810,7 +821,7 @@ def _song_mod():
 
 
 def page_html() -> str:
-    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", SONG_LINK if STATE.get("song_on") else "")
+    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else ""))
 
 
 def pick_files(multiple: bool) -> list[str]:
@@ -1038,6 +1049,7 @@ JS = r"""(function () {
   try { sessionStorage.setItem('maker-token', T); } catch (e) { /* the page still works without it */ }
   const $ = id => document.getElementById(id);
   if ($('song-link')) $('song-link').href = '/song?t=' + encodeURIComponent(T);
+  if ($('edit-link')) $('edit-link').href = '/edit?t=' + encodeURIComponent(T);
   if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // Ryan's box; Sam never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
@@ -1452,6 +1464,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         u = urlparse(self.path)
         path = u.path
+        if path.startswith(("/api/edit", "/edit")) or path == "/api/image/file":
+            me = _edit_mod()
+            if me is None:
+                self._json(404, {"error": "Not found."})
+                return
+            if me.get(path, u.query, self._send, self._json, self._auth, self._host_ok, self._send_ranged):
+                return
         if path.startswith(("/api/song", "/song")):
             ms = _song_mod()
             if ms is None:
@@ -1517,6 +1536,10 @@ class Handler(BaseHTTPRequestHandler):
         if not f:
             self._json(404, {"error": "No film has been built yet."})
             return
+        self._send_ranged(f)
+
+    def _send_ranged(self, f):
+        """One file, with Range so a player can seek (the film, or the edit page's preview)."""
         size = f.stat().st_size
         start, end, code = 0, size - 1, 200
         m = re.match(r"bytes=([0-9]*)-([0-9]*)$", (self.headers.get("Range") or "").strip())
@@ -1558,12 +1581,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             n = int(self.headers.get("Content-Length") or 0)
-            if n > (600_000 if urlparse(self.path).path.startswith("/api/song") else 200_000):
+            if n > (600_000 if urlparse(self.path).path.startswith(("/api/song", "/api/edit")) else 200_000):
                 raise Problem("That request is too large.")
             body = json.loads(self.rfile.read(n) or b"{}")
             if not isinstance(body, dict):
                 raise Problem("Bad request.")
             path = urlparse(self.path).path
+            if path.startswith("/api/edit") or path == "/api/image/pick":
+                me = _edit_mod()
+                if me is None:
+                    self._json(404, {"error": "Not found."})
+                    return
+                if me.post(path, body, self._json):
+                    return
             if path.startswith("/api/song"):
                 ms = _song_mod()
                 if ms is None:
@@ -2003,6 +2033,7 @@ def main(argv=None) -> int:
     ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
     ap.add_argument("--v2", action="store_true", help="TEST: show the pictures-and-rules section (images as inputs, the every-time-a-word-is-said rule); off by default")
     ap.add_argument("--song", action="store_true", help="TEST: serve the song page (a line sung to your music, words from your own videos); off by default")
+    ap.add_argument("--edit", action="store_true", help="TEST: serve the edit page (reorder, trim, slides, pictures, captions, text, then render); off by default")
     ap.add_argument("--song-forge", action="store_true", help="TEST, with --song: build a word nobody says from the sounds of words your videos do say, when the alignment model is on this PC (it is never downloaded by the maker)")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
@@ -2025,6 +2056,10 @@ def main(argv=None) -> int:
         STATE["song_forge"] = bool(a.song_forge or os.environ.get("RYAGRAM_MAKER_SONG_FORGE") == "1")
         import maker_song  # noqa: PLC0415
         maker_song.attach(sys.modules[__name__])
+    if a.edit or os.environ.get("RYAGRAM_MAKER_EDIT") == "1":
+        STATE["edit_on"] = True
+        import maker_edit  # noqa: PLC0415
+        maker_edit.attach(sys.modules[__name__])
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)
