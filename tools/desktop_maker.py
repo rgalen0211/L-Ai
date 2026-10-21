@@ -307,10 +307,14 @@ def precheck(body: dict) -> dict:
         problems.append('The speech add-on is not installed on this PC. Type this in a PowerShell window, then press Plan again:  python -m pip install faster-whisper "av<19"')
     args = _bind_args(body.get("binds") or {})
     binds: dict = {}
+    groups = []                                         # (folder info, the files it gave, the slot): listed ONCE as a folder, not as hundreds of files
     for pair in args:
         try:
-            for slot, items in E.parse_binds([pair]).items():
+            got = E.parse_binds([pair])
+            for slot, items in got.items():
                 binds.setdefault(slot, []).extend(items)
+            for info in getattr(got, "folders", []) or []:
+                groups.append((info, list(got.get(info["slot"], []))))
         except E.Refused as e:
             problems.append(str(e))
     remember_dirs([b.path for items in binds.values() for b in items])
@@ -325,7 +329,15 @@ def precheck(body: dict) -> dict:
                 problems.append(f"The slot \u201c{s['label']}\u201d has no file yet.")
             if len(items) > 1 and not s["multiple"]:
                 problems.append(f"The slot \u201c{s['label']}\u201d takes one file; it has {len(items)}.")
-            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b), "key": f"{b.path}|{b.start_ms}|{b.end_ms}"} for b in items]})
+            in_folder = {id(b) for g in groups for b in g[1]}
+            entries = [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b), "key": f"{b.path}|{b.start_ms}|{b.end_ms}"} for b in items if id(b) not in in_folder]
+            for info, fl in groups:
+                if info["slot"] != s["id"]:
+                    continue
+                secs_f = [_listen_seconds(b) for b in fl]
+                entries.append({"name": f"{info['folder']} (a folder: {info['used']} video{'s' if info['used'] != 1 else ''})", "mb": round(sum(b.path.stat().st_size for b in fl) / 1e6, 1),
+                                "seconds": None if any(x is None for x in secs_f) else sum(secs_f), "key": "folder:" + "|".join(str(b.path) for b in fl), "count": len(fl), "message": info["message"]})
+            lines.append({"slot": s["id"], "label": s["label"], "files": entries})
     work = STATE["work"]
     anchor = work if work.exists() else work.parent if work.parent.exists() else Path(work.anchor)
     free_gb = round(shutil.disk_usage(anchor).free / 1e9, 1)
@@ -338,7 +350,8 @@ def precheck(body: dict) -> dict:
     secs = [f["seconds"] for ln in lines for f in ln["files"]]
     distinct = {f["key"]: f["seconds"] for ln in lines for f in ln["files"]}           # a file (or span) bound to several slots is listened to ONCE: the engine reuses the words it already heard
     total_s = None if (not secs or any(x is None for x in distinct.values())) else sum(distinct.values())
-    return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": len(secs),
+    return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": sum(f.get("count", 1) for ln in lines for f in ln["files"]),
+            "folders": [g[0] for g in groups],
             "film_stamped": f"{film}-<date and time>.mp4" if film else None, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
             "film": f"{film}.mp4" if film else None, "model_label": model_label(model), "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
 
@@ -837,6 +850,30 @@ def pick_files(multiple: bool) -> list[str]:
         return []
 
 
+def pick_folder_path() -> str | None:
+    """The operating system's own dialog for ONE folder of videos (own process: tkinter must own its thread). Returns a path on this computer, or None. The check replaces only this function."""
+    code = ("import tkinter as tk\nfrom tkinter import filedialog\nr = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+            "res = filedialog.askdirectory(title='Choose a folder of videos', mustexist=True)\nimport json; print(json.dumps(res or ''))")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=600)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1]) or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def folder_answer(got: str) -> dict:
+    """What the page is told about a chosen folder: the engine's own rules say which videos are used (any depth, a fixed order, at most its cap), in its own plain sentence."""
+    E = STATE["E"]
+    if not hasattr(E, "expand_folder"):
+        raise Problem("This copy of Ryagram cannot read a whole folder yet. Choose the videos one by one.")
+    try:
+        _files, info = E.expand_folder("slot", Path(got))
+    except E.Refused as e:
+        raise Problem(str(e)) from None
+    remember_dirs([Path(got) / "x"])
+    return {"folder": str(Path(got)), "found": info["found"], "used": info["used"], "message": info["message"]}
+
+
 # ---------------------------------------------------------------------------------------------------- activity log (kit r8)
 # A LOCAL activity log, so Ryan can see where a first-time person got stuck. It is one text file (one JSON object a line) in the OUT folder, next to
 # the films and my-answers.txt, and it NEVER leaves this computer: this program has no network code, and the log code imports none and opens no socket.
@@ -850,7 +887,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -1162,7 +1199,7 @@ JS = r"""(function () {
     } catch (e) { /* the page still works; the server then uses its own default */ }
   }
   const WORDS_NOTE = $('words-note').textContent;
-  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '', eff = null, skippedNow = [], autoTried = false;
+  let recipes = [], current = null, binds = {}, folderNotes = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '', eff = null, skippedNow = [], autoTried = false;
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
   const fresh = keep => { if (!keep) { eff = null; skippedNow = []; } planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
@@ -1174,12 +1211,18 @@ JS = r"""(function () {
       const dropNote = el('p', { class: 'note drop-note' });
       const zone = el('div', { class: 'slot', role: 'group', 'aria-label': `${s.label}: you can drop a video file here` }, el('h3', {}, s.label), el('p', { class: 'note' }, (s.multiple ? 'One or more video files.' : 'One video file.') + ' Drag a video file here from a folder window, or press Choose a file.'), dropNote,
         files.length ? el('ul', {}, files.map(f => el('li', {}, f))) : el('p', { class: 'note' }, 'No file chosen yet.'),
+        folderNotes[s.id] ? el('p', { class: 'note', role: 'status' }, folderNotes[s.id]) : null,
         el('div', { class: 'row' }, el('button', { type: 'button', class: 'button secondary', 'aria-label': `Choose a file for ${s.label}`, onclick: async ev => {
           const btn = ev.currentTarget; btn.disabled = true;      // (currentTarget is gone after an await, so keep the button)
           try { const r = await api('/api/pick', { multiple: s.multiple }); if (r.files.length) { binds[s.id] = s.multiple ? (binds[s.id] || []).concat(r.files) : r.files.slice(0, 1); fresh(); drawSlots(); } }
           catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
         } }, files.length ? 'Add or change' : 'Choose a file\u2026'),
-        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; fresh(); drawSlots(); ev('slot_cleared'); } }, 'Clear') : null));
+        s.multiple ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Choose a whole folder of videos for ${s.label}`, onclick: async ev => {
+          const btn = ev.currentTarget; btn.disabled = true;
+          try { const r = await api('/api/pick-folder', {}); if (r.folder) { binds[s.id] = (binds[s.id] || []).concat([r.folder]); folderNotes[s.id] = r.message; fresh(); drawSlots(); } }
+          catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
+        } }, 'Choose a folder\u2026') : null,
+        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; delete folderNotes[s.id]; fresh(); drawSlots(); ev('slot_cleared'); } }, 'Clear') : null));
       zone.append();
       wireDrop(zone, s, dropNote);
       box.append(zone);
@@ -1632,6 +1675,10 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(404, {"error": "Not found."})
                 else:
                     self._json(200, v2_post(path, body))
+            elif path == "/api/pick-folder":
+                got = pick_folder_path()
+                act("files_picked", multiple=True, count=0) if got else None
+                self._json(200, folder_answer(got) if got else {"folder": None})
             elif path == "/api/pick":
                 got = pick_files(bool(body.get("multiple")))
                 remember_dirs(got)
