@@ -109,7 +109,7 @@ def main():
           and man["app_head"] == "a" * 40 and man["signed"] is False and man["downloads_made"] == 0, "SETUP-MANIFEST.json records the setup hash and size, the bundle manifest hash, the app head, signed false, downloads 0")
     check(before == {p.relative_to(b).as_posix(): sha(p) for p in b.rglob("*") if p.is_file()}, "the bundle folder is not changed by wrapping it")
     iss = (out / "app.iss").read_text(encoding="ascii")
-    check(f"AppId={{{{{mai.APP_ID}}}" in iss and "PrivilegesRequired=lowest" in iss and "DefaultDirName={code:DefaultFolder}" in iss and "D:\\Ryagram" in iss and "{localappdata}\\Ryagram" in iss,
+    check("AppId={{635FB146-7DBF-4396-BC2B-20E4C5154435}" in iss and mai.APP_ID == "635FB146-7DBF-4396-BC2B-20E4C5154435" and "PrivilegesRequired=lowest" in iss and "DefaultDirName={code:DefaultFolder}" in iss and "D:\\Ryagram" in iss and "{localappdata}\\Ryagram" in iss,
           "the script: fixed AppId (upgrades in place), no administrator prompt, folder D:\\Ryagram when D: is ready else the user's own folder")
     check(f"Source: \"{str(b)}\\*\"" in iss and f"OutputDir={out}" in iss and "OutputBaseFilename=Ryagram-Setup-7" in iss, "the script wraps exactly this bundle and writes into exactly this folder")
     check("{autoprograms}\\Ryagram" in iss and 'Filename: "{app}\\Open Ryagram.bat"' in iss, "one Start menu entry that runs Open Ryagram.bat")
@@ -117,6 +117,13 @@ def main():
           "MUST-FAIL: no [Run], no [Registry], no auto-start, no service, no file association, no download code in the script")
     check("MB_DEFBUTTON2" in iss and "films, the work folder and the downloaded listening model" in iss, "the uninstaller asks before deleting films, work and the model, and defaults to keeping them")
     check(out.joinpath("app.iss").read_bytes().isascii(), "the script is plain ASCII")
+    # CC1 23:32 HIGH-1: the setup and the uninstaller never touch a person's own files
+    check("function NextButtonClick" in iss and "wpSelectDir" in iss and "BUNDLE-MANIFEST.json" in iss and "already has files in it and is not a Ryagram folder" in iss and "FolderHasFiles" in iss,
+          "MUST-FAIL (HIGH-1a): the folder page refuses a folder that already has files unless it is an earlier Ryagram folder, in one plain sentence")
+    check(not re.search(r"DelTree\(\s*App\s*,", iss) and "RemoveBackslash" in iss and "RemoveDir(App)" in iss,
+          "MUST-FAIL (HIGH-1b): the uninstaller never deletes the whole install folder; it removes films, work and models by name, then the folder only if it is empty")
+    check(all(f"DelTree(App + '\\{x}'" in iss for x in ("films", "work", "models")) and iss.count("DelTree(") == 3, "and those three are the only DelTree calls")
+    check("GetDriveType('D:\\') = 3" in iss, "LOW-4: D: is chosen only when it is a fixed disk (not a USB stick or a card)")
 
     print("\nrefusals (each must leave --out absent or untouched)")
     cases = []
@@ -155,13 +162,27 @@ def main():
     full.mkdir()
     (full / "x").write_text("x")
     refuse("an output folder that already has files", "not empty", bundle=b, iscc=stub, out=full)
-    info, err, o = attempt(root, "offd", bundle=b, iscc=stub, out=Path("C:/Ryagram-installer-check-not-created"), allow_any_drive=False)
-    check(info is None and err and "D:" in err and not Path("C:/Ryagram-installer-check-not-created").exists(), "MUST-FAIL: an output folder off D: is refused and not created")
+    ghost = next(L for L in "ZYXWVUTSRQPONMLKJIHGFE" if not os.path.exists(f"{L}:\\"))          # a drive letter this PC does not have: even a broken guard cannot create anything there
+    ghost_out = Path(f"{ghost}:/Ryagram-installer-check-not-created")
+    info, err, o = attempt(root, "offd", bundle=b, iscc=stub, out=ghost_out, allow_any_drive=False)
+    check(info is None and err and "D:" in err and not ghost_out.exists(), f"MUST-FAIL: an output folder off D: is refused and not created (aimed at the missing drive {ghost}:, never at a real root)")
     keep = mai.need_free
     mai.need_free = lambda bundle: 1 << 60
     refuse("too little free space", "free space", bundle=b, iscc=stub)
     mai.need_free = keep
     check(sha(b / "tools" / "verify_bundle.py") == before["tools/verify_bundle.py"], "the refused runs changed nothing in the good bundle")
+
+    print("\nthe small things CC1 listed")
+    odd = fresh("odd '; echo INJECTED; '")
+    f = odd / "x.bat"
+    f.write_text("@echo off\r\n")
+    sig = mai.run_signature_check(f)
+    check("INJECTED" not in sig and sig.split("|")[0] in ("NotSigned", "UnknownError", "Valid"), f"LOW-1: a quote and a semicolon in the compiler's path do not run anything in PowerShell ({sig[:40]!r})")
+    for what, name in (("braces", "w{x}"), ("an accented letter", "wé")):
+        bad_root = fresh(name)
+        bb = make_bundle(bad_root)
+        info, err, o = attempt(bad_root, "o", bundle=bb, iscc=stub)
+        check(info is None and err and "plain letters" in err, f"LOW-3: a path with {what} is refused in a sentence ({(err or 'NOT REFUSED')[:60]!r})")
 
     print("\nthe source")
     src = (HERE / "make_app_installer.py").read_text(encoding="utf-8")
