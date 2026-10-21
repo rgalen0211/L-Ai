@@ -14,6 +14,7 @@
   };
   const ALWAYS = ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.'];
   const NOT_ALLOWED = 'This AI can’t be connected.';
+  const INVITE_ONLY = 'Connecting an AI is by invitation for now.';
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
   const requestFromHash = hash => { const m = /^#\/connect\/consent\?request=([^&]+)$/.exec(hash || ''); return m && REQUEST.test(m[1]) ? m[1] : null; };
@@ -139,8 +140,13 @@
         h('p', { class: 'form-note' }, 'An AI you connect acts as your Ryagram account. It cannot spend your credits. Disconnecting stops it at once.'), list, error);
     }
 
-    return { consentView, connectedSection };
+    // An account that is not invited and follows a consent link: one plain line, not a blank page (CC1 LOW-2). The server has already refused it; this only says why.
+    function inviteOnlyView() {
+      return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, 'Connect an AI'), h('p', { class: 'form-intro', role: 'status' }, INVITE_ONLY)];
+    }
+
+    return { consentView, connectedSection, inviteOnlyView };
   }
 
-  window.ryagramConnect = { shownScopes, UNKNOWN_ADDRESS, expiry, EXPIRED, create, SCOPE_WORDS, ALWAYS, requestFromHash, scopeWord, safeRedirect, hostOf, ago, callsLine, REQUEST };
+  window.ryagramConnect = { INVITE_ONLY, shownScopes, UNKNOWN_ADDRESS, expiry, EXPIRED, create, SCOPE_WORDS, ALWAYS, requestFromHash, scopeWord, safeRedirect, hostOf, ago, callsLine, REQUEST };
 })();

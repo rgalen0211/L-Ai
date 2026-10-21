@@ -68,6 +68,8 @@ window.ryagramConfig = Object.freeze({
   // Connecting an AI (Claude, ChatGPT): the consent page (#/connect/consent) and Account > Connected AIs. Turn on only once CONNECT's SQL (20261018000100_connect_ai.sql) is applied and the
   // connect function is deployed (supabase/README.md, "Connecting an AI").
   connectAi: false,
+  // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in. DRAFT against a mock (r9 M2): the device-code functions do not exist yet. Keep false until CONNECT's and WORKER's SQL and functions are live.
+  desktopApp: false,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.

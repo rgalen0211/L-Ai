@@ -61,6 +61,11 @@
   const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
   // Connecting an AI (the consent page and Connected AIs) shows once CONNECT's SQL and function are live (connectAi: true), or in mock mode.
   const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
+  // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
+  // so signing in as another account cannot inherit the last answer.
+  const connectAllowed = async data => connectOn() && (await data.connectAccess()) === true;
+  // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in. DRAFT against a mock until the device-code functions exist (desktopApp: false).
+  const desktopOn = () => window.ryagramConfig?.desktopApp === true || !!window.ryagramMock;
   const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
   const funnelOn = () => window.ryagramConfig?.funnelTracking === true || !!window.ryagramMock;
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
@@ -87,13 +92,15 @@
         else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
         else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
         else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
-        else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = await connectUi().consentView(window.ryagramConnect.requestFromHash(hash));
+        else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = (await connectAllowed(data)) ? await connectUi().consentView(window.ryagramConnect.requestFromHash(hash)) : connectUi().inviteOnlyView();
+        else if (desktopOn() && window.ryagramDevice.codeFromHash(hash).page) view = await deviceUi().deviceView(window.ryagramDevice.codeFromHash(hash).code, window.ryagramDevice.codeFromHash(hash).bad);
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
         else if (funnelOn() && hash === '#/admin/funnel' && await data.isAppAdmin()) view = await funnelAdminView(onStop);
+        else if (desktopOn() && hash === '#/admin/tester' && await data.isAppAdmin()) view = await deviceUi().testerAdminView();
         else if (ordersOn() && hash === '#/admin/renders' && await data.isAppAdmin()) view = await rendersAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
@@ -178,6 +185,8 @@
     // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
     let connectCache = null;
     const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
+    let deviceCache = null;
+    const deviceUi = () => deviceCache || (deviceCache = window.ryagramDevice.create({ h, data, busy, showError, errorLine, date, whoami: async () => (window.ryagramApp?.client ? (await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '' : '') }));
 
     // --- #/  all projects
     async function libraryView() {
@@ -211,7 +220,7 @@
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []), ...(desktopOn() ? [' \u00b7 ', h('a', { href: '#/admin/tester' }, 'Tester computers')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       const buildLink = builderOn() ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step')) : null;
@@ -707,7 +716,9 @@
         sections.push(acct.exportSection(email));
         helpSection = acct.helpSection();
       }
-      if (connectOn()) sections.push(await connectUi().connectedSection());
+      if (await connectAllowed(data)) sections.push(await connectUi().connectedSection());
+      if (desktopOn()) { const windows = await deviceUi().windowsAppSection(); if (windows) sections.push(windows); }                // the Windows download card: testers only
+      if (desktopOn()) { const computers = await deviceUi().computersSection(); if (computers) sections.push(computers); }          // null for an account that is not a tester and has no computer
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.
