@@ -23,7 +23,9 @@ import verify_bundle as vb                    # noqa: E402
 
 spec = importlib.util.spec_from_file_location("cai", HERE / "check-app-installer.py")
 ISCC = Path(sys.argv[1])
-BASE = Path(sys.argv[2]) if len(sys.argv) > 2 else Path("D:/Ryagram-scratch/CONNECT/installer-real")
+if len(sys.argv) < 3:
+    sys.exit("Give the compiler AND a scratch folder of your own on D: (it is emptied first), e.g. python tools/check-app-installer-real.py D:/Ryagram-tools/InnoSetup/ISCC.exe D:/Ryagram-scratch/<YOU>/installer-real")
+BASE = Path(sys.argv[2])
 FAILS = []
 APPDATA = Path(os.environ["APPDATA"])
 LNK = APPDATA / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Ryagram.lnk"
@@ -100,6 +102,8 @@ def registered():
 
 
 def main():
+    if registered() or LNK.exists():                       # CC1 00:18 LOW-C: the AppId is fixed, so a real Ryagram on this account would be removed by this test's uninstalls
+        sys.exit("REFUSED: Ryagram is already installed for this Windows account (an Apps-list entry or a Start-menu shortcut exists). This test would uninstall it. Nothing was changed.")
     shutil.rmtree(BASE, ignore_errors=True)
     BASE.mkdir(parents=True)
     work = BASE / "w"

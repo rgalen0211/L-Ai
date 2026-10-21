@@ -31,6 +31,10 @@ from make_app_bundle import leak_scan  # noqa: E402
 
 APP_ID = "635FB146-7DBF-4396-BC2B-20E4C5154435"          # fixed: a newer setup upgrades the older install in place
 EXPECT_SIGNER = "Pyrsys B.V."                         # READ from the real Inno Setup 6.7.3 (ISCC.exe and the installer both: Windows says Valid, signer CN=Pyrsys B.V., O=Pyrsys B.V., NL; Pyrsys is the maintainer's company); a compiler signed by anyone else is refused
+# CC1 00:18 LOW-A: the compiler is pinned by the exact file and its certificate, not by a name. Read from the real Inno Setup 6.7.3 on 2026-10-21 (CC1 read the same values).
+COMPILER_PINS = {
+    "0a8757031b33777e4c9cbffee40f11a5062b36d25cbe144c1db73b6102b80ad7": {"thumbprint": "E0AB19C8D38CBF9C44709925122A7A02F8C70CB7", "what": "Inno Setup 6.7.3 ISCC.exe"},
+}
 SAFE_PATH = re.compile(r"^[A-Za-z0-9 _.()\\/:-]+$")
 VERSION_OK = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
 
@@ -201,23 +205,32 @@ def render_iss(bundle: Path, out: Path, version: str) -> str:
 def run_signature_check(path: Path) -> str:
     """Windows' own verdict on a file's signature: 'Valid|<subject>' or the status word. Replaceable in tests."""
     quoted = str(path).replace("'", "''")
-    ps = f"$s = Get-AuthenticodeSignature -LiteralPath '{quoted}'; Write-Output ($s.Status.ToString() + '|' + $(if ($s.SignerCertificate) {{ $s.SignerCertificate.Subject }} else {{ '' }}))"
+    ps = (f"$s = Get-AuthenticodeSignature -LiteralPath '{quoted}'; Write-Output ($s.Status.ToString() + '|' + $(if ($s.SignerCertificate) {{ $s.SignerCertificate.Subject }} else {{ '' }})"
+          f" + '|' + $(if ($s.SignerCertificate) {{ $s.SignerCertificate.Thumbprint }} else {{ '' }}))")
     r = subprocess.run(["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", ps], capture_output=True, text=True, timeout=60)
     return (r.stdout or "").strip()
 
 
-def check_signature(path: Path, runner=run_signature_check, expect: str = EXPECT_SIGNER) -> None:
-    got = runner(path)
-    status, _, subject = got.partition("|")
-    if status != "Valid" or expect.lower() not in subject.lower():
-        raise Refused(f"{path.name} is not signed by {expect} (Windows says: {status or 'nothing'}). The compiler is not used.")
+def check_signature(path: Path, runner=run_signature_check, pins: dict = None) -> None:
+    """The compiler must be EXACTLY a file we verified (its SHA-256 is pinned), Windows must call its signature Valid, the certificate's common name must be exactly EXPECT_SIGNER
+    and its thumbprint must be the pinned one. A name alone is never enough (a subject such as 'O=NotPyrsys B.V. Ltd' would contain it)."""
+    pins = COMPILER_PINS if pins is None else pins
+    h = verify_bundle.sha256_file(Path(path))
+    pin = pins.get(h)
+    if pin is None:
+        raise Refused(f"{Path(path).name} is not the compiler that was verified (its SHA-256 is {h[:16]}...). Only the pinned Inno Setup file is used.")
+    parts = (runner(path).split("|") + ["", ""])[:3]
+    status, subject, thumb = parts[0], parts[1], parts[2]
+    m = re.search(r"(?:^|, )CN=([^,]+)", subject)
+    if status != "Valid" or not m or m.group(1) != EXPECT_SIGNER or thumb.upper() != pin["thumbprint"].upper():
+        raise Refused(f"{Path(path).name} is not signed by {EXPECT_SIGNER} with the pinned certificate (Windows says: {status or 'nothing'}). The compiler is not used.")
 
 
 def need_free(bundle: Path) -> int:
     return int(sum(p.stat().st_size for p in bundle.rglob("*") if p.is_file()) * 1.2) + (200 << 20)
 
 
-def build(bundle: Path, iscc: Path, out: Path, version: str, *, allow_any_drive: bool = False, signature_runner=run_signature_check, expect_signer: str = EXPECT_SIGNER,
+def build(bundle: Path, iscc: Path, out: Path, version: str, *, allow_any_drive: bool = False, signature_runner=run_signature_check, compiler_pins: dict = None,
           check_name: bool = True) -> dict:
     if not VERSION_OK.match(version or ""):
         raise Refused("The version label may only hold letters, digits, dot, dash and underscore (up to 20).")
@@ -242,7 +255,7 @@ def build(bundle: Path, iscc: Path, out: Path, version: str, *, allow_any_drive:
         raise Refused(f"ISCC.exe was not found at {iscc}. Inno Setup is a Ryan-approved download; this script does not fetch it.")
     if check_name and iscc.name.lower() != "iscc.exe":
         raise Refused("The compiler must be the file ISCC.exe.")
-    check_signature(iscc, signature_runner, expect_signer)
+    check_signature(iscc, signature_runner, compiler_pins)
     out.mkdir(parents=True, exist_ok=True)
     try:
         if shutil.disk_usage(out).free < need_free(bundle):

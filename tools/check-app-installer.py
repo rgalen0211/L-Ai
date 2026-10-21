@@ -78,16 +78,23 @@ def make_stub(root, rc=0, write=True):
     return bat
 
 
-GOOD_SIG = lambda p: "Valid|CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL"          # noqa: E731
-FAKE_SIG = lambda p: "Valid|CN=Somebody Else"                                        # noqa: E731
+THUMB = "AA" * 20
+GOOD_SIG = lambda p: "Valid|CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL|" + THUMB          # noqa: E731
+FAKE_SIG = lambda p: "Valid|CN=Somebody Else|" + THUMB                                        # noqa: E731
 NO_SIG = lambda p: "NotSigned|"                                                       # noqa: E731
-BAD_SIG = lambda p: "HashMismatch|CN=Pyrsys B.V."                                  # noqa: E731
+BAD_SIG = lambda p: "HashMismatch|CN=Pyrsys B.V.|" + THUMB
+WRONG_THUMB = lambda p: "Valid|CN=Pyrsys B.V., O=Pyrsys B.V., C=NL|" + "BB" * 20
+LOOKALIKE = lambda p: "Valid|CN=NotPyrsys B.V. Ltd, O=Pyrsys B.V. Impostor|" + THUMB                                  # noqa: E731
 
 
 def attempt(root, name, **over):
     out = root / name
     kw = dict(bundle=over.pop("bundle"), iscc=over.pop("iscc"), out=over.pop("out", out), version=over.pop("version", "7"), allow_any_drive=True,
               signature_runner=over.pop("sig", GOOD_SIG), check_name=False)
+    pins = over.pop("pins", None)
+    if pins is None:
+        pins = {sha(kw["iscc"]): {"thumbprint": THUMB}} if Path(kw["iscc"]).is_file() else {}
+    kw["compiler_pins"] = pins
     kw.update(over)
     out = kw["out"]
     try:
@@ -117,6 +124,9 @@ def main():
           "MUST-FAIL: no [Run], no [Registry], no auto-start, no service, no file association, no download code in the script")
     check("MB_DEFBUTTON2" in iss and "films, the work folder and the downloaded listening model" in iss, "the uninstaller asks before deleting films, work and the model, and defaults to keeping them")
     check(out.joinpath("app.iss").read_bytes().isascii(), "the script is plain ASCII")
+    # an unattended install (or a folder given by /DIR=) is checked too, and stops quietly instead of waiting for a person at a message box
+    check("function PrepareToInstall" in iss and iss.count("FolderProblem(RemoveBackslashUnlessRoot(WizardDirValue))") == 2 and "(Result <> '') and WizardSilent" in iss and "Abort;" in iss
+          and "(CurPageID = wpSelectDir) and (not WizardSilent)" in iss, "MUST-FAIL: the same folder test also runs at the install step, and an unattended refusal logs the reason and aborts (no message box to wait on)")
     # CC1 23:32 HIGH-1: the setup and the uninstaller never touch a person's own files
     check("function NextButtonClick" in iss and "wpSelectDir" in iss and "BUNDLE-MANIFEST.json" in iss and "already has files in it and is not a Ryagram folder" in iss and "FolderHasFiles" in iss,
           "MUST-FAIL (HIGH-1a): the folder page refuses a folder that already has files unless it is an earlier Ryagram folder, in one plain sentence")
@@ -162,6 +172,11 @@ def main():
     refuse("a missing compiler", "was not found", bundle=b, iscc=root / "nope.exe")
     refuse("a compiler that is not signed", "not signed by", bundle=b, iscc=stub, sig=NO_SIG)
     refuse("a compiler signed by someone else", "not signed by", bundle=b, iscc=stub, sig=FAKE_SIG)
+    refuse("MUST-FAIL (CC1 LOW-A): the RIGHT name with the WRONG certificate thumbprint", "pinned certificate", bundle=b, iscc=stub, sig=WRONG_THUMB)
+    refuse("MUST-FAIL (CC1 LOW-A): a look-alike subject that merely CONTAINS the name (CN=NotPyrsys B.V. Ltd)", "pinned certificate", bundle=b, iscc=stub, sig=LOOKALIKE)
+    refuse("MUST-FAIL (CC1 LOW-A): a compiler file that is not the pinned one, even with a perfect signature answer", "not the compiler that was verified", bundle=b, iscc=stub, pins={"0" * 64: {"thumbprint": THUMB}})
+    check(mai.COMPILER_PINS.get("0a8757031b33777e4c9cbffee40f11a5062b36d25cbe144c1db73b6102b80ad7", {}).get("thumbprint") == "E0AB19C8D38CBF9C44709925122A7A02F8C70CB7" and len(mai.COMPILER_PINS) == 1,
+          "the shipped pin is the one compiler file CC1 and I both read (SHA-256 0a875703..., thumbprint E0AB19C8...)")
     refuse("a compiler whose signature no longer matches the file", "not signed by", bundle=b, iscc=stub, sig=BAD_SIG)
     refuse("a compile that fails", "did not finish", bundle=b, iscc=make_stub(root, rc=1))
     refuse("a compile that says fine but writes no setup file", "did not finish", bundle=b, iscc=make_stub(root, rc=0, write=False))
