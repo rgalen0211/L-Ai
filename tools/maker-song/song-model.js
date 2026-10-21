@@ -70,7 +70,13 @@
       for (let i = 1; i < words.length; i++) if (words[i].beat_s < words[i - 1].beat_s - 1e-9) fail(`The words of line ${li + 1} are not in order.`);
       return { n: li + 1, text: l.text.trim().slice(0, 400), words };
     });
-    return { schema: SCHEMA, track: { file_name: track.file_name, seconds: r3(track.seconds) }, guide, cast, lines };
+    const plan = { schema: SCHEMA, track: { file_name: track.file_name, seconds: r3(track.seconds) }, guide, cast, lines };
+    for (const k of ['plan_id', 'without_forged_plan_id']) {
+      if (src[k] === undefined || src[k] === null) continue;
+      if (typeof src[k] !== 'string' || !/^[A-Za-z0-9_.:-]{1,80}$/.test(src[k])) fail('The plan carries an id the page cannot use.');
+      plan[k] = src[k];
+    }
+    return plan;
   }
   function normWord(w, where, castIds, trackSeconds) {
     if (!isObj(w) || typeof w.w !== 'string' || !w.w.trim() || w.w.length > 60) fail(`The word at ${where} is not valid.`);

@@ -68,7 +68,10 @@ class H(http.server.SimpleHTTPRequestHandler):
             return self._json(200, {'guide': {'file_name': 'api-singing.wav'}})
         if u.path == '/api/song/build':
             STATE['builds'].append(body)
-            return self._json(200, {'plan': STATE['plan']})
+            plan = dict(STATE['plan'])
+            plan['plan_id'] = 'plan-on'
+            plan['without_forged_plan_id'] = 'plan-off'
+            return self._json(200, {'plan': plan})
         if u.path == '/api/song/hear':
             STATE['hears'].append(body)
             return self._json(200, {'url': '/api/song/audio?x=1'})
@@ -307,6 +310,14 @@ def main():
                 p.wait_for_selector('#s-board:not([hidden])', timeout=10000)
                 bq = STATE['builds'][-1]
                 check(bq['lines'] == ['one line of my own', 'and a second one'] and bq['track']['file_name'] == 'api-track.mp3' and bq['guide']['file_name'] == 'api-singing.wav' and bq['videos'] == [{'file_name': 'api-one.mp4'}, {'file_name': 'api-two.mp4'}], 'the maker received the lines, the videos, the track and the singing track by name')
+                if p.locator('#no-forge').count():
+                    p.get_by_role('button', name='Make it without the words built from sounds').click()
+                    p.wait_for_timeout(500)
+                    wb = STATE['builds'][-1]
+                    check(wb.get('forge') is False and wb.get('plan_id') == 'plan-off', 'Make it without sends forge off WITH the forge-off plan id')
+                    p.get_by_role('button', name='Build again').click()
+                    p.wait_for_timeout(500)
+                    check(STATE['builds'][-1].get('forge') is True and 'plan_id' not in STATE['builds'][-1], 'Build again sends forge on, with no old id')
                 p.locator('[data-key="hear-line-1"]').click()
                 until(p, "document.getElementById('player').src.startsWith('blob:')")
                 check(STATE['hears'][-1] == {'kind': 'line', 'n': 1} and p.evaluate("document.getElementById('player').src").startswith('blob:') and TOKEN not in p.evaluate("document.getElementById('player').src"), 'Hear asks the maker, fetches the sound with the token in a header, and plays it from a blob: address (no token in any address)')

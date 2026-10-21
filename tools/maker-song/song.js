@@ -40,7 +40,7 @@
   let host = null;
   const loadScript = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => no(new Error('The practice build could not be loaded.')); document.head.append(el); });
 
-  const S = { lyrics: '', forge: true, videos: [], track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
+  const S = { lyrics: '', forge: true, withoutId: null, videos: [], track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
   const $ = id => document.getElementById(id);
   const mm = M.mmss;
 
@@ -119,7 +119,7 @@
       h('div', { class: 'row' },
         h('button', { type: 'button', id: 'pick-guide', 'data-key': 'pick-guide', onclick: async () => { try { const r = await host.pickGuide(); if (r && r.guide) { S.guide = r.guide; err(''); drawMusic(); say(`${r.guide.file_name} chosen as the singing.`); } } catch (e) { err(e.message); } } }, S.guide ? 'Choose a different singing track' : 'Add a track of just the singing (optional)'),
         S.guide ? h('span', {}, S.guide.file_name) : null),
-      h('p', {}, h('button', { type: 'button', id: 'build', class: 'primary', 'data-key': 'build', disabled: S.building, onclick: () => { S.forge = true; build(); } }, S.building ? 'Building...' : (S.plan ? 'Build again' : 'Build my song'))));
+      h('p', {}, h('button', { type: 'button', id: 'build', class: 'primary', 'data-key': 'build', disabled: S.building, onclick: () => { S.forge = true; S.withoutId = null; build(); } }, S.building ? 'Building...' : (S.plan ? 'Build again' : 'Build my song'))));
   }
   async function build() {
     let lines;
@@ -128,7 +128,7 @@
     if (!S.track) { err('Choose your music first.'); return; }
     err(''); S.building = true; drawMusic(); say('Building. This can take a few minutes for a long song.');
     try {
-      const r = await host.build({ lines, videos: S.videos, track: S.track, guide: S.guide, forge: S.forge });
+      const r = await host.build(Object.assign({ lines, videos: S.videos, track: S.track, guide: S.guide, forge: S.forge }, S.forge === false && S.withoutId ? { plan_id: S.withoutId } : {}));
       S.plan = M.normalize(r.plan); S.sel = null; S.dirty = true; say('Your song is built. Look at each line, then press Make the film.');
     } catch (e) { err(e instanceof M.SongError ? e.message : (e.message || 'The build did not finish.')); }
     S.building = false; draw();
@@ -142,7 +142,7 @@
     const sum = M.summarize(S.plan);
     box.append(h('h2', {}, '4. Your song, word by word'),
       h('ul', { class: 'sum', id: 'sum', 'aria-label': 'What the build found' }, sum.say.map(t => h('li', {}, t))),
-      sum.built ? h('div', { class: 'row' }, h('button', { type: 'button', id: 'no-forge', 'data-key': 'no-forge', onclick: () => { S.forge = false; build(); } }, 'Make it without the words built from sounds'),
+      sum.built ? h('div', { class: 'row' }, h('button', { type: 'button', id: 'no-forge', 'data-key': 'no-forge', onclick: () => { S.forge = false; S.withoutId = S.plan.without_forged_plan_id || null; build(); } }, 'Make it without the words built from sounds'),
         h('span', { class: 'note' }, 'The film is then made with those beats quiet.')) : null,
       h('p', { class: 'note' }, 'Each box is a word on its beat. Press one to see who says it, where it comes from, and the other takes you can swap in. The preview and the film can differ a little: the render is the real thing.'));
     S.plan.lines.forEach(line => box.append(drawLine(line)));
