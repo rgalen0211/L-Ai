@@ -176,7 +176,10 @@ test('THE PAGE\'S SOURCE: no HTML built from text, no call but to its own maker,
   for (const src of [js, model]) assert.doesNotMatch(src, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|XMLHttpRequest|sendBeacon|WebSocket|importScripts/);
   assert.doesNotMatch(model, /fetch\(|localStorage|sessionStorage|document\.|window\./, 'the model touches nothing but its input');
   const fetches = js.match(/fetch\(([^,)]*)/g) || [];
-  assert.deepEqual(fetches, ['fetch(path'], 'the one fetch is inside the maker host and takes a path of the maker');
+  assert.deepEqual(fetches, ['fetch(path', 'fetch(path'], 'the two fetches are inside the maker host and take a path of the maker');
+  assert.doesNotMatch(js, /&t=|[?&]t=\$\{/, 'the token is never put in an address');
+  assert.doesNotMatch(html, /fixture\.js/, 'the real page never loads the practice cut');
+  assert.match(js, /has\('fixture'\)\) \{ await loadScript\('fixture\.js'\)/, 'the practice cut is loaded only for ?fixture');
   assert.match(js, /const call = async \(path, body\)/);
   for (const p of ['/api/edit', '/api/edit/proxy', '/api/image/pick', '/api/image/file', '/api/edit/render']) assert.ok(js.includes(p), p);
   assert.doesNotMatch(js, /https?:\/\//);

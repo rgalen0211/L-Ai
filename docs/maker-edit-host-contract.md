@@ -39,7 +39,7 @@ After Plan makes the rough cut the person lands on **Edit your film**: the pictu
 * Same overlay in the browser (CSS) and the render (ffmpeg `overlay` / `drawtext`, one finishing pass after the proven cut-and-join, skipped when there is none) is what keeps preview and render equal. The preview-matches-render check (design section 6, item 2) is CONNECT/ENGINE's; the page gives it `window.ryagramEdit.frame(t)` (what is on screen at t) to compare against.
 
 ## 4. The host: the one object the page talks to
-`window.ryagramEditFixtureHost` (practice cut) or the maker host built into `edit.js` (`apiHost`). Calls carry the maker's token in `X-Maker-Token` (taken from `?t=` or sessionStorage, as the maker page does); an image address carries it as `&t=` because an `<img>` cannot set a header. Nothing leaves the maker's own address (`connect-src 'self'`).
+`window.ryagramEditFixtureHost` (practice cut) or the maker host built into `edit.js` (`apiHost`). Calls carry the maker's token in `X-Maker-Token` (taken from `?t=` or sessionStorage, as the maker page does); the picture is fetched with the same header and shown from a `blob:` address, so the token is never in an address or in history. Nothing leaves the maker's own address (`connect-src 'self'`).
 
 | Page call | Maker route | Answer |
 |---|---|---|
@@ -47,7 +47,7 @@ After Plan makes the rough cut the person lands on **Edit your film**: the pictu
 | `save(text)` | `POST /api/edit` `{"edit": ...}` | `{"saved": true}` (the maker validates again, writes `edit.json` beside the film) |
 | `proxy()` / `rebuildProxy(edit)` | `GET` / `POST /api/edit/proxy` | `{"state": "ready"|"updating"|"failed", "url": <address of the 360p rough-cut mp4, served with Range>|null}`; `null` = the page draws a stand-in picture with the words |
 | `pickImage()` | `POST /api/image/pick` | `{"image": {id, file_name, sha256, width, height}}` (the maker checks it is a real still image, size caps, as today) |
-| `imageUrl(id)` | `GET /api/image/file?id=..&t=..` | the picture bytes |
+| `imageUrl(id)` | `GET /api/image/file?id=..` (token in the header) | the picture bytes (the page shows them from a `blob:` address) |
 | `render(edit)` | `POST /api/edit/render` | `{"message": ...}`; one at a time (the page turns the button off while it runs; the maker must also refuse a second) |
 | `back()` | navigate to the Plan page | |
 

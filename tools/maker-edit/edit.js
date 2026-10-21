@@ -17,6 +17,12 @@
       if (!r.ok) throw new Error(j.error || 'The maker did not answer. Is it still open?');
       return j;
     };
+    const urls = new Map(), loading = new Set();
+    const blobOf = async path => {
+      const r = await fetch(path, { headers: { 'X-Maker-Token': token } });
+      if (!r.ok) throw new Error('The maker could not give the picture.');
+      return URL.createObjectURL(await r.blob());
+    };
     return {
       name: 'maker',
       async load() { return (await call('/api/edit')).edit; },
@@ -24,12 +30,20 @@
       async proxy() { return call('/api/edit/proxy'); },
       async rebuildProxy(edit) { return call('/api/edit/proxy', { edit }); },
       async pickImage() { return call('/api/image/pick', {}); },
-      imageUrl(id) { return `/api/image/file?id=${encodeURIComponent(id)}&t=${encodeURIComponent(token)}`; },
+      imageUrl(id) {                                                  // the token travels in a header, never in an address; the picture is shown from a blob: address
+        if (urls.has(id)) return urls.get(id);
+        if (!loading.has(id)) {
+          loading.add(id);
+          blobOf('/api/image/file?id=' + encodeURIComponent(id)).then(u => { urls.set(id, u); if (this.onImage) this.onImage(); }).catch(() => { loading.delete(id); });
+        }
+        return null;
+      },
       async render(edit) { return call('/api/edit/render', { edit }); },
       back() { location.href = '/?t=' + encodeURIComponent(token); return true; },
     };
   }
-  const host = new URLSearchParams(location.search).has('fixture') ? window.ryagramEditFixtureHost : apiHost();
+  let host = null;
+  const loadScript = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => no(new Error('The practice cut could not be loaded.')); document.head.append(el); });
 
   const S = { edit: null, undo: [], t: 0, playing: false, tab: 'clips', sel: null, proxy: { state: 'ready', url: null }, msg: '', dirty: false, rendering: false, savedAt: null, note: '' };
   const $ = id => document.getElementById(id);
@@ -305,6 +319,8 @@
 
   async function start() {
     try {
+      if (new URLSearchParams(location.search).has('fixture')) { await loadScript('fixture.js'); host = window.ryagramEditFixtureHost; } else host = apiHost();
+      host.onImage = () => { if (S.edit) drawFrame(); };
       const raw = await host.load();
       S.edit = M.normalize(raw); S.sel = S.edit.clips[0].id;
       try { S.proxy = await host.proxy(); } catch (e) { S.proxy = { state: 'failed', url: null }; }
