@@ -28,6 +28,6 @@ Words built from sounds (item 112) are a second switch, `--song-forge` (or `RYAG
 * File names only in anything the page sees or the maker saves; never a path.
 
 ## Checking it
-`python tools/check-maker-song-wire.py <a Ryagram checkout that has the song modules>`: part A without a browser, part B in real Chrome. The engine's plan and build run a stand-in `ryagram.local` (the engine's own planner and view on made-up timings; a real tiny MP4), so no speech model is needed. The operating system's two file dialogs cannot be scripted, so the check replaces only those.
+`python tools/check-maker-song-wire.py <a Ryagram checkout that has the song modules> <a folder for the screenshots>` (both required): part A without a browser, part B in real Chrome. The engine's plan and build run a stand-in `ryagram.local` (the engine's own planner and view on made-up timings; a real tiny MP4), so no speech model is needed. The operating system's two file dialogs cannot be scripted, so the check replaces only those.
 
 Not built: swapping another take (the build takes no overrides yet), hearing a word over the music, cancelling a build from the page.

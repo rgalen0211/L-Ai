@@ -3,7 +3,7 @@ engine checkout whose __main__ builds a real song plan with the engine's own pla
 fail), so no speech model is needed; ffmpeg is real (hearing a word cuts the person's own made-up video). The operating system's file dialogs cannot be driven by a script, so the check replaces only
 those two functions. Part A is the routes without a browser (token, names only, plain sentences, the plan checked again, one render at a time); part B walks the page.
 
-    python tools/check-maker-song-wire.py <path to a Ryagram checkout that has the song modules and recipes/song-mode.json> [outdir]
+    python tools/check-maker-song-wire.py <path to a Ryagram checkout that has the song modules> <outdir>
 """
 import importlib.util
 import json
@@ -20,8 +20,10 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ENGINE = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/CONNECT/Ryagram-forge-f1')
-OUT = Path(sys.argv[2]) if len(sys.argv) > 2 else Path('D:/Ryagram-scratch/CONNECT/maker-song-shots')
+if len(sys.argv) < 3:
+    raise SystemExit('usage: python tools/check-maker-song-wire.py <a Ryagram checkout that has the song modules> <a folder for the screenshots>   (both are required, so a bare run never writes into somebody else\'s folder)')
+ENGINE = Path(sys.argv[1])
+OUT = Path(sys.argv[2])
 sys.path.insert(0, str(ROOT / 'tools'))
 spec = importlib.util.spec_from_file_location('desktop_maker', ROOT / 'tools' / 'desktop_maker.py')
 dm = importlib.util.module_from_spec(spec)
