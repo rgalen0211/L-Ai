@@ -171,26 +171,30 @@
 
   // ---- the clip strip ----
   function drawStrip() {
-    const tl = M.timeline(S.edit), ol = $('strip'); ol.replaceChildren();
+    const tl = M.timeline(S.edit), ol = $('strip'); ol.replaceChildren(); ol.hidden = !M.features(S.edit.mode).clips;
     tl.clips.forEach((c, i) => {
       const src = S.edit.clips[i];
       ol.append(h('li', {}, h('button', { type: 'button', class: 'card', 'data-id': c.id, 'data-key': 'card-' + c.id, 'aria-pressed': String(S.sel === c.id),
-        'aria-label': `Clip ${i + 1} of ${tl.clips.length}: ${c.words.map(w => w.w).join(' ') || 'no words'}. ${c.length_s.toFixed(1)} seconds. From ${c.file_name}. Press to choose it.`,
+        'aria-label': `${c.slide ? 'Slide' : 'Clip'} ${i + 1} of ${tl.clips.length}: ${c.slide ? c.file_name : (c.words.map(w => w.w).join(' ') || 'no words')}. ${c.length_s.toFixed(1)} seconds. From ${c.file_name}. Press to choose it.`,
         onclick: () => { S.sel = c.id; setT(c.start_s); say(`Clip ${i + 1} chosen.`); drawStrip(); drawPanels(); } },
         h('span', { class: 'n' }, `${i + 1}  ·  ${mm(c.start_s)}  ·  ${c.length_s.toFixed(1)} s${src.join.kind === 'crossfade' ? '  ·  fades into the next' : ''}`),
-        h('span', { class: 'wd' }, c.words.map(w => w.w).join(' ') || '(no words)'),
-        h('span', { class: 'fn' }, c.file_name))));
+        h('span', { class: 'wd' }, c.slide ? `Slide: ${c.file_name}` : (c.words.map(w => w.w).join(' ') || '(no words)')),
+        h('span', { class: 'fn' }, c.slide ? 'a picture on its own' : c.file_name))));
     });
   }
 
   // ---- the panels ----
-  const TABS = [['clips', 'Clips'], ['extras', 'Images and text'], ['look', 'Look']];
+  const ALL_TABS = [['clips', 'Clips', 'clips'], ['extras', 'Images and text', null], ['look', 'Look', 'look']];
+  const feat = () => M.features(S.edit.mode);
+  const tabsNow = () => ALL_TABS.filter(t => !t[2] || feat()[t[2]]).map(t => [t[0], t[1]]);
   function drawPanels() {
+    const TABS = tabsNow();
+    if (!TABS.some(t => t[0] === S.tab)) S.tab = TABS[0][0];
     const p = $('panels'); p.replaceChildren();
     const list = h('div', { role: 'tablist', 'aria-label': 'Edit panels' });
     TABS.forEach(([id, label]) => list.append(h('button', { role: 'tab', id: 'tab-' + id, type: 'button', 'aria-selected': String(S.tab === id), 'aria-controls': 'pane-' + id, tabindex: S.tab === id ? '0' : '-1', 'data-key': 'tab-' + id,
       onclick: () => { S.tab = id; drawPanels(); $('tab-' + id).focus(); },
-      onkeydown: ev => { const i = TABS.findIndex(t => t[0] === S.tab); if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); S.tab = TABS[(i + (ev.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length][0]; drawPanels(); $('tab-' + S.tab).focus(); } } }, label)));
+      onkeydown: ev => { const TABS = tabsNow(), i = TABS.findIndex(t => t[0] === S.tab); if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); S.tab = TABS[(i + (ev.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length][0]; drawPanels(); $('tab-' + S.tab).focus(); } } }, label)));
     p.append(list);
     const pane = h('div', { role: 'tabpanel', id: 'pane-' + S.tab, 'aria-labelledby': 'tab-' + S.tab });
     ({ clips: paneClips, extras: paneExtras, look: paneLook })[S.tab](pane);
@@ -212,11 +216,11 @@
     const c = S.edit.clips.find(x => x.id === S.sel), tl = M.timeline(S.edit);
     if (!c) { pane.append(h('p', {}, 'Choose a clip in the strip above to move it, trim it, or take it out.')); return; }
     const i = S.edit.clips.indexOf(c), t = tl.clips[i];
-    pane.append(h('h2', {}, `Clip ${i + 1}: ${t.words.map(w => w.w).join(' ') || '(no words)'}`),
-      h('p', { class: 'note' }, `From ${c.file_name}, ${c.in_s.toFixed(1)} s to ${c.out_s.toFixed(1)} s (${t.length_s.toFixed(1)} s long in the film).`),
+    pane.append(h('h2', {}, c.slide ? `Slide ${i + 1}: ${c.file_name}` : `Clip ${i + 1}: ${t.words.map(w => w.w).join(' ') || '(no words)'}`),
+      h('p', { class: 'note' }, c.slide ? `A picture on its own for ${t.length_s.toFixed(1)} s. Use the end buttons to make it longer or shorter.` : `From ${c.file_name}, ${c.in_s.toFixed(1)} s to ${c.out_s.toFixed(1)} s (${t.length_s.toFixed(1)} s long in the film).`),
       h('fieldset', {}, h('legend', {}, 'Trim'), h('div', { class: 'row' },
-        stepButton('Start 0.1 s earlier', 'in-', () => apply(e => M.ops.nudge(e, c.id, 'in', -0.1), 'Start moved 0.1 seconds earlier.')),
-        stepButton('Start 0.1 s later', 'in+', () => apply(e => M.ops.nudge(e, c.id, 'in', 0.1), 'Start moved 0.1 seconds later.')),
+        c.slide ? null : stepButton('Start 0.1 s earlier', 'in-', () => apply(e => M.ops.nudge(e, c.id, 'in', -0.1), 'Start moved 0.1 seconds earlier.')),
+        c.slide ? null : stepButton('Start 0.1 s later', 'in+', () => apply(e => M.ops.nudge(e, c.id, 'in', 0.1), 'Start moved 0.1 seconds later.')),
         stepButton('End 0.1 s earlier', 'out-', () => apply(e => M.ops.nudge(e, c.id, 'out', -0.1), 'End moved 0.1 seconds earlier.')),
         stepButton('End 0.1 s later', 'out+', () => apply(e => M.ops.nudge(e, c.id, 'out', 0.1), 'End moved 0.1 seconds later.')))),
       h('fieldset', {}, h('legend', {}, 'Order'), h('div', { class: 'row' },
@@ -230,13 +234,13 @@
   }
 
   function paneExtras(pane) {
-    const e = S.edit, tl = M.timeline(e);
+    const e = S.edit, tl = M.timeline(e), F = M.features(e.mode);
     // pictures
     const pics = h('ul', { class: 'list' });
     e.images.forEach(m => pics.append(h('li', {}, h('strong', {}, m.file_name), ` (${m.width} × ${m.height})`,
       h('label', {}, h('input', { type: 'checkbox', checked: m.rights_ticked, 'data-key': 'rt-' + m.id, onchange: ev => apply(x => M.ops.setRights(x, m.id, ev.target.checked), ev.target.checked ? 'Rights box ticked.' : 'Rights box cleared.') }), 'I have the right to use this picture'),
       h('button', { type: 'button', 'aria-label': `Remove the picture ${m.file_name}`, onclick: () => apply(x => M.ops.removeImage(x, m.id), 'Picture removed.') }, 'Remove'))));
-    pane.append(h('fieldset', {}, h('legend', {}, 'Pictures'), pics.children.length ? pics : h('p', { class: 'note' }, 'No pictures yet. Pictures stay on this computer and are only used by the rules below.'),
+    if (F.slides || F.rules) pane.append(h('fieldset', {}, h('legend', {}, 'Pictures'), pics.children.length ? pics : h('p', { class: 'note' }, 'No pictures yet. Pictures stay on this computer and are only used by the rules below.'),
       h('button', { type: 'button', id: 'add-pic', 'data-key': 'add-pic', onclick: async () => {
         try { const r = await host.pickImage(); if (r && r.image) apply(x => M.ops.addImage(x, r.image), `${r.image.file_name} added. Tick the rights box to use it.`); } catch (er) { err(er.message); redrawPanelsKeepFocus(); }
       } }, 'Add a picture')));
@@ -257,9 +261,17 @@
         occ.map((o, k) => h('button', { type: 'button', 'aria-label': `Go to ${mm(o.at_s)}`, onclick: () => { play(false); setT(o.at_s); } }, mm(o.at_s))),
         h('button', { type: 'button', 'aria-label': `Remove the rule for ${r.phrase}`, onclick: () => apply(x => M.ops.removeRule(x, r.id), 'Rule removed.') }, 'Remove rule')));
     });
-    pane.append(h('fieldset', {}, h('legend', {}, 'Rules'), form, rules.children.length ? rules : h('p', { class: 'note' }, 'The words are looked for in the finished film, so a phrase the cut put together from several videos is found too.')));
+    if (F.slides) {
+      const sel = h('select', { id: 'sl-img', 'aria-label': 'Picture for the slide' }, e.images.map(m => h('option', { value: m.id }, m.file_name)));
+      const after = h('select', { id: 'sl-after', 'aria-label': 'Where the slide goes' }, [h('option', { value: '' }, 'at the start')].concat(e.clips.map((c, i) => h('option', { value: c.id }, `after ${c.slide ? 'slide' : 'clip'} ${i + 1}`))));
+      pane.append(h('fieldset', {}, h('legend', {}, 'Slides'), h('form', { id: 'slide-form', onsubmit: ev => { ev.preventDefault(); const id = $('sl-img').value; apply(x => M.ops.addSlide(x, { image_id: id, seconds: parseFloat($('sl-secs').value), after: $('sl-after').value || null }), 'Slide added.'); } },
+        h('p', {}, 'Show ', sel, ' on its own for ', h('input', { id: 'sl-secs', type: 'number', min: '0.5', max: '30', step: '0.5', value: '3', 'aria-label': 'Seconds the slide stays' }), ' seconds, ', after, '. ',
+          h('button', { type: 'submit', class: 'primary', disabled: !e.images.length, 'data-key': 'add-slide' }, 'Add this slide')),
+        h('p', { class: 'note' }, 'A slide is a picture of your own, such as a title card, shown between clips. Add the picture above first, and tick the rights box.'))));
+    }
+    if (F.rules) pane.append(h('fieldset', {}, h('legend', {}, 'Rules'), form, rules.children.length ? rules : h('p', { class: 'note' }, 'The words are looked for in the finished film, so a phrase the cut put together from several videos is found too.')));
     // captions
-    pane.append(h('fieldset', {}, h('legend', {}, 'Captions'), h('div', { class: 'row' },
+    if (F.captions) pane.append(h('fieldset', {}, h('legend', {}, 'Captions'), h('div', { class: 'row' },
       h('label', {}, h('input', { id: 'cap-on', type: 'checkbox', checked: e.captions.on, 'data-key': 'cap-on', onchange: ev => apply(x => M.ops.setCaptions(x, { on: ev.target.checked }), ev.target.checked ? 'Captions on.' : 'Captions off.') }), 'Show the spoken words as captions'),
       h('label', {}, 'Size ', h('select', { id: 'cap-size', 'data-key': 'cap-size', onchange: ev => apply(x => M.ops.setCaptions(x, { size: ev.target.value }), 'Caption size changed.') },
         M.SIZES.map(s => h('option', { value: s, selected: e.captions.size === s }, s)))),
@@ -278,7 +290,7 @@
     e.texts.forEach(t => texts.append(h('li', {}, h('span', {}, `"${t.text}" at ${mm(t.start_s)} for ${t.length_s} s (${t.position.replace('_', ' ')})`),
       h('button', { type: 'button', 'aria-label': `Go to the text ${t.text}`, onclick: () => { play(false); setT(t.start_s); } }, 'Go to it'),
       h('button', { type: 'button', 'aria-label': `Remove the text ${t.text}`, onclick: () => apply(x => M.ops.removeText(x, t.id), 'Text removed.') }, 'Remove'))));
-    pane.append(h('fieldset', {}, h('legend', {}, 'Text on the film'), tf, texts));
+    if (F.text) pane.append(h('fieldset', {}, h('legend', {}, 'Text on the film'), tf, texts));
   }
 
   function swatches(label, current, key, pick) {
@@ -326,7 +338,7 @@
       try { S.proxy = await host.proxy(); } catch (e) { S.proxy = { state: 'failed', url: null }; }
       document.title = 'Edit your film';
       const top = $('top');
-      top.append(h('h1', {}, 'Edit your film'), h('div', { class: 'row' }, h('span', { id: 'status', class: 'status', role: 'status' }),
+      top.append(h('h1', {}, 'Edit your film'), h('div', { class: 'row' }, h('span', { id: 'mode', class: 'status' }, M.FILM_MODES[S.edit.mode].label), h('span', { id: 'status', class: 'status', role: 'status' }),
         h('button', { id: 'undo', type: 'button', onclick: () => { if (!S.undo.length) return; S.edit = S.undo.pop(); S.dirty = true; refreshProxy(); redraw(); say('Undone.'); } }, 'Undo'),
         h('button', { id: 'back', type: 'button', onclick: () => { if (!host.back()) say('This is the practice cut: there is no plan to go back to.'); } }, 'Back to Plan'),
         h('button', { id: 'save', type: 'button', onclick: save }, 'Save my edit'),

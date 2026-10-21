@@ -46,3 +46,4 @@ label{display:inline-flex;gap:6px;align-items:center}
 .vh{position:absolute;left:-9999px}
 @media(max-width:600px){main{padding:12px}ol.strip li{flex-basis:160px}}
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
+[hidden]{display:none!important}

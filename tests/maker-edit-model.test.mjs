@@ -12,8 +12,8 @@ const require = createRequire(import.meta.url);
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 const M = require('../tools/maker-edit/edit-model.js');
 
-const win = { sessionStorage: { getItem: () => null, setItem() {} } };
-vm.runInNewContext(read('tools/maker-edit/fixture.js'), { window: win, sessionStorage: win.sessionStorage, setTimeout });
+const win = { ryagramEditModel: M, sessionStorage: { getItem: () => null, setItem() {} } };
+vm.runInNewContext(read('tools/maker-edit/fixture.js'), { window: win, sessionStorage: win.sessionStorage, setTimeout, URLSearchParams, location: { search: '' } });
 const base = M.normalize(await win.ryagramEditFixtureHost.load());
 const PIC = { id: 'img-demo', file_name: 'demo-star.png', sha256: 'ab'.repeat(32), width: 400, height: 300 };
 const withPic = (e = base, ticked = true) => M.ops.setRights(M.ops.addImage(e, PIC), PIC.id, ticked);
@@ -33,8 +33,8 @@ test('THE PRACTICE CUT IS A VALID EDIT LIST: six clips, dark by default, caption
 test('ONE VALIDATOR: bad lists are refused in plain words, never half-accepted', () => {
   const bad = (patch, re) => { const x = clone(base); patch(x); refuses(() => M.normalize(x), re); };
   bad(x => { x.schema = 'other/9'; }, /different version/);
-  bad(x => { x.clips[0].file_name = 'C:\\Users\\sam\\video.mp4'; }, /by name only/);
-  bad(x => { x.clips[0].file_name = '../video.mp4'; }, /by name only/);
+  bad(x => { x.clips[0].file_name = 'C:\\Users\\sam\\video.mp4'; }, /never by a full path|by name only/);
+  bad(x => { x.clips[0].file_name = '../video.mp4'; }, /never by a full path|by name only/);
   bad(x => { x.clips[0].out_s = x.clips[0].in_s + 0.1; }, /at least 0\.3/);
   bad(x => { x.clips[1].id = x.clips[0].id; }, /repeated id/);
   bad(x => { x.clips = []; }, /no clips/);
@@ -50,6 +50,65 @@ test('ONE VALIDATOR: bad lists are refused in plain words, never half-accepted',
   bad(x => { x.texts = [{ id: 't1', text: '', start_s: 0, length_s: 3, position: 'top' }]; }, /1 to 200/);
   assert.throws(() => M.normalize(null), M.EditError);
   assert.throws(() => M.parse('{not json'), M.EditError);
+});
+
+test('FOLDER-RELATIVE CLIP NAMES: a clip may name its video inside a chosen folder; a full path is refused; backslashes become slashes', () => {
+  const x = clone(base); x.clips[0].file_name = 'my-clips\\Season 2\\a.mp4'; x.clips[1].file_name = 'my-clips/b.mp4';
+  const p = M.normalize(x);
+  assert.equal(p.clips[0].file_name, 'my-clips/Season 2/a.mp4'); assert.equal(p.clips[1].file_name, 'my-clips/b.mp4');
+  for (const bad of ['C:\\v\\a.mp4', '/home/me/a.mp4', '\\\\server\\x\\a.mp4', '../a.mp4', 'a/../b.mp4', './a.mp4', 'a/b:c.mp4']) { const y = clone(base); y.clips[0].file_name = bad; refuses(() => M.normalize(y), /never by a full path/); }
+});
+
+test('SLIDES: a picture of the person\'s own is its own stretch of the film; it needs its rights tick; the page shows it full frame for its whole length', () => {
+  const withP = withPic(base, false);
+  const noTick = M.ops.addSlide(withP, { image_id: PIC.id, seconds: 3, after: 'c1' });
+  assert.equal(noTick.clips[1].slide.image_id, PIC.id); assert.equal(noTick.clips[1].file_name, PIC.file_name);
+  assert.deepEqual(noTick.clips[1].words, []);
+  assert.equal(M.specs(noTick).length, 0, 'no tick, nothing drawn');
+  assert.ok(M.warnings(noTick).some(w => /its slide will show nothing/.test(w.text)));
+  const ok = M.ops.setRights(noTick, PIC.id, true), tl = M.timeline(ok), sl = tl.clips[1];
+  assert.equal(tl.total_s, Math.round((M.timeline(base).total_s + 3) * 1000) / 1000, 'the film is 3 seconds longer');
+  assert.equal(sl.slide, PIC.id); assert.equal(sl.length_s, 3);
+  const sp = M.specs(ok).find(s => s.id === 'slide-' + noTick.clips[1].id);
+  assert.ok(sp && sp.kind === 'image' && sp.x === 0 && sp.y === 0 && sp.w === 1 && sp.h === 1 && sp.start_s === sl.start_s && sp.length_s === 3);
+  assert.equal(M.frameAt(ok, sl.start_s + 1).active.filter(a => a.kind === 'image').length, 1);
+  assert.equal(M.frameAt(ok, sl.start_s + 1).clip, noTick.clips[1].id);
+  assert.equal(M.frameAt(ok, sl.start_s - 0.5).active.filter(a => a.kind === 'image').length, 0);
+  const first = M.ops.addSlide(withPic(), { image_id: PIC.id, seconds: 2 });
+  assert.equal(first.clips[0].slide.image_id, PIC.id, 'with no clip named it goes first');
+  refuses(() => M.ops.addSlide(base, { image_id: 'nope', seconds: 3 }), /Choose a picture/);
+  refuses(() => M.ops.addSlide(withP, { image_id: PIC.id, seconds: 0.2, after: 'c1' }), /at least 0\.3|0\.5|long/);
+  refuses(() => M.ops.addSlide(withP, { image_id: PIC.id, seconds: 31, after: 'c1' }), /up to 30 seconds/);
+  refuses(() => M.ops.removeImage(ok, PIC.id), /slide still uses/);
+  const nudged = M.ops.nudge(ok, noTick.clips[1].id, 'out', 0.5);
+  assert.equal(M.timeline(nudged).clips[1].length_s, 3.5, 'the end buttons change how long a slide stays');
+  refuses(() => M.ops.nudge(ok, noTick.clips[1].id, 'in', 0.1), /starts at 0 seconds/);
+  const bad = clone(ok); bad.clips[1].file_name = 'other.png'; refuses(() => M.normalize(bad), /named after its picture/);
+  const bad2 = clone(ok); bad2.clips[1].slide.image_id = 'nope'; refuses(() => M.normalize(bad2), /not in this film/);
+  const text = M.stringify(ok); assert.equal(M.stringify(M.parse(text)), text); assert.deepEqual(M.parse(text), ok);
+  const total = M.timeline(ok).total_s;
+  for (let t = 0; t <= total + 1e-9; t += 0.1) assert.deepEqual(M.frameAt(M.parse(text), t), M.frameAt(ok, t), `at ${t.toFixed(1)} s`);
+});
+
+test('ONE SHARED WORKSPACE: the film has a mode, and the tools the page offers follow it; compilation has all of them, a data film is declared but not built', () => {
+  assert.equal(base.mode, 'compilation');
+  assert.deepEqual(M.features('compilation'), { clips: true, slides: true, rules: true, captions: true, text: true, look: true });
+  assert.deepEqual(M.features('data'), { clips: false, slides: false, rules: false, captions: false, text: true, look: true });
+  const x = clone(base); x.mode = 'data'; refuses(() => M.normalize(x), /data film here is not built yet/);
+  x.mode = 'games'; refuses(() => M.normalize(x), /does not know this kind of film/);
+  delete x.mode; assert.equal(M.normalize(x).mode, 'compilation', 'older lists without a mode are compilations');
+  const keep = M.FILM_MODES.data.available;
+  try {
+    M.FILM_MODES.data.available = true;
+    const d = M.normalize({ ...clone(base), mode: 'data' });
+    refuses(() => M.ops.addRule(d, { phrase: 'a', image_id: 'x' }), /does not use rules/);
+    refuses(() => M.ops.setCaptions(d, { on: true }), /does not use captions/);
+    refuses(() => M.ops.addSlide(d, { image_id: 'x', seconds: 3 }), /does not use slides/);
+    refuses(() => M.ops.moveClip(d, 'c1', 1), /does not use clips/);
+    refuses(() => M.ops.removeClip(d, 'c1'), /does not use clips/);
+    assert.equal(M.ops.addText(d, { text: 'Hello', start_s: 1 }).texts.length, 1, 'text is in every mode');
+    assert.equal(M.ops.setLook(d, { theme: 'light' }).look.theme, 'light', 'the look is in every mode');
+  } finally { M.FILM_MODES.data.available = keep; }
 });
 
 test('THE CLOCK: clips sit end to end, a crossfade overlaps, and every word lands in the FINISHED film', () => {

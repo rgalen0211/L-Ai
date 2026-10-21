@@ -9,6 +9,7 @@
   };
   const base = {
     schema: 'ryagram.maker-edit/0',
+    mode: 'compilation',
     film: { width: 1280, height: 720, fps: 30 },
     seq: 0,
     clips: [
@@ -26,6 +27,8 @@
   };
   const star = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="#2a6f5f"/><polygon points="200,40 232,120 318,124 250,176 272,260 200,212 128,260 150,176 82,124 168,120" fill="#ffd25e"/></svg>';
   const picture = { id: 'img-demo', file_name: 'demo-star.png', sha256: 'ab'.repeat(32), width: 400, height: 300, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(star) };
+  // practice only: ?mode=data shows the page the way a data film would (no clips, rules, captions or slides), to prove the page follows the film's mode
+  if (new URLSearchParams(location.search).get('mode') === 'data') { window.ryagramEditModel.FILM_MODES.data.available = true; base.mode = 'data'; }
   const KEY = 'maker-edit-fixture-saved';
   const delay = ms => new Promise(r => setTimeout(r, ms));
   let saved = null;
