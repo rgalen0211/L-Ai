@@ -30,7 +30,7 @@ import verify_bundle  # noqa: E402
 from make_app_bundle import leak_scan  # noqa: E402
 
 APP_ID = "635FB146-7DBF-4396-BC2B-20E4C5154435"          # fixed: a newer setup upgrades the older install in place
-EXPECT_SIGNER = "Jordan Russell"                         # the Inno Setup author; the certificate subject of a real ISCC.exe must contain this (checked once it is installed)
+EXPECT_SIGNER = "Pyrsys B.V."                         # READ from the real Inno Setup 6.7.3 (ISCC.exe and the installer both: Windows says Valid, signer CN=Pyrsys B.V., O=Pyrsys B.V., NL; Pyrsys is the maintainer's company); a compiler signed by anyone else is refused
 SAFE_PATH = re.compile(r"^[A-Za-z0-9 _.()\\/:-]+$")
 VERSION_OK = re.compile(r"^[A-Za-z0-9._-]{1,20}$")
 
@@ -119,20 +119,37 @@ begin
   end;
 end;
 
-{ HIGH-1 (a): a folder that already holds someone's files is refused, unless it is an earlier Ryagram folder (an upgrade) }
+{ HIGH-1 (a): a folder that already holds someone's files is refused, unless it is an earlier Ryagram folder (an upgrade). One test, used by the folder page AND by the install step, so a folder given on the command line (/DIR=) is checked too }
+function FolderProblem(Dir: String): String;
+begin
+  Result := '';
+  if DirExists(Dir) and (not FileExists(Dir + '\BUNDLE-MANIFEST.json')) and FolderHasFiles(Dir) then
+    Result := 'That folder already has files in it and is not a Ryagram folder. Choose a new or empty folder, so none of your files are touched.';
+end;
+
 function NextButtonClick(CurPageID: Integer): Boolean;
 var
-  Dir: String;
+  Problem: String;
 begin
   Result := True;
-  if CurPageID = wpSelectDir then
+  if (CurPageID = wpSelectDir) and (not WizardSilent) then          { an unattended install is checked in PrepareToInstall; an error message box would wait for a person }
   begin
-    Dir := RemoveBackslashUnlessRoot(WizardDirValue);
-    if DirExists(Dir) and (not FileExists(Dir + '\BUNDLE-MANIFEST.json')) and FolderHasFiles(Dir) then
+    Problem := FolderProblem(RemoveBackslashUnlessRoot(WizardDirValue));
+    if Problem <> '' then
     begin
-      MsgBox('That folder already has files in it and is not a Ryagram folder. Choose a new or empty folder, so none of your files are touched.', mbError, MB_OK);
+      MsgBox(Problem, mbError, MB_OK);
       Result := False;
     end;
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := FolderProblem(RemoveBackslashUnlessRoot(WizardDirValue));
+  if (Result <> '') and WizardSilent then
+  begin
+    Log(Result);                      { an unattended install has nobody to read a message box: it writes the reason to the log and stops, touching nothing }
+    Abort;
   end;
 end;
 
@@ -150,7 +167,9 @@ begin
   if CurUninstallStep = usPostUninstall then
   begin
     App := ExpandConstant('{app}');
-    if MsgBox('Also delete your films, the work folder and the downloaded listening model? Choose No to keep them.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
+    { an unattended uninstall may say /DELETEFILES=yes or /DELETEFILES=no; otherwise the person is asked, and the default answer is No }
+    if (ExpandConstant('{param:DELETEFILES|ask}') = 'yes') or ((ExpandConstant('{param:DELETEFILES|ask}') <> 'no') and
+       (MsgBox('Also delete your films, the work folder and the downloaded listening model? Choose No to keep them.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES)) then
     begin
       DeleteIfOurs(App, 'films');
       DeleteIfOurs(App, 'work');

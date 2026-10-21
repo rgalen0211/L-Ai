@@ -78,10 +78,10 @@ def make_stub(root, rc=0, write=True):
     return bat
 
 
-GOOD_SIG = lambda p: "Valid|CN=Jordan Russell, O=Jordan Russell, C=NL"          # noqa: E731
+GOOD_SIG = lambda p: "Valid|CN=Pyrsys B.V., O=Pyrsys B.V., S=Noord-Holland, C=NL"          # noqa: E731
 FAKE_SIG = lambda p: "Valid|CN=Somebody Else"                                        # noqa: E731
 NO_SIG = lambda p: "NotSigned|"                                                       # noqa: E731
-BAD_SIG = lambda p: "HashMismatch|CN=Jordan Russell"                                  # noqa: E731
+BAD_SIG = lambda p: "HashMismatch|CN=Pyrsys B.V."                                  # noqa: E731
 
 
 def attempt(root, name, **over):
