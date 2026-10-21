@@ -93,6 +93,27 @@ test('A ROW WITH NO MEASURED OFFSET is allowed (the receipt has the measured one
   assert.equal(sw.offset_ms, null);
 });
 
+test('A BUILT WORD from CONNECT 112 may carry a play-button name and a clash note; the name is a file name only', () => {
+  const x = clone(plan), b = firstOf(plan, w => w.status === 'syllables');
+  Object.assign(x.lines[b.n - 1].words[b.i], { preview: 'built-brooks.wav', voice_may_clash: true });
+  const p = M.normalize(x), w = p.lines[b.n - 1].words[b.i];
+  assert.equal(w.preview, 'built-brooks.wav');
+  assert.ok(M.flags(p, p.lines[b.n - 1], b.i).some(f => /may not match each other/.test(f)));
+  assert.ok(!M.flags(plan, plan.lines[b.n - 1], b.i).some(f => /may not match/.test(f)));
+  x.lines[b.n - 1].words[b.i].preview = 'C:\\work\\a.wav';
+  refuses(() => M.normalize(x), /file name only, not a path/);
+  assert.equal(M.parse(M.stringify(p)).lines[b.n - 1].words[b.i].preview, 'built-brooks.wav');
+});
+
+test('THE PLAN\'S OWN IDS pass through (plan_id and without_forged_plan_id); anything else in them is refused', () => {
+  const x = clone(plan); x.plan_id = 'plan-1a2b'; x.without_forged_plan_id = 'plan-9z8y';
+  const p = M.normalize(x);
+  assert.equal(p.plan_id, 'plan-1a2b'); assert.equal(p.without_forged_plan_id, 'plan-9z8y');
+  assert.equal(M.parse(M.stringify(p)).without_forged_plan_id, 'plan-9z8y');
+  assert.ok(!('plan_id' in plan), 'no id is made up');
+  x.plan_id = '../x'; refuses(() => M.normalize(x), /id the page cannot use/);
+});
+
 test('PLAIN WORDS FOR EACH STATE, and a speaker is never shown as an id', () => {
   const real = firstOf(plan, w => w.status === 'whole'), built = firstOf(plan, w => w.status === 'syllables'), gap = firstOf(plan, w => w.status === 'gap');
   assert.equal(M.statusText(real.w), 'Said as it is');

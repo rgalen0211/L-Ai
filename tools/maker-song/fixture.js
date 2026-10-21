@@ -47,7 +47,11 @@
     async pickTrack() { return { track: { file_name: 'my-song.mp3', seconds: 40 } }; },
     async pickVideos() { return { videos: [{ file_name: 'first-video.mp4' }, { file_name: 'second-video.mp4' }, { file_name: 'third-video.mp4' }] }; },
     async pickGuide() { return { guide: { file_name: 'my-guide-vocal.wav' } }; },
-    async build(req) { return { plan: build(req.lines, req.track, req.guide) }; },
+    async build(req) {
+      const p = build(req.lines, req.track, req.guide);
+      if (req.forge === false) p.lines.forEach(l => l.words.forEach((w, i, a) => { if (w.status === 'syllables' || w.status === 'phonemes') a[i] = { w: w.w, beat_s: w.beat_s, end_s: w.end_s, status: 'gap' }; }));
+      return { plan: p };
+    },
     async hear() { return null; },                                                // no audio: the page plays a tone for each word so the timing can be heard
     async load() { return saved ? JSON.parse(saved) : null; },
     async save(text) { saved = text; try { sessionStorage.setItem(KEY, text); } catch (e) { /* kept in memory */ } return { saved: true }; },
