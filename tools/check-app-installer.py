@@ -122,9 +122,14 @@ def main():
           "MUST-FAIL (HIGH-1a): the folder page refuses a folder that already has files unless it is an earlier Ryagram folder, in one plain sentence")
     check(not re.search(r"DelTree\(\s*App\s*,", iss) and "RemoveBackslash" in iss and "RemoveDir(App)" in iss,
           "MUST-FAIL (HIGH-1b): the uninstaller never deletes the whole install folder; it removes films, work and models by name, then the folder only if it is empty")
-    check("SameText(FindRec.Name, 'films')" in iss and "SameText(FindRec.Name, 'work')" in iss and "SameText(FindRec.Name, 'models')" in iss,
-          "CC1 LOW (23:40): a folder whose only entries are films, work and models (an uninstall that kept them) is accepted for a reinstall")
-    check(all(f"DelTree(App + '\\{x}'" in iss for x in ("films", "work", "models")) and iss.count("DelTree(") == 3, "and those three are the only DelTree calls")
+    check("function IsKeptFolder" in iss and "RYAGRAM-FOLDER.txt" in iss and "not IsKeptFolder(Dir, FindRec.Name)" in iss and iss.count("uninsneveruninstall") == 3,
+          "CC1 LOW (23:44): films, work and models are accepted for a reinstall ONLY when Ryagram's marker is inside (the setup writes it, flagged to survive an uninstall that keeps the files)")
+    body_ = iss[iss.index("function IsKeptFolder"):iss.index("function FolderHasFiles")]
+    check("FileExists(Dir + '" + chr(92) + "' + Name + '" + chr(92) + "RYAGRAM-FOLDER.txt')" in body_ and "SameText(Name, 'films')" in body_,
+          "MUST-FAIL (CC1 23:44): a folder named films, work or models counts as Ryagram's only if the marker file is inside it (its name alone is not enough)")
+    check((out / "RYAGRAM-FOLDER.txt").is_file() and "Ryagram" in (out / "RYAGRAM-FOLDER.txt").read_text(encoding="ascii"), "the builder writes the marker file next to the script")
+    check("procedure DeleteIfOurs" in iss and "FileExists(App + '\\' + Name + '\\RYAGRAM-FOLDER.txt')" in iss and iss.count("DelTree(") == 1 and all(f"DeleteIfOurs(App, '{x}')" in iss for x in ("films", "work", "models")),
+          "MUST-FAIL (CC1 23:44): the uninstaller deletes a folder only when the marker is inside it; the single DelTree is behind that test")
     check("GetDriveType('D:\\') = 3" in iss, "LOW-4: D: is chosen only when it is a fixed disk (not a USB stick or a card)")
 
     print("\nrefusals (each must leave --out absent or untouched)")

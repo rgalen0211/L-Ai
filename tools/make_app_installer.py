@@ -65,6 +65,9 @@ Name: "{app}\models"
 
 [Files]
 Source: "__BUNDLE__\*"; DestDir: "{app}"; Flags: recursesubdirs createallsubdirs ignoreversion
+Source: "__OUT_DIR__\RYAGRAM-FOLDER.txt"; DestDir: "{app}\films"; Flags: uninsneveruninstall
+Source: "__OUT_DIR__\RYAGRAM-FOLDER.txt"; DestDir: "{app}\work"; Flags: uninsneveruninstall
+Source: "__OUT_DIR__\RYAGRAM-FOLDER.txt"; DestDir: "{app}\models"; Flags: uninsneveruninstall
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\python"
@@ -92,6 +95,11 @@ begin
     Result := ExpandConstant('{localappdata}\Ryagram');
 end;
 
+function IsKeptFolder(Dir, Name: String): Boolean;
+begin
+  Result := (SameText(Name, 'films') or SameText(Name, 'work') or SameText(Name, 'models')) and FileExists(Dir + '\' + Name + '\RYAGRAM-FOLDER.txt');
+end;
+
 function FolderHasFiles(Dir: String): Boolean;
 var
   FindRec: TFindRec;
@@ -101,8 +109,8 @@ begin
   begin
     try
       repeat
-        { the three folders an earlier uninstall KEPT are the person's own work, not strangers' files: a reinstall may go back into that folder }
-        if (FindRec.Name <> '.') and (FindRec.Name <> '..') and (not SameText(FindRec.Name, 'films')) and (not SameText(FindRec.Name, 'work')) and (not SameText(FindRec.Name, 'models')) then
+        { films, work and models are common names: one counts as Ryagram's own only when it carries Ryagram's marker file (written by an earlier setup, kept by an uninstall that kept the files) }
+        if (FindRec.Name <> '.') and (FindRec.Name <> '..') and (not IsKeptFolder(Dir, FindRec.Name)) then
           Result := True;
       until Result or (not FindNext(FindRec));
     finally
@@ -128,6 +136,13 @@ begin
   end;
 end;
 
+{ a folder is deleted only when Ryagram's own marker is inside it, never just because of its name }
+procedure DeleteIfOurs(App, Name: String);
+begin
+  if FileExists(App + '\' + Name + '\RYAGRAM-FOLDER.txt') then
+    DelTree(App + '\' + Name, True, True, True);
+end;
+
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var
   App: String;
@@ -137,14 +152,18 @@ begin
     App := ExpandConstant('{app}');
     if MsgBox('Also delete your films, the work folder and the downloaded listening model? Choose No to keep them.', mbConfirmation, MB_YESNO or MB_DEFBUTTON2) = IDYES then
     begin
-      DelTree(App + '\films', True, True, True);
-      DelTree(App + '\work', True, True, True);
-      DelTree(App + '\models', True, True, True);
+      DeleteIfOurs(App, 'films');
+      DeleteIfOurs(App, 'work');
+      DeleteIfOurs(App, 'models');
     end;
     RemoveDir(App);                                                  { removes the folder only if nothing is left in it }
   end;
 end;
 '''
+
+
+MARKER_TEXT = ("This folder belongs to Ryagram: it holds your films, your work files or the listening model. The Ryagram setup put this note here, and the uninstaller deletes the folder\r\n"
+               "only if this note is inside it and you answered Yes. Do not copy this note into a folder of your own.\r\n")
 
 
 class Refused(Exception):
@@ -209,6 +228,7 @@ def build(bundle: Path, iscc: Path, out: Path, version: str, *, allow_any_drive:
     try:
         if shutil.disk_usage(out).free < need_free(bundle):
             raise Refused(f"Not enough free space in {out} (about {need_free(bundle) >> 20} MB needed).")
+        (out / "RYAGRAM-FOLDER.txt").write_bytes(MARKER_TEXT.encode("ascii"))
         iss = out / "app.iss"
         iss.write_bytes(render_iss(bundle, out, version).encode("ascii"))
         r = subprocess.run([str(iscc), "/Q", str(iss)], capture_output=True, text=True, timeout=3600)
