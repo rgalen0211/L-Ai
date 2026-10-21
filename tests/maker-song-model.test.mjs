@@ -59,12 +59,29 @@ test('THE ENGINE\'S PLAN IS VALIDATED: bad plans are refused in plain words, nev
   bad(x => { const w = x.lines[0].words; [w[0].beat_s, w[1].beat_s] = [w[1].beat_s, w[0].beat_s]; }, /not in order|outside the music/);
   bad(x => { const w = x.lines[1].words; w[1].beat_s = w[0].beat_s - 0.5; w[1].end_s = w[0].beat_s - 0.2; }, /not in order/);
   bad(x => { x.lines[real.n - 1].words[real.i].status = 'maybe'; }, /said as is, built from sounds, or a gap/);
-  bad(x => { delete x.lines[real.n - 1].words[real.i].offset_ms; }, /how far it lands from the beat/);
+  bad(x => { x.lines[real.n - 1].words[real.i].offset_ms = 'soon'; }, /landing time that is not a number/);
   bad(x => { x.lines[real.n - 1].words[real.i].stretch = 0; }, /stretch that is not valid/);
   bad(x => { x.lines = []; }, /no lines/);
   bad(x => { x.lines[0].words = []; }, /no words/);
   assert.throws(() => M.normalize(null), M.SongError);
   assert.throws(() => M.parse('{nope'), M.SongError);
+});
+
+test('A ROW WITH NO MEASURED OFFSET is allowed (the receipt has the measured ones): it is null, never a guess, never flagged, never counted', () => {
+  const x = clone(plan), t = firstOf(plan, w => w.status === 'whole');
+  delete x.lines[t.n - 1].words[t.i].offset_ms; x.lines[t.n - 1].words[t.i].alternatives.forEach(a => delete a.offset_ms);
+  const p = M.normalize(x), w = p.lines[t.n - 1].words[t.i];
+  assert.equal(w.offset_ms, null);
+  assert.ok(w.alternatives.every(a => a.offset_ms === null));
+  assert.ok(!M.flags(p, p.lines[t.n - 1], t.i).some(f => /beat/.test(f)));
+  assert.ok(M.summarize(p).off_beat <= M.summarize(plan).off_beat);
+  const all = clone(plan); all.lines.forEach(l => l.words.forEach(v => { delete v.offset_ms; v.alternatives && v.alternatives.forEach(a => delete a.offset_ms); }));
+  const s2 = M.summarize(M.normalize(all));
+  assert.equal(s2.off_beat, 0); assert.equal(s2.median_err_ms, 0);
+  assert.ok(M.stringify(p).includes('"offset_ms": null'));
+  assert.equal(M.parse(M.stringify(p)).lines[t.n - 1].words[t.i].offset_ms, null);
+  const sw = M.ops.swap(p, t.n, t.i, w.alternatives[0].id).lines[t.n - 1].words[t.i];
+  assert.equal(sw.offset_ms, null);
 });
 
 test('PLAIN WORDS FOR EACH STATE, and a speaker is never shown as an id', () => {

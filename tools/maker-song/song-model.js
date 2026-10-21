@@ -71,8 +71,8 @@
     if (!safeName(w.file_name)) fail(`The word "${w.w}" must name its video by file name only, not by path.`);
     if (!num(w.src_s) || !num(w.src_e) || !(w.src_e > w.src_s) || w.src_s < 0) fail(`The word "${w.w}" has a source time that is not valid.`);
     if (!num(w.stretch) || !(w.stretch > 0) || w.stretch > 20) fail(`The word "${w.w}" has a stretch that is not valid.`);
-    if (!num(w.offset_ms)) fail(`The word "${w.w}" does not say how far it lands from the beat.`);
-    Object.assign(out, { speaker_id: w.speaker_id, file_name: w.file_name, src_s: r3(w.src_s), src_e: r3(w.src_e), stretch: r3(w.stretch), offset_ms: ri(w.offset_ms), step_db: num(w.step_db) ? (Math.round(w.step_db * 10) / 10) || 0 : null });
+    if (w.offset_ms !== null && w.offset_ms !== undefined && !num(w.offset_ms)) fail(`The word "${w.w}" has a landing time that is not a number.`);
+    Object.assign(out, { speaker_id: w.speaker_id, file_name: w.file_name, src_s: r3(w.src_s), src_e: r3(w.src_e), stretch: r3(w.stretch), offset_ms: num(w.offset_ms) ? ri(w.offset_ms) : null, step_db: num(w.step_db) ? (Math.round(w.step_db * 10) / 10) || 0 : null });
     if (w.status !== 'whole') {
       if (!Array.isArray(w.pieces) || w.pieces.length < 2) fail(`The word "${w.w}" is built from sounds, so it needs its pieces.`);
       out.pieces = w.pieces.map(p => {
@@ -82,9 +82,9 @@
       out.joins = out.pieces.length - 1;
     }
     out.alternatives = (Array.isArray(w.alternatives) ? w.alternatives : []).map((a, i) => {
-      if (!isObj(a) || typeof a.id !== 'string' || !/^[A-Za-z0-9_.:-]{1,60}$/.test(a.id) || !castIds.has(a.speaker_id) || !safeName(a.file_name) || !num(a.src_s) || !num(a.src_e) || !(a.src_e > a.src_s) || !num(a.stretch) || !(a.stretch > 0) || !num(a.offset_ms))
+      if (!isObj(a) || typeof a.id !== 'string' || !/^[A-Za-z0-9_.:-]{1,60}$/.test(a.id) || !castIds.has(a.speaker_id) || !safeName(a.file_name) || !num(a.src_s) || !num(a.src_e) || !(a.src_e > a.src_s) || !num(a.stretch) || !(a.stretch > 0) || (a.offset_ms !== null && a.offset_ms !== undefined && !num(a.offset_ms)))
         fail(`Another take of "${w.w}" is not valid.`);
-      return { id: a.id, speaker_id: a.speaker_id, file_name: a.file_name, src_s: r3(a.src_s), src_e: r3(a.src_e), stretch: r3(a.stretch), offset_ms: ri(a.offset_ms) };
+      return { id: a.id, speaker_id: a.speaker_id, file_name: a.file_name, src_s: r3(a.src_s), src_e: r3(a.src_e), stretch: r3(a.stretch), offset_ms: num(a.offset_ms) ? ri(a.offset_ms) : null };
     });
     return out;
   }
@@ -100,7 +100,7 @@
   function flags(plan, line, i) {
     const w = line.words[i], f = [];
     if (w.status === 'gap' || w.quiet) return f;
-    if (Math.abs(w.offset_ms) > OFF_BEAT_MS) f.push(`Lands ${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'} the beat`);
+    if (w.offset_ms !== null && Math.abs(w.offset_ms) > OFF_BEAT_MS) f.push(`Lands ${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'} the beat`);
     if (w.stretch > STRETCH_HIGH) f.push(`Stretched a lot (${w.stretch.toFixed(1)} times); it may sound smeared`);
     if (w.stretch < STRETCH_LOW) f.push(`Squeezed a lot (${w.stretch.toFixed(1)} times); it may sound rushed`);
     const prev = line.words.slice(0, i).reverse().find(x => x.status !== 'gap' && !x.quiet);
@@ -121,8 +121,7 @@
         if (w.quiet) { quiet++; full = false; return; }
         if (w.status === 'gap') { gaps++; full = false; return; }
         real++; if (w.status !== 'whole') built++;
-        errs.push(Math.abs(w.offset_ms));
-        if (Math.abs(w.offset_ms) > OFF_BEAT_MS) off++;
+        if (w.offset_ms !== null) { errs.push(Math.abs(w.offset_ms)); if (Math.abs(w.offset_ms) > OFF_BEAT_MS) off++; }
         if (w.stretch > STRETCH_HIGH || w.stretch < STRETCH_LOW) stretchy++;
         if (w.burst) bursts++;
         const prev = line.words.slice(0, i).reverse().find(x => x.status !== 'gap' && !x.quiet);

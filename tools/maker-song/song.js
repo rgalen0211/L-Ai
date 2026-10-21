@@ -165,7 +165,7 @@
     if (w.status !== 'gap' && !w.quiet) {
       facts.append(h('dt', {}, 'Comes from'), h('dd', {}, `${w.file_name}, ${w.src_s.toFixed(1)} s to ${w.src_e.toFixed(1)} s`),
         h('dt', {}, 'Length'), h('dd', {}, w.stretch === 1 ? 'Used at its own length' : `Stretched or squeezed ${w.stretch.toFixed(1)} times to fit the beat`),
-        h('dt', {}, 'On the beat'), h('dd', {}, Math.abs(w.offset_ms) <= M.OFF_BEAT_MS ? `Lands on the beat (${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'})` : `Lands ${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'} the beat`));
+        h('dt', {}, 'On the beat'), h('dd', {}, w.offset_ms === null ? 'Not measured yet: the render reports how close each word lands' : Math.abs(w.offset_ms) <= M.OFF_BEAT_MS ? `Lands on the beat (${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'})` : `Lands ${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'} the beat`));
     }
     d.append(facts);
     const fl = M.flags(S.plan, line, S.sel.i);
