@@ -42,6 +42,15 @@ test('THE PRACTICE PLAN shows every state the screens must tell apart, and count
   assert.ok(s.max_err_ms >= s.median_err_ms);
 });
 
+test('THE VIDEOS the words are found in: names only, no repeats, at least one', () => {
+  assert.deepEqual(M.normalizeVideos([{ file_name: 'a.mp4' }, { file_name: 'b.mp4' }]), [{ file_name: 'a.mp4' }, { file_name: 'b.mp4' }]);
+  refuses(() => M.normalizeVideos([]), /Choose the videos/);
+  refuses(() => M.normalizeVideos(null), /Choose the videos/);
+  refuses(() => M.normalizeVideos([{ file_name: 'C:\\v\\a.mp4' }]), /by file name only/);
+  refuses(() => M.normalizeVideos([{ file_name: 'a.mp4' }, { file_name: 'a.mp4' }]), /twice/);
+  refuses(() => M.normalizeVideos(Array.from({ length: 301 }, (_, i) => ({ file_name: `v${i}.mp4` }))), /more than 300/);
+});
+
 test('THE ENGINE\'S PLAN IS VALIDATED: bad plans are refused in plain words, never half-trusted', () => {
   const bad = (patch, re) => { const x = clone(plan); patch(x); refuses(() => M.normalize(x), re); };
   const built = firstOf(plan, w => w.status === 'syllables' || w.status === 'phonemes');
@@ -162,7 +171,7 @@ test('THE PAGE\'S SOURCE: no HTML built from text, no call but to its own maker,
   assert.doesNotMatch(js, /&t=|[?&]t=\$\{|'t=' \+/, 'the token is never put in an address');
   assert.doesNotMatch(html, /fixture\.js/, 'the real page never loads the practice build');
   assert.match(js, /has\('fixture'\)\) \{ await loadScript\('fixture\.js'\)/, 'the practice build is loaded only for ?fixture');
-  for (const p of ['/api/song', '/api/song/track', '/api/song/guide', '/api/song/build', '/api/song/hear', '/api/song/render']) assert.ok(js.includes(p), p);
+  for (const p of ['/api/song', '/api/song/track', '/api/song/videos', '/api/song/guide', '/api/song/build', '/api/song/hear', '/api/song/render']) assert.ok(js.includes(p), p);
   assert.doesNotMatch(js, /https?:\/\//);
   assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'/);
   assert.doesNotMatch(html, /https?:\/\/|<script>|onclick=|style=/);

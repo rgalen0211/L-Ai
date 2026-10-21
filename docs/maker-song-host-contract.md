@@ -6,10 +6,11 @@ Try it: `python -m http.server 8199 --bind 127.0.0.1 -d tools/maker-song`, then 
 
 ## 1. What the person sees (Claude's brief for item 121)
 1. **Your words.** Paste the lyrics, one line of the song per line. A count ("4 lines, 20 words"). Nothing is uploaded. Too much or nothing is refused in plain words.
-2. **Your music.** Choose the track; optionally add a track of just the singing (the "guide vocal", for example the person's own song-maker export). If the track has the singing in it the maker finds each word's beat from it.
-3. **Your song, word by word** (after Build). A summary in plain words ("18 of 20 words are real voices (90%); 2 of 4 lines are fully real", "7 words are built from sounds ... the joins can sound a little robotic", "2 words are a gap: nobody in your files says them", words off the beat, words stretched, voice changes). Then **one lane per line: every word is a box on its beat** (time, word, who says it, a mark for "built from sounds", "gap", "quiet", and "check" when a rule flags it). **Hear this line** on every line.
+2. **Your videos.** Choose the videos the words are looked up in (names only; add more, take one out). A build with none is refused in plain words. The step is the song page's own: it does not depend on the main page's choice (CONNECT's 09:23 question, answer (a)).
+3. **Your music.** Choose the track; optionally add a track of just the singing (the "guide vocal", for example the person's own song-maker export). If the track has the singing in it the maker finds each word's beat from it.
+4. **Your song, word by word** (after Build). A summary in plain words ("18 of 20 words are real voices (90%); 2 of 4 lines are fully real", "7 words are built from sounds ... the joins can sound a little robotic", "2 words are a gap: nobody in your files says them", words off the beat, words stretched, voice changes). Then **one lane per line: every word is a box on its beat** (time, word, who says it, a mark for "built from sounds", "gap", "quiet", and "check" when a rule flags it). **Hear this line** on every line.
    Press a word box for its detail, inside its line: who says it, the beat, where it comes from (file name and seconds), whether it is said as it is or **built from sounds** (the pieces, e.g. "tex + as"), how far it was stretched, how far it lands from the beat, the flags in plain words, **Hear this word**, and **the other takes of this word with Hear it / Use this one** (the swap). A **gap** says plainly that nobody in the chosen videos says it and offers **Leave this beat quiet** (and to put it back); to use another word the person changes the words in step 1 and presses Build again.
-4. **Make the film** (the only step that costs time) and **Save my song**.
+5. **Make the film** (the only step that costs time) and **Save my song**.
 
 Plain words only: a voice with no name is "Voice 1", "Voice 2" (never an id); "built from sounds", never phoneme or syllable jargon; no exit codes or model names.
 
@@ -39,8 +40,9 @@ Calls carry the maker's token in `X-Maker-Token` (taken from `?t=` or sessionSto
 | Page call | Maker route | Answer |
 |---|---|---|
 | `load()` | `GET /api/song` | `{"plan": <song plan> or null}` (null = nothing saved: the page starts at step 1) |
+| `pickVideos()` | `POST /api/song/videos` | `{"videos": [{file_name}, ...]}` (the maker's own picker; the page adds them to the list and refuses repeats) |
 | `pickTrack()` / `pickGuide()` | `POST /api/song/track` / `/api/song/guide` | `{"track": {file_name, seconds}}` / `{"guide": {file_name}}` (the maker checks the file is real audio, as today) |
-| `build({lines, track, guide})` | `POST /api/song/build` | `{"plan": ...}` (a long job: the page shows "Building..." and the maker answers when done, or streams progress later) |
+| `build({lines, videos, track, guide})` | `POST /api/song/build` | `{"plan": ...}` (a long job: the page shows "Building..." and the maker answers when done, or streams progress later) |
 | `hear({kind: "line"|"word"|"alt", n, i, id})` | `POST /api/song/hear` | `{"url": "/api/song/audio?..."}` (fetched with the token header; the audio of that line, word or other take, mixed over the music) or null; with null the practice build plays a tone per word |
 | `save(text)` | `POST /api/song` `{"plan": ...}` | `{"saved": true}` (the maker validates again and writes `song.json` beside the film) |
 | `render(plan)` | `POST /api/song/render` | `{"message": ...}`; one at a time (the page turns the button off; the maker must refuse a second too) |

@@ -34,6 +34,18 @@
     lines.forEach((l, i) => { if (l.split(' ').length > MAX_WORDS_LINE) fail(`Line ${i + 1} has more than ${MAX_WORDS_LINE} words. Split it into two lines.`); });
     return lines;
   }
+  // the videos the words are looked up in: names only (never paths), no repeats, 1 to 300
+  function normalizeVideos(list) {
+    if (!Array.isArray(list) || !list.length) fail('Choose the videos the words will be found in first.');
+    if (list.length > 300) fail('That is more than 300 videos. Choose a smaller set first.');
+    const seen = new Set();
+    return list.map(v => {
+      if (!isObj(v) || !safeName(v.file_name)) fail('A video must be named by file name only, not by path.');
+      if (seen.has(v.file_name)) fail(`${v.file_name} is in the list twice.`);
+      seen.add(v.file_name);
+      return { file_name: v.file_name };
+    });
+  }
   const wordsOf = line => line.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/'/g, '').split(/\s+/).filter(Boolean);
 
   // ---- validate a plan from the engine: refuse a plan that breaks the rules the page relies on ----
@@ -163,5 +175,5 @@
   const stringify = plan => JSON.stringify(normalize(plan), null, 2) + '\n';
   const parse = text => { let v; try { v = JSON.parse(text); } catch (e) { fail('That file is not a song plan.'); } return normalize(v); };
 
-  return { SCHEMA, STATUSES, OFF_BEAT_MS, STRETCH_HIGH, STRETCH_LOW, SongError, parseLyrics, wordsOf, normalize, speakerLabel, statusText, flags, summarize, ops, stringify, parse, mmss };
+  return { SCHEMA, STATUSES, OFF_BEAT_MS, STRETCH_HIGH, STRETCH_LOW, SongError, parseLyrics, wordsOf, normalizeVideos, normalize, speakerLabel, statusText, flags, summarize, ops, stringify, parse, mmss };
 }));
