@@ -121,7 +121,10 @@ def main():
         elif len(p.title.strip()) > 70:
             add(rel, f'title is {len(p.title.strip())} characters (search results cut it at about 60)')
         desc = p.meta.get('description', '').strip()
-        if rel in SHOULD_BE_INDEXED or (not noindex and rel not in SHOULD_BE_NOINDEX):
+        local_tool = rel.startswith('tools/')            # pages the maker serves on the person's own computer: never public, so noindex is required and the public description and heading rules do not apply
+        if local_tool and not noindex:
+            add(rel, 'a local tool page must say noindex')
+        if not local_tool and (rel in SHOULD_BE_INDEXED or (not noindex and rel not in SHOULD_BE_NOINDEX)):
             if not desc:
                 add(rel, 'no meta description (a public page should have one)')
             elif not 50 <= len(desc) <= 175:
@@ -130,7 +133,7 @@ def main():
             add(rel, 'no lang on <html>')
         if 'viewport' not in p.meta:
             add(rel, 'no viewport meta (it will not scale on a phone)')
-        if p.h1 != 1 and rel not in ('app/index.html', 'film/index.html'):      # the app and the film page build their headings with script
+        if p.h1 != 1 and not local_tool and rel not in ('app/index.html', 'film/index.html'):      # the app and the film page build their headings with script
             add(rel, f'{p.h1} h1 headings (a page should have exactly one)')
         for src in p.imgs_noalt:
             add(rel, f'image with no alt text: {src}')

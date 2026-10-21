@@ -270,6 +270,7 @@ def main():
                 p.wait_for_timeout(600)
                 txt = p.locator('#top').inner_text()
                 check('Open the address the maker printed' in txt and '403' not in txt and 'Traceback' not in txt, 'a wrong token gives a plain sentence')
+                check(p.evaluate('typeof window.ryagramSongFixtureHost') == 'undefined', 'the real page does not have the practice host (it is loaded only for ?fixture)')
                 p.goto(f'{base}/song.html?t={TOKEN}', wait_until='load')
                 p.wait_for_selector('html[data-ready="1"]', timeout=15000)
                 check(p.locator('#s-board').is_hidden() and p.locator('#lyrics').count() == 1, 'with nothing saved, the page starts at the words')
@@ -283,8 +284,8 @@ def main():
                 bq = STATE['builds'][-1]
                 check(bq['lines'] == ['one line of my own', 'and a second one'] and bq['track']['file_name'] == 'api-track.mp3' and bq['guide']['file_name'] == 'api-singing.wav', 'the maker received the lines, the track and the singing track by name')
                 p.locator('[data-key="hear-line-1"]').click()
-                until(p, "document.getElementById('player').src.includes('/api/song/audio')")
-                check(STATE['hears'][-1] == {'kind': 'line', 'n': 1} and 't=tok456' in p.evaluate("document.getElementById('player').src"), 'Hear asks the maker, and plays what it returns')
+                until(p, "document.getElementById('player').src.startsWith('blob:')")
+                check(STATE['hears'][-1] == {'kind': 'line', 'n': 1} and p.evaluate("document.getElementById('player').src").startswith('blob:') and TOKEN not in p.evaluate("document.getElementById('player').src"), 'Hear asks the maker, fetches the sound with the token in a header, and plays it from a blob: address (no token in any address)')
                 p.get_by_role('button', name='Save my song').click()
                 until(p, "document.getElementById('save').textContent === 'Saved'")
                 mine = p.evaluate('window.ryagramSong.saveText()')

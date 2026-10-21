@@ -14,20 +14,30 @@
       if (!r.ok) throw new Error(j.error || 'The maker did not answer. Is it still open?');
       return j;
     };
+    let lastSound = null;
     return {
       name: 'maker',
       practiceLyrics: null,
       async pickTrack() { return call('/api/song/track', {}); },
       async pickGuide() { return call('/api/song/guide', {}); },
       async build(req) { return call('/api/song/build', req); },
-      async hear(req) { const r = await call('/api/song/hear', req); return r && r.url ? { url: r.url + (r.url.includes('?') ? '&' : '?') + 't=' + encodeURIComponent(token) } : null; },
+      async hear(req) {                                             // the token travels in a header, never in an address; the sound is played from a blob: address
+        const r = await call('/api/song/hear', req);
+        if (!r || !r.url) return null;
+        const res = await fetch(r.url, { headers: { 'X-Maker-Token': token } });
+        if (!res.ok) throw new Error('The maker could not give the sound.');
+        if (lastSound) URL.revokeObjectURL(lastSound);
+        lastSound = URL.createObjectURL(await res.blob());
+        return { url: lastSound };
+      },
       async load() { return (await call('/api/song')).plan; },
       async save(text) { return call('/api/song', { plan: JSON.parse(text) }); },
       async render(plan) { return call('/api/song/render', { plan }); },
       back() { location.href = '/?t=' + encodeURIComponent(token); return true; },
     };
   }
-  const host = new URLSearchParams(location.search).has('fixture') ? window.ryagramSongFixtureHost : apiHost();
+  let host = null;
+  const loadScript = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => no(new Error('The practice build could not be loaded.')); document.head.append(el); });
 
   const S = { lyrics: '', track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
   const $ = id => document.getElementById(id);
@@ -192,6 +202,7 @@
 
   async function start() {
     try {
+      if (new URLSearchParams(location.search).has('fixture')) { await loadScript('fixture.js'); host = window.ryagramSongFixtureHost; } else host = apiHost();
       const top = $('top');
       top.append(h('h1', {}, 'Make a song'), h('div', { class: 'row' },
         h('button', { id: 'back', type: 'button', onclick: () => { if (!host.back()) say('This is the practice build: there is no plan to go back to.'); } }, 'Back to Plan'),

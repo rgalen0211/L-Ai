@@ -141,7 +141,10 @@ test('THE PAGE\'S SOURCE: no HTML built from text, no call but to its own maker,
   const js = read('tools/maker-song/song.js').replace(/\/\/.*$/gm, ''), model = read('tools/maker-song/song-model.js').replace(/\/\/.*$/gm, ''), html = read('tools/maker-song/song.html');
   for (const src of [js, model]) assert.doesNotMatch(src, /innerHTML|outerHTML|insertAdjacentHTML|document\.write|\beval\(|new Function|XMLHttpRequest|sendBeacon|WebSocket|importScripts/);
   assert.doesNotMatch(model, /fetch\(|localStorage|sessionStorage|document\.|window\./, 'the model touches nothing but its input');
-  assert.deepEqual(js.match(/fetch\(([^,)]*)/g) || [], ['fetch(path']);
+  assert.deepEqual(js.match(/fetch\(([^,)]*)/g) || [], ['fetch(path', 'fetch(r.url']);
+  assert.doesNotMatch(js, /&t=|[?&]t=\$\{|'t=' \+/, 'the token is never put in an address');
+  assert.doesNotMatch(html, /fixture\.js/, 'the real page never loads the practice build');
+  assert.match(js, /has\('fixture'\)\) \{ await loadScript\('fixture\.js'\)/, 'the practice build is loaded only for ?fixture');
   for (const p of ['/api/song', '/api/song/track', '/api/song/guide', '/api/song/build', '/api/song/hear', '/api/song/render']) assert.ok(js.includes(p), p);
   assert.doesNotMatch(js, /https?:\/\//);
   assert.match(html, /Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'/);

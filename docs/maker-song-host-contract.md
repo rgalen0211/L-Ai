@@ -34,14 +34,14 @@ Plain words only: a voice with no name is "Voice 1", "Voice 2" (never an id); "b
 * Stable bytes: saving what was opened gives the same text (no minus zero, canonical order).
 
 ## 3. The host (`window.ryagramSongFixtureHost`, or the maker host built into `song.js`)
-Calls carry the maker's token in `X-Maker-Token` (taken from `?t=` or sessionStorage); an audio address carries it as `&t=` because an `<audio>` cannot set a header. Nothing leaves the maker's own address (`connect-src 'self'`, `media-src 'self' blob:`).
+Calls carry the maker's token in `X-Maker-Token` (taken from `?t=` or sessionStorage); the sound is fetched with the same header and played from a `blob:` address, so the token is never in an address or in history. Nothing leaves the maker's own address (`connect-src 'self'`, `media-src 'self' blob:`).
 
 | Page call | Maker route | Answer |
 |---|---|---|
 | `load()` | `GET /api/song` | `{"plan": <song plan> or null}` (null = nothing saved: the page starts at step 1) |
 | `pickTrack()` / `pickGuide()` | `POST /api/song/track` / `/api/song/guide` | `{"track": {file_name, seconds}}` / `{"guide": {file_name}}` (the maker checks the file is real audio, as today) |
 | `build({lines, track, guide})` | `POST /api/song/build` | `{"plan": ...}` (a long job: the page shows "Building..." and the maker answers when done, or streams progress later) |
-| `hear({kind: "line"|"word"|"alt", n, i, id})` | `POST /api/song/hear` | `{"url": "/api/song/audio?..."}` (the audio of that line, word or other take, mixed over the music) or null; with null the practice build plays a tone per word |
+| `hear({kind: "line"|"word"|"alt", n, i, id})` | `POST /api/song/hear` | `{"url": "/api/song/audio?..."}` (fetched with the token header; the audio of that line, word or other take, mixed over the music) or null; with null the practice build plays a tone per word |
 | `save(text)` | `POST /api/song` `{"plan": ...}` | `{"saved": true}` (the maker validates again and writes `song.json` beside the film) |
 | `render(plan)` | `POST /api/song/render` | `{"message": ...}`; one at a time (the page turns the button off; the maker must refuse a second too) |
 | `back()` | navigate to the Plan page | |
