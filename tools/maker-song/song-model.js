@@ -55,9 +55,11 @@
   function normalizeFolder(f) {
     if (!isObj(f) || !safeName(f.name)) fail('A folder must be named by name only, not by path.');
     if (!Number.isInteger(f.found) || !Number.isInteger(f.used) || f.found < 0 || f.used < 0 || f.used > f.found) fail(`The folder ${f.name} does not say how many videos it has.`);
-    return { name: f.name, found: f.found, used: f.used };
+    const out = { name: f.name, found: f.found, used: f.used };
+    if (typeof f.message === 'string' && f.message.trim() && f.message.length <= 300 && !/[\\/]/.test(f.message.replace(/ and\/or /g, ' '))) out.message = f.message.trim();
+    return out;
   }
-  const folderNote = f => f.used < f.found ? `Found ${f.found.toLocaleString('en-US')} videos in ${f.name}; this run uses ${f.used.toLocaleString('en-US')}.` : `Using all ${f.found.toLocaleString('en-US')} video${f.found === 1 ? '' : 's'} in ${f.name}.`;
+  const folderNote = f => f.message ? f.message : f.used < f.found ? `Found ${f.found.toLocaleString('en-US')} videos in ${f.name}; this run uses ${f.used.toLocaleString('en-US')}.` : `Using all ${f.found.toLocaleString('en-US')} video${f.found === 1 ? '' : 's'} in ${f.name}.`;
   const wordsOf = line => line.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/'/g, '').split(/\s+/).filter(Boolean);
 
   // ---- validate a plan from the engine: refuse a plan that breaks the rules the page relies on ----

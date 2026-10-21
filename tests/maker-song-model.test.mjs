@@ -60,6 +60,8 @@ test('FOLDERS: a folder says how many videos it has and how many this run uses, 
   assert.equal(M.folderNote({ name: 'my-clips', found: 1240, used: 300 }), 'Found 1,240 videos in my-clips; this run uses 300.');
   assert.equal(M.folderNote({ name: 'my-clips', found: 12, used: 12 }), 'Using all 12 videos in my-clips.');
   assert.equal(M.folderNote({ name: 'one', found: 1, used: 1 }), 'Using all 1 video in one.');
+  assert.equal(M.folderNote(M.normalizeFolder({ name: 'my-clips', found: 1240, used: 300, message: "Found 1,240 videos in 'my-clips'; this run uses the first 300, in alphabetical order." })), "Found 1,240 videos in 'my-clips'; this run uses the first 300, in alphabetical order.", 'the engine\'s own sentence is shown as it is');
+  assert.equal(M.normalizeFolder({ name: 'a', found: 3, used: 3, message: 'C:\\Users\\me\\a' }).message, undefined, 'a message with a path in it is dropped, never shown');
   refuses(() => M.normalizeFolder({ name: 'C:\\Users\\me\\clips', found: 3, used: 3 }), /by name only/);
   refuses(() => M.normalizeFolder({ name: 'a', found: 3, used: 4 }), /does not say how many/);
   refuses(() => M.normalizeFolder({ name: 'a', found: 'many', used: 1 }), /does not say how many/);
