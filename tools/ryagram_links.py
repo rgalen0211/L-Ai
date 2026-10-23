@@ -151,7 +151,7 @@ class PrivateLinks:
         if not isinstance(name, str) or not name or "/" in name or "\\" in name or ":" in name or name.startswith(".") or not name.lower().endswith(".mp4"):
             raise LinksError("Choose a finished film from your films folder.", "film")
         p = self.films / name
-        if p.is_symlink() or not p.is_file() or p.resolve().parent != self.films.resolve():
+        if p.is_symlink() or not p.is_file():                  # the name has no separator (checked above), so the file is directly in the films folder; a link is refused
             raise LinksError("That film is not in your films folder any more.", "film")
         if p.stat().st_size < 1:
             raise LinksError("That film is empty.", "film")

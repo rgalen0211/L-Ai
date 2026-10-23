@@ -113,7 +113,10 @@ check(st["on"] and not st["allowed"] and "Sign in" in st["reason"] and si.calls 
 si.signed_in = True
 st = links.status("edit-1.mp4")
 check(st["allowed"] and st["plan"] == "sub_creator" and st["max_film"] == "150 MB" and st["film"] == "edit-1.mp4", "signed in with an allowing plan: the button is available and shows the plan's film limit")
-cache = json.loads((work / RL.CACHE_NAME).read_text(encoding="utf-8"))
+try:
+    cache = json.loads((work / RL.CACHE_NAME).read_text(encoding="utf-8"))
+except OSError:
+    cache = {"status": {}}
 check("secret_extra" not in json.dumps(cache) and set(cache["status"]) == {"switch_on", "plan", "active", "allowed", "max_film_bytes", "max_kept_bytes", "starts_per_hour", "kept_bytes"}, "the kept answer holds only the fields it knows (anything else the site sent is dropped)")
 for patch, word in (({"switch_on": False, "allowed": False}, "not switched on"), ({"active": False, "plan": None, "allowed": False}, "part of a Ryagram plan"), ({"allowed": False}, "does not include")):
     si.routes["/node/compilation/status"] = (200, {"status": {**STATUS_OK, **patch}})
@@ -139,7 +142,7 @@ si.offline = True
 clock[0] += 2 * 86400
 st = links.status("edit-1.mp4")
 check(st["allowed"] and st["offline"] and st["days_old"] == 2, "2 days offline: still shown, and it says the answer is 2 days old")
-check(raises(lambda: links.upload("edit-1.mp4", "T", True), "offline") and not sent, "MUST-FAIL: but an UPLOAD needs the internet and a live check: refused, nothing sent")
+check(raises(lambda: links.upload("edit-1.mp4", "T", True), "offline") and not sent and not any(c[1].endswith("/start") for c in si.calls), "MUST-FAIL: but an UPLOAD needs the internet and a live check: refused before any start call, nothing sent")
 clock[0] += 6 * 86400
 st = links.status("edit-1.mp4")
 check(not st["allowed"] and "7 days" in st["reason"], "8 days since the check: locked, with the 7-day sentence")
@@ -161,19 +164,22 @@ start = [c for c in si.calls if c[1] == "/node/compilation/start"][0]
 check(start[2] == {"title": "My great news", "bytes": 3000, "sha256": hashlib.sha256(f.read_bytes()).hexdigest(), "rights": True}, "start gets exactly the title (spaces tidied), size, SHA-256 and rights = true, and nothing else (no path, no name)")
 check(sent[0] == ("https://site.test/storage/upload/x?token=t", "edit-1.mp4", "video/mp4", {"site.test"}) and sent[0][3] == {"site.test"}, "the file is sent to the signed address, checked against the site's own host, as video/mp4")
 check([c[1] for c in si.calls if "compilation" in c[1] and c[1] != "/node/compilation/status"] == ["/node/compilation/start", "/node/compilation/finish"], "start then finish, no cancel")
-check(e["expires_at"] == "2026-11-22" and links.links() == [e] and str(tmp) not in json.dumps(links.links()), "the local list holds the title, the name, the size and the date: no path")
+check(e["expires_at"] == "2026-11-22" and links.links() == [e] and tmp.name not in json.dumps(links.links()), "the local list holds the title, the name, the size and the date: no path")
 check(links.status("edit-1.mp4")["upload"]["phase"] == "done" and "2026-11-22" in links.status("edit-1.mp4")["upload"]["message"], "the page is told it is done, and until when")
-check(str(tmp) not in json.dumps(links.status("edit-1.mp4")), "the page is never sent a place on this computer")
+check(tmp.name not in json.dumps(links.status("edit-1.mp4")), "the page is never sent a place on this computer")
 
 print("\n5. refused before anything is sent")
 tmp, work, films, si, links, sent, clock = world()
 film(films, "edit-1.mp4", 3000)
+film(films, ".edit-2.mp4", 3000)
+(films / "sub").mkdir()
+film(films / "sub", "edit-3.mp4", 3000)
 good_routes(si)
 n_before = len(si.calls)
 for what, args, kind in (("the rights tick missing", ("edit-1.mp4", "T", None), "rights"), ("the rights tick as text", ("edit-1.mp4", "T", "true"), "rights"), ("the rights tick as 1", ("edit-1.mp4", "T", 1), "rights"),
                          ("a blank title", ("edit-1.mp4", "   ", True), "title"), ("a title over 200", ("edit-1.mp4", "x" * 201, True), "title"),
-                         ("a path as the film", ("../edit-1.mp4", "T", True), "film"), ("a drive path", ("C:\\x\\edit-1.mp4", "T", True), "film"), ("a sub-folder", ("a/edit-1.mp4", "T", True), "film"),
-                         ("not an mp4", ("edit-1.mov", "T", True), "film"), ("a hidden name", (".edit-1.mp4", "T", True), "film"), ("a film that is not there", ("ghost.mp4", "T", True), "film")):
+                         ("a path as the film", ("../edit-1.mp4", "T", True), "film"), ("a drive path", ("C:\\x\\edit-1.mp4", "T", True), "film"), ("a film inside a sub-folder that exists", ("sub/edit-3.mp4", "T", True), "film"), ("a film inside a sub-folder, with backslashes", ("sub\\edit-3.mp4", "T", True), "film"),
+                         ("not an mp4", ("edit-1.mov", "T", True), "film"), ("a hidden film that exists", (".edit-2.mp4", "T", True), "film"), ("a film that is not there", ("ghost.mp4", "T", True), "film")):
     check(raises(lambda: links.upload(*args), kind), f"MUST-FAIL: {what}")
 (films / "empty.mp4").write_bytes(b"")
 check(raises(lambda: links.upload("empty.mp4", "T", True), "film"), "MUST-FAIL: an empty film")
@@ -185,7 +191,11 @@ try:
     (films / "link.mp4").symlink_to(outside)
     check(raises(lambda: links.upload("link.mp4", "T", True), "film"), "MUST-FAIL: a link to a file outside the films folder")
 except OSError:
-    print("  NOT RUN: this account cannot make a symbolic link here (the check for a link did not run; not a pass)")
+    print("  (this account cannot make a real symbolic link here, so the link rule is tried by telling the program that one file IS a link)")
+    import unittest.mock
+    film(films, "link.mp4", 100)
+    with unittest.mock.patch.object(Path, "is_symlink", lambda self: self.name == "link.mp4"):
+        check(raises(lambda: links.upload("link.mp4", "T", True), "film"), "MUST-FAIL: a file that is a link is refused (simulated: the real call is_symlink() said yes)")
 check(not sent and not any(c[1].endswith("/start") for c in si.calls[n_before:]), "none of these started an upload or sent a byte")
 big = film(films, "big.mp4", 151 * 1024)                 # the plan stand-in allows 150 MB: shrink the limit instead of writing 150 MB
 si.routes["/node/compilation/status"] = (200, {"status": {**STATUS_OK, "max_film_bytes": 100 * 1024}})
