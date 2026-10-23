@@ -31,6 +31,7 @@
       async proxy() { return call('/api/edit/proxy'); },
       async rebuildProxy(edit) { return call('/api/edit/proxy', { edit }); },
       async pickImage() { return call('/api/image/pick', {}); },
+      async pickImageFolder() { return call('/api/image/folder', {}); },
       imageUrl(id) {                                                  // the token travels in a header, never in an address; the picture is shown from a blob: address
         if (urls.has(id)) return urls.get(id);
         if (!loading.has(id)) {
@@ -133,7 +134,7 @@
         if (url) { const im = h('img', { alt: '', src: url }); box.append(im); }
       } else {
         box.append(o.text);
-        box.style.color = look.text_color; box.style.fontSize = `calc(var(--u,8px) * ${sizeU})`;
+        box.style.color = look.text_color; box.style.fontSize = `calc(var(--u,8px) * ${o.kind === 'text' && o.size ? { small: 2.6, medium: 3.6, large: 4.8 }[o.size] : sizeU})`;
         if (o.kind === 'caption' || o.kind === 'text') { box.style.background = hexA(look.box_color, look.box_opacity); box.style.borderRadius = 'calc(var(--u,8px) * .8)'; }
       }
       layer.append(box);
@@ -258,7 +259,11 @@
     if (F.slides || F.rules) pane.append(h('fieldset', {}, h('legend', {}, 'Pictures'), pics.children.length ? pics : h('p', { class: 'note' }, 'No pictures yet. Pictures stay on this computer and are only used by the rules below.'),
       h('button', { type: 'button', id: 'add-pic', 'data-key': 'add-pic', onclick: async () => {
         try { const r = await host.pickImage(); if (r && r.image) apply(x => M.ops.addImage(x, r.image), `${r.image.file_name} added. Tick the rights box to use it.`); } catch (er) { err(er.message); redrawPanelsKeepFocus(); }
-      } }, 'Add a picture')));
+      } }, 'Add a picture'),
+      h('button', { type: 'button', id: 'add-pic-folder', 'data-key': 'add-pic-folder', onclick: async () => {
+        try { const r = await host.pickImageFolder(); if (r && r.images) apply(x => M.ops.addImages(x, r.images), r.folder && r.folder.message ? r.folder.message : `${r.images.length} picture${r.images.length === 1 ? '' : 's'} added from ${r.folder ? r.folder.name : 'the folder'}. Tick the rights boxes to use them.`); } catch (er) { err(er.message); redrawPanelsKeepFocus(); }
+      } }, 'Add pictures from a folder'),
+      e.images.length > 1 ? h('button', { type: 'button', 'data-key': 'tick-all', onclick: () => apply(x => M.ops.setRightsAll(x, true), 'Rights box ticked for every picture.') }, 'I have the right to use all of these pictures') : null));
     // rules
     const imgSel = h('select', { id: 'r-img', 'aria-label': 'Picture' }, e.images.map(m => h('option', { value: m.id }, m.file_name)));
     const mode = h('select', { id: 'r-mode', 'aria-label': 'Where it sits' }, [['full', 'full frame'], ['centre', 'centre'], ['corner', 'corner'], ['lower_third', 'lower third']].map(([v, l]) => h('option', { value: v }, l)));
@@ -294,15 +299,16 @@
         ['bottom', 'top'].map(s => h('option', { value: s, selected: e.captions.position === s }, s)))))));
     // text
     const tf = h('form', { id: 'text-form', onsubmit: ev => { ev.preventDefault();
-      apply(x => M.ops.addText(x, { text: $('t-text').value, start_s: parseFloat($('t-start').value), length_s: parseFloat($('t-len').value), position: $('t-pos').value }), 'Text added.'); } },
+      apply(x => M.ops.addText(x, { text: $('t-text').value, start_s: parseFloat($('t-start').value), length_s: parseFloat($('t-len').value), position: $('t-pos').value, size: $('t-size').value }), 'Text added.'); } },
       h('div', { class: 'grid' },
         h('label', {}, 'Text', h('input', { id: 't-text', type: 'text', maxlength: '200', required: true })),
         h('label', {}, 'Starts at (seconds)', h('input', { id: 't-start', type: 'number', min: '0', step: '0.1', value: String(S.t) })),
         h('label', {}, 'Stays (seconds)', h('input', { id: 't-len', type: 'number', min: '0.5', max: '60', step: '0.5', value: '3' })),
+        h('label', {}, 'Size', h('select', { id: 't-size' }, M.SIZES.map(z => h('option', { value: z, selected: z === 'medium' }, z)))),
         h('label', {}, 'Place', h('select', { id: 't-pos' }, [['lower_third', 'lower third'], ['top', 'top'], ['centre', 'centre'], ['bottom', 'bottom']].map(([v, l]) => h('option', { value: v }, l))))),
       h('div', { class: 'row' }, h('button', { type: 'button', onclick: () => { $('t-start').value = String(S.t); } }, 'Start where the scrubber is'), h('button', { type: 'submit', class: 'primary', 'data-key': 'add-text' }, 'Add this text')));
     const texts = h('ul', { class: 'list' });
-    e.texts.forEach(t => texts.append(h('li', {}, h('span', {}, `"${t.text}" at ${mm(t.start_s)} for ${t.length_s} s (${t.position.replace('_', ' ')})`),
+    e.texts.forEach(t => texts.append(h('li', {}, h('span', {}, `"${t.text}" at ${mm(t.start_s)} for ${t.length_s} s (${t.position.replace('_', ' ')}, ${t.size})`),
       h('button', { type: 'button', 'aria-label': `Go to the text ${t.text}`, onclick: () => { play(false); setT(t.start_s); } }, 'Go to it'),
       h('button', { type: 'button', 'aria-label': `Remove the text ${t.text}`, onclick: () => apply(x => M.ops.removeText(x, t.id), 'Text removed.') }, 'Remove'))));
     if (F.text) pane.append(h('fieldset', {}, h('legend', {}, 'Text on the film'), tf, texts));

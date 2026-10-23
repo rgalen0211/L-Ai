@@ -27,6 +27,8 @@
   };
   const star = '<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300" viewBox="0 0 400 300"><rect width="400" height="300" fill="#2a6f5f"/><polygon points="200,40 232,120 318,124 250,176 272,260 200,212 128,260 150,176 82,124 168,120" fill="#ffd25e"/></svg>';
   const picture = { id: 'img-demo', file_name: 'demo-star.png', sha256: 'ab'.repeat(32), width: 400, height: 300, url: 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(star) };
+  const tile = (c, t) => 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="400" height="300"><rect width="400" height="300" fill="' + c + '"/><text x="200" y="165" font-size="48" text-anchor="middle" fill="#fff">' + t + '</text></svg>');
+  const folderPics = [{ id: 'img-f1', file_name: 'my-pictures/title-card.png', sha256: 'cd'.repeat(32), width: 400, height: 300, url: tile('#2a4f8a', 'Title') }, { id: 'img-f2', file_name: 'my-pictures/Season 2/logo.png', sha256: 'ef'.repeat(32), width: 400, height: 300, url: tile('#7a2a6f', 'Logo') }];
   const KEY = 'maker-edit-fixture-saved';
   const delay = ms => new Promise(r => setTimeout(r, ms));
   const sv = {};
@@ -40,7 +42,8 @@
     async proxy() { return { state: 'ready', url: null }; },                      // no video: the page draws its stand-in picture
     async rebuildProxy() { await delay(350); return { state: 'ready', url: null }; },
     async pickImage() { return { image: { id: picture.id, file_name: picture.file_name, sha256: picture.sha256, width: picture.width, height: picture.height } }; },
-    imageUrl(id) { return id === picture.id ? picture.url : null; },
+    async pickImageFolder() { return { folder: { name: 'my-pictures', found: 2, used: 2 }, images: folderPics.map(p => ({ id: p.id, file_name: p.file_name, sha256: p.sha256, width: p.width, height: p.height })) }; },
+    imageUrl(id) { const p = id === picture.id ? picture : folderPics.find(x => x.id === id); return p ? p.url : null; },
     async render() { return { state: 'fixture', message: 'This is the practice cut: nothing is rendered.' }; },
     back() { return false; },
   };

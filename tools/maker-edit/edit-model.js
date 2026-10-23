@@ -134,10 +134,10 @@
     (Array.isArray(src.images) ? src.images : []).forEach(m => {
       if (!isObj(m) || typeof m.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(m.id) || imgIds.has(m.id)) fail('A picture has a missing or repeated id.');
       imgIds.add(m.id);
-      if (!safeName(m.file_name)) fail('A picture must be named by file name only, not by path.');
+      if (!safeRel(m.file_name)) fail('A picture must be named by file name, or by a folder-relative name, never by a full path.');
       if (typeof m.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(m.sha256)) fail(`${m.file_name} has no valid fingerprint (SHA-256).`);
       if (!Number.isInteger(m.width) || !Number.isInteger(m.height) || m.width < 1 || m.height < 1) fail(`${m.file_name} has no valid size.`);
-      out.images.push({ id: m.id, file_name: m.file_name, sha256: m.sha256, width: m.width, height: m.height, rights_ticked: m.rights_ticked === true });
+      out.images.push({ id: m.id, file_name: relName(m.file_name), sha256: m.sha256, width: m.width, height: m.height, rights_ticked: m.rights_ticked === true });
     });
 
     if (out.clips.filter(c => c.slide).length > 10) fail('A film can have up to 10 slides.');
@@ -171,7 +171,9 @@
       const len = round(typeof t.length_s === 'number' ? t.length_s : 3);
       if (!(len >= 0.5 && len <= 60)) fail('A text stays on screen between 0.5 and 60 seconds.');
       if (!TEXT_POSITIONS[t.position]) fail('Choose where the text sits: top, centre, bottom or lower third.');
-      out.texts.push({ id: t.id, text: t.text.replace(/\s+/g, ' ').trim(), start_s: round(t.start_s), length_s: len, position: t.position });
+      const tsize = t.size === undefined ? 'medium' : t.size;
+      if (!SIZES.includes(tsize)) fail('Text size is small, medium or large.');
+      out.texts.push({ id: t.id, text: t.text.replace(/\s+/g, ' ').trim(), start_s: round(t.start_s), length_s: len, position: t.position, size: tsize });
     });
 
     const cap = isObj(src.captions) ? src.captions : {};
@@ -259,13 +261,13 @@
       tl.clips.forEach(c => {
         for (let i = 0; i < c.words.length; i += CAPTION_WORDS) {
           const part = c.words.slice(i, i + CAPTION_WORDS);
-          out.push({ id: `cap-${c.id}-${i / CAPTION_WORDS + 1}`, kind: 'caption', source: null, text: part.map(w => w.w).join(' '), start_s: part[0].s, length_s: round(part[part.length - 1].e - part[0].s + 0.15), x: box.x, y: box.y, w: box.w, h: box.h, fade_s: 0, z: 2 });
+          out.push({ id: `cap-${c.id}-${i / CAPTION_WORDS + 1}`, kind: 'caption', source: null, text: part.map(w => w.w).join(' '), start_s: part[0].s, length_s: round(Math.min(part[part.length - 1].e - part[0].s + 0.15, total - part[0].s)), x: box.x, y: box.y, w: box.w, h: box.h, fade_s: 0, z: 2 });
         }
       });
     }
     for (const t of edit.texts) {
       const g = TEXT_POSITIONS[t.position], len = round(Math.min(t.length_s, Math.max(0, total - t.start_s)));
-      if (len > 0) out.push({ id: t.id, kind: 'text', source: null, text: t.text, start_s: t.start_s, length_s: len, x: g.x, y: g.y, w: g.w, h: g.h, fade_s: 0, z: 3 });
+      if (len > 0) out.push({ id: t.id, kind: 'text', source: null, text: t.text, size: t.size, start_s: t.start_s, length_s: len, x: g.x, y: g.y, w: g.w, h: g.h, fade_s: 0, z: 3 });
     }
     return out.sort((a, b) => a.start_s - b.start_s || a.z - b.z || (a.id < b.id ? -1 : 1));
   }
@@ -282,7 +284,7 @@
       if (tt + 1e-9 < s.start_s || tt >= s.start_s + s.length_s - 1e-9) continue;
       let op = 1;
       if (s.fade_s > 0) op = Math.max(0, Math.min(1, (tt - s.start_s) / s.fade_s, (s.start_s + s.length_s - tt) / s.fade_s));
-      active.push({ id: s.id, kind: s.kind, source: s.source, text: s.text, x: s.x, y: s.y, w: s.w, h: s.h, opacity: round(op) });
+      active.push({ id: s.id, kind: s.kind, source: s.source, text: s.text, size: s.size || null, x: s.x, y: s.y, w: s.w, h: s.h, opacity: round(op) });
     }
     const word = clip ? clip.words.find(w => tt >= w.s - 1e-9 && tt < w.e) : null;
     return { t: tt, clip: clip ? clip.id : null, word: word ? word.w : null, look: edit.look, captions: { size: edit.captions.size }, active };
@@ -368,6 +370,8 @@
       e.images.push({ id: img.id || n.id, file_name: img.file_name, sha256: img.sha256, width: img.width, height: img.height, rights_ticked: img.rights_ticked === true });
       return normalize(e);
     },
+    addImages(edit, list) { let e = edit; for (const m of list) { if (typeof m.file_name === 'string' && e.images.some(x => x.file_name === relName(m.file_name))) continue; e = ops.addImage(e, m); } return e; },
+    setRightsAll(edit, ticked) { const e = clone(edit); e.images.forEach(m => { m.rights_ticked = ticked === true; }); return normalize(e); },
     setRights(edit, imageId, ticked) {
       const e = clone(edit), m = e.images.find(x => x.id === imageId); if (!m) fail('That picture is not in this film.');
       m.rights_ticked = ticked === true; return normalize(e);
@@ -388,7 +392,7 @@
     addText(edit, t) {
       need(edit, 'text', 'free text');
       const e = clone(edit), n = nextId(e, 't'); e.seq = n.seq;
-      e.texts.push({ id: n.id, text: t.text, start_s: t.start_s, length_s: t.length_s === undefined ? 3 : t.length_s, position: t.position || 'lower_third' });
+      e.texts.push({ id: n.id, text: t.text, start_s: t.start_s, length_s: t.length_s === undefined ? 3 : t.length_s, position: t.position || 'lower_third', size: t.size || 'medium' });
       return normalize(e);
     },
     removeText(edit, id) { const e = clone(edit); if (!e.texts.some(t => t.id === id)) fail('That text is not in the film.'); e.texts = e.texts.filter(t => t.id !== id); return normalize(e); },
