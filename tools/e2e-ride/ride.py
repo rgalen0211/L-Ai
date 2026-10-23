@@ -389,25 +389,42 @@ def s9_build():
     return (f"{r['message']} The phrase was found {occ['times']} times; the picture is on the decoded frame; clean cuts were used because the LIST said so (no environment variable); the receipt has names only.")
 
 
-@step(10, "the person gets the delivery link for the film they built")
-def s10_delivery():
+@step(10, "the film stays on the person's PC, and nothing is uploaded or made on the site unless they ask for a private link")
+def s10_stays_local():
     e = e2e
-    if "uri" not in CTX:
-        raise Fail("step 1 did not run, so there is no site to ask")
-    kinds = [r[0] for r in e.State.admin_conn.execute("select unnest(enum_range(null::public.job_type))::text").fetchall()]
-    node_kinds = re.search(r"KINDS = \[([^\]]*)\]", (APP_REPO / "supabase" / "functions" / "node-core" / "router.ts").read_text(encoding="utf-8"))
     film = CTX.get("film")
     if film is None:
         raise Fail("step 9 built no film")
-    if not any("compil" in k or "clip" in k or "edit" in k for k in kinds):
-        raise Fail(f"the site has no place for this film. Job types: {', '.join(kinds)}; none is a compilation. The node loop only takes SITE jobs (a story the worker validates), and the maker never creates "
-                   f"a site job for a film built from the person's clips, so the finished film is never registered as an artifact and no delivery link can exist. It stays in the films folder on the PC. "
-                   f"SMALLEST FIX (needs Ryan's decision first, it adds a job type and a site table): a 'local_compilation' job the maker creates when signed in, whose only artifacts are a "
-                   f"preview poster and the receipt text (names only, never the person's footage), so the site can show a delivery page without ever holding the clips.")
-    return "a job type for compilations exists"
+    if "uri" not in CTX:
+        raise Fail("step 1 did not run, so there is no site to ask")
+    rows = {t: e.State.admin_conn.execute(f"select count(*) from public.{t}").fetchone()[0] for t in ("jobs", "artifacts", "render_orders", "render_deliveries")}
+    comp = e.State.admin_conn.execute("select to_regclass('public.compilation_deliveries')").fetchone()[0]
+    if comp is not None:
+        rows["compilation_deliveries"] = e.State.admin_conn.execute("select count(*) from public.compilation_deliveries").fetchone()[0]
+    uploads = [x for x in e.State.seen if x[2].startswith("/storage/") or "/node/artifact" in x[2] or "/node/compilation" in x[2]]
+    if any(rows.values()) or uploads:
+        raise Fail(f"building the film made something on the site or sent a file: rows {rows}, calls {uploads[:3]}")
+    return f"the finished film sits in the films folder on the PC ({film.name}); the site holds no job, no artifact, no order, no delivery for it and received no file"
 
 
-STEPS = [s1_sign_in, s2_connector, s3_ai_asks, s4_folder, s5_plan, s6_song, s7_workspace, s8_preview, s9_build, s10_delivery]
+@step(11, "the person asks for a private link to it and gets one (kept 30 days, private, only they can open it)")
+def s11_private_link():
+    router = (APP_REPO / "supabase" / "functions" / "node-core" / "router.ts").read_text(encoding="utf-8")
+    draft = APP_REPO / "supabase" / "connect-drafts" / "compilation_delivery_draft.sql"
+    sql_state = "the SQL is drafted and proven by tools/e2e-ride/delivery_sql_check.py on a throwaway database" if draft.is_file() else "there is no SQL either"
+    missing = []
+    if "/node/compilation" not in router:
+        missing.append("the edge function routes /node/compilation/start, /finish and /cancel")
+    if "compilation" not in (APP_REPO / "tools" / "ryagram_node.py").read_text(encoding="utf-8"):
+        missing.append("the app's button and upload")
+    if "compilation_object_for" not in (APP_REPO / "supabase" / "functions" / "get-delivery-url" / "index.ts").read_text(encoding="utf-8"):
+        missing.append("get-delivery-url trying the compilation link")
+    if missing:
+        raise Fail("not built yet: " + "; ".join(missing) + f". ({sql_state}.) Paper: proposals\\CONNECT-COMPILATION-DELIVERY-PAPER.md; it needs CC1's review of the SQL and Ryan's yes to hosting a tester's finished film at all.")
+    return "the whole path exists"
+
+
+STEPS = [s1_sign_in, s2_connector, s3_ai_asks, s4_folder, s5_plan, s6_song, s7_workspace, s8_preview, s9_build, s10_stays_local, s11_private_link]
 
 
 def cleanup():
