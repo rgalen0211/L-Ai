@@ -325,15 +325,16 @@ def s7_workspace():
     edit["images"] = [{**img, "rights_ticked": True}]
     edit["rules"] = [{"id": "r1", "phrase": PHRASE, "image_id": img["id"], "seconds": 0.5, "mode": "full", "fade_s": 0.1}]
     edit["texts"] = [{"id": "t1", "text": "Great news, everyone", "start_s": 0.0, "length_s": 1.0, "position": "bottom", "size": "large"}]
+    edit["clean_cuts"] = True                                                                  # the engine's own field (117: engine-clean-cuts-switch); the ride asks for clean cuts through the LIST, as a workspace control would
     st, r = jpost(base, "/api/edit", {"edit": edit}, tok)
     if st != 200:
         raise Fail(f"the list was not saved ({st} {r})")
     CTX["edit"] = edit
     problems = []
     src = " ".join((APP_REPO / "tools" / f).read_text(encoding="utf-8", errors="replace") for f in ("maker_edit.py",)) + " ".join(p.read_text(encoding="utf-8", errors="replace") for p in (APP_REPO / "tools" / "maker-edit").glob("*.js"))
-    if not re.search(r"clean[ _-]?cut", src, re.I):
-        problems.append("CLEAN CUTS have no switch in the workspace or in the edit list: the engine turns them on only when RYAGRAM_CLEAN_CUTS=1 is in the environment of the program (editbuild.py:229), "
-                        "so a person cannot turn them on. SMALLEST FIX: an option 'clean_cuts' (on/off) in the shared options list and the edit list, and maker_edit passing it to build-edit as that variable.")
+    if not re.search(r"clean[ _-]?cuts?", src, re.I):
+        problems.append("CLEAN CUTS: the engine now reads the edit list's `clean_cuts` (true/false) - engine-clean-cuts-switch - but the workspace page has no control that sets it, so a person still cannot turn them on. "
+                        "REMAINING FIX (WEB's page): a 'Clean cuts' toggle in the workspace and an options row 'clean_cuts'; the model must keep the field when it saves the list.")
     if not re.search(r"speaker", src, re.I):
         problems.append("the SPEAKER STEP is a command-line tool (tools/faces_speaker_filter.py / faces_speaker_step.py) and is not reachable from the maker or the workspace: no route, no button, no field in the list. "
                         "SMALLEST FIX: FACES' step 1 as a maker route (pick a reference voice, keep the clips where that voice speaks) that edits the list's clips, plus a switch in the workspace.")
@@ -367,28 +368,21 @@ def s9_build():
     edit = CTX.get("edit")
     if edit is None:
         raise Fail("step 7 did not save a list")
-    before = {k: v for k, v in os.environ.items() if k.startswith("RYAGRAM_CLEAN")}
+    os.environ.pop("RYAGRAM_CLEAN_CUTS", None)                                                   # the list alone must do it
     st, r = jpost(base, "/api/edit/render", {"edit": edit}, tok)
     film = CTX["tmp"] / "films" / (r.get("film") or "none") if isinstance(r, dict) else None
     if st != 200 or not film or not film.is_file():
         raise Fail(f"the film was not built ({st} {r})")
     rc = json.loads(film.with_suffix(".receipt.json").read_text(encoding="utf-8"))
     occ = rc["overlays"]["rules"][0]
+    if rc.get("clean_cuts") is not True:
+        raise Fail(f"the list asked for clean cuts and the engine did not use them (receipt clean_cuts = {rc.get('clean_cuts')})")
     if occ["times"] < 3 or not frame_magenta(film, occ["at"][0]["start_s"] + 0.25):
         raise Fail(f"the picture is not on the decoded film at the phrase ({occ['times']} times found)")
     if str(CTX["media"]) in json.dumps(rc):
         raise Fail("the receipt holds a place on this computer")
     CTX["film"] = film
-    CTX["built_with_clean_env"] = False
-    # the probe a real clean-cuts switch would use: the SAME list built with the engine's variable on, to show the fix is only wiring
-    os.environ["RYAGRAM_CLEAN_CUTS"] = "1"
-    try:
-        st2, r2 = jpost(base, "/api/edit/render", {"edit": edit}, tok)
-        CTX["built_with_clean_env"] = st2 == 200
-    finally:
-        os.environ.pop("RYAGRAM_CLEAN_CUTS", None)
-    return (f"{r['message']} The phrase was found {occ['times']} times; the picture is on the decoded frame; the receipt has names only. "
-            f"(Probe: the same list builds with RYAGRAM_CLEAN_CUTS=1 set: {'yes' if CTX['built_with_clean_env'] else 'NO'}.)")
+    return (f"{r['message']} The phrase was found {occ['times']} times; the picture is on the decoded frame; clean cuts were used because the LIST said so (no environment variable); the receipt has names only.")
 
 
 @step(10, "the person gets the delivery link for the film they built")
