@@ -200,22 +200,26 @@ def s2_connector():
     except Exception:                                                                          # noqa: BLE001
         raise Fail("the connector stand-in did not answer: " + (r.stderr or r.stdout)[-300:])
     CTX["tools"] = out["tools"]
+    CTX["connector"] = out
     if out["init"] != 200 or out["server"] != "ryagram" or not out["whoOk"]:
         raise Fail(f"the AI could not connect and ask who it is ({out['init']}, {out['server']}, ok={out['whoOk']})")
     return "the AI connects and asks who it is; it is given: " + ", ".join(t["name"] for t in out["tools"]) + ". (OAuth consent is covered by tools/connect_e2e.mjs on the PROOF project.)"
 
 
-@step(3, f"the person asks the AI for \"every time {PHRASE} is said\" (a tool the AI can use to ask for a compilation)")
+@step(3, f"the person asks the AI for \"every time {PHRASE} is said\" (the AI writes a compilation request with a tool it is given)")
 def s3_ai_asks():
     tools = CTX.get("tools")
     if tools is None:
         raise Fail("step 2 did not run, so there is no tool list to look in")
-    words = ("compilation", "supercut", "phrase", "clips", "folder", "videos", "montage")
-    hits = [t["name"] for t in tools if any(w in (t["name"] + " " + t["description"]).lower() for w in words)]
-    if not hits:
+    if not any(t["name"] == "set_compilation_request" for t in tools):
         raise Fail("the AI is given only data-film tools (" + ", ".join(t["name"] for t in tools) + "). None of them takes a phrase, a folder or a request for a compilation, so the AI cannot ask for this film. "
                    "SMALLEST FIX: one write tool, set_compilation_request {phrase, mode, note}, that saves the request on the person's project (data only, no media); the maker reads it when it is signed in.")
-    return "tools that mention it: " + ", ".join(hits)
+    out = CTX["connector"]
+    if not out.get("askOk"):
+        raise Fail("the AI has the tool but the request was not saved: " + str(out.get("askText")))
+    if not out.get("badRefused"):
+        raise Fail("a request that names a place on the computer (a path as a folder) was NOT refused")
+    return "the AI writes the request (phrase, folder by NAME, clean cuts, a picture rule, a text) and it is saved as data on the project; a request that names a path is refused. " + str(out.get("askText"))[:160]
 
 
 # ============================================================================================== the maker, in this process, over HTTP, with the real engine

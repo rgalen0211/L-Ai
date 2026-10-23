@@ -34,6 +34,20 @@ export interface CallLog {
   failedChecks: number;                 // how many checks failed (set_story), else 0
 }
 
+/** What an AI may ask for: a compilation made on the person's OWN computer from videos that never leave it. DATA only: a phrase, the NAMES of folders the person has chosen in their
+ *  maker, switches, and overlay rules by picture NAME. Never a path, a video, a picture or an account detail. The maker reads it when the person opens it; nothing is built from here. */
+export interface CompilationRequest {
+  schema: "ryagram.compilation-request/0";
+  phrase: string;
+  search: "every" | "words";
+  folders: string[];
+  song: boolean;
+  clean_cuts: boolean;
+  rules: { phrase: string; picture: string; seconds: number; mode: "full" | "centre" | "corner" | "lower_third" }[];
+  texts: { text: string; start_s: number; length_s: number; position: "top" | "centre" | "bottom" | "lower_third"; size: "small" | "medium" | "large" }[];
+  note: string;
+}
+
 export interface ProjectRow { id: string; title: string; created_at: string; updated_at: string }
 export interface Quote { credits: number; free: boolean; available: number }
 export interface Link { kind: string; url: string; expires_in_s: number }
@@ -50,6 +64,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   createProject(title: string): Promise<{ id: string; title: string; version_id: string; number: number }>;
   /** The version a project's tools work on (newest). null when the project is not the person's. */
   currentVersionId(projectId: string): Promise<string | null>;
+  /** Saves (replaces) the compilation request on one of the person's projects. null = the project is not theirs. */
+  saveCompilationRequest(projectId: string, request: CompilationRequest): Promise<{ sha256: string } | null>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
   jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null;
     /** r9: where the job runs. 'owner_local' = on the person's own computer, made by their Ryagram desktop app. Absent = the house. */
@@ -97,6 +113,7 @@ export const LIMITS = Object.freeze({
   ladderPerHourPerUser: 30,             // the editor's number
   linksPerDayPerUser: 50,
   projectsPerDayPerUser: 20,
+  compilationRequestsPerDayPerUser: 50,
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
   maxStoryBytes: 256 * 1024,
 });

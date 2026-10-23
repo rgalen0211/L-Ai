@@ -27,5 +27,11 @@ async function rpc(method: string, params: unknown, id: number) {
 const init = await rpc("initialize", { protocolVersion: "2025-03-26", capabilities: {}, clientInfo: { name: "ride", version: "1" } }, 1);
 const list = await rpc("tools/list", {}, 2);
 const who = await rpc("tools/call", { name: "whoami_and_credits", arguments: {} }, 3);
+const proj = await rpc("tools/call", { name: "create_project", arguments: { title: "Ride" } }, 4);
+const pid = proj.body.result?.structuredContent?.project_id;
+const request = { project_id: pid, phrase: "great news", search: "every", folders: ["My Videos"], song: false, clean_cuts: true,
+  rules: [{ phrase: "great news", picture: "cheer.png", seconds: 1, mode: "full" }], texts: [{ text: "Great news, everyone", start_s: 0, length_s: 1, position: "bottom", size: "large" }], note: "From the ride." };
+const ask = await rpc("tools/call", { name: "set_compilation_request", arguments: request }, 5);
+const bad = await rpc("tools/call", { name: "set_compilation_request", arguments: { ...request, folders: ["C:\Users\Ryan\Videos"] } }, 6);
 const tools = (list.body.result?.tools ?? []).map((t: { name: string; description?: string }) => ({ name: t.name, description: String(t.description ?? "").slice(0, 400) }));
-console.log(JSON.stringify({ init: init.status, server: init.body.result?.serverInfo?.name, tools, who: who.status, whoOk: !who.body.result?.isError && !who.body.error }));
+console.log(JSON.stringify({ askOk: !ask.body.result?.isError && ask.body.result?.structuredContent?.saved === true, askText: String(ask.body.result?.content?.[0]?.text ?? "").slice(0, 300), badRefused: bad.body.result?.isError === true, init: init.status, server: init.body.result?.serverInfo?.name, tools, who: who.status, whoOk: !who.body.result?.isError && !who.body.error }));
