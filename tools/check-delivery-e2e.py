@@ -83,7 +83,7 @@ def main():
                 check('30 credits available' in p.inner_text('.credit-balance, main') and 'held' not in p.inner_text('main').split('30 credits available')[1][:40], 'the library starts at 30 credits available, none held')
                 p.fill('#np-title', 'Smoke film')
                 p.click('button:has-text("Create")')
-                p.wait_for_selector('h1:has-text("r1")', timeout=20000)
+                p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 run_until_ladder(p)
                 led = p.evaluate("JSON.stringify(window.ryagramMock.client.db.jobs.map(j => [j.job_type, j.held || 0, j.captured || 0]))")
                 check('"contact_sheet",0,0' in led.replace(' ', '') and '"preview",0,0' in led.replace(' ', ''), f'the contact sheet and the preview are free: nothing held ({led})')
