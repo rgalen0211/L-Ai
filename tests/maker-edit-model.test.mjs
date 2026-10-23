@@ -94,34 +94,86 @@ test('SLIDES: a picture of the person\'s own is its own stretch of the film; it 
   for (let t = 0; t <= total + 1e-9; t += 0.1) assert.deepEqual(M.frameAt(M.parse(text), t), M.frameAt(ok, t), `at ${t.toFixed(1)} s`);
 });
 
-test('ONE SHARED WORKSPACE: the film has a mode, and the tools the page offers follow it; compilation has all of them, a data film is declared but not built', () => {
+test('ONE SHARED WORKSPACE: the film has a mode, and the tools the page offers follow it; a data film has options and text, no clips', () => {
   assert.equal(base.mode, 'compilation');
-  assert.deepEqual(M.features('compilation'), { clips: true, slides: true, rules: true, captions: true, text: true, look: true });
-  assert.deepEqual(M.features('data'), { clips: false, slides: false, rules: false, captions: false, text: true, look: true });
-  const x = clone(base); x.mode = 'data'; refuses(() => M.normalize(x), /data film here is not built yet/);
-  x.mode = 'games'; refuses(() => M.normalize(x), /does not know this kind of film/);
+  assert.deepEqual(M.features('compilation'), { clips: true, slides: true, rules: true, captions: true, text: true, look: true, options: false });
+  assert.deepEqual(M.features('data'), { clips: false, slides: false, rules: false, captions: false, text: false, look: false, options: true });
+  const d = M.normalize({ schema: M.SCHEMA, mode: 'data', clips: [] });
+  assert.equal(d.mode, 'data'); assert.deepEqual(d.clips, []); assert.deepEqual(d.options, {});
+  refuses(() => M.normalize({ schema: M.SCHEMA, mode: 'data', clips: [clone(base.clips[0])] }), /no clips/);
+  const x = clone(base); x.mode = 'games'; refuses(() => M.normalize(x), /does not know this kind of film/);
   delete x.mode; assert.equal(M.normalize(x).mode, 'compilation', 'older lists without a mode are compilations');
-  const keep = M.FILM_MODES.data.available;
-  try {
-    M.FILM_MODES.data.available = true;
-    const d = M.normalize({ ...clone(base), mode: 'data' });
-    refuses(() => M.ops.addRule(d, { phrase: 'a', image_id: 'x' }), /does not use rules/);
-    refuses(() => M.ops.setCaptions(d, { on: true }), /does not use captions/);
-    refuses(() => M.ops.addSlide(d, { image_id: 'x', seconds: 3 }), /does not use slides/);
-    refuses(() => M.ops.moveClip(d, 'c1', 1), /does not use clips/);
-    refuses(() => M.ops.removeClip(d, 'c1'), /does not use clips/);
-    assert.equal(M.ops.addText(d, { text: 'Hello', start_s: 1 }).texts.length, 1, 'text is in every mode');
-    assert.equal(M.ops.setLook(d, { theme: 'light' }).look.theme, 'light', 'the look is in every mode');
-  } finally { M.FILM_MODES.data.available = keep; }
+  refuses(() => M.ops.addRule(d, { phrase: 'a', image_id: 'x' }), /does not use rules/);
+  refuses(() => M.ops.setCaptions(d, { on: true }), /does not use captions/);
+  refuses(() => M.ops.addSlide(d, { image_id: 'x', seconds: 3 }), /does not use slides/);
+  refuses(() => M.ops.moveClip(d, 'c1', 1), /does not use clips/);
+  refuses(() => M.ops.addText(d, { text: 'Hello', start_s: 1 }), /does not use free text/);
+  const c = M.normalize(clone(base));
+  refuses(() => M.ops.setOption(c, ROWS, 'theme', 'light'), /does not use options/);
+  assert.equal(M.timeline(d).total_s, 0);
+  assert.deepEqual(M.frameAt(d, 1).active, []);
 });
 
-test('MIXED JOINS are warned (the engine builds one kind of join per film for now), never blocked', () => {
-  assert.ok(!M.warnings(base).some(w => /joins are not all the same/.test(w.text)));
-  const x = clone(base); x.clips[0].join = { kind: 'crossfade', s: 0.3 };
-  assert.ok(M.warnings(M.normalize(x)).some(w => /joins are not all the same/.test(w.text)));
-  for (const c of x.clips.slice(0, -1)) c.join = { kind: 'crossfade', s: 0.3 };
-  assert.ok(!M.warnings(M.normalize(x)).some(w => /joins are not all the same/.test(w.text)), 'the same crossfade everywhere is fine');
-  assert.doesNotThrow(() => M.stringify(M.normalize(x)));
+const ROWS = [
+  { id: 'theme', label: 'Page', control: 'choice', choices: [{ value: 'dark', label: 'Dark' }, { value: 'light', label: 'Light' }], default: 'dark', status: 'built' },
+  { id: 'page_background', label: 'Page colour', control: 'colour', default: { dark: '#14141a', light: '#fcfcfb' }, status: 'built', hard: { pattern: '#RRGGBB' } },
+  { id: 'dots_radius', label: 'Dot size', control: 'slider', min: 0.5, max: 6, step: 0.5, default: 3.4, status: 'built', hard: { minimum: 0.5, maximum: 6 } },
+  { id: 'bars_label_width', label: 'Space for names', control: 'number', min: 60, max: 600, default: 190, status: 'built', hard: { minimum: 60, maximum: 600 } },
+  { id: 'ramp_continuous', label: 'Smooth colours', control: 'toggle', default: null, status: 'built' },
+  { id: 'name', label: 'Film name', control: 'text', default: null, status: 'built', hard: { maxLength: 12 } },
+  { id: 'clarity_fade', label: 'Data fade', control: 'slider', min: 0, max: 5, default: 1, status: 'planned' },
+  { id: 'sequence_clips', label: 'Scenes', control: 'list', default: [], status: 'built' },
+];
+const DATA = M.normalize({ schema: M.SCHEMA, mode: 'data', clips: [] });
+
+test('OPTIONS (the shared list): each control type is checked against its own limits, in plain words; blank goes back to the default', () => {
+  const v = id => ROWS.find(r => r.id === id);
+  assert.equal(M.validateOption(v('theme'), 'light'), 'light');
+  refuses(() => M.validateOption(v('theme'), 'purple'), /Choose one of the listed values for Page/);
+  assert.equal(M.validateOption(v('page_background'), '#ABCDEF'), '#abcdef');
+  refuses(() => M.validateOption(v('page_background'), 'red'), /is a colour like #14141a/);
+  assert.equal(M.validateOption(v('dots_radius'), 2), 2);
+  refuses(() => M.validateOption(v('dots_radius'), 7), /at most 6/);
+  refuses(() => M.validateOption(v('dots_radius'), 0.1), /at least 0\.5/);
+  refuses(() => M.validateOption(v('dots_radius'), 'big'), /is a number/);
+  refuses(() => M.validateOption(v('dots_radius'), NaN), /is a number/);
+  assert.equal(M.validateOption(v('bars_label_width'), 200), 200);
+  refuses(() => M.validateOption(v('bars_label_width'), 10), /at least 60/);
+  assert.equal(M.validateOption(v('ramp_continuous'), true), true);
+  refuses(() => M.validateOption(v('ramp_continuous'), 'yes'), /on or off/);
+  assert.equal(M.validateOption(v('name'), '  My film '), 'My film');
+  refuses(() => M.validateOption(v('name'), 'x'.repeat(13)), /at most 12 characters/);
+  refuses(() => M.validateOption(v('clarity_fade'), 2), /coming later/);
+  refuses(() => M.validateOption(v('sequence_clips'), []), /set by the film itself/);
+  refuses(() => M.validateOption(null, 1), /not in the list/);
+  for (const blank of [null, '']) assert.equal(M.validateOption(v('theme'), blank), null);
+  assert.equal(M.defaultFor(v('page_background'), 'light'), '#fcfcfb');
+  assert.equal(M.defaultFor(v('page_background'), 'dark'), '#14141a');
+  assert.equal(M.defaultFor(v('dots_radius'), 'dark'), 3.4);
+});
+
+test('OPTIONS IN THE EDIT LIST: set, change, reset to the default, refuse an unknown or coming-later option; stable bytes; the old list is untouched', () => {
+  const snap = JSON.stringify(DATA);
+  let e = M.ops.setOption(DATA, ROWS, 'theme', 'light');
+  e = M.ops.setOption(e, ROWS, 'dots_radius', 4.5); e = M.ops.setOption(e, ROWS, 'page_background', '#102030');
+  assert.deepEqual(e.options, { dots_radius: 4.5, page_background: '#102030', theme: 'light' });
+  assert.deepEqual(Object.keys(e.options), ['dots_radius', 'page_background', 'theme'], 'sorted keys: the same bytes every time');
+  assert.equal(JSON.stringify(DATA), snap);
+  const back = M.ops.setOption(e, ROWS, 'theme', null);
+  assert.equal('theme' in back.options, false, 'blank puts it back to the default');
+  refuses(() => M.ops.setOption(e, ROWS, 'nope', 1), /not in the list/);
+  refuses(() => M.ops.setOption(e, ROWS, 'clarity_fade', 2), /coming later/);
+  refuses(() => M.ops.setOption(e, ROWS, 'dots_radius', 99), /at most 6/);
+  assert.deepEqual(M.ops.resetOptions(e).options, {});
+  const text = M.stringify(e); assert.equal(M.stringify(M.parse(text)), text); assert.deepEqual(M.parse(text), e);
+  const x = clone(e); x.options.sneaky = 1;
+  assert.doesNotThrow(() => M.normalize(x), 'shape only, when no list is given');
+  refuses(() => M.normalize(x, { rows: ROWS }), /sneaky is not an option/);
+  const y = clone(e); y.options.dots_radius = 99;
+  refuses(() => M.normalize(y, { rows: ROWS }), /at most 6/);
+  const z = clone(e); z.options['bad key!'] = 1; refuses(() => M.normalize(z), /name the maker does not know/);
+  const w = clone(e); w.options.theme = { a: 1 }; refuses(() => M.normalize(w), /not valid/);
+  const c = clone(base); c.options = { theme: 'dark' }; refuses(() => M.normalize(c), /Options belong to data films/);
 });
 
 test('THE CLOCK: clips sit end to end, a crossfade overlaps, and every word lands in the FINISHED film', () => {
