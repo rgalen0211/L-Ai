@@ -232,6 +232,15 @@ def maker_up():
     CTX["tmp"] = tmp
     eng = tmp / "engine"
     shutil.copytree(ENGINE / "ryagram", eng / "ryagram", ignore=shutil.ignore_patterns("__pycache__"))
+    try:
+        import yaml                                                                            # noqa: F401
+    except ImportError:                                                                        # this test python has no PyYAML (the portable app's Python ships it): lend the engine the harness's shim
+        for d in os.environ.get("PYTHONPATH", "").split(os.pathsep):
+            if d and (Path(d) / "yaml").is_dir():
+                shutil.copytree(Path(d) / "yaml", eng / "yaml")
+                if (Path(d) / "_yaml").is_dir():
+                    shutil.copytree(Path(d) / "_yaml", eng / "_yaml")
+                break
     media = tmp / "My Videos"                                                                      # the person's own folder, with a sub-folder
     for n, w in TABLES.items():
         make_mp4(media / n, w)
@@ -274,7 +283,7 @@ def s5_plan():
             rel = Path(p).resolve().relative_to(CTX["media"].resolve()).as_posix()
             return SimpleNamespace(words=[T.Word(mid, i, w, w, s, e - s) for i, (w, s, e) in enumerate(TABLES[rel])], language="en", audio_ms=2600)
     recipe = dm.STATE["R"].validate_recipe({"schema": "ryagram.recipe/0", "name": PHRASE, "slots": [{"id": "source-1", "label": "Videos", "accepts": "video", "multiple": True}],
-                                            "find": {"op": "words", "text": PHRASE + " " + PHRASE + " " + PHRASE, "unit": "words", "slots": ["source-1"]},
+                                            "find": {"op": "every", "text": PHRASE, "unit": "words", "slots": ["source-1"]},
                                             "select": {"min_length": 1, "max_length": 2, "min_seconds": 0.05, "max_seconds": 4.0}, "arrange": {"order": "text", "join": "cut", "crossfade_ms": 0},
                                             "effects": {"padding": {"lead_ms": 60, "trail_ms": 60}}, "render": {"preset": "720p30", "crf": 28}})
     binds, info = E.expand_folder("source-1", CTX["media"])
