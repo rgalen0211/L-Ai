@@ -41,7 +41,7 @@ def request_a_render(p, title):
     p.wait_for_selector('#np-title', timeout=20000)
     p.fill('#np-title', title)
     p.click('button:has-text("Create")')
-    p.wait_for_selector('h1:has-text("r1")', timeout=20000)
+    p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
     p.wait_for_selector('.template-picker summary', timeout=20000)
     if p.locator('details.template-picker[open]').count() == 0:
         p.click('.template-picker summary')
