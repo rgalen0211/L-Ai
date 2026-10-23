@@ -817,10 +817,17 @@ SONG_LINK = '<p><a id="song-link" class="button secondary" href="/song">Sing a l
 EDIT_LINK = '<p><a id="edit-link" class="button secondary" href="/edit">Edit your film (after Plan)</a></p>'
 
 
+def _tools_on_path() -> None:
+    """The portable folder starts this file with python -I, which leaves its own folder off the path: put it on, so the page modules beside this file can be imported."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+
+
 def _edit_mod():
     """tools/maker_edit.py when the maker was started with --edit, else None (the routes then do not exist)."""
     if not STATE.get("edit_on"):
         return None
+    _tools_on_path()
     import maker_edit  # noqa: PLC0415
     return maker_edit
 
@@ -829,6 +836,7 @@ def _song_mod():
     """tools/maker_song.py when the maker was started with --song, else None (the routes then do not exist)."""
     if not STATE.get("song_on"):
         return None
+    _tools_on_path()
     import maker_song  # noqa: PLC0415
     return maker_song
 
@@ -2101,10 +2109,12 @@ def main(argv=None) -> int:
     if a.song or os.environ.get("RYAGRAM_MAKER_SONG") == "1":
         STATE["song_on"] = True
         STATE["song_forge"] = bool(a.song_forge or os.environ.get("RYAGRAM_MAKER_SONG_FORGE") == "1")
+        _tools_on_path()
         import maker_song  # noqa: PLC0415
         maker_song.attach(sys.modules[__name__])
     if a.edit or os.environ.get("RYAGRAM_MAKER_EDIT") == "1":
         STATE["edit_on"] = True
+        _tools_on_path()
         import maker_edit  # noqa: PLC0415
         maker_edit.attach(sys.modules[__name__])
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"

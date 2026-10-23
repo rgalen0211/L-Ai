@@ -70,6 +70,10 @@ def world(name: str) -> dict:
     (repo / "tools").mkdir(parents=True)
     for t in mab.RUNTIME_TOOLS:
         (repo / "tools" / t).write_text(f"# stand-in {t}\n", encoding="utf-8")
+    for d in mab.RUNTIME_PAGE_DIRS:
+        (repo / "tools" / d).mkdir()
+        for f in ("page.html", "page.js", "page.css", "fixture.js"):
+            (repo / "tools" / d / f).write_text(f"/* stand-in {d}/{f} */\n", encoding="utf-8")
     shutil.copy2(HERE / "verify_bundle.py", repo / "tools" / "verify_bundle.py")          # the REAL self-check is what travels
     git(repo, "init", "-q")
     git(repo, "add", "-A")
@@ -131,11 +135,14 @@ check(any((out / "python" / "Lib" / "site-packages").glob(f"{LIB}*")), f"the lib
 check((out / "ffmpeg" / "ffmpeg.exe").is_file() and (out / "ffmpeg" / "ffprobe.exe").is_file() and not (out / "ffmpeg" / "ffplay.exe").exists(), "ffmpeg.exe and ffprobe.exe only")
 check((out / "ryagram" / "local" / "engine.py").is_file() and (out / "recipes" / "sam-first.json").is_file() and (out / "ENGINE-MANIFEST.json").is_file(), "the engine, the recipes and the kit's own record of the engine heads are there")
 check(all((out / "tools" / t).is_file() for t in mab.RUNTIME_TOOLS), "the app tools (maker, sign-in, node loop, the self-check) are there")
+check(set(mab.RUNTIME_PAGE_DIRS) == {"maker-edit", "maker-song"} and all((out / "tools" / d / "page.html").is_file() and not (out / "tools" / d / "fixture.js").exists() for d in mab.RUNTIME_PAGE_DIRS), "the edit and song page folders travel with their html, js and css, and the test fixture beside them does not")
+check({"maker_edit.py", "maker_song.py"} <= set(mab.RUNTIME_TOOLS), "MUST-FAIL guard: the edit page and the song page modules travel (desktop_maker imports them when --edit/--song is on; without them the folder cannot open either page)")
 bat = (out / "Open Ryagram.bat").read_text(encoding="ascii")
 check("%~dp0" in bat and "C:\\" not in bat and "C:/" not in bat and ":\\Users" not in bat, "the start file refers only to its own folder (no drive letter, no user folder)")
 vline = next(l for l in bat.splitlines() if "verify_bundle.py" in l)
 aline = next(l for l in bat.splitlines() if "desktop_maker.py" in l)
 check(' -I ' in vline and ' -I ' in aline and bat.index("verify_bundle.py") < bat.index("desktop_maker.py") and "errorlevel 1" in bat[bat.index("verify_bundle.py"):bat.index("desktop_maker.py")], "it runs the self-check BEFORE the app, both with the isolated flag, and stops if the check fails")
+check(aline.rstrip().endswith("%OPEN% %MAKER_EXTRA%") and "MAKER_EXTRA=" not in bat, "the start file adds whatever the tester set in MAKER_EXTRA (for example --edit --song) and sets none itself: the edit and song pages stay off unless asked for")
 check('--work-dir "%~dp0work"' in bat and '--out-dir "%~dp0films"' in bat and "RYAGRAM_MODEL_DIR=%~dp0models" in bat and "FFMPEG_PATH=%~dp0ffmpeg" in bat, "work, films, model and ffmpeg all point inside the folder")
 check(not any('%~dp0"' in l for l in bat.splitlines() if "python.exe" in l) and 'verify_bundle.py" "%~dp0."' in bat, "a folder handed to a program ends in a dot, never in a backslash before the closing quote (found by really running the start file: the check read the folder as missing its manifest)")
 sh = (out / "START-HERE.txt").read_text(encoding="ascii")
