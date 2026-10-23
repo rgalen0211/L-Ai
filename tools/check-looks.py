@@ -129,7 +129,7 @@ def main():
                 p.screenshot(path=str(OUT / f'apply-{name}.png'), full_page=True)
                 p.click('button:has-text("Create a new version with this look")')
                 p.wait_for_function(f"location.hash !== {before!r}", timeout=10000)
-                p.wait_for_selector('h1:has-text("r2")', timeout=20000)
+                p.wait_for_selector('h1:has-text("Version 2")', timeout=20000)
                 check(True, 'applying makes a NEW version (r2)')
                 p.goto(f'{BASE}/app/?mock#/', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)

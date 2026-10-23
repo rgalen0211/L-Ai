@@ -28,6 +28,37 @@
   };
   const PALETTE = ['#f3f6f5', '#fff3b0', '#9fe8d6', '#ffb4a8', '#10201c', '#0b3d5c', '#000000', '#ffffff'];   // the small set the Look tab offers
 
+  // ONE shared editing workspace for every kind of film (Claude 13:12): what the page offers is switched on and off by the film's mode.
+  // Only the compilation mode exists today; the data-film mode is declared so the page is built to that shape, and is refused until it is built.
+  const FILM_MODES = {
+    compilation: { label: 'Compilation', available: true, features: { clips: true, slides: true, rules: true, captions: true, text: true, look: true, options: false } },
+    data: { label: 'Data film', available: true, features: { clips: false, slides: false, rules: false, captions: false, text: false, look: false, options: true } },
+  };
+  const features = mode => (FILM_MODES[mode] || FILM_MODES.compilation).features;
+  // ---- the film's OPTIONS (proposals/options.draft.json, one list for the app, the AI editor and the connector): wording and control type only; the server schema stays the validator ----
+  const EDITABLE = ['choice', 'colour', 'number', 'slider', 'toggle', 'text'];
+  const isHex6 = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+  // one value against one row of the list: returns the value to keep (null = back to the default) or says why not, in plain words
+  function validateOption(row, value) {
+    if (!row || typeof row !== 'object') fail('That option is not in the list.');
+    if (row.status !== 'built') fail(`${row.label} is coming later and cannot be changed yet.`);
+    if (!EDITABLE.includes(row.control)) fail(`${row.label} is set by the film itself.`);
+    if (value === null || value === '') return null;
+    const lo = row.min !== undefined ? row.min : row.hard && row.hard.minimum, hi = row.max !== undefined ? row.max : row.hard && row.hard.maximum;
+    switch (row.control) {
+      case 'toggle': if (typeof value !== 'boolean') fail(`${row.label} is on or off.`); return value;
+      case 'choice': { const ok = (row.choices || []).map(c => c.value); if (!ok.includes(value)) fail(`Choose one of the listed values for ${row.label}.`); return value; }
+      case 'colour': if (!isHex6(value)) fail(`${row.label} is a colour like #14141a.`); return value.toLowerCase();
+      case 'text': { const max = (row.hard && row.hard.maxLength) || 200; if (typeof value !== 'string' || value.length > max) fail(`${row.label} is text of at most ${max} characters.`); return value.trim(); }
+      default: {                                                                      // number, slider
+        if (typeof value !== 'number' || !isFinite(value)) fail(`${row.label} is a number.`);
+        if (lo !== undefined && value < lo) fail(`${row.label} is at least ${lo}.`);
+        if (hi !== undefined && value > hi) fail(`${row.label} is at most ${hi}.`);
+        return value;
+      }
+    }
+  }
+  const defaultFor = (row, theme) => { const d = row.default; return d && typeof d === 'object' && !Array.isArray(d) ? (d[theme] !== undefined ? d[theme] : d.dark) : d; };
   class EditError extends Error { }
   const fail = m => { throw new EditError(m); };
 
@@ -35,6 +66,8 @@
   const isObj = v => v !== null && typeof v === 'object' && !Array.isArray(v);
   const isHex = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
   const safeName = v => typeof v === 'string' && v.length > 0 && v.length <= 200 && !/[\\/:*?"<>|\u0000-\u001f]/.test(v);   // a file NAME, never a path
+  const safeRel = v => typeof v === 'string' && v.length > 0 && v.length <= 260 && !/[*?"<>|:\u0000-\u001f]/.test(v) && !/^[\\/]/.test(v) && !v.split(/[\\/]/).some(seg => seg === '..' || seg === '' || seg === '.');
+  const relName = v => v.replace(/\\/g, '/');
   const words = s => String(s).toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/'/g, '').split(/\s+/).filter(Boolean);
 
   // ---- colour: WCAG contrast, used by the live warning ----
@@ -49,23 +82,28 @@
   }
 
   // ---- normalize: one validated, canonical copy (so the same edit always saves to the same text) ----
-  function normalize(src) {
+  function normalize(src, ctx) {
     if (!isObj(src)) fail('That is not an edit list.');
     if (src.schema !== SCHEMA) fail('This edit list is from a different version of the maker.');
     const film = isObj(src.film) ? src.film : {};
     const fw = film.width === undefined ? 1280 : film.width, fh = film.height === undefined ? 720 : film.height, ff = film.fps === undefined ? 30 : film.fps;
     for (const v of [fw, fh, ff]) if (!Number.isInteger(v) || v < 1 || v > 8192) fail('The film size is not valid.');
-    const out = { schema: SCHEMA, film: { width: fw, height: fh, fps: ff }, seq: 0, clips: [], images: [], rules: [], texts: [], captions: null, look: null, music: null };
+    const mode = src.mode === undefined ? 'compilation' : src.mode;
+    if (!FILM_MODES[mode]) fail('The editor does not know this kind of film.');
+    if (!FILM_MODES[mode].available) fail(`Editing a ${FILM_MODES[mode].label.toLowerCase()} here is not built yet.`);
+    const out = { schema: SCHEMA, mode, film: { width: fw, height: fh, fps: ff }, seq: 0, clips: [], images: [], rules: [], texts: [], captions: null, look: null, options: {}, music: null };
     out.seq = Number.isInteger(src.seq) && src.seq >= 0 ? src.seq : 0;
 
-    if (!Array.isArray(src.clips) || src.clips.length < 1) fail('The film has no clips.');
+    if (!Array.isArray(src.clips)) fail('The film has no clips.');
+    if (features(mode).clips && src.clips.length < 1) fail('The film has no clips.');
+    if (!features(mode).clips && src.clips.length) fail('This kind of film has no clips.');
     if (src.clips.length > 500) fail('That is more clips than the maker can edit at once (500).');
     const seen = new Set();
     src.clips.forEach((c, i) => {
       if (!isObj(c)) fail(`Clip ${i + 1} is not valid.`);
       if (typeof c.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(c.id) || seen.has(c.id)) fail(`Clip ${i + 1} has a missing or repeated id.`);
       seen.add(c.id);
-      if (!safeName(c.file_name)) fail(`Clip ${i + 1} must name its video file by name only, not by path.`);
+      if (!safeRel(c.file_name)) fail(`Clip ${i + 1} must name its video file by name, or by a folder-relative name, never by a full path.`);
       if (typeof c.in_s !== 'number' || typeof c.out_s !== 'number' || !isFinite(c.in_s) || !isFinite(c.out_s) || c.in_s < 0) fail(`Clip ${i + 1} has a start or end that is not a time.`);
       const ins = round(c.in_s), outs = round(c.out_s);
       if (outs - ins < MIN_CLIP_S - 1e-9) fail(`A clip must stay at least ${MIN_CLIP_S} seconds long.`);
@@ -73,6 +111,13 @@
         if (!isObj(w) || typeof w.w !== 'string' || !w.w.trim() || w.w.length > 60 || typeof w.s !== 'number' || typeof w.e !== 'number' || !(w.e >= w.s) || w.s < 0) fail(`A word in clip ${i + 1} has a time that is not valid.`);
         return { w: w.w, s: round(w.s), e: round(w.e) };
       }).sort((a, b) => a.s - b.s);
+      let slide = null;
+      if (c.slide !== undefined && c.slide !== null) {
+        if (!isObj(c.slide) || typeof c.slide.image_id !== 'string') fail(`Slide ${i + 1} must name its picture.`);
+        if (ins !== 0) fail('A slide always starts at 0 seconds; change how long it stays with its end.');
+        if (outs > 10) fail('A slide stays up to 10 seconds.');
+        slide = { image_id: c.slide.image_id };
+      }
       let join = null;
       if (c.join !== undefined && c.join !== null) {
         if (!isObj(c.join) || !['cut', 'crossfade'].includes(c.join.kind)) fail(`The join after clip ${i + 1} must be a cut or a crossfade.`);
@@ -80,17 +125,27 @@
         if (js < 0 || js > 2) fail('A crossfade is between 0 and 2 seconds.');
         join = { kind: c.join.kind, s: js };
       }
-      out.clips.push({ id: c.id, file_name: c.file_name, in_s: ins, out_s: outs, words: ws, join: join || { kind: 'cut', s: 0 } });
+      const clip = { id: c.id, file_name: relName(c.file_name), in_s: ins, out_s: outs, words: slide ? [] : ws, join: join || { kind: 'cut', s: 0 } };
+      if (slide) clip.slide = slide;
+      out.clips.push(clip);
     });
 
     const imgIds = new Set();
     (Array.isArray(src.images) ? src.images : []).forEach(m => {
       if (!isObj(m) || typeof m.id !== 'string' || !/^[A-Za-z0-9_-]{1,40}$/.test(m.id) || imgIds.has(m.id)) fail('A picture has a missing or repeated id.');
       imgIds.add(m.id);
-      if (!safeName(m.file_name)) fail('A picture must be named by file name only, not by path.');
+      if (!safeRel(m.file_name)) fail('A picture must be named by file name, or by a folder-relative name, never by a full path.');
       if (typeof m.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(m.sha256)) fail(`${m.file_name} has no valid fingerprint (SHA-256).`);
       if (!Number.isInteger(m.width) || !Number.isInteger(m.height) || m.width < 1 || m.height < 1) fail(`${m.file_name} has no valid size.`);
-      out.images.push({ id: m.id, file_name: m.file_name, sha256: m.sha256, width: m.width, height: m.height, rights_ticked: m.rights_ticked === true });
+      out.images.push({ id: m.id, file_name: relName(m.file_name), sha256: m.sha256, width: m.width, height: m.height, rights_ticked: m.rights_ticked === true });
+    });
+
+    if (out.clips.filter(c => c.slide).length > 10) fail('A film can have up to 10 slides.');
+    out.clips.forEach((c, i) => {
+      if (!c.slide) return;
+      const m = out.images.find(x => x.id === c.slide.image_id);
+      if (!m) fail(`Slide ${i + 1} uses a picture that is not in this film.`);
+      if (c.file_name !== m.file_name) fail(`Slide ${i + 1} must be named after its picture.`);
     });
 
     const ruleIds = new Set();
@@ -116,7 +171,9 @@
       const len = round(typeof t.length_s === 'number' ? t.length_s : 3);
       if (!(len >= 0.5 && len <= 60)) fail('A text stays on screen between 0.5 and 60 seconds.');
       if (!TEXT_POSITIONS[t.position]) fail('Choose where the text sits: top, centre, bottom or lower third.');
-      out.texts.push({ id: t.id, text: t.text.replace(/\s+/g, ' ').trim(), start_s: round(t.start_s), length_s: len, position: t.position });
+      const tsize = t.size === undefined ? 'medium' : t.size;
+      if (!SIZES.includes(tsize)) fail('Text size is small, medium or large.');
+      out.texts.push({ id: t.id, text: t.text.replace(/\s+/g, ' ').trim(), start_s: round(t.start_s), length_s: len, position: t.position, size: tsize });
     });
 
     const cap = isObj(src.captions) ? src.captions : {};
@@ -135,6 +192,18 @@
     if (typeof look.box_opacity !== 'number' || !(look.box_opacity >= 0 && look.box_opacity <= 1)) fail('The caption box is between 0 and 1.');
     look.text_color = look.text_color.toLowerCase(); look.box_color = look.box_color.toLowerCase(); look.letterbox = look.letterbox.toLowerCase(); look.box_opacity = round(look.box_opacity, 2);
     out.look = look;
+    const opts = src.options === undefined || src.options === null ? {} : src.options;
+    if (!isObj(opts)) fail('The options are not valid.');
+    const keys = Object.keys(opts).sort();
+    if (keys.length > 300) fail('That is more options than a film has.');
+    if (keys.length && !features(mode).options) fail('Options belong to data films.');
+    for (const k of keys) {
+      if (!/^[A-Za-z0-9_.-]{1,60}$/.test(k)) fail('An option has a name the maker does not know.');
+      const v = opts[k];
+      if (!(v === null || ['string', 'number', 'boolean'].includes(typeof v)) || (typeof v === 'number' && !isFinite(v)) || (typeof v === 'string' && v.length > 200)) fail(`The value of ${k} is not valid.`);
+      if (ctx && ctx.rows) { const row = ctx.rows.find(r => r.id === k); if (!row) fail(`${k} is not an option of this kind of film.`); const kept = validateOption(row, v); if (kept !== null) out.options[k] = kept; }
+      else if (v !== null) out.options[k] = v;
+    }
     if (src.music !== undefined && src.music !== null) fail('Music is not in this version of the maker yet.');
     return out;
   }
@@ -147,7 +216,7 @@
       const start = prev ? round(at - (prev.join.kind === 'crossfade' ? prev.join.s : 0)) : 0;
       const len = round(c.out_s - c.in_s);
       const ws = c.words.filter(w => w.s >= c.in_s - 1e-6 && w.e <= c.out_s + 1e-6).map(w => ({ w: w.w, s: round(start + w.s - c.in_s), e: round(start + w.e - c.in_s) }));
-      items.push({ id: c.id, file_name: c.file_name, start_s: start, end_s: round(start + len), length_s: len, words: ws });
+      items.push({ id: c.id, file_name: c.file_name, start_s: start, end_s: round(start + len), length_s: len, words: ws, slide: c.slide ? c.slide.image_id : null });
       at = start + len; prev = c;
     }
     return { clips: items, total_s: items.length ? items[items.length - 1].end_s : 0 };
@@ -181,18 +250,24 @@
         if (len > 0) out.push({ id: `${r.id}#${k + 1}`, kind: 'image', source: img.id, text: null, start_s: o.at_s, length_s: len, x: g.x, y: g.y, w: g.w, h: g.h, fade_s: Math.min(r.fade_s, len / 2), z: 1 });
       });
     }
+    tl.clips.forEach(c => {
+      if (!c.slide) return;
+      const img = edit.images.find(m => m.id === c.slide), g = GEOMETRY.full;
+      if (!img || !img.rights_ticked) return;                                    // without the tick the slide shows nothing
+      out.push({ id: `slide-${c.id}`, kind: 'image', source: img.id, text: null, start_s: c.start_s, length_s: c.length_s, x: g.x, y: g.y, w: g.w, h: g.h, fade_s: Math.min(0.2, c.length_s / 2), z: 1 });
+    });
     if (edit.captions.on) {
       const box = CAPTION_BOX[edit.captions.position];
       tl.clips.forEach(c => {
         for (let i = 0; i < c.words.length; i += CAPTION_WORDS) {
           const part = c.words.slice(i, i + CAPTION_WORDS);
-          out.push({ id: `cap-${c.id}-${i / CAPTION_WORDS + 1}`, kind: 'caption', source: null, text: part.map(w => w.w).join(' '), start_s: part[0].s, length_s: round(part[part.length - 1].e - part[0].s + 0.15), x: box.x, y: box.y, w: box.w, h: box.h, fade_s: 0, z: 2 });
+          out.push({ id: `cap-${c.id}-${i / CAPTION_WORDS + 1}`, kind: 'caption', source: null, text: part.map(w => w.w).join(' '), start_s: part[0].s, length_s: round(Math.min(part[part.length - 1].e - part[0].s + 0.15, total - part[0].s)), x: box.x, y: box.y, w: box.w, h: box.h, fade_s: 0, z: 2 });
         }
       });
     }
     for (const t of edit.texts) {
       const g = TEXT_POSITIONS[t.position], len = round(Math.min(t.length_s, Math.max(0, total - t.start_s)));
-      if (len > 0) out.push({ id: t.id, kind: 'text', source: null, text: t.text, start_s: t.start_s, length_s: len, x: g.x, y: g.y, w: g.w, h: g.h, fade_s: 0, z: 3 });
+      if (len > 0) out.push({ id: t.id, kind: 'text', source: null, text: t.text, size: t.size, start_s: t.start_s, length_s: len, x: g.x, y: g.y, w: g.w, h: g.h, fade_s: 0, z: 3 });
     }
     return out.sort((a, b) => a.start_s - b.start_s || a.z - b.z || (a.id < b.id ? -1 : 1));
   }
@@ -209,7 +284,7 @@
       if (tt + 1e-9 < s.start_s || tt >= s.start_s + s.length_s - 1e-9) continue;
       let op = 1;
       if (s.fade_s > 0) op = Math.max(0, Math.min(1, (tt - s.start_s) / s.fade_s, (s.start_s + s.length_s - tt) / s.fade_s));
-      active.push({ id: s.id, kind: s.kind, source: s.source, text: s.text, x: s.x, y: s.y, w: s.w, h: s.h, opacity: round(op) });
+      active.push({ id: s.id, kind: s.kind, source: s.source, text: s.text, size: s.size || null, x: s.x, y: s.y, w: s.w, h: s.h, opacity: round(op) });
     }
     const word = clip ? clip.words.find(w => tt >= w.s - 1e-9 && tt < w.e) : null;
     return { t: tt, clip: clip ? clip.id : null, word: word ? word.w : null, look: edit.look, captions: { size: edit.captions.size }, active };
@@ -224,6 +299,11 @@
       const occ = occurrences(edit, r.phrase, tl);
       if (!occ.length) w.push({ where: r.id, text: `"${r.phrase}" is not said in this film, so that picture will not show.` });
       if (img && !img.rights_ticked) w.push({ where: r.id, text: `Tick "I have the right to use this picture" for ${img.file_name}, or the rule for "${r.phrase}" will not show it.` });
+    }
+    for (const c of edit.clips) {
+      if (!c.slide) continue;
+      const img = edit.images.find(m => m.id === c.slide.image_id);
+      if (img && !img.rights_ticked) w.push({ where: c.id, text: `Tick "I have the right to use this picture" for ${img.file_name}, or its slide will show nothing.` });
     }
     const imgs = sp.filter(s => s.kind === 'image');
     for (let i = 0; i < imgs.length; i++) for (let j = i + 1; j < imgs.length; j++) {
@@ -245,7 +325,9 @@
       const ratio = contrast(edit.look.text_color, box);
       if (ratio < 4.5) w.push({ where: 'look', text: `Caption and text colours are hard to read together (contrast ${ratio.toFixed(1)}; aim for 4.5 or more).` });
     }
-    edit.clips.forEach((c, i) => { if (c.out_s - c.in_s < 0.5) w.push({ where: c.id, text: `Clip ${i + 1} is very short (${(c.out_s - c.in_s).toFixed(1)} s).` }); });
+    const joins = new Set(edit.clips.slice(0, -1).map(c => `${c.join.kind}:${c.join.s}`));
+    if (joins.size > 1) w.push({ where: 'joins', text: 'The joins are not all the same. The render builds all cuts, or the same crossfade for every join, for now; mixed joins are not built yet.' });
+    edit.clips.forEach((c, i) => { if (!c.slide && c.out_s - c.in_s < 0.5) w.push({ where: c.id, text: `Clip ${i + 1} is very short (${(c.out_s - c.in_s).toFixed(1)} s).` }); });
     return w;
   }
 
@@ -253,14 +335,17 @@
   const nextId = (edit, prefix) => { const n = edit.seq + 1; return { id: `${prefix}${n}`, seq: n }; };
   const clone = e => JSON.parse(JSON.stringify(e));
   const clipIndex = (edit, id) => { const i = edit.clips.findIndex(c => c.id === id); if (i < 0) fail('That clip is not in the film any more.'); return i; };
+  const need = (edit, feature, what) => { if (!features(edit.mode)[feature]) fail(`This kind of film does not use ${what}.`); };
   const ops = {
     moveClip(edit, id, dir) {
+      need(edit, 'clips', 'clips');
       const e = clone(edit), i = clipIndex(e, id), j = i + (dir < 0 ? -1 : 1);
       if (j < 0 || j >= e.clips.length) fail(dir < 0 ? 'That clip is already first.' : 'That clip is already last.');
       [e.clips[i], e.clips[j]] = [e.clips[j], e.clips[i]];
       return normalize(e);
     },
     removeClip(edit, id) {
+      need(edit, 'clips', 'clips');
       const e = clone(edit), i = clipIndex(e, id);
       if (e.clips.length === 1) fail('A film needs at least one clip.');
       e.clips.splice(i, 1);
@@ -272,11 +357,21 @@
       if (c.in_s < 0) fail('That clip cannot start before its video begins.');
       return normalize(e);
     },
+    addSlide(edit, s) {                                                                   // a picture that is its own stretch of the film, after a clip (or first)
+      need(edit, 'slides', 'slides');
+      const e = clone(edit), m = e.images.find(x => x.id === s.image_id); if (!m) fail('Choose a picture for the slide first.');
+      const n = nextId(e, 's'); e.seq = n.seq;
+      const at = s.after === null || s.after === undefined ? 0 : s.after === 'end' ? e.clips.length : clipIndex(e, s.after) + 1;
+      e.clips.splice(at, 0, { id: n.id, file_name: m.file_name, in_s: 0, out_s: s.seconds === undefined ? 3 : s.seconds, words: [], slide: { image_id: m.id }, join: { kind: 'cut', s: 0 } });
+      return normalize(e);
+    },
     addImage(edit, img) {
       const e = clone(edit), n = nextId(e, 'img'); e.seq = n.seq;
       e.images.push({ id: img.id || n.id, file_name: img.file_name, sha256: img.sha256, width: img.width, height: img.height, rights_ticked: img.rights_ticked === true });
       return normalize(e);
     },
+    addImages(edit, list) { let e = edit; for (const m of list) { if (typeof m.file_name === 'string' && e.images.some(x => x.file_name === relName(m.file_name))) continue; e = ops.addImage(e, m); } return e; },
+    setRightsAll(edit, ticked) { const e = clone(edit); e.images.forEach(m => { m.rights_ticked = ticked === true; }); return normalize(e); },
     setRights(edit, imageId, ticked) {
       const e = clone(edit), m = e.images.find(x => x.id === imageId); if (!m) fail('That picture is not in this film.');
       m.rights_ticked = ticked === true; return normalize(e);
@@ -284,21 +379,32 @@
     removeImage(edit, imageId) {
       const e = clone(edit);
       if (e.rules.some(r => r.image_id === imageId)) fail('A rule still uses that picture. Remove the rule first.');
+      if (e.clips.some(c => c.slide && c.slide.image_id === imageId)) fail('A slide still uses that picture. Take the slide out first.');
       e.images = e.images.filter(m => m.id !== imageId); return normalize(e);
     },
     addRule(edit, r) {
+      need(edit, 'rules', 'rules');
       const e = clone(edit), n = nextId(e, 'r'); e.seq = n.seq;
       e.rules.push({ id: n.id, phrase: r.phrase, image_id: r.image_id, seconds: r.seconds === undefined ? 2 : r.seconds, mode: r.mode || 'full', fade_s: r.fade_s === undefined ? 0.2 : r.fade_s });
       return normalize(e);
     },
     removeRule(edit, id) { const e = clone(edit); if (!e.rules.some(r => r.id === id)) fail('That rule is not in the film.'); e.rules = e.rules.filter(r => r.id !== id); return normalize(e); },
     addText(edit, t) {
+      need(edit, 'text', 'free text');
       const e = clone(edit), n = nextId(e, 't'); e.seq = n.seq;
-      e.texts.push({ id: n.id, text: t.text, start_s: t.start_s, length_s: t.length_s === undefined ? 3 : t.length_s, position: t.position || 'lower_third' });
+      e.texts.push({ id: n.id, text: t.text, start_s: t.start_s, length_s: t.length_s === undefined ? 3 : t.length_s, position: t.position || 'lower_third', size: t.size || 'medium' });
       return normalize(e);
     },
     removeText(edit, id) { const e = clone(edit); if (!e.texts.some(t => t.id === id)) fail('That text is not in the film.'); e.texts = e.texts.filter(t => t.id !== id); return normalize(e); },
-    setCaptions(edit, patch) { const e = clone(edit); Object.assign(e.captions, patch); return normalize(e); },
+    setOption(edit, rows, id, value) {
+      need(edit, 'options', 'options');
+      const row = rows.find(r => r.id === id);
+      const kept = validateOption(row, value), e = clone(edit);
+      if (kept === null) delete e.options[id]; else e.options[id] = kept;
+      return normalize(e, { rows });
+    },
+    resetOptions(edit) { need(edit, 'options', 'options'); const e = clone(edit); e.options = {}; return normalize(e); },
+    setCaptions(edit, patch) { need(edit, 'captions', 'captions'); const e = clone(edit); Object.assign(e.captions, patch); return normalize(e); },
     setLook(edit, patch) {
       const e = clone(edit);
       if (patch.theme && patch.theme !== e.look.theme) e.look = { theme: patch.theme };           // a theme switch brings that theme's own colours
@@ -311,5 +417,5 @@
   const stringify = edit => JSON.stringify(normalize(edit), null, 2) + '\n';
   const parse = text => { let v; try { v = JSON.parse(text); } catch (e) { fail('That file is not an edit list.'); } return normalize(v); };
 
-  return { SCHEMA, MIN_CLIP_S, MODES, SIZES, THEMES, PALETTE, TEXT_POSITIONS, GEOMETRY, CAPTION_BOX, EditError, normalize, timeline, occurrences, specs, frameAt, warnings, ops, stringify, parse, contrast, mixOver, words, mmss };
+  return { SCHEMA, FILM_MODES, features, validateOption, defaultFor, EDITABLE, MIN_CLIP_S, MODES, SIZES, THEMES, PALETTE, TEXT_POSITIONS, GEOMETRY, CAPTION_BOX, EditError, normalize, timeline, occurrences, specs, frameAt, warnings, ops, stringify, parse, contrast, mixOver, words, mmss };
 }));

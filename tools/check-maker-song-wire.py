@@ -40,7 +40,11 @@ a = sys.argv
 cmd = a[1]
 rec = json.loads(Path(a[2]).read_text(encoding="utf-8"))
 binds = [a[i + 1].split("=", 1) for i, x in enumerate(a) if x == "--bind"]
-vids = [Path(p).name for s, p in binds if s == "footage-1"]
+vids = []
+for s_, p_ in binds:
+    if s_ == "footage-1":
+        q_ = Path(p_)
+        vids += sorted(f.name for f in q_.rglob("*") if f.is_file() and f.suffix.lower() in (".mp4", ".mkv", ".mov")) if q_.is_dir() else [q_.name]
 music = [Path(p).name for s, p in binds if s == "music"]
 guide = [Path(p).name for s, p in binds if s == "guide"]
 lines = rec["song"]["lines"]
@@ -164,9 +168,22 @@ def main():
         base = f'http://127.0.0.1:{port}'
         tok = {'X-Maker-Token': 'testtoken'}
         dm.faster_whisper_missing = lambda: False
-        picks = {'videos': [], 'audio': None}
+        picks = {'videos': [], 'audio': None, 'folder': None}
         dm.pick_files = lambda multiple: list(picks['videos'])
         ms.pick_audio_file = lambda: picks['audio']
+        ms.pick_folder_dialog = lambda: picks['folder']
+
+        class _Bind:
+            def __init__(self, p):
+                self.path = p
+
+        def fake_expand(slot, folder, limit=None):
+            """The engine's own function (ryagram.local.engine.expand_folder) is proven in its own tests; the stand-in engine here has the same contract: every video at any depth, sorted, capped."""
+            lim = 3 if limit is None else limit
+            found = sorted((q for q in folder.rglob('*') if q.is_file() and q.suffix.lower() in ('.mp4', '.mkv', '.mov') and not any(p.startswith(('.', '$')) for p in q.relative_to(folder).parts)), key=lambda q: str(q.relative_to(folder)).lower())
+            if not found:
+                raise dm.STATE['E'].Refused('There are no videos in the folder.')
+            return [_Bind(q.resolve()) for q in found[:lim]], {'slot': slot, 'folder': folder.name, 'found': len(found), 'used': min(len(found), lim)}
 
         print('A. the routes')
         check(http('GET', f'{base}/song?t=testtoken')[0] == 404 and jpost(base, '/api/song/build', {}, tok)[0] == 404, 'started without --song, the song page and every song route do not exist (404)')
@@ -207,6 +224,51 @@ def main():
         check(st == 200 and r == {'guide': {'file_name': 'my-singing.wav'}}, 'the singing track: its name')
         picks['audio'] = None
         check(jpost(base, '/api/song/track', {}, tok) == (200, {}), 'closing the dialog without choosing changes nothing and says nothing')
+
+        print('   a whole folder of videos (Ryan 13:10)')
+        fol = media / 'my clips'
+        (fol / 'sub').mkdir(parents=True, exist_ok=True)
+        mk_video(fol / 'one.mp4', 400)
+        mk_video(fol / 'sub' / 'two.mp4', 450)
+        mk_video(fol / 'sub' / 'three.mp4', 500)
+        mk_video(fol / 'four.mp4', 520)
+        (media / 'empty').mkdir(exist_ok=True)
+        saved_expand = getattr(dm.STATE['E'], 'expand_folder', None)
+        if saved_expand is not None:                      # an engine that HAS the function (the combined one): take it away for this one check, as an older engine would not have it
+            del dm.STATE['E'].expand_folder
+        picks['folder'] = str(fol)
+        st, r = jpost(base, '/api/song/folder', {}, tok)
+        check(st == 400 and 'cannot read a whole folder' in r['error'], 'MUST-FAIL: an engine that cannot read folders says so in plain words (not a crash)')
+        if saved_expand is not None:                      # the engine's own function, with its cap lowered to 3 so the 'found 4, uses 3' case is the real one
+            dm.STATE['E'].expand_folder = saved_expand
+            keep_cap = dm.STATE['E'].MAX_FOLDER_FILES
+            dm.STATE['E'].MAX_FOLDER_FILES = 3
+        else:
+            dm.STATE['E'].expand_folder = fake_expand
+        picks['folder'] = str(media / 'empty')
+        st, r = jpost(base, '/api/song/folder', {}, tok)
+        check(st == 400 and 'no videos' in r['error'].lower(), 'MUST-FAIL: an empty folder is refused in words')
+        picks['folder'] = str(fol)
+        st, r = jpost(base, '/api/song/folder', {}, tok)
+        names = [v['file_name'] for v in r.get('videos', [])]
+        check(st == 200 and r['folder'] == {'name': 'my clips', 'found': 4, 'used': 3} and names == ['my clips/four.mp4', 'my clips/one.mp4', 'my clips/sub/three.mp4'], f'a folder answers with its NAME, how many it found and uses, and FOLDER-RELATIVE video names ({r.get("folder")})')
+        check(str(media) not in json.dumps(r) and not re.search(r'[A-Za-z]:[\/]', json.dumps(r)), 'no path in the folder answer')
+        picks['folder'] = None
+        check(jpost(base, '/api/song/folder', {}, tok) == (200, {}), 'closing the dialog without choosing changes nothing')
+        goodf = {'lines': ['one two three together'], 'videos': [{'file_name': n} for n in names], 'folders': [{'name': 'my clips'}], 'track': {'file_name': 'my-song.wav'}}
+        for what, req, want in (('a folder name that was not chosen', {**goodf, 'folders': [{'name': 'ghost'}]}, 'no longer where it was'), ('a path as a folder-relative name', {**goodf, 'videos': [{'file_name': 'C:/x/a.mp4'}]}, 'not valid'),
+                                ('a .. in a name', {**goodf, 'videos': [{'file_name': 'my clips/../x.mp4'}]}, 'not valid'), ('a leading slash', {**goodf, 'videos': [{'file_name': '/my clips/one.mp4'}]}, 'not valid'),
+                                ('a backslash', {**goodf, 'videos': [{'file_name': 'my clips\\one.mp4'}]}, 'not valid'), ('a name from a folder that is not chosen', {**goodf, 'videos': [{'file_name': 'nope/one.mp4'}], 'folders': []}, 'no longer where it was')):
+            st, r = jpost(base, '/api/song/build', req, tok)
+            check(st == 400 and want in r['error'], f'MUST-FAIL: {what}: refused in plain words ({r.get("error", "")[:50]!r})')
+        st, r = jpost(base, '/api/song/build', goodf, tok)
+        check(st == 200 and len(r['plan']['lines'][0]['words']) == 4 and r['plan']['track']['file_name'] == 'my-song.wav', 'a build from a folder alone works (the stand-in engine was given the FOLDER, not 3 files)')
+        st, r = jpost(base, '/api/song/hear', {'kind': 'word', 'n': 1, 'i': 0}, tok)
+        st2, h2, b2 = http('GET', base + r['url'], tok) if r else (0, 0, b'')
+        check(st == 200 and st2 == 200 and b2[:4] == b'RIFF', 'Hear this word works for a video found through a folder (looked up by its own file name)')
+        if saved_expand is not None:
+            dm.STATE['E'].MAX_FOLDER_FILES = keep_cap
+        dm.STATE['E'].expand_folder = saved_expand if saved_expand is not None else fake_expand
 
         print('   build: refusals in plain words, then a plan')
         good = {'lines': ['walk and talk together', 'one more line to sing'], 'videos': [{'file_name': 'walk.mp4'}, {'file_name': 'talk.mp4'}], 'track': {'file_name': 'my-song.wav'}, 'guide': {'file_name': 'my-singing.wav'}}

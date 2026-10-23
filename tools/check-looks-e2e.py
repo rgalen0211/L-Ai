@@ -138,7 +138,7 @@ def main():
                 p.screenshot(path=str(OUT / f'apply-{name}.png'), full_page=True)
                 p.click('button:has-text("Create a new version with this look")')
                 p.wait_for_function(f"location.hash !== {before!r}", timeout=10000)
-                p.wait_for_selector('h1:has-text("r2")', timeout=20000)
+                p.wait_for_selector('h1:has-text("Version 2")', timeout=20000)
                 check(True, 'applying makes a NEW version (r2)')
                 versions = p.evaluate("window.ryagramMock.client.db.versions.map(v => [v.n, (v.story_spec.sequence || {}).theme])")
                 check(len(versions) >= 2 and versions[0][1] != versions[-1][1], f'the old version keeps its own theme, the new one has the applied look {versions}')

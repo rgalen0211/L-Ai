@@ -11,7 +11,7 @@
 
   const SCHEMA = 'ryagram.song-plan/0';
   const STATUSES = ['whole', 'syllables', 'phonemes', 'gap'];
-  const MAX_LINES = 200, MAX_WORDS_LINE = 40, MAX_CHARS = 20000;
+  const MAX_LINES = 200, MAX_WORDS_LINE = 40, MAX_CHARS = 20000, MAX_VIDEOS = 2000;
   const OFF_BEAT_MS = 30;                               // R1: a placed syllable more than 30 ms off its beat is flagged
   const STRETCH_HIGH = 3, STRETCH_LOW = 0.5;             // R1 quality flag, not a block
 
@@ -22,6 +22,8 @@
   const r3 = x => (Math.round(x * 1000) / 1000) || 0;                    // never -0: a saved list must read back the same
   const ri = x => Math.round(x) || 0;
   const safeName = v => typeof v === 'string' && v.length > 0 && v.length <= 200 && !/[\\/:*?"<>|\u0000-\u001f]/.test(v);   // a file NAME, never a path
+  const safeRel = v => typeof v === 'string' && v.length > 0 && v.length <= 260 && !/[*?"<>|:\u0000-\u001f]/.test(v) && !/^[\\/]/.test(v) && !v.split(/[\\/]/).some(seg => seg === '..' || seg === '' || seg === '.');
+  const relName = v => v.replace(/\\/g, '/');
   const mmss = s => `${Math.floor(s / 60)}:${(s % 60).toFixed(1).padStart(4, '0')}`;
 
   // ---- the words the person pastes: one line per lyric line ----
@@ -34,18 +36,28 @@
     lines.forEach((l, i) => { if (l.split(' ').length > MAX_WORDS_LINE) fail(`Line ${i + 1} has more than ${MAX_WORDS_LINE} words. Split it into two lines.`); });
     return lines;
   }
-  // the videos the words are looked up in: names only (never paths), no repeats, 1 to 300
+  // the videos the words are looked up in: names or RELATIVE paths inside a chosen folder (never absolute), no repeats, 1 to 2,000
   function normalizeVideos(list) {
     if (!Array.isArray(list) || !list.length) fail('Choose the videos the words will be found in first.');
-    if (list.length > 300) fail('That is more than 300 videos. Choose a smaller set first.');
+    if (list.length > MAX_VIDEOS) fail(`That is more than ${MAX_VIDEOS.toLocaleString('en-US')} videos. Choose a smaller set first.`);
     const seen = new Set();
     return list.map(v => {
-      if (!isObj(v) || !safeName(v.file_name)) fail('A video must be named by file name only, not by path.');
-      if (seen.has(v.file_name)) fail(`${v.file_name} is in the list twice.`);
-      seen.add(v.file_name);
-      return { file_name: v.file_name };
+      if (!isObj(v) || !safeRel(v.file_name)) fail('A video must be named by file name, or by a folder-relative name, never by a full path.');
+      const name = relName(v.file_name);
+      if (seen.has(name)) fail(`${name} is in the list twice.`);
+      seen.add(name);
+      const out = { file_name: name };
+      if (v.folder !== undefined && v.folder !== null) { if (!safeName(v.folder)) fail('A folder must be named by name only, not by path.'); out.folder = v.folder; }
+      return out;
     });
   }
+  // one chosen folder: its name, how many videos the maker found, how many this run uses
+  function normalizeFolder(f) {
+    if (!isObj(f) || !safeName(f.name)) fail('A folder must be named by name only, not by path.');
+    if (!Number.isInteger(f.found) || !Number.isInteger(f.used) || f.found < 0 || f.used < 0 || f.used > f.found) fail(`The folder ${f.name} does not say how many videos it has.`);
+    return { name: f.name, found: f.found, used: f.used };
+  }
+  const folderNote = f => f.used < f.found ? `Found ${f.found.toLocaleString('en-US')} videos in ${f.name}; this run uses ${f.used.toLocaleString('en-US')}.` : `Using all ${f.found.toLocaleString('en-US')} video${f.found === 1 ? '' : 's'} in ${f.name}.`;
   const wordsOf = line => line.toLowerCase().replace(/[^a-z0-9\s']/g, ' ').replace(/'/g, '').split(/\s+/).filter(Boolean);
 
   // ---- validate a plan from the engine: refuse a plan that breaks the rules the page relies on ----
@@ -86,11 +98,11 @@
       offset_ms: null, step_db: null, burst: w.burst === true, quiet: w.quiet === true, preview: null, voice_may_clash: w.voice_may_clash === true, alternatives: [] };
     if (w.status === 'gap') return out;
     if (typeof w.speaker_id !== 'string' || !castIds.has(w.speaker_id)) fail(`The word "${w.w}" is said by someone the plan does not name.`);
-    if (!safeName(w.file_name)) fail(`The word "${w.w}" must name its video by file name only, not by path.`);
+    if (!safeRel(w.file_name)) fail(`The word "${w.w}" must name its video by file name only, not by a full path.`);
     if (!num(w.src_s) || !num(w.src_e) || !(w.src_e > w.src_s) || w.src_s < 0) fail(`The word "${w.w}" has a source time that is not valid.`);
     if (!num(w.stretch) || !(w.stretch > 0) || w.stretch > 20) fail(`The word "${w.w}" has a stretch that is not valid.`);
     if (w.offset_ms !== null && w.offset_ms !== undefined && !num(w.offset_ms)) fail(`The word "${w.w}" has a landing time that is not a number.`);
-    Object.assign(out, { speaker_id: w.speaker_id, file_name: w.file_name, src_s: r3(w.src_s), src_e: r3(w.src_e), stretch: r3(w.stretch), offset_ms: num(w.offset_ms) ? ri(w.offset_ms) : null, step_db: num(w.step_db) ? (Math.round(w.step_db * 10) / 10) || 0 : null });
+    Object.assign(out, { speaker_id: w.speaker_id, file_name: relName(w.file_name), src_s: r3(w.src_s), src_e: r3(w.src_e), stretch: r3(w.stretch), offset_ms: num(w.offset_ms) ? ri(w.offset_ms) : null, step_db: num(w.step_db) ? (Math.round(w.step_db * 10) / 10) || 0 : null });
     if (w.preview !== null && w.preview !== undefined) { if (!safeName(w.preview)) fail(`The play button of "${w.w}" must be a file name only, not a path.`); out.preview = w.preview; }
     if (w.status !== 'whole') {
       if (!Array.isArray(w.pieces) || w.pieces.length < 2) fail(`The word "${w.w}" is built from sounds, so it needs its pieces.`);
@@ -101,9 +113,9 @@
       out.joins = out.pieces.length - 1;
     }
     out.alternatives = (Array.isArray(w.alternatives) ? w.alternatives : []).map((a, i) => {
-      if (!isObj(a) || typeof a.id !== 'string' || !/^[A-Za-z0-9_.:-]{1,60}$/.test(a.id) || !castIds.has(a.speaker_id) || !safeName(a.file_name) || !num(a.src_s) || !num(a.src_e) || !(a.src_e > a.src_s) || !num(a.stretch) || !(a.stretch > 0) || (a.offset_ms !== null && a.offset_ms !== undefined && !num(a.offset_ms)))
+      if (!isObj(a) || typeof a.id !== 'string' || !/^[A-Za-z0-9_.:-]{1,60}$/.test(a.id) || !castIds.has(a.speaker_id) || !safeRel(a.file_name) || !num(a.src_s) || !num(a.src_e) || !(a.src_e > a.src_s) || !num(a.stretch) || !(a.stretch > 0) || (a.offset_ms !== null && a.offset_ms !== undefined && !num(a.offset_ms)))
         fail(`Another take of "${w.w}" is not valid.`);
-      return { id: a.id, speaker_id: a.speaker_id, file_name: a.file_name, src_s: r3(a.src_s), src_e: r3(a.src_e), stretch: r3(a.stretch), offset_ms: num(a.offset_ms) ? ri(a.offset_ms) : null };
+      return { id: a.id, speaker_id: a.speaker_id, file_name: relName(a.file_name), src_s: r3(a.src_s), src_e: r3(a.src_e), stretch: r3(a.stretch), offset_ms: num(a.offset_ms) ? ri(a.offset_ms) : null };
     });
     return out;
   }
@@ -183,5 +195,5 @@
   const stringify = plan => JSON.stringify(normalize(plan), null, 2) + '\n';
   const parse = text => { let v; try { v = JSON.parse(text); } catch (e) { fail('That file is not a song plan.'); } return normalize(v); };
 
-  return { SCHEMA, STATUSES, OFF_BEAT_MS, STRETCH_HIGH, STRETCH_LOW, SongError, parseLyrics, wordsOf, normalizeVideos, normalize, speakerLabel, statusText, flags, summarize, ops, stringify, parse, mmss };
+  return { SCHEMA, STATUSES, OFF_BEAT_MS, STRETCH_HIGH, STRETCH_LOW, SongError, parseLyrics, wordsOf, normalizeVideos, normalizeFolder, folderNote, normalize, speakerLabel, statusText, flags, summarize, ops, stringify, parse, mmss };
 }));
