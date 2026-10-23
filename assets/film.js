@@ -94,6 +94,15 @@
   // Ryan 2026-10-18: the same words on the public film page and the in-app delivery page (assets/app-library.js).
   const AI_LABEL = 'AI-assisted (Ryagram)';
 
+  // "See your county": only for a film made from public data, only with the flag on (assets/film-remix.js decides)
+  function remixSection(page) {
+    const R = window.ryagramFilmRemix;
+    if (!R || !R.eligible(page, window.ryagramConfig)) return null;
+    const campaign = encodeURIComponent(sampleName ? `remix_${sampleName}` : 'remix');
+    return R.section(page, { h, funnel: window.ryagramFunnel, fetchJson: async u => { const r = await fetch(u); if (!r.ok) throw new Error('status ' + r.status); return r.json(); },
+      cta: `/ryagram/?utm_source=film_page&utm_medium=remix&utm_campaign=${campaign}#waitlist` });
+  }
+
   function render(page) {
     const s = page.summary || {};
     document.title = `${page.title} | Made with Ryagram`;
@@ -115,8 +124,10 @@
         h('div', {}, h('p', {}, 'Have a question? Ryagram makes the data answer it.'),
           h('p', { class: 'film-meta' }, 'Ryagram is opening by invitation. Join the waitlist and we will tell you when it is your turn.')),
         h('a', { class: 'button primary', href: cta }, 'Make your own data film')),
+      remixSection(page),
       sourcesSection(s),
       receipt(page)].filter(Boolean));
+    window.ryagramFunnel?.filmEvent('film_view');
     document.getElementById('cta-top').setAttribute('href', cta);
     document.getElementById('sources-title')?.setAttribute('tabindex', '-1');         // so the header "Sources" link can move focus here too
     if (location.hash === '#sources') {                                      // the link an exported film points to: land on the sources
