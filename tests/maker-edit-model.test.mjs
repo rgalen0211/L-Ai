@@ -56,7 +56,7 @@ test('FOLDER-RELATIVE CLIP NAMES: a clip may name its video inside a chosen fold
   const x = clone(base); x.clips[0].file_name = 'my-clips\\Season 2\\a.mp4'; x.clips[1].file_name = 'my-clips/b.mp4';
   const p = M.normalize(x);
   assert.equal(p.clips[0].file_name, 'my-clips/Season 2/a.mp4'); assert.equal(p.clips[1].file_name, 'my-clips/b.mp4');
-  for (const bad of ['C:\\v\\a.mp4', '/home/me/a.mp4', '\\\\server\\x\\a.mp4', '../a.mp4', 'a/../b.mp4', './a.mp4', 'a/b:c.mp4']) { const y = clone(base); y.clips[0].file_name = bad; refuses(() => M.normalize(y), /never by a full path/); }
+  for (const bad of ['C:' + BSL + 'pics' + BSL + 'a.png', '/home/me/a.png', '../a.png', 'a/../b.png']) { const y = clone(base); y.clips[0].file_name = bad; refuses(() => M.normalize(y), /never by a full path/); }
 });
 
 test('SLIDES: a picture of the person\'s own is its own stretch of the film; it needs its rights tick; the page shows it full frame for its whole length', () => {
@@ -174,6 +174,52 @@ test('OPTIONS IN THE EDIT LIST: set, change, reset to the default, refuse an unk
   const z = clone(e); z.options['bad key!'] = 1; refuses(() => M.normalize(z), /name the maker does not know/);
   const w = clone(e); w.options.theme = { a: 1 }; refuses(() => M.normalize(w), /not valid/);
   const c = clone(base); c.options = { theme: 'dark' }; refuses(() => M.normalize(c), /Options belong to data films/);
+});
+
+const BSL = String.fromCharCode(92);
+test('PICTURES FROM A FOLDER and TEXT SIZE: folder-relative picture names (never a full path), one rights tick for all, a text size that reaches the overlay spec and the frame', () => {
+  const FP = [{ id: 'img-f1', file_name: 'my-pictures' + BSL + 'title-card.png', sha256: 'cd'.repeat(32), width: 400, height: 300 }, { id: 'img-f2', file_name: 'my-pictures/Season 2/logo.png', sha256: 'ef'.repeat(32), width: 400, height: 300 }];
+  let e = M.ops.addImages(base, FP);
+  assert.deepEqual(e.images.map(m => m.file_name), ['my-pictures/title-card.png', 'my-pictures/Season 2/logo.png'], 'a backslash becomes a slash');
+  assert.equal(M.ops.addImages(e, FP).images.length, 2, 'adding the same folder twice does not repeat a picture');
+  assert.ok(e.images.every(m => m.rights_ticked === false));
+  e = M.ops.setRightsAll(e, true); assert.ok(e.images.every(m => m.rights_ticked === true));
+  for (const bad of ['C:\pics\a.png', '/home/me/a.png', '../a.png', 'a/../b.png']) { const x = clone(e); x.images[0].file_name = bad; refuses(() => M.normalize(x), /never by a full path/); }
+  e = M.ops.addRule(e, { phrase: 'great news', image_id: 'img-f1', seconds: 2, mode: 'full' });
+  e = M.ops.addSlide(e, { image_id: 'img-f2', seconds: 2, after: 'c1' });
+  assert.equal(e.clips[1].file_name, 'my-pictures/Season 2/logo.png', 'a slide is named after its folder picture');
+  const t = M.ops.addText(base, { text: 'Big words', start_s: 1, length_s: 2, size: 'large' }).texts[0];
+  assert.equal(t.size, 'large');
+  assert.equal(M.ops.addText(base, { text: 'Plain', start_s: 1 }).texts[0].size, 'medium', 'medium by default');
+  refuses(() => M.ops.addText(base, { text: 'x', start_s: 1, size: 'huge' }), /small, medium or large/);
+  const withT = M.ops.addText(base, { text: 'Big words', start_s: 1, length_s: 2, size: 'large' });
+  assert.equal(M.specs(withT).find(s => s.kind === 'text').size, 'large');
+  assert.equal(M.frameAt(withT, 1.5).active.find(a => a.kind === 'text').size, 'large');
+  assert.equal(M.parse(M.stringify(withT)).texts[0].size, 'large');
+});
+
+test('MUST-FAIL (Claude 12:30): a rule whose phrase is not said says so in plain words and draws nothing; NO overlay of any kind runs past the end of the film', () => {
+  const none = withRule(withPic(), { phrase: 'never said anywhere' });
+  assert.ok(M.warnings(none).some(w => /"never said anywhere" is not said in this film, so that picture will not show\./.test(w.text)));
+  assert.equal(M.specs(none).length, 0);
+  // every kind of overlay near the end, each asking for more time than is left
+  let e = withPic(); e = M.ops.setCaptions(e, { on: true });
+  const total = M.timeline(e).total_s;
+  e = M.ops.addRule(e, { phrase: 'that is the end', image_id: PIC.id, seconds: 10, mode: 'full', fade_s: 0.2 });
+  e = M.ops.addText(e, { text: 'The very end', start_s: total - 0.5, length_s: 30 });
+  { // before the slide lengthens the film: the rule and the captions really sit at the very end, and are cut to it
+    const tl0 = M.timeline(e), sp0 = M.specs(e);
+    assert.ok(sp0.some(s => s.kind === 'image') && sp0.some(s => s.kind === 'caption') && sp0.some(s => s.kind === 'text'));
+    for (const s of sp0) assert.ok(s.start_s + s.length_s <= tl0.total_s + 1e-6, `${s.id} ends at ${s.start_s + s.length_s} past the end ${tl0.total_s}`);
+  }
+  e = M.ops.addSlide(e, { image_id: PIC.id, seconds: 10, after: 'end' });
+  const tl = M.timeline(e), sp = M.specs(e);
+  assert.ok(sp.length >= 4, 'rule, text, slide and captions are all there');
+  for (const s of sp) assert.ok(s.start_s + s.length_s <= tl.total_s + 1e-6, `${s.id} ends at ${s.start_s + s.length_s} past the end ${tl.total_s}`);
+  for (let t = tl.total_s; t <= tl.total_s + 5; t += 0.5) assert.deepEqual(M.frameAt(e, t, { tl, specs: sp }).active.filter(a => a.kind !== 'image' || a.opacity > 0), M.frameAt(e, tl.total_s, { tl, specs: sp }).active.filter(a => a.kind !== 'image' || a.opacity > 0), 'nothing new appears after the end');
+  const late = M.ops.addText(base, { text: 'Too late', start_s: M.timeline(base).total_s + 1, length_s: 3 });
+  assert.equal(M.specs(late).filter(s => s.kind === 'text').length, 0, 'a text that starts after the end draws nothing');
+  assert.ok(M.warnings(late).some(w => /starts after the film has ended/.test(w.text)));
 });
 
 test('THE CLOCK: clips sit end to end, a crossfade overlaps, and every word lands in the FINISHED film', () => {
