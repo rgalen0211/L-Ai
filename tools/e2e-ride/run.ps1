@@ -4,7 +4,7 @@
 # It PRINTS each repo's HEAD and REFUSES to run if any is dirty. Without -KeepGoing it stops at the first broken step; with it the report lists every broken step.
 param(
   [string]$DbRepo = $env:R9E2E_DB_REPO, [string]$Engine = $env:R9E2E_ENGINE, [string]$Python = $env:R9E2E_PYTHON, [string]$Temp = $env:R9E2E_TEMP,
-  [string]$YamlShim = $env:R9E2E_YAML_SHIM, [string]$Json = $env:RIDE_JSON, [switch]$KeepGoing, [switch]$Help)
+  [string]$YamlShim = $env:R9E2E_YAML_SHIM, [string]$Json = $env:RIDE_JSON, [ValidateSet('ride','delivery')][string]$Check = 'ride', [switch]$KeepGoing, [switch]$Help)
 $ErrorActionPreference = 'Stop'
 if ($Help -or -not $DbRepo -or -not $Engine -or -not $Python -or -not $Temp) { Get-Content $PSCommandPath -TotalCount 6 | Write-Host; exit 2 }
 if ($Temp -notmatch '^[dD]:') { Write-Error "-Temp must be on D: (storage rule), not '$Temp'."; exit 2 }
@@ -17,5 +17,6 @@ if ($YamlShim) { $env:PYTHONPATH = $YamlShim }
 $free = (Get-PSDrive ($Temp.Substring(0,1))).Free / 1GB
 if ($free -lt 10) { Write-Error "The temp drive has only $([math]::Round($free,1)) GB free; the ride refuses to start under 10 GB."; exit 2 }
 $extra = @(); if ($KeepGoing) { $extra += '--keep-going' }
-& $Python "$PSScriptRoot\ride.py" @extra
+$script = if ($Check -eq 'delivery') { 'delivery_sql_check.py' } else { 'ride.py' }
+& $Python "$PSScriptRoot\$script" @extra
 exit $LASTEXITCODE
