@@ -147,3 +147,34 @@ test('LINKS (CC1 LOW-3): a data link from the catalog is shown only as a plain h
   const src = fs.readFileSync(new URL('../assets/app-builder.js', import.meta.url), 'utf8');
   assert.doesNotMatch(src, /href: d\.url/, 'the link target always goes through webLink');
 });
+
+test('READY-MADE STARTS (NEXT-WEB 132): housing, health and work, each a view rendered before, offered only when the function\'s catalog lists its dataset; no income (nothing listable)', () => {
+  assert.deepEqual(plain(B.READY_MADE.map(r => [r.id, r.dataset, r.film_type])), [['housing', 'bps_county_permits', 'map'], ['health', 'state_obesity_fastfood', 'map'], ['work', 'bls_state_unemployment', 'line']]);
+  assert.ok(!B.READY_MADE.some(r => /income/i.test(`${r.id} ${r.dataset} ${r.title}`)), 'no income start until an income dataset is listable');
+  const all = B.READY_MADE.map(r => ({ id: r.dataset }));
+  assert.deepEqual(plain(B.readyMade(all).map(r => r.id)), ['housing', 'health', 'work']);
+  assert.deepEqual(plain(B.readyMade([{ id: 'state_obesity_fastfood' }, { id: 'something_else' }]).map(r => r.id)), ['health'], 'a start whose dataset is not in the catalog is not offered');
+  assert.deepEqual(plain(B.readyMade([])), []);
+  assert.deepEqual(plain(B.readyMade(null)), []);
+  // the years are the windows those views were rendered on (app-templates.js)
+  const T = {}; vm.runInNewContext(read('assets/app-templates.js'), { window: T });
+  for (const r of B.READY_MADE) { const d = T.ryagramTemplates.DATASETS[r.dataset]; assert.equal(r.start, d.start, r.id); assert.equal(r.end, d.end, r.id); }
+  // each start, as a request, is exactly what the compile step takes
+  for (const r of B.READY_MADE) assert.deepEqual(Object.keys(B.requestFrom({ dataset: r.dataset, type: r.film_type, title: r.title, start: r.start, end: r.end })).sort(), ['dataset', 'film_type', 'title', 'years']);
+});
+
+test('FIRST FILM (NEXT-WEB 132): with no projects the guided builder is the main button; with projects it is the quiet link', () => {
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /projects\.length \? h\('p', \{ class: 'meta' \}, h\('a', \{ href: '#\/build' \}, 'Make a film step by step'\)\)/);
+  assert.match(lib, /id: 'first-film', href: '#\/build' \}, 'Make your first film'/);
+  assert.match(lib, /builderOn\(\) \? 'No projects yet\. The quickest way to start is above/);
+});
+
+test('BUY STRIP (NEXT-WEB 132 G5): after the free first picture the Render panel says what the full film uses and what the person has, in credits and never a price; it is hidden once a final film exists', () => {
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /That first picture was free\./);
+  assert.match(lib, /The full film uses \$\{C\.plural\(q\.credits\)\}; you have \$\{C\.plural\(Math\.max\(0, q\.available \|\| 0\)\)\}\./);
+  assert.match(lib, /!jobs\.some\(j => j\.job_type === 'final_render'\)/, 'gone once a final film is ordered');
+  const strip = lib.slice(lib.indexOf("nextStrip.replaceChildren"), lib.indexOf("} else nextStrip.hidden = true;"));
+  assert.ok(!/priceLabel|money\(|cents|\$\{?\s*price/i.test(strip), 'no money in the strip');
+});
