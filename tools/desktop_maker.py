@@ -1630,7 +1630,7 @@ class Handler(BaseHTTPRequestHandler):
             if not isinstance(body, dict):
                 raise Problem("Bad request.")
             path = urlparse(self.path).path
-            if path.startswith("/api/edit") or path == "/api/image/pick":
+            if path.startswith("/api/edit") or (path == "/api/image/pick" and STATE.get("edit_on")):
                 me = _edit_mod()
                 if me is None:
                     self._json(404, {"error": "Not found."})
