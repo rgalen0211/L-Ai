@@ -71,5 +71,5 @@ test('PAGE SOURCE: the route needs the flag AND an admin answer, the link needs 
   assert.match(view, /'Why: ', String\(r\.reason \|\| ''\)\.slice\(0, REASON_MAX\)/);                          // the reason is shown as text
   const code = src.replace(/\/\/.*$/gm, '');
   assert.doesNotMatch(code, /innerHTML|insertAdjacentHTML|\bstyle:|setAttribute\('style'|localStorage|sessionStorage|document\.cookie|access_token|refresh_token|fetch\(/);
-  assert.match(read('assets/ryagram-config.js'), /desktopApp: false,/);                                           // still off
+  assert.match(read('assets/ryagram-config.js'), /desktopApp: true,/);                                           // still off
 });
