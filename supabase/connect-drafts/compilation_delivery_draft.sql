@@ -84,12 +84,21 @@ begin
   if d.state <> 'uploading' then raise exception 'This upload is over. Start again.' using errcode = '42501'; end if;
   select (o.metadata ->> 'size')::bigint into stored from storage.objects o where o.bucket_id = 'ryagram-artifacts' and o.name = d.storage_path;
   if stored is null or stored <> d.bytes then
-    update public.compilation_deliveries set state = 'failed' where id = d.id;
-    raise exception 'The stored file is not the size this computer said. Start again.' using errcode = '42501'; end if;
+    -- (a raise rolls this transaction back, so nothing can be marked here: the app calls node_compilation_cancel after a failed upload, and an upload nobody finishes is over after an hour)
+    raise exception 'The stored file is not the size this computer said. Cancel and start again.' using errcode = '42501'; end if;
   select delivery_days into days from public.ops_settings where id;
   exp := now() + make_interval(days => days);
   update public.compilation_deliveries set state = 'ready', expires_at = exp where id = d.id;
   return jsonb_build_object('id', d.id, 'expires_at', exp);
+end $$;
+
+-- POST /node/compilation/cancel: the upload failed or the person changed their mind; the row is over and the purge removes any object
+create function public.node_compilation_cancel(p_access_hash text, p_id uuid) returns boolean
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := ryagram_private.node_actor(p_access_hash);
+begin
+  update public.compilation_deliveries set state = 'failed' where id = p_id and owner_id = me and state = 'uploading';
+  return found;
 end $$;
 
 -- the person deletes it themselves (the website's list and the app): nothing remains to sign; the purge removes the object
@@ -135,9 +144,9 @@ begin
   return paths;
 end $$;
 
-revoke all on function public.node_compilation_begin(text, text, bigint, text, numeric, int, int), public.node_compilation_finish(text, uuid), public.delete_my_compilation(uuid),
+revoke all on function public.node_compilation_begin(text, text, bigint, text, numeric, int, int), public.node_compilation_finish(text, uuid), public.node_compilation_cancel(text, uuid), public.delete_my_compilation(uuid),
   public.compilation_object_for(uuid, uuid), ryagram_private.compilation_object(uuid, uuid), ryagram_private.compilation_tick() from public, anon, authenticated, service_role, node_runner;
-grant execute on function public.node_compilation_begin(text, text, bigint, text, numeric, int, int), public.node_compilation_finish(text, uuid) to node_runner;
+grant execute on function public.node_compilation_begin(text, text, bigint, text, numeric, int, int), public.node_compilation_finish(text, uuid), public.node_compilation_cancel(text, uuid) to node_runner;
 grant execute on function public.delete_my_compilation(uuid) to authenticated;
 grant execute on function public.compilation_object_for(uuid, uuid) to service_role;
 

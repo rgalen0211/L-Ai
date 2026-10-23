@@ -89,11 +89,14 @@ def main():
         check(path == f"{sam}/compilations/{rid}.mp4", "the DATABASE chose the path (the person's id, then the film's id)")
         check(raises(lambda: begin(A), "already in progress"), "a second upload while one is in progress is refused")
         check(raises(lambda: finish(A, rid), "not the size"), "finishing with nothing stored is refused")
+        check(raises(lambda: runner.execute("select public.node_compilation_cancel(%s,%s)", (B, rid)).fetchone()[0] or (_ for _ in ()).throw(Exception("nothing")), "nothing"), "ANOTHER person cannot cancel it (nothing happens)")
+        check(runner.execute("select public.node_compilation_cancel(%s,%s)", (A, rid)).fetchone()[0] is True, "the app cancels the failed upload")
         check(admin.one("select state from compilation_deliveries where id=%s", rid) == "failed", "and that upload is marked failed")
         r = begin(A, nbytes=1000)
         rid, path = r["id"], r["path"]
         store(path, 999)
         check(raises(lambda: finish(A, rid), "not the size"), "a stored file of another size is refused")
+        runner.execute("select public.node_compilation_cancel(%s,%s)", (A, rid))
         r = begin(A, nbytes=1000)
         rid, path = r["id"], r["path"]
         store(path, 1000)
