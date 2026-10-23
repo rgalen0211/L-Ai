@@ -9,8 +9,10 @@
     const db = client.db;
     const project = { id: client.newId(), owner_id: 'mock-user', title: 'Obesity and fast food (mock)',
                       created_at: client.now(), updated_at: client.now(), archived_at: null };
-    db.projects.push(project);
-    db.versions.push({
+    // /app/?mock&empty starts with no project, to see a newcomer's first screen.
+    const seeded = !/[?&]empty/.test(location.search || '');
+    if (seeded) db.projects.push(project);
+    if (seeded) db.versions.push({
       id: client.newId(), project_id: project.id, number: 1, parent_version_id: null, state: 'draft',
       story_spec: { schema: 1, engine: 'sequence', name: 'obesity-fast-food',
                     sequence: { canvas: [1920, 1080], fps: 30, theme: 'dark', hold_seconds: 0.5, clips: [

@@ -1,4 +1,4 @@
-"""/connect-ai/ in real Chrome at desktop and phone: the draft banner, the headings, no sideways scroll, placeholder addresses wrap, no console errors. Writes screenshots.
+"""/connect-ai/ in real Chrome at desktop and phone: the headings and the real connector address, no draft banner, no sideways scroll (long addresses wrap), no console errors. Writes screenshots.
 Not part of the node suite.   python tools/check-connect-page.py [outdir]   (default D:/Ryagram-scratch/WEB/connect-page-shots)
 """
 import http.server
@@ -44,10 +44,12 @@ def main():
                 p.on('pageerror', lambda e: errors.append(str(e)))
                 p.on('console', lambda m: errors.append(m.text) if m.type == 'error' and 'status of 404' not in m.text else None)
                 p.goto(f'http://127.0.0.1:{PORT}/connect-ai/', wait_until='load')
-                check('Pending' not in p.inner_text('.shell-banner') and 'DRAFT' in p.inner_text('.shell-banner'), 'the draft banner')
+                body = p.inner_text('main')
+                check(p.locator('.shell-banner').count() == 0 and 'DRAFT' not in body and 'PENDING' not in body, 'no draft banner and no placeholder')
+                check(body.count('functions/v1/connect/mcp') >= 5, 'the real connector address is in each assistant steps')
                 check(p.locator('h2').count() == 7, 'seven sections')
                 check('only on plans that allow custom MCP connectors' in p.inner_text('main'), 'the ChatGPT plan sentence')
-                check(p.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'no sideways scroll (long placeholder addresses wrap)')
+                check(p.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'no sideways scroll (long addresses wrap)')
                 p.screenshot(path=str(OUT / f'connect-ai-{name}.png'), full_page=True)
                 check(not errors, f'no console errors {errors[:2]}')
             b.close()

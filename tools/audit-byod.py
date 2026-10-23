@@ -74,7 +74,7 @@ def main():
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'My rents')
                 p.click('button:has-text("Create")')
-                p.wait_for_selector('h1:has-text("r1")', timeout=20000)
+                p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 p.wait_for_selector('.uploads-panel', state='attached', timeout=15000)
                 p.wait_for_timeout(800)
                 step('version-page-first-view')

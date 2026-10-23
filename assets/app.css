@@ -205,6 +205,7 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .funnel-sources,.funnel-weeks{display:block;overflow-x:auto;max-width:100%}.funnel-sources th,.funnel-weeks th{min-width:84px}.funnel-sources td:first-child,.funnel-weeks td:first-child{white-space:nowrap}.funnel-side td{color:var(--muted)}
 /* Accessibility pass (2026-10-18): a folded section's summary is a comfortable tap target */
 :where(.ryagram-app details)>summary{min-height:40px;padding:8px 0;box-sizing:border-box;cursor:pointer}
+@media(max-width:520px){.ryagram-app summary,.ryagram-app .link-button,.ryagram-app .button.small{min-height:44px}}
 /* First run at phone width (2026-10-19, tools/check-first-run-phone.py): the project name and the file's Open link are comfortable to tap, and the story box is 16px so iOS does not zoom in when it is focused */
 .project-list a{display:flex;align-items:center;min-height:40px}.file-list a{display:inline-flex;align-items:center;min-height:40px;padding:0 6px}
 @media(max-width:520px){.story,.builder-advanced textarea{font-size:16px}}
@@ -212,3 +213,9 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 @media(max-width:520px){.ryagram-app :is(input,select,textarea){font-size:16px}}
 /* Whole-app pass: the footer's text and links sit on one line (the links have padding the text does not), and an admin link is never split across two lines */
 .app-foot{align-items:center}.admin-links a{white-space:nowrap}
+/* phone: every tap target is 44 px (NEXT-WEB 130) */
+@media(max-width:520px){.button.small,.version-link,.job-help summary,.byod-hint summary,.link-button,.back,.file-list a,:where(.ryagram-app details)>summary{min-height:44px}.version-link{min-width:44px}.app-account .button,.button,.app-nav-link,.project-list a,.app-foot a,.sign-in-help a,.form-intro a{min-height:44px;box-sizing:border-box}.app-nav-link,.project-list a,.app-foot a{display:inline-flex;align-items:center}.app-foot{gap:0 20px}.brand,.rg-brand{min-height:44px}}
+/* guided first film (NEXT-WEB 132) */
+.builder-ready{margin:0 0 28px}.builder-start{display:grid;gap:2px;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:44px;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.builder-start:hover,.builder-start:focus-visible{border-color:var(--brand-deep,#0a6)}
+.next-strip{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--brand-deep,#0a6);border-radius:10px;background:var(--paper)}.next-strip a{display:inline-block;padding:10px 4px;min-height:44px;box-sizing:border-box}
+.first-film{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0 18px}.first-film .button{min-height:48px}

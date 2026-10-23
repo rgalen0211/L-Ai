@@ -53,5 +53,12 @@
   "published_at": null,
   "video_url": null,
   "poster_url": "/film/samples/interstate-final-frame.jpg",
-  "preview_url": "/preview-demo/"
+  "preview_url": "/preview-demo/",
+  "remix": {
+    "version": 1,
+    "public": true,
+    "kind": "county",
+    "film_ref": "interstate",
+    "places": "interstate-practice"
+  }
 }

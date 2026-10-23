@@ -19,7 +19,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 /* header */
 .rg-top{position:sticky;top:0;z-index:5;background:rgba(20,20,26,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 .rg-nav{display:flex;align-items:center;justify-content:space-between;gap:12px;min-height:60px}
-.rg-brand{display:flex;align-items:baseline;gap:10px;color:var(--text);text-decoration:none}
+.rg-brand{display:flex;align-items:center;gap:10px;color:var(--text);text-decoration:none;min-height:44px}
 .rg-wordmark{font:100 1.9rem/1 "Noto Serif Display",Georgia,serif;letter-spacing:.01em}
 .rg-brand-sub{color:var(--muted);font-weight:700;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase}
 
@@ -36,6 +36,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 .rg-hero-film figcaption{font-size:.88rem;color:var(--muted)}
 .rg-hero-film figcaption a{font-weight:700}
 .rg-hero-cta .rg-btn{width:100%}
+.rg-hero-signin{display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:6px;color:var(--text);font-weight:600}
 .rg-hero-copy{display:grid;gap:14px;justify-items:start}
 .rg-lead{font-size:1.15rem;color:var(--muted);max-width:34ch}
 .rg-phone{margin:0;display:grid;gap:10px;justify-items:center}

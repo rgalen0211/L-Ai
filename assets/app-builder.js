@@ -13,6 +13,15 @@
     line: ['Lines', 'Draws the top places as lines over time.'],
     paired: ['Paired', 'Shows two measures of the same places together.']
   };
+  // Ready-made starts (NEXT-WEB 132 G3/G4): one click fills dataset, years, film type and title and lands on the Review (Back still works). Each is a view that has been
+  // rendered before (app-templates.js): housing and health as maps, work as lines. A start is offered only when its dataset is in the catalog the function returned.
+  // Income is not here: no income dataset is listable yet (proposals/WEB-GUIDED-FIRST-FILM-GAPS.md, G4).
+  const READY_MADE = [
+    { id: 'housing', label: 'Housing', blurb: 'Where new homes were permitted, county by county, 1990 to 2024.', dataset: 'bps_county_permits', film_type: 'map', title: 'New homes permitted per 1,000 residents, by county', start: '1990', end: '2024' },
+    { id: 'health', label: 'Health', blurb: 'Adult obesity, state by state, 2011 to 2023.', dataset: 'state_obesity_fastfood', film_type: 'map', title: 'Adult obesity by state', start: '2011', end: '2023' },
+    { id: 'work', label: 'Work', blurb: 'Unemployment, state by state, 2019 to 2022.', dataset: 'bls_state_unemployment', film_type: 'line', title: 'State unemployment rate, 2019 to 2022', start: '2019-01', end: '2022-12' }
+  ];
+  const readyMade = catalog => READY_MADE.filter(r => (catalog || []).some(d => d.id === r.dataset));
   const FILE_NOTE = 'The contact sheet is a quick still check of the film. It is free; you decide what to do after you have seen it.';
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
@@ -96,6 +105,18 @@
           h('p', {}, `Licence: ${d.licence_short}.`), h('details', {}, h('summary', {}, 'Read the full licence'), h('p', {}, d.licence)));
       }
 
+      // One click to the Review: describe the dataset, set everything the start knows, and jump. A film type the dataset does not offer falls back to its first.
+      async function useStart(r, button) {
+        error.hidden = true; button.disabled = true;
+        try {
+          const d = (await data.builderDescribe(r.dataset)).dataset;
+          s.dataset = r.dataset; s.d = d; compiled = null; s.measure = '';
+          s.type = d.film_types.includes(r.film_type) ? r.film_type : d.film_types[0];
+          s.start = r.start; s.end = r.end; s.title = r.title; s.titleEdited = true; s.subtitle = '';
+          go(6);
+        } catch (err) { button.disabled = false; showError(error, err); }
+      }
+
       function stepDataset() {
         const filter = h('input', { id: 'bd-filter', type: 'search', autocomplete: 'off', placeholder: 'Search by topic or name', 'aria-label': 'Search datasets' });
         const list = h('div', { class: 'builder-list', role: 'radiogroup', 'aria-label': 'Datasets' });
@@ -119,7 +140,11 @@
         const nextBtn = h('button', { class: 'button primary', type: 'button', disabled: !s.d, onclick: () => go(1) }, 'Next');
         const sourceHolder = h('div', {}, sourceBox());
         drawList();
-        return [h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
+        const starts = readyMade(catalog);
+        const ready = starts.length ? h('section', { class: 'builder-ready', 'aria-labelledby': 'bd-ready-title' }, h('h2', { id: 'bd-ready-title', tabindex: '-1' }, 'Start from a ready-made film'),
+          h('p', { class: 'form-note' }, 'One click and you are at the last step. You can go back and change anything. The first picture is free.'),
+          h('div', { class: 'builder-list' }, starts.map(r => { const b = h('button', { type: 'button', class: 'builder-start', 'data-start': r.id }, h('strong', {}, r.label), h('span', { class: 'meta' }, r.blurb)); b.addEventListener('click', () => useStart(r, b)); return b; }))) : null;
+        return [ready, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
           filter, list, sourceHolder, h('div', { class: 'actions-row builder-nav' }, nextBtn)];
       }
 
@@ -245,5 +270,5 @@
     return { builderView };
   }
 
-  window.ryagramBuilder = { webLink, create, STEPS, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
+  window.ryagramBuilder = { webLink, create, STEPS, READY_MADE, readyMade, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
 })();

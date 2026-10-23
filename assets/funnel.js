@@ -90,7 +90,15 @@
     } catch { /* never in the way */ }
   }
 
-  window.ryagramFunnel = { landingView, signupStarted, signedIn, currentSource, clean, KEY };
+  // The film page's steps (NEXT-WEB 131): film_view -> remix_click -> preview_created. Same rules as every step here: off until funnelTracking, nothing stored, no identifier.
+  // The database accepts only the names it knows (SQL draft proposals/WEB-FUNNEL-REMIX-EVENTS.sql.draft); until that is applied it ignores these.
+  const FILM_EVENTS = ['film_view', 'remix_click', 'preview_created'];
+  function filmEvent(name) {
+    if (!enabled() || !FILM_EVENTS.includes(name)) return;
+    anon(name, stored() || currentSource());
+  }
+
+  window.ryagramFunnel = { landingView, signupStarted, signedIn, filmEvent, currentSource, clean, KEY };
   if (typeof document !== 'undefined' && document.readyState !== 'loading') landingView();
   else if (typeof document !== 'undefined') document.addEventListener('DOMContentLoaded', landingView);
 })();
