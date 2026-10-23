@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<!-- DRAFT: Connect your AI to Ryagram. Unlisted (noindex, linked from nowhere) until Ryan fills in the connector address and has run the live tests (CONNECT's guides: docs/connect-guides).
-     The address below is a PLACEHOLDER. Every step is from CONNECT's guides, which say which assistants are confirmed and which are not. -->
+<!-- Connect your AI to Ryagram. Unlisted (noindex) and linked from nowhere until Ryan links it. Every step is from CONNECT's guides (docs/connect-guides), which say which assistants are confirmed and which are not.
+     The connector address is the project's public connector function; it is an address, not a key. -->
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
 <meta name="referrer" content="strict-origin-when-cross-origin">
 <meta name="robots" content="noindex, nofollow">
-<title>Connect your AI (draft) | L'Ai</title>
+<title>Connect your AI | L'Ai</title>
 <link rel="canonical" href="https://uselai.com/connect-ai/">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,8 +19,7 @@
 </head>
 <body class="ryagram-look">
 <header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
-<main class="container help-main" id="main" data-connect-guide="draft">
-  <p class="shell-banner" role="note"><strong>DRAFT. Not published.</strong> The connector address below is a placeholder until Ryagram's connection is switched on. Nothing here works yet.</p>
+<main class="container help-main" id="main" data-connect-guide="ready">
   <h1>Connect your AI to Ryagram</h1>
   <p class="help-intro">If you use an AI assistant such as Claude or ChatGPT, you can let it work with your Ryagram account: ask it to start a project, save its story, make a contact sheet or a short preview, and check progress. You stay in charge, and you can disconnect it at any time.</p>
 
@@ -28,7 +27,7 @@
   <ul>
     <li>A Ryagram account that has been invited to try connections.</li>
     <li>An assistant that lets you add an outside tool by address. Not every plan of every assistant does (see below).</li>
-    <li>The Ryagram connector address: <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code> (a placeholder; the real address is added when connections open).</li>
+    <li>The Ryagram connector address: <code>https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code>.</li>
   </ul>
 
   <h2>What your AI can and cannot do</h2>
@@ -46,7 +45,7 @@
   <h3>Free, Pro or Max</h3>
   <ol>
     <li>Open Customize, then Connectors. Press + Add, then Add custom connector. (A Free plan can have one custom connector.)</li>
-    <li>Name it Ryagram. For the address, paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code>. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
+    <li>Name it Ryagram. For the address, paste <code>https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code>. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
     <li>Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
     <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
   </ol>
@@ -54,7 +53,7 @@
   <h3>Team or Enterprise</h3>
   <ol>
     <li>An Owner or Primary Owner opens Organization settings, then Connectors, and presses Add, then Custom, then Web. (On Enterprise, a person with a custom role that includes Manage access to Libraries can do this too.)</li>
-    <li>They name it Ryagram and paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code> as the address. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
+    <li>They name it Ryagram and paste <code>https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code> as the address. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically. Claude’s own first choice, “Use Claude’s published identity (Recommended)”, does not work with Ryagram yet.</li>
     <li>Each person then opens Customize, then Connectors, finds Ryagram, and presses Connect. Sign in to Ryagram, check the page says Claude, then press Allow.</li>
     <li>In a chat, turn the Ryagram connector on and try: "Using Ryagram, show my credits."</li>
   </ol>
@@ -62,14 +61,14 @@
 
   <h2>Claude Code</h2>
   <ol>
-    <li>In a terminal, run <code>claude mcp add --transport http ryagram CONNECTOR-ADDRESS-PENDING</code> (the placeholder address again).</li>
+    <li>In a terminal, run <code>claude mcp add --transport http ryagram https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code>.</li>
     <li>Inside Claude Code run <code>/mcp</code>, choose ryagram, and press Authenticate. A browser opens for the Ryagram sign-in.</li>
   </ol>
 
   <h2>ChatGPT</h2>
   <p>This works <strong>only on plans that allow custom MCP connectors</strong>. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan; use the Ryagram app directly.</p>
   <ol>
-    <li>In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste <code class="placeholder-url" data-placeholder="connector-address">https://CONNECTOR-ADDRESS-PENDING.example/mcp</code>, and choose OAuth for authentication.</li>
+    <li>In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste <code>https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp</code>, and choose OAuth for authentication.</li>
     <li>Accept the notice about custom servers, then Create and Connect. Sign in to Ryagram, check the address, and press Allow.</li>
     <li>ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.</li>
   </ol>
@@ -79,7 +78,7 @@
   <p>Google Gemini, Microsoft Copilot Studio, Grok, Perplexity and Mistral Le Chat can add an outside tool in some plans; step-by-step guides for them are coming. Some assistants, such as Meta AI, the DeepSeek app and the consumer Microsoft Copilot, cannot add an outside tool at all. The Ryagram app has its own built-in editor that works without any connection.</p>
 
   <h2>Disconnecting</h2>
-  <p>To stop an assistant, remove the Ryagram connector in that assistant's own settings. [DRAFT: Ryagram's own Disconnect button, under Account, arrives with connections.] A sign-in request lasts 30 minutes; if it runs out, start again from your assistant.</p>
+  <p>To stop an assistant, open Account in Ryagram, find it under Connected AIs and press Disconnect. It stops working with your account straight away. You can also remove the Ryagram connector in that assistant's own settings. A sign-in request lasts 30 minutes; if it runs out, start again from your assistant.</p>
 
   <p>Questions: see the <a href="/help/">help pages</a>.</p>
 </main>
