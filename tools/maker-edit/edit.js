@@ -25,7 +25,8 @@
     };
     return {
       name: 'maker',
-      async load() { return (await call('/api/edit')).edit; },
+      async load(mode) { return (await call('/api/edit' + (mode ? '?mode=' + encodeURIComponent(mode) : ''))).edit; },
+      async options(mode) { return call('/api/edit/options' + (mode ? '?mode=' + encodeURIComponent(mode) : '')); },
       async save(text) { return call('/api/edit', { edit: JSON.parse(text) }); },
       async proxy() { return call('/api/edit/proxy'); },
       async rebuildProxy(edit) { return call('/api/edit/proxy', { edit }); },
@@ -45,7 +46,7 @@
   let host = null;
   const loadScript = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => no(new Error('The practice cut could not be loaded.')); document.head.append(el); });
 
-  const S = { edit: null, undo: [], t: 0, playing: false, tab: 'clips', sel: null, proxy: { state: 'ready', url: null }, msg: '', dirty: false, rendering: false, savedAt: null, note: '' };
+  const S = { rows: [], groups: [], edit: null, undo: [], t: 0, playing: false, tab: 'clips', sel: null, proxy: { state: 'ready', url: null }, msg: '', dirty: false, rendering: false, savedAt: null, note: '' };
   const $ = id => document.getElementById(id);
   const mm = M.mmss;
 
@@ -148,8 +149,22 @@
   }
   const hexA = (hex, a) => { const c = [1, 3, 5].map(i => parseInt(hex.slice(i, i + 2), 16)); return `rgba(${c[0]},${c[1]},${c[2]},${a})`; };
 
+  function sampleCard() {                                                          // a data film's preview here: your look at a glance (the render draws the real thing)
+    const theme = S.edit.options.theme || 'dark';
+    const g = (id, fb) => { const row = S.rows.find(r => r.id === id), v = S.edit.options[id]; if (v !== undefined) return v; const d = row ? M.defaultFor(row, theme) : null; return d === null || d === undefined ? fb : d; };
+    const bg = g('page_background', theme === 'dark' ? '#14141a' : '#fcfcfb'), muted = g('text_muted', '#86857e'), low = g('ramp_low', '#2a6f5f'), high = g('ramp_high', '#ffd25e'), r = Number(g('dots_radius', 3.4));
+    const card = h('div', { class: 'sample', role: 'img', 'aria-label': `A sample of your look: a ${theme} page, a colour ramp and dots` });
+    card.style.background = bg; card.style.color = theme === 'dark' ? '#f2f2ef' : '#14141a';
+    const ramp = h('div', { class: 'ramp' }); ramp.style.background = `linear-gradient(90deg, ${low}, ${high})`;
+    const dots = h('div', { class: 'dots' });
+    for (let i = 0; i < 7; i++) { const d = h('span', {}); const s = Math.max(4, Math.round(r * 6)); d.style.width = d.style.height = s + 'px'; d.style.background = `color-mix(in srgb, ${low} ${100 - i * 16}%, ${high})`; dots.append(d); }
+    const src = h('p', {}, 'Source: the data you chose'); src.style.color = muted;
+    card.append(h('h3', {}, S.edit.options.name || 'Your film'), src, ramp, dots);
+    return card;
+  }
   function drawStage() {
     const e = S.edit, tl = M.timeline(e), box = $('stage'); box.replaceChildren();
+    if (!M.features(e.mode).clips) { box.append(sampleCard(), h('p', { class: 'note' }, 'This is your look at a glance. The finished film is drawn by the render.')); return; }
     const film = h('div', { class: 'film', role: 'img', 'aria-label': 'The film preview' });
     film.style.aspectRatio = `${e.film.width} / ${e.film.height}`;
     if (S.proxy.url) { const v = h('video', { src: S.proxy.url, preload: 'auto', muted: true, playsinline: true, 'aria-hidden': 'true' }); v.muted = true; film.append(v); }
@@ -184,9 +199,9 @@
   }
 
   // ---- the panels ----
-  const ALL_TABS = [['clips', 'Clips', 'clips'], ['extras', 'Images and text', null], ['look', 'Look', 'look']];
+  const ALL_TABS = [['clips', 'Clips', 'clips'], ['options', 'Options', 'options'], ['extras', 'Images and text', null], ['look', 'Look', 'look']];
   const feat = () => M.features(S.edit.mode);
-  const tabsNow = () => ALL_TABS.filter(t => !t[2] || feat()[t[2]]).map(t => [t[0], t[1]]);
+  const tabsNow = () => ALL_TABS.filter(t => t[0] === 'extras' ? (feat().slides || feat().rules || feat().captions || feat().text) : (!t[2] || feat()[t[2]])).map(t => [t[0], t[1]]);
   function drawPanels() {
     const TABS = tabsNow();
     if (!TABS.some(t => t[0] === S.tab)) S.tab = TABS[0][0];
@@ -197,7 +212,7 @@
       onkeydown: ev => { const TABS = tabsNow(), i = TABS.findIndex(t => t[0] === S.tab); if (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft') { ev.preventDefault(); S.tab = TABS[(i + (ev.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length][0]; drawPanels(); $('tab-' + S.tab).focus(); } } }, label)));
     p.append(list);
     const pane = h('div', { role: 'tabpanel', id: 'pane-' + S.tab, 'aria-labelledby': 'tab-' + S.tab });
-    ({ clips: paneClips, extras: paneExtras, look: paneLook })[S.tab](pane);
+    ({ clips: paneClips, options: paneOptions, extras: paneExtras, look: paneLook })[S.tab](pane);
     p.append(pane, h('p', { id: 'msg', class: 'msg', role: 'alert' }, S.msg));
     drawWarnings();
   }
@@ -297,6 +312,38 @@
     return h('div', {}, h('p', { id: 'sw-' + key }, label), h('div', { class: 'swatches', role: 'group', 'aria-labelledby': 'sw-' + key },
       M.PALETTE.map(c => { const b = h('button', { type: 'button', 'aria-label': `${label}: ${c}`, 'aria-pressed': String(current === c), 'data-key': `${key}-${c}`, onclick: () => pick(c) }); b.style.background = c; return b; })));
   }
+  // ---- the options of a data film: the shared list, wording and control type; the server schema stays the validator ----
+  function optionControl(row) {
+    const theme = S.edit.options.theme || 'dark', cur = S.edit.options[row.id], def = M.defaultFor(row, theme), key = 'opt-' + row.id;
+    const off = row.status !== 'built';
+    const set = v => apply(e => M.ops.setOption(e, S.rows, row.id, v), `${row.label} changed.`);
+    const shown = cur !== undefined ? cur : def;
+    if (row.control === 'choice') return h('select', { id: key, 'data-key': key, disabled: off, onchange: ev => set(ev.target.value) }, (row.choices || []).map(c => h('option', { value: c.value, selected: shown === c.value }, c.label)));
+    if (row.control === 'colour') return h('input', { id: key, 'data-key': key, type: 'color', value: typeof shown === 'string' && /^#[0-9a-fA-F]{6}$/.test(shown) ? shown : '#000000', disabled: off, onchange: ev => set(ev.target.value) });
+    if (row.control === 'toggle') return h('input', { id: key, 'data-key': key, type: 'checkbox', checked: shown === true, disabled: off, onchange: ev => set(ev.target.checked) });
+    if (row.control === 'text') return h('input', { id: key, 'data-key': key, type: 'text', maxlength: String((row.hard && row.hard.maxLength) || 200), value: shown === null || shown === undefined ? '' : String(shown), disabled: off, onchange: ev => set(ev.target.value) });
+    return h('input', { id: key, 'data-key': key, type: 'number', min: row.min !== undefined ? String(row.min) : null, max: row.max !== undefined ? String(row.max) : null, step: row.step !== undefined ? String(row.step) : 'any', value: shown === null || shown === undefined ? '' : String(shown), disabled: off,
+      onchange: ev => set(ev.target.value === '' ? null : Number(ev.target.value)) });
+  }
+  function optionRow(row) {
+    const cur = S.edit.options[row.id], off = row.status !== 'built';
+    return h('div', { class: 'opt', 'data-id': row.id }, h('label', { for: 'opt-' + row.id }, row.label), optionControl(row),
+      cur !== undefined ? h('button', { type: 'button', 'aria-label': `Put ${row.label} back to its default`, 'data-key': 'reset-' + row.id, onclick: () => apply(e => M.ops.setOption(e, S.rows, row.id, null), `${row.label} is back to its default.`) }, 'Back to the default') : null,
+      h('p', { class: 'note' }, off ? 'Coming later.' : row.help));
+  }
+  function paneOptions(pane) {
+    const usable = S.rows.filter(r => M.EDITABLE.includes(r.control)), n = Object.keys(S.edit.options).length;
+    pane.append(h('p', { class: 'note' }, n ? `${n} option${n === 1 ? '' : 's'} changed from the default.` : 'Everything is at its default. Change what you want to: the sample above follows.'));
+    for (const g of S.groups) {
+      const rows = usable.filter(r => r.group === g.id);
+      if (!rows.length) continue;
+      const main = rows.filter(r => !r.advanced), more = rows.filter(r => r.advanced);
+      pane.append(h('fieldset', {}, h('legend', {}, g.label), g.help ? h('p', { class: 'note' }, g.help) : null, h('div', { class: 'grid' }, main.map(optionRow)),
+        more.length ? h('details', {}, h('summary', {}, 'More options'), h('div', { class: 'grid' }, more.map(optionRow))) : null));
+    }
+    if (n) pane.append(h('div', { class: 'row' }, h('button', { type: 'button', 'data-key': 'reset-all', onclick: () => apply(e => M.ops.resetOptions(e), 'All options are back to their defaults.') }, 'Put everything back to the defaults')));
+  }
+
   function paneLook(pane) {
     const l = S.edit.look;
     pane.append(h('fieldset', {}, h('legend', {}, 'Theme'), h('div', { class: 'row' },
@@ -329,23 +376,35 @@
 
   function redraw() { S.pre = { tl: M.timeline(S.edit), specs: M.specs(S.edit) }; drawStage(); drawStrip(); redrawPanelsKeepFocus(); drawStatus(); setT(S.t); }
 
+  // open the film of a mode (the host says which list it is: the saved one, or a new one)
+  async function openMode(mode) {
+    const raw = await host.load(mode), probe = M.normalize(raw);
+    S.rows = []; S.groups = [];
+    if (M.features(probe.mode).options) { const o = await host.options(probe.mode); S.rows = o.rows; S.groups = o.groups; }
+    S.edit = M.normalize(raw, { rows: S.rows }); S.undo = []; S.dirty = false; S.t = 0; S.sel = S.edit.clips[0] ? S.edit.clips[0].id : null;
+    S.tab = tabsNow()[0][0];
+    S.proxy = M.features(S.edit.mode).clips ? await host.proxy().catch(() => ({ state: 'failed', url: null })) : { state: 'ready', url: null };
+  }
+  async function switchMode(mode) {
+    if (S.dirty) { err('Save your edit first, then switch the kind of film.'); $('mode').value = S.edit.mode; return; }
+    try { err(''); await openMode(mode); redraw(); say(`Now editing a ${M.FILM_MODES[S.edit.mode].label.toLowerCase()}.`); } catch (e) { err(e.message); $('mode').value = S.edit.mode; }
+  }
+
   async function start() {
     try {
-      if (new URLSearchParams(location.search).has('fixture')) { await loadScript('fixture.js'); host = window.ryagramEditFixtureHost; } else host = apiHost();
+      if (new URLSearchParams(location.search).has('fixture')) { await loadScript('fixture.js'); await loadScript('options-sample.js'); host = window.ryagramEditFixtureHost; } else host = apiHost();
       host.onImage = () => { if (S.edit) drawFrame(); };
-      const raw = await host.load();
-      S.edit = M.normalize(raw); S.sel = S.edit.clips[0].id;
-      try { S.proxy = await host.proxy(); } catch (e) { S.proxy = { state: 'failed', url: null }; }
+      await openMode(undefined);
       document.title = 'Edit your film';
       const top = $('top');
-      top.append(h('h1', {}, 'Edit your film'), h('div', { class: 'row' }, h('span', { id: 'mode', class: 'status' }, M.FILM_MODES[S.edit.mode].label), h('span', { id: 'status', class: 'status', role: 'status' }),
+      top.append(h('h1', {}, 'Edit your film'), h('div', { class: 'row' }, h('select', { id: 'mode', 'aria-label': 'Kind of film', onchange: ev => switchMode(ev.target.value) }, Object.keys(M.FILM_MODES).filter(k => M.FILM_MODES[k].available).map(k => h('option', { value: k, selected: S.edit.mode === k }, M.FILM_MODES[k].label))), h('span', { id: 'status', class: 'status', role: 'status' }),
         h('button', { id: 'undo', type: 'button', onclick: () => { if (!S.undo.length) return; S.edit = S.undo.pop(); S.dirty = true; refreshProxy(); redraw(); say('Undone.'); } }, 'Undo'),
         h('button', { id: 'back', type: 'button', onclick: () => { if (!host.back()) say('This is the practice cut: there is no plan to go back to.'); } }, 'Back to Plan'),
         h('button', { id: 'save', type: 'button', onclick: save }, 'Save my edit'),
         h('button', { id: 'render', type: 'button', class: 'primary', onclick: render }, 'Render')));
       redraw();
       if (S.proxy.state === 'failed') err('The preview video could not be built, but you can still edit.');
-      window.ryagramEdit = { get edit() { return S.edit; }, get state() { return S; }, model: M, host, setT, frame: t => M.frameAt(S.edit, t, S.pre), saveText: () => M.stringify(S.edit) };
+      window.ryagramEdit = { get rows() { return S.rows; }, get edit() { return S.edit; }, get state() { return S; }, model: M, host, setT, frame: t => M.frameAt(S.edit, t, S.pre), saveText: () => M.stringify(S.edit) };
       document.documentElement.setAttribute('data-ready', '1');
     } catch (e) {
       $('top').append(h('p', { class: 'msg', role: 'alert' }, e instanceof M.EditError ? e.message : 'The edit page could not open: ' + e.message));

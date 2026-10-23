@@ -31,10 +31,34 @@
   // ONE shared editing workspace for every kind of film (Claude 13:12): what the page offers is switched on and off by the film's mode.
   // Only the compilation mode exists today; the data-film mode is declared so the page is built to that shape, and is refused until it is built.
   const FILM_MODES = {
-    compilation: { label: 'Compilation', available: true, features: { clips: true, slides: true, rules: true, captions: true, text: true, look: true } },
-    data: { label: 'Data film', available: false, features: { clips: false, slides: false, rules: false, captions: false, text: true, look: true } },
+    compilation: { label: 'Compilation', available: true, features: { clips: true, slides: true, rules: true, captions: true, text: true, look: true, options: false } },
+    data: { label: 'Data film', available: true, features: { clips: false, slides: false, rules: false, captions: false, text: false, look: false, options: true } },
   };
   const features = mode => (FILM_MODES[mode] || FILM_MODES.compilation).features;
+  // ---- the film's OPTIONS (proposals/options.draft.json, one list for the app, the AI editor and the connector): wording and control type only; the server schema stays the validator ----
+  const EDITABLE = ['choice', 'colour', 'number', 'slider', 'toggle', 'text'];
+  const isHex6 = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
+  // one value against one row of the list: returns the value to keep (null = back to the default) or says why not, in plain words
+  function validateOption(row, value) {
+    if (!row || typeof row !== 'object') fail('That option is not in the list.');
+    if (row.status !== 'built') fail(`${row.label} is coming later and cannot be changed yet.`);
+    if (!EDITABLE.includes(row.control)) fail(`${row.label} is set by the film itself.`);
+    if (value === null || value === '') return null;
+    const lo = row.min !== undefined ? row.min : row.hard && row.hard.minimum, hi = row.max !== undefined ? row.max : row.hard && row.hard.maximum;
+    switch (row.control) {
+      case 'toggle': if (typeof value !== 'boolean') fail(`${row.label} is on or off.`); return value;
+      case 'choice': { const ok = (row.choices || []).map(c => c.value); if (!ok.includes(value)) fail(`Choose one of the listed values for ${row.label}.`); return value; }
+      case 'colour': if (!isHex6(value)) fail(`${row.label} is a colour like #14141a.`); return value.toLowerCase();
+      case 'text': { const max = (row.hard && row.hard.maxLength) || 200; if (typeof value !== 'string' || value.length > max) fail(`${row.label} is text of at most ${max} characters.`); return value.trim(); }
+      default: {                                                                      // number, slider
+        if (typeof value !== 'number' || !isFinite(value)) fail(`${row.label} is a number.`);
+        if (lo !== undefined && value < lo) fail(`${row.label} is at least ${lo}.`);
+        if (hi !== undefined && value > hi) fail(`${row.label} is at most ${hi}.`);
+        return value;
+      }
+    }
+  }
+  const defaultFor = (row, theme) => { const d = row.default; return d && typeof d === 'object' && !Array.isArray(d) ? (d[theme] !== undefined ? d[theme] : d.dark) : d; };
   class EditError extends Error { }
   const fail = m => { throw new EditError(m); };
 
@@ -58,7 +82,7 @@
   }
 
   // ---- normalize: one validated, canonical copy (so the same edit always saves to the same text) ----
-  function normalize(src) {
+  function normalize(src, ctx) {
     if (!isObj(src)) fail('That is not an edit list.');
     if (src.schema !== SCHEMA) fail('This edit list is from a different version of the maker.');
     const film = isObj(src.film) ? src.film : {};
@@ -67,10 +91,12 @@
     const mode = src.mode === undefined ? 'compilation' : src.mode;
     if (!FILM_MODES[mode]) fail('The editor does not know this kind of film.');
     if (!FILM_MODES[mode].available) fail(`Editing a ${FILM_MODES[mode].label.toLowerCase()} here is not built yet.`);
-    const out = { schema: SCHEMA, mode, film: { width: fw, height: fh, fps: ff }, seq: 0, clips: [], images: [], rules: [], texts: [], captions: null, look: null, music: null };
+    const out = { schema: SCHEMA, mode, film: { width: fw, height: fh, fps: ff }, seq: 0, clips: [], images: [], rules: [], texts: [], captions: null, look: null, options: {}, music: null };
     out.seq = Number.isInteger(src.seq) && src.seq >= 0 ? src.seq : 0;
 
-    if (!Array.isArray(src.clips) || src.clips.length < 1) fail('The film has no clips.');
+    if (!Array.isArray(src.clips)) fail('The film has no clips.');
+    if (features(mode).clips && src.clips.length < 1) fail('The film has no clips.');
+    if (!features(mode).clips && src.clips.length) fail('This kind of film has no clips.');
     if (src.clips.length > 500) fail('That is more clips than the maker can edit at once (500).');
     const seen = new Set();
     src.clips.forEach((c, i) => {
@@ -164,6 +190,18 @@
     if (typeof look.box_opacity !== 'number' || !(look.box_opacity >= 0 && look.box_opacity <= 1)) fail('The caption box is between 0 and 1.');
     look.text_color = look.text_color.toLowerCase(); look.box_color = look.box_color.toLowerCase(); look.letterbox = look.letterbox.toLowerCase(); look.box_opacity = round(look.box_opacity, 2);
     out.look = look;
+    const opts = src.options === undefined || src.options === null ? {} : src.options;
+    if (!isObj(opts)) fail('The options are not valid.');
+    const keys = Object.keys(opts).sort();
+    if (keys.length > 300) fail('That is more options than a film has.');
+    if (keys.length && !features(mode).options) fail('Options belong to data films.');
+    for (const k of keys) {
+      if (!/^[A-Za-z0-9_.-]{1,60}$/.test(k)) fail('An option has a name the maker does not know.');
+      const v = opts[k];
+      if (!(v === null || ['string', 'number', 'boolean'].includes(typeof v)) || (typeof v === 'number' && !isFinite(v)) || (typeof v === 'string' && v.length > 200)) fail(`The value of ${k} is not valid.`);
+      if (ctx && ctx.rows) { const row = ctx.rows.find(r => r.id === k); if (!row) fail(`${k} is not an option of this kind of film.`); const kept = validateOption(row, v); if (kept !== null) out.options[k] = kept; }
+      else if (v !== null) out.options[k] = v;
+    }
     if (src.music !== undefined && src.music !== null) fail('Music is not in this version of the maker yet.');
     return out;
   }
@@ -354,6 +392,14 @@
       return normalize(e);
     },
     removeText(edit, id) { const e = clone(edit); if (!e.texts.some(t => t.id === id)) fail('That text is not in the film.'); e.texts = e.texts.filter(t => t.id !== id); return normalize(e); },
+    setOption(edit, rows, id, value) {
+      need(edit, 'options', 'options');
+      const row = rows.find(r => r.id === id);
+      const kept = validateOption(row, value), e = clone(edit);
+      if (kept === null) delete e.options[id]; else e.options[id] = kept;
+      return normalize(e, { rows });
+    },
+    resetOptions(edit) { need(edit, 'options', 'options'); const e = clone(edit); e.options = {}; return normalize(e); },
     setCaptions(edit, patch) { need(edit, 'captions', 'captions'); const e = clone(edit); Object.assign(e.captions, patch); return normalize(e); },
     setLook(edit, patch) {
       const e = clone(edit);
@@ -367,5 +413,5 @@
   const stringify = edit => JSON.stringify(normalize(edit), null, 2) + '\n';
   const parse = text => { let v; try { v = JSON.parse(text); } catch (e) { fail('That file is not an edit list.'); } return normalize(v); };
 
-  return { SCHEMA, FILM_MODES, features, MIN_CLIP_S, MODES, SIZES, THEMES, PALETTE, TEXT_POSITIONS, GEOMETRY, CAPTION_BOX, EditError, normalize, timeline, occurrences, specs, frameAt, warnings, ops, stringify, parse, contrast, mixOver, words, mmss };
+  return { SCHEMA, FILM_MODES, features, validateOption, defaultFor, EDITABLE, MIN_CLIP_S, MODES, SIZES, THEMES, PALETTE, TEXT_POSITIONS, GEOMETRY, CAPTION_BOX, EditError, normalize, timeline, occurrences, specs, frameAt, warnings, ops, stringify, parse, contrast, mixOver, words, mmss };
 }));
