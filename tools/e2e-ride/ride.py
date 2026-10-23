@@ -232,15 +232,12 @@ def maker_up():
     CTX["tmp"] = tmp
     eng = tmp / "engine"
     shutil.copytree(ENGINE / "ryagram", eng / "ryagram", ignore=shutil.ignore_patterns("__pycache__"))
-    try:
-        import yaml                                                                            # noqa: F401
-    except ImportError:                                                                        # this test python has no PyYAML (the portable app's Python ships it): lend the engine the harness's shim
-        for d in os.environ.get("PYTHONPATH", "").split(os.pathsep):
-            if d and (Path(d) / "yaml").is_dir():
-                shutil.copytree(Path(d) / "yaml", eng / "yaml")
-                if (Path(d) / "_yaml").is_dir():
-                    shutil.copytree(Path(d) / "_yaml", eng / "_yaml")
-                break
+    for d in os.environ.get("PYTHONPATH", "").split(os.pathsep):                               # this test python has no PyYAML (the portable app's Python ships it) and the maker starts the engine with
+        if d and (Path(d) / "yaml").is_dir():                                                  # PYTHONPATH = the engine folder only: lend the engine folder the harness's shim
+            shutil.copytree(Path(d) / "yaml", eng / "yaml")
+            if (Path(d) / "_yaml").is_dir():
+                shutil.copytree(Path(d) / "_yaml", eng / "_yaml")
+            break
     media = tmp / "My Videos"                                                                      # the person's own folder, with a sub-folder
     for n, w in TABLES.items():
         make_mp4(media / n, w)
