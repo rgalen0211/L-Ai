@@ -169,3 +169,12 @@ test('FIRST FILM (NEXT-WEB 132): with no projects the guided builder is the main
   assert.match(lib, /id: 'first-film', href: '#\/build' \}, 'Make your first film'/);
   assert.match(lib, /builderOn\(\) \? 'No projects yet\. The quickest way to start is above/);
 });
+
+test('BUY STRIP (NEXT-WEB 132 G5): after the free first picture the Render panel says what the full film uses and what the person has, in credits and never a price; it is hidden once a final film exists', () => {
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /That first picture was free\./);
+  assert.match(lib, /The full film uses \$\{C\.plural\(q\.credits\)\}; you have \$\{C\.plural\(Math\.max\(0, q\.available \|\| 0\)\)\}\./);
+  assert.match(lib, /!jobs\.some\(j => j\.job_type === 'final_render'\)/, 'gone once a final film is ordered');
+  const strip = lib.slice(lib.indexOf("nextStrip.replaceChildren"), lib.indexOf("} else nextStrip.hidden = true;"));
+  assert.ok(!/priceLabel|money\(|cents|\$\{?\s*price/i.test(strip), 'no money in the strip');
+});

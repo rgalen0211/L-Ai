@@ -36,6 +36,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 .rg-hero-film figcaption{font-size:.88rem;color:var(--muted)}
 .rg-hero-film figcaption a{font-weight:700}
 .rg-hero-cta .rg-btn{width:100%}
+.rg-hero-signin{display:flex;align-items:center;justify-content:center;min-height:44px;margin-top:6px;color:var(--text);font-weight:600}
 .rg-hero-copy{display:grid;gap:14px;justify-items:start}
 .rg-lead{font-size:1.15rem;color:var(--muted);max-width:34ch}
 .rg-phone{margin:0;display:grid;gap:10px;justify-items:center}

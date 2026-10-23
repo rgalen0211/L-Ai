@@ -113,7 +113,7 @@
           page.sample && page.preview_url && /^\/(?!\/)[a-z0-9\/_-]*$/.test(page.preview_url) ? [' · ', h('a', { href: page.preview_url }, 'Drag through the film')] : null)),
       h('div', { class: 'film-cta' },
         h('div', {}, h('p', {}, 'Have a question? Ryagram makes the data answer it.'),
-          h('p', { class: 'film-meta' }, 'Ryagram is opening by invitation. Join the waitlist and we will tell you when it is your turn.')),
+          h('p', { class: 'film-meta' }, 'Ryagram is opening by invitation. Join the waitlist and we will tell you when it is your turn. Already have an invite? ', h('a', { href: '/app/' }, 'Sign in'), '.')),
         h('a', { class: 'button primary', href: cta }, 'Make your own data film')),
       sourcesSection(s),
       receipt(page)].filter(Boolean));

@@ -1492,6 +1492,8 @@
       const previewButton = h('button', { class: 'button secondary', type: 'button' }, 'Make preview');
       const finalButton = h('button', { class: 'button primary', type: 'button' }, 'Render final film');
       const finalNote = h('p', { class: 'form-note' });
+      // What comes after the free first picture, in credits only, never money (NEXT-WEB 132 G5)
+      const nextStrip = h('p', { class: 'next-strip', 'aria-live': 'polite', hidden: true });
       // (outside the run controls on purpose: a finished render makes the version "complete", which hides the controls, and "Open your film" must stay reachable then)
       const orderBox = h('div', { class: 'order-box', 'aria-live': 'polite' });
       let openOrders = false;                                        // an order waiting or running keeps the page polling
@@ -1586,6 +1588,15 @@
         previewButton.disabled = busyType('preview');
         if (previewButton.disabled) why.preview = 'A preview is already being made.';
         const ladder = J.ladder(jobs, storySha, engine);
+        {
+          const q = quotes.final_render;
+          const anySheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === storySha);
+          if (creditsOn() && anySheet && !jobs.some(j => j.job_type === 'final_render') && q && !q.error && typeof q.credits === 'number') {
+            nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' ', ladder.preview ? 'You have a preview too, so the full film is next.' : 'Next make a short preview, then the full film.',
+              ` The full film uses ${C.plural(q.credits)}; you have ${C.plural(Math.max(0, q.available || 0))}.`, ...(paymentsOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
+            nextStrip.hidden = false;
+          } else nextStrip.hidden = true;
+        }
         finalButton.disabled = !ladder.ready || busyType('final_render');
         if (!ladder.ready) why.final = ladder.missing || 'Make a contact sheet and a preview of this story first.';
         else if (busyType('final_render')) why.final = 'A full render is already being made.';
@@ -1744,7 +1755,7 @@
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
         h('p', { class: 'form-note' }, 'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'),
-        controls, orderBox, balanceNote, lockedNote, error, listEl);
+        nextStrip, controls, orderBox, balanceNote, lockedNote, error, listEl);
 
       return {
         el,

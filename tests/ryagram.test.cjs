@@ -421,7 +421,7 @@ test('the Compilation Maker section is an illustration with public-domain words,
 test('LANDING: how it works is three steps of what the beta really does, one checks line (no strip), and the private-beta line with both ways in', () => {
   const how = pageHtml.match(/<section id="how"[\s\S]*?<\/section>/)[0];
   assert.deepEqual([...how.matchAll(/<h3>([^<]*)<\/h3>/g)].map(m => m[1]), ['Ask', 'We draw it', 'You get it, checked']);
-  assert.match(how, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">apply now<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\.<\/p>/);
+  assert.match(how, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">apply now<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\. Already have an invite\? <a href="\/app\/">Sign in<\/a>\.<\/p>/);
   assert.doesNotMatch(pageHtml, /\[RELEASE DATE\]/);
   const checks = [...pageHtml.matchAll(/<p class="rg-checks">([^<]*)<\/p>/g)];
   assert.equal(checks.length, 1);                                              // ONE line
