@@ -60,7 +60,7 @@ def main():
                 p.click('a:has-text("Make a film step by step")')
                 p.wait_for_selector('h2:has-text("Which data?")', timeout=15000)
                 check(p.locator('.builder-steps li').count() == 7, 'seven steps are shown')
-                check(p.locator('.builder-card').count() == 3 and 'Source: ' in p.inner_text('.builder-list') and 'Licence: ' in p.inner_text('.builder-list'), 'every dataset shows its source and licence in the list')
+                check(p.locator('.builder-card').count() == 3 and 'Source: ' in p.inner_text('[aria-label="Datasets"]') and 'Licence: ' in p.inner_text('[aria-label="Datasets"]'), 'every dataset shows its source and licence in the list')
                 p.fill('#bd-filter', 'health')
                 check(p.locator('.builder-card').count() == 1, 'the search narrows the list')
                 check(p.locator('.builder-source').count() == 0, 'no source box before a choice')
