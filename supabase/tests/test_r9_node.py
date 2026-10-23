@@ -669,5 +669,50 @@ class Rollback(R9):
         self.assertNotEqual(self.defs(me, "public.claim_next_job()"), self.defs("tmplr9base", "public.claim_next_job()"))
 
 
+class StaleQueue(R9):
+    """CC1 2026-10-23 11:51, for proposals HELP-PAGE-WORDING-PROPOSED.md section 2: does the 60-minute queue timeout
+    (ryagram_private.expire_stale_queue, ops_readiness) also stop a job that is waiting for a TESTER'S OWN computer?
+    ANSWER, as the code stands: it looks only at the HOUSE worker's check-ins and never at run_on. So a tester's waiting
+    job is failed ONLY during a house outage of the whole timeout; while the house is healthy it waits however long."""
+
+    def waiting_local(self, hours):
+        self.make_tester()
+        job = self.submit(SAM, self.version(SAM), "contact_sheet")
+        self.assertEqual(self.admin("select run_on::text from jobs where id = %s", job), "owner_local")
+        self.admin("update jobs set created_at = now() - make_interval(hours => %s) where id = %s returning 1", hours, job)
+        return job
+
+    def house_seen(self, ago):
+        self.admin("update workers set last_seen_at = now() - %s::interval where name = 'ryan-pc' returning 1", ago)
+
+    def test_yes_an_hour_long_house_outage_also_fails_a_job_waiting_for_a_testers_own_computer(self):
+        job = self.waiting_local(2)
+        self.house_seen("2 hours")
+        self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 1)
+        self.assertEqual(self.admin("select state::text, error_code, error_class::text from jobs where id = %s", job),
+                         ("failed", "queue_timeout", "infrastructure"))
+        # the person is told about credits, though a job on their own computer never held any
+        self.assertEqual(self.admin("select error_detail from jobs where id = %s", job),
+                         "Rendering was delayed, so this film could not start. Your credits were returned.")
+
+    def test_no_while_the_house_is_healthy_a_testers_job_waits_however_long(self):
+        job = self.waiting_local(5)
+        self.house_seen("1 minute")
+        self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", job), "queued")
+
+    def test_no_a_house_outage_shorter_than_the_timeout_never_touches_it(self):
+        job = self.waiting_local(2)
+        self.house_seen("10 minutes")
+        self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", job), "queued")
+
+    def test_no_a_house_that_never_checked_in_never_expires_it(self):
+        job = self.waiting_local(2)
+        self.assertEqual(self.admin("select count(*) from workers where last_seen_at is not null"), 0)
+        self.assertEqual(self.admin("select ryagram_private.expire_stale_queue()"), 0)
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", job), "queued")
+
+
 if __name__ == "__main__":
     unittest.main()
