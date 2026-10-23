@@ -23,6 +23,7 @@ import threading
 import time
 import urllib.error
 import urllib.request
+import uuid
 import wave
 from pathlib import Path
 from types import SimpleNamespace
@@ -139,6 +140,9 @@ def site_up():
         c.execute((e.core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
         for p in e.schema_files(e.core):
             c.execute(p.read_text(encoding="utf-8"))
+        c.execute((APP_REPO / "supabase" / "phase-2b" / "stripe_test_mode.sql").read_text(encoding="utf-8"))          # where stripe_subscriptions lives
+        c.execute("alter default privileges in schema public grant all on tables to anon, authenticated, service_role")      # as on Supabase, so a missing REVOKE would show
+        c.execute((APP_REPO / "supabase" / "connect-drafts" / "compilation_delivery_draft.sql").read_text(encoding="utf-8"))        # the PAPER draft, applied to the throwaway database only
         c.execute("insert into auth.users (id, email) values (%s,'worker@x'),(%s,'sam@example.test'),(%s,'admin@x')", (e.WORKER, e.SAM, e.ADMIN))
         c.execute("insert into public.workers (user_id, name) values (%s, 'house-pc')", (e.WORKER,))
         c.execute("insert into public.app_admins (user_id) values (%s)", (e.ADMIN,))
@@ -159,8 +163,8 @@ def site_up():
     s.close()
     e.State.deno_port = dport
     env = dict(os.environ, PORT=str(dport), BRIDGE_URL=f"http://127.0.0.1:{gport}/__bridge/q", SUPABASE_URL=f"http://127.0.0.1:{gport}", NODE_UPLOAD_KEY=e.KEY,
-               NODE_APPROVAL_URL=f"http://127.0.0.1:{gport}/app", NODE_SALT="ride-salt", FN_ROOT=(APP_REPO / "supabase" / "functions").as_uri())
-    deno = subprocess.Popen(["deno", "run", "--no-lock", "--allow-net=127.0.0.1", "--allow-env=PORT,BRIDGE_URL,SUPABASE_URL,NODE_UPLOAD_KEY,NODE_APPROVAL_URL,NODE_SALT,FN_ROOT", f"--allow-read={APP_REPO}",
+               NODE_APPROVAL_URL=f"http://127.0.0.1:{gport}/app", NODE_SALT="ride-salt", NODE_COMPILATION_LINKS="1", FN_ROOT=(APP_REPO / "supabase" / "functions").as_uri())
+    deno = subprocess.Popen(["deno", "run", "--no-lock", "--allow-net=127.0.0.1", "--allow-env=PORT,BRIDGE_URL,SUPABASE_URL,NODE_UPLOAD_KEY,NODE_APPROVAL_URL,NODE_SALT,FN_ROOT,NODE_COMPILATION_LINKS", f"--allow-read={APP_REPO}",
                              str(e.HARNESS / "serve.ts")], env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     CTX["deno"] = deno
     if "LISTENING" not in deno.stdout.readline():
@@ -174,7 +178,9 @@ def s1_sign_in():
     e = e2e
     site_up()
     admin = e.core.Db(CTX["uri"])
-    admin.as_(e.ADMIN).one("select admin_set_local_compute(%s, true, 'ride')", e.SAM)
+    admin.as_(e.ADMIN).one("select admin_set_local_compute(%s, true, 'ride')", e.SAM)           # the node loop's own tester flag (data films); the private link does NOT use it
+    e.State.admin_conn.execute("insert into public.stripe_subscriptions (subscription_id, owner_id, price_code, status, current_period_end, event_created) values ('sub_ridesam', %s, 'sub_creator', 'active', now() + interval '20 days', now())", (e.SAM,))
+    e.State.admin_conn.execute("update public.ops_settings set compilation_links_on = true")
     store = e.si.MemoryStore()
     app = e.si.SignIn(CTX["site"], store, CTX["appfolder"], computer_name="Sam-PC", log=lambda _m: None)
     st = app.begin()
@@ -407,21 +413,52 @@ def s10_stays_local():
     return f"the finished film sits in the films folder on the PC ({film.name}); the site holds no job, no artifact, no order, no delivery for it and received no file"
 
 
-@step(11, "the person asks for a private link to it and gets one (kept 30 days, private, only they can open it)")
+@step(11, "the subscriber asks for a private link to the film and gets one (kept 30 days, private, only they can open it)")
 def s11_private_link():
-    router = (APP_REPO / "supabase" / "functions" / "node-core" / "router.ts").read_text(encoding="utf-8")
-    draft = APP_REPO / "supabase" / "connect-drafts" / "compilation_delivery_draft.sql"
-    sql_state = "the SQL is drafted and proven by tools/e2e-ride/delivery_sql_check.py on a throwaway database" if draft.is_file() else "there is no SQL either"
-    missing = []
-    if "/node/compilation" not in router:
-        missing.append("the edge function routes /node/compilation/start, /finish and /cancel")
-    if "compilation" not in (APP_REPO / "tools" / "ryagram_node.py").read_text(encoding="utf-8"):
-        missing.append("the app's button and upload")
-    if "compilation_object_for" not in (APP_REPO / "supabase" / "functions" / "get-delivery-url" / "index.ts").read_text(encoding="utf-8"):
-        missing.append("get-delivery-url trying the compilation link")
-    if missing:
-        raise Fail("not built yet: " + "; ".join(missing) + f". ({sql_state}.) Paper: proposals\\CONNECT-COMPILATION-DELIVERY-PAPER.md; it needs CC1's review of the SQL and Ryan's yes to hosting a tester's finished film at all.")
-    return "the whole path exists"
+    e = e2e
+    film = CTX.get("film")
+    if film is None:
+        raise Fail("step 9 built no film")
+    app = CTX.get("app")
+    if app is None:
+        raise Fail("step 1 did not run, so this computer is not signed in")
+    sys.path.insert(0, str(APP_REPO / "tools"))
+    import ryagram_links as RL
+    folder = CTX["appfolder"]
+    links = RL.PrivateLinks(app, folder, films_dir=CTX["tmp"] / "films")                    # the REAL uploader: host-checked, no account header, no redirects
+    if links.status(film.name)["on"]:
+        raise Fail("the private link is ON before anyone switched it on (it must be off unless the flag file says on)")
+    (folder / RL.SWITCH_NAME).write_text('{"on": true}', encoding="utf-8")
+    st = links.status(film.name)
+    if not st["allowed"] or st["plan"] != "sub_creator":
+        raise Fail("the app's launch check does not allow it for a subscriber: " + str(st.get("reason")))
+    e.State.admin_conn.execute("update public.ops_settings set compilation_links_on = false")
+    locked = links.status(film.name)
+    e.State.admin_conn.execute("update public.ops_settings set compilation_links_on = true")
+    if locked["allowed"]:
+        raise Fail("with the site's own switch off the button was still offered")
+    entry = links.upload(film.name, "Great news", True)
+    row = e.State.admin_conn.execute("select state, bytes, rights_ticked, label, visibility, extract(day from expires_at - now())::int, storage_path from public.compilation_deliveries where id = %s", (entry["id"],)).fetchone()
+    if row is None or row[0] != "ready" or row[1] != film.stat().st_size or row[2] is not True or row[3] != "Made on your computer" or row[4] != "private" or row[5] not in (29, 30):
+        raise Fail(f"the site's row is not as promised: {row}")
+    stored = e.State.objects.get(row[6])
+    if stored != film.read_bytes():
+        raise Fail("the file in Storage is not the film, byte for byte")
+    if e.core.Db(CTX["uri"]).as_("service").one("select public.compilation_object_for(%s,%s)", e.SAM, entry["id"]) != row[6]:
+        raise Fail("the link function does not give the owner the film's object")
+    try:
+        e.core.Db(CTX["uri"]).as_("service").one("select public.compilation_object_for(%s,%s)", str(uuid.uuid4()), entry["id"])
+        raise Fail("ANOTHER person was given the film's object")
+    except Fail:
+        raise
+    except Exception:                                                                       # noqa: BLE001  (the database refused, as it must)
+        pass
+    if e.State.admin_conn.execute("select to_regclass('public.credit_ledger')").fetchone()[0] and e.State.admin_conn.execute("select count(*) from public.credit_ledger").fetchone()[0]:
+        raise Fail("a credit was touched")
+    CTX["link"] = entry
+    return (f"the subscriber (plan sub_creator, no tester flag involved) was offered the button, pressed it with the rights tick, and the {film.stat().st_size} byte film is in Storage at {row[6].split('/')[1]}/..., "
+            f"private, labelled '{row[3]}', kept {row[5]} more days; the site opens it only for the owner; no credit was touched. (The website's My films list and the deployed get-delivery-url are not part of this run: "
+            "the latter is proven by tests/get-delivery-url-compilation.test.mjs.)")
 
 
 STEPS = [s1_sign_in, s2_connector, s3_ai_asks, s4_folder, s5_plan, s6_song, s7_workspace, s8_preview, s9_build, s10_stays_local, s11_private_link]

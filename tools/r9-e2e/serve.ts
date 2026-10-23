@@ -16,11 +16,14 @@ const db = new NodeSql(async (text: string, params: unknown[]) => {
 });
 const storage = makeStorage(Deno.env.get("SUPABASE_URL")!, Deno.env.get("NODE_UPLOAD_KEY")!, "ryagram-artifacts");
 const approvalBase = Deno.env.get("NODE_APPROVAL_URL")!, salt = Deno.env.get("NODE_SALT")!;
+// NEXT-CONNECT 120: the private-link routes exist only when the harness says so (the r9 run does not, and is not even allowed to read the setting)
+let compilationLinksOn = false;
+try { compilationLinksOn = Deno.env.get("NODE_COMPILATION_LINKS") === "1"; } catch { /* not allowed to read it: off */ }
 
 Deno.serve({ port: Number(Deno.env.get("PORT")), hostname: "127.0.0.1", onListen: () => console.log("LISTENING") }, async (req: Request) => {
   try {
     const m = /^.*?\/node(\/.*)?$/.exec(new URL(req.url).pathname);
-    return await handleNode(req, m ? (m[1] ?? "/") : "/", { db, storage, approvalBase, salt, maxFileBytes: 200_000_000 });
+    return await handleNode(req, m ? (m[1] ?? "/") : "/", { db, storage, approvalBase, salt, maxFileBytes: 200_000_000, compilationLinksOn, maxCompilationBytes: 1_000_000_000 });
   } catch {
     return new Response(JSON.stringify({ error: "server_error" }), { status: 500, headers: { "Content-Type": "application/json" } });
   }
