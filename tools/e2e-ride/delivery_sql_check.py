@@ -45,7 +45,7 @@ def main():
         ids = {n: str(uuid.UUID(int=i)) for n, i in (("sam", 301), ("bob", 302), ("pro", 303), ("lapsed", 304), ("grace", 305), ("stale", 306), ("other", 307), ("off", 308), ("past", 309))}
         draft = Path(os.environ.get("DELIVERY_DRAFT") or (e.APP_REPO / "supabase" / "connect-drafts" / "compilation_delivery_draft.sql"))      # DELIVERY_DRAFT: the broken-on-purpose copies of mutants_delivery.py
         stripe = e.APP_REPO / "supabase" / "phase-2b" / "stripe_test_mode.sql"
-        hashes = {n: (chr(ord("a") + i) * 64) for i, n in enumerate(ids)}
+        hashes = {n: (f"{i + 1:x}" * 64) for i, n in enumerate(ids)}                            # 64 hex digits each
         with e.psycopg.connect(uri, autocommit=True) as c:
             c.execute((e.core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
             for p in e.schema_files(e.core):
@@ -117,7 +117,7 @@ def main():
         g = begin("grace", nbytes=10)
         check(g["path"].startswith(ids["grace"] + "/compilations/"), "a plan that ended 1 day ago is still honoured (the webhook may be late)")
         cancel("grace", g["id"])
-        check(raises(lambda: runner.execute("select public.node_compilation_begin(%s,'x',10,%s,true)", ("f" * 64, sha)), "sign this computer in"), "an unknown token is refused")
+        check(raises(lambda: runner.execute("select public.node_compilation_begin(%s,'x',10,%s,true)", ("e" * 64, sha)), "sign this computer in"), "an unknown token is refused")
         check(raises(lambda: begin("sam", rights=False), "right to share"), "without the rights tick it is refused")
         check(raises(lambda: begin("sam", nbytes=150 * MB + 1), "150 MB"), "a film over the plan's size is refused, and the sentence names the plan's number")
         check(begin("pro", nbytes=400 * MB)["id"] is not None, "the bigger plan takes a 400 MB film")
