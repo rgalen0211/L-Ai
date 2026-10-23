@@ -2,6 +2,11 @@
  "_about": "WHO MAY BE LISTED to people (RULINGS 2026-10-17). One decision per catalog dataset, made by a person, read by tools/gen-catalog.py (--listing). A dataset with no entry is an error, never listed by default. Two guards in the generator and in catalog_rules.ts catch a listable:true whose licence or notes say INTERNAL, BY-SA, non-commercial and so on, or whose licence names no open licence.",
  "decided_by": "ENGINE proposal from the registry licence text, 2026-10-17; the not-listable entries need Ryan or CC1 to confirm or overturn",
  "decisions": {
+  "acs_county_home_value_income": {
+   "listable": true,
+   "class": "us-gov-public-domain",
+   "why": "U.S. Government work in the public domain (17 USC 105): the Census Bureau's American Community Survey 5-year estimates (median home value and median household income by county); the publisher asks for citation, which every listing shows (source and licence)"
+  },
   "bea_cainc1_county_income_index": {
    "listable": true,
    "class": "us-gov-public-domain",
