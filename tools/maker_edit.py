@@ -140,6 +140,59 @@ def pick_image() -> dict:
     return {"image": {"id": iid, "file_name": p.name, "sha256": digest, "width": info["width"], "height": info["height"]}}
 
 
+IMAGE_EXTS = (".png", ".jpg", ".jpeg", ".webp")
+MAX_FOLDER_IMAGES = 100
+
+
+def pick_image_folder_dialog() -> str | None:
+    """The operating system's own dialog for ONE folder of pictures (own process: tkinter must own its thread). The check replaces only this function."""
+    code = ("import tkinter as tk\nfrom tkinter import filedialog\nr = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+            "res = filedialog.askdirectory(title='Choose a folder of pictures', mustexist=True)\nimport json; print(json.dumps(res or ''))")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=600)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1]) or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def pick_image_folder() -> dict:
+    """ONE folder of the person's pictures: every real still PNG, JPEG or WEBP in it at any depth (never through a link or junction, in a fixed order, at most MAX_FOLDER_IMAGES), each named
+    FOLDER-RELATIVE with its folder's name in front. The answer holds names, sizes and hashes, never a path."""
+    got = pick_image_folder_dialog()
+    if not got:
+        return {}
+    folder = Path(got)
+    if not folder.is_dir():
+        raise Problem("That is not a folder.")
+    try:
+        from ryagram.local import folders as FO      # noqa: PLC0415  (the engine's own junction-safe walk)
+    except ImportError:
+        raise Problem("This copy of Ryagram cannot read a whole folder yet. Choose the pictures one by one.") from None
+    found = FO.videos_in(folder, IMAGE_EXTS)
+    images, skipped = [], 0
+    for rel, q in found:
+        if len(images) >= MAX_FOLDER_IMAGES:
+            break
+        try:
+            info = inspect_image(q)
+        except Problem:
+            skipped += 1
+            continue
+        digest = hashlib.sha256(q.read_bytes()).hexdigest()
+        iid = "img-" + digest[:8]
+        S()["images"][iid] = q.resolve()
+        images.append({"id": iid, "file_name": folder.name + "/" + rel, "sha256": digest, "width": info["width"], "height": info["height"]})
+    _dm.remember_dirs([folder / "x"])
+    msg = f"{len(found)} picture{'s' if len(found) != 1 else ''} found in {folder.name}; {len(images)} used."
+    if skipped:
+        msg += f" {skipped} {'was' if skipped == 1 else 'were'} not a real still picture of a usable size and {'was' if skipped == 1 else 'were'} left out."
+    if len(images) >= MAX_FOLDER_IMAGES and len(found) - skipped > len(images):
+        msg += f" At most {MAX_FOLDER_IMAGES} pictures are used."
+    if not images:
+        raise Problem(f"There is no picture (PNG, JPEG or WEBP) in {folder.name}.")
+    return {"folder": {"name": folder.name, "found": len(found), "used": len(images), "message": msg}, "images": images}
+
+
 def image_bytes(query: str):
     iid = (parse_qs(query).get("id") or [""])[0]
     p = S()["images"].get(iid)
@@ -371,7 +424,7 @@ def get(path: str, query: str, send, send_json, auth, host_ok, send_file) -> boo
 
 
 def post(path: str, body: dict, send_json) -> bool:
-    if not (path.startswith("/api/edit") or path == "/api/image/pick"):
+    if not (path.startswith("/api/edit") or path in ("/api/image/pick", "/api/image/folder")):
         return False
     if not on():
         send_json(404, {"error": "Not found."})
@@ -385,6 +438,8 @@ def post(path: str, body: dict, send_json) -> bool:
             send_json(200, render(body))
         elif path == "/api/image/pick":
             send_json(200, pick_image())
+        elif path == "/api/image/folder":
+            send_json(200, pick_image_folder())
         else:
             send_json(404, {"error": "Not found."})
     except Problem as e:

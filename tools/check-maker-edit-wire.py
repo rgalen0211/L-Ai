@@ -134,8 +134,9 @@ def main():
     port = dm.STATE['port']
     base = f'http://127.0.0.1:{port}'
     tok = {'X-Maker-Token': 'testtoken'}
-    picks = {'image': None}
+    picks = {'image': None, 'imgfolder': None}
     me.pick_image_dialog = lambda: picks['image']
+    me.pick_image_folder_dialog = lambda: picks['imgfolder']
     try:
         print('A. the routes')
         check(http('GET', f'{base}/edit?t=testtoken')[0] == 404 and jpost(base, '/api/edit/render', {}, tok)[0] == 404, 'started without --edit, the edit page and every edit route do not exist (404)')
@@ -189,6 +190,44 @@ def main():
         check(st == 200 and b[:4] == b'\x89PNG' and http('GET', base + f"/api/image/file?id={img['id']}")[0] == 403, 'the picture is fetched with the token header (and refused without it)')
         picks['image'] = None
         check(jpost(base, '/api/image/pick', {}, tok) == (200, {}), 'closing the dialog without choosing changes nothing')
+
+        print('   pictures from a folder (WEB item 129)')
+        gal, outside = tmp / 'gallery', tmp / 'outside-pics'
+        (gal / 'sub').mkdir(parents=True)
+        outside.mkdir()
+        (gal / 'a.png').write_bytes(raw_png + b'\x01')
+        (gal / 'sub' / 'b.png').write_bytes(raw_png + b'\x00')
+        (gal / 'notes.png').write_text('this is text, not a picture')
+        (gal / 'anim.png').write_bytes((media / 'anim.png').read_bytes())
+        (gal / 'readme.txt').write_text('not a picture type')
+        (outside / 'secret.png').write_bytes(raw_png + b'\x00\x00')
+        linked = subprocess.run(['cmd', '/c', 'mklink', '/J', str(gal / 'linked'), str(outside)], capture_output=True).returncode == 0
+        picks['imgfolder'] = str(gal)
+        st, r = jpost(base, '/api/image/folder', {}, tok)
+        names = [i['file_name'] for i in (r.get('images') or [])] if isinstance(r, dict) else []
+        check(st == 200 and names == ['gallery/a.png', 'gallery/sub/b.png'] and r['folder']['name'] == 'gallery' and (r['folder']['found'], r['folder']['used']) == (4, 2), f'a folder of pictures answers with folder-relative names in a fixed order, what was found and what is used ({st}, {names})')
+        check(all(re.fullmatch(r'[0-9a-f]{64}', i['sha256']) and (i['width'], i['height']) == (200, 100) for i in r['images']) and str(tmp) not in json.dumps(r), 'each picture has its size and SHA-256, and no place on this computer is sent to the page')
+        check('4 pictures found in gallery; 2 used' in r['folder']['message'] and '2 were not a real still picture' in r['folder']['message'], f"the sentence says what was found, used and left out ({r['folder']['message']})")
+        if linked:
+            check('secret.png' not in json.dumps(r), 'MUST-FAIL: a junction inside the folder is not walked into (nothing outside the folder is listed)')
+        else:
+            print('   NOT RUN: a junction could not be made here, so the junction check did not run (this is not a pass)')
+        st2, h2, b2 = http('GET', base + f"/api/image/file?id={r['images'][1]['id']}", tok)
+        check(st2 == 200 and b2[:4] == b'\x89PNG', 'a picture from the folder is served by id with the token header')
+        bare = tmp / 'no-pictures'
+        bare.mkdir()
+        (bare / 'readme.txt').write_text('not a picture type')
+        (bare / 'notes.png').write_text('this is text, not a picture')
+        picks['imgfolder'] = str(bare)
+        st, r = jpost(base, '/api/image/folder', {}, tok)
+        check(st == 400 and 'no picture' in r['error'] and str(tmp) not in r['error'], f"MUST-FAIL: a folder with no usable picture is refused in words ({st})")
+        if linked:
+            (gal / 'linked').rmdir()                      # removes the link only, never what it points to
+        picks['imgfolder'] = str(tmp / 'not-there')
+        st, r = jpost(base, '/api/image/folder', {}, tok)
+        check(st == 400 and 'not a folder' in r['error'], 'MUST-FAIL: something that is not a folder is refused')
+        picks['imgfolder'] = None
+        check(jpost(base, '/api/image/folder', {}, tok) == (200, {}), 'closing the folder dialog without choosing changes nothing')
 
         print('   the preview')
         st, r = jget(base, '/api/edit/proxy', tok)
