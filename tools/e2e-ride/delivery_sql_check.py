@@ -60,8 +60,11 @@ def main():
             except Exception as ex:                                                          # noqa: BLE001
                 check(False, f"the Stripe test-mode file did not apply: {str(ex)[:150]}")
                 raise
+            # Supabase gives every NEW table in public to anon, authenticated and service_role by default; the draft must take that back itself. The throwaway database has no such default, so give it one
+            # (only for the draft's own tables: it is created just before the draft is applied), or a missing REVOKE could never show.
+            c.execute("alter default privileges in schema public grant all on tables to anon, authenticated, service_role")
             c.execute(draft.read_text(encoding="utf-8"))
-            check(True, "the PAPER draft applies on top of them without an error")
+            check(True, "the PAPER draft applies on top of them without an error (new tables are open to the API roles by default, as on Supabase)")
 
             def sub(who, code, status="active", end="now() + interval '10 days'"):
                 c.execute(f"insert into public.stripe_subscriptions (subscription_id, owner_id, price_code, status, current_period_end, event_created) values (%s,%s,%s,%s,{end},now())",
