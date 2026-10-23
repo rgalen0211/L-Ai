@@ -91,7 +91,7 @@
     const mode = src.mode === undefined ? 'compilation' : src.mode;
     if (!FILM_MODES[mode]) fail('The editor does not know this kind of film.');
     if (!FILM_MODES[mode].available) fail(`Editing a ${FILM_MODES[mode].label.toLowerCase()} here is not built yet.`);
-    const out = { schema: SCHEMA, mode, film: { width: fw, height: fh, fps: ff }, seq: 0, clips: [], images: [], rules: [], texts: [], captions: null, look: null, options: {}, music: null };
+    const out = { schema: SCHEMA, mode, film: { width: fw, height: fh, fps: ff }, seq: 0, clips: [], images: [], rules: [], texts: [], captions: null, look: null, options: {}, clean_cuts: false, music: null };
     out.seq = Number.isInteger(src.seq) && src.seq >= 0 ? src.seq : 0;
 
     if (!Array.isArray(src.clips)) fail('The film has no clips.');
@@ -192,6 +192,11 @@
     if (typeof look.box_opacity !== 'number' || !(look.box_opacity >= 0 && look.box_opacity <= 1)) fail('The caption box is between 0 and 1.');
     look.text_color = look.text_color.toLowerCase(); look.box_color = look.box_color.toLowerCase(); look.letterbox = look.letterbox.toLowerCase(); look.box_opacity = round(look.box_opacity, 2);
     out.look = look;
+    // Clean cuts (CONNECT's edit list, 7a): a cut that would show a one-frame flash is moved. Off unless the person turns it on; the engine keeps whatever the list says.
+    const cc = src.clean_cuts === undefined || src.clean_cuts === null ? false : src.clean_cuts;
+    if (typeof cc !== 'boolean') fail('Clean cuts are on or off.');
+    if (cc && !features(mode).clips) fail('Clean cuts belong to compilations.');
+    out.clean_cuts = cc;
     const opts = src.options === undefined || src.options === null ? {} : src.options;
     if (!isObj(opts)) fail('The options are not valid.');
     const keys = Object.keys(opts).sort();
@@ -404,6 +409,7 @@
       return normalize(e, { rows });
     },
     resetOptions(edit) { need(edit, 'options', 'options'); const e = clone(edit); e.options = {}; return normalize(e); },
+    setCleanCuts(edit, on) { need(edit, 'clips', 'clean cuts'); const e = clone(edit); e.clean_cuts = on; return normalize(e); },
     setCaptions(edit, patch) { need(edit, 'captions', 'captions'); const e = clone(edit); Object.assign(e.captions, patch); return normalize(e); },
     setLook(edit, patch) {
       const e = clone(edit);

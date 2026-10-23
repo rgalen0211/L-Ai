@@ -66,6 +66,8 @@ Errors: any non-200 with `{"error": "plain sentence"}`; the page shows the sente
 - Picture `file_name` may be folder-relative; the page and the model refuse full paths.
 - No overlay (rule picture, caption, text, slide) runs past the end of the film: lengths are clamped in `specs()`; a rule whose phrase is not said warns in plain words and draws nothing.
 
+- **Clean cuts** (NEXT-WEB 135): the edit list has a top-level `clean_cuts` (true or false, default false; anything else is refused in words "Clean cuts are on or off."; a data film cannot have it on). The page shows it as a "Clean cuts" checkbox on the Clips tab and keeps it on every save and reload; the maker hands the whole list to build-edit, so nothing else is needed on its side.
+
 ## 5. Not built (v2.1 and later)
 Music and its level; "other take" swap; dragging a picture or text on the film; transitions beyond cut and crossfade; free text styling; several tracks; a bundled font for the finished render (the page uses the person's system font; the render's font is ENGINE's). Song-mode screens are item 121.
 

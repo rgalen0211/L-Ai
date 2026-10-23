@@ -229,6 +229,9 @@
 
   function stepButton(label, key, fn) { return h('button', { type: 'button', 'data-key': key, onclick: fn }, label); }
   function paneClips(pane) {
+    pane.append(h('fieldset', {}, h('legend', {}, 'Cuts'), h('label', {}, h('input', { id: 'clean-cuts', type: 'checkbox', checked: S.edit.clean_cuts === true, 'data-key': 'clean-cuts',
+      onchange: ev => apply(x => M.ops.setCleanCuts(x, ev.target.checked), ev.target.checked ? 'Clean cuts on.' : 'Clean cuts off.') }), ' Clean cuts'),
+      h('p', { class: 'note' }, 'Where a cut would show a one-frame flash, move it a few frames so the film does not flicker. The preview and the finished film use the same cut points.')));
     const c = S.edit.clips.find(x => x.id === S.sel), tl = M.timeline(S.edit);
     if (!c) { pane.append(h('p', {}, 'Choose a clip in the strip above to move it, trim it, or take it out.')); return; }
     const i = S.edit.clips.indexOf(c), t = tl.clips[i];

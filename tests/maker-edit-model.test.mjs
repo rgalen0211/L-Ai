@@ -362,3 +362,25 @@ test('THE WORDS ON THE PAGE are plain: no exit codes, no model or engine names, 
   const ui = ['edit.js', 'edit.html', 'edit-model.js'].map(f => read('tools/maker-edit/' + f).replace(/\/\/.*$/gm, '')).join(' ');
   assert.doesNotMatch(ui, /Exit code|whisper|ffmpeg|traceback|\[object|\bNaN\b/i);
 });
+
+test('CLEAN CUTS (NEXT-WEB 135): a film-wide on/off kept in the edit list, off by default, refused in words when it is not a plain true or false; every other edit, a save and a reload keep it', () => {
+  assert.equal(base.clean_cuts, false, 'off by default');
+  const old = clone(base); delete old.clean_cuts; assert.equal(M.normalize(old).clean_cuts, false, 'older lists without the field are off');
+  old.clean_cuts = null; assert.equal(M.normalize(old).clean_cuts, false);
+  let e = M.ops.setCleanCuts(base, true);
+  assert.equal(e.clean_cuts, true);
+  assert.equal(base.clean_cuts, false, 'the old list is untouched');
+  // every other edit keeps it
+  e = M.ops.addText(e, { text: 'Hi', start_s: 0.5 }); e = M.ops.setCaptions(e, { on: true }); e = M.ops.moveClip(e, e.clips[1].id, -1);
+  assert.equal(e.clean_cuts, true, 'other edits never drop the field');
+  // a save and a reload keep it, in the same bytes
+  const text = M.stringify(e); assert.match(text, /"clean_cuts": true/);
+  assert.equal(M.parse(text).clean_cuts, true); assert.equal(M.stringify(M.parse(text)), text);
+  assert.equal(M.ops.setCleanCuts(e, false).clean_cuts, false, 'and it turns off again');
+  // must-fail: anything that is not a plain boolean is refused in words
+  for (const bad of ['yes', 'true', 1, 0, {}, []]) { const x = clone(base); x.clean_cuts = bad; refuses(() => M.normalize(x), /Clean cuts are on or off\./); }
+  // a data film has no cuts
+  refuses(() => M.normalize({ schema: M.SCHEMA, mode: 'data', clips: [], clean_cuts: true }), /Clean cuts belong to compilations/);
+  assert.equal(M.normalize({ schema: M.SCHEMA, mode: 'data', clips: [] }).clean_cuts, false);
+  refuses(() => M.ops.setCleanCuts(DATA, true), /does not use clips|clean cuts/i);
+});
