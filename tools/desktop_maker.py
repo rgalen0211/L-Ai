@@ -307,10 +307,14 @@ def precheck(body: dict) -> dict:
         problems.append('The speech add-on is not installed on this PC. Type this in a PowerShell window, then press Plan again:  python -m pip install faster-whisper "av<19"')
     args = _bind_args(body.get("binds") or {})
     binds: dict = {}
+    groups = []                                         # (folder info, the files it gave, the slot): listed ONCE as a folder, not as hundreds of files
     for pair in args:
         try:
-            for slot, items in E.parse_binds([pair]).items():
+            got = E.parse_binds([pair])
+            for slot, items in got.items():
                 binds.setdefault(slot, []).extend(items)
+            for info in getattr(got, "folders", []) or []:
+                groups.append((info, list(got.get(info["slot"], []))))
         except E.Refused as e:
             problems.append(str(e))
     remember_dirs([b.path for items in binds.values() for b in items])
@@ -325,7 +329,15 @@ def precheck(body: dict) -> dict:
                 problems.append(f"The slot \u201c{s['label']}\u201d has no file yet.")
             if len(items) > 1 and not s["multiple"]:
                 problems.append(f"The slot \u201c{s['label']}\u201d takes one file; it has {len(items)}.")
-            lines.append({"slot": s["id"], "label": s["label"], "files": [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b), "key": f"{b.path}|{b.start_ms}|{b.end_ms}"} for b in items]})
+            in_folder = {id(b) for g in groups for b in g[1]}
+            entries = [{"name": b.path.name + _span(b), "mb": round(b.path.stat().st_size / 1e6, 1), "seconds": _listen_seconds(b), "key": f"{b.path}|{b.start_ms}|{b.end_ms}"} for b in items if id(b) not in in_folder]
+            for info, fl in groups:
+                if info["slot"] != s["id"]:
+                    continue
+                secs_f = [_listen_seconds(b) for b in fl]
+                entries.append({"name": f"{info['folder']} (a folder: {info['used']} video{'s' if info['used'] != 1 else ''})", "mb": round(sum(b.path.stat().st_size for b in fl) / 1e6, 1),
+                                "seconds": None if any(x is None for x in secs_f) else sum(secs_f), "key": "folder:" + "|".join(str(b.path) for b in fl), "count": len(fl), "message": info["message"]})
+            lines.append({"slot": s["id"], "label": s["label"], "files": entries})
     work = STATE["work"]
     anchor = work if work.exists() else work.parent if work.parent.exists() else Path(work.anchor)
     free_gb = round(shutil.disk_usage(anchor).free / 1e9, 1)
@@ -338,7 +350,8 @@ def precheck(body: dict) -> dict:
     secs = [f["seconds"] for ln in lines for f in ln["files"]]
     distinct = {f["key"]: f["seconds"] for ln in lines for f in ln["files"]}           # a file (or span) bound to several slots is listened to ONCE: the engine reuses the words it already heard
     total_s = None if (not secs or any(x is None for x in distinct.values())) else sum(distinct.values())
-    return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": len(secs),
+    return {"ok": not problems, "listen_words": wait_words(total_s, model), "listen_seconds": total_s, "bind_count": sum(f.get("count", 1) for ln in lines for f in ln["files"]),
+            "folders": [g[0] for g in groups],
             "film_stamped": f"{film}-<date and time>.mp4" if film else None, "problems": problems, "recipe": rec["name"] if rec else None, "find": (rec.get("find") or {}).get("text", "") if rec else "", "slots": lines, "model": model,
             "film": f"{film}.mp4" if film else None, "model_label": model_label(model), "out_dir": str(STATE["out"]), "free_gb": free_gb, "args": args, "network": "none (the build has a guard that stops any network attempt)"}
 
@@ -394,7 +407,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
         out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, PYTHONPATH=str(STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
     proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
-    job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body),
+    job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body), "args": list(pc["args"]),
            "of": pc["bind_count"], "done": 0, "current": "", "expect_s": listen_expect_s(pc["listen_seconds"], pc["model"])}
     skipped = body.get("skipped") if isinstance(body.get("skipped"), list) else []
     skipped = _wordlist(" ".join(str(x) for x in skipped))[:20]
@@ -451,6 +464,8 @@ def job_status() -> dict:
     out = _job_status()
     if out.get("state") == "planned":
         STATE["last_plan"] = out.get("plan")
+        if STATE.get("job"):
+            STATE["last_plan_args"] = STATE["job"].get("args") or []
     job = STATE["job"]
     if job and not job.get("logged") and out.get("state") in JOB_STATES:
         job["logged"] = True
@@ -799,18 +814,35 @@ V2_HTML = """<section id="v2" aria-labelledby="h-v2"><h2 id="h-v2">4. Pictures t
 
 
 SONG_LINK = '<p><a id="song-link" class="button secondary" href="/song">Sing a line to your music</a></p>'
+EDIT_LINK = '<p><a id="edit-link" class="button secondary" href="/edit">Edit your film (after Plan)</a></p>'
+
+
+def _tools_on_path() -> None:
+    """The portable folder starts this file with python -I, which leaves its own folder off the path: put it on, so the page modules beside this file can be imported."""
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+
+
+def _edit_mod():
+    """tools/maker_edit.py when the maker was started with --edit, else None (the routes then do not exist)."""
+    if not STATE.get("edit_on"):
+        return None
+    _tools_on_path()
+    import maker_edit  # noqa: PLC0415
+    return maker_edit
 
 
 def _song_mod():
     """tools/maker_song.py when the maker was started with --song, else None (the routes then do not exist)."""
     if not STATE.get("song_on"):
         return None
+    _tools_on_path()
     import maker_song  # noqa: PLC0415
     return maker_song
 
 
 def page_html() -> str:
-    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", SONG_LINK if STATE.get("song_on") else "")
+    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else ""))
 
 
 def pick_files(multiple: bool) -> list[str]:
@@ -826,6 +858,30 @@ def pick_files(multiple: bool) -> list[str]:
         return []
 
 
+def pick_folder_path() -> str | None:
+    """The operating system's own dialog for ONE folder of videos (own process: tkinter must own its thread). Returns a path on this computer, or None. The check replaces only this function."""
+    code = ("import tkinter as tk\nfrom tkinter import filedialog\nr = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+            "res = filedialog.askdirectory(title='Choose a folder of videos', mustexist=True)\nimport json; print(json.dumps(res or ''))")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=600)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1]) or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def folder_answer(got: str) -> dict:
+    """What the page is told about a chosen folder: the engine's own rules say which videos are used (any depth, a fixed order, at most its cap), in its own plain sentence."""
+    E = STATE["E"]
+    if not hasattr(E, "expand_folder"):
+        raise Problem("This copy of Ryagram cannot read a whole folder yet. Choose the videos one by one.")
+    try:
+        _files, info = E.expand_folder("slot", Path(got))
+    except E.Refused as e:
+        raise Problem(str(e)) from None
+    remember_dirs([Path(got) / "x"])
+    return {"folder": str(Path(got)), "found": info["found"], "used": info["used"], "message": info["message"]}
+
+
 # ---------------------------------------------------------------------------------------------------- activity log (kit r8)
 # A LOCAL activity log, so Ryan can see where a first-time person got stuck. It is one text file (one JSON object a line) in the OUT folder, next to
 # the films and my-answers.txt, and it NEVER leaves this computer: this program has no network code, and the log code imports none and opens no socket.
@@ -839,7 +895,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -1038,6 +1094,7 @@ JS = r"""(function () {
   try { sessionStorage.setItem('maker-token', T); } catch (e) { /* the page still works without it */ }
   const $ = id => document.getElementById(id);
   if ($('song-link')) $('song-link').href = '/song?t=' + encodeURIComponent(T);
+  if ($('edit-link')) $('edit-link').href = '/edit?t=' + encodeURIComponent(T);
   if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // Ryan's box; Sam never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
@@ -1150,7 +1207,7 @@ JS = r"""(function () {
     } catch (e) { /* the page still works; the server then uses its own default */ }
   }
   const WORDS_NOTE = $('words-note').textContent;
-  let recipes = [], current = null, binds = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '', eff = null, skippedNow = [], autoTried = false;
+  let recipes = [], current = null, binds = {}, folderNotes = {}, planned = false, poll = null, lastState = '', lastWait = '', builtWords = '', eff = null, skippedNow = [], autoTried = false;
   const say = text => { $('job-status').textContent = ''; setTimeout(() => { $('job-status').textContent = text; }, 50); };      // the quiet status line a screen reader announces once
   const why = text => { $('why').textContent = text; };
   const fresh = keep => { if (!keep) { eff = null; skippedNow = []; } planned = false; soundFor = ''; $('sound-out').replaceChildren(); $('build').disabled = true; why('Build turns on after a Plan says the files are ready.'); $('plan-out').replaceChildren(); };
@@ -1162,12 +1219,18 @@ JS = r"""(function () {
       const dropNote = el('p', { class: 'note drop-note' });
       const zone = el('div', { class: 'slot', role: 'group', 'aria-label': `${s.label}: you can drop a video file here` }, el('h3', {}, s.label), el('p', { class: 'note' }, (s.multiple ? 'One or more video files.' : 'One video file.') + ' Drag a video file here from a folder window, or press Choose a file.'), dropNote,
         files.length ? el('ul', {}, files.map(f => el('li', {}, f))) : el('p', { class: 'note' }, 'No file chosen yet.'),
+        folderNotes[s.id] ? el('p', { class: 'note', role: 'status' }, folderNotes[s.id]) : null,
         el('div', { class: 'row' }, el('button', { type: 'button', class: 'button secondary', 'aria-label': `Choose a file for ${s.label}`, onclick: async ev => {
           const btn = ev.currentTarget; btn.disabled = true;      // (currentTarget is gone after an await, so keep the button)
           try { const r = await api('/api/pick', { multiple: s.multiple }); if (r.files.length) { binds[s.id] = s.multiple ? (binds[s.id] || []).concat(r.files) : r.files.slice(0, 1); fresh(); drawSlots(); } }
           catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
         } }, files.length ? 'Add or change' : 'Choose a file\u2026'),
-        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; fresh(); drawSlots(); ev('slot_cleared'); } }, 'Clear') : null));
+        s.multiple ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Choose a whole folder of videos for ${s.label}`, onclick: async ev => {
+          const btn = ev.currentTarget; btn.disabled = true;
+          try { const r = await api('/api/pick-folder', {}); if (r.folder) { binds[s.id] = (binds[s.id] || []).concat([r.folder]); folderNotes[s.id] = r.message; fresh(); drawSlots(); } }
+          catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
+        } }, 'Choose a folder\u2026') : null,
+        files.length ? el('button', { type: 'button', class: 'button secondary', 'aria-label': `Clear the files for ${s.label}`, onclick: () => { binds[s.id] = []; delete folderNotes[s.id]; fresh(); drawSlots(); ev('slot_cleared'); } }, 'Clear') : null));
       zone.append();
       wireDrop(zone, s, dropNote);
       box.append(zone);
@@ -1452,6 +1515,13 @@ class Handler(BaseHTTPRequestHandler):
     def do_GET(self):  # noqa: N802
         u = urlparse(self.path)
         path = u.path
+        if path.startswith(("/api/edit", "/edit")) or path == "/api/image/file":
+            me = _edit_mod()
+            if me is None:
+                self._json(404, {"error": "Not found."})
+                return
+            if me.get(path, u.query, self._send, self._json, self._auth, self._host_ok, self._send_ranged):
+                return
         if path.startswith(("/api/song", "/song")):
             ms = _song_mod()
             if ms is None:
@@ -1517,6 +1587,10 @@ class Handler(BaseHTTPRequestHandler):
         if not f:
             self._json(404, {"error": "No film has been built yet."})
             return
+        self._send_ranged(f)
+
+    def _send_ranged(self, f):
+        """One file, with Range so a player can seek (the film, or the edit page's preview)."""
         size = f.stat().st_size
         start, end, code = 0, size - 1, 200
         m = re.match(r"bytes=([0-9]*)-([0-9]*)$", (self.headers.get("Range") or "").strip())
@@ -1558,12 +1632,19 @@ class Handler(BaseHTTPRequestHandler):
             return
         try:
             n = int(self.headers.get("Content-Length") or 0)
-            if n > (600_000 if urlparse(self.path).path.startswith("/api/song") else 200_000):
+            if n > (600_000 if urlparse(self.path).path.startswith(("/api/song", "/api/edit")) else 200_000):
                 raise Problem("That request is too large.")
             body = json.loads(self.rfile.read(n) or b"{}")
             if not isinstance(body, dict):
                 raise Problem("Bad request.")
             path = urlparse(self.path).path
+            if path.startswith("/api/edit") or (path in ("/api/image/pick", "/api/image/folder") and STATE.get("edit_on")):
+                me = _edit_mod()
+                if me is None:
+                    self._json(404, {"error": "Not found."})
+                    return
+                if me.post(path, body, self._json):
+                    return
             if path.startswith("/api/song"):
                 ms = _song_mod()
                 if ms is None:
@@ -1602,6 +1683,10 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(404, {"error": "Not found."})
                 else:
                     self._json(200, v2_post(path, body))
+            elif path == "/api/pick-folder":
+                got = pick_folder_path()
+                act("files_picked", multiple=True, count=0) if got else None
+                self._json(200, folder_answer(got) if got else {"folder": None})
             elif path == "/api/pick":
                 got = pick_files(bool(body.get("multiple")))
                 remember_dirs(got)
@@ -2003,6 +2088,7 @@ def main(argv=None) -> int:
     ap.add_argument("--questions", help="a text file with one question for each line, asked after a build (default: the ten first-run questions)")
     ap.add_argument("--v2", action="store_true", help="TEST: show the pictures-and-rules section (images as inputs, the every-time-a-word-is-said rule); off by default")
     ap.add_argument("--song", action="store_true", help="TEST: serve the song page (a line sung to your music, words from your own videos); off by default")
+    ap.add_argument("--edit", action="store_true", help="TEST: serve the edit page (reorder, trim, slides, pictures, captions, text, then render); off by default")
     ap.add_argument("--song-forge", action="store_true", help="TEST, with --song: build a word nobody says from the sounds of words your videos do say, when the alignment model is on this PC (it is never downloaded by the maker)")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
@@ -2023,8 +2109,14 @@ def main(argv=None) -> int:
     if a.song or os.environ.get("RYAGRAM_MAKER_SONG") == "1":
         STATE["song_on"] = True
         STATE["song_forge"] = bool(a.song_forge or os.environ.get("RYAGRAM_MAKER_SONG_FORGE") == "1")
+        _tools_on_path()
         import maker_song  # noqa: PLC0415
         maker_song.attach(sys.modules[__name__])
+    if a.edit or os.environ.get("RYAGRAM_MAKER_EDIT") == "1":
+        STATE["edit_on"] = True
+        _tools_on_path()
+        import maker_edit  # noqa: PLC0415
+        maker_edit.attach(sys.modules[__name__])
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)

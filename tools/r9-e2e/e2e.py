@@ -212,6 +212,16 @@ def story():
     return json.dumps(STORY["story"])
 
 
+def schema_files(core):
+    """The SQL files in the order they are applied, in BOTH layouts (CC1 13:51): before the r9 migration lands in supabase/migrations, WORKER's draft sits in r9-drafts/ and goes last; after it, the
+    migration (20261021000100_r9_render_node.sql) is among the migrations and must go AFTER the credits ledger, which is live before r9 and which it builds on. Never both."""
+    migrations = list(core.MIGRATIONS)
+    late = [m for m in migrations if "r9_render_node" in Path(m).name]
+    early = [m for m in migrations if m not in late]
+    draft = core.ROOT / "r9-drafts" / "r9_node_draft.sql"
+    return [*early, core.ROOT / "phase-2b" / "credits_ledger.sql", *late, *([draft] if draft.is_file() and not late else [])]
+
+
 def main():
     base = Path(tempfile.mkdtemp(prefix="ryagram-pg-r9e2e-"))
     folder = Path(tempfile.mkdtemp(prefix="r9e2e-app-"))
@@ -224,7 +234,7 @@ def main():
         uri = srv.get_uri(database="e2e")
         with psycopg.connect(uri, autocommit=True) as c:
             c.execute((core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
-            for p in [*core.MIGRATIONS, core.ROOT / "phase-2b" / "credits_ledger.sql", core.ROOT / "r9-drafts" / "r9_node_draft.sql"]:
+            for p in schema_files(core):
                 c.execute(p.read_text(encoding="utf-8"))
             c.execute("insert into auth.users (id, email) values (%s,'worker@x'),(%s,'sam@example.test'),(%s,'bob@example.test'),(%s,'admin@x')", (WORKER, SAM, BOB, ADMIN))
             c.execute("insert into public.workers (user_id, name) values (%s, 'house-pc')", (WORKER,))

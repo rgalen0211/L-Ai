@@ -63,6 +63,9 @@ class H(http.server.SimpleHTTPRequestHandler):
         if u.path == '/api/song/videos':
             STATE['videos'] += 1
             return self._json(200, {'videos': [{'file_name': 'api-one.mp4'}, {'file_name': 'api-two.mp4'}]})
+        if u.path == '/api/song/folder':
+            STATE['folders'] = STATE.get('folders', 0) + 1
+            return self._json(200, {'folder': {'name': 'api-clips', 'found': 1240, 'used': 2}, 'videos': [{'file_name': 'api-clips/one.mp4'}, {'file_name': 'api-clips/sub/two.mp4'}]})
         if u.path == '/api/song/guide':
             STATE['guides'] += 1
             return self._json(200, {'guide': {'file_name': 'api-singing.wav'}})
@@ -172,6 +175,11 @@ def main():
                 p.get_by_role('button', name='Choose your videos').click()
                 p.wait_for_selector('text=third-video.mp4')
                 check(p.locator('#s-videos li').count() == 3, 'the chosen videos are listed')
+                p.get_by_role('button', name='Choose a folder of videos').click()
+                p.wait_for_selector('text=Found 1,240 videos in my-clips; this run uses 3.')
+                check(p.evaluate('window.ryagramSong.state.videos.filter(v => v.folder === "my-clips").map(v => v.file_name).join("|")') == 'my-clips/first-video.mp4|my-clips/Season 2/second-video.mp4|my-clips/third-video.mp4', 'a folder adds its videos by folder-relative names (a backslash becomes a slash)')
+                p.get_by_role('button', name='Take the folder my-clips out').click()
+                check(p.locator('#s-videos li').count() == 3 and p.evaluate('window.ryagramSong.state.folders.length') == 0, 'taking a folder out takes its videos out and leaves the others')
                 p.get_by_role('button', name='Take third-video.mp4 out').click()
                 check(p.locator('#s-videos li').count() == 2, 'a video can be taken out')
                 p.get_by_role('button', name='Add more videos').click()
@@ -302,6 +310,8 @@ def main():
                 p.fill('#lyrics', 'one line of my own\nand a second one')
                 p.get_by_role('button', name='Choose your videos').click()
                 p.wait_for_selector('text=api-two.mp4')
+                p.get_by_role('button', name='Choose a folder of videos').click()
+                p.wait_for_selector('text=Found 1,240 videos in api-clips; this run uses 2.')
                 p.get_by_role('button', name='Choose your music').click()
                 p.wait_for_selector('text=api-track.mp3')
                 p.get_by_role('button', name='Add a track of just the singing (optional)').click()
@@ -309,7 +319,7 @@ def main():
                 p.get_by_role('button', name='Build my song').click()
                 p.wait_for_selector('#s-board:not([hidden])', timeout=10000)
                 bq = STATE['builds'][-1]
-                check(bq['lines'] == ['one line of my own', 'and a second one'] and bq['track']['file_name'] == 'api-track.mp3' and bq['guide']['file_name'] == 'api-singing.wav' and bq['videos'] == [{'file_name': 'api-one.mp4'}, {'file_name': 'api-two.mp4'}], 'the maker received the lines, the videos, the track and the singing track by name')
+                check(bq['lines'] == ['one line of my own', 'and a second one'] and bq['track']['file_name'] == 'api-track.mp3' and bq['guide']['file_name'] == 'api-singing.wav' and bq['videos'] == [{'file_name': 'api-one.mp4'}, {'file_name': 'api-two.mp4'}, {'file_name': 'api-clips/one.mp4'}, {'file_name': 'api-clips/sub/two.mp4'}] and bq['folders'] == [{'name': 'api-clips'}], 'the maker received the lines, the videos and the folder by relative names, the track and the singing track by name')
                 if p.locator('#no-forge').count():
                     p.get_by_role('button', name='Make it without the words built from sounds').click()
                     p.wait_for_timeout(500)

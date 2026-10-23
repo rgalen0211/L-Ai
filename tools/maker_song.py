@@ -40,6 +40,7 @@ VIDEO_EXTS = (".mp4", ".mkv", ".mov", ".avi", ".webm", ".m4v")
 AUDIO_EXTS = (".mp3", ".wav", ".m4a", ".flac", ".ogg", ".aac", ".opus")
 SCHEMA = "ryagram.song-plan/0"
 MAX_VIDEOS = 300
+MAX_LISTED = 5000                 # names the page may list (folders count each used video)
 MAX_LINES = 64
 MAX_WORDS_LINE = 40
 MAX_PLAN_BYTES = 400_000
@@ -61,7 +62,7 @@ def attach(dm) -> None:
     """Called by the maker with its own module (it runs as a script, so importing it again would make a second copy with its own STATE)."""
     global _dm
     _dm = dm
-    dm.STATE.setdefault("song", {"videos": {}, "track": None, "guide": None, "plan": None, "audio": {}, "busy": False, "files": None})
+    dm.STATE.setdefault("song", {"videos": {}, "folders": {}, "track": None, "guide": None, "plan": None, "audio": {}, "busy": False, "files": None})
 
 
 def S() -> dict:
@@ -144,6 +145,54 @@ def safe_name(name) -> bool:
     return isinstance(name, str) and 0 < len(name) <= 200 and not re.search(r"[\\/:\x00-\x1f]", name) and name not in (".", "..")
 
 
+def safe_rel(name) -> bool:
+    """A video name as the page keeps it: a bare file name, or a FOLDER-RELATIVE one (my-clips/Season 2/a.mp4). Never a drive, a leading slash, a backslash or '..'."""
+    if not isinstance(name, str) or not 0 < len(name) <= 400 or re.search(r"[\\:\x00-\x1f]", name) or name.startswith("/"):
+        return False
+    return all(seg not in ("", ".", "..") for seg in name.split("/"))
+
+
+def pick_folder_dialog() -> str | None:
+    """The operating system's own dialog for ONE folder (own process: tkinter must own its thread). The check replaces only this function."""
+    code = ("import tkinter as tk\nfrom tkinter import filedialog\nr = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)\n"
+            "res = filedialog.askdirectory(title='Choose a folder of videos', mustexist=True)\nimport json; print(json.dumps(res or ''))")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=600)
+    try:
+        return json.loads(r.stdout.strip().splitlines()[-1]) or None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+def pick_folder() -> dict:
+    """ONE folder of the person's videos. The engine's own rules say which videos in it are used (any depth, a fixed order, at most its cap), so what the page lists is what the film uses. The
+    answer holds the folder's NAME and FOLDER-RELATIVE video names, never a path."""
+    got = pick_folder_dialog()
+    if not got:
+        return {}
+    folder = Path(got)
+    E = _dm.STATE["E"]
+    if not folder.is_dir():
+        raise Problem("That is not a folder.")
+    if not hasattr(E, "expand_folder"):
+        raise Problem("This copy of Ryagram cannot read a whole folder yet. Choose the videos one by one.")
+    try:
+        binds, info = E.expand_folder("footage-1", folder)
+    except E.Refused as e:
+        raise Problem(plain(str(e), "other")) from None
+    have = S()["folders"].get(folder.name)
+    if have is not None and have != folder:
+        raise Problem(f"A different folder is already called {folder.name}. Rename one of them, then choose it again.")
+    _dm.remember_dirs([folder / "x"])
+    S()["folders"][folder.name] = folder
+    out = []
+    for b in binds:
+        rel = folder.name + "/" + b.path.relative_to(folder.resolve()).as_posix()
+        S()["videos"][rel] = b.path
+        S().setdefault("bare", {}).setdefault(b.path.name, b.path)
+        out.append({"file_name": rel})
+    return {"folder": {"name": folder.name, "found": info["found"], "used": info["used"]}, "videos": out}
+
+
 def pick_videos() -> dict:
     got = _dm.pick_files(True)
     _dm.remember_dirs(got)
@@ -158,6 +207,7 @@ def pick_videos() -> dict:
         if len(S()["videos"]) >= MAX_VIDEOS and path.name not in S()["videos"]:
             raise Problem(f"A song film uses at most {MAX_VIDEOS} videos.")
         S()["videos"][path.name] = path
+        S().setdefault("bare", {}).setdefault(path.name, path)
         out.append({"file_name": path.name})
     return {"videos": out}
 
@@ -310,18 +360,35 @@ def _check_request(req: dict):
     vids = req.get("videos")
     if not isinstance(vids, list) or not vids:
         raise Problem("Choose at least one video.")
-    if len(vids) > MAX_VIDEOS:
-        raise Problem(f"A song film uses at most {MAX_VIDEOS} videos.")
-    paths, seen = [], set()
+    if len(vids) > MAX_LISTED:
+        raise Problem(f"That is too many videos for one song. Choose fewer folders.")
+    paths, seen, in_folder = [], set(), set()
     for v in vids:
         name = v.get("file_name") if isinstance(v, dict) else None
-        if not safe_name(name) or name in seen:
+        if not safe_rel(name) or name in seen:
             raise Problem("The list of videos is not valid. Choose them again.")
         seen.add(name)
         p = S()["videos"].get(name)
         if p is None or not p.is_file():
             raise Problem(f"{name} is no longer where it was. Choose your videos again.")
-        paths.append(p)
+        if "/" in name:
+            in_folder.add(name.split("/", 1)[0])
+        else:
+            paths.append(p)                                 # a video chosen on its own
+    asked = req.get("folders") or []
+    if not isinstance(asked, list) or len(asked) > 50:
+        raise Problem("The list of folders is not valid. Choose them again.")
+    for f in asked:
+        fname = f.get("name") if isinstance(f, dict) else None
+        folder = S()["folders"].get(fname) if isinstance(fname, str) else None
+        if folder is None or not folder.is_dir():
+            raise Problem(f"The folder {fname if isinstance(fname, str) and safe_name(fname) else 'you chose'} is no longer where it was. Choose it again.")
+        in_folder.add(fname)
+    for fname in sorted(in_folder):
+        folder = S()["folders"].get(fname)
+        if folder is None or not folder.is_dir():
+            raise Problem("A video is listed from a folder that is not chosen here. Choose the folder again.")
+        paths.append(folder)                                # the engine reads the whole folder, in its own fixed order, up to its cap
     tr = req.get("track")
     track = S().get("track")
     if not isinstance(tr, dict) or track is None or tr.get("file_name") != track.name or not track.is_file():
@@ -396,7 +463,7 @@ def build(req: dict) -> dict:
             raise Problem("This copy of Ryagram cannot make song films yet.")
         if want_id is not None and ans.get("plan_id") != want_id:
             raise Problem("The plan changed since you looked at it (different files, words or settings). Press Build again, look at it, then make the film.")
-        S().update(plan=ans, key=key, work=work, recipe=rf, binds=[(p, "footage-1") for p in vids], music=track, guide=guide, forge=forge)
+        S().update(plan=ans, key=key, work=work, recipe=rf, binds=[(p, "footage-1") for p in vids], built_music=track, built_guide=guide, forge=forge)
         return {"plan": view}
     finally:
         _release()
@@ -441,7 +508,7 @@ def hear(req: dict) -> dict | None:
                 import shutil
                 shutil.copyfile(src, out)
                 return {"url": "/api/song/audio?id=" + _remember_audio(out)}
-        path = S()["videos"].get(r["clip"])
+        path = S()["videos"].get(r["clip"]) or S().get("bare", {}).get(r["clip"])
         if path is None or not path.is_file():
             return None
         a, b = max(0, r["src_start_ms"] - 20) / 1000.0, (r["src_end_ms"] + 20) / 1000.0
@@ -454,7 +521,7 @@ def hear(req: dict) -> dict | None:
         cmd = [ff, "-v", "error", "-nostdin", "-y"]
         chains, labels = [], []
         for k, r in enumerate(placed):
-            path = S()["videos"].get(r["clip"])
+            path = S()["videos"].get(r["clip"]) or S().get("bare", {}).get(r["clip"])
             if path is None or not path.is_file():
                 return None
             a, b = max(0, r["src_start_ms"] - 20) / 1000.0, (r["src_end_ms"] + 20) / 1000.0
@@ -497,7 +564,7 @@ def render(body: dict) -> dict:
     if not _same_plan(plan, ans["view"]):
         raise Problem("The plan on the screen is not the one that was built here. Press Build again, look at it, then make the film.")
     for p, _slot in S()["binds"]:
-        if not p.is_file():
+        if not p.exists():
             raise Problem(f"{p.name} is no longer where it was. Choose your videos again and press Build.")
     _claim()
     try:
@@ -505,7 +572,7 @@ def render(body: dict) -> dict:
         out_dir.mkdir(parents=True, exist_ok=True)
         out = out_dir / f"song-{time.strftime('%Y%m%d-%H%M%S')}.mp4"
         args = ["build", str(S()["recipe"]), "--work-dir", str(S()["work"] / "w"), "--model", _dm.default_model(), "--out", str(out), "--approve-plan", ans["plan_id"]]
-        args += sum([["--bind", f"{slot}={p}"] for p, slot in S()["binds"]], []) + ["--bind", f"music={S()['music']}"] + (["--bind", f"guide={S()['guide']}"] if S().get("guide") else [])
+        args += sum([["--bind", f"{slot}={p}"] for p, slot in S()["binds"]], []) + ["--bind", f"music={S()['built_music']}"] + (["--bind", f"guide={S()['built_guide']}"] if S().get("built_guide") else [])
         args += ["--forge"] if S().get("forge") else []
         rc, so, err = _run(args, "build")
         if rc != 0:
@@ -573,6 +640,8 @@ def post(path: str, body: dict, send_json) -> bool:
             send_json(200, save(body))
         elif path == "/api/song/videos":
             send_json(200, pick_videos())
+        elif path == "/api/song/folder":
+            send_json(200, pick_folder())
         elif path in ("/api/song/track", "/api/song/guide"):
             send_json(200, pick_sound(path.rpartition("/")[2]))
         elif path == "/api/song/build":

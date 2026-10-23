@@ -30,8 +30,9 @@ sys.path.insert(0, str(HERE))
 from verify_bundle import sha256_file, APP_DIRS, SKIP_NAMES, SKIP_SUFFIX           # noqa: E402
 
 LARGE_BYTES = 1_000_000
-RUNTIME_TOOLS = ("desktop_maker.py", "ryagram_signin.py", "ryagram_node.py", "verify_bundle.py", "model_download.py")
-FORBIDDEN_NAMES = {"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
+RUNTIME_TOOLS = ("desktop_maker.py", "maker_edit.py", "maker_song.py", "ryagram_signin.py", "ryagram_node.py", "verify_bundle.py", "model_download.py")
+RUNTIME_PAGE_DIRS = ("maker-edit", "maker-song")          # the edit and song pages (html, js, css); a test fixture beside them is left out
+FORBIDDEN_NAMES ={"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
 FORBIDDEN_DIRS = {".git", "node_modules", "RYAN-ONLY", "faces", "my-answers"}
 FORBIDDEN_SUFFIX = {".dump", ".log", ".env", ".pem", ".key", ".pfx", ".sqlite", ".db"}
 SECRET_PATTERNS = [
@@ -179,7 +180,7 @@ def write_start_files(out: Path, has_model: bool) -> None:
         ")",
         'set "OPEN=--open"',
         'if defined MAKER_NO_OPEN set "OPEN="',
-        '"%~dp0python\\python.exe" -I "%~dp0tools\\desktop_maker.py" --work-dir "%~dp0work" --out-dir "%~dp0films" %OPEN%',
+        '"%~dp0python\\python.exe" -I "%~dp0tools\\desktop_maker.py" --work-dir "%~dp0work" --out-dir "%~dp0films" %OPEN% %MAKER_EXTRA%',
         "if errorlevel 1 pause",
         "",
     ])
@@ -214,6 +215,9 @@ def build(a) -> dict:
     for t in RUNTIME_TOOLS:
         if not (app_repo / "tools" / t).is_file():
             raise Refused(f"The app repo has no tools/{t}.")
+    for d in RUNTIME_PAGE_DIRS:
+        if not (app_repo / "tools" / d).is_dir():
+            raise Refused(f"The app repo has no tools/{d} folder (the page the app serves).")
     closure = requirement_closure(a.libraries)
     need = sum(f.stat().st_size for f in list_files(pyhome)) + sum((ffd / e).stat().st_size for e in ("ffmpeg.exe", "ffprobe.exe")) + 400_000_000
     probe = out
@@ -240,6 +244,8 @@ def build(a) -> dict:
         (out / "tools").mkdir()
         for t in RUNTIME_TOOLS:
             shutil.copy2(app_repo / "tools" / t, out / "tools" / t)
+        for d in RUNTIME_PAGE_DIRS:
+            shutil.copytree(app_repo / "tools" / d, out / "tools" / d, ignore=shutil.ignore_patterns("fixture.js"))
         (out / "models").mkdir()
         if model:
             shutil.copytree(model, out / "models" / model.name)
