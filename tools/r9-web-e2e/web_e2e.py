@@ -193,10 +193,18 @@ def main():
         with psycopg.connect(srv.get_uri(), autocommit=True) as c:
             c.execute('create database webe2e')
         State.uri = srv.get_uri(database='webe2e')
-        migrations = [SQL_ROOT / 'ryagram-waitlist.sql', *sorted((SQL_ROOT / 'migrations').glob('*.sql'))]
+        # Two layouts of the r9 SQL, and the run works on both (CC1 13:51): BEFORE the r9 migration is merged it is the draft file under supabase/r9-drafts/; AFTER, it is the numbered migration
+        # (supabase/migrations/*r9_render_node.sql). Either way the order is the one the live database had: every other migration, the credits ledger (live before r9), THEN r9.
+        draft = SQL_ROOT / 'r9-drafts' / 'r9_node_draft.sql'
+        all_migrations = sorted((SQL_ROOT / 'migrations').glob('*.sql'))
+        r9_migration = [m for m in all_migrations if 'r9_render_node' in m.name]
+        migrations = [SQL_ROOT / 'ryagram-waitlist.sql', *[m for m in all_migrations if m not in r9_migration]]
+        r9_sql = [draft] if draft.exists() else r9_migration
+        if not r9_sql:
+            raise SystemExit('no r9 SQL found: expected supabase/r9-drafts/r9_node_draft.sql or a supabase/migrations/*r9_render_node.sql in R9WEB_DB_REPO')
         with psycopg.connect(State.uri, autocommit=True) as c:
             c.execute((SQL_ROOT / 'tests' / 'supabase_stub.sql').read_text(encoding='utf8'))
-            for p in [*migrations, SQL_ROOT / 'phase-2b' / 'credits_ledger.sql', SQL_ROOT / 'r9-drafts' / 'r9_node_draft.sql']:
+            for p in [*migrations, SQL_ROOT / 'phase-2b' / 'credits_ledger.sql', *r9_sql]:
                 c.execute(p.read_text(encoding='utf8'))
             c.execute("insert into auth.users (id, email) values (%s, 'sam@example.test'), (%s, 'admin@example.test')", (SAM, ADMIN))
             c.execute('insert into public.app_admins (user_id) values (%s)', (ADMIN,))

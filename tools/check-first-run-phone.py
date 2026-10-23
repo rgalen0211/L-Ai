@@ -120,7 +120,7 @@ def main():
             p.fill('#np-title', 'My first film')
             step(p, '05-named', 'the library with a name typed')
             p.click('button:has-text("Create")')
-            p.wait_for_selector('h1:has-text("r1")', timeout=20000)
+            p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
             p.wait_for_selector('.template-picker summary', timeout=20000)
             step(p, '06-version', 'the first version page')
             if p.locator('details.template-picker[open]').count() == 0:

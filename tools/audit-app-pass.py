@@ -121,7 +121,7 @@ def main():
                 scan(page, f'library [{tag}]', phone)
                 page.fill('#np-title', 'Audit film')
                 page.click('button:has-text("Create")')
-                page.wait_for_selector('h1:has-text("r1")', timeout=20000)
+                page.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 ids = __import__('json').loads(page.evaluate(MAKE))
                 scan(page, f'version page [{tag}]', phone)
                 if page.locator('details.template-picker:not([open]) summary').count():
@@ -162,7 +162,7 @@ def main():
                         page.keyboard.type('Keyboard film')
                         page.keyboard.press('Enter')
                         try:
-                            page.wait_for_selector('h1:has-text("r1")', timeout=8000)
+                            page.wait_for_selector('h1:has-text("Version 1")', timeout=8000)
                             for step in ('the project page', 'the library'):
                                 for _ in range(6):
                                     page.keyboard.press('Shift+Tab')

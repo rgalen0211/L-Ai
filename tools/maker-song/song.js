@@ -21,6 +21,7 @@
       async pickTrack() { return call('/api/song/track', {}); },
       async pickGuide() { return call('/api/song/guide', {}); },
       async pickVideos() { return call('/api/song/videos', {}); },
+      async pickFolder() { return call('/api/song/folder', {}); },
       async build(req) { return call('/api/song/build', req); },
       async hear(req) {                                             // the token travels in a header, never in an address; the sound is played from a blob: address
         const r = await call('/api/song/hear', req);
@@ -40,7 +41,7 @@
   let host = null;
   const loadScript = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => no(new Error('The practice build could not be loaded.')); document.head.append(el); });
 
-  const S = { lyrics: '', forge: true, withoutId: null, videos: [], track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
+  const S = { lyrics: '', forge: true, withoutId: null, videos: [], folders: [], track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
   const $ = id => document.getElementById(id);
   const mm = M.mmss;
 
@@ -103,11 +104,15 @@
   }
   function drawVideos() {
     const box = $('s-videos'); box.replaceChildren();
-    const ul = h('ul', { class: 'list', 'aria-label': 'The videos your words are found in' });
-    S.videos.forEach(v => ul.append(h('li', {}, h('span', {}, v.file_name), h('button', { type: 'button', 'aria-label': `Take ${v.file_name} out`, onclick: () => { S.videos = S.videos.filter(x => x.file_name !== v.file_name); err(''); drawVideos(); say(`${v.file_name} taken out.`); } }, 'Take out'))));
-    box.append(h('h2', {}, '2. Your videos'), h('p', { class: 'note' }, 'Choose the videos the words are looked up in. The maker finds each word of your song being said in them, and nothing leaves this computer.'),
+    const ul = h('ul', { class: 'list', 'aria-label': 'The folders and videos your words are found in' });
+    S.folders.forEach(f => ul.append(h('li', {}, h('span', {}, h('strong', {}, f.name), ' ', M.folderNote(f)), h('button', { type: 'button', 'aria-label': `Take the folder ${f.name} out`, onclick: () => { S.folders = S.folders.filter(x => x.name !== f.name); S.videos = S.videos.filter(v => v.folder !== f.name); err(''); drawVideos(); say(`The folder ${f.name} was taken out.`); } }, 'Take out folder'))));
+    S.videos.filter(v => !v.folder).forEach(v => ul.append(h('li', {}, h('span', {}, v.file_name), h('button', { type: 'button', 'aria-label': `Take ${v.file_name} out`, onclick: () => { S.videos = S.videos.filter(x => x.file_name !== v.file_name); err(''); drawVideos(); say(`${v.file_name} taken out.`); } }, 'Take out'))));
+    const add = (r, folder) => { const have = new Set(S.videos.map(v => v.file_name)); S.videos = M.normalizeVideos(S.videos.concat(r.videos.filter(v => !have.has(v.file_name.replace(/\\/g, '/'))).map(v => folder ? { file_name: v.file_name, folder: folder.name } : { file_name: v.file_name }))); };
+    box.append(h('h2', {}, '2. Your videos'), h('p', { class: 'note' }, 'Choose the videos, or whole folders of them, that the words are looked up in. The maker finds each word of your song being said in them, and nothing leaves this computer.'),
       S.videos.length ? ul : h('p', { class: 'note' }, 'No videos chosen yet.'),
-      h('button', { type: 'button', id: 'pick-videos', 'data-key': 'pick-videos', onclick: async () => { try { const r = await host.pickVideos(); if (r && r.videos) { const have = new Set(S.videos.map(v => v.file_name)); S.videos = M.normalizeVideos(S.videos.concat(r.videos.filter(v => !have.has(v.file_name)))); err(''); drawVideos(); say(`${S.videos.length} video${S.videos.length === 1 ? '' : 's'} chosen.`); } } catch (e) { err(e.message); } } }, S.videos.length ? 'Add more videos' : 'Choose your videos'));
+      h('div', { class: 'row' },
+        h('button', { type: 'button', id: 'pick-videos', 'data-key': 'pick-videos', onclick: async () => { try { const r = await host.pickVideos(); if (r && r.videos) { add(r, null); err(''); drawVideos(); say(`${S.videos.length} video${S.videos.length === 1 ? '' : 's'} chosen.`); } } catch (e) { err(e.message); } } }, S.videos.length ? 'Add more videos' : 'Choose your videos'),
+        h('button', { type: 'button', id: 'pick-folder', 'data-key': 'pick-folder', onclick: async () => { try { const r = await host.pickFolder(); if (r && r.folder) { const f = M.normalizeFolder(r.folder); S.folders = S.folders.filter(x => x.name !== f.name).concat([f]); S.videos = S.videos.filter(v => v.folder !== f.name); add(r, f); err(''); drawVideos(); say(M.folderNote(f)); } } catch (e) { err(e.message); } } }, 'Choose a folder of videos')));
   }
   function drawMusic() {
     const box = $('s-music'); box.replaceChildren();
@@ -128,7 +133,7 @@
     if (!S.track) { err('Choose your music first.'); return; }
     err(''); S.building = true; drawMusic(); say('Building. This can take a few minutes for a long song.');
     try {
-      const r = await host.build(Object.assign({ lines, videos: S.videos, track: S.track, guide: S.guide, forge: S.forge }, S.forge === false && S.withoutId ? { plan_id: S.withoutId } : {}));
+      const r = await host.build(Object.assign({ lines, videos: S.videos.map(v => ({ file_name: v.file_name })), folders: S.folders.map(f => ({ name: f.name })), track: S.track, guide: S.guide, forge: S.forge }, S.forge === false && S.withoutId ? { plan_id: S.withoutId } : {}));
       S.plan = M.normalize(r.plan); S.sel = null; S.dirty = true; say('Your song is built. Look at each line, then press Make the film.');
     } catch (e) { err(e instanceof M.SongError ? e.message : (e.message || 'The build did not finish.')); }
     S.building = false; draw();

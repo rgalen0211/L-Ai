@@ -1,4 +1,4 @@
-// The "Connect your AI" guide page (/connect-ai/): a DRAFT with placeholder connector addresses, unlisted, linked from nowhere until Ryan fills in the real address.
+// The "Connect your AI" guide page (/connect-ai/): the real connector address, unlisted (noindex) and linked from nowhere until Ryan links it.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -8,15 +8,20 @@ const root = new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '
 const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 const page = read('connect-ai/index.html');
 
-test('DRAFT: marked as a draft with a placeholder address, noindex, no script, strict CSP; every connector address on the page is the placeholder', () => {
+test('READY: the real connector address everywhere it is needed, no draft banner and no placeholder left, noindex, no script, strict CSP', () => {
   assert.match(page, /<meta name="robots" content="noindex, nofollow">/);
-  assert.match(page, /<p class="shell-banner" role="note"><strong>DRAFT\. Not published\.<\/strong>/);
   assert.doesNotMatch(page, /<script/i);
   assert.match(page, /Content-Security-Policy" content="default-src 'self'; script-src 'self'/);
+  assert.doesNotMatch(page, /DRAFT|PENDING|placeholder|\[DRAFT/i, 'no draft marker, placeholder or pending address is left');
+  assert.doesNotMatch(page, /shell-banner/);
+  const cfg = fs.readFileSync(path.join(root, 'assets/ryagram-config.js'), 'utf8');
+  const project = /supabaseUrl:\s*'(https:\/\/[a-z0-9]+\.supabase\.co)'/.exec(cfg)[1];
+  const addr = `${project}/functions/v1/connect/mcp`;                           // the address of the project the site itself talks to, then the connector function and its MCP path
   const urls = [...page.matchAll(/https?:\/\/[^\s"<)]+/g)].map(m => m[0]).filter(u => !/fonts\.(googleapis|gstatic)\.com|uselai\.com|support\.claude\.com/.test(u));
-  assert.ok(urls.length >= 3);
-  for (const u of urls) assert.match(u, /CONNECTOR-ADDRESS-PENDING/, `a real address must not appear before launch: ${u}`);
-  assert.ok(!/supabase\.co/.test(page));
+  assert.ok(urls.length >= 5, urls.length);
+  for (const u of urls) assert.equal(u.replace(/[.,;]+$/, ''), addr, `the only outside address on the page is the connector: ${u}`);
+  assert.match(page, /claude mcp add --transport http ryagram https:\/\/[a-z0-9]+\.supabase\.co\/functions\/v1\/connect\/mcp</);
+  assert.doesNotMatch(page, /service_role|sb_secret|eyJ/, 'an address, never a key');
 });
 
 test('CONTENT: ChatGPT only where the plan allows custom MCP connectors; it cannot spend credits; what the consent page shows; how to disconnect; the 30-minute sign-in', () => {
@@ -24,7 +29,7 @@ test('CONTENT: ChatGPT only where the plan allows custom MCP connectors; it cann
   assert.match(page, /<strong>It cannot spend your credits\.<\/strong>/);
   assert.match(page, /the name Ryagram knows the assistant by, the name it calls itself, and the web address it will send you back to/);
   assert.match(page, /remove the Ryagram connector in that assistant's own settings/);
-  assert.doesNotMatch(page, /Connected AIs/, 'the Connected AIs list does not exist until connect-consent ships, so this page must not point at it');
+  assert.match(page, /open Account in Ryagram, find it under Connected AIs and press Disconnect\./, 'the Disconnect button exists (app-connect.js), so the page points at it');
   assert.match(page, /A sign-in request lasts 30 minutes/);
   assert.match(page, /not a Custom GPT/);
   assert.match(page, /ask it to start a project/);

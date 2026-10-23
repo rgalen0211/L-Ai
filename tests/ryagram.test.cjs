@@ -406,7 +406,7 @@ test('LANDING: the app tour is not on the page (it shows features that are not l
 
 test('every showcase loop is small, and every file the page names exists', () => {
   for (const f of ['/assets/ryagram-loop-housing.mp4', '/assets/ryagram-loop-obesity.mp4']) assert.ok(assetSize(f) < 450e3, f);
-  for (const m of pageHtml.matchAll(/(?:src|href|poster)="(\/assets\/[^"]+)"/g)) assert.ok(assetSize(m[1]) > 0, m[1]);
+  for (const m of pageHtml.matchAll(/(?:src|href|poster)="(\/assets\/[^"]+)"/g)) assert.ok(assetSize(m[1].split('?')[0]) > 0, m[1]);
 });
 
 test('the Compilation Maker section is an illustration with public-domain words, with no video of anyone else footage', () => {
