@@ -124,7 +124,7 @@ def main():
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'Sample film')
                 p.click('button:has-text("Create")')
-                p.wait_for_selector('h1:has-text("r1")', timeout=20000)
+                p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 p.click('button:has-text("Use this film")')
                 p.wait_for_function("document.body.innerText.includes('Using your look: House style')", timeout=20000)
                 check(True, 'a new film from a template says it is using your default look')

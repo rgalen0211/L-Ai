@@ -54,7 +54,7 @@ def main():
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'Smoke film')
                 p.click('button:has-text("Create")')
-                p.wait_for_selector('h1:has-text("r1")', timeout=20000)
+                p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 fb = p.get_by_role('button', name='Render final film')
                 fb.scroll_into_view_if_needed()
                 check(fb.is_disabled(), 'the final render button is off before a sheet and preview exist')

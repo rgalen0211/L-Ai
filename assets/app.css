@@ -212,3 +212,6 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 @media(max-width:520px){.ryagram-app :is(input,select,textarea){font-size:16px}}
 /* Whole-app pass: the footer's text and links sit on one line (the links have padding the text does not), and an admin link is never split across two lines */
 .app-foot{align-items:center}.admin-links a{white-space:nowrap}
+/* guided first film (NEXT-WEB 132) */
+.builder-ready{margin:0 0 28px}.builder-start{display:grid;gap:2px;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:44px;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.builder-start:hover,.builder-start:focus-visible{border-color:var(--brand-deep,#0a6)}
+.first-film{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0 18px}.first-film .button{min-height:48px}

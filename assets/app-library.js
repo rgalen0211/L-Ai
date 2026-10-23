@@ -213,7 +213,7 @@
             h('span', { class: 'meta' },
               p.latest ? [`Version ${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
                        : `No versions · updated ${date(p.updated_at)}`))))
-        : h('p', { class: 'form-intro' }, 'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.');
+        : h('p', { class: 'form-intro' }, builderOn() ? 'No projects yet. The quickest way to start is above: pick a ready-made film and the first picture is free.' : 'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
@@ -223,7 +223,9 @@
       const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []), ...(desktopOn() ? [' \u00b7 ', h('a', { href: '#/admin/tester' }, 'Tester computers')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
-      const buildLink = builderOn() ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step')) : null;
+      // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
+      const buildLink = builderOn() ? (projects.length ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step'))
+        : h('p', { class: 'first-film' }, h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, 'Make your first film'), ' ', h('span', { class: 'meta' }, 'Pick a ready-made film or choose your own data. The first picture is free.'))) : null;
       const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
