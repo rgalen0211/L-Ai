@@ -10,6 +10,8 @@ export interface Deps {
   allowedOrigins: string[];
   verifyUser(jwt: string): Promise<{ id: string; clientId: string | null } | null>;
   objectFor(owner: string, delivery: string): Promise<string>;        // the storage path, or throws with the database's message
+  /** A film made on the person's OWN computer that they chose to keep a private link to (NEXT-CONNECT 120). Tried ONLY when objectFor finds no such delivery; absent = the feature is off here. Same rules: owner, not expired, not deleted. */
+  compilationFor?(owner: string, delivery: string): Promise<string>;
   sign(path: string, seconds: number): Promise<string>;
 }
 
@@ -40,17 +42,25 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (!UUID.test(id)) return reply(400, { error: "Bad request." });
 
   let path: string;
+  let label = "AI-assisted";
   try {
     path = await deps.objectFor(user.id, id);
   } catch (err) {
     const msg = (err as Error).message ?? "";
-    if (/kept for its 30 days|no longer stored/.test(msg)) return reply(410, { error: msg });
-    return reply(404, { error: "Film not found." });                    // not yours, or no such delivery: the same answer
+    if (/kept for its (30 )?days|no longer stored/.test(msg)) return reply(410, { error: msg });
+    if (!deps.compilationFor) return reply(404, { error: "Film not found." });                    // not yours, or no such delivery: the same answer
+    try {
+      path = await deps.compilationFor(user.id, id);                     // a film made on the person's own computer: the same owner, expiry and deletion rules, another label
+      label = "Made on your computer";
+    } catch (err2) {
+      if (/kept for its (30 )?days|no longer stored/.test((err2 as Error).message ?? "")) return reply(410, { error: (err2 as Error).message });
+      return reply(404, { error: "Film not found." });
+    }
   }
   if (!path.startsWith(`${user.id}/`)) return reply(404, { error: "Film not found." });   // belt and braces: the owner's own folder
   try {
     const url = await deps.sign(path, SIGNED_SECONDS);
-    return reply(200, { url, expires_in: SIGNED_SECONDS, label: "AI-assisted" });
+    return reply(200, { url, expires_in: SIGNED_SECONDS, label });
   } catch (err) {
     console.error(`get-delivery-url sign: ${(err as Error).message}`);
     return reply(500, { error: "The link couldn't be made just now. Try again in a minute." });

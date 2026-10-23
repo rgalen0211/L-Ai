@@ -8,6 +8,8 @@
 //   NODE_UPLOAD_KEY     the ONE key this function holds, used only to sign an upload URL for a path the DATABASE returned. DECISION FOR RYAN AND CC1: on the
 //                       Free plan this is the service-role key; it is never read from a request and never sent to the app. See docs/node-function-contract.md.
 //   NODE_MAX_FILE_BYTES (optional) the largest single file a node may upload; default 200000000
+//   NODE_COMPILATION_LINKS  (optional) '1' makes the four /node/compilation/* routes exist (private links for films made on the person's own computer). OFF by default: they answer 404.
+//   NODE_MAX_COMPILATION_BYTES (optional) the largest compilation film this function signs an upload for; default 1000000000 (the plan's own limit is the real one, in the database)
 import postgres from "npm:postgres@3.4.5";
 import { handleNode } from "../node-core/router.ts";
 import { NodeSql } from "./db.ts";
@@ -19,6 +21,8 @@ const salt = Deno.env.get("NODE_SALT") ?? "";
 const projectUrl = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
 const uploadKey = Deno.env.get("NODE_UPLOAD_KEY") ?? "";
 const maxFileBytes = Number(Deno.env.get("NODE_MAX_FILE_BYTES") ?? "") || 200_000_000;
+const compilationLinksOn = Deno.env.get("NODE_COMPILATION_LINKS") === "1";
+const maxCompilationBytes = Number(Deno.env.get("NODE_MAX_COMPILATION_BYTES") ?? "") || 1_000_000_000;
 const BUCKET = "ryagram-artifacts";
 
 // A malformed connection string must not take the module down, and its error text must never be printed (it can hold the URL).
@@ -36,7 +40,7 @@ Deno.serve(async (req) => {
   try {
     if (!sql || !approvalBase || !salt || !projectUrl) return new Response(JSON.stringify({ error: "not_ready", message: "This is not set up yet." }), { status: 503, headers: { "Content-Type": "application/json" } });
     const m = /^.*?\/node(\/.*)?$/.exec(new URL(req.url).pathname);
-    return await handleNode(req, m ? (m[1] ?? "/") : "/", { db, storage, approvalBase, salt, maxFileBytes });
+    return await handleNode(req, m ? (m[1] ?? "/") : "/", { db, storage, approvalBase, salt, maxFileBytes, compilationLinksOn, maxCompilationBytes });
   } catch {
     // never the message: it could hold a value
     return new Response(JSON.stringify({ error: "server_error", message: "Something went wrong. Try again in a moment." }), { status: 500, headers: { "Content-Type": "application/json" } });

@@ -29,6 +29,20 @@ export interface NodeDb {
   retry(accessHash: string, jobId: string, errorCode: string, errorDetail: string | null): Promise<string>;
   /** register_artifact through node_register_artifact: validates the job state, kind and size; RETURNS the storage path, which the database derives from the job. */
   registerArtifact(accessHash: string, jobId: string, kind: string, bytes: number, sha256: string, durationS: number | null, width: number | null, height: number | null): Promise<string>;
+  /** node_compilation_status: the launch check for private links (plan, limits, switch). Creates nothing. */
+  compilationStatus(accessHash: string): Promise<CompilationStatus>;
+  /** node_compilation_begin: the person asked for a private link and ticked the rights box. The database re-checks switch, plan and limits and CHOOSES the path. */
+  compilationBegin(accessHash: string, title: string, bytes: number, sha256: string, rights: boolean, durationS: number | null, width: number | null, height: number | null): Promise<{ id: string; path: string }>;
+  /** node_compilation_finish: the plan is checked again and the stored size must equal the size said. */
+  compilationFinish(accessHash: string, id: string): Promise<{ id: string; expires_at: string }>;
+  /** node_compilation_cancel: an upload that failed or was given up. */
+  compilationCancel(accessHash: string, id: string): Promise<boolean>;
+}
+
+/** What the app's launch check gets (node_compilation_status): the facts about the person's plan, never a price or an account detail. */
+export interface CompilationStatus {
+  switch_on: boolean; plan: string | null; active: boolean; allowed: boolean;
+  max_film_bytes?: number | null; max_kept_bytes?: number | null; starts_per_hour?: number | null; kept_bytes?: number;
 }
 
 export interface NodeStorage {
@@ -45,6 +59,10 @@ export interface NodeDeps {
   salt: string;
   /** The largest file a node may upload, whatever the database's own per-kind limit is. */
   maxFileBytes?: number;
+  /** PRIVATE LINKS FOR FILMS MADE ON THE PERSON'S OWN COMPUTER (NEXT-CONNECT 120): the four /node/compilation/* routes exist only when this is true. OFF unless the function is given the setting. */
+  compilationLinksOn?: boolean;
+  /** The largest compilation film this function will sign an upload for, whatever the person's plan says (the database's plan limit is the real one). */
+  maxCompilationBytes?: number;
 }
 
 export const USER_CODE_ALPHABET = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";   // no 0 O 1 I L

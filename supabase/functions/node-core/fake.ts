@@ -1,7 +1,7 @@
 // An in-memory stand-in for WORKER's r9_node_draft.sql (never applied), with the same rules, so the HTTP face can be proven end to end without a database.
 // The SQL is the authority and has its own tests (supabase/tests/test_r9_node.py); the places where this goes beyond that draft are marked REQUESTED
 // (node_hit) and are also listed in docs/node-function-contract.md for WORKER. Aligned with r9-node-draft rev3 (3ce2c65).
-import type { ExchangeResult, NodeAccount, NodeDb, NodeJob } from "./types.ts";
+import type { CompilationStatus, ExchangeResult, NodeAccount, NodeDb, NodeJob } from "./types.ts";
 
 const mask = (e: string) => e.split("@")[0].slice(0, 1) + "***@" + e.split("@")[1];
 const err = (code: string, m: string) => Object.assign(new Error(m), { code });
@@ -145,5 +145,64 @@ export class FakeNodeWorld implements NodeDb {
     const path = `${j.owner_id}/${j.project_id}/${j.version_id}/${j.id}/${f.name}`;           // derived from the JOB; nothing the request said
     this.artifacts_.push({ job: jobId, kind, path, bytes });
     return path;
+  }
+
+  // ------------------------------------------------------------------------------------- private links for films made on the person's own computer (NEXT-CONNECT 120)
+  // The same rules as supabase/connect-drafts/compilation_delivery_draft.sql (the SQL is the authority and has its own check): the switch, the ACTIVE PLAN, the plan's config row, one upload at a time,
+  // the kept total, the rights tick, the stored size at finish, the plan again at finish. Nothing here knows about a tester flag.
+  compilationSwitchOn = false;
+  plans = new Map<string, string | null>();              // owner -> the code of their ACTIVE plan (absent or null = no active plan)
+  planLimits = new Map<string, { enabled: boolean; max_film_bytes: number; max_kept_bytes: number; starts_per_hour: number }>();
+  compilations = new Map<string, { id: string; owner: string; title: string; bytes: number; sha256: string; path: string; state: string; rights: boolean; expires_at?: string }>();
+  private compLimits(owner: string) {
+    if (!this.compilationSwitchOn) throw err("42501", "Private links for films made on your computer are not switched on yet.");
+    const plan = this.plans.get(owner) ?? null;
+    if (!plan) throw err("42501", "Private links are part of a Ryagram plan. Choose a plan on the website, then try again.");
+    const lim = this.planLimits.get(plan);
+    if (!lim || !lim.enabled) throw err("42501", "Your plan does not include private links for films made on your computer.");
+    return lim;
+  }
+  async compilationStatus(accessHash: string): Promise<CompilationStatus> {
+    this.calls.push("node_compilation_status");
+    const { owner } = this.actor(accessHash);
+    const plan = this.plans.get(owner) ?? null, lim = plan ? this.planLimits.get(plan) : undefined;
+    const kept = [...this.compilations.values()].filter((c) => c.owner === owner && c.state === "ready").reduce((a, c) => a + c.bytes, 0);
+    return { switch_on: this.compilationSwitchOn, plan, active: !!plan, allowed: this.compilationSwitchOn && !!lim && lim.enabled,
+             max_film_bytes: lim?.enabled ? lim.max_film_bytes : null, max_kept_bytes: lim?.enabled ? lim.max_kept_bytes : null, starts_per_hour: lim?.enabled ? lim.starts_per_hour : null, kept_bytes: kept };
+  }
+  async compilationBegin(accessHash: string, title: string, bytes: number, sha256: string, rights: boolean) {
+    this.calls.push("node_compilation_begin");
+    const { owner } = this.actor(accessHash);
+    const lim = this.compLimits(owner);
+    if (rights !== true) throw err("22023", "Tick that you have the right to share what is in this film.");
+    if (!title || title.trim().length < 1 || title.trim().length > 200) throw err("22023", "Give the film a title of 1 to 200 letters.");
+    if (!(bytes >= 1 && bytes <= lim.max_film_bytes)) throw err("22023", `A film can be at most ${Math.floor(lim.max_film_bytes / 1048576)} MB on your plan to get a private link. Make it shorter or smaller.`);
+    if (!/^[0-9a-f]{64}$/.test(sha256 ?? "")) throw err("22023", "That file fingerprint is not valid.");
+    if ([...this.compilations.values()].some((c) => c.owner === owner && c.state === "uploading")) throw err("42501", "One upload is already in progress. Wait for it to finish.");
+    const kept = [...this.compilations.values()].filter((c) => c.owner === owner && c.state === "ready").reduce((a, c) => a + c.bytes, 0);
+    if (kept + bytes > lim.max_kept_bytes) throw err("42501", `Your plan keeps ${Math.floor(lim.max_kept_bytes / 1048576)} MB of private links. Delete one you no longer need, then try again.`);
+    const id = crypto.randomUUID(), path = `${owner}/compilations/${id}.mp4`;
+    this.compilations.set(id, { id, owner, title: title.trim(), bytes, sha256, path, state: "uploading", rights: true });
+    return { id, path };
+  }
+  async compilationFinish(accessHash: string, id: string) {
+    this.calls.push("node_compilation_finish");
+    const { owner } = this.actor(accessHash);
+    const c = this.compilations.get(id);
+    if (!c || c.owner !== owner) throw err("PT404", "Upload not found.");
+    if (c.state === "ready") return { id, expires_at: c.expires_at! };
+    if (c.state !== "uploading") throw err("42501", "This upload is over. Start again.");
+    this.compLimits(owner);
+    if (this.stored.get(c.path) !== c.bytes) throw err("42501", "The stored file is not the size this computer said. Cancel and start again.");
+    c.state = "ready"; c.expires_at = new Date(this.now() + 30 * 86400_000).toISOString();
+    return { id, expires_at: c.expires_at };
+  }
+  async compilationCancel(accessHash: string, id: string) {
+    this.calls.push("node_compilation_cancel");
+    const { owner } = this.actor(accessHash);
+    const c = this.compilations.get(id);
+    if (!c || c.owner !== owner || c.state !== "uploading") return false;
+    c.state = "failed";
+    return true;
   }
 }
