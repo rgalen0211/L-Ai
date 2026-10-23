@@ -19,7 +19,7 @@ After Plan makes the rough cut the person lands on **Edit your film**: the pictu
            "words":[{"w":"great","s":4.1,"e":4.55}, ...]}],
  "images":[{"id":"img-1","file_name":"logo.png","sha256":"<64 hex>","width":800,"height":600,"rights_ticked":true}],
  "rules":[{"id":"r1","phrase":"great news","image_id":"img-1","seconds":2,"mode":"full","fade_s":0.2}],
- "texts":[{"id":"t1","text":"Thanks for watching","start_s":10,"length_s":3,"position":"lower_third"}],
+ "texts":[{"id":"t1","text":"Thanks for watching","start_s":10,"length_s":3,"position":"lower_third","size":"medium"}],
  "captions":{"on":true,"size":"medium","position":"bottom"},
  "look":{"theme":"dark","text_color":"#f3f6f5","box_color":"#000000","box_opacity":0.6,"letterbox":"#0b0f0e"},
  "music":null}
@@ -28,6 +28,11 @@ After Plan makes the rough cut the person lands on **Edit your film**: the pictu
 * **Word times.** `words[].s/e` are SOURCE times; the page places them in the FINISHED film (`timeline()` in the model) by the clips' order, trims and crossfades. ENGINE's real output word times (design: `plan` returns them) replace nothing here: they fill `words`.
 * **One validator** (`normalize`): the page, a test and the host all go through it; bad lists are refused in plain words. It is a mirror of what the engine will accept, not a replacement for the engine's own check at render.
 * `music` must be `null` for now (v2.1).
+* **`mode`** (default `"compilation"`; older lists without it are compilations): ONE shared editing workspace for every kind of film (Claude 13:12). `features(mode)` says which tools the page offers: compilation has clips, slides, rules, captions, text and look; a **data film is declared** (text and look only; no clips, rules, captions or slides) **but refused until it is built** ("Editing a data film here is not built yet"). The page hides the Clips tab and the strip, and each fieldset, from the mode; the operations refuse what the mode does not use ("This kind of film does not use rules").
+* **The data film is now a mode that exists** (item 126): `"mode": "data"`, `"clips": []`, and `"options": {"<option id>": value}` (sorted keys, so the same bytes every time; an option at its default is simply absent). The options are the SHARED options list (`proposals/options.draft.json`): the page shows each editable row (choice, colour, number, slider, toggle, text) with its group, label, help and limits, greys out `planned` rows ("Coming later"), puts `advanced` rows under "More options", and checks a value against its row in plain words (a colour like #14141a; at most 6; one of the listed values). **The server schema stays the validator**: the page's check is the same words, not a replacement. Compilation lists must have no options; a data film has no clips, slides, rules, captions or free text (its features are `options` only). Its preview here is a look sample (page colour, text colour, ramp, dots) drawn from the options; the render draws the real film.
+* **Host calls for modes:** `load(mode)` = `GET /api/edit?mode=data` (the saved list of that mode, or a new one; mode omitted = compilation); `options(mode)` = `GET /api/edit/options?mode=data` answering `{"groups": [{id,label,help}], "rows": [{id,group,label,help,control,choices,min,max,step,default,status,hard,advanced}]}` (wording, control and limits only, from the shared list). The page's **Kind of film** switch asks `load(mode)`; it refuses to switch with unsaved changes ("Save your edit first").
+* **Folder-relative clip names:** a clip may name its video as a path INSIDE a folder the person chose (`my-clips/Season 2/a.mp4`; backslashes become slashes); a full path, `..`, a drive letter or a leading slash is refused ("never by a full path").
+* **Slides (the person's own picture as its own stretch of the film):** a clip with `"slide": {"image_id": "img-1"}`, `file_name` = the picture's file name, `in_s` 0, `out_s` = how long it stays (0.5 to 10 s, up to 10 slides in a film, at the start, at the end or after a clip: the engine's own limits, CONNECT 13:44), no words, a cut or crossfade join like any clip. It needs the picture's rights tick (without it nothing draws and the page warns). `specs()` gives it as an `image` spec, full frame, for the clip's whole length with a 0.2 s fade; ENGINE draws it as a still-image clip (the sequence engine has one). The picture cannot be removed while a slide uses it.
 * Saving gives stable bytes: saving what was opened gives the same text.
 
 ## 3. The overlay spec: ONE list, two drawers (for ENGINE's finishing pass)
@@ -47,12 +52,19 @@ After Plan makes the rough cut the person lands on **Edit your film**: the pictu
 | `save(text)` | `POST /api/edit` `{"edit": ...}` | `{"saved": true}` (the maker validates again, writes `edit.json` beside the film) |
 | `proxy()` / `rebuildProxy(edit)` | `GET` / `POST /api/edit/proxy` | `{"state": "ready"|"updating"|"failed", "url": <address of the 360p rough-cut mp4, served with Range>|null}`; `null` = the page draws a stand-in picture with the words |
 | `pickImage()` | `POST /api/image/pick` | `{"image": {id, file_name, sha256, width, height}}` (the maker checks it is a real still image, size caps, as today) |
+| `pickImageFolder()` | `POST /api/image/folder` | `{"folder": {name, found, used, message?}, "images": [{id, file_name, sha256, width, height}]}`. `file_name` is folder-relative (`my-pictures/Season 2/logo.png`), never a full path; the page adds the ones not already in the list and the person ticks the rights box (one tick for all). NEW in item 129: CONNECT gap. |
 | `imageUrl(id)` | `GET /api/image/file?id=..` (token in the header) | the picture bytes (the page shows them from a `blob:` address) |
 | `render(edit)` | `POST /api/edit/render` | `{"message": ...}`; one at a time (the page turns the button off while it runs; the maker must also refuse a second) |
 | `back()` | navigate to the Plan page | |
 
 Errors: any non-200 with `{"error": "plain sentence"}`; the page shows the sentence and never the status code.
 `edit.html` has a locked content policy (`default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: blob:; media-src 'self' blob:; connect-src 'self'`); a maker that serves it should send the same as a header.
+
+### 4a. Item 129 contract notes (images and text in compilations)
+
+- Text overlays carry `size` (`small`, `medium`, `large`; default `medium`). Gap for CONNECT/ENGINE: `editbuild.py` passes only text, start, length and position for texts, so `size` must be passed through (page sizes 2.6 / 3.6 / 4.8 units).
+- Picture `file_name` may be folder-relative; the page and the model refuse full paths.
+- No overlay (rule picture, caption, text, slide) runs past the end of the film: lengths are clamped in `specs()`; a rule whose phrase is not said warns in plain words and draws nothing.
 
 ## 5. Not built (v2.1 and later)
 Music and its level; "other take" swap; dragging a picture or text on the film; transitions beyond cut and crossfade; free text styling; several tracks; a bundled font for the finished render (the page uses the person's system font; the render's font is ENGINE's). Song-mode screens are item 121.
