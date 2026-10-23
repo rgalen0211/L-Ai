@@ -14,7 +14,7 @@
   const EXPIRED = 'This code has ended. Start again in the Ryagram app.';
   const BAD_CODE = "That code doesn't look right. Codes never use the letters O, I or L or the numbers 0 or 1. Check the app and try again.";
   // WORKER's rev2 draft (191fc78): device_request_check returns { state: 'unknown' | 'used' | 'expired' | 'pending', computer_name, requested_at, rough_location, expires_at } instead of raising.
-  const STATE_WORDS = { unknown: 'That code was not found. Check the code in the app and type it again.', used: 'That code has already been used.', expired: 'That code has ended. Start again in the Ryagram app.' };
+  const STATE_WORDS = { unknown: 'That code was not found. Check the code in the app and type it again.', used: 'That code has already been used.', expired: 'This code has ended. Start again in the Ryagram app.' };
   const WARN = 'Approve only if this code is on YOUR screen right now, in the Ryagram app you just opened. If someone sent you this link or code, press Deny.';
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
@@ -201,7 +201,7 @@
           h('dt', {}, 'SHA-256'), h('dd', {}, ready ? h('code', { class: 'windows-sha' }, rel.sha256) : 'shown here when the file is ready')),
         ready
           ? h('a', { class: 'button primary', href: rel.url, rel: 'noopener', download: rel.fileName }, 'Download Ryagram for Windows')
-          : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'Ryan will put the file here when it is ready.')),
+          : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'The download appears here when it is ready.')),
         h('ol', { class: 'windows-steps' },
           h('li', {}, h('strong', {}, 'Download '), `${name} and unzip it into a folder on a drive with room to spare (right-click, Extract all). It needs about 582 MB unpacked, plus the listening model (Balanced is about 464 MB): about 1.1 GB free in all.`),
           h('li', {}, h('strong', {}, 'Check it. '), 'Optional, but do it: open PowerShell in the folder you downloaded to and paste this line: ', h('code', {}, `Get-FileHash ${ready ? rel.fileName : '<the file>'} -Algorithm SHA256`),

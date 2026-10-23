@@ -50,3 +50,5 @@ footer{border-top:1px solid var(--wheat-soft);padding:24px 0;color:var(--muted);
 .privacy>p{margin-top:16px}.privacy section{margin-top:28px;padding-top:24px;border-top:1px solid var(--line)}.privacy section p+p{margin-top:14px}
 @media(max-width:860px){.audit-layout{grid-template-columns:1fr;gap:28px;max-width:640px}.audit-copy,.contact-form,.next-steps{grid-column:auto;grid-row:auto}.header-note{display:none}}
 @media(max-width:520px){.nav{min-height:76px}.wordmark{font-size:2.7rem}.brand-copy{font-size:.75rem}.audit-layout{padding-top:28px}.contact-form{padding:22px 18px}.form-row,.checkbox-grid{grid-template-columns:1fr}.thanks{padding-top:40px}.thanks .button{width:100%}}
+/* tap targets: footer links are at least 44 px tall (audit 10-23 finding 8) */
+.footer-row a{display:inline-block;padding:12px 6px;min-height:44px;box-sizing:border-box}

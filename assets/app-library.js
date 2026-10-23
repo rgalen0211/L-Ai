@@ -211,7 +211,7 @@
         ? h('ul', { class: 'project-list' }, projects.map(p => h('li', {},
             h('a', { href: `#/p/${p.id}` }, p.title),
             h('span', { class: 'meta' },
-              p.latest ? [`r${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
+              p.latest ? [`Version ${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
                        : `No versions · updated ${date(p.updated_at)}`))))
         : h('p', { class: 'form-intro' }, 'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
@@ -875,7 +875,7 @@
         } }, 'Archive project'));
 
       const rows = [...versions].reverse().map(v => h('li', {},
-        h('a', { href: `#/v/${v.id}`, class: 'version-link' }, `r${v.number}`),
+        h('a', { href: `#/v/${v.id}`, class: 'version-link' }, `Version ${v.number}`),
         badge(v.state),
         h('span', { class: 'meta' },
           v.parent_version_id && numberOf[v.parent_version_id] ? `from r${numberOf[v.parent_version_id]} · ` : '',
@@ -885,7 +885,7 @@
             try { const nv = await data.createVersion(project.id, v.id); location.hash = `#/v/${nv.id}`; }
             catch (err) { showError(error, err); }
           });
-        } }, `New version from r${v.number}`)));
+        } }, `Start a new version from version ${v.number}`)));
 
       const helpNote = requestsOn() ? h('p', { class: 'form-note request-pointer' }, 'Not sure how to build a film? ', h('a', { href: '#/request' }, 'Request a film'), ' and we will make it for you.') : null;
       return [
@@ -1004,10 +1004,10 @@
 
       return [
         h('a', { href: `#/p/${project.id}`, class: 'back' }, `← ${project.title}`),
-        h('h1', { tabindex: '-1' }, `r${v.number} `, badge(v.state)),
-        h('p', { class: 'meta' }, parent ? `Made from r${parent.number} · ` : '', `created ${date(v.created_at)}`),
+        h('h1', { tabindex: '-1' }, `Version ${v.number} `, badge(v.state)),
+        h('p', { class: 'meta' }, parent ? `Made from version ${parent.number} · ` : '', `created ${date(v.created_at)}`),
         h('div', { class: 'actions-row' },
-          h('button', { class: 'button secondary', type: 'button', onclick: newVersion }, `New version from r${v.number}`),
+          h('button', { class: 'button secondary', type: 'button', onclick: newVersion }, `Start a new version from version ${v.number}`),
           v.state === 'complete'
             ? h('button', { class: 'button secondary', type: 'button', onclick: async event => {
                 await busy(event.currentTarget, 'Archiving…', async () => {
@@ -1360,7 +1360,7 @@
             line('assistant', res.reply);
             for (const a of res.actions || []) {
               if (a.type === 'needs_approval') line('assistant', 'Ready when you are: press “Render final film” in the Render panel below. That click is your approval.');
-              if (a.type === 'version_created') log.append(h('p', { class: 'form-note' }, h('a', { href: `#/v/${a.version_id}` }, `Open r${a.number}`)));
+              if (a.type === 'version_created') log.append(h('p', { class: 'form-note' }, h('a', { href: `#/v/${a.version_id}` }, `Open version ${a.number}`)));
               if (a.type === 'job_submitted') refreshJobs();
             }
             if ((res.actions || []).some(a => a.type === 'story_changed')) storyChanged();
@@ -1536,7 +1536,7 @@
         const q = quotes.final_render;
         const cost = creditsOn() && q && !q.error && q.credits
           ? ` It uses ${C.plural(q.credits)}, held now and returned if the render fails.` : '';
-        if (!confirm(`Render the final film of r${v.number}? Its story locks while it renders; later changes need a new version.${cost}`)) return;
+        if (!confirm(`Render the final film of version ${v.number}? Its story locks while it renders; later changes need a new version.${cost}`)) return;
         if (ordersOn()) { requestOrder(ladder.preview.id); return; }                  // the order path: held for approval while auto_render is off
         submit(finalButton, 'final_render', {}, { sheetJobId: ladder.sheet.id, previewJobId: ladder.preview.id });
       });
