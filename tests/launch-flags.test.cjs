@@ -17,7 +17,7 @@ test('LAUNCH FLAGS: the four switches for the launch block are on', () => {
 });
 
 test('LAUNCH FLAGS: the switches that are not part of the block stay off', () => {
-  for (const k of ['aiEditor', 'uploads', 'filmPages', 'industryTemplate', 'catalog', 'catalogComingSoon']) assert.equal(cfg[k], false, k);
+  for (const k of ['aiEditor', 'uploads', 'filmPages', 'seeYourCounty', 'industryTemplate', 'catalog', 'catalogComingSoon']) assert.equal(cfg[k], false, k);
 });
 
 test('LAUNCH FLAGS: payments can only ever be on together with credits and Stripe TEST mode', () => {

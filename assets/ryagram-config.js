@@ -25,6 +25,9 @@ window.ryagramConfig = Object.freeze({
   // Show "Public page" on finished films in /app/. Turn on only once the film-page function is
   // deployed and its SQL applied (supabase/README.md, "Public film pages").
   filmPages: false,
+  // Show "See your county" on public film pages made from public data (NEXT-WEB 131): a free in-browser local version, then the normal paid path.
+  // Off until Ryan says so; the funnel steps it sends need SQL draft proposals/WEB-FUNNEL-REMIX-EVENTS.sql.draft applied first.
+  seeYourCounty: false,
   // Show the data choice and "Delete your account" on the account page. Turn on only once SQL
   // 0900 is applied and delete-account is deployed (supabase/README.md, "Account basics").
   // Changing a password works without it.
