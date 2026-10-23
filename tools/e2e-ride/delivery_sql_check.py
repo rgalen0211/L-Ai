@@ -120,6 +120,7 @@ def main():
         check(raises(lambda: runner.execute("select * from public.compilation_deliveries"), "permission"), "the node's role has no table access at all")
 
         print("\n4. the person's own limits")
+        admin.c.execute("delete from public.node_buckets")                                   # the hourly count so far belongs to sections 1 and 2
         r2 = begin(A, nbytes=157286400)
         store(r2["path"], 157286400)
         finish(A, r2["id"])
@@ -129,13 +130,16 @@ def main():
             store(r3["path"], 157286400)
             finish(A, r3["id"])
             ids.append(r3["id"])
-        check(raises(lambda: begin(A, nbytes=157286400), "600 MB") or raises(lambda: begin(A, nbytes=157286400), "Too many"), "a person is capped at 600 MB of kept films (or the hourly limit comes first)")
-        for i in range(8):
+        check(raises(lambda: begin(A, nbytes=157286400), "600 MB"), "a person is capped at 600 MB of kept films")
+        admin.c.execute("delete from public.node_buckets")
+        for _ in range(5):
             try:
                 begin(A, nbytes=1)
             except Exception:                                                              # noqa: BLE001
                 pass
-        check(raises(lambda: begin(A, nbytes=1), "Too many") or raises(lambda: begin(A, nbytes=1), "600 MB") or raises(lambda: begin(A, nbytes=1), "in progress"), "starting again and again is limited")
+        check(raises(lambda: begin(A, nbytes=1), "Too many"), "starting again and again is limited to 5 an hour")
+        admin.c.execute("delete from public.node_buckets")
+        runner.execute("select public.node_compilation_cancel(%s,%s)", (A, admin.one("select id from compilation_deliveries where owner_id=%s and state='uploading'", sam)))
 
         print("\n5. deleting, expiring, and the purge")
         check(db.as_(sam).one("select public.delete_my_compilation(%s)", ids[0]) is True, "the owner can delete one")
