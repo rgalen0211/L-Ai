@@ -43,7 +43,7 @@ def main():
             c.execute("create database dsql")
         uri = srv.get_uri(database="dsql")
         sam, bob, other = (str(uuid.UUID(int=i)) for i in (301, 302, 303))
-        draft = (e.APP_REPO / "supabase" / "connect-drafts" / "compilation_delivery_draft.sql")
+        draft = Path(os.environ.get("DELIVERY_DRAFT") or (e.APP_REPO / "supabase" / "connect-drafts" / "compilation_delivery_draft.sql"))      # DELIVERY_DRAFT: the broken-on-purpose copies of mutants_delivery.py
         with e.psycopg.connect(uri, autocommit=True) as c:
             c.execute((e.core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8"))
             for p in e.schema_files(e.core):
