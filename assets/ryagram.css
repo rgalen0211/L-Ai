@@ -107,7 +107,7 @@ a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible,v
 
 /* footer */
 .rg-foot{padding:26px 0 34px;border-top:1px solid var(--line);font-size:.88rem;color:var(--muted)}
-.rg-foot-row{display:flex;flex-wrap:wrap;gap:8px 22px}
+.rg-foot-row{display:flex;flex-wrap:wrap;gap:0 22px}.rg-foot-row a{display:inline-block;padding:12px 4px;min-height:44px;box-sizing:border-box}
 
 /* wider screens */
 @media(min-width:900px){
