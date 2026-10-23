@@ -132,14 +132,11 @@ def main():
             ids.append(r3["id"])
         check(raises(lambda: begin(A, nbytes=157286400), "600 MB"), "a person is capped at 600 MB of kept films")
         admin.c.execute("delete from public.node_buckets")
-        for _ in range(5):
-            try:
-                begin(A, nbytes=1)
-            except Exception:                                                              # noqa: BLE001
-                pass
-        check(raises(lambda: begin(A, nbytes=1), "Too many"), "starting again and again is limited to 5 an hour")
+        for _ in range(5):                                                                   # five starts that go through (each one cancelled at once)
+            one = begin(A, nbytes=1)
+            runner.execute("select public.node_compilation_cancel(%s,%s)", (A, one["id"]))
+        check(raises(lambda: begin(A, nbytes=1), "Too many"), "a sixth start in an hour is refused (a start that is refused later does not count: the one-upload-at-a-time rule and the 600 MB cap are the real limits)")
         admin.c.execute("delete from public.node_buckets")
-        runner.execute("select public.node_compilation_cancel(%s,%s)", (A, admin.one("select id from compilation_deliveries where owner_id=%s and state='uploading'", sam)))
 
         print("\n5. deleting, expiring, and the purge")
         check(db.as_(sam).one("select public.delete_my_compilation(%s)", ids[0]) is True, "the owner can delete one")
