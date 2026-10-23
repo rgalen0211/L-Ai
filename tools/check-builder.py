@@ -114,7 +114,7 @@ def main():
                 check('free' in summary.lower(), 'it says the contact sheet is free')
                 p.screenshot(path=str(OUT / f'review-{name}.png'), full_page=True)
                 p.click('button:has-text("Make the film and a free contact sheet")')
-                p.wait_for_selector('h1:has-text("r1")', timeout=20000)
+                p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 state = p.evaluate("""() => { const db = window.ryagramMock.client.db; const j = db.jobs.map(x => x.job_type); const v = db.versions[db.versions.length - 1]; return JSON.stringify({ jobs: j, schema: v.story_spec.schema, view: v.story_spec.sequence.clips[1].view, start: v.story_spec.sequence.clips[1].start }); }""")
                 check('"contact_sheet"' in state and 'final_render' not in state and '"view":"bars"' in state and '"start":"2012"' in state, f'a project with the compiled story and a contact sheet job is made ({state})')
                 check(not errors, f'no page errors {errors}')

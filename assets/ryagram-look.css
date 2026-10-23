@@ -1,0 +1,26 @@
+/* THE SHARED RYAGRAM LOOK: dark by default (Ryan, 2026-10-23, via Claude 10:41). Everything Ryagram (/app/, /help/, /connect-ai/, the film pages, the report form) wears it;
+   the L'Ai consulting pages (home, services, contact) and the legal pages stay light. It lives in its OWN file so that Ryagram can be lifted to another domain later without
+   touching L'Ai's styles. It only redefines the colour tokens the other sheets already use, plus the few components that carry a literal light colour, and only on body.ryagram-look. */
+body.ryagram-look{
+  --bg:#14141a;--paper:#1b1b23;--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--dark:#0e0e13;
+  --brand:#6fd1bd;--brand-deep:#8fe0cf;--wheat:#c9a66b;--wheat-soft:#33291a;--danger:#ff9b9b;--border:#3a3a44;
+  background:var(--bg);color:var(--ink);color-scheme:dark;
+}
+body.ryagram-look a{color:var(--brand-deep)}
+body.ryagram-look input,body.ryagram-look select,body.ryagram-look textarea{background:var(--soft);color:var(--ink);border-color:var(--line)}
+body.ryagram-look ::placeholder{color:var(--muted)}
+body.ryagram-look .button.primary,body.ryagram-look .look-presets-row .button.is-chosen{color:#0b1412}
+body.ryagram-look .button.danger{background:#a83a3a;border-color:#a83a3a;color:#fff}
+/* components that carried a literal light colour */
+body.ryagram-look .app-error,body.ryagram-look .job-problem,body.ryagram-look .builder-problems,body.ryagram-look .look-problems{color:#ffb4a8}
+body.ryagram-look .builder-warning,body.ryagram-look .look-warnings{color:#f0c05a}
+body.ryagram-look .job-row-editorial_action_required .job-problem{color:#f0d9a0}
+body.ryagram-look .state-complete,body.ryagram-look .job-complete{background:#173a33;color:#9fe8d6}
+body.ryagram-look .state-failed,body.ryagram-look .job-failed{background:#4a1f1b;color:#ffb4a8}
+body.ryagram-look .state-editorial_action_required,body.ryagram-look .job-editorial_action_required{background:var(--wheat-soft);color:#f0d9a0}
+body.ryagram-look .state-queued,body.ryagram-look .state-rendering,body.ryagram-look .state-validating,body.ryagram-look .state-uploading,
+body.ryagram-look .job-queued,body.ryagram-look .job-claimed,body.ryagram-look .job-running,body.ryagram-look .job-validating,body.ryagram-look .job-uploading{background:#1e2c40;color:#a9c8f2}
+body.ryagram-look .mock-bar{background:#2a2414}
+body.ryagram-look .template-card.is-chosen,body.ryagram-look .invite-panel{background:#17302b}
+body.ryagram-look .chat-user{background:#1f2b29}
+body.ryagram-look .source-licence-full{background:var(--soft)}
