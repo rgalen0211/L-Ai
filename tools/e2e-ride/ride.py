@@ -194,7 +194,7 @@ def s1_sign_in():
 
 @step(2, "the person connects an AI through the connector (initialize, the tools it is given, who am I)")
 def s2_connector():
-    r = subprocess.run(["deno", "run", "--no-lock", f"--allow-read={APP_REPO}", str(HERE / "connector.ts")], capture_output=True, text=True, timeout=120, cwd=APP_REPO)
+    r = subprocess.run(["node", str(HERE / "connector.mjs")], capture_output=True, text=True, timeout=120, cwd=APP_REPO)
     try:
         out = json.loads(r.stdout.strip().splitlines()[-1])
     except Exception:                                                                          # noqa: BLE001
