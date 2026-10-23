@@ -50,7 +50,7 @@ test('BEFORE RYAN HOSTS THE FILE (the committed record is empty): the button is 
   const b = all(c, n => n.tag === 'button')[0];
   assert.equal(text(b), 'Not ready yet');
   assert.equal(b.attrs.disabled, true);
-  assert.match(text(c), /Ryan will put the file here when it is ready\./);
+  assert.match(text(c), /The download appears here when it is ready\./);
   assert.match(text(c), /shown here when the file is ready/);
 });
 

@@ -188,6 +188,7 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 /* Header and sign-in basics (consumer audit): Help and Account are words, links are comfortable to tap, the sign-in page has a way forward */
 .app-nav-link{padding:10px 4px;min-height:40px;display:inline-flex;align-items:center}
 .app-foot a,.sign-in-help a,.form-intro a{display:inline-block;padding:10px 2px}
+.sign-in-help .help-line{display:block;margin:2px 0}
 .link-button{min-height:40px;padding:10px 2px}
 .sign-in-help{margin:18px 0}
 @media(max-width:760px){.app-account{gap:8px}.app-account #account-email{display:none}}

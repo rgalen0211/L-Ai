@@ -156,7 +156,7 @@ test('TESTER CARD (NEXT-WEB 113): a tester account is told plainly that its film
 
 test('REV2 STATES (WORKER 191fc78): a code that is not pending says why in words and shows no facts; the page reads computer_name, requested_at and rough_location', () => {
   const src = read('assets/app-device.js');
-  assert.match(src, /const STATE_WORDS = \{ unknown: 'That code was not found\. Check the code in the app and type it again\.', used: 'That code has already been used\.', expired: 'That code has ended\. Start again in the Ryagram app\.' \};/);
+  assert.match(src, /const STATE_WORDS = \{ unknown: 'That code was not found\. Check the code in the app and type it again\.', used: 'That code has already been used\.', expired: 'This code has ended. Start again in the Ryagram app\.' \};/);
   assert.match(src, /if \(!c \|\| \(c\.state && c\.state !== 'pending'\) \|\| !named\) \{/);
   assert.match(src, /c\.computer_name \|\| c\.device_name/);
   assert.match(src, /c\.rough_location \|\| c\.approx_place/);
