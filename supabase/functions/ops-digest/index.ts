@@ -18,6 +18,7 @@ const outbox: Outbox = {
 
 Deno.serve((req) => handle(req, {
   serviceKey,
+  jobSecret: Deno.env.get("OPS_DIGEST_SECRET"),
   async data() {
     const { data, error } = await db.rpc("ops_digest_data");
     if (error) throw new Error(error.message);

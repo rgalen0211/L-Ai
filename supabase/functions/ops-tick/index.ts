@@ -1,7 +1,7 @@
 // Every-5-minutes health pass (see tick.ts). NOT DEPLOYED. Deploy after review:
 //   npx supabase functions deploy ops-tick --project-ref <ref> --no-verify-jwt
 // Schedule: Dashboard > Integrations > Cron > every MINUTE > Supabase Edge Function ops-tick, with the Authorization header
-// from supabase/README.md. The service-role key is checked inside as the bearer token.
+// from supabase/README.md. The scheduler sends OPS_TICK_SECRET (its own, per-job) as the bearer token; the service-role key is also accepted, for Ryan running it by hand.
 // Mail: dry-run (ops_outbox table) until OPS_MAIL_MODE=resend plus RESEND_API_KEY and OPS_MAIL_FROM are set as secrets.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { chooseSender, type Outbox } from "../_shared/ops_mail.ts";
@@ -19,6 +19,7 @@ const outbox: Outbox = {
 
 Deno.serve((req) => handle(req, {
   serviceKey,
+  jobSecret: Deno.env.get("OPS_TICK_SECRET"),
   async tick() {
     const { data, error } = await db.rpc("ops_tick");
     if (error) throw new Error(error.message);
