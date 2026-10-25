@@ -52,7 +52,7 @@ test('WIRING: the section and the route both go through connectAllowed, which ne
   assert.equal([...lib.matchAll(/connectUi\(\)\.connectedSection\(/g)].length, 1);
   assert.equal([...lib.matchAll(/connectUi\(\)\.consentView\(/g)].length, 1);
   assert.doesNotMatch(lib, /connectAccessAnswer|connectAccessCache/);                   // never cached across accounts
-  assert.match(read('assets/ryagram-config.js'), /connectAi: false,/);
+  assert.match(read('assets/ryagram-config.js'), /connectAi: true,/);
 });
 
 test('PLAIN LINE (CC1 LOW-2): a not-invited account that follows a consent link sees "Connecting an AI is by invitation for now." under a Connect an AI heading, not a blank page', () => {
