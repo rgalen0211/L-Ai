@@ -9,6 +9,7 @@ import { Client } from '@modelcontextprotocol/sdk/client/index.js';
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js';
 import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js';
 import { build, TEMPLATES } from '../supabase/functions/_shared/templates.ts';
+import { requestIdFromLocation } from './connect_e2e_parse.mjs';
 
 // LIVE use (only when Ryan has said yes, in chat): point at an env file and an invited TEST account that live OUTSIDE every repo, and set
 //   CONNECT_E2E_ALLOW_LIVE=ryan-said-yes   CONNECT_E2E_ENVFILE=<path>   CONNECT_E2E_ACCOUNT=<path>   CONNECT_E2E_READONLY=1
@@ -63,8 +64,9 @@ if (!mem.authUrl) process.exit(1);
 // 2. authorize -> consent page address with a request id
 const az = await fetch(mem.authUrl, { redirect: 'manual' });
 const loc = az.headers.get('location') ?? '';
-const requestId = new URL(loc, BASE).searchParams.get('request');
-check('/authorize redirects to the consent page with a request id', az.status === 302 && /^[0-9a-f-]{36}$/.test(requestId ?? ''), `${az.status} ${loc.slice(0, 80)}`);
+const requestId = requestIdFromLocation(loc, BASE);
+check('/authorize redirects to the consent page with a request id', az.status === 302 && !!requestId, `${az.status} ${loc.replace(/request=.*/, 'request=<' + (loc.split('request=')[1] ?? '').length + ' characters>').slice(0, 120)}`);
+if (!requestId) { console.log('\nSTOPPED: no request id in the authorize redirect, so nothing after this step can mean anything'); process.exit(1); }
 
 // 3. the person decides, exactly as the consent page does it
 const sb = createClient(env.SUPABASE_URL, env.SUPABASE_PUBLISHABLE_KEY, { auth: { persistSession: false } });
