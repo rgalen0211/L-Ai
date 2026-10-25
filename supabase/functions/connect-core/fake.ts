@@ -9,7 +9,7 @@ type FJob = Job & { version_id: string; project_id: string; params: Record<strin
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal }
+interface FUser { requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -31,7 +31,7 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map() };
+    const u: FUser = { requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map() };
     this.users.set(userId, u);
     return u;
   }
@@ -86,6 +86,13 @@ export class FakeWorld {
         const v: FVersion = { id: id(), project_id: p.id, number: 1, state: "draft", story_spec: {}, story_sha256: sha({}) };
         user.versions.push(v);
         return { id: p.id, title, version_id: v.id, number: 1 };
+      },
+      saveCompilationRequest: async (pid, request) => {
+        const user = u();
+        if (!user.projects.some((p) => p.id === pid)) return null;
+        const row = { sha256: sha(request), request: JSON.parse(JSON.stringify(request)) };
+        user.requests.set(pid, row);
+        return { sha256: row.sha256 };
       },
       currentVersionId: async (pid) => {
         const vs = u().versions.filter((v) => v.project_id === pid);

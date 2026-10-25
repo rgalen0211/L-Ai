@@ -21,6 +21,12 @@ Deno.serve((req) => handle(req, {
     if (error) throw new Error(error.message);
     return data as string;
   },
+  // Private links for films made on the person's own computer (NEXT-CONNECT 120): only when this function is given DELIVERY_COMPILATION_LINKS=1; otherwise the data-film path is exactly as it was.
+  compilationFor: Deno.env.get("DELIVERY_COMPILATION_LINKS") === "1" ? async (owner: string, id: string) => {
+    const { data, error } = await service.rpc("compilation_object_for", { p_owner: owner, p_id: id });
+    if (error) throw new Error(error.message);
+    return data as string;
+  } : undefined,
   async sign(path, seconds) {
     const { data, error } = await service.storage.from("ryagram-artifacts").createSignedUrl(path, seconds);
     if (error || !data) throw new Error(error?.message ?? "no url");

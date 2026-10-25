@@ -11,6 +11,11 @@
 //   POST /node/state       Bearer {job_id, state, error_code?, error_detail?, engine_commit?, engine_dirty?} -> {job}
 //   POST /node/retry       Bearer {job_id, error_code, error_detail?}                         -> {result}
 //   POST /node/artifact    Bearer {job_id, kind, bytes, sha256, duration_s?, width?, height?}  -> {path, upload_url}
+//   PRIVATE LINKS for a film made on the person's own computer (NEXT-CONNECT 120; the routes EXIST only when the function is switched on, else 404):
+//   POST /node/compilation/status  Bearer {}                                              -> {status: {switch_on, plan, active, allowed, max_film_bytes, ...}}   (the app's launch check)
+//   POST /node/compilation/start   Bearer {title, bytes, sha256, rights:true, duration_s?, width?, height?} -> {id, path, upload_url}
+//   POST /node/compilation/finish  Bearer {id}                                            -> {id, expires_at}
+//   POST /node/compilation/cancel  Bearer {id}                                            -> {cancelled}
 //
 // Rules (CC1 13:20, 13:34, 13:48, 13:51; each has a test that fails without it): the token is never logged and never read from a URL; a bearer that is not
 // an rgn_ token is refused before any database call; errors are fixed sentences by code, never the database's text; the upload path comes from the database
@@ -23,6 +28,32 @@ const DEVICE_CODE = /^[A-Za-z0-9_-]{32,512}$/;
 const TOKEN = new RegExp("^" + TOKEN_PREFIX + "[A-Za-z0-9_-]{43}$");
 const SHA256 = /^[0-9a-f]{64}$/;
 const NODE_STATES = ["running", "validating", "uploading", "complete", "failed"];       // a node never sets queued, claimed, cancelled or editorial_action_required
+const COMPILATION_ROUTES = ["/node/compilation/status", "/node/compilation/start", "/node/compilation/finish", "/node/compilation/cancel"];
+/** The database's own plain sentences, matched to FIXED sentences (the database's text is still never sent). The first match wins. */
+const COMPILATION_REFUSALS: [RegExp, number, string, string][] = [
+  [/not switched on/i, 403, "not_available", "Private links for films made on your computer are not switched on yet."],
+  [/part of a ryagram plan/i, 403, "plan_required", "Private links are part of a Ryagram plan. Choose a plan on the website, then try again."],
+  [/does not include/i, 403, "plan_excludes", "Your plan does not include private links for films made on your computer."],
+  [/right to share/i, 400, "rights_required", "Tick that you have the right to share what is in this film."],
+  [/at most \d+ MB on your plan/i, 400, "too_large", "That film is larger than your plan allows for a private link. Make it shorter or smaller."],
+  [/keeps \d+ MB of private links/i, 403, "quota_full", "Your plan's space for private links is full. Delete one you no longer need, then try again."],
+  [/already in progress/i, 409, "in_progress", "One upload is already in progress. Wait for it to finish."],
+  [/not the size/i, 409, "size_mismatch", "The upload did not arrive whole. Cancel it and start again."],
+  [/Too many tries/i, 429, "slow_down", "Too many tries. Wait a few minutes and try again."],
+  [/upload is over|upload not found/i, 404, "not_found", "That upload is not there any more. Start again."],
+];
+function compilationRefusal(e: unknown): Response | null {
+  const m = String((e as Error)?.message ?? "");
+  for (const [re, status, error, text] of COMPILATION_REFUSALS) if (re.test(m)) return fail(status, error, text);
+  return null;
+}
+const COMPILATION_PATH = new RegExp(`^(${"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"})/compilations/(${"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"})\\.mp4$`, "i");
+/** The shape the database's node_compilation_begin gives: <person>/compilations/<film id>.mp4, with the film id the one it returned. Anything else is never signed. */
+function compilationPathOk(path: unknown, id: string): path is string {
+  if (typeof path !== "string" || path.length > 200 || path.includes("..") || path.includes("\\")) return false;
+  const m = COMPILATION_PATH.exec(path);
+  return !!m && m[2].toLowerCase() === id.toLowerCase();
+}
 const KINDS = ["contact_sheet", "preview", "final_video", "thumbnail", "receipt", "receipt_text", "metering"];
 const CODE_SECONDS = 600;
 export const POLL_INTERVAL = 5;
@@ -134,7 +165,9 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     }
 
     // ---------------------------------------------------------------- signed in: a rgn_ bearer in the Authorization header, nowhere else
-    const isCall = ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact"].includes(route);
+    const isCompilation = COMPILATION_ROUTES.includes(route);
+    if (isCompilation && !d.compilationLinksOn) return fail(404, "not_found", "Not found.");              // the routes do not exist unless the function is switched on
+    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact"].includes(route);
     if (!isCall) return fail(404, "not_found", "Not found.");
     const wantGet = route === "/account";
     if ((wantGet && method !== "GET") || (!wantGet && method !== "POST")) return fail(405, "method_not_allowed", "That is not allowed here.");
@@ -154,6 +187,26 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     }
 
     const b = await body(req); if (b instanceof Response) return b;
+    if (isCompilation) {
+      const who = await caller(req, d.salt);
+      if (!(await d.db.hit(who, "compilation_ip", 60, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
+      if (route === "/node/compilation/status") return reply(200, { status: await d.db.compilationStatus(h) });
+      if (route === "/node/compilation/start") {
+        if (!isStr(b.title, 200) || !b.title.trim()) return fail(400, "invalid_request", "Give the film a title of 1 to 200 letters.");
+        const bytes = b.bytes;
+        if (typeof bytes !== "number" || !Number.isInteger(bytes) || bytes < 1) return fail(400, "invalid_request", "That request was not valid.");
+        const cap = d.maxCompilationBytes ?? 1_000_000_000;
+        if (bytes > cap) return fail(413, "too_large", `That film is larger than this computer may upload (${Math.round(cap / 1_000_000)} MB).`);
+        if (typeof b.sha256 !== "string" || !SHA256.test(b.sha256)) return fail(400, "invalid_request", "That request was not valid.");
+        if (b.rights !== true) return fail(400, "rights_required", "Tick that you have the right to share what is in this film.");          // explicit true, never implied
+        const r = await d.db.compilationBegin(h, b.title.trim(), bytes, b.sha256, true, optNum(b.duration_s), optNum(b.width), optNum(b.height));
+        if (!r || typeof r.id !== "string" || !UUID.test(r.id) || !compilationPathOk(r.path, r.id)) return fail(500, "server_error", "Something went wrong. Try again in a moment.");     // nothing is signed for an odd path
+        return reply(200, { id: r.id, path: r.path, upload_url: await d.storage.signUpload(r.path) });
+      }
+      if (typeof b.id !== "string" || !UUID.test(b.id)) return fail(400, "invalid_request", "That request was not valid.");
+      if (route === "/node/compilation/finish") { const r = await d.db.compilationFinish(h, b.id); return reply(200, { id: r.id, expires_at: String(r.expires_at ?? "") }); }
+      return reply(200, { cancelled: !!(await d.db.compilationCancel(h, b.id)) });
+    }
     if (typeof b.job_id !== "string" || !UUID.test(b.job_id)) return fail(400, "invalid_request", "That request was not valid.");
     const jobId = b.job_id;
     if (route === "/node/heartbeat") {
@@ -181,6 +234,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     if (!pathOk(path, jobId)) return fail(500, "server_error", "Something went wrong. Try again in a moment.");          // nothing is signed for a path of an unexpected shape
     return reply(200, { path, upload_url: await d.storage.signUpload(path) });
   } catch (e) {
+    if (COMPILATION_ROUTES.includes(route)) { const r = compilationRefusal(e); if (r) return r; }
     return dbError(e);
   }
 }

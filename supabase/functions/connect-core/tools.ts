@@ -5,7 +5,7 @@ import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStory } from "./story_check.ts";
-import { LIMITS, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
+import { LIMITS, type CompilationRequest, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 const uuid = { type: "string", pattern: UUID };
@@ -130,6 +130,61 @@ const setStory: ToolDef = {
     const saved = await ctx.data.saveStory(versionId, a.story);
     return ok(`Saved as r${number}. All checks Ryagram can run here passed.${note} Earlier sheets and previews no longer match. Next: make_contact_sheet (it also runs the full correctness checks).`,
       { saved: true, version_id: versionId, version_number: number, story_sha256: saved.story_sha256 });
+  },
+};
+
+// ---------------------------------------------------------------------------------------------- asking for a compilation
+
+/** A file or folder NAME: no path separator, no drive colon, no wildcard, no control character. */
+const NAME_PATTERN = String.raw`^[^\\/:*?"<>|\u0000-\u001f]{1,80}$`;
+const PICTURE_PATTERN = String.raw`^[^\\/:*?"<>|\u0000-\u001f]{1,100}\.(png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)$`;
+/** A drive letter and a slash, a network share, a parent folder, or a path from the root: a place on a computer. */
+const PLACE = /[A-Za-z]:[\\/]|\\\\|(^|\s)\/[A-Za-z]|\.\.[\\/]/;
+const looksLikePlace = (s: string) => PLACE.test(s);
+
+const setCompilationRequest: ToolDef = {
+  name: "set_compilation_request", title: "Ask for a compilation", scope: "write", readOnly: false,
+  description: "Writes down a request for a compilation film (for example every time a phrase is said, optionally as a song) on one of the person's projects. It is DATA only: a phrase, the NAMES of folders the person has "
+    + "already chosen in their Ryagram desktop app, switches, and picture/text overlays. The AI cannot see or send videos, pictures or file paths. Nothing is built from here and no credit is used: the person opens the "
+    + "Ryagram app on their own computer, checks the request and builds the film there. Saving again replaces the earlier request.",
+  inputSchema: obj({
+    project_id: uuid,
+    phrase: { type: "string", minLength: 1, maxLength: 200, description: "The words to find in the person's videos." },
+    search: { type: "string", enum: ["every", "words"], description: "every = every time the phrase is said; words = the words in this order, one place each." },
+    folders: { type: "array", minItems: 1, maxItems: 10, items: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] } }, description: "The NAMES of the person's folders, as the desktop app shows them. Never paths." },
+    song: { type: "boolean", description: "Sing the phrase to a tune (song mode). Default false." },
+    clean_cuts: { type: "boolean", description: "Move each cut to the nearest shot change without cutting a word. Default false." },
+    rules: { type: "array", maxItems: 20, items: obj({
+      phrase: { type: "string", minLength: 1, maxLength: 200 }, picture: { type: "string", pattern: PICTURE_PATTERN, description: "The NAME of a picture the person has added in the app." },
+      seconds: { type: "number", minimum: 0.5, maximum: 10 }, mode: { type: "string", enum: ["full", "centre", "corner", "lower_third"] } }, ["phrase", "picture", "seconds", "mode"]),
+      description: "Every time this phrase is said, show this picture for this long." },
+    texts: { type: "array", maxItems: 20, items: obj({
+      text: { type: "string", minLength: 1, maxLength: 120 }, start_s: { type: "number", minimum: 0, maximum: 3600 }, length_s: { type: "number", minimum: 0.5, maximum: 30 },
+      position: { type: "string", enum: ["top", "centre", "bottom", "lower_third"] }, size: { type: "string", enum: ["small", "medium", "large"] } }, ["text", "start_s", "length_s", "position"]) },
+    note: { type: "string", maxLength: 500, description: "A sentence for the person to read when they open the request." },
+  }, ["project_id", "phrase", "folders"]),
+  async run(a, ctx) {
+    const phrase = cleanText(a.phrase, 200);
+    if (!phrase) return refuse("Give the words to look for.", "args");
+    const rules = ((a.rules as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ phrase: cleanText(r.phrase, 200), picture: String(r.picture), seconds: Number(r.seconds), mode: r.mode as CompilationRequest["rules"][number]["mode"] }));
+    const texts = ((a.texts as Record<string, unknown>[] | undefined) ?? []).map((t) => ({ text: cleanText(t.text, 120), start_s: Number(t.start_s), length_s: Number(t.length_s),
+      position: t.position as CompilationRequest["texts"][number]["position"], size: (t.size ?? "medium") as CompilationRequest["texts"][number]["size"] }));
+    const note = cleanText(a.note ?? "", 500);
+    const words = [phrase, note, ...rules.map((r) => r.phrase), ...texts.map((t) => t.text)];
+    if (words.some((w) => w && looksLikePlace(w))) return refuse("Write words, not a place on the computer. Folders and pictures are named, never located.", "args");
+    if (rules.some((r) => !r.phrase) || texts.some((t) => !t.text)) return refuse("Every rule and every text needs its words.", "args");
+    const folders = [...new Set((a.folders as string[]).map((f) => f.trim()).filter(Boolean))];
+    if (!folders.length) return refuse("Name at least one of the person's folders.", "args");
+    if (!(await ctx.policy.hit(ctx.principal, "compilation_requests", LIMITS.compilationRequestsPerDayPerUser, 86400))) {
+      return refuse(`You can send ${LIMITS.compilationRequestsPerDayPerUser} compilation requests a day through a connection. Try tomorrow.`, "rate");
+    }
+    const request: CompilationRequest = { schema: "ryagram.compilation-request/0", phrase, search: (a.search ?? "every") as "every" | "words",
+      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note };
+    const saved = await ctx.data.saveCompilationRequest(String(a.project_id), request);
+    if (!saved) return NOT_YOURS("project");
+    return ok(`Saved the request for ${untrusted("phrase", phrase)}${request.song ? " as a song" : ""} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
+      + "Nothing has been built and no credit was used. The person opens the Ryagram app on their own computer, checks the request and builds the film there; their videos never leave it.",
+      { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length });
   },
 };
 
@@ -281,5 +336,5 @@ const filmLink: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, contactSheet, preview, fullRender, jobStatus, filmLink];
+export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

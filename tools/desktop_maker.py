@@ -895,7 +895,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "links", "links-upload", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -936,6 +936,7 @@ ACTIVITY_EVENTS = {
     "signin_started": (), "signin_done": (), "signin_ended": (), "signin_removed": (),
     "model_download_started": ("model",), "model_download_done": ("model",), "model_download_failed": ("model",), "model_download_cancelled": ("model",),
     "node_on": (), "node_off": (), "node_job_done": (), "node_job_failed": (), "node_job_refused": (),
+    "links_upload_started": (), "links_upload_done": (), "links_upload_failed": (),
     "image_added": ("count",), "image_refused": (), "image_rights": ("ok",), "image_removed": (), "rule_saved": ("count",), "occurrences_listed": ("count",),
 }
 CLIENT_EVENTS = {"recipe_changed": "ui_recipe_changed", "model_changed": "ui_model_changed", "words_edited": "ui_words_edited", "slot_cleared": "ui_slot_cleared"}
@@ -1038,6 +1039,13 @@ PAGE = """<!doctype html>
 <p id="node-what">While this is on, this computer checks the Ryagram site about every half minute for a film you ordered there, makes it here, and sends back only the finished film. Your own videos never leave this computer, and it uses no credits.</p>
 <label class="logswitch" for="node-on"><input id="node-on" type="checkbox"> Let this computer make my site films</label>
 <p id="node-state" class="note" role="status"></p><ul id="node-uploads"></ul></section>
+<section class="logbox" id="links" aria-labelledby="h-links" hidden><h2 id="h-links">A private link to your finished film</h2>
+<p id="links-what" class="note">Your film stays on this computer. If you press the button, this one finished film is sent to Ryagram and kept for 30 days, private: only you can open it. Your original videos are never sent.</p>
+<p id="links-film" class="note"></p>
+<p><label for="links-title">Name for the link</label> <input id="links-title" type="text" maxlength="200" autocomplete="off"></p>
+<label class="logswitch" for="links-rights"><input id="links-rights" type="checkbox"> I have the right to share what is in this film</label>
+<p><button type="button" id="links-go" class="button primary" disabled>Get a private link</button></p>
+<p id="links-msg" class="note" role="status"></p><ul id="links-list"></ul></section>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
@@ -1167,7 +1175,26 @@ JS = r"""(function () {
     const box = ev2.currentTarget; box.disabled = true;
     try { drawNode(await api('/api/node-switch', { on: box.checked })); } catch (e) { $('node-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
   });
-  api('/api/signin').then(r => { drawSignin(r); refreshNode(); }).catch(() => {});
+  let linksTimer = null;
+  function drawLinks(r) {
+    clearTimeout(linksTimer);
+    const box = $('links');
+    box.hidden = !(r && r.on);
+    if (box.hidden) return;
+    const up = r.upload || {}, busy = ['checking', 'hashing', 'sending', 'finishing'].includes(up.phase);
+    $('links-film').textContent = r.film ? 'Film: ' + r.film + (r.max_film ? ' (your plan allows up to ' + r.max_film + ' for a private link)' : '') : 'Build a film first. Then it can get a private link.';
+    if (r.film && !$('links-title').value) $('links-title').value = r.film.replace(/\.mp4$/i, '');
+    $('links-go').disabled = !(r.allowed && r.film) || busy;
+    $('links-msg').textContent = busy || up.phase === 'done' || up.phase === 'failed' ? up.message : (r.reason || (r.offline ? 'Using your plan as last checked ' + (r.days_old || 0) + ' days ago.' : ''));
+    $('links-list').replaceChildren(...(r.links || []).map(x => el('li', {}, x.title + ' (kept until ' + x.expires_at + ')')));
+    if (busy) linksTimer = setTimeout(refreshLinks, 2000);
+  }
+  async function refreshLinks() { try { drawLinks(await api('/api/links')); } catch (e) { /* the card keeps what it had */ } }
+  $('links-go').addEventListener('click', async ev3 => {
+    const b = ev3.currentTarget; b.disabled = true;
+    try { drawLinks(await api('/api/links-upload', { title: $('links-title').value, rights: $('links-rights').checked })); } catch (e) { $('links-msg').textContent = e.message; b.disabled = false; }
+  });
+  api('/api/signin').then(r => { drawSignin(r); refreshNode(); refreshLinks(); }).catch(() => {});
   let modelChoices = [], dlLast = { state: 'idle', can: false }, dlTimer = null;
   function drawDl(d) {
     dlLast = d;
@@ -1550,6 +1577,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/node":
             if self._auth():
                 self._json(200, node_status())
+        elif path == "/api/links":
+            if self._auth():
+                self._json(200, links_status())
         elif path == "/api/overlays":
             if not STATE.get("v2"):
                 self._json(404, {"error": "Not found."})
@@ -1706,6 +1736,8 @@ class Handler(BaseHTTPRequestHandler):
                 self._json(200, model_dl_cancel())
             elif path == "/api/node-switch":
                 self._json(200, node_switch(body.get("on") is True))
+            elif path == "/api/links-upload":
+                self._json(200, links_upload(body))
             elif path in ("/api/signin-start", "/api/signin-poll", "/api/signin-cancel", "/api/signin-check", "/api/signin-remove"):
                 self._json(200, signin_do(path[len("/api/signin-"):]))
             elif path == "/api/log":
@@ -1982,6 +2014,34 @@ def _node_mod():
     return ryagram_node
 
 
+def _links_mod():
+    _tools_on_path()
+    import ryagram_links
+    return ryagram_links
+
+
+def links_status() -> dict:
+    """The private-link card (NEXT-CONNECT 120): {"on": false} unless the flag file in this app's folder says on, and unless sign-in exists."""
+    p = STATE.get("links")
+    if p is None:
+        return {"on": False}
+    f = last_film()
+    return p.status(f.name if f else None)
+
+
+def links_upload(body: dict) -> dict:
+    p = STATE.get("links")
+    if p is None:
+        raise Problem("Private links are not turned on in this copy.")
+    f = last_film()
+    if f is None:
+        raise Problem("Build a film first.")
+    try:
+        return p.start_upload(f.name, str(body.get("title") or ""), body.get("rights"))
+    except _links_mod().LinksError as e:
+        raise Problem(str(e)) from None
+
+
 def node_status() -> dict:
     n = STATE.get("node")
     if n is None:
@@ -2049,9 +2109,12 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
             STATE["signin"] = mod.SignIn(site, signin_store or mod.default_store(), STATE["work"], computer_name=platform.node(), approval_hosts=approval_hosts, log=lambda ev: act(ev), **kw)
         except mod.SignInError as e:
             STATE["signin_unavailable"] = str(e)
+    STATE["links"] = None
     STATE["node"] = None
     if STATE.get("signin") is not None:              # r9 M4: "this computer renders my site films". OFF until the person switches it on; no renderer yet = it takes no jobs.
         STATE["node"] = _node_mod().NodeLoop(STATE["signin"], STATE["work"], renderer=node_renderer, datasets=node_datasets, validate=node_validate, log=lambda ev: act(ev))
+    if STATE.get("signin") is not None:              # NEXT-CONNECT 120: a private link to a finished film. A card only if the flag file in this folder says on; nothing is sent unless the person presses the button.
+        STATE["links"] = _links_mod().PrivateLinks(STATE["signin"], STATE["work"], films_dir=STATE["out"], log=lambda ev: act(ev))
     srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
     act("session_start", maker=MAKER_REVISION, python=f"{sys.version_info.major}.{sys.version_info.minor}", os=platform.system())

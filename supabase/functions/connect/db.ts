@@ -70,6 +70,11 @@ export class ConnectDb {
         const version_id = r.version_id ?? (await d.currentVersionId(r.id)) ?? "";
         return { id: r.id, title: r.title, version_id, number: r.number ?? 1 };
       },
+      async saveCompilationRequest(projectId, request) {
+        // connect_set_compilation_request is PAPER until CC1 and Ryan apply it (proposals/CONNECT-COMPILATION-REQUEST-SQL-PAPER.md): it returns the request's SHA-256, or null for a project that is not the person's.
+        const sha = await self.fn<string | null>("connect_set_compilation_request", ["text", "uuid", "jsonb"], [h, projectId, request]);
+        return sha ? { sha256: sha } : null;
+      },
       currentVersionId: (projectId) => self.fn("connect_current_version", ["text", "uuid"], [h, projectId]),
       getVersion: (versionId) => self.fn("connect_get_version", ["text", "uuid"], [h, versionId]),
       listVersions: (projectId) => self.fn("connect_list_versions", ["text", "uuid"], [h, projectId]),

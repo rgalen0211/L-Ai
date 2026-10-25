@@ -1,0 +1,43 @@
+// The connector step of the ride (NEXT-CONNECT 116/118), on the connector's OWN code with its in-memory stand-in world and the REAL argument checker (Ajv, as the tests and the dev server use).
+// An invited test person's AI connects (initialize), lists the tools it is given, asks who it is, writes a compilation request, and writes one that names a place on the computer (which must be refused).
+// Prints ONE JSON line. No network, no database, no real account, no credential.   node tools/e2e-ride/connector.mjs
+import Ajv2020 from 'ajv/dist/2020.js';
+import { makeCompile } from '../../supabase/functions/connect-core/ajv_adapter.ts';
+import { FakeWorld } from '../../supabase/functions/connect-core/fake.ts';
+import { handleMcp } from '../../supabase/functions/connect-core/mcp.ts';
+
+const BASE = 'http://127.0.0.1:1';
+const w = new FakeWorld();
+const P = { userId: 'u-ride', clientId: 'ride-client' };
+w.addUser(P.userId, 'ride@example.test', 100);
+w.invite(P.userId, P.clientId, ['read', 'write', 'render_free']);
+w.issue('ride-token', P);
+const deps = {
+  data: null, policy: w.policy(), deps: { compile: makeCompile(Ajv2020) },
+  verifyToken: w.verifyToken, dataFor: (_t, p) => w.data(p.userId),
+  resourceMetadataUrl: `${BASE}/.well-known/oauth-protected-resource`,
+};
+
+async function rpc(method, params, id) {
+  const r = await handleMcp(new Request(`${BASE}/mcp`, { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: 'Bearer ride-token' }, body: JSON.stringify({ jsonrpc: '2.0', id, method, params }) }), deps);
+  const text = await r.text();
+  const line = text.split('\n').find((l) => l.startsWith('data:'));
+  return { status: r.status, body: JSON.parse(line ? line.slice(5) : text) };
+}
+
+const init = await rpc('initialize', { protocolVersion: '2025-03-26', capabilities: {}, clientInfo: { name: 'ride', version: '1' } }, 1);
+const list = await rpc('tools/list', {}, 2);
+const who = await rpc('tools/call', { name: 'whoami_and_credits', arguments: {} }, 3);
+const proj = await rpc('tools/call', { name: 'create_project', arguments: { title: 'Ride' } }, 4);
+const pid = proj.body.result?.structuredContent?.project_id;
+const request = { project_id: pid, phrase: 'great news', search: 'every', folders: ['My Videos'], song: false, clean_cuts: true,
+  rules: [{ phrase: 'great news', picture: 'cheer.png', seconds: 1, mode: 'full' }], texts: [{ text: 'Great news, everyone', start_s: 0, length_s: 1, position: 'bottom', size: 'large' }], note: 'From the ride.' };
+const ask = await rpc('tools/call', { name: 'set_compilation_request', arguments: request }, 5);
+const bad = await rpc('tools/call', { name: 'set_compilation_request', arguments: { ...request, folders: ['C:\\Users\\Ryan\\Videos'] } }, 6);
+const tools = (list.body.result?.tools ?? []).map((t) => ({ name: t.name, description: String(t.description ?? '').slice(0, 400) }));
+const stored = w.users.get(P.userId).requests.get(pid);
+console.log(JSON.stringify({
+  askOk: !ask.body.result?.isError && ask.body.result?.structuredContent?.saved === true && stored?.request?.clean_cuts === true && stored?.request?.folders?.[0] === 'My Videos',
+  askText: String(ask.body.result?.content?.[0]?.text ?? '').slice(0, 300), badRefused: bad.body.result?.isError === true && w.users.get(P.userId).requests.size === 1,
+  init: init.status, server: init.body.result?.serverInfo?.name, tools, who: who.status, whoOk: !who.body.result?.isError && !who.body.error,
+}));
