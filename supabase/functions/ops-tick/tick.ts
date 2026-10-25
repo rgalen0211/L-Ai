@@ -1,11 +1,12 @@
 // ops-tick: every MINUTE. Runs the database's health pass (ops_tick: reap lost leases, expire stale queue, raise alerts) and
 // emails every NEW alert exactly once. A failed send leaves the alert un-notified, so the next tick tries again.
-import { isService, json, OPS_TO, type Sender } from "../_shared/ops_mail.ts";
+import { json, OPS_TO, reply, type Sender, whoCalls } from "../_shared/ops_mail.ts";
 
 const URGENT_LINES = 100;          // one mail lists up to 100 reports; any more are counted in it and all of them are on #/admin/ops
 
 export interface Deps {
   serviceKey: string;
+  jobSecret?: string;               // this job's own secret (OPS_TICK_SECRET): what the scheduler sends instead of the service-role key
   tick(): Promise<{ rendering: string; reaped: number; expired: number; alert_mail_budget: number; urgent_wait_s?: number; new_alerts: { key: string; detail: string; urgent?: boolean }[] }>;
   markNotified(keys: string[]): Promise<number>;
   purge?(): Promise<unknown>;       // the retention purge (does real work once a day; a failure here never stops the tick)
@@ -18,9 +19,10 @@ export interface Deps {
 
 export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (req.method !== "POST") return json(405, { error: "Use POST." });
-  if (!isService(req, deps.serviceKey)) return json(403, { error: "Not allowed." });
+  const caller = whoCalls(req, deps.serviceKey, deps.jobSecret);
+  if (!caller) return json(403, { error: "Not allowed." });
   let r;
-  try { r = await deps.tick(); } catch (e) { console.error("ops_tick failed", (e as Error).message); return json(500, { error: "tick failed" }); }
+  try { r = await deps.tick(); } catch (e) { console.error("ops_tick failed", (e as Error).message); return reply(caller, 500, { error: "tick failed" }); }
   let notified = 0;
   let held = 0;
   let urgentSent = 0;
@@ -76,6 +78,6 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
       orders = { approvals_expired: o.approvals_expired, films_removed: removed };
     } catch (e) { console.error("render_orders_tick failed", (e as Error).message); orders = { error: true }; }
   }
-  return json(200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, urgent_held: urgentHeld, notified, held, mode: deps.sender.mode,
+  return reply(caller, 200, { rendering: r.rendering, reaped: r.reaped, expired: r.expired, alerts: r.new_alerts.length, urgent: urgentSent, urgent_held: urgentHeld, notified, held, mode: deps.sender.mode,
                      ...(deps.purge ? { purged } : {}), ...(deps.orders ? { orders } : {}) });
 }

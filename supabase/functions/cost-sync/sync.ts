@@ -1,7 +1,7 @@
 // cost-sync: pulls Stripe's own balance transactions (the fee Stripe really took on each one) into the cost ledger, then runs the ledger's
 // periodic pass (plan accruals, render cost, storage and email readings, Ryan's alarms). Run it hourly; both halves are idempotent.
 // Stripe's answer shape is from its API reference (List balance transactions). Read-only: it only GETs.
-import { isService, json } from "../_shared/ops_mail.ts";
+import { json, reply, whoCalls } from "../_shared/ops_mail.ts";
 
 export interface CostEvent {
   occurred_at: string; vendor: string; kind: string; amount_usd: number | null; quantity: number | null; unit: string;
@@ -10,6 +10,7 @@ export interface CostEvent {
 type Fetch = (url: string, init: { headers: Record<string, string> }) => Promise<{ ok: boolean; status: number; json(): Promise<unknown> }>;
 export interface Deps {
   serviceKey: string;
+  jobSecret?: string;                // COST_SYNC_SECRET: this job's own secret, what the scheduler sends instead of the service-role key
   stripeKey: string | undefined;
   fetch: Fetch;
   getCursor(key: string): Promise<string | null>;
@@ -82,7 +83,8 @@ async function pullStripe(deps: Deps, livemode: boolean) {
 
 export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (req.method !== "POST") return json(405, { error: "Use POST." });
-  if (!isService(req, deps.serviceKey)) return json(403, { error: "Not allowed." });
+  const caller = whoCalls(req, deps.serviceKey, deps.jobSecret);
+  if (!caller) return json(403, { error: "Not allowed." });
   let stripe: Record<string, unknown>;
   const mode = stripeMode(deps.stripeKey);
   if (!deps.stripeKey) stripe = { skipped: "STRIPE_READ_KEY is not set" };
@@ -92,6 +94,6 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     catch (e) { console.error("cost-sync stripe", (e as Error).message); stripe = { error: (e as Error).message.slice(0, 200) }; }   // the ledger pass below still runs
   }
   let tick: unknown;
-  try { tick = await deps.tick(); } catch (e) { console.error("cost_tick failed", (e as Error).message); return json(500, { error: "cost_tick failed", stripe }); }
-  return json(200, { stripe, tick });
+  try { tick = await deps.tick(); } catch (e) { console.error("cost_tick failed", (e as Error).message); return reply(caller, 500, { error: "cost_tick failed", stripe }); }
+  return reply(caller, 200, { stripe, tick });
 }

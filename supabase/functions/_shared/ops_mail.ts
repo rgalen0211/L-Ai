@@ -47,6 +47,36 @@ export function isService(req: Request, serviceKey: string): boolean {
   return serviceKey.length > 0 && (req.headers.get("authorization") ?? "") === `Bearer ${serviceKey}`;
 }
 
+// PER-JOB SECRET (Q91 follow-up, 2026-10-25). pg_net keeps each scheduled call, headers included, in net.http_request_queue, and on the live
+// project every database login can read that table (PUBLIC holds the grants; the owner supabase_admin cannot be changed from here). So the
+// scheduler must not carry the service-role key. Each cron job carries its OWN secret instead (a random value of 32 or more characters, kept
+// in Vault for the job and in this function's own secret), which lets the caller run THIS one job and nothing else.
+//   "job"     = the per-job secret: the scheduler. It is answered with ok / failed only (see reply), because net._http_response keeps the
+//               reply body where the same logins can read it.
+//   "service" = the service-role key: Ryan running it by hand. Full detail, as before.
+// A secret shorter than 32 characters is treated as not set, so an empty or weak value can never let anyone in.
+export const JOB_SECRET_MIN = 32;
+export type Caller = "job" | "service" | null;
+
+function sameText(a: string, b: string): boolean {              // no early exit on the first differing character
+  if (a.length !== b.length) return false;
+  let d = 0;
+  for (let i = 0; i < a.length; i++) d |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return d === 0;
+}
+
+export function whoCalls(req: Request, serviceKey: string, jobSecret?: string): Caller {
+  const got = req.headers.get("authorization") ?? "";
+  if (jobSecret && jobSecret.length >= JOB_SECRET_MIN && sameText(got, `Bearer ${jobSecret}`)) return "job";
+  if (isService(req, serviceKey)) return "service";
+  return null;
+}
+
+/** The scheduler's reply is "ok" or "failed" and nothing else; Ryan's own call gets the full body. */
+export function reply(caller: Caller, status: number, body: unknown): Response {
+  return caller === "job" ? json(status, { ok: status >= 200 && status < 300 }) : json(status, body);
+}
+
 export function json(status: number, body: unknown): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 }

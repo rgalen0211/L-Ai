@@ -1,7 +1,7 @@
 // Cost ledger sync (see sync.ts). NOT DEPLOYED. Deploy after review:
 //   npx supabase functions deploy cost-sync --project-ref <ref> --no-verify-jwt
 // Schedule: Dashboard > Integrations > Cron > every hour > Supabase Edge Function cost-sync, with the same Authorization header as ops-tick
-// (the service-role key is checked inside as the bearer token). It reads Stripe with its OWN secret, STRIPE_READ_KEY: a RESTRICTED key (rk_...) with
+// (the scheduler sends COST_SYNC_SECRET, its own per-job secret, as the bearer token; the service-role key is also accepted for Ryan running it by hand). It reads Stripe with its OWN secret, STRIPE_READ_KEY: a RESTRICTED key (rk_...) with
 // "Balance: Read" only (supabase/README.md, "Cost ledger"). Never the checkout function's key: Supabase secrets are project-wide. With no key it still runs the ledger's own pass.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./sync.ts";
@@ -16,6 +16,7 @@ async function rpc(name: string, args: Record<string, unknown> = {}) {
 
 Deno.serve((req) => handle(req, {
   serviceKey,
+  jobSecret: Deno.env.get("COST_SYNC_SECRET"),
   stripeKey: Deno.env.get("STRIPE_READ_KEY"),
   fetch: fetch as never,
   getCursor: async (key) => (await rpc("cost_sync_get", { p_key: key })) as string | null,
