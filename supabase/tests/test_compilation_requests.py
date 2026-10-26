@@ -103,15 +103,16 @@ class CompilationRequests(core.Base):
         _, a, _ = self.connect(ALICE)
         p = self.project_for(a)
         for bad in ({"phrase": "no schema"}, dict(REQ, schema="something.else/0"), [1, 2], "text", dict(REQ, note="x" * 33000)):
-            with self.assertRaises(psycopg.Error, msg=str(bad)[:40]):
+            with self.assertRaises(psycopg.errors.InvalidParameterValue, msg=str(bad)[:40]) as cm:       # the FUNCTION's own refusal (22023), not just the table's check
                 self.save(a, p, bad)
+            self.assertIn("That request is not valid.", str(cm.exception))
         self.assertEqual(self.rows(), 0)
         self.assertIsNotNone(self.save(a, p))                                    # control: a valid one is saved
 
     def test_only_the_connector_role_may_run_it_and_it_takes_no_owner(self):
         args = self.admin("select pg_get_function_arguments('public.connect_set_compilation_request(text,uuid,jsonb)'::regprocedure)")
         self.assertNotRegex(args, r"owner|user")
-        for role in ("anon", "authenticated", "service_role", "public"):
+        for role in ("anon", "authenticated", "public"):
             if role == "public":
                 ok = self.admin("select has_function_privilege('public', 'public.connect_set_compilation_request(text,uuid,jsonb)', 'EXECUTE')")
             elif self.admin("select count(*) from pg_roles where rolname = %s", role):
@@ -125,6 +126,34 @@ class CompilationRequests(core.Base):
             _, a, _ = self.connect(ALICE)
             p = self.project_for(a)
             self.app(ALICE).one("select connect_set_compilation_request(%s, %s, %s::jsonb)", h(a), p, json.dumps(REQ))
+
+    def realistic(self, migrations):
+        """A database built like a real Supabase project: PUBLIC keeps its default EXECUTE on new functions, and anon / authenticated / service_role get EXECUTE on every new function by default
+        (the stub revokes both, test_connect.RealisticDefaults does the same). Returns a connection to it; the caller drops the database."""
+        name = "rq" + str(abs(hash(self.id())) % 100000)
+        with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
+            c.execute(f"create database {name}")
+        drop = ("revoke usage on schema public from anon, authenticated;", "revoke all on schema public from public;",
+                "alter default privileges revoke execute on functions from public;", "alter default privileges in schema public revoke execute on functions from public;")
+        lines = [l for l in (core.ROOT / "tests" / "supabase_stub.sql").read_text(encoding="utf-8").splitlines(True) if not l.startswith("create role") and l.strip() not in drop]
+        c = psycopg.connect(core._server.get_uri(database=name), autocommit=True)
+        c.execute("".join(lines))
+        c.execute("alter default privileges in schema public grant execute on functions to anon, authenticated, service_role")
+        for path in migrations:
+            c.execute(path.read_text(encoding="utf-8"))
+        return c, name
+
+    def test_under_supabases_default_privileges_nobody_but_the_connector_can_run_it(self):
+        c, name = self.realistic(core.MIGRATIONS)
+        try:
+            sig = "public.connect_set_compilation_request(text,uuid,jsonb)"
+            for role in ("anon", "authenticated", "public"):          # service_role is the project's own trusted key: like every other connect_* function, it keeps Supabase's default EXECUTE
+                self.assertFalse(c.execute(f"select has_function_privilege('{role}', '{sig}', 'EXECUTE')").fetchone()[0], role)
+            self.assertTrue(c.execute(f"select has_function_privilege('connect_runner', '{sig}', 'EXECUTE')").fetchone()[0])
+        finally:
+            c.close()
+            with psycopg.connect(core._server.get_uri(), autocommit=True) as c2:
+                c2.execute(f"drop database {name}")
 
     def test_the_person_reads_only_their_own_row_and_nobody_writes_the_table_directly(self):
         _, a, _ = self.connect(ALICE)
