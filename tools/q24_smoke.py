@@ -3,7 +3,7 @@
     py tools/q24_smoke.py --env-file <file> --account-file <file> [--live] [--no-writes] [--wait-minutes 15] [--poll-seconds 30] [--preview]
 
   --env-file      two lines: SUPABASE_URL=https://<ref>.supabase.co and SUPABASE_PUBLISHABLE_KEY=<the public key>   (the same file as Q22)
-  --account-file  {"email": "...", "password": "..."}  of the TEST account (zero credits, not an admin)
+  --account-file  {"email": "...", "password": "..."}  of the TEST account (not an admin; ANY credit balance, which must be the same at the end)
   --live          REQUIRED, typed by Ryan himself, for the live project; refused for any other project. Without it the script refuses to touch live.
   --no-writes     creates no project and no job (steps 0, 1, 2, 4, 7 only)
   --preview       also runs step 12 (a free preview) -- only if Ryan said yes to it
@@ -140,6 +140,17 @@ class Conn:
             pass
 
 
+def credits_usable_at_start(data: dict) -> bool:
+    """The test account may hold ANY balance (an invite can carry welcome credits, 20 on 10-25), but nothing may be held: a whole number, not negative, 0 held."""
+    a, h = data.get("credits_available"), data.get("credits_held")
+    return isinstance(a, int) and not isinstance(a, bool) and a >= 0 and h == 0
+
+
+def credits_unchanged(start: tuple, data: dict) -> bool:
+    """After the whole walk, the balance and the held count are exactly what they were at step 1: a connection spends nothing and holds nothing."""
+    return (data.get("credits_available"), data.get("credits_held")) == start
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Q24 smoke test through the connector")
     ap.add_argument("--env-file", required=True)
@@ -175,6 +186,7 @@ def main() -> int:
 
     conn = None
     fail_step = None
+    credits_start = None
     project = job = None
     t_sheet = {}
     refused = {"bad story": "n/a", "other project": "n/a", "full render": "n/a"}
@@ -192,10 +204,11 @@ def main() -> int:
         st, err, text, data = conn.tool("whoami_and_credits")
         must(st == 200 and not err and "You are acting as the Ryagram account" in text, "1  whoami_and_credits answers", f"status {st}")
         must(data.get("full_render_enabled") is False and "full render" in text.lower(), "1  says full renders from a connection are off (full_render_enabled false)")
+        credits_start = (data.get("credits_available"), data.get("credits_held"))
         if live:
-            must(data.get("credits_available") == 0 and data.get("credits_held") == 0, "1  the test account has 0 credits and 0 held", f"available {data.get('credits_available')}, held {data.get('credits_held')}")
+            must(credits_usable_at_start(data), "1  the test account has nothing held (its balance is recorded and must be the same at the end)", f"available {data.get('credits_available')}, held {data.get('credits_held')}")
         else:
-            say(True, "1  credits on the proof test account (not required to be 0 here)", f"available {data.get('credits_available')}, held {data.get('credits_held')}")
+            say(True, "1  credits on the proof test account (any balance; recorded for the end check)", f"available {data.get('credits_available')}, held {data.get('credits_held')}")
         label = re.search(r"account-label\">\s*(.*?)\s*</untrusted>", text, re.S)
         lab = (label.group(1) if label else "?")[:60]
         shown = lab[:3] + "..." + lab[lab.index("@"):] if "@" in lab[3:] else lab[:3] + "..."          # enough for Ryan to recognise the test account, not the whole address
@@ -320,6 +333,11 @@ def main() -> int:
             st, err, text, data = conn.tool("list_projects")
             n = text.count(project) if project else 0
             must(n == 1, "13 list_projects lists the smoke project exactly once", f"{n}")
+
+            # 14. nothing was spent and nothing is held: the same balance as at step 1
+            st, err, text, data = conn.tool("whoami_and_credits")
+            must(st == 200 and not err and credits_start is not None and credits_unchanged(credits_start, data), "14 credits are exactly what they were at step 1 (nothing spent, nothing held)",
+                 f"start {credits_start}, now {data.get('credits_available')}/{data.get('credits_held')}")
     except Stop as e:
         fail_step = str(e)
     except Exception as e:                                   # noqa: BLE001
@@ -334,7 +352,7 @@ def main() -> int:
     when = time.strftime("%Y-%m-%d %H:%M")
     total = t_sheet.get("total")
     sheet = f"sheet job {job[:8] if job else '-'}: " + (f"total {total // 60}:{total % 60:02d}" if total is not None else "not followed")
-    print(f"\nCONNECTOR SMOKE {when}: {'PASS' if passed else 'FAIL at ' + str(fail_step)} | account: test{' (0 credits)' if live else ''} | project {project or '-'} | {sheet} | "
+    print(f"\nCONNECTOR SMOKE {when}: {'PASS' if passed else 'FAIL at ' + str(fail_step)} | account: test{f' ({credits_start[0]} credits at the start, the same at the end)' if (live and credits_start is not None and fail_step is None) else ''} | project {project or '-'} | {sheet} | "
           f"refused as designed: bad story {refused['bad story']}, other project {refused['other project']}, full render {refused['full render']} | "
           f"not run: {'preview, ' if not a.preview else ''}the connect_calls evidence (SQL Editor)")
     return 0 if passed else 1

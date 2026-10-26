@@ -70,6 +70,23 @@ class Guards(unittest.TestCase):
         src = SCRIPT.read_text(encoding="utf-8")
         self.assertNotRegex(src, r"psycopg|DB_URL|service_role|SERVICE_ROLE|CONNECT_DB_URL")
 
+    def test_the_live_check_accepts_any_balance_with_nothing_held_and_requires_it_unchanged(self):
+        sys.path.insert(0, str(ROOT / "tools"))
+        import q24_smoke as q
+        self.assertTrue(q.credits_usable_at_start({"credits_available": 20, "credits_held": 0}))      # the 10-25 test account: 20 welcome credits
+        self.assertTrue(q.credits_usable_at_start({"credits_available": 0, "credits_held": 0}))
+        for bad in ({"credits_available": 20, "credits_held": 3}, {"credits_available": -1, "credits_held": 0}, {"credits_available": "20", "credits_held": 0},
+                    {"credits_available": True, "credits_held": 0}, {"credits_held": 0}, {}):
+            self.assertFalse(q.credits_usable_at_start(bad), bad)
+        self.assertTrue(q.credits_unchanged((20, 0), {"credits_available": 20, "credits_held": 0}))
+        for moved in ({"credits_available": 19, "credits_held": 0}, {"credits_available": 20, "credits_held": 1}, {"credits_available": 21, "credits_held": 0}, {}):
+            self.assertFalse(q.credits_unchanged((20, 0), moved), moved)       # MUST-FAIL: a spend, a hold, a grant, or a missing answer
+
+    def test_the_walk_ends_with_the_unchanged_check_and_no_longer_demands_zero(self):
+        src = SCRIPT.read_text(encoding="utf-8")
+        self.assertIn("credits_unchanged(credits_start, data)", src)
+        self.assertNotIn("== 0 and data.get(\"credits_held\") == 0", src)
+
 
 if __name__ == "__main__":
     unittest.main()
