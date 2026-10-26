@@ -12,7 +12,8 @@ for (const line of fs.readFileSync(ENVFILE, 'utf8').split(/\r?\n/)) {
   const m = /^\s*SUPABASE_URL\s*=\s*(.*?)\s*$/.exec(line);
   if (m) base = m[1].replace(/^["']|["']$/g, '').replace(/\/+$/, '');
 }
-if (/jxtkfishqfxuptwjzczz/.test(base) || !base) { console.error('REFUSED: no non-live project'); process.exit(2); }
+// ALLOW-list: exactly the proof project (same rule as tools/connect_proof_guard.py), never a deny-list of the live one
+if (!/^https:\/\/awjbjersplaqhxhuvozi\.supabase\.co$/.test(base)) { console.error('REFUSED: not the proof project'); process.exit(2); }
 const server = new URL(`${base}/functions/v1/connect/mcp`);
 
 let bad = 0;
@@ -55,5 +56,33 @@ check(meta?.authorization_endpoint?.startsWith(issuer.href.replace(/\/$/, '') + 
 const raw = await (await fetch(`${issuer.href.replace(/\/$/, '')}/.well-known/openid-configuration`)).json();
 check(raw.authorization_response_iss_parameter_supported === true, 'RFC 9207: iss on redirects is advertised (raw document)');
 check(meta?.grant_types_supported?.includes('authorization_code') && meta?.grant_types_supported?.includes('refresh_token'), 'authorization_code and refresh_token grants');
+// ---- the whole candidate list the MCP authorization spec tells a client to try, one GET each (read-only), with what each answers.
+// "reachable" = the platform lets the request reach the function at all; "served" = our function answers it with the right document.
+const origin = new URL(base).origin;
+const issuerStr = issuer.href.replace(/\/$/, '');
+const path = issuer.pathname.replace(/\/$/, '');                    // /functions/v1/connect
+const resPath = server.pathname;                                    // /functions/v1/connect/mcp
+const matrix = [
+  ['protected resource', 'WWW-Authenticate pointer', params.resourceMetadataUrl, 'resource', server.href],
+  ['protected resource', 'RFC 9728 path form at the host root', `${origin}/.well-known/oauth-protected-resource${resPath}`, 'resource', server.href],
+  ['protected resource', 'RFC 9728 root form at the host root', `${origin}/.well-known/oauth-protected-resource`, 'resource', server.href],
+  ['authorization server', 'RFC 8414 path form at the host root', `${origin}/.well-known/oauth-authorization-server${path}`, 'issuer', issuerStr],
+  ['authorization server', 'OpenID path form at the host root', `${origin}/.well-known/openid-configuration${path}`, 'issuer', issuerStr],
+  ['authorization server', 'OpenID appended to the issuer', `${issuerStr}/.well-known/openid-configuration`, 'issuer', issuerStr],
+  ['authorization server', 'RFC 8414 appended to the issuer', `${issuerStr}/.well-known/oauth-authorization-server`, 'issuer', issuerStr],
+];
+console.log('\n  candidate addresses (one GET each):');
+const served = {};
+for (const [kind, label, url, key, want] of matrix) {
+  const res = await fetch(url);
+  let ok = false;
+  try { const j = await res.json(); ok = res.status === 200 && j[key] === want; } catch { /* not JSON: the platform answered, not us */ }
+  served[label] = ok;
+  console.log(`  ${ok ? 'served ' : 'NOT served'}  ${String(res.status).padEnd(3)}  ${kind.padEnd(20)} ${label}`);
+}
+check(served['WWW-Authenticate pointer'], 'the pointer in WWW-Authenticate leads to our protected-resource document');
+check(served['OpenID appended to the issuer'] && served['RFC 8414 appended to the issuer'], 'both documents the platform CAN route (appended to the issuer, under the function) are served, with the issuer equal to the address');
+check(!served['RFC 8414 path form at the host root'] && !served['OpenID path form at the host root'] && !served['RFC 9728 path form at the host root'],
+  'the host-root path forms are NOT ours to serve (Supabase answers every host-root path itself); this is the documented platform limit, not a missing route');
 console.log(bad ? `\n${bad} CHECK(S) FAILED` : '\nDISCOVERY OK');
 process.exit(bad ? 1 : 0);
