@@ -317,8 +317,10 @@
         return run(client.rpc('set_dataset_provenance', { p_dataset: datasetId, p_publisher: p.publisher, p_link: p.link || null, p_licence: p.licence, p_licence_note: p.licence_note || null, p_unit: p.unit, p_decimals: p.decimals, p_attested: p.attested === true }),
           'Couldn\u2019t save where this data comes from.');
       },
-      confirmMapping(datasetId, mapping) {
-        return run(client.rpc('confirm_dataset_mapping', { p_dataset: datasetId, p_mapping: mapping }), 'Couldn’t save that.');
+      // The third argument is the person's tick on 'I understand, use it anyway.' (RULINGS 2026-10-26, Q234). The database REFUSES without it (CONNECT's trust-label migration), so an older page that
+      // does not send it fails safe instead of approving an upload nobody saw labelled. Anything but a real true is sent as false.
+      confirmMapping(datasetId, mapping, trustAck) {
+        return run(client.rpc('confirm_dataset_mapping', { p_dataset: datasetId, p_mapping: mapping, p_trust_ack: trustAck === true }), 'Couldn’t save that.');
       },
       attachUpload(versionId, datasetId) {
         return run(client.rpc('attach_upload_to_version', { p_version: versionId, p_dataset: datasetId }), 'Couldn’t use this data.');
