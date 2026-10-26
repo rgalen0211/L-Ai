@@ -334,7 +334,7 @@ class Uploads(core.Base):
         self.assertEqual(svc(), [str(b)])                                           # kept data is never swept for idleness
         # A complete final render on `a` makes it due. (A job row is enough for the sweeper's rule.)
         _, vid = self.project_version()
-        self.admin("update datasets set status = 'approved' where id = %s returning 1", a)
+        self.admin("update datasets set status = 'approved', trust_ack_at = now() where id = %s returning 1", a)
         self.admin("update versions set dataset_id = %s where id = %s returning 1", a, vid)
         self.job(vid, a, "final_render", "complete")
         self.assertEqual(svc(), sorted([str(a), str(b)]))
