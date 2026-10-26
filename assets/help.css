@@ -25,3 +25,6 @@
 .shell-banner{margin:0 0 20px;padding:12px 14px;border:2px solid var(--line,#8a7a5a);border-radius:10px;background:rgba(255,214,102,.12)}
 /* Whole-app pass: the question rows on the help pages are comfortable to tap */
 .faq summary{min-height:44px;padding:8px 0;box-sizing:border-box}
+/* Phone: the long connector address and the command lines wrap instead of pushing the page sideways (live walk 10-25: /connect-ai/ was 583 px wide at 375) */
+code,pre{overflow-wrap:anywhere}
+pre{white-space:pre-wrap}

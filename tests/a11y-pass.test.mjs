@@ -45,5 +45,5 @@ test('WHOLE-APP PASS (tools/audit-app-pass.py): phone text fields are 16 px, the
   assert.ok(css.includes('min-width:40px;min-height:40px}'));
   assert.ok(css.includes('.app-foot{align-items:center}.admin-links a{white-space:nowrap}'));
   assert.ok(read('assets/help.css').includes('.faq summary{min-height:44px;padding:8px 0;box-sizing:border-box}'));
-  for (const f of ['help', 'terms', 'ai-content', 'report', 'connect-ai']) assert.ok(read(`${f}/index.html`).includes('help.css?v=20261023a'), f);
+  for (const f of ['help', 'terms', 'ai-content', 'report', 'connect-ai']) assert.ok(read(`${f}/index.html`).includes('help.css?v=20261026a'), f);
 });
