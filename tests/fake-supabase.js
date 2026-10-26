@@ -971,7 +971,8 @@
           return { data: { subscription: { unsubscribe: () => authListeners.delete(cb) } } };
         },
         async signInWithPassword({ email }) {
-          session = { user: { id: 'u-ryan', email } };
+          // An email that starts with "other" is a DIFFERENT account (id u-other), so the mock can walk switching accounts in one tab (live ride 2026-10-26); the account the mock started with keeps its own id.
+          session = { user: { id: /^other/i.test(String(email || '')) ? 'u-other' : (String(email || '') === user.email ? user.id : 'u-ryan'), email } };
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { error: null };
         },
