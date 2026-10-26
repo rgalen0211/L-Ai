@@ -30,6 +30,8 @@
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], engine_profiles: [], render_orders: [],
                  account_settings: [], credit_ledger: [], funnel_events: mockFunnelEvents(), version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
+    // ?aiconnected in the address starts the mock with one connected AI (Claude), so the AI-first door can be walked in Chrome without the consent redirect leaving the page.
+    if (typeof location !== 'undefined' && /[?&]aiconnected/.test(location.search || '')) db.connected = [{ client_id: 'client-claude', client_name: 'Claude', scopes: ['read', 'write', 'render_free'], connected_at: new Date().toISOString(), last_used_at: null, calls_30d: 0 }];
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.

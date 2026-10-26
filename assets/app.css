@@ -219,6 +219,13 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .builder-ready{margin:0 0 28px}.builder-start{display:grid;gap:2px;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:44px;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.builder-start:hover,.builder-start:focus-visible{border-color:var(--brand-deep,#0a6)}
 .next-strip{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--brand-deep,#0a6);border-radius:10px;background:var(--paper)}.next-strip a{display:inline-block;padding:10px 4px;min-height:44px;box-sizing:border-box}
 .first-film{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0 18px}.first-film .button{min-height:48px}
+/* The AI-first front door (#/start, aiFirst): the lines, their three buttons, the strip on the library, the connected pill. Phone first: buttons are 44 px tall and wrap. */
+.start-lines{list-style:none;margin:12px 0;padding:0}.start-line{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;margin:0 0 10px;padding:12px;border:1px solid var(--line,#3a3a44);border-radius:12px;background:var(--soft,#23232d)}
+.start-text{flex:1 1 220px;min-width:0;overflow-wrap:anywhere}.start-buttons{display:flex;flex-wrap:wrap;gap:8px}.start-buttons .button{min-height:44px;display:inline-flex;align-items:center}
+.start-pill{display:inline-block;margin:0 0 10px;padding:2px 12px;border:1px solid var(--brand,#6fd1bd);border-radius:99px;color:var(--brand-deep,#8fe0cf)}
+.start-step{margin:14px 0 6px}.start-bar{margin:0 0 12px;padding:10px 12px;border:1px solid var(--line,#3a3a44);border-radius:10px}
+.start-strip{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 14px}.start-pill-link{display:inline-flex;align-items:center;min-height:44px;padding:6px 12px;border:1px solid var(--line,#3a3a44);border-radius:99px;overflow-wrap:anywhere}
+.start-copybox{width:100%;max-width:100%;min-height:44px;box-sizing:border-box}.linklike{background:none;border:0;padding:0;min-height:44px;color:var(--brand-deep,#8fe0cf);text-decoration:underline;font:inherit;cursor:pointer}
 /* The trust label on every upload (RULINGS 2026-10-26): the box on the confirm screen, and the chip on each uploaded dataset. */
 .trust-box{margin:14px 0;padding:12px 14px;border:2px solid var(--wheat,#c9a66b);border-radius:12px;background:var(--wheat-soft,#33291a)}.trust-box legend{padding:0 6px;font-weight:700}
 .trust-label{margin:0 0 6px;font-size:1.05rem}.trust-warning{margin:0 0 8px}.trust-chip{display:inline-block;padding:1px 10px;border:1px solid var(--wheat,#c9a66b);border-radius:99px;color:var(--wheat,#c9a66b);font-size:.85rem}

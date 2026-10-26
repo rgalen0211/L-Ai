@@ -61,6 +61,8 @@
   const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
   // Connecting an AI (the consent page and Connected AIs) shows once CONNECT's SQL and function are live (connectAi: true), or in mock mode.
   const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
+  // The AI-first front door (#/start), needs connectAi too (app-start.js). Off by default; in mock mode it follows the flag so the mock walk can show both.
+  const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
   // so signing in as another account cannot inherit the last answer.
   const connectAllowed = async data => connectOn() && (await data.connectAccess()) === true;
@@ -84,9 +86,12 @@
       let view;
       try {
         let m;
+        // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
+        if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
         else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
@@ -184,6 +189,8 @@
     const looksUi = () => looksCache || (looksCache = window.ryagramLooks.create({ h, data, busy, showError, errorLine, date }));
     // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
     let connectCache = null;
+    let startCache = null;
+    const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));
     const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
     let deviceCache = null;
     const deviceUi = () => deviceCache || (deviceCache = window.ryagramDevice.create({ h, data, busy, showError, errorLine, date, whoami: async () => (window.ryagramApp?.client ? (await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '' : '') }));
@@ -229,8 +236,9 @@
       const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
+      const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
       return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
-              credits, creditsNote, buildLink, looksLink, requestLink, adminLinks, form, list, help];
+              startStrip, credits, creditsNote, buildLink, looksLink, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.

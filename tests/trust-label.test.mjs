@@ -67,8 +67,8 @@ test('WIRING: the stamps moved so a returning visitor gets the new scripts; noth
   const html = read('app/index.html');
   assert.match(html, /app-uploads\.js\?v=20261026b/);
   assert.match(html, /app-data\.js\?v=20261026b/);
-  assert.match(html, /app-library\.js\?v=20261026b/);
-  assert.match(html, /app\.css\?v=20261026b/);
+  assert.match(html, /app-library\.js\?v=20261026d/);                  // (moved again when this branch merged with the AI-first door: both changed the file)
+  assert.match(html, /app\.css\?v=20261026d/);
   assert.match(read('film/index.html'), /film\.js\?v=20261026b/);
   assert.match(read('assets/ryagram-config.js'), /uploads: false,/);
 });
