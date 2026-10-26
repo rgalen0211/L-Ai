@@ -58,7 +58,7 @@ def raises(fn, exc, *a, **k):
 # ------------------------------------------------------------------------------------------------ a ready setup (all stand-in files)
 def make_env(name, **over):
     d = RUN / name
-    for p in ("engine/ryagram/worker", "cache", "tools", "root"):
+    for p in ("engine/ryagram/worker", "cache", "tools", "root", "house-jobs"):
         (d / p).mkdir(parents=True, exist_ok=True)
     (d / "engine/ryagram/worker/engine.py").write_text("", encoding="ascii")
     (d / "chrome.exe").write_text("", encoding="ascii")
@@ -66,11 +66,11 @@ def make_env(name, **over):
     (d / "gpu_lock.py").write_text("", encoding="ascii")
     (d / "cache/x.csv").write_text("a", encoding="ascii")
     s = {"root": str(d / "root"), "engine_dir": str(d / "engine"), "python": sys.executable, "chrome": str(d / "chrome.exe"), "path_dirs": [str(d / "tools")],
-         "cache": str(d / "cache"), "gpu_lock": str(d / "gpu_lock.py"), "priority_line": ""}
+         "cache": str(d / "cache"), "gpu_lock": str(d / "gpu_lock.py"), "house": str(d / "house-jobs"), "priority_line": ""}
     s.update(over)
     toml = (f"root = '{s['root']}'\nworker_id = 'TEST'\nmemory_bytes = 8589934592\n[engine]\nengine_dir = '{s['engine_dir']}'\nchrome = '{s['chrome']}'\n"
             f"sequence_argv = ['{s['python']}', '-m', 'ryagram.sequence']\npath_dirs = {json.dumps(s['path_dirs'])}\n[engine.env]\nRYAGRAM_CACHE_DIR = '{s['cache']}'\n"
-            f"[datasets]\nallow = ['cbp_suppression']\n[node]\ngpu_lock = '{s['gpu_lock']}'\nwho = 'TESTMAKER'\n{s['priority_line']}")
+            f"[datasets]\nallow = ['cbp_suppression']\n[node]\ngpu_lock = '{s['gpu_lock']}'\nhouse_jobs = '{s['house']}'\nwho = 'TESTMAKER'\n{s['priority_line']}")
     (d / "node.toml").write_text(toml.replace("\\", "/") if False else toml, encoding="utf-8")
     return d, s
 
@@ -90,7 +90,7 @@ def job(**over):
 GOOD_RAM, GOOD_DISK = (lambda: 32 << 30), (lambda: 500.0)
 d0, s0 = make_env("ready")
 settings = rr.read_settings(d0 / "node.toml")
-nr = rr.NodeRenderer(settings, RUN / "work", ram=GOOD_RAM, free_gb=GOOD_DISK)
+nr = rr.NodeRenderer(settings, RUN / "work", ram=GOOD_RAM, free_gb=GOOD_DISK, busy=lambda: False)
 
 print("A  the job check")
 check(nr.validate(job()) is not None and nr.validate(job(job_type="contact_sheet")) is not None, "a preview and a contact sheet pass")
@@ -108,6 +108,7 @@ breaks = {
     "no ffmpeg": lambda d, s: (d / "tools/ffmpeg.exe").unlink(),
     "no data folder": lambda d, s: shutil.rmtree(d / "cache"),
     "no GPU lock tool": lambda d, s: (d / "gpu_lock.py").unlink(),
+    "no house folder": lambda d, s: shutil.rmtree(d / "house-jobs"),
 }
 for what, brk in breaks.items():
     d, s = make_env("b-" + what.replace(" ", "-"), **({"python": str(RUN / "nopython.exe")} if what == "no python" else {}))
@@ -170,7 +171,7 @@ def stand_in(work_files=None, polls=3, started_at=2, result=None, rc=0):
 
 
 def run_renderer(spawn, name, j=None, clock=None, **kw):
-    n2 = rr.NodeRenderer(settings, RUN / "work", spawn=spawn, sleep=lambda s: None, ram=GOOD_RAM, free_gb=GOOD_DISK, **({"clock": clock} if clock else {}))
+    n2 = rr.NodeRenderer(settings, RUN / "work", spawn=spawn, sleep=lambda s: None, ram=GOOD_RAM, free_gb=GOOD_DISK, busy=kw.get("busy", lambda: False), **({"clock": clock} if clock else {}))
     work = RUN / "work" / name
     notes = []
     killed = []
@@ -224,7 +225,7 @@ check(isinstance(err, rn.RenderFailed) and err.code == "no_output", "MUST-FAIL: 
 
 # an exception in the loop kills the render and the lock ticket
 spawn, seen = stand_in(polls=10, result=None)
-n3 = rr.NodeRenderer(settings, RUN / "work", spawn=spawn, sleep=lambda s: None, ram=GOOD_RAM, free_gb=GOOD_DISK)
+n3 = rr.NodeRenderer(settings, RUN / "work", spawn=spawn, sleep=lambda s: None, ram=GOOD_RAM, free_gb=GOOD_DISK, busy=lambda: False)
 killed = []
 n3._kill = lambda p: killed.append(p.pid)
 
@@ -247,7 +248,7 @@ def clock():
 spawn, seen = stand_in(polls=10 ** 6, result=None)
 n2, out, notes, err, killed, work = run_renderer(spawn, "never", clock=clock)
 check(isinstance(err, rn.RenderFailed) and err.code == "timeout" and killed == [4242], "MUST-FAIL: a render that never ends is killed and fails with 'timeout'")
-n4 = rr.NodeRenderer(settings, RUN / "work", spawn=spawn, sleep=lambda s: None, ram=lambda: 1 << 30, free_gb=GOOD_DISK)
+n4 = rr.NodeRenderer(settings, RUN / "work", spawn=spawn, sleep=lambda s: None, ram=lambda: 1 << 30, free_gb=GOOD_DISK, busy=lambda: False)
 err = raises(n4.renderer, rn.RenderFailed, job(), RUN / "work" / "np", lambda n: None)
 check(err is not None and err.code == "not_ready", "MUST-FAIL: with a problem the renderer refuses to start anything")
 err = raises(nr.renderer, rn.RenderFailed, job(), Path("C:/Users/someone/job"), lambda n: None)
@@ -322,6 +323,102 @@ r, started, d = child("bad", outcome=Outc("failed", "crash", True))
 check(r["state"] == "failed" and r["error_code"] == "crash" and r["retry"] is True and r["files"] == {}, "an engine failure is reported with its code and retry flag, with no files")
 blob = "".join(p.read_text(encoding="utf-8", errors="replace") for p in (RUN / "child").rglob("result.json"))
 check("SECRET-TITLE-XYZ" not in blob, "MUST-FAIL: the story text never reaches a result file")
+
+print("D2 a paid film made by the house goes first (CC1 MED-1)")
+import os as _os
+hj = RUN / "house"
+(hj / "job-a" / "out").mkdir(parents=True)
+(hj / "job-b").mkdir()
+reg = RUN / "reg"
+reg.mkdir()
+NOW = 1_000_000.0
+
+
+def touch(path, age, data=b"x"):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(data)
+    _os.utime(path, (NOW - age, NOW - age))
+
+
+alive = lambda pid: pid == 4242                     # noqa: E731
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is False, "an idle house (no recent log, no registered render) is not busy")
+touch(hj / "job-a" / "engine.stdout.log", 30)
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is True, "MUST-FAIL: a job log written 30 s ago means the house has a render in hand")
+touch(hj / "job-a" / "engine.stdout.log", 3600)
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is False, "control: the same log an hour old does not")
+touch(hj / "job-a" / "out" / "preview.mp4.progress.json", 20)
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is True, "MUST-FAIL: a progress file written 20 s ago means busy")
+touch(hj / "job-a" / "out" / "preview.mp4.progress.json", 3600)
+touch(reg / "run-1.json", 10, json.dumps({"pid": 4242, "progress": str(hj / "job-b" / "out" / "x.progress.json")}).encode())
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is True, "MUST-FAIL: a live registered render whose progress file is in the house's folder means busy")
+touch(reg / "run-1.json", 10, json.dumps({"pid": 7, "progress": str(hj / "job-b" / "out" / "x.progress.json")}).encode())
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is False, "control: the same entry with a dead process does not")
+touch(reg / "run-1.json", 10, json.dumps({"pid": 4242, "progress": str(RUN / "elsewhere" / "x.progress.json")}).encode())
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is False, "control: a render whose progress file is NOT in the house's folder (this maker's own, Ryan's) does not")
+touch(reg / "run-1.json", 3600, json.dumps({"pid": 4242, "progress": str(hj / "job-b" / "x.progress.json")}).encode())
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is False, "control: an entry nobody has touched for an hour is stale, not busy")
+touch(reg / "run-1.json", 5, b"{" + b"x" * 5000)
+check(nj.house_busy(hj, reg, now=NOW, pid_alive=alive) is False, "a damaged or oversized entry is ignored, not trusted and not a crash")
+check(raises(nj.house_busy, OSError, RUN / "no-such-house-folder", reg, now=NOW) is not None, "MUST-FAIL: a house folder that cannot be read raises (the caller treats that as 'cannot tell')")
+before = sorted(str(q) for q in hj.rglob("*"))
+nj.house_busy(hj, reg, now=NOW, pid_alive=alive)
+check(sorted(str(q) for q in hj.rglob("*")) == before, "it writes nothing into the house worker's folder")
+
+# the renderer waits for the house BEFORE it takes the lock
+calls = {"n": 0}
+seq = iter([True, True, False])
+spawn, seen = stand_in(result=abs_result(RUN / "work" / "hb"), polls=1)
+n2, out, notes, err, killed, work = run_renderer(spawn, "hb", busy=lambda: next(seq, False))
+check(err is None and notes[0].startswith("Waiting: a film ordered on Ryagram") and "cmd" in seen, f"the film waits while a house film is made, then starts ({notes[:3]})")
+started_early = []
+spawn2, seen2 = stand_in(result=abs_result(RUN / "work" / "hb2"), polls=1)
+
+
+def spawn_watch(cmd, **kw):
+    started_early.append(1)
+    return spawn2(cmd, **kw)
+
+
+tick2 = [0.0]
+
+
+def clock2():
+    tick2[0] += 3600.0
+    return tick2[0]
+
+
+n2, out, notes, err, killed, work = run_renderer(spawn_watch, "hb2", busy=lambda: True, clock=clock2)
+check(isinstance(err, rn.RenderFailed) and err.code == "house_busy" and err.retry is True and started_early == [], "MUST-FAIL: while the house is always busy nothing is started, and the order is given back as retryable after the cap")
+n2, out, notes, err, killed, work = run_renderer(spawn_watch, "hb3", busy=lambda: (_ for _ in ()).throw(OSError("denied")), clock=clock2)
+check(isinstance(err, rn.RenderFailed) and err.code == "house_busy" and started_early == [], "MUST-FAIL: when the house folder cannot be read the film does not start (cannot tell = wait)")
+check("--house-jobs" in seen["cmd"] and seen["cmd"][seen["cmd"].index("--house-jobs") + 1] == str(settings.house_jobs), "the child is told which folder to watch")
+
+# the child looks again right after the lock was granted
+n_calls = [0]
+
+
+def busy_twice():
+    n_calls[0] += 1
+    return n_calls[0] <= 2
+
+
+d_ = RUN / "child" / "hbusy"
+d_.mkdir(parents=True, exist_ok=True)
+nj.run_job(fake_lib(outcome=Outc("validating")), job(), cfg=cfg, jobs_dir=d_ / "jobs", started=d_ / "started", out=d_ / "result.json", busy=busy_twice, sleep=lambda s: None)
+check(json.loads((d_ / "result.json").read_text(encoding="utf-8"))["state"] == "validating" and n_calls[0] == 3 and (d_ / "started").exists(), "the child waits out a house render that started after the lock was granted, then runs")
+tt = [0.0]
+
+
+def clock3():
+    tt[0] += 100.0
+    return tt[0]
+
+
+d_ = RUN / "child" / "hbusy2"
+d_.mkdir(parents=True, exist_ok=True)
+nj.run_job(fake_lib(outcome=Outc("validating")), job(), cfg=cfg, jobs_dir=d_ / "jobs", started=d_ / "started", out=d_ / "result.json", busy=lambda: True, sleep=lambda s: None, clock=clock3)
+r = json.loads((d_ / "result.json").read_text(encoding="utf-8"))
+check(r["error_code"] == "house_busy" and r["retry"] is True and not (d_ / "started").exists(), "MUST-FAIL: a house render that never ends makes the child give the order back (retryable) and start nothing")
 
 print("F  the node loop shows the reason, and the renderer's note while it works")
 

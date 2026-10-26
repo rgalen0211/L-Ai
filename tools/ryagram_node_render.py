@@ -44,6 +44,8 @@ HERE = Path(__file__).resolve().parent
 CHILD = HERE / "ryagram_node_job.py"
 GPU_PRIORITY = "e"                       # RULINGS 2026-10-20: film renders are the LAST thing on the GPU. Not a setting.
 POLL_S = 2.0
+HOUSE_POLL_S = 10.0
+HOUSE_WAIT_MAX_S = 6 * 3600           # a tester film that waited this long behind paid films is given back to the site (retried)
 LOCK_WAIT_MAX_S = 12 * 3600              # a render that waited this long for the GPU is given up (reported, retried by the site)
 MIN_FREE_GB = 10.0
 MIN_RAM_BYTES = 8 << 30
@@ -51,6 +53,13 @@ ALLOWED_TYPES = ("contact_sheet", "preview")
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
 MAX_JOB_BYTES = 300_000
 RESULT_KINDS = ("contact_sheet", "preview", "final_video", "receipt", "receipt_text")
+
+
+def _job_mod():
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import ryagram_node_job
+    return ryagram_node_job
 
 
 def _node_mod():
@@ -81,6 +90,7 @@ class Settings:
     cache_dir: Path | None
     datasets: tuple
     gpu_lock: Path | None
+    house_jobs: Path | None
     who: str
     memory_bytes: int
     problems: list = field(default_factory=list)
@@ -101,7 +111,7 @@ def read_settings(path) -> Settings:
             chrome=eng.get("chrome"), path_dirs=tuple(eng.get("path_dirs", ())),
             cache_dir=Path(eng["env"]["RYAGRAM_CACHE_DIR"]) if (eng.get("env") or {}).get("RYAGRAM_CACHE_DIR") else None,
             datasets=tuple(raw["datasets"]["allow"]), gpu_lock=Path(node["gpu_lock"]) if node.get("gpu_lock") else None,
-            who=str(node.get("who") or "MAKER")[:40], memory_bytes=int(raw.get("memory_bytes", 8 << 30)))
+            house_jobs=Path(node["house_jobs"]) if node.get("house_jobs") else None, who=str(node.get("who") or "MAKER")[:40], memory_bytes=int(raw.get("memory_bytes", 8 << 30)))
     except (KeyError, TypeError, ValueError, IndexError):
         raise ValueError("The settings file for making site films on this computer is incomplete.") from None
 
@@ -142,6 +152,13 @@ def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> li
         out.append("The graphics-card lock tool was not found, and a film is never made without it.")
     if not CHILD.is_file():
         out.append("A part of this app (the film-maker step) is missing.")
+    if s.house_jobs is None:
+        out.append("The settings do not say where the house worker's films are made, so a paid film could be made at the same moment as this one.")
+    else:
+        try:
+            list(s.house_jobs.iterdir())
+        except OSError:
+            out.append("The house worker's films folder could not be looked at, so a paid film could be made at the same moment as this one.")
     if not s.datasets:
         out.append("The settings do not list which datasets a film may use.")
     total = ram()
@@ -164,13 +181,14 @@ def lock_command(s: Settings, child_argv: list[str]) -> list[str]:
 class NodeRenderer:
     """Everything the maker needs from this module: the renderer, the validator, the dataset allowlist and the engine commit."""
 
-    def __init__(self, settings: Settings, work_root, *, spawn=subprocess.Popen, sleep=time.sleep, clock=time.monotonic, ram=_ram_bytes, free_gb=None):
+    def __init__(self, settings: Settings, work_root, *, spawn=subprocess.Popen, sleep=time.sleep, clock=time.monotonic, ram=_ram_bytes, free_gb=None, busy=None):
         self.s, self.work_root = settings, Path(work_root)
         self.spawn, self.sleep, self.clock = spawn, sleep, clock
         self.problems = find_problems(settings, work_root, ram=ram, free_gb=free_gb)
         self.datasets = list(settings.datasets)
         self._commit = None
         self._static_commit = None
+        self.busy = busy if busy is not None else (lambda: _job_mod().house_busy(self.s.house_jobs))
 
     # ------------------------------------------------------------------------------------------------ what the node loop calls
     def validate(self, job):
@@ -207,11 +225,23 @@ class NodeRenderer:
             f.unlink(missing_ok=True)
         job_file.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
         child = [str(self.s.python), "-I", str(CHILD), "--engine-dir", str(self.s.engine_dir), "--config", str(self.s.path), "--job", str(job_file),
-                 "--jobs-dir", str(work.parent), "--out", str(result), "--started", str(started)]
+                 "--jobs-dir", str(work.parent), "--out", str(result), "--started", str(started), "--house-jobs", str(self.s.house_jobs)]
         env = {"SYSTEMROOT": os.environ.get("SYSTEMROOT", r"C:\Windows"), "PATH": os.environ.get("SYSTEMROOT", r"C:\Windows") + r"\System32",
                "TEMP": str(tmp), "TMP": str(tmp), "TMPDIR": str(tmp), "PYTHONUTF8": "1"}
         if os.environ.get("RYAGRAM_GPU_LOCK_DIR"):
             env["RYAGRAM_GPU_LOCK_DIR"] = os.environ["RYAGRAM_GPU_LOCK_DIR"]
+        t_house = self.clock()
+        while True:                                               # a paid film made by the house goes first: wait until it is done (a read-only look, nothing written there)
+            try:
+                waiting = self.busy()
+            except OSError:
+                waiting = True                                    # cannot tell = do not risk it
+            if not waiting:
+                break
+            progress("Waiting: a film ordered on Ryagram is being made on this computer first.")
+            if self.clock() - t_house > HOUSE_WAIT_MAX_S:
+                raise RenderFailed("house_busy", retry=True)
+            self.sleep(HOUSE_POLL_S)
         proc = self.spawn(lock_command(self.s, child), cwd=str(work), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                           creationflags=0x08000000 if os.name == "nt" else 0)
         t0 = self.clock()
