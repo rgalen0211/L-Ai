@@ -7,12 +7,19 @@
 (() => {
   // Ends every line so any AI knows what to do. The connector already refuses to spend credits, so this is courtesy, not security.
   const TAIL = 'Use the Ryagram connector. Show me a free contact sheet before anything that costs credits.';
+  // Two lines are on topics the catalog RUNS today, until uploads and find-data ship (Ryan 2026-10-26 13:16, Q233): they stand where 'Use my spreadsheet to make a map' and the 'paste a link' line stood.
+  // Each says only what the connector's catalog list tells the AI (get_story_schema: 'State unemployment rate' 2019-01 to 2022-12; 'Residential building permits per 1,000 residents, by county' 1990 to 2024),
+  // and a keyword search for 'unemployment state' or 'building permits county' finds each dataset. When uploads and find-data are on, these two go back to the spreadsheet and link lines.
+  const CATALOG_LINES = [
+    { id: 'unemployment', text: 'Show how unemployment in my state changed from 2019 to 2022' },
+    { id: 'permits', text: 'Show how building permits in my county changed since 1990' }
+  ];
   const LINES = [
     { id: 'housing', text: 'Make me a film about housing costs in my county' },
     { id: 'population', text: 'Show how my state’s population changed since 1970' },
-    { id: 'spreadsheet', text: 'Use my spreadsheet to make a map' },
+    CATALOG_LINES[0],
     { id: 'rents', text: 'What changed most in US rents this decade? Make it a film' },
-    { id: 'article', text: 'Make a short film about the numbers in this article: [paste a link]' },
+    CATALOG_LINES[1],
     { id: 'income', text: 'Compare my county with the state average on income' }
   ];
   const STRIP = 3;                                  // the library strip shows the first three lines, then "More lines"
@@ -162,5 +169,5 @@
     return { startView, strip, shouldLandOnDoor };
   }
 
-  window.ryagramStart = { TAIL, LINES, STRIP, APPS, SNOOZE_MS, SNOOZE_KEY, lineWithTail, chatUrl, appOf, connectedName, screenFor, snoozed, landsOnDoor, flagOn, create };
+  window.ryagramStart = { TAIL, LINES, CATALOG_LINES, STRIP, APPS, SNOOZE_MS, SNOOZE_KEY, lineWithTail, chatUrl, appOf, connectedName, screenFor, snoozed, landsOnDoor, flagOn, create };
 })();
