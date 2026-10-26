@@ -283,6 +283,21 @@ for f in ("make_app_bundle.py", "verify_bundle.py"):
     code = "\n".join(l for l in src.splitlines() if l.lstrip().startswith(("import ", "from ")))
     check(not any(x in code for x in ("socket", "urllib", "http", "requests", "ftplib", "smtplib", "ssl")), f"{f} imports no networking module")
 
+print("E. the start file can turn the song page on (NEXT-CONNECT 130)")
+w = world("e")
+mab.build(args(w, maker_extra="--song --song-forge"))
+bat = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
+lines = bat.splitlines()
+dflt = [l for l in lines if "MAKER_EXTRA" in l and "set" in l]
+check(dflt == ['if not defined MAKER_EXTRA set "MAKER_EXTRA=--song --song-forge"'], "the start file sets the song switches ONLY when the tester has not set MAKER_EXTRA himself")
+check(lines.index(dflt[0]) < next(i for i, l in enumerate(lines) if "desktop_maker.py" in l) and next(l for l in lines if "desktop_maker.py" in l).rstrip().endswith("%OPEN% %MAKER_EXTRA%"), "the setting comes before the app line and the app line still ends with %MAKER_EXTRA%")
+w = world("f")
+good, why = refused(w, "may only hold", maker_extra="--song --site https://evil.example")
+check(good, "MUST-FAIL: a switch outside the allowed list (here --site) is refused: " + why)
+w = world("g")
+good, why = refused(w, "may only hold", maker_extra="--song&calc")
+check(good, "MUST-FAIL: a shell character cannot ride in (the word is checked whole): " + why)
+
 print()
 if FAILS:
     print(f"FAILED: {len(FAILS)}")

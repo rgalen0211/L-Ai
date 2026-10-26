@@ -157,7 +157,18 @@ def leak_scan(root: Path) -> list:
     return found
 
 
-def write_start_files(out: Path, has_model: bool) -> None:
+MAKER_EXTRA_ALLOWED = ("--song", "--song-forge", "--edit")      # the only page switches a build may bake into the start file
+
+
+def check_maker_extra(extra: str) -> str:
+    words = extra.split()
+    bad = [w for w in words if w not in MAKER_EXTRA_ALLOWED]
+    if bad:
+        raise Refused(f"--maker-extra may only hold {', '.join(MAKER_EXTRA_ALLOWED)}; got {' '.join(bad)}.")
+    return " ".join(words)
+
+
+def write_start_files(out: Path, has_model: bool, maker_extra: str = "") -> None:
     # The file is called "Open Ryagram.bat" and not "Start ...": from a command line, cmd /c "Start X.bat" runs cmd's own START command instead of the file.
     bat = "\r\n".join([
         "@echo off",
@@ -178,6 +189,7 @@ def write_start_files(out: Path, has_model: bool) -> None:
         "  pause",
         "  exit /b 1",
         ")",
+        *(['if not defined MAKER_EXTRA set "MAKER_EXTRA=' + maker_extra + '"'] if maker_extra else []),
         'set "OPEN=--open"',
         'if defined MAKER_NO_OPEN set "OPEN="',
         '"%~dp0python\\python.exe" -I "%~dp0tools\\desktop_maker.py" --work-dir "%~dp0work" --out-dir "%~dp0films" %OPEN% %MAKER_EXTRA%',
@@ -197,6 +209,7 @@ def build(a) -> dict:
     app_repo = Path(a.app_repo)
     pyhome = Path(a.python_home)
     model = Path(a.model_dir) if a.model_dir else None
+    maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
     if not a.allow_any_drive and not re.match(r"^[dD]:", str(out.resolve())):
         raise Refused(f"--out must be on D: (the storage rule), not {out}.")
     if out.exists() and any(out.iterdir()):
@@ -251,7 +264,7 @@ def build(a) -> dict:
             shutil.copytree(model, out / "models" / model.name)
         (out / "work").mkdir()
         (out / "films").mkdir()
-        write_start_files(out, has_model=bool(model))
+        write_start_files(out, has_model=bool(model), maker_extra=maker_extra)
         leaks = leak_scan(out)
         if leaks:
             raise Refused("The leak scan stopped the build:\n  " + "\n  ".join(leaks[:20]))
@@ -303,6 +316,7 @@ def main(argv=None) -> int:
     ap.add_argument("--app-repo", default=str(HERE.parent))
     ap.add_argument("--libraries", nargs="*", default=["faster-whisper"], help="the libraries to copy, with everything they need (default: faster-whisper)")
     ap.add_argument("--zip", action="store_true")
+    ap.add_argument("--maker-extra", default="", help="page switches the start file turns on unless the tester sets MAKER_EXTRA himself; only --song --song-forge --edit are allowed (for example \"--song --song-forge\")")
     ap.add_argument("--allow-any-drive", action="store_true", help="tests only")
     a = ap.parse_args(argv)
     try:
