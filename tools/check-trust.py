@@ -90,7 +90,7 @@ def main():
                     check(box.count() == 1 and LABEL in box.inner_text(), f'the confirm screen shows the label "{LABEL}"')
                     check('Ryagram has not checked this data' in box.inner_text() and 'I understand, use it anyway.' in box.inner_text(), 'with the plain warning and the choose-to-use-it box')
                     check(not p.is_checked('#trust-ack'), 'the box starts unticked')
-                    p.screenshot(path=str(OUT / f'confirm-{tag}.png'), full_page=True)
+                    p.locator('.upload-card').first.screenshot(path=str(OUT / f'confirm-{tag}.png'))
                     if p.locator('#prov-publisher').count():   # mock mode always shows the S5 source fields: fill them so only the trust box can stop the confirm
                         p.fill('#prov-publisher', 'Me'); p.locator('select[aria-label="What lets you use it"]').select_option('own_data')
                         p.fill('#prov-unit', 'dollars'); p.check('#prov-attest')
@@ -103,7 +103,7 @@ def main():
                     chip = p.locator('.upload-card .trust-chip')
                     check(chip.count() == 1 and chip.inner_text() == LABEL, 'after confirming, the dataset card carries the label')
                     check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
-                    p.screenshot(path=str(OUT / f'card-{tag}.png'), full_page=True)
+                    p.locator('.upload-card').first.screenshot(path=str(OUT / f'card-{tag}.png'))
                     check(errors == [], 'no console errors')
                     ctx.close()
             b.close()
