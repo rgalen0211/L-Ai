@@ -4,11 +4,15 @@
 // Dashboard -> Edge Functions -> Secrets. The signature check is what keeps strangers out.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./webhook.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient,
                              { auth: { persistSession: false } });
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   signingSecret: Deno.env.get("STRIPE_WEBHOOK_SECRET") ?? "",
   async apply(eventId, type, created, livemode, data) {
     const { data: outcome, error } = await service.rpc("stripe_apply", {

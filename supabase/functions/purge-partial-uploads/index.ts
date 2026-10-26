@@ -4,10 +4,14 @@
 // and removes exactly the Storage paths the database lists. It takes no input.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { reply, whoCalls } from "../_shared/ops_mail.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-Deno.serve(async (req) => {
-  // Only the scheduler (its own per-job secret, PURGE_PARTIAL_SECRET) or Ryan (the service_role key) calls this.
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+serve(async (req) => {
+  // Only the scheduler (its own per-job secret, PURGE_PARTIAL_SECRET) or Ryan (the chosen service key) calls this.
+  const serviceKey = sk.key;
   const caller = whoCalls(req, serviceKey, Deno.env.get("PURGE_PARTIAL_SECRET"));
   if (!caller) return new Response("forbidden", { status: 403 });
   const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, {

@@ -5,16 +5,20 @@
 // "Balance: Read" only (supabase/README.md, "Cost ledger"). Never the checkout function's key: Supabase secrets are project-wide. With no key it still runs the ledger's own pass.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./sync.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+const serviceKey = sk.key;
+const db = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient, { auth: { persistSession: false } });
 async function rpc(name: string, args: Record<string, unknown> = {}) {
   const { data, error } = await db.rpc(name, args);
   if (error) throw new Error(error.message);
   return data;
 }
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   serviceKey,
   jobSecret: Deno.env.get("COST_SYNC_SECRET"),
   stripeKey: Deno.env.get("STRIPE_READ_KEY"),

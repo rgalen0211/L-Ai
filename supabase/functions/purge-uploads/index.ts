@@ -3,11 +3,15 @@
 // The scheduler sends PURGE_UPLOADS_SECRET (its own per-job secret) as the bearer token; the service_role key is also accepted, for Ryan running it by hand.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./sweep.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
 
-Deno.serve((req) => handle(req, {
+const serviceKey = sk.key;
+const db = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient, { auth: { persistSession: false } });
+
+serve((req) => handle(req, {
   serviceKey,
   jobSecret: Deno.env.get("PURGE_UPLOADS_SECRET"),
   async due(limit) {

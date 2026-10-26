@@ -6,9 +6,13 @@
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { chooseSender, type Outbox } from "../_shared/ops_mail.ts";
 import { handle } from "./tick.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+const serviceKey = sk.key;
+const db = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient, { auth: { persistSession: false } });
 const outbox: Outbox = {
   async add(kind, mode, to, subject, body) {
     const { data, error } = await db.rpc("ops_outbox_add", { p_kind: kind, p_mode: mode, p_to: to, p_subject: subject, p_body: body });
@@ -17,7 +21,7 @@ const outbox: Outbox = {
   },
 };
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   serviceKey,
   jobSecret: Deno.env.get("OPS_TICK_SECRET"),
   async tick() {

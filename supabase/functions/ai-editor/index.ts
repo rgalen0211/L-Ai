@@ -11,12 +11,16 @@ import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./editor.ts";
 import type { UserData } from "./tools.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
+
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
 
 const url = Deno.env.get("SUPABASE_URL")!;
 // The public key requests are made with (the person's JWT is what grants access). Supabase
 // provides SUPABASE_ANON_KEY to functions; RYAGRAM_PUBLISHABLE_KEY is the fallback secret.
 const anonKey = Deno.env.get("SUPABASE_ANON_KEY") ?? Deno.env.get("RYAGRAM_PUBLISHABLE_KEY") ?? "";
-const service = createClient(url, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
+const service = createClient(url, sk.forClient, { auth: { persistSession: false } });
 const claude = new Anthropic({ apiKey: Deno.env.get("ANTHROPIC_API_KEY") });
 
 async function rpc(name: string, args: Record<string, unknown>) {
@@ -66,7 +70,7 @@ function userData(jwt: string): UserData {
   };
 }
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
   store: {
