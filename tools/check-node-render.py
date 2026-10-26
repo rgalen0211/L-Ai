@@ -473,11 +473,30 @@ else:
     d, s = make_env("real", engine_dir=str(RYAGRAM))
     fake_engine = d / "fake_engine.py"
     fake_engine.write_text(
-        "import sys, json, pathlib\nout = pathlib.Path(sys.argv[sys.argv.index('--out') + 1])\nout.parent.mkdir(parents=True, exist_ok=True)\nout.write_bytes(b'FAKEMP4')\n"
-        "out.with_suffix('.sequence.json').write_text(json.dumps({'inputs': {'code': {'commit': 'deadbeef1234', 'dirty': False}}}))\nout.with_suffix('.sequence.txt').write_text('receipt')\n", encoding="utf-8")
+        "import sys, json, os, pathlib, urllib.request\n"
+        "spec = json.load(open(sys.argv[1], encoding='utf-8'))\n"
+        "out = pathlib.Path(sys.argv[sys.argv.index('--out') + 1])\n"
+        "out.parent.mkdir(parents=True, exist_ok=True)\n"
+        "cache = pathlib.Path(os.environ['RYAGRAM_CACHE_DIR'])\n"
+        "pathlib.Path(sys.argv[1]).with_name('env.txt').write_text(json.dumps({k: os.environ.get(k) for k in ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'NO_PROXY', 'http_proxy', 'https_proxy')}))\n"
+        "name = spec.get('name', '')\n"
+        "if name == 'n-miss':\n"
+        "    f = cache / 'miss.csv'\n"
+        "    if not f.exists():\n"
+        "        data = urllib.request.urlopen('http://data.invalid/miss.csv', timeout=10).read()   # a dataset client fetching on a miss\n"
+        "        f.write_bytes(data)\n"
+        "if name == 'n-hit':\n"
+        "    assert (cache / 'hit.csv').read_bytes() == b'cached'\n"
+        "if name == 'n-derive':\n"
+        "    (cache / 'derived.tmp').write_bytes(b'derived on a hit')\n"
+        "out.write_bytes(b'FAKEMP4')\n"
+        "out.with_suffix('.sequence.json').write_text(json.dumps({'inputs': {'code': {'commit': 'deadbeef1234', 'dirty': False}}}))\n"
+        "out.with_suffix('.sequence.txt').write_text('receipt')\n", encoding="utf-8")
     toml = (d / "node.toml").read_text(encoding="utf-8").replace("'-m', 'ryagram.sequence'", f"'{fake_engine}'")
     toml += ("\n[limits.contact_sheet]\nwall_s = 60\noutput_bytes = 20971520\n[limits.preview]\nwall_s = 60\noutput_bytes = 62914560\n[limits.final_render]\nwall_s = 60\noutput_bytes = 524288000\n")
+    toml = toml.replace("[engine.env]", "[engine.env]\nHTTPS_PROXY = ''\nHTTP_PROXY = ''\nNO_PROXY = '*'", 1)
     (d / "node.toml").write_text(toml, encoding="utf-8")
+    (d / "cache" / "hit.csv").write_bytes(b"cached")
     real_story = {"schema": 1, "name": "probe", "engine": "sequence", "sequence": {"canvas": [1920, 1080], "fps": 30, "theme": "light", "hold_seconds": 1.0,
                   "clips": [{"kind": "title", "id": "open", "seconds": 3.0, "headline": "SECRET-TITLE-XYZ", "subhead": "s"}]}}
 
@@ -503,6 +522,35 @@ else:
     p, w = run_child("00000000-0000-4000-8000-0000000000a3", fin)
     res = json.loads((w / "result.json").read_text(encoding="utf-8")) if (w / "result.json").exists() else {}
     check(res.get("error_code") in ("final_not_here", "schema_rejected") and not (w / "started.marker").exists(), f"MUST-FAIL: a final render is refused ({res.get('error_code')})")
+
+    print("G2 no network for the engine, and the shared cache is left alone (CC1 MED-3)")
+
+    def story_named(n):
+        return dict(real_story, name=n)
+
+    def cache_state():
+        return sorted((str(q.relative_to(d / "cache")), q.stat().st_size, q.stat().st_mtime_ns) for q in (d / "cache").rglob("*") if q.is_file())
+    state0 = cache_state()
+    p, w = run_child("00000000-0000-4000-8000-0000000000c1", dict(rj, id="00000000-0000-4000-8000-0000000000c1", story=story_named("n-hit")))
+    res = json.loads((w / "result.json").read_text(encoding="utf-8"))
+    envs = json.loads((w / "env.txt").read_text(encoding="utf-8")) if (w / "env.txt").exists() else {}
+    check(envs.get("HTTPS_PROXY") == "http://127.0.0.1:9" and envs.get("HTTP_PROXY") == "http://127.0.0.1:9" and envs.get("NO_PROXY") == "" and envs.get("https_proxy") == "http://127.0.0.1:9",
+          f"MUST-FAIL: the engine runs with every proxy variable pointing at a closed port, even though the settings tried to switch it off ({envs})")
+    check(res.get("state") == "validating" and res.get("cache_changes", {}).get("count") == 0 and res["cache_changes"].get("checked") is True and cache_state() == state0,
+          "a story whose data IS in the cache makes its film with no network, and the cache is unchanged")
+    p, w = run_child("00000000-0000-4000-8000-0000000000c2", dict(rj, id="00000000-0000-4000-8000-0000000000c2", story=story_named("n-miss")))
+    res = json.loads((w / "result.json").read_text(encoding="utf-8"))
+    check(res.get("state") != "validating" and res.get("files") == {} and cache_state() == state0 and not (d / "cache" / "miss.csv").exists(),
+          f"MUST-FAIL: a story needing a file that is NOT in the cache fails cleanly, writes nothing, and the cache's file list, sizes and times are unchanged ({res.get('state')}/{res.get('error_code')})")
+    check(res.get("cache_changes", {}).get("count") == 0 and "data.invalid" not in json.dumps(res), "the failed result names no address and reports no change")
+    p, w = run_child("00000000-0000-4000-8000-0000000000c3", dict(rj, id="00000000-0000-4000-8000-0000000000c3", story=story_named("n-derive")))
+    res = json.loads((w / "result.json").read_text(encoding="utf-8"))
+    check(res.get("cache_changes", {}).get("count") == 1 and res["cache_changes"]["examples"] == ["derived.tmp"],
+          f"MUST-FAIL: a step that writes a derived file into the cache even on a hit is SEEN and reported ({res.get('cache_changes')})")
+    (d / "cache" / "derived.tmp").unlink(missing_ok=True)
+    snap = nj.cache_snapshot(d / "cache")
+    check(nj.cache_changes(snap, nj.cache_snapshot(d / "cache"))["count"] == 0 and nj.cache_changes(None, snap)["checked"] is False and nj.cache_snapshot(RUN / "nope") is None,
+          "the snapshot compare: unchanged = 0, no cache folder = not checked")
 
     print("H  the REAL GPU lock")
     lock_py = Path(os.environ.get("RYAGRAM_GPU_LOCK_TOOL", r"C:\Users\Ryan\Ryagram-logs\tools\gpu_lock.py"))

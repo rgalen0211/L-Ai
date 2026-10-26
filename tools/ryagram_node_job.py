@@ -120,6 +120,48 @@ def house_busy(jobs_root, registry_dir=None, *, now=None, window_s: float = HOUS
     return False
 
 
+#: NO NETWORK FOR THE ENGINE (CC1 MED-3, 2026-10-26). The dataset clients fetch a missing file and write it in place (not through a temp file), so a tester film that missed a file would write into the
+#: SHARED data cache while a paid house render might be reading it. The engine here runs with every proxy variable pointing at a closed local port and no exceptions: a miss FAILS with the engine's own
+#: sentence and writes nothing; a hit needs no network. Added AFTER the settings' own environment, so a setting cannot switch it off.
+NO_NETWORK_ENV = {"HTTP_PROXY": "http://127.0.0.1:9", "HTTPS_PROXY": "http://127.0.0.1:9", "ALL_PROXY": "http://127.0.0.1:9", "http_proxy": "http://127.0.0.1:9",
+                  "https_proxy": "http://127.0.0.1:9", "all_proxy": "http://127.0.0.1:9", "NO_PROXY": "", "no_proxy": ""}
+CACHE_SNAPSHOT_CAP = 400_000
+
+
+def cache_snapshot(cache_dir):
+    """{relative path: (size, mtime_ns)} of every file under the shared data cache; READ-ONLY. None when there is no cache folder to look at."""
+    if not cache_dir:
+        return None
+    root = Path(cache_dir)
+    if not root.is_dir():
+        return None
+    snap, stack = {}, [root]
+    while stack and len(snap) < CACHE_SNAPSHOT_CAP:
+        d = stack.pop()
+        try:
+            with os.scandir(d) as it:
+                for e in it:
+                    try:
+                        if e.is_dir(follow_symlinks=False):
+                            stack.append(Path(e.path))
+                        else:
+                            st = e.stat(follow_symlinks=False)
+                            snap[os.path.relpath(e.path, root)] = (st.st_size, st.st_mtime_ns)
+                    except OSError:
+                        pass
+        except OSError:
+            pass
+    return snap
+
+
+def cache_changes(before, after) -> dict:
+    """What a render changed in the shared cache (it should be nothing): the count and up to 10 names. Names of cache files, never a value."""
+    if before is None or after is None:
+        return {"count": 0, "examples": [], "checked": False}
+    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    return {"count": len(changed), "examples": changed[:10], "checked": True}
+
+
 def _write(out: Path, doc: dict) -> None:
     tmp = out.with_suffix(".tmp")
     tmp.write_text(json.dumps(doc), encoding="utf-8")
@@ -132,7 +174,7 @@ def _fail(out: Path, code: str, *, retry: bool = False) -> int:
     return 0
 
 
-def run_job(lib, row, *, cfg, jobs_dir: Path, started: Path, out: Path, clock=time.time, busy=None, sleep=time.sleep, busy_wait_s: float = 120.0) -> int:
+def run_job(lib, row, *, cfg, jobs_dir: Path, started: Path, out: Path, clock=time.time, busy=None, sleep=time.sleep, busy_wait_s: float = 120.0, cache_dir=None) -> int:
     """`lib` is a namespace with validate_job, Rejected, E (worker.engine), R (worker.runner), C (worker.contract); `cfg` a worker Config."""
     try:
         job = lib.validate_job(row, datasets=cfg.datasets, views=cfg.views, max_attempts=lib.C.MAX_ATTEMPTS)
@@ -155,14 +197,16 @@ def run_job(lib, row, *, cfg, jobs_dir: Path, started: Path, out: Path, clock=ti
     tl = cfg.limits[job.job_type]
     limits = lib.R.Limits(wall_s=tl.wall_s, memory_bytes=cfg.memory_bytes, work_bytes=cfg.work_bytes, max_processes=cfg.max_processes)
     started.write_text(str(int(clock())), encoding="ascii")                 # the parent shows "making your film" from here
+    before = cache_snapshot(cache_dir)
     m = lib.R.run(argv, cwd=paths.root,
-                  env=lib.E.child_env(cfg.engine, paths, max_processes=limits.max_processes, memory_bytes=limits.memory_bytes),
+                  env={**lib.E.child_env(cfg.engine, paths, max_processes=limits.max_processes, memory_bytes=limits.memory_bytes), **NO_NETWORK_ENV},
                   limits=limits, stdout=paths.stdout, stderr=paths.stderr, work_dir=paths.root, tick_s=0.5)
     outcome = lib.E.classify(m, job, paths)
+    changes = cache_changes(before, cache_snapshot(cache_dir))
     if outcome.state != "validating":
         code = outcome.error_code or "crash"
         _write(out, {"state": outcome.state, "error_code": code, "detail": SENTENCES.get(code, "The film could not be made on this computer."),
-                     "retry": bool(outcome.retry), "files": {}, "engine_commit": None})
+                     "retry": bool(outcome.retry), "files": {}, "engine_commit": None, "cache_changes": changes})
         return 0
     primary = paths.out / lib.E.PRIMARY[job.job_type]
     files = {lib.C.PRIMARY_KIND[job.job_type]: str(primary)}
@@ -176,7 +220,7 @@ def run_job(lib, row, *, cfg, jobs_dir: Path, started: Path, out: Path, clock=ti
         commit = ((receipt.get("inputs") or {}).get("code") or {}).get("commit") or None
     except (OSError, ValueError, AttributeError):
         pass
-    _write(out, {"state": "validating", "error_code": None, "detail": "", "retry": False, "files": files, "engine_commit": commit})
+    _write(out, {"state": "validating", "error_code": None, "detail": "", "retry": False, "files": files, "engine_commit": commit, "cache_changes": changes})
     return 0
 
 
@@ -205,7 +249,8 @@ def main(argv=None) -> int:
         cfg = lib.Config.from_toml(Path(a.config))
         row = json.loads(Path(a.job).read_text(encoding="utf-8"))
         busy = (lambda: house_busy(a.house_jobs)) if a.house_jobs else None
-        return run_job(lib, row, cfg=cfg, jobs_dir=Path(a.jobs_dir), started=Path(a.started), out=out, busy=busy)
+        cache = dict(cfg.engine.extra_env).get("RYAGRAM_CACHE_DIR")
+        return run_job(lib, row, cfg=cfg, jobs_dir=Path(a.jobs_dir), started=Path(a.started), out=out, busy=busy, cache_dir=cache)
     except Exception as e:                                                          # noqa: BLE001  the type only: a message could hold a value
         _write(out, {"state": "failed", "error_code": "start_failed", "detail": SENTENCES["start_failed"], "retry": True, "files": {},
                      "engine_commit": None, "exception": type(e).__name__})

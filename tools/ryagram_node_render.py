@@ -188,6 +188,7 @@ class NodeRenderer:
         self.datasets = list(settings.datasets)
         self._commit = None
         self._static_commit = None
+        self.cache_changes = {"count": 0, "examples": [], "checked": False}      # what the last film changed in the shared data cache (it should be nothing)
         self.busy = busy if busy is not None else (lambda: _job_mod().house_busy(self.s.house_jobs))
 
     # ------------------------------------------------------------------------------------------------ what the node loop calls
@@ -270,6 +271,9 @@ class NodeRenderer:
             assert isinstance(doc, dict)
         except (OSError, ValueError, AssertionError):
             raise RenderFailed("start_failed", retry=True) from None             # the lock tool refused or the child never wrote: the site decides about a retry
+        cc = doc.get("cache_changes")
+        if isinstance(cc, dict):
+            self.cache_changes = {"count": int(cc.get("count") or 0), "examples": [str(x)[:120] for x in (cc.get("examples") or [])[:10]], "checked": bool(cc.get("checked"))}
         if doc.get("state") != "validating":
             code = str(doc.get("error_code") or "crash")[:80]
             raise RenderFailed(code, retry=bool(doc.get("retry")))
