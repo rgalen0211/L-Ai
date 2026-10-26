@@ -124,7 +124,7 @@ try:
     check(md.HOST == "huggingface.co" and md.REDIRECT_DOMAINS == ("huggingface.co", "hf.co"), "the host and the redirect list are the listening model's own")
     src = (ROOT / "tools" / "get_word_builder.py").read_text(encoding="utf-8")
     code = "\n".join(l for l in src.splitlines() if l.lstrip().startswith(("import ", "from ")))
-    check(not any(x in code for x in ("socket", "requests", "ftplib", "smtplib", "subprocess", "zipfile", "tarfile", "importlib", "pickle", "ctypes")), "it imports no networking module of its own and nothing that could run a download")
+    check("op.open(" in src and "urlopen(" not in src and "build_opener" not in src and not any(x in code for x in ("socket", "requests", "ftplib", "smtplib", "subprocess", "zipfile", "tarfile", "importlib", "pickle", "ctypes")), "it opens no connection of its own (the network goes through the bundle's reviewed opener and redirect check; urllib.request and http.client are imported only for Request and the error types) and has no socket, subprocess or archive code")
     check(not re.search(r"\b(exec|eval|__import__)\(", src), "it never runs or evaluates anything")
 
     print("D. MUST-FAIL: the same download with a check removed KEEPS a bad file (so the checks above are what refuse it)")
