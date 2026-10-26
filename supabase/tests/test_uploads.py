@@ -81,7 +81,7 @@ class Uploads(core.Base):
         self.assertEqual(self.admin("select state from dataset_ingests where dataset_id = %s", ds), "done")
         self.assertEqual(self.admin("select sha256, row_count from datasets where id = %s", ds), ("a" * 64, 150))
         # Not usable until the person confirms; then it is approved with its mapping and geography.
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps(MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         self.assertEqual(self.admin("select status, geography from datasets where id = %s", ds), ("approved", "us_states"))
         # Attach to a version: becomes its dataset, appears among the sources, and a story naming it syncs.
         _, vid = self.project_version()
@@ -177,7 +177,7 @@ class Uploads(core.Base):
     def test_nothing_is_used_before_a_valid_confirmed_mapping(self):
         ds, _ = self.uploaded()
         with self.assertRaisesRegex(psycopg.Error, "haven't finished reading"):
-            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb)", ds, json.dumps(MAPPING))
+            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true)", ds, json.dumps(MAPPING))
         self.read_by_worker(ds)
         _, vid = self.project_version()
         with self.assertRaisesRegex(psycopg.Error, "Confirm what the columns mean"):
@@ -196,12 +196,12 @@ class Uploads(core.Base):
         }
         for name, m in bad.items():
             with self.subTest(name), self.assertRaises(psycopg.Error):
-                self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb)", ds, json.dumps(m))
+                self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true)", ds, json.dumps(m))
         with self.assertRaises(psycopg.Error):
-            self.db.as_(OTHER).one("select confirm_dataset_mapping(%s, %s::jsonb)", ds, json.dumps(MAPPING))
+            self.db.as_(OTHER).one("select confirm_dataset_mapping(%s, %s::jsonb, true)", ds, json.dumps(MAPPING))
         self.assertEqual(self.admin("select status from datasets where id = %s", ds), "pending_validation")
         # Counties: a chosen state is enough; a state column also is.
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps({**MAPPING, "geography": "us_counties", "state": "TX"}))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps({**MAPPING, "geography": "us_counties", "state": "TX"}))
         self.assertEqual(self.admin("select geography from datasets where id = %s", ds), "us_counties")
 
     def test_wide_tables_are_turned_away_with_a_plain_reason(self):
@@ -209,12 +209,12 @@ class Uploads(core.Base):
         wide = report(guess={"place_index": 0, "period_index": 1, "value_indexes": [2], "geography": None, "cadence": None, "wide": True})
         self.read_by_worker(ds, wide)
         with self.assertRaisesRegex(psycopg.Error, "years across the columns"):
-            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb)", ds, json.dumps(MAPPING))
+            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true)", ds, json.dumps(MAPPING))
 
     def test_a_version_can_only_use_approved_uploads_of_its_owner_while_editable(self):
         ds, _ = self.uploaded()
         self.read_by_worker(ds)
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps(MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         _, vid = self.project_version()
         with self.assertRaises(psycopg.Error):
             self.db.as_(OTHER).one("select attach_upload_to_version(%s, %s)", vid, ds)
@@ -303,7 +303,7 @@ class Uploads(core.Base):
     def test_deleting_hides_it_detaches_versions_and_the_sweeper_removes_the_file(self):
         ds, path = self.uploaded()
         self.read_by_worker(ds)
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps(MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         _, vid = self.project_version()
         self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
         with self.assertRaises(psycopg.Error):
@@ -357,7 +357,7 @@ class Uploads(core.Base):
     def test_the_worker_may_read_the_file_while_a_render_on_that_dataset_runs(self):
         ds, _ = self.uploaded()
         self.read_by_worker(ds)
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps(MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         _, vid = self.project_version()
         self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
         count = lambda who: self.db.as_(who).one("select count(*) from storage.objects where bucket_id = 'ryagram-uploads'")
