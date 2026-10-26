@@ -105,17 +105,18 @@ test('MUST-FAIL: with the old service-key-only check, the job secret would be re
 
 test('each function reads ONLY its own secret name, and none reads another job\'s', () => {
   const read = (f) => fs.readFileSync(new URL('../supabase/functions/' + f, import.meta.url), 'utf8');
-  const names = { 'ops-tick/index.ts': 'OPS_TICK_SECRET', 'ops-digest/index.ts': 'OPS_DIGEST_SECRET', 'cost-sync/index.ts': 'COST_SYNC_SECRET' };
+  const names = { 'ops-tick/index.ts': 'OPS_TICK_SECRET', 'ops-digest/index.ts': 'OPS_DIGEST_SECRET', 'cost-sync/index.ts': 'COST_SYNC_SECRET', 'purge-uploads/index.ts': 'PURGE_UPLOADS_SECRET',
+                  'purge-partial-uploads/index.ts': 'PURGE_PARTIAL_SECRET' };
   for (const [file, mine] of Object.entries(names)) {
     const got = [...read(file).matchAll(/Deno\.env\.get\("([A-Z_]*SECRET[A-Z_]*)"\)/g)].map((m) => m[1]);
     assert.deepEqual(got, [mine], file);
   }
 });
 
-test('the README schedules all three jobs with their own Vault secret and no job reads the service-role key', () => {
+test('the README schedules every pg_net job with their own Vault secret and no job reads the service-role key', () => {
   const md = fs.readFileSync(new URL('../supabase/README.md', import.meta.url), 'utf8');
   const jobs = [...md.matchAll(/cron\.schedule\('([a-z-]+)'[\s\S]*?\$\$\);/g)].filter((m) => /net\.http_post/.test(m[0]));
-  assert.deepEqual(jobs.map((m) => m[1]).sort(), ['cost-sync', 'ops-digest', 'ops-tick']);
+  assert.deepEqual(jobs.map((m) => m[1]).sort(), ['cost-sync', 'ops-digest', 'ops-tick', 'purge-uploads']);
   for (const [, name] of jobs) {
     const block = jobs.find((j) => j[1] === name)[0];
     assert.match(block, new RegExp(`name = 'cron_${name.replace('-', '_')}'`), name);

@@ -80,8 +80,7 @@ cancelled mid-upload, 24 hours after the job ended. People never see those files
 the meantime; the database hides them. Deploy it once (CLI:
 `supabase functions deploy purge-partial-uploads`, or Dashboard → Edge Functions),
 then schedule it hourly: Dashboard → Integrations → Cron → new job → Supabase Edge
-Function `purge-partial-uploads`, with the header `Authorization: Bearer <service
-role key>`. It refuses any other caller and touches only what the database lists. (On this project that key is the new-style `sb_secret_...` one, see the ops readiness section for the Vault-based cron SQL.)
+Function `purge-partial-uploads`, with the header `Authorization: Bearer <its own per-job secret>` (function secret `PURGE_PARTIAL_SECRET`, 32 or more characters; Vault secret `cron_purge_partial`; NOT the service-role key: pg_net keeps each scheduled call where every database login can read it, see the ops readiness section step 3 for the pattern and the SQL shape). It refuses any other caller (the service-role key still works for a run by hand) and touches only what the database lists. It is not scheduled today.
 
 ## AI editor (branch ai-editor): switching it on
 
@@ -445,9 +444,19 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
 **Switching it on**
 
 1. **SQL Editor:** the two migrations above, in order.
-2. Deploy `purge-uploads` (`supabase functions deploy purge-uploads --no-verify-jwt`) and schedule it hourly
-   exactly like `purge-partial-uploads` (service role key as the bearer). Redeploy `delete-account` so an account
-   deletion removes uploaded files too.
+2. Deploy `purge-uploads` (`supabase functions deploy purge-uploads --no-verify-jwt`) and schedule it hourly with its OWN
+   per-job secret, never the service-role key (pg_net keeps every scheduled call where every database login can read it):
+   make a random value of 32 or more characters in your own terminal, set it as the function secret `PURGE_UPLOADS_SECRET`,
+   redeploy `purge-uploads`, add the same value in Dashboard > Integrations > Vault as `cron_purge_uploads`, then:
+   ```sql
+   select cron.schedule('purge-uploads', '0 * * * *', $$ select net.http_post(
+     url := 'https://<project-ref>.supabase.co/functions/v1/purge-uploads',
+     headers := jsonb_build_object('Content-Type', 'application/json',
+       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'cron_purge_uploads')),
+     body := '{}'::jsonb) $$);
+   ```
+   Check a minute past the hour: `select status_code, content::text as content_text, created from net._http_response order by created desc limit 5;`
+   shows 200 and `{"ok":true}`. Redeploy `delete-account` so an account deletion removes uploaded files too.
 3. WORKER builds the reader and the render path above.
 4. Merge, then set `uploads: true`.
 
