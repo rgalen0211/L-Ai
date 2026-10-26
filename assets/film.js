@@ -21,6 +21,7 @@
     for (const child of children.flat(Infinity)) if (child != null && child !== false && child !== '') el.append(child);
     return el;
   }
+  const TRUST_LABEL = 'Unverified, user-supplied';              // RULINGS 2026-10-26: the same words as the app's upload screen (assets/app-uploads.js); a test pins both
   const safeUrl = u => { try { const x = new URL(u); return x.protocol === 'https:' ? x.href : null; } catch { return null; } };
   const date = iso => { const d = new Date(iso); return isNaN(d) ? '' : d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' }); };
   // "Make your own data film" goes to the WAITLIST while Ryagram is coming soon (the waitlist section of the Ryagram page), tagged so signups from film pages
@@ -60,6 +61,7 @@
           src.license ? h('span', { class: 'film-license' }, src.license) : null);
       })) : null,
       s.uploaded_data ? h('p', {}, 'This film was made from data its maker uploaded. The data itself isn’t published here.') : null,
+      s.uploaded_data ? h('p', { class: 'film-meta film-trust' }, h('strong', {}, TRUST_LABEL), '. Ryagram has not checked these figures; they are as the film’s maker supplied them.') : null,
       d.method ? [h('h4', {}, 'Method'), h('p', {}, d.method)] : null,
       d.derivations?.length ? [h('h4', {}, 'Worked out from the published figures'),
         h('ul', {}, d.derivations.map(x => h('li', {}, h('strong', {}, x.measure), `: ${x.method}`)))] : null,
