@@ -3,10 +3,14 @@
 // gives every Edge Function; it only ever calls partial_uploads_due and mark_uploads_deleted,
 // and removes exactly the Storage paths the database lists. It takes no input.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-Deno.serve(async (req) => {
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+serve(async (req) => {
   // Only the scheduler (or Ryan) calls this, with the service_role key as the bearer token.
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  const serviceKey = sk.key;
   if (!serviceKey || req.headers.get("Authorization") !== `Bearer ${serviceKey}`) {
     return new Response("forbidden", { status: 403 });
   }

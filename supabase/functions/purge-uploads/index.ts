@@ -3,11 +3,15 @@
 // The service_role key is checked inside as the bearer token, so only the scheduler (or Ryan) can call it.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./sweep.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+const serviceKey = sk.key;
 const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   serviceKey,
   async due(limit) {
     const { data, error } = await db.rpc("uploads_due_for_deletion", { p_limit: limit });

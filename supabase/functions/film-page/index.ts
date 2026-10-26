@@ -5,8 +5,12 @@
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./page.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient,
                              { auth: { persistSession: false } });
 const bucket = () => service.storage.from("ryagram-artifacts");
 
@@ -16,7 +20,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
   return data;
 }
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   siteUrl: "https://uselai.com",
   verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
