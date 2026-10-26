@@ -89,7 +89,7 @@ def put_file(url: str, path: Path, content_type: str, allowed_hosts, timeout: fl
 
 
 class NodeLoop:
-    def __init__(self, signin, folder, *, renderer=None, validate=None, datasets=None, uploader=put_file, clock=time.time, log=None, work_root=None, engine_commit=None):
+    def __init__(self, signin, folder, *, renderer=None, validate=None, datasets=None, uploader=put_file, clock=time.time, log=None, work_root=None, engine_commit=None, cannot_render_reason=""):
         self.signin = signin
         self.folder = Path(folder)
         self.renderer = renderer
@@ -98,6 +98,7 @@ class NodeLoop:
         self.clock = clock
         self._log = log or (lambda ev: None)
         self.work_root = Path(work_root) if work_root else self.folder / "node-jobs"
+        self.cannot_render_reason = str(cannot_render_reason or "")[:300]   # plain words for why there is no renderer (tools/ryagram_node_render.py), shown on the card
         self.engine_commit = engine_commit          # the commit of the engine that renders (a string or a callable): the site refuses 'complete' without it (found by the local end-to-end harness)
         self.empty_polls = 0
         self.next_at = 0.0
@@ -141,7 +142,8 @@ class NodeLoop:
             if self.on and not g["node"]:
                 st["phase"], st["message"] = "paused", g["note"] or "This account does not render site films on this computer."
             elif self.on and self.renderer is None:
-                st["phase"], st["message"] = "cannot_render", "This copy of the app cannot make site films yet, so it is not taking any jobs."
+                st["phase"] = "cannot_render"
+                st["message"] = ("This computer cannot make site films yet, so it is not taking any jobs: " + self.cannot_render_reason) if self.cannot_render_reason                     else "This copy of the app cannot make site films yet, so it is not taking any jobs."
             elif self.on and st["phase"] in ("paused", "cannot_render"):
                 st["phase"], st["message"] = "idle", "Waiting for a film to make."          # whatever paused it has passed; the next step will say otherwise if not
             return st
@@ -159,7 +161,8 @@ class NodeLoop:
                 self._set("paused", g["note"] or "This account does not render site films on this computer.")
                 return "paused"
             if self.renderer is None:
-                self._set("cannot_render", "This copy of the app cannot make site films yet, so it is not taking any jobs.")
+                self._set("cannot_render", ("This computer cannot make site films yet, so it is not taking any jobs: " + self.cannot_render_reason) if self.cannot_render_reason
+                          else "This copy of the app cannot make site films yet, so it is not taking any jobs.")
                 return "cannot_render"
         try:
             status, r = self.signin.api("POST", "/node/claim", {})
@@ -216,6 +219,10 @@ class NodeLoop:
         last_beat = [self.clock()]
 
         def progress(note: str = ""):
+            if note:                                                      # what the card says while the renderer works (fixed sentences only)
+                with self._lock:
+                    if self.state.get("phase") == "rendering":
+                        self._set("rendering", str(note)[:120], {"id": jid})
             if self.clock() - last_beat[0] >= HEARTBEAT_SECONDS:
                 last_beat[0] = self.clock()
                 self.signin.api("POST", "/node/heartbeat", {"job_id": jid, "note": str(note)[:200]})
