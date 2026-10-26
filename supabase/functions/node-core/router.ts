@@ -11,6 +11,7 @@
 //   POST /node/state       Bearer {job_id, state, error_code?, error_detail?, engine_commit?, engine_dirty?} -> {job}
 //   POST /node/retry       Bearer {job_id, error_code, error_detail?}                         -> {result}
 //   POST /node/artifact    Bearer {job_id, kind, bytes, sha256, duration_s?, width?, height?}  -> {path, upload_url}
+//   POST /node/compilation-requests  Bearer      -> {requests: [{project_id, title, request, sha256, updated_at}]}   READ ONLY: what the person's AI asked for (data only; starts nothing); always on
 //   PRIVATE LINKS for a film made on the person's own computer (NEXT-CONNECT 120; the routes EXIST only when the function is switched on, else 404):
 //   POST /node/compilation/status  Bearer {}                                              -> {status: {switch_on, plan, active, allowed, max_film_bytes, ...}}   (the app's launch check)
 //   POST /node/compilation/start   Bearer {title, bytes, sha256, rights:true, duration_s?, width?, height?} -> {id, path, upload_url}
@@ -167,7 +168,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     // ---------------------------------------------------------------- signed in: a rgn_ bearer in the Authorization header, nowhere else
     const isCompilation = COMPILATION_ROUTES.includes(route);
     if (isCompilation && !d.compilationLinksOn) return fail(404, "not_found", "Not found.");              // the routes do not exist unless the function is switched on
-    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact"].includes(route);
+    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact", "/node/compilation-requests"].includes(route);
     if (!isCall) return fail(404, "not_found", "Not found.");
     const wantGet = route === "/account";
     if ((wantGet && method !== "GET") || (!wantGet && method !== "POST")) return fail(405, "method_not_allowed", "That is not allowed here.");
@@ -184,6 +185,13 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     if (route === "/node/claim") {
       const j = await d.db.claim(h);
       return reply(200, { job: j ? publicJob(j) : null });
+    }
+
+    if (route === "/node/compilation-requests") {                                          // READ ONLY (NEXT-CONNECT 131b): the requests the person's AI wrote; always on, it starts nothing
+      const who = await caller(req, d.salt);
+      if (!(await d.db.hit(who, "compilation_requests_ip", 60, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
+      const rows = await d.db.compilationRequests(h);
+      return reply(200, { requests: (Array.isArray(rows) ? rows : []).slice(0, 20).map((r) => ({ project_id: r.project_id, title: r.title, request: r.request, sha256: r.sha256, updated_at: r.updated_at })) });
     }
 
     const b = await body(req); if (b instanceof Response) return b;
