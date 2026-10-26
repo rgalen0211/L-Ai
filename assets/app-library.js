@@ -110,9 +110,14 @@
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
-        view = [h('h1', { tabindex: '-1' }, 'Something went wrong'),
-                h('p', { class: 'app-error', role: 'alert' }, err.message),
-                h('a', { href: '#/' }, 'Back to your projects')];
+        // A page that belongs to another account (or was removed) is said plainly, with the way home: never the database's own sentence (live ride 2026-10-26).
+        view = err && err.notAvailable
+          ? [h('h1', { tabindex: '-1' }, 'This page isn’t available on this account'),
+             h('p', { class: 'form-intro', role: 'status' }, 'It may belong to a different account, or it may have been removed.'),
+             h('a', { class: 'button primary', id: 'not-available-home', href: '#/' }, 'Back to your projects')]
+          : [h('h1', { tabindex: '-1' }, 'Something went wrong'),
+             h('p', { class: 'app-error', role: 'alert' }, err.message),
+             h('a', { href: '#/' }, 'Back to your projects')];
       }
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
       stopView();

@@ -118,7 +118,8 @@
   function start(client) {
     window.ryagramApp = { client };
     let unmount = null;
-    let recovering = false;                        // signed in by a reset link: new password first
+    let lastUserId = null;                         // who was signed in on this page last, so a different account never lands on the last one's page
+    let recovering = false;                       // signed in by a reset link: new password first
     const authLink = $('auth-link');
     const authExpired = $('auth-expired');
     const LINK_WORDS = {
@@ -158,12 +159,15 @@
       library.hidden = false;
       account.hidden = false;
       $('account-email').textContent = user.email || '';
+      if (status.textContent === 'You have signed out.') say('');               // the 'You have signed out.' note belongs to the signed-out page; no signed-in screen shows it, on any sign-in path or refresh
       // Mount once per sign-in; token refreshes fire this again and must not reset the page.
       if (!unmount) {
         // A tab left on the computer-approval page (#/device) with no code must not be where signing in lands (live ride, Ryan 2026-10-26 12:37): home instead, unless a code rides in the link.
         const d = window.ryagramDevice && window.ryagramDevice.codeFromHash ? window.ryagramDevice.codeFromHash(location.hash) : null;
         if (d && d.page && !d.code && !d.bad) history.replaceState(null, '', location.pathname + location.search + '#/');
-        if (status.textContent === 'You have signed out.') say('');               // the 'You have signed out.' note belongs to the signed-out page; it must not stay on the signed-in one
+        // Signing in as a DIFFERENT account from a tab left on the last account's project, version, delivery page or look: home, not that page (live ride, Ryan 2026-10-26 17:32).
+        if (lastUserId && user.id && lastUserId !== user.id && /^#\/(p|v|delivery|looks\/edit)\//.test(location.hash)) history.replaceState(null, '', location.pathname + location.search + '#/');
+        lastUserId = user.id || lastUserId;
         unmount = window.ryagramLibrary.mount(library, window.ryagramData(client));
         window.ryagramFunnel?.signedIn?.(client);                       // the account's source (once) and the return-visit check; never in the way
       }
