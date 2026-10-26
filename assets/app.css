@@ -219,3 +219,6 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .builder-ready{margin:0 0 28px}.builder-start{display:grid;gap:2px;text-align:left;font:inherit;color:inherit;cursor:pointer;min-height:44px;width:100%;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}.builder-start:hover,.builder-start:focus-visible{border-color:var(--brand-deep,#0a6)}
 .next-strip{margin:0 0 14px;padding:12px 14px;border:1px solid var(--line);border-left:3px solid var(--brand-deep,#0a6);border-radius:10px;background:var(--paper)}.next-strip a{display:inline-block;padding:10px 4px;min-height:44px;box-sizing:border-box}
 .first-film{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:8px 0 18px}.first-film .button{min-height:48px}
+/* The trust label on every upload (RULINGS 2026-10-26): the box on the confirm screen, and the chip on each uploaded dataset. */
+.trust-box{margin:14px 0;padding:12px 14px;border:2px solid var(--wheat,#c9a66b);border-radius:12px;background:var(--wheat-soft,#33291a)}.trust-box legend{padding:0 6px;font-weight:700}
+.trust-label{margin:0 0 6px;font-size:1.05rem}.trust-warning{margin:0 0 8px}.trust-chip{display:inline-block;padding:1px 10px;border:1px solid var(--wheat,#c9a66b);border-radius:99px;color:var(--wheat,#c9a66b);font-size:.85rem}

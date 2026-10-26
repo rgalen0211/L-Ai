@@ -123,6 +123,12 @@
   const PLACEHOLDER = '[PLACEHOLDER WORDING, pending Ryan and the lawyer]';
   const AS_SUPPLIED = 'Figures as supplied by the film\u2019s maker; not checked by Ryagram.';                 // PLACEHOLDER: the closing-card and description label
   const ATTESTATION = 'I may publish charts of this data.';                                                    // PLACEHOLDER
+  // RULINGS 2026-10-26 (Ryan 09:38, S0): EVERY bring-your-own-data upload carries a visible trust label and a plain warning, and the person chooses to use it anyway. The label is fixed text
+  // the page puts there; it is never typed by the person or an AI, and it does not depend on any other switch. PLACEHOLDER wording: Ryan's and the attorney's final words come in the merge row.
+  const TRUST_LABEL = 'Unverified, user-supplied';
+  const TRUST_WARNING = 'Ryagram has not checked this data. Your film will show exactly what is in your file, so anything wrong in it will be wrong in the film. Check it before you publish.';
+  const TRUST_ACK = 'I understand, use it anyway.';
+  const trustProblem = acked => (acked === true ? '' : 'Tick the box to use this data anyway.');
   const FIELD_MAX = { publisher: 200, link: 300, licence_note: 200, unit: 40 };
   const clip = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
   // A link goes in the video DESCRIPTION only (brand rule 028667d: no link on any frame, a link on a frame is a phishing surface), and only as a plain http(s) address: javascript:, data: and the like are refused.
@@ -156,5 +162,5 @@
     const p = cleanProvenance(raw);
     return provenanceCard(p).concat(p.link ? [`Link: ${p.link}`] : []);
   }
-  window.ryagramUploads = { WIDE_TICK, wideGroups, wideOffered, groupLabel, descriptionLines, safeLink, LICENCES, PLACEHOLDER, AS_SUPPLIED, ATTESTATION, FIELD_MAX, cleanProvenance, provenanceProblem, provenanceCard, WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
+  window.ryagramUploads = { TRUST_LABEL, TRUST_WARNING, TRUST_ACK, trustProblem, WIDE_TICK, wideGroups, wideOffered, groupLabel, descriptionLines, safeLink, LICENCES, PLACEHOLDER, AS_SUPPLIED, ATTESTATION, FIELD_MAX, cleanProvenance, provenanceProblem, provenanceCard, WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
 })();
