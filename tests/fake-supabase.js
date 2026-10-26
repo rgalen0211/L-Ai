@@ -30,6 +30,8 @@
   function createFakeClient(seed = {}, { user = { id: 'u-ryan', email: 'ryan@example.com' } } = {}) {
     const db = { projects: [], versions: [], artifacts: [], jobs: [], ai_sessions: [], ai_messages: [], film_pages: [], film_requests: [], engine_profiles: [], render_orders: [],
                  account_settings: [], credit_ledger: [], funnel_events: mockFunnelEvents(), version_sources: [], datasets: [], dataset_ingests: [], ...structuredClone(seed) };
+    // ?aiconnected in the address starts the mock with one connected AI (Claude), so the AI-first door can be walked in Chrome without the consent redirect leaving the page.
+    if (typeof location !== 'undefined' && /[?&]aiconnected/.test(location.search || '')) db.connected = [{ client_id: 'client-claude', client_name: 'Claude', scopes: ['read', 'write', 'render_free'], connected_at: new Date().toISOString(), last_used_at: null, calls_30d: 0 }];
     // Credits: a simplified copy of the 2B ledger's rules, only when seeded with { credits: n }.
     const ledger = typeof seed.credits === 'number' ? { available: seed.credits, held: 0 } : null;
     // Packs and plans on sale (credit_prices + stripe_prices), with the ledger only.
@@ -304,7 +306,8 @@
         runMockWorker(ds);
         return { data: null, error: null };
       },
-      confirm_dataset_mapping({ p_dataset, p_mapping }) {
+      // Mirrors CONNECT's trust-label migration (proposed, f38a7a1 plus the p_trust_ack argument): three arguments, REFUSED unless p_trust_ack is exactly true; the old two-argument call no longer exists.
+      confirm_dataset_mapping({ p_dataset, p_mapping, p_trust_ack }) {
         const ds = mine(p_dataset);
         if (!ds) return fail('Dataset not found.');
         if (!ds.ingest_report) return fail('We haven\u2019t finished reading this file yet.');
@@ -317,6 +320,7 @@
         if (!Number.isInteger(m.place_index) || !Number.isInteger(m.period_index)) return fail('Choose which column is the place and which is the period.');
         if (m.geography === 'us_counties' && m.state_index == null && !COUNTY_STATES.includes(m.state)) return fail('County names need a state. Choose the state, or the column that has it.');
         if (!m.value_indexes?.length) return fail('Choose 1 to 8 columns of values.');
+        if (p_trust_ack !== true) return fail('Tick the box to use this data anyway.');
         Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved' });
         return { data: null, error: null };
       },

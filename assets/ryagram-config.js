@@ -71,6 +71,9 @@ window.ryagramConfig = Object.freeze({
   // Connecting an AI (Claude, ChatGPT): the consent page (#/connect/consent) and Account > Connected AIs. ON (Ryan's typed yes) once CONNECT's SQL (20261018000100_connect_ai.sql) is applied and the connect function is deployed
   // (supabase/README.md, "Connecting an AI"; RYAN-GO-LIVE-SESSION.md part D). With the connect-gate in place only an INVITED account sees the consent page and Connected AIs; anyone else gets one plain line.
   connectAi: true,
+  // The AI-first front door (#/start): 'Connect your AI' first for an invited account with no connected AI, then 'Start a film' (Ryan 2026-10-26 12:12; proposals/WEB-AI-FIRST-FRONT-DOOR.md).
+  // Needs connectAi: true. Off until Ryan has seen it and the Claude and ChatGPT starter links have been tried by hand once.
+  aiFirst: false,
   // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in (testers only), the admin Tester computers page, and the Windows download card (testers only). ON (Ryan's typed yes) once the r9 migration is applied and the `node` function is deployed (RYAN-GO-LIVE-SESSION.md part C); only an account with the tester flag, or one that already has a computer, sees anything on Account.
   desktopApp: true,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The

@@ -47,7 +47,8 @@ test('UNLISTED: no page and no script of the site links to it yet (every .html f
   } };
   walk('.');
   assert.ok(files.length > 30, files.length);
-  for (const f of files) if (f !== 'connect-ai/index.html') assert.doesNotMatch(read(f), /connect-ai/, f);
+  // The AI-first front door (assets/app-start.js, behind aiFirst, off) is the ONE script that links to the guide: its two Connect buttons (Ryan's go 2026-10-26 12:12). Nothing else may.
+  for (const f of files) if (f !== 'connect-ai/index.html' && f !== 'assets/app-start.js') assert.doesNotMatch(read(f), /connect-ai/, f);
 });
 
 test('LIMITS: free previews only (within a daily limit), no full renders, and the footer carries Terms and AI content like the other Ryagram pages', () => {
