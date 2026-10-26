@@ -148,7 +148,9 @@
       formBox.append(h('label', { for: 'device-code' }, 'The code shown in the app'), input,
         h('p', { id: 'device-code-note', class: 'form-note' }, 'Eight characters, like ABCD-2345.'), h('div', { class: 'actions-row' }, check));
       return [back, heading,
-        h('p', { class: 'form-intro' }, 'The Ryagram app on a computer is asking to sign in to your account.'),
+        // With a code (from the app's link): what is being asked. Without one: what this page is for, and the way out (live ride 10-26: a person landed here with an empty box and nothing to do).
+        (prefill || bad ? h('p', { class: 'form-intro' }, 'The Ryagram app on a computer is asking to sign in to your account.')
+          : [h('p', { class: 'form-intro' }, 'Only needed if the Ryagram desktop app showed you a code.'), h('p', {}, h('a', { class: 'button primary', id: 'device-back', href: '#/' }, 'Back to my films'))]),
         (bad ? h('p', { class: 'app-error', role: 'alert' }, BAD_CODE) : null),
         formBox, error, out];
     }
