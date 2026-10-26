@@ -160,6 +160,10 @@
       $('account-email').textContent = user.email || '';
       // Mount once per sign-in; token refreshes fire this again and must not reset the page.
       if (!unmount) {
+        // A tab left on the computer-approval page (#/device) with no code must not be where signing in lands (live ride, Ryan 2026-10-26 12:37): home instead, unless a code rides in the link.
+        const d = window.ryagramDevice && window.ryagramDevice.codeFromHash ? window.ryagramDevice.codeFromHash(location.hash) : null;
+        if (d && d.page && !d.code && !d.bad) history.replaceState(null, '', location.pathname + location.search + '#/');
+        if (status.textContent === 'You have signed out.') say('');               // the 'You have signed out.' note belongs to the signed-out page; it must not stay on the signed-in one
         unmount = window.ryagramLibrary.mount(library, window.ryagramData(client));
         window.ryagramFunnel?.signedIn?.(client);                       // the account's source (once) and the return-visit check; never in the way
       }
