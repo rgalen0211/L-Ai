@@ -1,5 +1,5 @@
 // The trust label on EVERY bring-your-own-data upload (RULINGS 2026-10-26, Ryan 09:38, S0): the label 'Unverified, user-supplied', a plain warning, and the person's choice to use it anyway,
-// on the confirm screen, on the dataset's card, and on the public film page of a film made from an upload. Fixed text, computed by the page; wording is PLACEHOLDER until Ryan's merge-row OK.
+// on the confirm screen, on the dataset's card, and on the public film page of a film made from an upload. Fixed text, computed by the page; the words are Ryan's (Q234).
 // The page in real Chrome is tools/check-trust.py (needs Chrome). The worker/engine side (receipt line, method note) is ENGINE's.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -66,8 +66,48 @@ test('FILM PAGE: a film made from an upload says "Unverified, user-supplied" in 
 test('WIRING: the stamps moved so a returning visitor gets the new scripts; nothing is shown unless uploads is on (the panel itself is behind it)', () => {
   const html = read('app/index.html');
   assert.match(html, /app-uploads\.js\?v=20261026b/);
+  assert.match(html, /app-data\.js\?v=20261026b/);
   assert.match(html, /app-library\.js\?v=20261026b/);
   assert.match(html, /app\.css\?v=20261026b/);
   assert.match(read('film/index.html'), /film\.js\?v=20261026b/);
   assert.match(read('assets/ryagram-config.js'), /uploads: false,/);
+});
+
+test('APPROVED WORDS (Ryan, Q234, 2026-10-26 13:16): the database id "unverified_user" becomes the words in ONE place; no placeholder note is left on the trust words, and the Q5 placeholders elsewhere are untouched', () => {
+  assert.deepEqual(JSON.parse(JSON.stringify(U.TRUST_LABELS)), { unverified_user: 'Unverified, user-supplied' });
+  assert.equal(U.trustWords('unverified_user'), 'Unverified, user-supplied');
+  assert.equal(U.trustWords('anything_else'), 'Unverified, user-supplied');                 // every upload is unverified_user: an unknown id never reads as better than that
+  assert.equal(U.trustWords(undefined), 'Unverified, user-supplied');
+  assert.equal(U.TRUST_LABEL, U.trustWords('unverified_user'));
+  const up = read('assets/app-uploads.js');
+  assert.doesNotMatch(up, /PLACEHOLDER wording: Ryan's and the attorney's final words come in the merge row/);
+  assert.equal((up.match(/TRUST_LABELS = \{/g) || []).length, 1, 'the id-to-words map is in one place');
+  const mapping = lib.slice(lib.indexOf('function mappingForm(ds)'), lib.indexOf('// What a good file looks like'));
+  assert.doesNotMatch(mapping.slice(mapping.indexOf("const trustBox"), mapping.indexOf("trustBox,")), /PLACEHOLDER/);   // the trust box shows no placeholder line
+  assert.equal(U.PLACEHOLDER, '[PLACEHOLDER WORDING, pending Ryan and the lawyer]');         // Q5 (source, licence, attestation) stays exactly as it was
+  assert.match(U.AS_SUPPLIED, /not checked by Ryagram/);
+  assert.match(U.ATTESTATION, /I may publish charts of this data\./);
+  assert.match(lib, /h\('p', \{ class: 'form-note prov-placeholder' \}, `\$\{U\.PLACEHOLDER\}/);   // the S5 box still carries its own placeholder
+});
+
+test('SERVER CONTRACT (CC1 13:19): the page sends the tick as p_trust_ack; anything but a real true is sent as false; the mock database refuses without it, like the migration', async () => {
+  const { createRequire } = await import('node:module');
+  const req = createRequire(import.meta.url);
+  const { createFakeClient } = req('./fake-supabase.js');
+  const dwin = {};
+  for (const f of ['app-data.js', 'app-uploads.js']) vm.runInNewContext(read(`assets/${f}`), { window: dwin, setTimeout, clearTimeout });
+  const calls = [];
+  const client = { rpc: async (name, args) => { calls.push({ name, args }); return { data: null, error: null }; } };
+  const data = dwin.ryagramData(client);
+  await data.confirmMapping('d1', { place_index: 0 }, true);
+  await data.confirmMapping('d1', { place_index: 0 }, false);
+  await data.confirmMapping('d1', { place_index: 0 });
+  await data.confirmMapping('d1', { place_index: 0 }, 'true');
+  assert.deepEqual(calls.map(c => c.args.p_trust_ack), [true, false, false, false]);
+  assert.ok(calls.every(c => c.name === 'confirm_dataset_mapping' && 'p_trust_ack' in c.args));
+  assert.match(lib, /await data\.confirmMapping\(ds\.id, U\.clean\(mapping\), trust\.acked === true\);/);
+  // the mock mirrors the migration: refused without a real true, accepted with it
+  const fake = createFakeClient({}, {});
+  const bad = await fake.rpc('confirm_dataset_mapping', { p_dataset: 'nope', p_mapping: {}, p_trust_ack: false });
+  assert.match(bad.error.message, /Dataset not found/);                                 // (the dataset check comes first; the acknowledgement rule is exercised in tests/app-uploads-flow.test.cjs)
 });

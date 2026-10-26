@@ -304,7 +304,8 @@
         runMockWorker(ds);
         return { data: null, error: null };
       },
-      confirm_dataset_mapping({ p_dataset, p_mapping }) {
+      // Mirrors CONNECT's trust-label migration (proposed, f38a7a1 plus the p_trust_ack argument): three arguments, REFUSED unless p_trust_ack is exactly true; the old two-argument call no longer exists.
+      confirm_dataset_mapping({ p_dataset, p_mapping, p_trust_ack }) {
         const ds = mine(p_dataset);
         if (!ds) return fail('Dataset not found.');
         if (!ds.ingest_report) return fail('We haven\u2019t finished reading this file yet.');
@@ -317,6 +318,7 @@
         if (!Number.isInteger(m.place_index) || !Number.isInteger(m.period_index)) return fail('Choose which column is the place and which is the period.');
         if (m.geography === 'us_counties' && m.state_index == null && !COUNTY_STATES.includes(m.state)) return fail('County names need a state. Choose the state, or the column that has it.');
         if (!m.value_indexes?.length) return fail('Choose 1 to 8 columns of values.');
+        if (p_trust_ack !== true) return fail('Tick the box to use this data anyway.');
         Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved' });
         return { data: null, error: null };
       },

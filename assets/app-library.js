@@ -1210,7 +1210,7 @@
         const trustAck = h('input', { id: 'trust-ack', type: 'checkbox', onchange: () => { trust.acked = trustAck.checked; } });
         const trustBox = h('fieldset', { class: 'trust-box' }, h('legend', {}, 'Before you use this data'),
           h('p', { class: 'trust-label' }, h('strong', { id: 'trust-label' }, U.TRUST_LABEL)), h('p', { class: 'trust-warning' }, U.TRUST_WARNING),
-          h('p', { class: 'form-note trust-placeholder' }, U.PLACEHOLDER), h('label', { class: 'choice' }, trustAck, h('span', {}, U.TRUST_ACK)));
+          h('label', { class: 'choice' }, trustAck, h('span', {}, U.TRUST_ACK)));
         const confirmBtn = h('button', { class: 'button', type: 'button', onclick: async () => {
           note.hidden = true;
           const problem = U.problem(mapping, report);
@@ -1221,7 +1221,7 @@
           await busy(confirmBtn, 'Saving\u2026', async () => {
             try {
               if (provBox) await data.setUploadProvenance(ds.id, U.cleanProvenance(prov));
-              await data.confirmMapping(ds.id, U.clean(mapping)); await refresh();
+              await data.confirmMapping(ds.id, U.clean(mapping), trust.acked === true); await refresh();
             } catch (err) { showError(note, err); }
           });
         } }, 'These are right');
