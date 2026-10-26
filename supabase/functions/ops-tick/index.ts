@@ -12,7 +12,7 @@ const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by 
 const serve = guardedServe(sk);
 
 const serviceKey = sk.key;
-const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
+const db = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient, { auth: { persistSession: false } });
 const outbox: Outbox = {
   async add(kind, mode, to, subject, body) {
     const { data, error } = await db.rpc("ops_outbox_add", { p_kind: kind, p_mode: mode, p_to: to, p_subject: subject, p_body: body });

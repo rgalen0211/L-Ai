@@ -128,3 +128,13 @@ test('the per-job cron secrets are untouched: ops-tick, ops-digest and cost-sync
   const names = { 'ops-tick': 'OPS_TICK_SECRET', 'ops-digest': 'OPS_DIGEST_SECRET', 'cost-sync': 'COST_SYNC_SECRET' };
   for (const [f, n] of Object.entries(names)) assert.ok(fs.readFileSync(path.join(FUNCS, f, 'index.ts'), 'utf8').includes(`Deno.env.get("${n}")`), f);
 });
+
+test('a problem must give the plain 503, not a boot error: no function builds its database client from the bare key at module level (createClient refuses an empty key)', () => {
+  const users = ['ai-editor', 'cost-sync', 'creator-beta', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'ops-digest', 'ops-tick',
+                 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-checkout', 'stripe-webhook'];
+  for (const f of users) {
+    const src = fs.readFileSync(path.join(FUNCS, f, 'index.ts'), 'utf8');
+    if (f === 'purge-partial-uploads') continue;                       // built inside the handler, after the guard and the caller check: the key is real there
+    assert.doesNotMatch(src, /createClient\([^;]*?,\s*(?:serviceKey|sk\.key)\s*[,)]/s, `${f}: createClient gets the bare key`);
+  }
+});

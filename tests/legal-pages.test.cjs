@@ -58,12 +58,13 @@ test('DRAFTS: the open decisions and the "requires" statements are exactly the o
   assert.deepEqual(names(terms, 'decision').sort(), ['commercial-use', 'creator-beta-terms', 'governing-law', 'last-updated', 'liability-cap']);
   assert.deepEqual(names(privacy, 'decision').sort(), ['application-retention', 'last-updated', 'report-retention']);
   assert.deepEqual([...new Set(names(both, 'requires'))].sort(),
-    ['account-tools', 'backups-pro', 'creator-beta-live', 'film-pages', 'film-requests', 'funnel-tracking', 'ledger-cancel-spent', 'ops-tools', 'resend-email', 'stripe-test-mode', 'visit-counting']);
+    ['account-tools', 'backups-pro', 'creator-beta-live', 'film-pages', 'film-requests', 'funnel-tracking', 'ledger-cancel-spent', 'ops-tools', 'resend-email', 'stripe-test-mode', 'uploads', 'visit-counting']);
 });
 
 test('DRAFTS: what is not built or not live is NOT in the text: no uploads, AI, Find data, compilation, marks, per-item delete, prices or purchases', () => {
   const main = html => html.match(/<main[\s\S]*?<\/main>/)[0];                           // (the site header's brand line is not policy text)
-  const text = (main(terms) + main(privacy)).replace(/<[^>]+>/g, ' ');
+  const UPLOADS_SPAN = /<span class="draft-requires" data-requires="uploads">[\s\S]*?<\/span>/g;                // (the ONE sentence group allowed to name uploads: the approve step cuts it unless Ryan confirms uploads are on)
+  const text = (main(terms) + main(privacy)).replace(UPLOADS_SPAN, ' ').replace(/<[^>]+>/g, ' ');
   assert.doesNotMatch(text, /Anthropic|Claude|editor|spreadsheet|upload|Find data|Compilation|watermark|C2PA|content credentials|Recently deleted|Parody|fingerprint/i);
   assert.doesNotMatch(text, /\bAI\b/);                                              // (case-sensitive: "L'Ai" is the company)
   assert.doesNotMatch(text, /\$\s?\d|\bprice|\bpricing\b|per film/i);
@@ -85,7 +86,7 @@ function scratch() {
   return dir;
 }
 const run = (dir, args) => spawnSync('python', [path.join(root, 'tools/legal-approve.py'), '--root', dir, ...args], { encoding: 'utf-8' });
-const REQUIRES = 'account-tools,backups-pro,creator-beta-live,film-pages,film-requests,funnel-tracking,ledger-cancel-spent,ops-tools,resend-email,stripe-test-mode,visit-counting';
+const REQUIRES = 'account-tools,backups-pro,creator-beta-live,film-pages,film-requests,funnel-tracking,ledger-cancel-spent,ops-tools,resend-email,stripe-test-mode,uploads,visit-counting';
 const DECISIONS = { 'commercial-use': 'yes, including commercially,', 'creator-beta-terms': 'We may ask for a short written note after each film.', 'liability-cap': 'US$100',
                     'governing-law': 'These terms are governed by the laws of New York.', 'application-retention': 'We keep applications for 12 months.', 'report-retention': 'We keep reports for 12 months.' };
 
@@ -222,4 +223,15 @@ test('SHELLS: approval replaces the Terms shell with the real page (no shell mar
 test('CLEAN UP: the scratch copies this file makes are registered for removal', () => {
   assert.ok(madeDirs.length >= 1 && madeDirs.every(d => path.basename(d).startsWith('legal-')), 'scratch copies exist and are tracked');
   assert.match(fs.readFileSync(__filename, 'utf8'), /after\(\(\) => \{ for \(const d of madeDirs\) fs\.rmSync\(d, \{ recursive: true, force: true \}\); \}\);/);
+});
+
+test('DRAFTS: the uploads wording is only ever behind its own "uploads" key (a mention outside the key is caught; cutting the key leaves none)', () => {
+  const span = /<span class="draft-requires" data-requires="uploads">[\s\S]*?<\/span>/g;
+  const words = /upload|spreadsheet|\.csv|\.xlsx/i;
+  assert.equal((privacy.match(span) || []).length, 1, 'exactly one uploads statement, in the privacy draft');
+  assert.doesNotMatch(terms, words, 'the terms draft does not mention uploads');
+  assert.doesNotMatch(privacy.replace(span, ''), words, 'cutting the key leaves no mention of uploads anywhere');
+  // MUST-FAIL: the same wording with the key taken off is caught by the same check
+  const unkeyed = privacy.replace(/<span class="draft-requires" data-requires="uploads">([\s\S]*?)<\/span>/, '$1');
+  assert.match(unkeyed.replace(span, ''), words, 'a draft that mentions uploads without the key must be seen');
 });

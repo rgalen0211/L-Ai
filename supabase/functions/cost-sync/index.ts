@@ -11,7 +11,7 @@ const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by 
 const serve = guardedServe(sk);
 
 const serviceKey = sk.key;
-const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, { auth: { persistSession: false } });
+const db = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient, { auth: { persistSession: false } });
 async function rpc(name: string, args: Record<string, unknown> = {}) {
   const { data, error } = await db.rpc(name, args);
   if (error) throw new Error(error.message);
