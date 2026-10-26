@@ -139,13 +139,12 @@ test('every SQL function the server names exists in the migration, and none take
   const src = fs.readFileSync('supabase/functions/connect/db.ts', 'utf8');
   const used = [...src.matchAll(/"(connect_[a-z_]+)"/g)].map((m) => m[1]);
   assert.ok(used.length >= 20);
-  // PAPER_FUNCTIONS: named by the server but still only a DRAFT for CC1 (supabase/connect-drafts/). Each must be in the draft with the same shape; delete the name here when it moves into a migration.
-  const PAPER_FUNCTIONS = new Set(['connect_set_compilation_request']);
-  const draft = fs.readFileSync('supabase/connect-drafts/connect_compilation_request_draft.sql', 'utf8');
-  for (const fn of new Set(used)) assert.match(PAPER_FUNCTIONS.has(fn) ? draft : mig, new RegExp(`create function public\\.${fn}\\(`), fn);
-  for (const m of mig.matchAll(/create function public\.(connect_[a-z_]+)\(([^)]*)\)/g)) assert.doesNotMatch(m[2], /owner|user/i, m[1]);
-  for (const m of draft.matchAll(/create function public\.(connect_[a-z_]+)\(([^)]*)\)/g)) assert.doesNotMatch(m[2], /owner|user/i, m[1]);
-  assert.match(draft, /grant execute on function public\.connect_set_compilation_request\(text, uuid, jsonb\) to connect_runner/);
+  // Functions the server names that live in a LATER migration than connect_ai (each must be there with the same shape, with no owner or user argument).
+  const LATER = { connect_set_compilation_request: 'supabase/migrations/20261026000300_compilation_requests.sql' };
+  const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
+  for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);
+  for (const text of [mig, ...Object.values(later)]) for (const m of text.matchAll(/create function public\.(connect_[a-z_]+)\(([^)]*)\)/g)) assert.doesNotMatch(m[2], /owner|user/i, m[1]);
+  assert.match(later.connect_set_compilation_request, /grant execute on function public\.connect_set_compilation_request\(text, uuid, jsonb\) to connect_runner/);
 });
 
 test('the function entry holds no Supabase key and reads only its own settings', () => {
