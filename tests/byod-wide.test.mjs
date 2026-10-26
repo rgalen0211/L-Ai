@@ -58,7 +58,7 @@ test('MOCK (the proposed SQL rules): a wide file needs the tick, melt_wide on a 
   await assert.rejects(data.confirmMapping(wideDs.id, U.clean(m)), /Tick "These columns are years" and confirm/);
   m.melt_wide = true;
   await assert.rejects(data.confirmMapping(wideDs.id, { ...U.clean(m), wide_prefix: 'nope' }), /not one of the file/);
-  await data.confirmMapping(wideDs.id, U.clean(m));
+  await data.confirmMapping(wideDs.id, U.clean(m), true);
   assert.equal(wideDs.status, 'approved');
   const longDs = await up('long.csv', 'State,Year,Rent\nAlabama,2015,1\nAlabama,2016,2\nAlaska,2015,3\n');
   const lm = U.draft(longDs.ingest_report, { wide: true });

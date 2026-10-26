@@ -41,7 +41,11 @@ test('a csv goes in, is read, confirmed and used, and the type sent is ours, not
   assert.equal(U.chip(row, row.ingest).key, 'check');
   const m = U.draft(row.ingest_report);
   assert.equal(U.problem(m, row.ingest_report), '');
-  await data.confirmMapping(id, U.clean(m));
+  // The database refuses to approve an upload unless the person's tick on 'I understand, use it anyway' is sent (Q234): nothing is approved by these three.
+  for (const missing of [undefined, false, 'true']) await assert.rejects(data.confirmMapping(id, U.clean(m), missing), /Tick the box to use this data anyway./);
+  [row] = await data.listUploads();
+  assert.equal(U.chip(row, row.ingest).key, 'check');
+  await data.confirmMapping(id, U.clean(m), true);
   [row] = await data.listUploads();
   assert.equal(U.chip(row, row.ingest).key, 'ready');
   const ref = await data.attachUpload(vid, id);
@@ -84,7 +88,7 @@ test('an upload that never arrives leaves nothing behind, and a locked film canâ
   client.storage.from = storage;
   const id = await up(data);
   await sleep(30);
-  await data.confirmMapping(id, U.clean(U.draft((await data.listUploads())[0].ingest_report)));
+  await data.confirmMapping(id, U.clean(U.draft((await data.listUploads())[0].ingest_report)), true);
   client.db.versions[0].state = 'complete';
   await assert.rejects(data.attachUpload(vid, id), /can't change its data/);
 });

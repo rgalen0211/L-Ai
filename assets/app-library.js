@@ -1213,15 +1213,23 @@
         // S5 scaffold (byodGuide): who published it, the licence or permission, the unit, and the attestation. PLACEHOLDER wording (Ryan's final wording is RYAN-QUEUE Q5).
         const prov = { publisher: '', link: '', licence: '', licence_note: '', unit: '', decimals: 0, attested: false };
         const provBox = byodGuideOn() ? provenanceFields(prov) : null;
+        // The trust label and warning (RULINGS 2026-10-26): on EVERY upload, whatever else is switched on, and the person must choose to use the data anyway before it is confirmed.
+        const trust = { acked: false };
+        const trustAck = h('input', { id: 'trust-ack', type: 'checkbox', onchange: () => { trust.acked = trustAck.checked; } });
+        const trustBox = h('fieldset', { class: 'trust-box' }, h('legend', {}, 'Before you use this data'),
+          h('p', { class: 'trust-label' }, h('strong', { id: 'trust-label' }, U.TRUST_LABEL)), h('p', { class: 'trust-warning' }, U.TRUST_WARNING),
+          h('label', { class: 'choice' }, trustAck, h('span', {}, U.TRUST_ACK)));
         const confirmBtn = h('button', { class: 'button', type: 'button', onclick: async () => {
           note.hidden = true;
           const problem = U.problem(mapping, report);
           if (problem) return showError(note, new Error(problem));
+          const tp = U.trustProblem(trust.acked);
+          if (tp) return showError(note, new Error(tp));
           if (provBox) { const pp = U.provenanceProblem(prov); if (pp) return showError(note, new Error(pp)); }
           await busy(confirmBtn, 'Saving\u2026', async () => {
             try {
               if (provBox) await data.setUploadProvenance(ds.id, U.cleanProvenance(prov));
-              await data.confirmMapping(ds.id, U.clean(mapping)); await refresh();
+              await data.confirmMapping(ds.id, U.clean(mapping), trust.acked === true); await refresh();
             } catch (err) { showError(note, err); }
           });
         } }, 'These are right');
@@ -1229,7 +1237,7 @@
         const per = report.periods;
         return h('div', { class: 'mapping-form' },
           h('p', { class: 'form-note' }, `We found ${rows.toLocaleString()} rows${per ? `, ${per.first} to ${per.last}` : ''}. Check what each column means. Only you can see these values.`),
-          wideBox, select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values, provBox,
+          wideBox, select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values, provBox, trustBox,
           h('div', { class: 'actions-row' }, confirmBtn), note);
       }
 
@@ -1250,7 +1258,7 @@
         } }, 'Use in this film') : null;
         const edit = c.key === 'ready' ? h('button', { class: 'link-button', type: 'button', onclick: () => { open = open === ds.id ? null : ds.id; draw(); } }, 'See the columns') : null;
         return h('li', { class: 'upload-card' },
-          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: `state state-upload-${c.key}` }, byodGuideOn() && c.key === 'check' && !U.draft(ds.ingest_report) ? 'Needs a different layout' : c.label),
+          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: 'trust-chip' }, U.TRUST_LABEL), ' ', h('span', { class: `state state-upload-${c.key}` }, byodGuideOn() && c.key === 'check' && !U.draft(ds.ingest_report) ? 'Needs a different layout' : c.label),
           h('p', { class: 'meta' }, [bytes(ds.bytes), ds.ext ? ds.ext.toUpperCase() : '', ds.retention === 'dont_keep' ? 'Deleted after your final film' : 'Kept until you delete it'].filter(Boolean).join(' \u00b7 '),
             inUse ? ' \u00b7 In use in this film' : ''),
           c.key === 'reading' ? h('p', { class: 'form-note', role: 'status' }, 'We\u2019re reading it. This usually takes under a minute.') : null,

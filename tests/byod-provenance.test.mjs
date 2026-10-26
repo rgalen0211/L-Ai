@@ -72,7 +72,7 @@ test('FLAG AND GATING: only with byodGuide, "These are right" needs a complete p
   const lib = read('assets/app-library.js');
   assert.match(lib, /const provBox = byodGuideOn\(\) \? provenanceFields\(prov\) : null;/);
   assert.match(lib, /if \(provBox\) \{ const pp = U\.provenanceProblem\(prov\); if \(pp\) return showError\(note, new Error\(pp\)\); \}/);
-  assert.ok(lib.indexOf('await data.setUploadProvenance(ds.id, U.cleanProvenance(prov));') < lib.indexOf('await data.confirmMapping(ds.id, U.clean(mapping)); await refresh();'), 'provenance first, then the mapping');
+  assert.ok(lib.indexOf('await data.setUploadProvenance(ds.id, U.cleanProvenance(prov));') < lib.indexOf('await data.confirmMapping(ds.id, U.clean(mapping), trust.acked === true); await refresh();'), 'provenance first, then the mapping');
   const dataSrc = read('assets/app-data.js');
   assert.ok(dataSrc.includes("client.rpc('set_dataset_provenance', { p_dataset: datasetId, p_publisher: p.publisher, p_link: p.link || null, p_licence: p.licence, p_licence_note: p.licence_note || null, p_unit: p.unit, p_decimals: p.decimals, p_attested: p.attested === true })"));
   assert.match(read('assets/ryagram-config.js'), /byodGuide: false,/);
