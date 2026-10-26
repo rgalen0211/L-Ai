@@ -2085,7 +2085,7 @@ def signin_do(what: str) -> dict:
 
 
 def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 8765, token: str | None = None, questions: Path | None = None, search: list | None = None, activity: bool = True, v2: bool = False,
-                site: str | None = None, approval_hosts=(), signin_store=None, signin_transport=None, signin_clock=None, node_renderer=None, node_datasets=None, node_validate=None):
+                site: str | None = None, approval_hosts=(), signin_store=None, signin_transport=None, signin_clock=None, node_renderer=None, node_datasets=None, node_validate=None, node_engine_commit=None, node_cannot_render=""):
     STATE.update(engine=engine.resolve(), recipes=recipes.resolve(), work=work.resolve(), out=out.resolve(), token=token or secrets.token_urlsafe(24), port=port, job=None, planned=None)
     STATE["questions"] = load_questions(questions)
     STATE["search_roots"] = [Path(x) for x in search] if search else _default_search_roots()
@@ -2112,7 +2112,8 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
     STATE["links"] = None
     STATE["node"] = None
     if STATE.get("signin") is not None:              # r9 M4: "this computer renders my site films". OFF until the person switches it on; no renderer yet = it takes no jobs.
-        STATE["node"] = _node_mod().NodeLoop(STATE["signin"], STATE["work"], renderer=node_renderer, datasets=node_datasets, validate=node_validate, log=lambda ev: act(ev))
+        STATE["node"] = _node_mod().NodeLoop(STATE["signin"], STATE["work"], renderer=node_renderer, datasets=node_datasets, validate=node_validate, engine_commit=node_engine_commit,
+                                                cannot_render_reason=node_cannot_render, log=lambda ev: act(ev))
     if STATE.get("signin") is not None:              # NEXT-CONNECT 120: a private link to a finished film. A card only if the flag file in this folder says on; nothing is sent unless the person presses the button.
         STATE["links"] = _links_mod().PrivateLinks(STATE["signin"], STATE["work"], films_dir=STATE["out"], log=lambda ev: act(ev))
     srv = LocalServer(("127.0.0.1", port), Handler)
@@ -2127,6 +2128,20 @@ def find_engine() -> Path | None:
         if (d / "ryagram" / "local" / "engine.py").is_file():
             return d
     return None
+
+
+def node_render_kwargs(settings_path, work: Path) -> dict:
+    """The keyword arguments that give the node loop a real renderer, or ONLY the reason it has none (tools/ryagram_node_render.py). Never raises."""
+    try:
+        if str(HERE) not in sys.path:
+            sys.path.insert(0, str(HERE))
+        import ryagram_node_render as rr
+        nr, problems = rr.make(settings_path, work)
+    except Exception as e:                              # noqa: BLE001  the type only
+        return {"node_cannot_render": "the film-making part could not start (" + type(e).__name__ + ")."}
+    if nr is None:
+        return {"node_cannot_render": " ".join(problems[:3])}
+    return {"node_renderer": nr.renderer, "node_validate": nr.validate, "node_datasets": nr.datasets, "node_engine_commit": nr.engine_commit}
 
 
 def bind_free_port(engine, recipes, work, out, first: int, questions=None, search=None, activity: bool = True, v2: bool = False, **signin):
@@ -2156,6 +2171,7 @@ def main(argv=None) -> int:
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     ap.add_argument("--site", default=os.environ.get("RYAGRAM_SITE", ""), help="r9, off unless given: the Ryagram site's node address (https://...), to show the Sign in card")
+    ap.add_argument("--node-config", default=os.environ.get("RYAGRAM_NODE_CONFIG", ""), help="r9, off unless given, needs --site: a worker-shaped settings file (see tools/ryagram_node_render.py) that lets THIS computer make the signed-in person's own site films; every film goes through the GPU lock; with anything missing the maker says what and takes no jobs")
     ap.add_argument("--approval-host", action="append", default=[], help="a host the site may send you to, to approve this computer (repeat for more), for example uselai.com")
     a = ap.parse_args(argv)
     engine = Path(a.engine) if a.engine else find_engine()
@@ -2165,7 +2181,8 @@ def main(argv=None) -> int:
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
     try:
-        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log, site=a.site or None, approval_hosts=a.approval_host, v2=a.v2 or os.environ.get("RYAGRAM_MAKER_V2") == "1")
+        node_kw = node_render_kwargs(a.node_config, Path(a.work_dir)) if (a.node_config and a.site) else {}
+        srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log, site=a.site or None, approval_hosts=a.approval_host, **node_kw, v2=a.v2 or os.environ.get("RYAGRAM_MAKER_V2") == "1")
     except ModuleNotFoundError as e:
         raise SystemExit(f"A part of Python that the maker needs is missing ({e.name}). Most likely the speech add-on is not installed. "
                          + ADDON_STEP)
