@@ -125,6 +125,23 @@ if len(sys.argv) > 1:
     check(len(real) == n_dist and n_dist > 10, f"every one of the {n_dist} libraries in the folder is listed")
     print("       without a licence text of their own: " + ", ".join(f"{l['name']} ({l['licence']})" for l in real if not l["texts"]))
 
+print("G. the committed licence supplements (the four packages that ship no text of their own)")
+import hashlib
+import json
+SUPP = ROOT / "tools" / "licence-supplements"
+man = json.loads((SUPP / "MANIFEST.json").read_text(encoding="utf-8"))
+check({m["package"] for m in man} == {"ctranslate2", "flatbuffers", "onnxruntime", "tokenizers"}, "the manifest names exactly the four packages")
+for m in man:
+    f = (SUPP / m["file"]).read_text(encoding="utf-8")
+    first, _, body = f.partition(chr(10))
+    check(first == "source: " + m["source_url"] and m["tag"].lstrip("v") == m["version"] and m["source_url"].startswith("https://raw.githubusercontent.com/") and f"/{m['tag']}/LICENSE" in m["source_url"],
+          f"{m['package']}: the first line names the source, which is the project's own LICENSE at the tag matching version {m['version']}")
+    check(hashlib.sha256(body.encode("utf-8")).hexdigest() == m["licence_file_sha256"] or hashlib.sha256(body.replace(chr(10), chr(13) + chr(10)).encode("utf-8")).hexdigest() == m["licence_file_sha256"], f"{m['package']}: the text is the fetched file (SHA-256 {m['licence_file_sha256'][:12]}...)")
+if len(sys.argv) > 1:
+    real = tpn.libraries(Path(sys.argv[1]) / "python" / "Lib" / "site-packages", SUPP)
+    check([l["name"] for l in real if not l["texts"]] == [], "with the supplements, every library of the real bundle has a licence text")
+    check(tpn.public_problems(real, tpn.ffmpeg_facts(GPL_VERSION), GPL_TEXT, README, "c@example.test") == [], "so a public build is no longer stopped by a library (only the contact and ffmpeg's own files remain)")
+
 print("F. MUST-FAIL: the same checks against broken-on-purpose copies of the tool")
 src = (ROOT / "tools" / "third_party_notices.py").read_text(encoding="utf-8")
 
