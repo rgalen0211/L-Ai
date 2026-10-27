@@ -188,8 +188,42 @@ def write_start_files(out: Path, has_model: bool) -> None:
     txt = ("RYAGRAM\r\n\r\n1. Double-click  Open Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
            "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one Ryan read to you. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
+           "   The licences of the software written by others that this folder contains are in docs\\THIRD-PARTY-NOTICES.txt.\r\n"
            + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n"))
     (out / "START-HERE.txt").write_bytes(txt.encode("ascii"))
+
+
+def ffmpeg_version_text(ffd: Path) -> str:
+    """'ffmpeg -version' of the build being packed (a program already on this PC, run once; nothing is fetched). Empty when it cannot be run."""
+    try:
+        r = subprocess.run([str(ffd / "ffmpeg.exe"), "-version"], capture_output=True, text=True, timeout=30)
+        return r.stdout if r.returncode == 0 else ""
+    except (OSError, subprocess.SubprocessError):
+        return ""
+
+
+def write_notices(a, out: Path, ffd: Path) -> dict:
+    """docs/THIRD-PARTY-NOTICES.txt inside the folder (NEXT-CONNECT 133; CC1 20:01). With --public the build is REFUSED when something a public download needs is missing."""
+    import third_party_notices as tpn
+    supp = getattr(a, "licence_supplements", "") or ""
+    libs = tpn.libraries(out / "python" / "Lib" / "site-packages", Path(supp) if supp else None)
+    py_lic = out / "python" / "LICENSE.txt"
+    python_licence = py_lic.read_text(encoding="utf-8", errors="replace") if py_lic.is_file() else ""
+    vt = ffmpeg_version_text(ffd)
+    ff = tpn.ffmpeg_facts(vt) if vt else None
+    lic_file = Path(getattr(a, "ffmpeg_license", "") or ffd.parent / "LICENSE")
+    readme_file = Path(getattr(a, "ffmpeg_readme", "") or ffd.parent / "README.txt")
+    ff_lic = lic_file.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n") if lic_file.is_file() else ""
+    ff_readme = readme_file.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n") if readme_file.is_file() else ""
+    contact = getattr(a, "notices_contact", "") or ""
+    problems = tpn.public_problems(libs, ff, ff_lic, ff_readme, contact)
+    if ff is None:
+        problems.insert(0, "ffmpeg -version could not be read, so its licence cannot be stated.")
+    if getattr(a, "public", False) and problems:
+        raise Refused("A PUBLIC build needs more before it can be made:\n  " + "\n  ".join(problems))
+    (out / "docs").mkdir(exist_ok=True)
+    (out / "docs" / "THIRD-PARTY-NOTICES.txt").write_text(tpn.render(libs, python_licence, ff, ff_lic, ff_readme, contact), encoding="utf-8", newline="\n")
+    return {"libraries": len(libs), "public": bool(getattr(a, "public", False)), "problems": problems}
 
 
 def build(a) -> dict:
@@ -252,6 +286,7 @@ def build(a) -> dict:
         (out / "work").mkdir()
         (out / "films").mkdir()
         write_start_files(out, has_model=bool(model))
+        notices = write_notices(a, out, ffd)
         leaks = leak_scan(out)
         if leaks:
             raise Refused("The leak scan stopped the build:\n  " + "\n  ".join(leaks[:20]))
@@ -283,7 +318,7 @@ def build(a) -> dict:
     except Exception:
         shutil.rmtree(out, ignore_errors=True)                      # a half-built folder is never left lying about
         raise
-    result = {"out": str(out), "seconds": round(time.time() - t0, 1), "files_copied_from_libraries": n_files, "large_files": len(large), "bytes": sum(f.stat().st_size for f in list_files(out))}
+    result = {"out": str(out), "seconds": round(time.time() - t0, 1), "files_copied_from_libraries": n_files, "large_files": len(large), "bytes": sum(f.stat().st_size for f in list_files(out)), "notices": notices}
     if a.zip:
         zp = out.with_name(out.name + ".zip")
         with zipfile.ZipFile(zp, "w", zipfile.ZIP_DEFLATED, compresslevel=6) as z:
@@ -303,6 +338,11 @@ def main(argv=None) -> int:
     ap.add_argument("--app-repo", default=str(HERE.parent))
     ap.add_argument("--libraries", nargs="*", default=["faster-whisper"], help="the libraries to copy, with everything they need (default: faster-whisper)")
     ap.add_argument("--zip", action="store_true")
+    ap.add_argument("--public", action="store_true", help="a build that will be offered for download by anyone: refused unless ffmpeg's licence and README are present, a source-request contact is given (--notices-contact) and every library carries a licence text")
+    ap.add_argument("--licence-supplements", default="", help="a folder of licence texts (<package name>.txt) for packages that ship none; a person puts each project's own text there")
+    ap.add_argument("--notices-contact", default="", help="where a person can ask for the source of the GPL parts (wording is Ryan's and the attorney's)")
+    ap.add_argument("--ffmpeg-license", default="", help="the ffmpeg build's licence text (default: LICENSE next to its bin folder)")
+    ap.add_argument("--ffmpeg-readme", default="", help="the ffmpeg build's README (default: README.txt next to its bin folder)")
     ap.add_argument("--allow-any-drive", action="store_true", help="tests only")
     a = ap.parse_args(argv)
     try:
