@@ -506,6 +506,22 @@
         return { data: { redirect_to: 'https://claude.ai/api/mcp/auth_callback?error=access_denied&state=abc' }, error: null };
       },
       my_connected_ais() { return { data: structuredClone(db.connected || []), error: null }; },
+      // Mock of CONNECT's my_departments() and the interest functions (NEXT-WEB 147, proposed; nothing applied): Data films works, four departments are 'soon'; ?nodept makes my_departments fail,
+      // ?deptextra adds an id the page does not know and a 'working' one it has no page for (both must be ignored). Interest is one row per person per department, and nothing is ever sent.
+      my_departments() {
+        if (typeof location !== 'undefined' && /[?&]nodept/.test(location.search || '')) return fail('my_departments is not available');
+        const rows = [{ id: 'data_films', label: 'Data films', status: 'working' }, { id: 'compilations', label: 'Compilations', status: 'soon' }, { id: 'geo_intelligence', label: 'Geographic Intelligence', status: 'soon' },
+                      { id: 'games', label: 'Games', status: 'soon' }, { id: 'animation_studio', label: 'Animation Studio', status: 'soon' }];
+        if (typeof location !== 'undefined' && /[?&]deptextra/.test(location.search || '')) rows.push({ id: 'time_machine', label: 'Time machine', status: 'working' }, { id: 'games', label: 'Games again', status: 'working' });
+        return { data: rows, error: null };
+      },
+      my_department_interests() { return { data: [...(db.deptInterest || [])].map(d => ({ department: d })), error: null }; },
+      register_department_interest({ p_department }) {
+        if (!['compilations', 'geo_intelligence', 'games', 'animation_studio'].includes(p_department)) return fail('That department is not announced.');
+        db.deptInterest = db.deptInterest || []; if (!db.deptInterest.includes(p_department)) db.deptInterest.push(p_department);
+        return { data: null, error: null };
+      },
+      withdraw_department_interest({ p_department }) { db.deptInterest = (db.deptInterest || []).filter(d => d !== p_department); return { data: null, error: null }; },
       disconnect_ai({ p_client_id }) { db.connected = (db.connected || []).filter(c => c.client_id !== p_client_id); return { data: null, error: null }; },
       // Mock of the DRAFT device-code functions (r9 M2; the real ones are CONNECT's and WORKER's and do not exist yet). User codes are 8 characters from ABCDEFGHJKMNPQRSTUVWXYZ23456789.
       // ABCD2345 is a good code; ABCDEFGH is an ended one; anything else is not found. Checking and approving need a signed-in session; a code can be decided once.
