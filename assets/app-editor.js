@@ -89,7 +89,77 @@
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say('Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) note.focus(); }, { class: 'button secondary le-ai-btn' });
-      const finalBtn = btn(isData ? 'Render final film' : 'Build final film', 'primary', () => { say('Mock: this would save what you committed, show it in words, and start the job. The progress panel is the next step.'); });
+      const finalBtn = btn(isData ? 'Render final film' : 'Build final film', 'primary', () => { stopPlay(); showCommit(); });
+      const renderBox = h('div', { class: 'le-render', hidden: true });
+      let locked = false;                                                       // locked: a render is using what was committed
+      // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
+      function committedWords() {
+        if (isData) return ['The look you can see:', ...LOOK_ROWS.map(([k, l]) => `${l} ${ed.state.look[k]}`)];
+        const vids = ed.state.clips.filter(c => c.track === 'video');
+        return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
+      }
+      const closeRender = () => { renderBox.hidden = true; renderBox.replaceChildren(); };
+      function showCommit() {
+        renderBox.hidden = false;
+        renderBox.replaceChildren(h('h2', {}, 'What will render'), h('p', { class: 'meta' }, 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.'),
+          h('ul', {}, committedWords().map(t => h('li', {}, t))),
+          h('div', { class: 'le-actions' }, btn('Start the render', 'primary', startJob), btn('Not yet', 'secondary', closeRender)));
+        renderBox.querySelector('button').focus();
+      }
+      // The progress panel. Mock: a fake job walks through drawing, encoding and the checks; the real one reads jobs.progress_detail (the same fields).
+      function startJob() {
+        const PR = window.ryagramEditorProgress, tracker = new PR.Tracker();
+        locked = true; saved = true; ed.base = ed.state; ed.log = []; ed.redo = [];
+        const t0 = Date.now(); let skew = 0, frozen = false, lastReading = null;
+        const bar = h('div', { class: 'le-meter', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': '100', 'aria-label': 'The render, whole job' });
+        const fill = h('i', {});
+        bar.append(fill);
+        const head = h('p', { class: 'le-prog-head' }), eta = h('p', { class: 'meta' }), then = h('p', { class: 'meta' }), quiet = h('p', { class: 'le-warn', role: 'status', hidden: true });
+        const cancel = btn('Cancel', 'secondary', () => end('cancelled'));
+        const mock = window.ryagramMock ? h('p', { class: 'meta' }, btn('(mock) go quiet for 3 minutes', 'secondary', () => { skew += 180000; frozen = true; tick(); })) : null;
+        renderBox.hidden = false;
+        renderBox.replaceChildren(h('h2', {}, isData ? 'Rendering your film' : 'Building your film'), h('p', { class: 'meta' }, 'What you committed is what renders.'), head, bar, eta, then, quiet, h('div', { class: 'le-actions' }, cancel), mock);
+        // the fake worker: 2,820 frames over about 9 s, then encoding, then the checks; no time left until it has a rate
+        const reading = () => {
+          const sec = (Date.now() - t0) / 1000;
+          if (sec < 9) return { stage: 'drawing', done: Math.round(2820 * sec / 9), total: 2820, unit: 'frames', eta_s: sec < 1.5 ? null : (9 - sec) * 40, eta_is_a_guess: true, total_is_provisional: false };
+          if (sec < 11) return { stage: 'encoding', done: Math.round((sec - 9) * 50), total: 100, unit: 'frames', eta_s: 8, eta_is_a_guess: true };
+          if (sec < 12.5) return { stage: 'checking', done: Math.round((sec - 11) * 2), total: 3, unit: 'checks', eta_s: 3, eta_is_a_guess: true };
+          return null;
+        };
+        let jobTimer = null;
+        function draw(v) {
+          head.textContent = v.headline;
+          fill.style.width = `${Math.round(v.fraction * 100)}%`;
+          bar.setAttribute('aria-valuenow', String(Math.round(v.fraction * 100)));
+          bar.setAttribute('aria-valuetext', v.headline);
+          eta.textContent = v.state === 'running' ? v.eta : (v.then || '');
+          then.textContent = v.state === 'running' ? (v.then || '') : '';
+          quiet.hidden = !v.stalled;
+          quiet.textContent = v.stalledText || '';
+        }
+        function end(state) {
+          clearInterval(jobTimer);
+          tracker.finish(state);
+          draw(tracker.view(null, Date.now()));
+          locked = false;
+          paint();
+          cancel.disabled = true;
+          renderBox.append(h('div', { class: 'le-actions' }, btn('Close', 'secondary', closeRender)));
+        }
+        function tick() {
+          const r = frozen ? lastReading : reading();
+          if (r === null && !frozen) { end('complete'); return; }
+          if (!frozen) lastReading = r;
+          draw(tracker.feed(r, Date.now() + skew));
+        }
+        jobTimer = setInterval(tick, 400);
+        onStop(() => clearInterval(jobTimer));
+        tick();
+        paint();
+        cancel.focus();
+      }
+
       const banner = h('div', { class: 'le-banner', role: 'status', hidden: true });
       const warns = h('div', { class: 'le-warns' });
 
@@ -116,7 +186,7 @@
         const touched = new Set(ed.aiTouched());
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
           ...LOOK_ROWS.map(([key, label]) => {
-            const input = h('input', { type: 'color', value: ed.state.look[key], id: `le-look-${key}`, 'aria-label': label });
+            const input = h('input', { type: 'color', value: ed.state.look[key], id: `le-look-${key}`, 'aria-label': label, disabled: locked });
             input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });
             input.addEventListener('change', () => { preview = null; const r = ed.do({ op: 'set_look', key, value: input.value }); saved = false; say(r.ok ? '' : r.reason); paint(); });
             return h('div', { class: 'le-row' }, h('label', { for: input.id }, label, touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null), input);
@@ -132,7 +202,7 @@
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
       function paintHead() { if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
       const pct = t => `${(t / Math.max(1, ed.state.duration)) * 100}%`;
-      function apply(op) { stopPlay(); const r = ed.do(op); if (r.ok) saved = false; say(r.ok ? '' : r.reason); paint(); return r.ok; }
+      function apply(op) { stopPlay(); if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; } const r = ed.do(op); if (r.ok) saved = false; say(r.ok ? '' : r.reason); paint(); return r.ok; }
       let refocus = null;                                                       // a keyboard edit rebuilds the lanes: focus goes back to the clip that was edited
       function keyOn(c) {
         return ev => {
@@ -237,7 +307,7 @@
 
       function paint() {
         pill.textContent = saved ? 'Saved' : 'Draft, not saved';
-        undoBtn.disabled = ed.log.length === 0; revertBtn.disabled = ed.log.length === 0 && saved;
+        undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); }
         paintBanner(); paintWarns(); paintAiLinks(); setPos(position);
@@ -248,7 +318,7 @@
       const root = h('div', { class: 'le' },
         h('p', {}, h('a', { href: '#/' }, '← All projects')),
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
-        status, aiBox, banner,
+        status, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
           isData ? lookPanel : clipPanel),
