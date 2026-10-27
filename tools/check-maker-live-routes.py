@@ -101,6 +101,9 @@ def rpc(name, **args):
 import tempfile  # noqa: E402
 
 tmp = Path(tempfile.mkdtemp(prefix="maker-live-routes-"))
+import atexit as _atexit  # noqa: E402
+import shutil as _shutil  # noqa: E402
+_atexit.register(_shutil.rmtree, tmp, True)                                      # the check leaves nothing behind in the Temp folder
 dm, ed = make(tmp)
 code, got = rpc("my_edit_ops_since", p_project="p", p_mode="compilation", p_revision=0)
 st = got["data"]["state"]

@@ -398,7 +398,8 @@ def render(body: dict) -> dict:
             pass
         msg = f"Your film is ready: {out.name}, in {out_dir.name}."
         if rcpt.get("seconds"):
-            msg += f" It is {rcpt['seconds']:.0f} seconds long."
+            s = round(float(rcpt["seconds"]), 1)
+            msg += f" It is {('%g' % s)} second{'' if s == 1 else 's'} long."
         miss = [r["phrase"] for r in (rcpt.get("overlays") or {}).get("rules", []) if r.get("times") == 0]
         if miss:
             msg += " Nothing was drawn for: " + ", ".join(f"“{m}”" for m in miss) + " (not said in this film)."

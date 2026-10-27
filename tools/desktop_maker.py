@@ -814,7 +814,7 @@ V2_HTML = """<section id="v2" aria-labelledby="h-v2"><h2 id="h-v2">4. Pictures t
 
 
 SONG_LINK = '<p><a id="song-link" class="button secondary" href="/song">Sing a line to your music</a></p>'
-LIVE_LINK = '<p><a id="live-link" class="button secondary" href="/live">Edit your film live (after Plan)</a></p>'
+LIVE_LINK = '<p><a id="live-link" class="button secondary" href="/live">New editor: edit your film live (after Plan)</a></p>'
 LIVE_CARD = (
     '<section class="logbox" id="live-card" aria-labelledby="h-live"><h2 id="h-live">Your film and your AI</h2>'
     '<p class="note">The live editor works on this computer only, on your own videos. If you want your Ryagram website editor, or your connected AI, to see this film\u2019s clip list and suggest changes, '
@@ -861,7 +861,8 @@ def _song_mod():
 
 
 def page_html() -> str:
-    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else "") + ((LIVE_LINK + LIVE_CARD) if STATE.get("live_on") else ""))
+    page = PAGE.replace('<section class="logbox" id="airq"', (LIVE_CARD if STATE.get("live_on") else "") + '<section class="logbox" id="airq"', 1)     # the card sits with the other account cards, below the recipe, not above it
+    return page.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else "") + (LIVE_LINK if STATE.get("live_on") else ""))
 
 
 def pick_files(multiple: bool) -> list[str]:
@@ -1125,7 +1126,7 @@ JS = r"""(function () {
   const $ = id => document.getElementById(id);
   if ($('song-link')) $('song-link').href = '/song?t=' + encodeURIComponent(T);
   if ($('edit-link')) $('edit-link').href = '/edit?t=' + encodeURIComponent(T);
-  if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation';
+  if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation&project=local';
   if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // Ryan's box; Sam never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
@@ -1233,7 +1234,7 @@ JS = r"""(function () {
       sel.value = s.project || '';
       $('live-mirror').checked = !!s.mirror; $('live-ai').checked = !!s.ai_visible; $('live-ai').disabled = !s.mirror;
       $('live-msg').textContent = s.message || (s.mirror && !s.project ? 'Choose the project first.' : (s.signed_in ? '' : 'Sign this computer in to Ryagram first (the Sign in card) to use this.'));
-      if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation' + (s.project ? '&project=' + encodeURIComponent(s.project) : '');
+      if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation&project=' + (s.project ? encodeURIComponent(s.project) : 'local');
     } catch (e) { $('live-msg').textContent = e.message; }
   }
   async function saveLive() {

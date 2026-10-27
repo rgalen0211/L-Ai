@@ -95,6 +95,9 @@ SUMMARY = {"duration": 12, "lanes": ["video", "text"], "limits": {"text_chars": 
 DARK, LIGHT = "#112233", "#EEEEEE"
 clock = [1_000_000.0]
 tmp = Path(tempfile.mkdtemp(prefix="maker-live-", dir=None))
+import atexit as _atexit  # noqa: E402
+import shutil as _shutil  # noqa: E402
+_atexit.register(_shutil.rmtree, tmp, True)                                      # the check leaves nothing behind in the Temp folder
 
 
 def fresh(name, ai_visible=True):

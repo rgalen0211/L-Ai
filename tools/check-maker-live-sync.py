@@ -72,6 +72,9 @@ class Site:
 
 clock = [5_000.0]
 tmp = Path(tempfile.mkdtemp(prefix="maker-live-sync-"))
+import atexit as _atexit  # noqa: E402
+import shutil as _shutil  # noqa: E402
+_atexit.register(_shutil.rmtree, tmp, True)                                      # the check leaves nothing behind in the Temp folder
 
 
 def world(name, ai=True, mirror=True):
