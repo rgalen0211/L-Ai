@@ -61,6 +61,9 @@
     for (let i = plain ? 2 : 1; i < arguments.length; i++) for (const k of [arguments[i]].flat(Infinity)) if (k !== null && k !== undefined && k !== false) el.append(k instanceof Node ? k : document.createTextNode(String(k)));
     return el;
   }
+  // Appends children the way h() does: a null, undefined or false is skipped (the browser's own append() would write the WORD 'null' for a null: the song page showed it twice, found 2026-10-26).
+  // Every append on this page goes through here; tests/maker-song-null.test.mjs fails if a raw .append( comes back.
+  const put = (el, ...kids) => { for (const k of kids.flat(Infinity)) if (k !== null && k !== undefined && k !== false) el.append(k instanceof Node ? k : document.createTextNode(String(k))); return el; };
   const say = t => { const n = $('live'); if (n) n.textContent = t; };
   const err = t => { S.msg = t; const n = $('msg'); if (n) n.textContent = t; };
 
@@ -94,7 +97,7 @@
     const box = $('s-words'); box.replaceChildren();
     const ta = h('textarea', { id: 'lyrics', rows: '7', 'aria-label': 'Your words, one line of the song per line', maxlength: '20000', 'data-key': 'lyrics', oninput: ev => { S.lyrics = ev.target.value; countNote(); } });
     ta.value = S.lyrics;
-    box.append(h('h2', {}, '1. Your words'), h('p', { class: 'note' }, 'Paste or type the words of your song, one line of the song per line. Nothing is uploaded: the maker looks the words up in your own videos.'), ta,
+    put(box, h('h2', {}, '1. Your words'), h('p', { class: 'note' }, 'Paste or type the words of your song, one line of the song per line. Nothing is uploaded: the maker looks the words up in your own videos.'), ta,
       h('p', { id: 'count', class: 'note' }), host.practiceLyrics ? h('button', { type: 'button', 'data-key': 'practice', onclick: () => { S.lyrics = host.practiceLyrics; ta.value = S.lyrics; countNote(); } }, 'Use the practice words') : null);
     countNote();
   }
@@ -105,10 +108,10 @@
   function drawVideos() {
     const box = $('s-videos'); box.replaceChildren();
     const ul = h('ul', { class: 'list', 'aria-label': 'The folders and videos your words are found in' });
-    S.folders.forEach(f => ul.append(h('li', {}, h('span', {}, h('strong', {}, f.name), ' ', M.folderNote(f)), h('button', { type: 'button', 'aria-label': `Take the folder ${f.name} out`, onclick: () => { S.folders = S.folders.filter(x => x.name !== f.name); S.videos = S.videos.filter(v => v.folder !== f.name); err(''); drawVideos(); say(`The folder ${f.name} was taken out.`); } }, 'Take out folder'))));
-    S.videos.filter(v => !v.folder).forEach(v => ul.append(h('li', {}, h('span', {}, v.file_name), h('button', { type: 'button', 'aria-label': `Take ${v.file_name} out`, onclick: () => { S.videos = S.videos.filter(x => x.file_name !== v.file_name); err(''); drawVideos(); say(`${v.file_name} taken out.`); } }, 'Take out'))));
+    S.folders.forEach(f => put(ul, h('li', {}, h('span', {}, h('strong', {}, f.name), ' ', M.folderNote(f)), h('button', { type: 'button', 'aria-label': `Take the folder ${f.name} out`, onclick: () => { S.folders = S.folders.filter(x => x.name !== f.name); S.videos = S.videos.filter(v => v.folder !== f.name); err(''); drawVideos(); say(`The folder ${f.name} was taken out.`); } }, 'Take out folder'))));
+    S.videos.filter(v => !v.folder).forEach(v => put(ul, h('li', {}, h('span', {}, v.file_name), h('button', { type: 'button', 'aria-label': `Take ${v.file_name} out`, onclick: () => { S.videos = S.videos.filter(x => x.file_name !== v.file_name); err(''); drawVideos(); say(`${v.file_name} taken out.`); } }, 'Take out'))));
     const add = (r, folder) => { const have = new Set(S.videos.map(v => v.file_name)); S.videos = M.normalizeVideos(S.videos.concat(r.videos.filter(v => !have.has(v.file_name.replace(/\\/g, '/'))).map(v => folder ? { file_name: v.file_name, folder: folder.name } : { file_name: v.file_name }))); };
-    box.append(h('h2', {}, '2. Your videos'), h('p', { class: 'note' }, 'Choose the videos, or whole folders of them, that the words are looked up in. The maker finds each word of your song being said in them, and nothing leaves this computer.'),
+    put(box, h('h2', {}, '2. Your videos'), h('p', { class: 'note' }, 'Choose the videos, or whole folders of them, that the words are looked up in. The maker finds each word of your song being said in them, and nothing leaves this computer.'),
       S.videos.length ? ul : h('p', { class: 'note' }, 'No videos chosen yet.'),
       h('div', { class: 'row' },
         h('button', { type: 'button', id: 'pick-videos', 'data-key': 'pick-videos', onclick: async () => { try { const r = await host.pickVideos(); if (r && r.videos) { add(r, null); err(''); drawVideos(); say(`${S.videos.length} video${S.videos.length === 1 ? '' : 's'} chosen.`); } } catch (e) { err(e.message); } } }, S.videos.length ? 'Add more videos' : 'Choose your videos'),
@@ -116,7 +119,7 @@
   }
   function drawMusic() {
     const box = $('s-music'); box.replaceChildren();
-    box.append(h('h2', {}, '3. Your music'),
+    put(box, h('h2', {}, '3. Your music'),
       h('p', { class: 'note' }, 'Choose the music the words will be sung over. If it has the singing in it, the maker finds each word’s beat from it. If you have a separate track of just the singing, add it too.'),
       h('div', { class: 'row' },
         h('button', { type: 'button', id: 'pick-track', 'data-key': 'pick-track', onclick: async () => { try { const r = await host.pickTrack(); if (r && r.track) { S.track = r.track; err(''); drawMusic(); say(`${r.track.file_name} chosen.`); } } catch (e) { err(e.message); } } }, S.track ? 'Choose a different track' : 'Choose your music'),
@@ -145,12 +148,12 @@
     if (!S.plan) { box.hidden = true; return; }
     box.hidden = false;
     const sum = M.summarize(S.plan);
-    box.append(h('h2', {}, '4. Your song, word by word'),
+    put(box, h('h2', {}, '4. Your song, word by word'),
       h('ul', { class: 'sum', id: 'sum', 'aria-label': 'What the build found' }, sum.say.map(t => h('li', {}, t))),
       sum.built ? h('div', { class: 'row' }, h('button', { type: 'button', id: 'no-forge', 'data-key': 'no-forge', onclick: () => { S.forge = false; S.withoutId = S.plan.without_forged_plan_id || null; build(); } }, 'Make it without the words built from sounds'),
         h('span', { class: 'note' }, 'The film is then made with those beats quiet.')) : null,
       h('p', { class: 'note' }, 'Each box is a word on its beat. Press one to see who says it, where it comes from, and the other takes you can swap in. The preview and the film can differ a little: the render is the real thing.'));
-    S.plan.lines.forEach(line => box.append(drawLine(line)));
+    S.plan.lines.forEach(line => put(box, drawLine(line)));
     drawDetail();
   }
   function chipLabel(line, i) {
@@ -167,7 +170,7 @@
         h('span', { class: 'cs' }, w.quiet ? 'quiet' : w.status === 'gap' ? 'gap' : M.speakerLabel(S.plan, w.speaker_id)),
         w.status === 'syllables' || w.status === 'phonemes' ? h('span', { class: 'cb' }, 'built from sounds') : null, fl.length ? h('span', { class: 'cf' }, 'check') : null);
       chip.style.minWidth = Math.max(86, Math.round((w.end_s - w.beat_s) * 150)) + 'px';
-      lane.append(chip);
+      put(lane, chip);
     });
     return h('section', { class: 'line', 'aria-label': `Line ${line.n}` }, h('div', { class: 'row' }, h('h3', {}, `Line ${line.n}: ${line.text}`),
       h('button', { type: 'button', 'data-key': `hear-line-${line.n}`, 'aria-label': `Hear line ${line.n}`, onclick: () => hear({ kind: 'line', n: line.n }) }, 'Hear this line')), lane,
@@ -177,30 +180,30 @@
     const d = $('detail'); if (!d) return; d.replaceChildren();
     if (!S.sel) return;
     const line = S.plan.lines[S.sel.n - 1], w = line.words[S.sel.i], who = w.status === 'gap' || w.quiet ? null : M.speakerLabel(S.plan, w.speaker_id);
-    d.append(h('h3', {}, `"${w.w}"${who ? `, said by ${who}` : ''}`));
+    put(d, h('h3', {}, `"${w.w}"${who ? `, said by ${who}` : ''}`));
     const facts = h('dl', { class: 'facts' }, h('dt', {}, 'Beat'), h('dd', {}, `${mm(w.beat_s)} to ${mm(w.end_s)} in your music`), h('dt', {}, 'What it is'), h('dd', {}, M.statusText(w)));
     if (w.status !== 'gap' && !w.quiet) {
-      facts.append(h('dt', {}, 'Comes from'), h('dd', {}, `${w.file_name}, ${w.src_s.toFixed(1)} s to ${w.src_e.toFixed(1)} s`),
+      put(facts, h('dt', {}, 'Comes from'), h('dd', {}, `${w.file_name}, ${w.src_s.toFixed(1)} s to ${w.src_e.toFixed(1)} s`),
         h('dt', {}, 'Length'), h('dd', {}, w.stretch === 1 ? 'Used at its own length' : `Stretched or squeezed ${w.stretch.toFixed(1)} times to fit the beat`),
         h('dt', {}, 'On the beat'), h('dd', {}, w.offset_ms === null ? 'Not measured yet: the render reports how close each word lands' : Math.abs(w.offset_ms) <= M.OFF_BEAT_MS ? `Lands on the beat (${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'})` : `Lands ${Math.abs(w.offset_ms)} ms ${w.offset_ms > 0 ? 'after' : 'before'} the beat`));
     }
-    d.append(facts);
+    put(d, facts);
     const fl = M.flags(S.plan, line, S.sel.i);
-    if (fl.length) d.append(h('ul', { class: 'warns', id: 'flags' }, fl.map(t => h('li', {}, t))));
-    d.append(h('div', { class: 'row' }, w.status !== 'gap' && !w.quiet ? h('button', { type: 'button', 'data-key': 'hear-word', onclick: () => hear({ kind: 'word', n: S.sel.n, i: S.sel.i }) }, 'Hear this word') : null,
+    if (fl.length) put(d, h('ul', { class: 'warns', id: 'flags' }, fl.map(t => h('li', {}, t))));
+    put(d, h('div', { class: 'row' }, w.status !== 'gap' && !w.quiet ? h('button', { type: 'button', 'data-key': 'hear-word', onclick: () => hear({ kind: 'word', n: S.sel.n, i: S.sel.i }) }, 'Hear this word') : null,
       h('button', { type: 'button', 'data-key': 'hear-line-d', onclick: () => hear({ kind: 'line', n: S.sel.n }) }, 'Hear this line')));
     if (w.status === 'gap') {
-      d.append(h('p', {}, w.quiet ? 'This beat is left quiet.' : 'Nobody in the videos you chose says this word, and it cannot be built from sounds. The film leaves this beat quiet unless you change the words.'),
+      put(d, h('p', {}, w.quiet ? 'This beat is left quiet.' : 'Nobody in the videos you chose says this word, and it cannot be built from sounds. The film leaves this beat quiet unless you change the words.'),
         h('div', { class: 'row' }, h('button', { type: 'button', 'data-key': 'quiet', onclick: () => change(() => M.ops.quiet(S.plan, S.sel.n, S.sel.i, !w.quiet), w.quiet ? 'Beat put back as a gap.' : 'Beat left quiet.') }, w.quiet ? 'Put it back as a gap' : 'Leave this beat quiet')),
         h('p', { class: 'note' }, 'To use a different word, change the words in step 1 and press Build again.'));
     }
     if (w.alternatives.length) {
       const ul = h('ul', { class: 'list', 'aria-label': 'Other takes of this word' });
-      w.alternatives.forEach(a => ul.append(h('li', {}, h('span', {}, `${M.speakerLabel(S.plan, a.speaker_id)}, ${a.file_name}, ${a.src_s.toFixed(1)} s${a.stretch === 1 ? '' : ` (${a.stretch.toFixed(1)} times its length)`}`),
+      w.alternatives.forEach(a => put(ul, h('li', {}, h('span', {}, `${M.speakerLabel(S.plan, a.speaker_id)}, ${a.file_name}, ${a.src_s.toFixed(1)} s${a.stretch === 1 ? '' : ` (${a.stretch.toFixed(1)} times its length)`}`),
         h('button', { type: 'button', 'aria-label': `Hear this other take, ${M.speakerLabel(S.plan, a.speaker_id)}`, onclick: () => hear({ kind: 'alt', n: S.sel.n, i: S.sel.i, id: a.id }) }, 'Hear it'),
         h('button', { type: 'button', class: 'primary', 'data-key': 'use-' + a.id, 'aria-label': `Use this other take, ${M.speakerLabel(S.plan, a.speaker_id)}`, onclick: () => change(() => M.ops.swap(S.plan, S.sel.n, S.sel.i, a.id), 'Swapped in the other take.') }, 'Use this one'))));
-      d.append(h('h4', {}, 'Other takes of this word'), ul);
-    } else if (w.status !== 'gap') d.append(h('p', { class: 'note' }, 'No other take of this word was found in your videos.'));
+      put(d, h('h4', {}, 'Other takes of this word'), ul);
+    } else if (w.status !== 'gap') put(d, h('p', { class: 'note' }, 'No other take of this word was found in your videos.'));
   }
   function change(fn, said) {
     try { S.plan = fn(); S.dirty = true; err(''); say(said); drawBoard(); drawStatus(); const k = S.sel && document.querySelector(`[data-key="chip-${S.sel.n}-${S.sel.i}"]`); if (k) k.focus(); } catch (e) { if (e instanceof M.SongError) { err(e.message); } else throw e; }
@@ -221,15 +224,15 @@
     try {
       if (new URLSearchParams(location.search).has('fixture')) { await loadScript('fixture.js'); host = window.ryagramSongFixtureHost; } else host = apiHost();
       const top = $('top');
-      top.append(h('h1', {}, 'Make a song'), h('div', { class: 'row' },
+      put(top, h('h1', {}, 'Make a song'), h('div', { class: 'row' },
         h('button', { id: 'back', type: 'button', onclick: () => { if (!host.back()) say('This is the practice build: there is no plan to go back to.'); } }, 'Back to Plan'),
         h('button', { id: 'save', type: 'button', onclick: save }, 'Save my song'), h('button', { id: 'render', type: 'button', class: 'primary', onclick: render }, 'Make the film')));
-      let prior = null; try { prior = await host.load(); } catch (e) { top.append(h('p', { class: 'msg', role: 'alert' }, e.message)); return; }
+      let prior = null; try { prior = await host.load(); } catch (e) { put(top, h('p', { class: 'msg', role: 'alert' }, e.message)); return; }
       if (prior) { S.plan = M.normalize(prior); S.track = S.plan.track; S.guide = S.plan.guide; S.lyrics = S.plan.lines.map(l => l.text).join('\n'); S.videos = [...new Set(S.plan.lines.flatMap(l => l.words.filter(w => w.file_name).map(w => w.file_name)))].map(n => ({ file_name: n })); }
       draw();
       window.ryagramSong = { get plan() { return S.plan; }, get state() { return S; }, model: M, host, saveText: () => M.stringify(S.plan) };
       document.documentElement.setAttribute('data-ready', '1');
-    } catch (e) { $('top').append(h('p', { class: 'msg', role: 'alert' }, e instanceof M.SongError ? e.message : 'The song page could not open: ' + e.message)); }
+    } catch (e) { put($('top'), h('p', { class: 'msg', role: 'alert' }, e instanceof M.SongError ? e.message : 'The song page could not open: ' + e.message)); }
   }
   start();
 }());
