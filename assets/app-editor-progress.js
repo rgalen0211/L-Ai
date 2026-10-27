@@ -25,6 +25,12 @@
   }
   const agoWords = ms => ms < 90000 ? 'a moment ago' : ms < 5400000 ? `${Math.round(ms / 60000)} minutes ago` : `${Math.round(ms / 360000) / 10} hours ago`;
 
+  // The stills that have landed so far, as the page may show them: at most 40, each a whole-number id and a short plain label (the picture itself comes from the server's still place when it exists).
+  function stillsOf(r) {
+    const list = r && Array.isArray(r.stills) ? r.stills : [];
+    return list.filter(s => s && Number.isInteger(s.id) && s.id >= 0).slice(-40).map(s => ({ id: s.id, label: String(s.label == null ? '' : s.label).replace(/[^A-Za-z0-9 ,.'-]/g, '').slice(0, 30) }));
+  }
+
   class Tracker {
     constructor() { this.best = 0; this.stage = null; this.lastKey = null; this.lastChangeAt = null; this.state = 'running'; }
     // reading: the progress_detail object (or null before the first report); now: ms. Returns the view model the page draws.
@@ -57,10 +63,10 @@
       const then = rest.length ? `Then: ${rest.join(', then ')}. The time left counts all of them, so it will not say 0 and then wait.` : null;
       const quiet = now - this.lastChangeAt;
       const stalled = quiet > STALL_MS;
-      return { state: 'running', headline: counted, fraction: this.best, eta, then, stalled,
+      return { state: 'running', headline: counted, fraction: this.best, eta, then, stalled, stills: stillsOf(r),
         stalledText: stalled ? `Waiting for your computer to report back. It last reported ${agoWords(quiet)}.` : null };
     }
   }
 
-  window.ryagramEditorProgress = { STALL_MS, STAGES, BANDS, etaWords, agoWords, group, Tracker };
+  window.ryagramEditorProgress = { stillsOf, STALL_MS, STAGES, BANDS, etaWords, agoWords, group, Tracker };
 })();

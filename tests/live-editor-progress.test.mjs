@@ -93,6 +93,19 @@ test('before the first report, and after the end', () => {
   assert.deepEqual(plain(ok.feed(null, 0)), { state: 'complete', headline: 'Your film is ready.', fraction: 1, eta: null, then: null, stalled: false, stalledText: null });
 });
 
+test('stills: a growing list of whole-number ids with short plain labels, at most 40, never markup, and none when the worker sends none', () => {
+  assert.deepEqual(plain(new P.Tracker().feed(draw(10), 0).stills), []);
+  const many = Array.from({ length: 60 }, (_, i) => ({ id: i, label: `Year ${1960 + i}` }));
+  const v = new P.Tracker().feed(draw(10, { stills: many }), 0);
+  assert.equal(v.stills.length, 40);
+  assert.equal(v.stills.at(-1).id, 59);
+  const hostile = new P.Tracker().feed(draw(10, { stills: [{ id: 1, label: '<img src=x onerror=1>' + 'x'.repeat(100) }, { id: 'a', label: 'bad id' }, { id: -1, label: 'neg' }, null, { id: 2, label: undefined }] }), 0).stills;
+  assert.deepEqual(plain(hostile.map(s => s.id)), [1, 2]);
+  assert.doesNotMatch(hostile[0].label, /[<>=]/);
+  assert.ok(hostile[0].label.length <= 30);
+  assert.equal(hostile[1].label, '');
+});
+
 test('numbers that are not numbers never reach the page', () => {
   const v = new P.Tracker().feed({ stage: 'drawing', done: '<b>9</b>', total: Infinity, unit: '<script>' }, 0);
   assert.equal(v.headline, 'Drawing frames');

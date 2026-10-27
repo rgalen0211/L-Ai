@@ -12,7 +12,11 @@
   const COLOR = v => typeof v === 'string' && /^#[0-9a-fA-F]{6}$/.test(v);
   // What the worker's schema accepts today (WORKER W1; the preview's colour edits send exactly these). ENGINE 35's keys are added when the schema has them.
   const LOOK_KEYS = Object.freeze({
-    'network.color': COLOR, 'network.base_color': COLOR, 'network.context_color': COLOR, 'state.fill': COLOR, 'page.background': COLOR
+    'network.color': COLOR, 'network.base_color': COLOR, 'network.context_color': COLOR, 'state.fill': COLOR, 'page.background': COLOR,
+    // the map views' keys (WORKER's schema accepts them today; CONNECT's edit_look_keys holds them): checked here so an AI's change to them is applied, not skipped
+    'choropleth.low': COLOR, 'choropleth.high': COLOR,
+    'state.outline_width': v => typeof v === 'number' && Number.isFinite(v) && v >= 0 && v <= 4,
+    'sequence.theme': v => v === 'light' || v === 'dark'
   });
   // The vocabulary is CONNECT's (tests/edit-op-cases.json is run by both the SQL and TypeScript checks): the data mode's set_look / unset_look and the compilation mode's clip ops plus add_clip.
   const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip'];

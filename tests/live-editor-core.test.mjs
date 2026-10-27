@@ -172,7 +172,14 @@ test('the ops the page sends are exactly the closed list, and every one of them 
   assert.deepEqual(plain(E.OPS), ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip']);
   const s = E.newState(base());
   for (const op of E.OPS) assert.equal(typeof E.check(s, { op }), 'string', op + ' with no arguments must be refused');
-  assert.deepEqual(plain(Object.keys(E.LOOK_KEYS).sort()), ['network.base_color', 'network.color', 'network.context_color', 'page.background', 'state.fill']);
+  assert.deepEqual(plain(Object.keys(E.LOOK_KEYS).sort()), ['choropleth.high', 'choropleth.low', 'network.base_color', 'network.color', 'network.context_color', 'page.background', 'sequence.theme', 'state.fill', 'state.outline_width']);
+  const sk = E.newState({ look: {} });
+  assert.equal(E.check(sk, { op: 'set_look', key: 'state.outline_width', value: 4 }), null);
+  assert.equal(typeof E.check(sk, { op: 'set_look', key: 'state.outline_width', value: 4.1 }), 'string');
+  assert.equal(typeof E.check(sk, { op: 'set_look', key: 'state.outline_width', value: '2' }), 'string');
+  assert.equal(E.check(sk, { op: 'set_look', key: 'sequence.theme', value: 'light' }), null);
+  assert.equal(typeof E.check(sk, { op: 'set_look', key: 'sequence.theme', value: 'sepia' }), 'string');
+  assert.equal(E.check(sk, { op: 'set_look', key: 'choropleth.low', value: '#112233' }), null);
 });
 
 test('speaker, voice and cast fields are local-only (FACES 62): stripped from any clip that arrives, never in the state, the log or an undo; the AI-altered marker (FACES 63) is kept through every op', () => {

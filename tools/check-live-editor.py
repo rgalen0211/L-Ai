@@ -135,6 +135,7 @@ def main():
                 check(int(p.get_attribute('.le-meter', 'aria-valuenow')) >= first and first > 0, 'the bar moves forward and never back')
                 txt = p.inner_text('.le-render')
                 check('(a guess, rechecked as it runs)' in txt and 'about' in txt, 'the time left says about, and that it is a guess')
+                check(p.locator('.le-still').count() >= 1, 'stills land as a growing row of small labelled pictures while it draws (the pictures themselves wait for the server\u2019s still place)')
                 check('Then: putting the video together, then the checks.' in txt, 'it says what comes after the drawing')
                 p.click('button:has-text("go quiet")')
                 check('Waiting for your computer to report back' in p.inner_text('.le-render'), 'a job that goes quiet says so in plain words')

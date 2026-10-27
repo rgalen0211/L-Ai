@@ -119,14 +119,16 @@
         const fill = h('i', {});
         bar.append(fill);
         const head = h('p', { class: 'le-prog-head' }), eta = h('p', { class: 'meta' }), then = h('p', { class: 'meta' }), quiet = h('p', { class: 'le-warn', role: 'status', hidden: true });
+        const stillsRow = h('div', { class: 'le-stills', role: 'list', 'aria-label': 'Pictures from the film so far' });
         const cancel = btn('Cancel', 'secondary', () => end('cancelled'));
         const mock = window.ryagramMock ? h('p', { class: 'meta' }, btn('(mock) go quiet for 3 minutes', 'secondary', () => { skew += 180000; frozen = true; tick(); })) : null;
         renderBox.hidden = false;
-        renderBox.replaceChildren(h('h2', {}, isData ? 'Rendering your film' : 'Building your film'), h('p', { class: 'meta' }, 'What you committed is what renders.'), head, bar, eta, then, quiet, h('div', { class: 'le-actions' }, cancel), mock);
+        renderBox.replaceChildren(h('h2', {}, isData ? 'Rendering your film' : 'Building your film'), h('p', { class: 'meta' }, 'What you committed is what renders.'), head, bar, eta, then, quiet, stillsRow, h('div', { class: 'le-actions' }, cancel), mock);
         // the fake worker: 2,820 frames over about 9 s, then encoding, then the checks; no time left until it has a rate
         const reading = () => {
           const sec = (Date.now() - t0) / 1000;
-          if (sec < 9) return { stage: 'drawing', done: Math.round(2820 * sec / 9), total: 2820, unit: 'frames', eta_s: sec < 1.5 ? null : (9 - sec) * 40, eta_is_a_guess: true, total_is_provisional: false };
+          if (sec < 9) { const n = Math.floor(sec / 0.9); return { stage: 'drawing', done: Math.round(2820 * sec / 9), total: 2820, unit: 'frames', eta_s: sec < 1.5 ? null : (9 - sec) * 40, eta_is_a_guess: true, total_is_provisional: false,
+            stills: Array.from({ length: n }, (_, i) => ({ id: i + 1, label: `Year ${1985 + Math.round((i + 1) * 2.5)}` })) }; }
           if (sec < 11) return { stage: 'encoding', done: Math.round((sec - 9) * 50), total: 100, unit: 'frames', eta_s: 8, eta_is_a_guess: true };
           if (sec < 12.5) return { stage: 'checking', done: Math.round((sec - 11) * 2), total: 3, unit: 'checks', eta_s: 3, eta_is_a_guess: true };
           return null;
@@ -141,6 +143,7 @@
           then.textContent = v.state === 'running' ? (v.then || '') : '';
           quiet.hidden = !v.stalled;
           quiet.textContent = v.stalledText || '';
+          if (v.state === 'running' && v.stills && v.stills.length !== stillsRow.childElementCount) stillsRow.replaceChildren(...v.stills.map(s => h('div', { class: 'le-still', role: 'listitem' }, h('span', {}, s.label || `Picture ${s.id}`))));
         }
         function end(state) {
           clearInterval(jobTimer);
