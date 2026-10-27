@@ -259,6 +259,12 @@ test('the AI-altered marker follows the FOOTAGE (CC1 10:37): a clip whose stretc
   const off = { id: 'A', track: 'video', start: 0, len: 3, label: 'A', source: 'x.mp4', source_start: 21, ai_altered: true };
   assert.equal(E.isMarked(e.base, off), false);
   assert.equal(E.isMarked(e.base, { id: 'q', track: 'video', start: 0, len: 2, label: 'q', ai_altered: true }), true);
+  // CONNECT 11:36: ai_altered_derived is the maker's own overlap result; it shows a clip with no recorded source as marked, but never makes a stretch of its own
+  const derived = E.newState({ duration: 40, clips: [
+    { id: 'A', track: 'video', start: 0, len: 5, label: 'A', source: 'x.mp4', source_start: 10, ai_altered: true, ai_altered_derived: true },
+    { id: 'B', track: 'video', start: 5, len: 5, label: 'B', source: 'x.mp4', source_start: 12 }] });
+  assert.equal(E.isMarked(derived, derived.clips[1]), false);                                                   // a derived mark is not a stretch that marks others
+  assert.equal(E.isMarked(derived, { id: 'q', track: 'video', start: 0, len: 2, label: 'q', ai_altered_derived: true }), true);   // no recorded source: its own derived flag shows
   assert.equal(E.isMarked(e.base, { id: 'z', track: 'video', start: 0, len: 2, label: 'z' }), false);        // no source recorded: nothing to compare, not marked by guesswork
   assert.equal(E.isMarked(e.base, { id: 'z', track: 'text', start: 0, len: 2, label: 'z', ai_altered: true }), true);   // its own marker always counts
 });

@@ -146,10 +146,11 @@
   // marked when the editor opened (base), even if the marked clip was since deleted or the clip was trimmed back into it. The page only SHOWS this; the maker's edit_from_tracks enforces it.
   function isMarked(base, clip) {
     const known = clip.track === 'video' && typeof clip.source === 'string' && Number.isFinite(clip.source_start);
-    if (!known) return clip.ai_altered === true;                       // a slide, a text or a clip with no recorded source: its own marker (BUILDER: the maker keeps slides by picture)
+    if (!known) return clip.ai_altered === true || clip.ai_altered_derived === true;      // a slide, a text or a clip with no recorded source: its own marker (BUILDER: the maker keeps slides by picture)
     // A video clip with a known stretch of its file is marked by the footage only (BUILDER 10:43): trimmed off the altered stretch, the maker builds it unmarked, so the page shows that.
     const a0 = clip.source_start, a1 = clip.source_start + clip.len;
-    return base.clips.some(m => m.ai_altered === true && m.track === 'video' && m.source === clip.source && Number.isFinite(m.source_start)
+    // the stretches are the marked clips the maker did NOT merely derive (ai_altered_derived is the maker's own overlap result, CONNECT 11:36), as the maker's edit_from_tracks counts them
+    return base.clips.some(m => m.ai_altered === true && m.ai_altered_derived !== true && m.track === 'video' && m.source === clip.source && Number.isFinite(m.source_start)
       && a0 < m.source_start + m.len - 1e-9 && m.source_start < a1 - 1e-9);
   }
 
