@@ -201,6 +201,8 @@ def new_state(init: dict | None = None) -> dict:
         s["clips"].append(c)
     if isinstance(init.get("lanes"), list):
         s["lanes"] = [x for x in init["lanes"] if x in TRACKS]
+    if isinstance(init.get("text_rules"), dict):                    # the film's text layout rules (BUILDER: textstyle.rules): the page draws texts with them; they stay on this computer and never go in the summary
+        s["text_rules"] = json.loads(json.dumps(init["text_rules"]))
     lim = init.get("limits")
     if isinstance(lim, dict):
         s["limits"] = {"text_chars": lim["text_chars"] if _is_int(lim.get("text_chars")) else None}
@@ -444,7 +446,7 @@ class LiveDraft:
         """What the sync may post to the site: names and times only (the shape node_edit_post_summary accepts). Local-only fields never leave."""
         with self.lock:
             s = self._mode("compilation")["state"]
-            keep = ("id", "track", "start", "len", "label", "text", "picture", "file", "source", "source_start", "min_len", "max_len", "position", "size", "ai_altered", "ai_altered_by", "ai_altered_derived", "slide", "mode", "fade_s")
+            keep = ("id", "track", "start", "len", "label", "text", "picture", "file", "source", "source_start", "min_len", "max_len", "position", "size", "ai_altered", "ai_altered_by", "ai_altered_derived", "slide", "mode", "fade_s", "style")
             out = {"schema": "ryagram.edit-tracks/0", "duration": s.get("duration", 0), "clips": [{k: c[k] for k in keep if k in c} for c in s["clips"]]}
             if "lanes" in s:
                 out["lanes"] = list(s["lanes"])

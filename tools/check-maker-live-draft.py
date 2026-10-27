@@ -113,6 +113,12 @@ def fails(d, code, name, **a):
     return r["data"] is None and r["error"] and r["error"]["code"] == code and r["error"]["message"]
 
 
+tr = {"canvas": {"w": 1280, "h": 720}, "styles": {"title": {}, "caption": {}, "lower_third": {}}}
+dt = ML.LiveDraft(tmp / "tr.json", clock=lambda: clock[0])
+dt.set_base("compilation", dict(SUMMARY, text_rules=tr))
+check(dt.state("compilation").get("text_rules") == tr and dt.ops_since("compilation", 0)["state"].get("text_rules") == tr, "the film's text rules reach the page through the draft's state")
+dt.apply_ops("compilation", dt.ops_since("compilation", 0)["revision"], [{"op": "set_clip_text", "id": "t1", "text": "x"}], "person")
+check(dt.state("compilation").get("text_rules") == tr and "text_rules" not in dt.summary() and "text_rules" not in json.dumps(dt.summary()), "they survive a change, and they are NOT in the summary that may leave the computer")
 d = fresh("a")
 rev = d.ops_since("compilation", 0)["revision"]
 check(d.state("compilation")["clips"][0].get("speaker") is None and d.state("compilation")["clips"][0].get("voice_id") is None, "speaker and voice fields never enter the draft (they stay on this computer's own pages)")
