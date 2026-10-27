@@ -168,11 +168,25 @@ def check_maker_extra(extra: str) -> str:
     return " ".join(words)
 
 
+WORD_BUILDER_BAT = "Get word builder.bat"            # --word-builder (NEXT-CONNECT 136, one zip): the add-on's start file at the root; its script travels inside tools\
+WORD_BUILDER_PY = "get_word_builder.py"
+
+
+def write_word_builder(out: Path, app_repo: Path) -> None:
+    """The word-builder add-on INSIDE the bundle: the .bat at the root, the script in tools\\ (so the start-time self-check watches both). The 378 MB model is NOT part of this: the .bat fetches it on a YES."""
+    import make_forge_addon as mfa
+    src = app_repo / "tools" / WORD_BUILDER_PY
+    if not src.is_file():
+        raise Refused(f"--word-builder needs tools/{WORD_BUILDER_PY} in the app repo (the add-on's script); it is not there.")
+    shutil.copy2(src, out / "tools" / WORD_BUILDER_PY)
+    (out / WORD_BUILDER_BAT).write_bytes(mfa.bat_text("tools\\" + WORD_BUILDER_PY).encode("ascii"))
+
+
 FORGE_BAT = "Open Ryagram (fill missing words).bat"
 FORGE_EXTRA = "--song --song-forge"           # the second start file; the first one never passes --song-forge
 
 
-def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False) -> None:
+def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False, word_builder: bool = False) -> None:
     # The file is called "Open Ryagram.bat" and not "Start ...": from a command line, cmd /c "Start X.bat" runs cmd's own START command instead of the file.
     def bat_text(extra: str) -> str:
       return "\r\n".join([
@@ -209,7 +223,8 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
            "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one Ryan read to you. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
            "   The licences of the software written by others that this folder contains are in docs\\THIRD-PARTY-NOTICES.txt.\r\n"
-           + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n"))
+           + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n")
+           + ("" if not word_builder else "   Optional, to let Ryagram build a word nobody said from your own sounds: open  Get word builder.bat  once. It says the size (about 378 MB), and downloads only after you type YES; every file is checked before it is kept. Then use  " + FORGE_BAT + "  (if this folder has it).\r\n"))
     (out / "START-HERE.txt").write_bytes(txt.encode("ascii"))
 
 
@@ -306,7 +321,10 @@ def build(a) -> dict:
             shutil.copytree(model, out / "models" / model.name)
         (out / "work").mkdir()
         (out / "films").mkdir()
-        write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)))
+        word_builder = bool(getattr(a, "word_builder", False))
+        write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)), word_builder=word_builder)
+        if word_builder:
+            write_word_builder(out, app_repo)
         notices = write_notices(a, out, ffd)
         leaks = leak_scan(out)
         if leaks:
@@ -365,6 +383,7 @@ def main(argv=None) -> int:
     ap.add_argument("--ffmpeg-license", default="", help="the ffmpeg build's licence text (default: LICENSE next to its bin folder)")
     ap.add_argument("--ffmpeg-readme", default="", help="the ffmpeg build's README (default: README.txt next to its bin folder)")
     ap.add_argument("--forge-bat", action="store_true", help="also write the second start file, which starts the song page WITH --song-forge (words built from the person's own sounds); the normal start file never passes it")
+    ap.add_argument("--word-builder", action="store_true", help="put the word-builder add-on INSIDE the folder (one zip): Get word builder.bat at the root, tools\\get_word_builder.py; the 378 MB model is still fetched later, on a YES, by that file")
     ap.add_argument("--maker-extra", default="", help="page switches the start file turns on unless the tester sets MAKER_EXTRA himself; only --song --song-forge --edit are allowed (for example \"--song --song-forge\")")
     ap.add_argument("--allow-any-drive", action="store_true", help="tests only")
     a = ap.parse_args(argv)

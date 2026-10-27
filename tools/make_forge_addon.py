@@ -36,6 +36,13 @@ BAT = "\r\n".join([
 ])
 
 
+def bat_text(script: str = "get_word_builder.py") -> str:
+    """Get word builder.bat with the script at another place relative to the .bat (the one-zip bundle keeps it at tools\\get_word_builder.py); the default is the add-on zip's text, byte for byte."""
+    line = '"%~dp0get_word_builder.py"'
+    assert BAT.count(line) == 1
+    return BAT.replace(line, '"%~dp0' + script + '"')
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--out", required=True)

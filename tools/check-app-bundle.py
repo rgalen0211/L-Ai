@@ -68,6 +68,7 @@ def world(name: str) -> dict:
     root = fresh(name)
     repo = root / "app-repo"
     (repo / "tools").mkdir(parents=True)
+    (repo / "tools" / "get_word_builder.py").write_text("# stand-in get_word_builder.py" + chr(10), encoding="utf-8")        # not a runtime tool: it travels only with --word-builder
     for t in mab.RUNTIME_TOOLS:
         (repo / "tools" / t).write_text(f"# stand-in {t}\n", encoding="utf-8")
     for d in mab.RUNTIME_PAGE_DIRS:
@@ -311,6 +312,40 @@ check(mab.FORGE_BAT in sums, "the second start file is in the self-check's list 
 w = world("i")
 mab.build(args(w, maker_extra="--song"))
 check(not (w["out"] / mab.FORGE_BAT).exists(), "without --forge-bat the second start file is not written")
+
+print("G. the word-builder add-on INSIDE the bundle (NEXT-CONNECT 136, one zip)")
+import make_forge_addon as mfa                                  # noqa: E402
+w = world("j")
+mab.build(args(w, maker_extra="--song", forge_bat=True, word_builder=True))
+o = w["out"]
+bat = (o / mab.WORD_BUILDER_BAT).read_bytes().decode("ascii")
+check((o / "tools" / "get_word_builder.py").read_text(encoding="utf-8") == "# stand-in get_word_builder.py" + chr(10) and not (o / "get_word_builder.py").exists(), "the script travels in tools/ (not at the root); only the .bat is a new root file")
+check(bat == mfa.bat_text("tools" + chr(92) + "get_word_builder.py") and "%~dp0tools" + chr(92) + "get_word_builder.py" in bat and "--models" in bat, "the .bat runs the bundle's own python on tools" + chr(92) + "get_word_builder.py with the bundle's models folder")
+check(mfa.bat_text() == mfa.BAT and "%~dp0get_word_builder.py" in mfa.BAT, "MUST-FAIL guard: the add-on zip's own .bat text is exactly what it was (default argument unchanged)")
+sums = (o / "SHA256SUMS.txt").read_text(encoding="utf-8")
+check(mab.WORD_BUILDER_BAT in sums and "tools/get_word_builder.py" in sums, "both add-on files are in the self-check's list")
+check(vb.check(o) == [], "the self-check still says 'as built' with the add-on inside")
+sh = (o / "START-HERE.txt").read_text(encoding="ascii")
+check("Get word builder.bat" in sh and "378 MB" in sh and "type YES" in sh, "START-HERE says what the word builder is, its size, and that it asks for YES")
+(o / "tools" / "get_word_builder.py").write_text("# changed" + chr(10), encoding="utf-8")
+check(vb.check(o) == ["tools/get_word_builder.py has been changed."], "MUST-FAIL: a changed tools/get_word_builder.py is named")
+(o / "tools" / "get_word_builder.py").write_text("# stand-in get_word_builder.py" + chr(10), encoding="utf-8")
+(o / mab.WORD_BUILDER_BAT).write_bytes(bat.replace("-I", "").encode("ascii"))
+check(vb.check(o) == ["Get word builder.bat has been changed."], "MUST-FAIL: a changed Get word builder.bat is named")
+(o / mab.WORD_BUILDER_BAT).write_bytes(bat.encode("ascii"))
+check(vb.check(o) == [], "(restored: as built again)")
+(o / "models").mkdir(exist_ok=True)
+(o / "models" / "alignment-model.bin").write_bytes(b"a downloaded model")
+check(vb.check(o) == [], "a model downloaded later into models/ never makes the self-check fail")
+w = world("k")
+mab.build(args(w, maker_extra="--song"))
+check(not (w["out"] / mab.WORD_BUILDER_BAT).exists() and not (w["out"] / "tools" / "get_word_builder.py").exists() and "Get word builder" not in (w["out"] / "START-HERE.txt").read_text(encoding="ascii"), "without --word-builder none of it is written and START-HERE does not mention it")
+w = world("l")
+(w["repo"] / "tools" / "get_word_builder.py").unlink()
+git(w["repo"], "add", "-A")
+git(w["repo"], "commit", "-q", "-m", "no script")
+good, why = refused(w, "the add-on", word_builder=True)
+check(good and not w["out"].exists(), "MUST-FAIL: --word-builder with no script in the app repo is refused, leaving nothing: " + why)
 
 print()
 if FAILS:
