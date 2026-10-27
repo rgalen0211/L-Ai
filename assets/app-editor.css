@@ -35,3 +35,5 @@
 .le-off{display:grid;place-items:center;opacity:.7}
 
 .le-stills{display:flex;gap:8px;overflow-x:auto;margin:10px 0 0;padding:0}.le-still{flex:none;width:110px;height:62px;border-radius:8px;background:#0d0d11;border:1px solid var(--line,#3a3a44);display:grid;place-items:end start;padding:4px 6px;font-size:.7rem;color:var(--muted,#b6b5ae)}
+
+.le-canvas{width:100%;height:100%;display:block;object-fit:contain;background:#000}

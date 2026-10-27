@@ -8,8 +8,10 @@ shows the AI's change from the draft, refuses the lanes the maker can not build,
 import http.server
 import json
 import socketserver
+import struct
 import sys
 import threading
+import zlib
 from pathlib import Path
 
 from playwright.sync_api import sync_playwright
@@ -25,8 +27,22 @@ SUMMARY = {'duration': 12, 'lanes': ['video', 'text'], 'limits': {'text_chars': 
     {'id': 'v2', 'track': 'video', 'start': 2, 'len': 2, 'label': 'we built a thing', 'source': 'a.mp4', 'source_start': 20, 'min_len': 0.3, 'max_len': 5, 'ai_altered': True},
     {'id': 'v3', 'track': 'video', 'start': 4, 'len': 3, 'label': 'for the weekend', 'source': 'b.mp4', 'source_start': 0, 'min_len': 0.3, 'max_len': 9},
     {'id': 'p1', 'track': 'pictures', 'start': 1.5, 'len': 2, 'label': 'house price', 'picture': 'img-1'},
-    {'id': 't1', 'track': 'text', 'start': 0.2, 'len': 3.5, 'label': 'Title', 'text': 'Housing', 'min_len': 0.5, 'max_len': 30},
+    {'id': 't1', 'track': 'text', 'start': 0.2, 'len': 3.5, 'label': 'Title', 'text': 'Housing', 'style': 'caption', 'min_len': 0.5, 'max_len': 30},
     {'id': 'm1', 'track': 'music', 'start': 0, 'len': 12, 'label': 'music'}]}
+
+
+def png(w, h, rgb):
+    """a small solid PNG: the stand-in for the maker's frame answer"""
+    raw = b''.join(b'\x00' + bytes(rgb) * w for _ in range(h))
+
+    def chunk(t, d):
+        c = struct.pack('>I', len(d)) + t + d
+        return c + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    return b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 2, 0, 0, 0)) + chunk(b'IDAT', zlib.compress(raw)) + chunk(b'IEND', b'')
+
+
+TEAL = (40, 160, 140)
+RULES = json.loads((ROOT / 'tests/fixtures/text-rules-1280x720.json').read_text(encoding='utf-8'))
 
 
 def serve():
@@ -86,6 +102,17 @@ def main():
                     renders.append((route.request.headers.get('x-maker-token'), route.request.post_data))
                     held.append(route)                                     # not answered yet: the film is still being built
                 ctx.route('**/api/live/render', on_render)
+                frames, rules_calls = [], []
+
+                def on_frame(route):
+                    frames.append((route.request.url, route.request.headers.get('x-maker-token')))
+                    route.fulfill(status=200, content_type='image/png', body=png(320, 180, TEAL))
+
+                def on_rules(route):
+                    rules_calls.append(route.request.headers.get('x-maker-token'))
+                    route.fulfill(status=200, content_type='application/json', body=json.dumps({'rules': RULES}))
+                ctx.route('**/api/live/frame**', on_frame)
+                ctx.route('**/api/live/text-rules', on_rules)
                 p = ctx.new_page()
                 errors = []
                 p.on('pageerror', lambda e: errors.append(str(e)))
@@ -99,6 +126,19 @@ def main():
                 check(p.locator('header, nav, .brand').count() == 0 and 'All projects' not in p.inner_text('main'), 'no site shell: no header, no link back to the website\u2019s projects')
                 check(calls and all(n in ('my_edit_ops_since', 'editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'editor_heartbeat') for n in calls), 'the page asked the PC only through the five editor names')
                 check(set(headers) == {TOKEN}, 'every call carried the token as the X-Maker-Token header')
+                # the preview is the film's own frame, with the text laid out by the film's rules
+                p.wait_for_selector('canvas.le-canvas')
+                p.wait_for_timeout(600)
+                check(any('clip=v3' in u for u, _ in frames), 'the preview asked the maker for the frame of the clip under the playhead (v3 at 4.4 s)')
+                check(frames and all(tk == TOKEN for _, tk in frames) and rules_calls == [TOKEN], 'frames and text rules were asked with the token header only')
+                px = lambda x, y: p.evaluate('([x, y]) => Array.from(document.querySelector("canvas.le-canvas").getContext("2d").getImageData(x, y, 1, 1).data)', [x, y])
+                c0 = px(320, 100)
+                check(abs(c0[0] - TEAL[0]) < 6 and abs(c0[1] - TEAL[1]) < 6 and abs(c0[2] - TEAL[2]) < 6, 'the canvas shows the maker\u2019s frame (its picture, not a stand-in card)')
+                p.evaluate("() => { const r = document.getElementById('le-range'); r.value = '10'; r.dispatchEvent(new Event('input', { bubbles: true })); }")
+                p.wait_for_timeout(700)
+                band = px(320, 330)
+                check(abs(band[1] - TEAL[1]) > 30, 'at 1.0 s the caption text sits in the bottom band the film\u2019s rules give it (a dark box over the frame)')
+                check(px(320, 100) == c0 and px(60, 200) == c0, 'and the rest of the frame is untouched')
                 if phone:
                     check(p.locator('.le-lanes').is_hidden() and p.locator('.le-list').is_visible(), 'a phone shows the list and no lanes')
                     check('Picture:' not in p.inner_text('.le-list') and 'house price' not in p.inner_text('.le-list'), 'a lane the maker can not build is left out of the list')

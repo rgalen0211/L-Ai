@@ -35,7 +35,25 @@
       return { error: 'The Ryagram app on this computer did not answer. Is it still open?' };
     }
   }
-  window.ryagramLiveHost = { rpc, render, mode, project, media: null, title: '' };
+  // The film's own frame for a clip at a moment (GET /api/live/frame?clip=&t=: one small JPEG, no path in it) and the rules for laying text out (GET /api/live/text-rules). Both null on any trouble;
+  // the page then draws a plain stand-in. The token travels in the header, so the picture is read as a blob here, never given to an <img> by address.
+  async function frame(clipId, seconds) {
+    try {
+      const res = await fetch('/api/live/frame?clip=' + encodeURIComponent(String(clipId).slice(0, 64)) + '&t=' + encodeURIComponent(String(Math.max(0, Number(seconds) || 0))), { headers: { 'X-Maker-Token': token } });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return /^image\/(jpeg|png|webp)$/.test(blob.type) && blob.size > 0 && blob.size <= 600000 ? blob : null;
+    } catch (e) { return null; }
+  }
+  async function textRules() {
+    try {
+      const res = await fetch('/api/live/text-rules', { headers: { 'X-Maker-Token': token } });
+      if (!res.ok) return null;
+      const body = await res.json();
+      return body && typeof body === 'object' && body.rules && typeof body.rules === 'object' ? body.rules : null;
+    } catch (e) { return null; }
+  }
+  window.ryagramLiveHost = { rpc, render, frame, textRules, mode, project, media: null, title: '' };
 
   // the element builder the page was written with (the site's own is private to its router)
   function h(tag, attrs = {}, ...children) {

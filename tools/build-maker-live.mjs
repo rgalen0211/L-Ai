@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
-const JS = ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/app-editor.js', 'tools/maker-live/live-host.js'];
+const JS = ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor.js', 'tools/maker-live/live-host.js'];
 const CSS = ['tools/maker-live/live-base.css', 'assets/app-editor.css'];
 
 export function build() {

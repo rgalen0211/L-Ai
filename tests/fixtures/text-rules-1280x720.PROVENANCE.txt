@@ -1,0 +1,2 @@
+tests/fixtures/text-rules-1280x720.json is exactly what ryagram.local.textstyle.rules(1280, 720, "desktop") returns on Ryagram branch textstyles @ d40b17a (BUILDER, NEXT-BUILDER 24), with the keys sorted.
+The 16:9 keep-out corners in it are BUILDER's stated PLACEHOLDER (no YouTube 16:9 measurement exists yet). It is a test fixture and the stand-in for GET /api/live/text-rules; the real rules come from the maker.

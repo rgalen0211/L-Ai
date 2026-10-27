@@ -32,24 +32,26 @@ test('the page keeps the maker\'s policy: default-src none, own scripts and styl
   assert.match(html, /href="live\.css"/);
 });
 
-test('the bundle calls nothing but the host\'s own rpc: two fetches (the rpc and the render of the film built on the PC), only the five editor names on the rpc, and no storage, eval, site data layer or outside address', () => {
+test('the bundle calls nothing but the host\'s own rpc: four fetches (the rpc, the render of the film built on the PC, one frame, the text rules), only the five editor names on the rpc, and no storage, eval, site data layer or outside address', () => {
   const js = read('tools/maker-live/live.js');
-  assert.equal((js.match(/\bfetch\(/g) || []).length, 2);
+  assert.equal((js.match(/\bfetch\(/g) || []).length, 4);
   assert.match(js, /fetch\('\/api\/live\/rpc'/);
   assert.match(js, /fetch\('\/api\/live\/render'/);
+  assert.match(js, /fetch\('\/api\/live\/frame\?clip='/);
+  assert.match(js, /fetch\('\/api\/live\/text-rules'/);
   for (const bad of ['eval(', 'new Function', 'XMLHttpRequest', 'WebSocket', 'localStorage', 'indexedDB', 'supabase', 'document.cookie', 'innerHTML', 'outerHTML', 'insertAdjacentHTML', 'document.write', 'importScripts']) {
     assert.ok(!js.includes(bad), `the bundle contains ${bad}`);
   }
   assert.doesNotMatch(js, /https?:\/\/(?!www\.w3\.org\/2000\/svg)/, 'no outside address (the SVG namespace aside)');
   const names = js.match(/const NAMES = \[([^\]]+)\]/)[1].match(/'([a-z_]+)'/g).map(s => s.slice(1, -1));
   assert.deepEqual(names, ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat']);
-  assert.match(js, /window\.ryagramLiveHost = \{ rpc, render, mode, project, media: null, title: '' \}/);
+  assert.match(js, /window\.ryagramLiveHost = \{ rpc, render, frame, textRules, mode, project, media: null, title: '' \}/);
 });
 
 test('the bundle carries the site\'s editor files in order and nothing else from the site', () => {
   const js = read('tools/maker-live/live.js');
   const marks = [...js.matchAll(/\/\* ---- ([^ ]+) ---- \*\//g)].map(m => m[1]);
-  assert.deepEqual(marks, ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/app-editor.js', 'tools/maker-live/live-host.js']);
+  assert.deepEqual(marks, ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor.js', 'tools/maker-live/live-host.js']);
   assert.ok(!js.includes('ryagramData') && !js.includes('ryagramLibrary') && !js.includes('ryagramConfig'));
   const css = read('tools/maker-live/live.css');
   assert.doesNotMatch(css, /@import|url\(/i, 'the stylesheet loads nothing');

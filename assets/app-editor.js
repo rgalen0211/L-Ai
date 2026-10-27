@@ -72,12 +72,66 @@
         view.setAttribute('aria-label', `Preview at ${mmss(at)}${vid ? ', ' + vid.label : ''}`);
       }
 
+      // ---- on the person's computer the preview is the film itself: the host gives a small picture for the clip under the playhead (GET /api/live/frame), pictures laid over it
+      // at their place, and the texts are laid out by BUILDER's text-layout.js from the film's own rules (GET /api/live/text-rules), the same numbers the engine uses.
+      const hostPreview = !!(host && typeof host.frame === 'function' && !isData);
+      let rules = null, drawSeq = 0, layoutProblem = '';
+      const bitmaps = new Map();                                                 // `${clip id}|${tenth of a second}` -> Promise<ImageBitmap | null>; the last 80
+      const GEOM = { full: [0, 0, 1, 1], centre: [0.25, 0.2, 0.5, 0.6], corner: [0.72, 0.05, 0.23, 0.26], lower_third: [0.08, 0.66, 0.84, 0.26] };
+      const cv = hostPreview ? h('canvas', { class: 'le-canvas', width: 640, height: 360, role: 'img' }) : null;
+      function frameOf(clipId, t) {
+        const key = `${clipId}|${Math.round(t * 10)}`;
+        if (!bitmaps.has(key)) {
+          if (bitmaps.size >= 80) bitmaps.delete(bitmaps.keys().next().value);
+          bitmaps.set(key, Promise.resolve().then(() => host.frame(clipId, Math.round(t * 10) / 10)).then(b => (b ? createImageBitmap(b) : null)).catch(() => null));
+        }
+        return bitmaps.get(key);
+      }
+      const contain = (ctx, bmp, x, y, w, hh) => { const k = Math.min(w / bmp.width, hh / bmp.height); ctx.drawImage(bmp, x + (w - bmp.width * k) / 2, y + (hh - bmp.height * k) / 2, bmp.width * k, bmp.height * k); };
+      async function drawHost() {
+        const seq = ++drawSeq, at = position, W = rules ? rules.canvas[0] : 1280, H = rules ? rules.canvas[1] : 720;
+        if (cv.height !== Math.round(640 * H / W)) cv.height = Math.round(640 * H / W);
+        const ctx = cv.getContext('2d'), k = cv.width / W;
+        const now = ed.state.clips.filter(c => at >= c.start && at < c.start + c.len);
+        const vid = now.find(c => c.track === 'video');
+        let bmp = null, bmpPics = [];
+        if (vid && !(vid.slide === true && !vid.picture)) bmp = await frameOf(vid.id, at - vid.start);
+        for (const p of now.filter(c => c.track === 'pictures')) bmpPics.push([p, await frameOf(p.id, 0)]);
+        if (seq !== drawSeq) return;                                              // a newer playhead position took over
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+        ctx.setTransform(k, 0, 0, k, 0, 0);
+        const slideText = vid && vid.slide === true && !vid.picture;
+        if (slideText) { ctx.fillStyle = '#14141a'; ctx.fillRect(0, 0, W, H); }   // a text slide is the words on a card in the film's theme (dark by default)
+        else if (bmp) contain(ctx, bmp, 0, 0, W, H);
+        else if (vid) { ctx.fillStyle = '#b6b5ae'; ctx.font = `${Math.round(H * 0.05)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText(`${vid.label} (no picture for this moment)`, W / 2, H / 2); ctx.textAlign = 'start'; }
+        for (const [p, b] of bmpPics) { if (!b) continue; const g = GEOM[p.mode] || GEOM.full; contain(ctx, b, g[0] * W, g[1] * H, g[2] * W, g[3] * H); }
+        layoutProblem = '';
+        const L = window.RyagramText;
+        const words = [];
+        if (slideText && vid.text) words.push({ text: vid.text, style: null, card: true });
+        for (const t of now.filter(c => c.track === 'text' && c.text)) words.push({ text: t.text, style: t.style || null });
+        for (const w of words) {
+          try {
+            if (w.card) { ctx.fillStyle = '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
+            else if (L && rules && w.style) { const lay = L.layout(rules, w.text, w.style, ctx); L.draw(ctx, rules, lay, w.text, { text: '#f2f2f2', box: '#14141a', alpha: 0.75 }); }
+            else { const sz = Math.round(H * 0.05); ctx.font = `${sz}px Arial, sans-serif`; const tw = ctx.measureText(w.text).width; const x = (W - tw) / 2, y = H * 0.86; ctx.fillStyle = 'rgba(20,20,26,.75)'; ctx.fillRect(x - sz / 3, y - sz, tw + 2 * sz / 3, sz * 1.5); ctx.fillStyle = '#f2f2f2'; ctx.fillText(w.text, x, y); }
+          } catch (e) { layoutProblem = String((e && e.message) || 'That text does not fit.').slice(0, 200); }
+        }
+        view.setAttribute('aria-label', `Preview at ${mmss(at)}${vid ? ', ' + vid.label : ''}${words.length ? ', text: ' + words.map(w => w.text).join(' / ').slice(0, 120) : ''}`);
+        paintWarns();
+      }
+      if (hostPreview) {
+        view.replaceChildren(cv);
+        if (typeof host.textRules === 'function') host.textRules().then(r => { if (r && r.canvas && r.styles) { rules = r; drawHost(); } }).catch(() => {});
+      }
+
       // ---- the scrubber: a real range input (keyboard and screen reader for free)
       const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? 'Year' : 'Time in the film' });
       const posText = h('b', { class: 'le-pos' });
       const setPos = v => { position = v; paintPreview(); posText.textContent = isData ? String(Math.round(position)) : `${mmss(position)} / ${mmss(ed.state.duration)}`;
         range.setAttribute('aria-valuetext', isData ? `Year ${Math.round(position)}` : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
-      const paintPreview = () => (isData ? drawData() : drawClips());
+      const paintPreview = () => (isData ? drawData() : hostPreview ? drawHost() : drawClips());
       range.addEventListener('input', () => setPos(isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
         if (timer) { stopPlay(); return; }
@@ -345,6 +399,7 @@
       }
       function paintWarns() {
         const out = [];
+        if (layoutProblem) out.push(layoutProblem);
         if (isData) {
           const lk = ed.state.look;
           if (lk['network.color'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The lines are the same colour as the page, so you cannot see them. You can still render; the final checks decide if it is publishable.');
