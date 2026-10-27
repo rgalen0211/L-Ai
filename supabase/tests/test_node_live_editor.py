@@ -206,6 +206,13 @@ class NodeEditor(r9.R9):
                   "clips": [{"id": "v1", "track": "video", "start": 0, "len": 5, "source": "a.mp4", "source_start": 0, "ai_altered": True, "ai_altered_by": "a face swapped by the Ryagram app"}]}
         self.assertEqual(self.post(sam, p, summary=marked)["revision"], 1)                                      # the first marked clip does not make the post fail
         self.assertEqual(self.draft(p)["state"], marked)
+        derived = dict(marked, clips=[dict(marked["clips"][0], ai_altered_derived=True)])                       # BUILDER's state also says WHY a clip is marked (it shows registered footage)
+        self.assertEqual(self.post(sam, p, summary=derived)["revision"], 2)
+        self.assertEqual(self.draft(p)["state"], derived)
+        with self.assertRaises(psycopg.Error) as cm0:
+            self.post(sam, p, summary=dict(marked, clips=[dict(marked["clips"][0], ai_altered_derived="yes")]))
+        self.assertEqual(cm0.exception.sqlstate, "22023")
+        marked = derived
         clip = marked["clips"][0]
         for s in (dict(marked, schema="other/1"), dict(marked, schema=1), dict(marked, clips=[dict(clip, ai_altered="yes")]), dict(marked, clips=[dict(clip, ai_altered_by=5)]),
                   dict(marked, clips=[dict(clip, ai_altered_by="see C:\\\\x\\\\y.txt")]), dict(marked, clips=[dict(clip, ai_altered_by="x" * 201)])):
@@ -213,9 +220,9 @@ class NodeEditor(r9.R9):
                 self.post(sam, p, summary=s)
             self.assertEqual(cm.exception.sqlstate, "22023")
         self.assertEqual(self.draft(p)["state"], marked)
-        self.ai_queue(SAM, p, 1, [{"op": "delete_clip", "id": "v1"}])
+        self.ai_queue(SAM, p, 2, [{"op": "delete_clip", "id": "v1"}])
         with self.assertRaises(psycopg.Error):                                                                  # no op can set the marker: the vocabulary has no such field
-            self.ai_queue(SAM, p, 2, [{"op": "set_clip_text", "id": "v1", "text": "x", "ai_altered": False}])
+            self.ai_queue(SAM, p, 3, [{"op": "set_clip_text", "id": "v1", "text": "x", "ai_altered": False}])
 
     def test_a_summary_with_a_place_an_unknown_field_or_a_wrong_shape_is_refused_whole(self):
         sam = self.signed(SAM)

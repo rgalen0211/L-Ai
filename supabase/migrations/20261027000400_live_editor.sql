@@ -480,7 +480,7 @@ begin
     raise exception 'That track summary is too long.' using errcode = '22023';
   end if;
   for c in select * from jsonb_array_elements(coalesce(p_summary -> 'clips', '[]'::jsonb)) loop
-    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size', 'ai_altered', 'ai_altered_by')) then
+    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size', 'ai_altered', 'ai_altered_by', 'ai_altered_derived')) then
       raise exception 'A clip in the summary has a field the editor does not know.' using errcode = '22023';
     end if;
     if jsonb_typeof(c -> 'id') is distinct from 'string' or (c ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then raise exception 'A clip in the summary needs an id.' using errcode = '22023'; end if;
@@ -494,6 +494,7 @@ begin
     if c ? 'position' and (jsonb_typeof(c -> 'position') <> 'string' or (c ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')) then raise exception 'A clip position must be top, centre, bottom or lower_third.' using errcode = '22023'; end if;
     if c ? 'size' and (jsonb_typeof(c -> 'size') <> 'string' or (c ->> 'size') not in ('small', 'medium', 'large')) then raise exception 'A clip size must be small, medium or large.' using errcode = '22023'; end if;
     if c ? 'ai_altered' and jsonb_typeof(c -> 'ai_altered') <> 'boolean' then raise exception 'ai_altered must be true or false.' using errcode = '22023'; end if;
+    if c ? 'ai_altered_derived' and jsonb_typeof(c -> 'ai_altered_derived') <> 'boolean' then raise exception 'ai_altered_derived must be true or false.' using errcode = '22023'; end if;
     if c ? 'ai_altered_by' and (jsonb_typeof(c -> 'ai_altered_by') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'ai_altered_by', 200)) then raise exception 'ai_altered_by must be plain words.' using errcode = '22023'; end if;
     if c ? 'file' and (jsonb_typeof(c -> 'file') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'file', 120) or (c ->> 'file') ~ '[\\/:]') then raise exception 'A clip file must be a NAME, never a place on the computer.' using errcode = '22023'; end if;
   end loop;
