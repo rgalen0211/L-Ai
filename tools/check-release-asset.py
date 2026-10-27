@@ -13,6 +13,7 @@ import http.server
 import re
 import sys
 import threading
+import zipfile
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -74,6 +75,11 @@ def verify(rec, zip_path: Path, do_hash: bool, allowed=ALLOWED, url_override=Non
     check(url_override is not None or "app-download" in u.path, "(no link was given: the record's own address is the function, which cannot be fetched without a sign-in; give --url)")
     want_bytes = zip_path.stat().st_size
     want_sha = hashlib.sha256(zip_path.read_bytes()).hexdigest()
+    if rec.get("sizeMb") is not None or rec.get("unpackedMb") is not None:
+        with zipfile.ZipFile(zip_path) as zf:
+            unzipped = sum(i.file_size for i in zf.infolist())
+        check(rec.get("sizeMb") == round(want_bytes / 1e6), f"the record's size ({rec.get('sizeMb')} MB) is the zip's ({round(want_bytes / 1e6)} MB)")
+        check(rec.get("unpackedMb") == round(unzipped / 1e6), f"the record's unzipped size ({rec.get('unpackedMb')} MB) is the zip's ({round(unzipped / 1e6)} MB unzipped)")
     check(want_sha == sha, f"the record's SHA-256 equals the built zip's ({want_sha[:12]}...)")
     try:
         with open_url(url, allowed) as r:
@@ -100,7 +106,10 @@ def selftest():
     body = bytes(range(256)) * 1000
     sha = hashlib.sha256(body).hexdigest()
     z = tmp / "app.zip"
-    z.write_bytes(body)
+    with zipfile.ZipFile(z, "w", zipfile.ZIP_STORED) as zf:
+        zf.writestr("app/x.bin", body * 3)
+    body = z.read_bytes()
+    sha = hashlib.sha256(body).hexdigest()
     mode = {"m": "ok"}
 
     class H(http.server.BaseHTTPRequestHandler):
@@ -118,7 +127,7 @@ def selftest():
                 self.send_response(302); self.send_header("Location", "https://evil.example/x.zip"); self.end_headers(); return
             if mode["m"] == "404":
                 self.send_response(404); self.end_headers(); return
-            data = body if mode["m"] != "flip" else body[:-1] + b"\x00"
+            data = body if mode["m"] != "flip" else body[:-1] + bytes([body[-1] ^ 1])
             n = len(data) + (5 if mode["m"] == "size" else 0)
             self.send_response(200); self.send_header("Content-Length", str(n)); self.end_headers()
             if send:
@@ -127,7 +136,7 @@ def selftest():
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     port = srv.server_address[1]
     allowed = ("127.0.0.1",)
-    rec = {"url": f"http://127.0.0.1:{port}/app.zip", "fileName": "app.zip", "sha256": sha}
+    rec = {"url": f"http://127.0.0.1:{port}/app.zip", "fileName": "app.zip", "sha256": sha, "sizeMb": round(len(body) / 1e6), "unpackedMb": round(len(bytes(range(256)) * 3000) / 1e6)}
 
     def run(mutate=None, m="ok", do_hash=False):
         mode["m"] = m
@@ -142,7 +151,7 @@ def selftest():
         return len(FAILED) - before
     n_ok = run(do_hash=True)
     print("  ok   " if n_ok == 0 else "  FAIL ", "a matching asset passes every check, hashed too")
-    for label, kw in (("a record whose SHA-256 differs from the zip", dict(mutate={"sha256": "0" * 64})), ("a wrong file name", dict(mutate={"fileName": "other.zip"})),
+    for label, kw in (("a record whose SHA-256 differs from the zip", dict(mutate={"sha256": "0" * 64})), ("a wrong file name", dict(mutate={"fileName": "other.zip"})), ("an unzipped size that is not the zip's", dict(mutate={"unpackedMb": 500})), ("a size that is not the zip's", dict(mutate={"sizeMb": 500})),
                       ("an address that answers 404", dict(m="404")), ("an asset of another size", dict(m="size")), ("a redirect to another host", dict(m="redirect")),
                       ("bytes that differ (same size)", dict(m="flip", do_hash=True))):
         before = len(FAILED)

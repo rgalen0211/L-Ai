@@ -219,6 +219,18 @@
       // Both return a Stripe URL to go to; card details are entered only on Stripe's pages.
       startCheckout(priceCode) { return invokeUrl('stripe-checkout', { price_code: priceCode }, 'Couldn’t start the checkout.'); },
       openBillingPortal() { return invokeUrl('stripe-checkout', { action: 'portal' }, 'Couldn’t open plan settings.'); },
+      // The Windows app's invite-only download (CONNECT's app-download function, 2026-10-26): asks for a short-lived link for THIS signed-in account. Returns the answer's body as the function gave it
+      // (the card checks it before following anything) or throws an Error carrying the HTTP status, so the card can say a plain sentence for each refusal. Fixed function name: the page never posts to an address it was handed.
+      async requestAppDownload() {
+        const { data, error } = await client.functions.invoke('app-download', { body: {} });
+        if (error) {
+          const e = new Error('Couldn’t get the download link.');
+          e.status = Number(error.context && error.context.status) || 0;
+          try { const j = await error.context.json(); if (j && typeof j.error === 'string') e.serverWords = j.error.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 300); } catch { /* the page's own sentence for this status is used */ }
+          throw e;
+        }
+        return data;
+      },
 
       // Account (queue item 7). The password is Supabase Auth's; the rest is the database's.
       async changePassword(password) {
