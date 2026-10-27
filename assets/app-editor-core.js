@@ -14,7 +14,9 @@
   const LOOK_KEYS = Object.freeze({
     'network.color': COLOR, 'network.base_color': COLOR, 'network.context_color': COLOR, 'state.fill': COLOR, 'page.background': COLOR
   });
-  const OPS = ['set_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip'];
+  // The vocabulary is CONNECT's (tests/edit-op-cases.json is run by both the SQL and TypeScript checks): the data mode's set_look / unset_look and the compilation mode's clip ops plus add_clip.
+  const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip'];
+  const DATA_OPS = ['set_look', 'unset_look'];
   // Text from the AI or the person is data: capped, control and bidirectional characters removed, never markup.
   const cleanText = s => String(s).replace(new RegExp('[' + [[0, 31], [127, 127], [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069], [60, 60], [62, 62]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g'), '').slice(0, MAX_TEXT);
   const clone = x => JSON.parse(JSON.stringify(x));
@@ -48,9 +50,21 @@
   // null when the op may be applied, otherwise the plain sentence the page shows.
   function check(state, op, lookKeys = LOOK_KEYS) {
     if (!op || typeof op !== 'object' || !OPS.includes(op.op)) return 'That change is not one the editor can make.';
-    if (op.op === 'set_look') {
+    if (DATA_OPS.includes(op.op)) {
       if (typeof op.key !== 'string' || !has(lookKeys, op.key)) return 'That setting is not available yet.';
-      if (!lookKeys[op.key](op.value)) return 'That value is not allowed for this setting.';
+      if (op.op === 'set_look' && !lookKeys[op.key](op.value)) return 'That value is not allowed for this setting.';
+      return null;
+    }
+    if (op.op === 'add_clip') {
+      if (op.track !== 'text' && op.track !== 'pictures') return 'You can add a text line or a picture here.';
+      if (state.lanes && !state.lanes.includes(op.track)) return 'That part of the film can not be edited here yet.';
+      if (!Number.isFinite(op.start) || op.start < 0 || !Number.isFinite(op.len) || op.len < (op.track === 'text' ? 0.5 : MIN_LEN) - 1e-9) return 'Give it a start and a length that fit the film.';
+      if (state.duration && op.start + op.len > state.duration + 1e-6) return 'That is outside the film.';
+      if (op.track === 'text') {
+        if (typeof op.text !== 'string' || !cleanText(op.text).trim()) return 'A text line needs some words.';
+        const cap = state.limits && state.limits.text_chars;
+        if (cap && cleanText(op.text).length > cap) return `Text can be at most ${cap} letters here.`;
+      } else if (typeof op.picture !== 'string' || !op.picture) return 'Pick one of your pictures.';
       return null;
     }
     const c = clipOf(state, op.id);
@@ -92,7 +106,13 @@
   function apply(state, op) {
     const next = clone(state);
     if (op.op === 'set_look') next.look[op.key] = op.value;
-    else {
+    else if (op.op === 'unset_look') delete next.look[op.key];
+    else if (op.op === 'add_clip') {
+      const id = `new${state.revision + 1}`;
+      next.clips.push(op.track === 'text'
+        ? { id, track: 'text', start: round(op.start), len: round(op.len), label: 'Text', text: cleanText(op.text), min_len: 0.5 }
+        : { id, track: 'pictures', start: round(op.start), len: round(op.len), label: 'Picture', picture: op.picture });
+    } else {
       const c = clipOf(next, op.id);
       if (op.op === 'move_clip') c.start = round(op.start);
       else if (op.op === 'trim_clip') {
@@ -198,10 +218,21 @@
     // What the banner says about the AI's changes: the controls it touched.
     aiTouched() {
       const seen = [];
-      for (const e of this.log) if (e.by === 'ai') { const k = e.op.op === 'set_look' ? 'look:' + e.op.key : 'clip:' + e.op.id; if (!seen.includes(k)) seen.push(k); }
+      for (const e of this.log) if (e.by === 'ai') { const k = DATA_OPS.includes(e.op.op) ? 'look:' + e.op.key : 'clip:' + (e.op.id || 'new'); if (!seen.includes(k)) seen.push(k); }
       return seen;
     }
+    // An op that the SERVER has already accepted and that came from the other side (the person's AI, through the shared draft): applied as a step tagged `by`, if it still applies
+    // to what is on screen and the person did not just undo it. Returns {ok:true} or {ok:false, reason} (the caller reads the draft again).
+    applyRemote(op, by = 'ai', serverId = null) {
+      const why = check(this.state, op, this.lookKeys);
+      if (why) return { ok: false, reason: why };
+      if (this.undone.has(JSON.stringify(op))) return { ok: false, reason: 'You just undid that change, so it is not applied again.' };
+      this.state = apply(this.state, op); this.log.push({ op, by, serverId }); this.redo = [];
+      return { ok: true };
+    }
+    // A new base from the server (the draft as it was when the editor opened, or a fresh track summary from the computer): the log starts again from it.
+    reload(base) { this.base = newState(base); this.state = this.base; this.log = []; this.redo = []; this.undone.clear(); }
   }
 
-  window.ryagramEditor = { LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, OPS, cleanText, newState, check, apply, snap, Editor, repack };
+  window.ryagramEditor = { LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, OPS, DATA_OPS, cleanText, newState, check, apply, snap, Editor, repack };
 })();

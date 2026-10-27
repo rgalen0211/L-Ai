@@ -169,7 +169,7 @@ test('an op the person undid can not be silently repeated by the AI; a changed v
 });
 
 test('the ops the page sends are exactly the closed list, and every one of them is checked', () => {
-  assert.deepEqual(plain(E.OPS), ['set_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip']);
+  assert.deepEqual(plain(E.OPS), ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip']);
   const s = E.newState(base());
   for (const op of E.OPS) assert.equal(typeof E.check(s, { op }), 'string', op + ' with no arguments must be refused');
   assert.deepEqual(plain(Object.keys(E.LOOK_KEYS).sort()), ['network.base_color', 'network.color', 'network.context_color', 'page.background', 'state.fill']);
