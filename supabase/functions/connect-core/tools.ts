@@ -39,7 +39,7 @@ const NOT_YOURS = (what: string) => refuse(`That ${what} was not found among you
 
 const whoami: ToolDef = {
   name: "whoami_and_credits", title: "Who am I, and my credits", scope: "read", readOnly: true,
-  description: "Shows the Ryagram account this connection acts as, its credit balance, and how this connection is limited. Call it first.",
+  description: "Shows the Ryagram account this connection acts as, its credit balance, and how this connection is limited. It needs no arguments and changes nothing.",
   inputSchema: obj(),
   async run(_a, ctx) {
     const w = await ctx.data.whoami();
@@ -58,8 +58,8 @@ const listProjects: ToolDef = {
   async run(_a, ctx) {
     const rows = (await ctx.data.listProjects()).slice(0, 100);
     if (!rows.length) return ok("There are no projects yet. Use create_project.", { projects: [] });
-    return ok(rows.map((p) => `${p.id}  ${untrusted("project-title", p.title)}  (updated ${p.updated_at.slice(0, 10)})`).join("\n"),
-      { projects: rows.map((p) => ({ id: p.id, title: p.title, updated_at: p.updated_at })) });
+    return ok(rows.map((p) => `${p.id}  ${untrusted("project-title", p.title)}`).join("\n"),
+      { projects: rows.map((p) => ({ id: p.id, title: p.title })) });
   },
 };
 
@@ -75,7 +75,7 @@ const RULES = [
 
 const getSchema: ToolDef = {
   name: "get_story_schema", title: "Story format and engine rules", scope: "read", readOnly: true,
-  description: "Returns the story format (a JSON Schema), the engine rules in plain words, the dataset catalog and a small example. Read it before writing a story.",
+  description: "Returns the story format (a JSON Schema), the engine rules in plain words, the dataset catalog and a small example. set_story checks a story against exactly this schema and these rules.",
   inputSchema: obj(),
   async run() {
     const catalog = Object.entries(DATASETS).map(([id, d]) => `${id}: ${d.label}, ${d.start} to ${d.end}`);
@@ -91,7 +91,7 @@ const getSchema: ToolDef = {
 // ---------------------------------------------------------------------------------------------- writing
 
 const createProject: ToolDef = {
-  name: "create_project", title: "Create a project", scope: "write", readOnly: false,
+  name: "create_project", title: "Create a project", scope: "write", readOnly: false, idempotent: true,
   description: "Starts a new, empty film project. Free. If a project with the same title already exists it is returned instead of making a second one.",
   inputSchema: obj({ title: { type: "string", minLength: 1, maxLength: 120 } }, ["title"]),
   async run(a, ctx) {
@@ -108,7 +108,7 @@ const createProject: ToolDef = {
 };
 
 const setStory: ToolDef = {
-  name: "set_story", title: "Save the story", scope: "write", readOnly: false,
+  name: "set_story", title: "Save the story", scope: "write", readOnly: false, destructive: true, idempotent: true,
   description: "Checks a story against Ryagram's rules and saves it as the project's working version only if every check passes. Otherwise nothing is saved and every failed check is listed in plain words. Saving a story makes earlier sheets and previews out of date.",
   inputSchema: obj({ project_id: uuid, story: { type: "object", description: "The whole story, as described by get_story_schema." } }, ["project_id", "story"]),
   async run(a, ctx) {
@@ -143,7 +143,7 @@ const PLACE = /[A-Za-z]:[\\/]|\\\\|(^|\s)\/[A-Za-z]|\.\.[\\/]/;
 const looksLikePlace = (s: string) => PLACE.test(s);
 
 const setCompilationRequest: ToolDef = {
-  name: "set_compilation_request", title: "Ask for a compilation", scope: "write", readOnly: false,
+  name: "set_compilation_request", title: "Ask for a compilation", scope: "write", readOnly: false, destructive: true, idempotent: true,
   description: "Writes down a request for a compilation film (for example every time a phrase is said, optionally as a song) on one of the person's projects. It is DATA only: a phrase, the NAMES of folders the person has "
     + "already chosen in their Ryagram desktop app, switches, and picture/text overlays. The AI cannot see or send videos, pictures or file paths. Nothing is built from here and no credit is used: the person opens the "
     + "Ryagram app on their own computer, checks the request and builds the film there. Saving again replaces the earlier request.",
@@ -243,7 +243,7 @@ const preview: ToolDef = {
 };
 
 const fullRender: ToolDef = {
-  name: "request_full_render", title: "Full film render (not available from an AI connection)", scope: "read", readOnly: true,
+  name: "request_full_render", title: "Full film render (not available from an AI connection)", scope: "read", readOnly: true, listed: false,
   description: "NOT AVAILABLE from an AI connection: it is refused every time, whatever other arguments you send (including confirm). A connection cannot spend " +
     "credits and cannot start a full render. When the contact sheet and preview look right, tell the person to press 'Render final film' in the Ryagram app; " +
     "that click is their decision.",
@@ -292,7 +292,7 @@ export function localSeen(node: LocalNode | null | undefined, now: number = Date
 
 const jobStatus: ToolDef = {
   name: "job_status", title: "Job status", scope: "read", readOnly: true,
-  description: "The state of a job (a contact sheet, preview or render): queued, running, finished, or why it stopped. Poll every 15 to 30 seconds; jobs can take minutes.",
+  description: "The state of a job (a contact sheet, preview or render): queued, running, finished, or why it stopped. Jobs can take minutes, and asking more often than every 15 seconds only repeats the same answer.",
   inputSchema: obj({ job_id: uuid }, ["job_id"]),
   async run(a, ctx) {
     const j = await ctx.data.jobById(String(a.job_id));
@@ -313,7 +313,7 @@ const jobStatus: ToolDef = {
 
 const filmLink: ToolDef = {
   name: "get_film_link", title: "Links to results", scope: "read", readOnly: true,
-  description: "Where to see a project's finished contact sheet, preview and film. Links may be short-lived or may point at the person's own Ryagram page, where they sign in to watch. Give them to the person; do not store them.",
+  description: "Where to see a project's finished contact sheet, preview and film. Links may be short-lived or may point at the person's own Ryagram page, where they sign in to watch. They are meant for the person to open, not as stable addresses.",
   inputSchema: obj({ project_id: uuid, job_id: { ...uuid } }, ["project_id"]),
   async run(a, ctx) {
     const pv = await projectVersion(ctx, String(a.project_id));
@@ -360,7 +360,7 @@ function clipLine(c: Record<string, unknown>): string {
 const getEditState: ToolDef = {
   name: "get_edit_state", title: "See the person's open editor", scope: "read", readOnly: true,
   description: "Shows what is in the person's live preview editor for one project: the look settings currently changed, which settings you may change, and (only if the person ticked \"Let my AI see my track list\" in the Ryagram app) "
-    + "their clip list for a compilation, with each clip's id. Read it before set_look or edit_tracks: you need the revision it gives. It never shows a video, a picture or a place on their computer.",
+    + "their clip list for a compilation, with each clip's id. It also gives the revision that set_look and edit_tracks need. It never shows a video, a picture or a place on their computer.",
   inputSchema: obj({ project_id: uuid }, ["project_id"]),
   async run(a, ctx) {
     const s = await ctx.data.editState(String(a.project_id));
@@ -393,9 +393,9 @@ const getEditState: ToolDef = {
 };
 
 const setLook: ToolDef = {
-  name: "set_look", title: "Change the look in the person's open editor", scope: "edit", readOnly: false,
+  name: "set_look", title: "Change the look in the person's open editor", scope: "edit", readOnly: false, idempotent: true,
   description: "Changes look settings (like colours) on a DATA film in the person's open editor, as drafts they see within a couple of seconds and can undo. 1 to 20 changes at a time, all or none. "
-    + "Only the settings get_edit_state lists. Nothing is saved or rendered: the person presses Save or Build themselves. Give the revision you read; if the editor moved on you are told and nothing changes.",
+    + "Only the settings get_edit_state lists. Nothing is saved or rendered: the person presses Save or Build themselves. The revision from get_edit_state must still match; if the editor moved on you are told and nothing changes.",
   inputSchema: obj({
     project_id: uuid, base_revision: REVISION,
     set: { type: "array", maxItems: 20, items: obj({ key: { type: "string", minLength: 1, maxLength: 60 }, value: { anyOf: [{ type: "string", maxLength: 60 }, { type: "number" }, { type: "boolean" }] } }, ["key", "value"]), description: "Settings to change, each a key from get_edit_state and its new value (a colour is like #1a73e8)." },
