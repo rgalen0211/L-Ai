@@ -16,7 +16,7 @@
   const DATA_BASE = () => ({ look: { 'network.color': '#6fd1bd', 'network.base_color': '#c9a66b', 'network.context_color': '#5a5a66', 'state.fill': '#23232d', 'page.background': '#0d0d11' }, clips: [], duration: 0 });
   const CLIPS_BASE = () => ({ look: {}, duration: 12, clips: [
     { id: 'v1', track: 'video', start: 0, len: 2, label: 'great news everyone' }, { id: 'v2', track: 'video', start: 2, len: 2, label: 'we built a thing' },
-    { id: 'v3', track: 'video', start: 4, len: 3, label: 'great news for the weekend' }, { id: 'v4', track: 'video', start: 7, len: 2.5, label: 'great news again' },
+    { id: 'v3', track: 'video', start: 4, len: 3, label: 'great news for the weekend' }, { id: 'v4', track: 'video', start: 7, len: 2.5, label: 'great news again', ai_altered: true, ai_altered_by: 'face tool' },
     { id: 'v5', track: 'video', start: 9.5, len: 2.5, label: 'nobody saw that coming' },
     { id: 'p1', track: 'pictures', start: 1.5, len: 2, label: 'house price' }, { id: 'p2', track: 'pictures', start: 6.2, len: 2.2, label: 'rent chart' },
     { id: 't1', track: 'text', start: 0.2, len: 3.5, label: 'Title', text: 'Housing, 2019 to 2024' }, { id: 't2', track: 'text', start: 9, len: 3, label: 'Thanks', text: 'Thanks for watching' },
@@ -248,7 +248,7 @@
           if (!open(track)) return h('div', { class: 'le-lane' }, h('b', {}, TRACK_NAMES[track]), h('div', { class: 'le-bar le-off' }, h('span', { class: 'meta' }, 'Not available yet')));
           for (const c of ed.state.clips.filter(x => x.track === track)) {
             const el = h('button', { type: 'button', class: `le-clip le-c-${track}${selected === c.id ? ' le-sel' : ''}`, 'data-id': c.id,
-              'aria-label': `${TRACK_NAMES[track]} clip ${c.label}, starts ${mmss(c.start)}, ${c.len} seconds. Arrow keys move it, Shift and arrows trim it, Delete removes it.` }, c.label + (touched.has('clip:' + c.id) ? ' · AI' : ''),
+              'aria-label': `${TRACK_NAMES[track]} clip ${c.label}${c.ai_altered === true ? ', altered by an AI tool' : ''}, starts ${mmss(c.start)}, ${c.len} seconds. Arrow keys move it, Shift and arrows trim it, Delete removes it.` }, c.label + (touched.has('clip:' + c.id) ? ' · AI' : '') + (c.ai_altered === true ? ' · AI-altered' : ''),
               h('span', { class: 'le-edge', 'data-edge': 'end', 'aria-hidden': 'true' }));
             el.style.left = pct(c.start); el.style.width = pct(c.len);
             el.addEventListener('click', () => { selected = c.id; paint(); });
@@ -272,7 +272,7 @@
                btn('Later', 'secondary', () => apply({ op: 'move_clip', id: c.id, start: Math.round((c.start + 0.1) * 10) / 10 }), { 'aria-label': `Start ${c.label} later` })];
           return h('div', { class: `le-item le-c-${c.track}${selected === c.id ? ' le-sel' : ''}` },
             h('span', { class: 'le-dot', 'aria-hidden': 'true' }),
-            h('button', { type: 'button', class: 'le-itemtext', onclick: () => { selected = c.id; paint(); } }, `${TRACK_NAMES[c.track]}: ${c.label} · ${mmss(c.start)} · ${c.len} s${touched.has('clip:' + c.id) ? ' · by your AI' : ''}`),
+            h('button', { type: 'button', class: 'le-itemtext', onclick: () => { selected = c.id; paint(); } }, `${TRACK_NAMES[c.track]}: ${c.label} · ${mmss(c.start)} · ${c.len} s${touched.has('clip:' + c.id) ? ' · by your AI' : ''}${c.ai_altered === true ? ' · AI-altered' : ''}`),
             h('span', { class: 'le-mv' }, moves,
               btn('Shorter', 'secondary', () => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + c.len - 0.1) * 10) / 10 }), { 'aria-label': `Make ${c.label} shorter` }),
               btn('Longer', 'secondary', () => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + c.len + 0.1) * 10) / 10 }), { 'aria-label': `Make ${c.label} longer` })));

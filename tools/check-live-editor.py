@@ -156,11 +156,13 @@ def main():
                     first = order()
                     p.click('.le-item.le-c-video >> nth=2 >> button:has-text("Up")')
                     check(order() != first and 'great news for the weekend' in order()[1], 'Up moves a video clip one place earlier')
+                    check('AI-altered' in p.inner_text('.le-list'), 'the phone list carries the AI-altered tag too')
                     p.click('.le-item.le-c-pictures >> nth=0 >> button:has-text("Later")')
                     check('Draft' in p.inner_text('.le-pill'), 'moving a picture later is an edit')
                 else:
                     check(p.locator('.le-list').is_hidden() and p.locator('.le-lane').count() == 4, 'a wide screen shows four lanes and no list')
                     check(order() == ['v1', 'v2', 'v3', 'v4', 'v5'], 'the video lane starts in order')
+                    check('AI-altered' in p.inner_text('.le-clip[data-id="v4"]'), 'a clip an AI tool altered carries the AI-altered tag, read-only')
                     p.focus('.le-clip[data-id="v3"]')
                     p.keyboard.press('ArrowLeft')
                     check(order() == ['v1', 'v3', 'v2', 'v4', 'v5'], 'ArrowLeft on a focused video clip moves it one place earlier')
