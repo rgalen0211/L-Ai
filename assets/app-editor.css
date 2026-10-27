@@ -31,3 +31,5 @@
 .le-render{background:var(--soft,#23232d);border:1px solid var(--line,#3a3a44);border-radius:12px;padding:14px;margin:10px 0}.le-render[hidden]{display:none}.le-render h2{margin:0 0 6px;font-size:1.05rem}
 .le-meter{height:14px;border-radius:8px;background:#101015;overflow:hidden;border:1px solid var(--line,#3a3a44);margin:8px 0}.le-meter i{display:block;height:100%;background:#6fd1bd;transition:width .3s}
 .le-prog-head{font-weight:700;margin:0}.le-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+
+.le-off{display:grid;place-items:center;opacity:.7}

@@ -26,8 +26,15 @@
   const LOCAL_ONLY = ['speaker', 'speakers', 'speaker_state', 'speaker_label', 'voice', 'voices', 'voice_id', 'cast', 'cast_badge', 'face', 'faces'];
   const stripLocal = c => { const o = clone(c); for (const k of LOCAL_ONLY) delete o[k]; return o; };
   function newState(init = {}) {
-    return { look: clone(init.look || {}), clips: (init.clips || []).map(stripLocal), duration: init.duration || 0, revision: 0 };
+    const s = { look: clone(init.look || {}), clips: (init.clips || []).map(stripLocal), duration: init.duration || 0, revision: 0 };
+    // From the track summary (BUILDER 21): the lanes the maker can build today (an edit in any other lane is refused), and the engine's own limits (text letters).
+    if (Array.isArray(init.lanes)) s.lanes = init.lanes.filter(l => TRACKS.includes(l));
+    if (init.limits && typeof init.limits === 'object') s.limits = { text_chars: Number.isInteger(init.limits.text_chars) ? init.limits.text_chars : undefined };
+    return s;
   }
+  // Per-clip length limits come with the clip (min_len, max_len); a clip without them uses the editor's minimum and no maximum.
+  const minLen = c => (Number.isFinite(c.min_len) ? c.min_len : MIN_LEN);
+  const maxLen = c => (Number.isFinite(c.max_len) ? c.max_len : Infinity);
   const clipOf = (state, id) => state.clips.find(c => c.id === id);
   const videoOf = state => state.clips.filter(c => c.track === 'video');
 
@@ -48,22 +55,35 @@
     }
     const c = clipOf(state, op.id);
     if (!c) return 'That clip is not in this film.';
+    if (state.lanes && !state.lanes.includes(c.track)) return 'That part of the film can not be edited here yet.';
     if (op.op === 'move_clip') {
       if (c.track === 'video') return 'Video clips follow each other. Reorder this one instead.';
       if (!Number.isFinite(op.start) || op.start < 0 || (state.duration && op.start + c.len > state.duration + 1e-6)) return 'That is outside the film.';
     } else if (op.op === 'trim_clip') {
       if (op.edge !== 'start' && op.edge !== 'end') return 'Trim the start or the end.';
       if (!Number.isFinite(op.to) || op.to < 0) return 'That is outside the film.';
+      // A video clip keeps its place in the run: trimming its start cuts the file's start (source_start moves), and the run is packed again. Any other clip's start moves.
+      const delta = op.edge === 'start' ? op.to - c.start : 0;
+      const newLen = op.edge === 'start' ? c.len - delta : op.to - c.start;
       const from = op.edge === 'start' ? op.to : c.start, to = op.edge === 'start' ? c.start + c.len : op.to;
-      if (to - from < MIN_LEN - 1e-9) return `A clip can not be shorter than ${MIN_LEN} seconds.`;
-      if (op.edge === 'start' && c.track === 'video') return 'Trim a video clip from its end; the next ones move up.';
-      if (state.duration && to > state.duration + 1e-6 && c.track !== 'video') return 'That is outside the film.';
+      if (newLen < minLen(c) - 1e-9) return `A clip can not be shorter than ${minLen(c)} seconds.`;
+      if (c.track === 'video') {
+        if (op.edge === 'start' && Number.isFinite(c.source_start) && c.source_start + delta < -1e-9) return 'That is before the start of the video file.';
+        const room = maxLen(c) - (op.edge === 'start' ? delta : 0);                 // max_len is the rest of the file from source_start
+        if (newLen > room + 1e-9) return 'That is past the end of the video file.';
+      } else {
+        if (newLen > maxLen(c) + 1e-9) return `A clip can not be longer than ${maxLen(c)} seconds.`;
+        if (state.duration && to > state.duration + 1e-6) return 'That is outside the film.';
+        if (from < 0) return 'That is outside the film.';
+      }
     } else if (op.op === 'reorder_clip') {
       if (c.track !== 'video') return 'Only video clips can be reordered.';
       if (!Number.isInteger(op.index) || op.index < 0 || op.index >= videoOf(state).length) return 'There is no such place in the list.';
     } else if (op.op === 'set_clip_text') {
       if (c.track !== 'text') return 'Only a text clip has text.';
       if (typeof op.text !== 'string') return 'The text must be words.';
+      const cap = state.limits && state.limits.text_chars;
+      if (cap && cleanText(op.text).length > cap) return `Text can be at most ${cap} letters here.`;
     }
     return null;
   }
@@ -76,7 +96,12 @@
       const c = clipOf(next, op.id);
       if (op.op === 'move_clip') c.start = round(op.start);
       else if (op.op === 'trim_clip') {
-        if (op.edge === 'start') { const end = c.start + c.len; c.start = round(op.to); c.len = round(end - op.to); }
+        if (op.edge === 'start' && c.track === 'video') {
+          const delta = op.to - c.start;
+          c.len = round(c.len - delta);
+          if (Number.isFinite(c.source_start)) c.source_start = round(c.source_start + delta);
+          if (Number.isFinite(c.max_len)) c.max_len = round(c.max_len - delta);
+        } else if (op.edge === 'start') { const end = c.start + c.len; c.start = round(op.to); c.len = round(end - op.to); }
         else c.len = round(op.to - c.start);
         if (c.track === 'video') repack(next);
       } else if (op.op === 'reorder_clip') {

@@ -62,7 +62,7 @@ test('trimming never makes a clip shorter than the minimum, and a video trim pac
   assert.match(E.check(s, { op: 'trim_clip', id: 'p1', edge: 'start', to: 7 }), /shorter/);
   const n = E.apply(s, { op: 'trim_clip', id: 'v1', edge: 'end', to: 1 });
   assert.deepEqual(plain(n.clips.filter(c => c.track === 'video').map(c => [c.id, c.start, c.len])), [['v1', 0, 1], ['v2', 1, 2], ['v3', 3, 3]]);
-  assert.match(E.check(s, { op: 'trim_clip', id: 'v2', edge: 'start', to: 2.5 }), /from its end/);
+  assert.equal(E.check(s, { op: 'trim_clip', id: 'v2', edge: 'start', to: 2.5 }), null);                       // a video clip's start can be cut now (the file's start moves)
   const p = E.apply(s, { op: 'trim_clip', id: 'p1', edge: 'start', to: 5.5 }).clips.find(c => c.id === 'p1');
   assert.deepEqual([p.start, p.len], [5.5, 1.5]);                                                                // the end stays where it was
   assert.match(E.check(s, { op: 'trim_clip', id: 'm1', edge: 'end', to: 13 }), /outside/);
@@ -195,4 +195,38 @@ test('speaker, voice and cast fields are local-only (FACES 62): stripped from an
   assert.equal(e.state.clips.find(c => c.id === 'v2').ai_altered, true);
   assert.equal(JSON.stringify([e.log, e.state]).includes('Ann'), false);
   assert.deepEqual(plain(E.LOCAL_ONLY).includes('ai_altered'), false);                                 // the marker is never on the strip list
+});
+
+test('per-clip limits (BUILDER 21): a video clip trimmed at its start moves source_start and the run packs again; before the file start and past its end are refused; min_len and max_len bind', () => {
+  const b = base();
+  b.clips[1] = { ...b.clips[1], source: 'a.mp4', source_start: 1, min_len: 0.3, max_len: 3 };            // v2: 2 s long, starts 1 s into a.mp4, 3 s of file left
+  const s = E.newState(b);
+  const cut = E.apply(s, { op: 'trim_clip', id: 'v2', edge: 'start', to: 2.5 });
+  const v2 = cut.clips.find(c => c.id === 'v2');
+  assert.deepEqual(plain([v2.source_start, v2.len, v2.max_len, v2.source]), [1.5, 1.5, 2.5, 'a.mp4']);
+  assert.deepEqual(plain(cut.clips.filter(c => c.track === 'video').map(c => [c.id, c.start])), [['v1', 0], ['v2', 2], ['v3', 3.5]]);
+  assert.match(E.check(s, { op: 'trim_clip', id: 'v2', edge: 'start', to: 0.9 }), /before the start of the video file/);               // 1.1 s earlier, only 1 s of file before
+  assert.match(E.check(s, { op: 'trim_clip', id: 'v2', edge: 'end', to: 5.5 }), /past the end of the video file/);                 // 3.5 s > 3 s of file
+  assert.equal(E.check(s, { op: 'trim_clip', id: 'v2', edge: 'end', to: 5 }), null);                                                  // exactly the rest of the file
+  const near = E.newState({ ...b, clips: b.clips.map(c => (c.id === 'v2' ? { ...c, source_start: 0.5, max_len: 3.5 } : c)) });
+  assert.match(E.check(near, { op: 'trim_clip', id: 'v2', edge: 'start', to: 1.4 }), /before the start of the video file/);        // 0.6 s earlier, only 0.5 s of file before
+  assert.equal(E.check(near, { op: 'trim_clip', id: 'v2', edge: 'start', to: 1.5 }), null);
+  const sl = E.newState({ duration: 12, clips: [{ id: 's1', track: 'video', start: 0, len: 5, label: 'slide', picture: 'p', min_len: 0.5, max_len: 10 }] });
+  assert.match(E.check(sl, { op: 'trim_clip', id: 's1', edge: 'end', to: 0.4 }), /shorter than 0.5/);
+  assert.match(E.check(sl, { op: 'trim_clip', id: 's1', edge: 'end', to: 10.5 }), /past the end/);
+  const t = E.newState({ duration: 12, clips: [{ id: 't', track: 'text', start: 1, len: 2, label: 'T', text: 'hi', min_len: 0.5, max_len: 30 }] });
+  assert.match(E.check(t, { op: 'trim_clip', id: 't', edge: 'end', to: 1.2 }), /shorter than 0.5/);
+});
+
+test('lanes the maker can build (BUILDER 21): an edit in any other lane is refused; the text cap comes from limits and is refused, not silently cut', () => {
+  const b = { ...base(), lanes: ['video', 'text'], limits: { text_chars: 20 } };
+  const s = E.newState(b);
+  assert.deepEqual(plain(s.lanes), ['video', 'text']);
+  assert.match(E.check(s, { op: 'move_clip', id: 'p1', start: 6 }), /can not be edited here yet/);
+  assert.match(E.check(s, { op: 'delete_clip', id: 'm1' }), /can not be edited here yet/);
+  assert.equal(E.check(s, { op: 'reorder_clip', id: 'v3', index: 0 }), null);                                  // control: a video clip is fine
+  assert.equal(E.check(s, { op: 'set_clip_text', id: 't1', text: 'twenty letters long!' }), null);              // exactly 20
+  assert.match(E.check(s, { op: 'set_clip_text', id: 't1', text: 'twenty-one letters 1.' }), /at most 20 letters/);
+  assert.equal(E.newState({ ...base(), lanes: ['video', 'nonsense'] }).lanes.includes('nonsense'), false);       // an unknown lane name is dropped
+  assert.equal(E.newState(base()).lanes, undefined);                                                            // no summary lanes: nothing is hidden (the mock)
 });

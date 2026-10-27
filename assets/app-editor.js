@@ -196,6 +196,7 @@
       }
 
       // ---- the tracks (compilation): lanes on a wide screen, a list on a phone; both from the same state, both make the same ops
+      const open = track => !ed.state.lanes || ed.state.lanes.includes(track);          // the lanes the maker can build today (the track summary says); the others are shown, not editable
       const lanes = h('div', { class: 'le-lanes', role: 'group', 'aria-label': 'Tracks' });
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
@@ -244,6 +245,7 @@
         const touched = new Set(ed.aiTouched());
         lanes.replaceChildren(...E.TRACKS.map(track => {
           const bar = h('div', { class: 'le-bar' });
+          if (!open(track)) return h('div', { class: 'le-lane' }, h('b', {}, TRACK_NAMES[track]), h('div', { class: 'le-bar le-off' }, h('span', { class: 'meta' }, 'Not available yet')));
           for (const c of ed.state.clips.filter(x => x.track === track)) {
             const el = h('button', { type: 'button', class: `le-clip le-c-${track}${selected === c.id ? ' le-sel' : ''}`, 'data-id': c.id,
               'aria-label': `${TRACK_NAMES[track]} clip ${c.label}, starts ${mmss(c.start)}, ${c.len} seconds. Arrow keys move it, Shift and arrows trim it, Delete removes it.` }, c.label + (touched.has('clip:' + c.id) ? ' · AI' : ''),
@@ -261,7 +263,7 @@
       }
       function paintList() {
         const touched = new Set(ed.aiTouched());
-        list.replaceChildren(...ed.state.clips.map(c => {
+        list.replaceChildren(...ed.state.clips.filter(c => open(c.track)).map(c => {
           const vids = ed.state.clips.filter(x => x.track === 'video'), i = vids.indexOf(c);
           const moves = c.track === 'video'
             ? [btn('Up', 'secondary', () => apply({ op: 'reorder_clip', id: c.id, index: i - 1 }), { 'aria-label': `Move ${c.label} earlier`, disabled: i === 0 }),
@@ -282,7 +284,7 @@
         const num = (id, label, value, onchange, dis) => { const i = h('input', { type: 'number', id, step: '0.1', min: '0', value, disabled: dis }); i.addEventListener('change', () => onchange(Number(i.value))); return h('div', { class: 'le-row' }, h('label', { for: id }, label), i); };
         const rows = [num('le-start', 'Starts (seconds)', c.start, v => apply({ op: 'move_clip', id: c.id, start: v }), c.track === 'video'),
                       num('le-len', 'Length (seconds)', c.len, v => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + v) * 10) / 10 }))];
-        if (c.track === 'text') { const t = h('input', { type: 'text', id: 'le-text', maxlength: 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
+        if (c.track === 'text') { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
         clipPanel.replaceChildren(h('h2', { id: 'le-clip-h' }, `${TRACK_NAMES[c.track]}: ${c.label}`), ...rows,
           btn('Remove this clip', 'secondary', () => { selected = null; apply({ op: 'delete_clip', id: c.id }); }),
           h('p', { class: 'le-free' }, 'Your videos never leave your computer. This page edits the list; your computer draws it.'));
