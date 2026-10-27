@@ -15,7 +15,7 @@ const mutants = [
   ['set_look needs only read', D + 'tools.ts', 'title: "Change the look in the person\'s open editor", scope: "edit"', 'title: "Change the look in the person\'s open editor", scope: "read"'],
   ['edit_tracks needs only write', D + 'tools.ts', 'title: "Change the clip list of a compilation", scope: "edit"', 'title: "Change the clip list of a compilation", scope: "write"'],
   ['undo_my_changes needs only read', D + 'tools.ts', 'title: "Take back my last batch of changes", scope: "edit"', 'title: "Take back my last batch of changes", scope: "read"'],
-  ['set_look says it is read-only', D + 'tools.ts', 'scope: "edit", readOnly: false,\n  description: "Changes look settings', 'scope: "edit", readOnly: true,\n  description: "Changes look settings'],
+  ['set_look says it is read-only', D + 'tools.ts', 'scope: "edit", readOnly: false, idempotent: true,\n  description: "Changes look settings', 'scope: "edit", readOnly: true, idempotent: true,\n  description: "Changes look settings'],
   ['unset is ignored', D + 'tools.ts', '...((a.unset as string[] | undefined) ?? []).map((k) => ({ op: "unset_look", key: k })),', ''],
   ['set_look sends a fixed revision, not the one read', D + 'tools.ts', 'editOps(String(a.project_id), "data", Number(a.base_revision), ops)', 'editOps(String(a.project_id), "data", 0, ops)'],
   ['a stale revision is accepted', D + 'edit_state.ts', 'if (base !== d.revision) throw', 'if (false) throw'],

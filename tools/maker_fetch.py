@@ -189,13 +189,17 @@ def sniff(head: bytes) -> str:
         return "web"
     if b"\x00" in head[:65536]:
         return "other"
-    try:
-        head[:65536].decode("utf-8")
-    except UnicodeDecodeError:
+    chunk = head[:65536]
+    for cut in range(4):                                                   # the cut may fall inside a multi-byte character: drop up to 3 bytes of the end before judging
         try:
-            head[:65536].decode("cp1252")
+            chunk[: len(chunk) - cut].decode("utf-8")
+            return "text"
         except UnicodeDecodeError:
-            return "other"
+            continue
+    try:
+        chunk.decode("cp1252")
+    except UnicodeDecodeError:
+        return "other"
     return "text"
 
 
@@ -258,6 +262,7 @@ class Fetcher:
         host0, _p, path = check_url(url)
         allowed = {host0, *(allow_hosts or ())}
         cur, redirects, final_host = url, 0, host0
+        resume_ok = True
         folder.mkdir(parents=True, exist_ok=True)
         part = folder / (".fetch-" + hashlib.sha256(url.encode()).hexdigest()[:12] + ".part")
         try:
@@ -266,6 +271,8 @@ class Fetcher:
                 if host not in allowed:
                     raise FetchError(f"The file moved to another website ({host}) that you did not approve.")
                 ip = _resolve_checked(host, self.resolver)
+                if not resume_ok and part.exists():
+                    part.unlink()                                                  # a server answered from the wrong place once: start again from 0
                 have = part.stat().st_size if part.exists() else 0
                 hdr = {"Host": host}
                 if have:
@@ -279,6 +286,13 @@ class Fetcher:
                         raise FetchError("The address sent the program round too many times.")
                     cur = urljoin(cur, h["location"])
                     continue
+                if st == 206 and have:
+                    m = re.match(r"^bytes (\d+)-", str(h.get("content-range", "")))
+                    if not m or int(m.group(1)) != have:
+                        if body:
+                            body.close()
+                        resume_ok = False
+                        continue
                 final_host = host
                 break
             if st not in (200, 206):
@@ -375,11 +389,11 @@ def safe_unzip(zpath: Path, dest_parent: Path, *, max_total: int = MAX_ENTRY_BYT
                 continue
             name = raw.replace("\\", "/")
             parts = name.split("/")
-            if name.startswith("/") or ".." in parts or any(p == "" for p in parts[:-1]) or ":" in name or "\x00" in name:         # a colon also catches a drive name (C:/x)
+            if name.startswith("/") or any(p == "" for p in parts[:-1]) or any(p.rstrip(" .") in ("", ".", "..") or p != p.rstrip(" .") for p in parts) or re.search(r'[<>:"|?*\x00-\x1f]', name):
                 raise FetchError("That archive has a file name that tries to leave its folder, so nothing was unpacked.")
             if (i.external_attr >> 16) & 0o170000 == stat.S_IFLNK:
                 raise FetchError("That archive holds a link, so nothing was unpacked.")
-            if any(p.lower().split(".")[0] in RESERVED for p in parts):
+            if any(p.lower().split(".")[0].rstrip(" ") in RESERVED for p in parts):
                 raise FetchError("That archive uses a name Windows reserves, so nothing was unpacked.")
             ext = parts[-1].rpartition(".")[2].lower() if "." in parts[-1] else ""
             if ext in PROGRAM_EXTS:
@@ -408,6 +422,8 @@ def safe_unzip(zpath: Path, dest_parent: Path, *, max_total: int = MAX_ENTRY_BYT
                     skipped.append(name)
                     continue
                 target = out / name
+                if out.resolve() not in target.resolve().parents:
+                    raise FetchError("That archive has a file name that tries to leave its folder, so it was stopped and removed.")
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with z.open(i) as src, open(target, "wb") as dst:
                     got = 0
@@ -418,6 +434,9 @@ def safe_unzip(zpath: Path, dest_parent: Path, *, max_total: int = MAX_ENTRY_BYT
                             raise FetchError("That archive unpacked to far more than it said, so it was stopped and removed.")
                         dst.write(blk)
                 members.append({"name": name, "bytes": got})
+        except OSError as e:
+            shutil.rmtree(out, ignore_errors=True)
+            raise FetchError("A file in that archive could not be written (" + _text(str(e), 80) + "), so it was stopped and removed.") from None
         except BaseException:
             shutil.rmtree(out, ignore_errors=True)
             raise

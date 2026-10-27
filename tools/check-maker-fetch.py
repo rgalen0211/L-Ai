@@ -68,7 +68,9 @@ class Net:
         rng = headers.get("Range")
         if st == 200 and rng:
             start = int(re.match(r"bytes=(\d+)-", rng).group(1))
-            return 206, dict(h, **{"content-length": str(len(data) - start)}), Body(data[start:])
+            if "x-badrange" in h:                                                      # a server that answers from somewhere else
+                return 206, {"content-length": str(len(data)), "content-range": f"bytes 0-{len(data) - 1}/{len(data)}"}, Body(data)
+            return 206, dict(h, **{"content-length": str(len(data) - start), "content-range": f"bytes {start}-{len(data) - 1}/{len(data)}"}), Body(data[start:])
         if st == 200 and "x-nolength" in h:
             h = {k: v for k, v in h.items() if k != "x-nolength"}
         elif st == 200:
@@ -86,6 +88,7 @@ def make_zip(files: dict, extra=None) -> bytes:
     return buf.getvalue()
 
 
+NLB = bytes([10])
 CSV = b"county,year,value\nAutauga AL,2019,5\nBaldwin AL,2019,7\n"
 tmp = Path(tempfile.mkdtemp(prefix="fetch-", dir=sys.argv[1] if len(sys.argv) > 1 else None))
 try:
@@ -195,6 +198,22 @@ try:
     got = f.download("https://www.census.gov/long.csv", part, max_bytes=1 << 30)
     check(got["path"].read_bytes() == big and got["sha256"] == hashlib.sha256(big).hexdigest() and any(s[4].get("Range") == "bytes=100000-" for s in net.seen), "a stopped download carries on from where it stopped (Range) and the SHA-256 covers the whole file")
 
+    net.sites[("www.census.gov", "/skew.csv")] = (200, {"x-badrange": "1"}, big)
+    part2 = tmp / "d14b"
+    part2.mkdir()
+    pf2 = part2 / (".fetch-" + hashlib.sha256(b"https://www.census.gov/skew.csv").hexdigest()[:12] + ".part")
+    pf2.write_bytes(big[:100_000])
+    got = f.download("https://www.census.gov/skew.csv", part2, max_bytes=1 << 30)
+    check(got["path"].read_bytes() == big and got["sha256"] == hashlib.sha256(big).hexdigest(), "MUST-FAIL: a server that answers a resume from another offset gets the file fetched again from 0, never a quietly corrupted file")
+
+    # a UTF-8 file whose first 64 KB end in the middle of a character, with another character earlier whose bytes cp1252 does not map
+    u8 = b"a,b" + NLB + "Á,1".encode("utf-8") + NLB
+    u8 += b"x" * (65535 - len(u8)) + "ō".encode("utf-8") + NLB + b"more,2" + NLB
+    check(len(u8) > 65536 and MF.sniff(u8[:65536]) == "text", "MUST-PASS: an ordinary UTF-8 CSV cut inside a character at 64 KB is still text")
+    net.sites[("www.census.gov", "/utf.csv")] = (200, {}, u8)
+    check(f.download("https://www.census.gov/utf.csv", tmp / "d14c", max_bytes=1 << 30)["path"].read_bytes() == u8, "such a file downloads and is kept")
+    check(MF.sniff(bytes(range(256)) * 300) == "other" and MF.sniff(b"a,b" + NLB + b"\x00\x01") == "other", "binary data is still not text")
+
     # ---- 7. names
     check(MF.safe_name("..\\..\\Windows\\evil.csv", "text") == "evil.csv", "a file name loses any folder it came with")
     check(MF.safe_name("con.csv", "text") == "_con.csv" and MF.safe_name("nul", "text").startswith("_nul"), "a reserved Windows name is changed")
@@ -226,6 +245,28 @@ try:
         zz.writestr(zi, "../../etc/passwd")
     (tmp / "link.zip").write_bytes(buf.getvalue())
     check(refused(lambda: MF.safe_unzip(tmp / "link.zip", tmp / "ul")) is not None, "MUST-FAIL: an archive holding a symbolic link is refused")
+    for label, nm in (("a part Windows trims to ..", ".. /x.csv"), ("a part ending in a dot and a space", "a. /x.csv"), ("a reserved name with a space", "CON .csv"), ("a part of dots", "... /x.csv"),
+                      ("a star", "a*b.csv"), ("a question mark", "a?b.csv"), ("a quote", 'a"b.csv'), ("an angle bracket", "a<b.csv"), ("a pipe", "a|b.csv"), ("a control character", "a" + chr(7) + "b.csv"),
+                      ("a trailing space", "a.csv "), ("a part of one dot", "./x.csv")):
+        pz = tmp / ("nm-" + re.sub("[^a-z]", "", label) + ".zip")
+        pz.write_bytes(make_zip({nm: CSV}))
+        dest = tmp / ("unm-" + re.sub("[^a-z]", "", label))
+        e = refused(lambda pz=pz, dest=dest: MF.safe_unzip(pz, dest))
+        check(e is not None and ("file name" in e or "reserves" in e) and not (dest.exists() and any(dest.rglob("*"))), f"MUST-FAIL: an archive with {label} is refused by the program's own name rule, in words, and writes nothing")
+    # an operating-system error while writing becomes a plain sentence and removes what was started
+    import builtins
+    real_open = builtins.open
+
+    def bad_open(file, mode="r", *a, **k):
+        if "w" in mode and str(file).endswith("counties.csv"):
+            raise OSError(22, "Invalid argument")
+        return real_open(file, mode, *a, **k)
+    builtins.open = bad_open
+    try:
+        e = refused(lambda: MF.safe_unzip(zp, tmp / "uoserr"))
+    finally:
+        builtins.open = real_open
+    check(e is not None and "could not be written" in e and not any((tmp / "uoserr").rglob("*")), "MUST-FAIL: an operating-system error while unpacking is a plain sentence and leaves nothing behind")
     bomb = make_zip({"zeros.csv": b"0" * (60 * (1 << 20))})
     (tmp / "bomb.zip").write_bytes(bomb)
     e = refused(lambda: MF.safe_unzip(tmp / "bomb.zip", tmp / "ubomb", max_ratio=50))

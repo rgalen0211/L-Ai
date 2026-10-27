@@ -10,6 +10,7 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 BASE = Path(sys.argv[1])
 NL = chr(10)
+BS = chr(92)
 M = [
     ("every address counts as public", '    if a.is_loopback:' + NL + '        return "this computer"', '    return None' + NL + '    if a.is_loopback:' + NL + '        return "this computer"'),
     ("http is accepted", '    if p.scheme != "https":', "    if False:"),
@@ -29,11 +30,15 @@ M = [
     ("a download ignores Cancel", "                        if cancel.is_set():", "                        if False:"),
     ("a stopped download starts again from zero", '                if have:' + NL + '                    hdr["Range"]', "                if False:" + NL + '                    hdr["Range"]'),
     ("the transport looks the host up again", "        sock = socket.create_connection((self._ip, 443), self.timeout)", "        sock = socket.create_connection((self.host, 443), self.timeout)"),
-    ("a name with .. is unpacked", 'or ".." in parts or', 'or'),
-    ("a drive or colon name is unpacked", 'or ":" in name or', 'or'),
+    ("a part Windows trims to .. is unpacked", 'or any(p.rstrip(" .") in ("", ".", "..") or p != p.rstrip(" .") for p in parts) or', 'or'),
+    ("illegal Windows characters in a name are unpacked", "or re.search(r'[<>:" + chr(34) + "|?*" + BS + "x00-" + BS + "x1f]', name):", ":"),
+    ("an operating-system error while unpacking is a raw error", "        except OSError as e:" + NL + "            shutil.rmtree(out, ignore_errors=True)" + NL + "            raise FetchError(", "        except ZeroDivisionError as e:" + NL + "            shutil.rmtree(out, ignore_errors=True)" + NL + "            raise FetchError("),
+    ("a reserved name with a trailing space is unpacked", '.split(".")[0].rstrip(" ") in RESERVED', '.split(".")[0] in RESERVED'),
+    ("a resume from the wrong offset is kept", "                    if not m or int(m.group(1)) != have:", "                    if False:"),
+    ("a cut inside a character makes UTF-8 text look binary", "    for cut in range(4):", "    for cut in range(1):"),
     ("a link in an archive is unpacked", "            if (i.external_attr >> 16) & 0o170000 == stat.S_IFLNK:", "            if False:"),
     ("a program inside an archive is unpacked", "            if ext in PROGRAM_EXTS:", "            if False:"),
-    ("a reserved Windows name is unpacked", "            if any(p.lower().split(\".\")[0] in RESERVED for p in parts):", "            if False:"),
+    ("a reserved Windows name is unpacked", '            if any(p.lower().split(".")[0].rstrip(" ") in RESERVED for p in parts):', "            if False:"),
     ("two files with one name are unpacked", "            if key in seen:", "            if False:"),
     ("a zip bomb is unpacked", ["        if total_decl > max_total or total_decl > packed * max_ratio:", "if got > MAX_ENTRY_BYTES or running > max_total or running > packed * max_ratio:"], ["        if False:", "if False:"]),
     ("too many files are unpacked", "        if len(infos) > max_entries:", "        if False:"),

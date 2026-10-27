@@ -4,13 +4,14 @@
 // NOT the authority: the SQL functions are. It lives in the repo only for tests and local development.
 import type { Job } from "../ai-editor/tools.ts";
 import { applyOps, LOOK_KEYS, newDraft, undoOps, type Draft, type Mode, type Op } from "./edit_state.ts";
-import type { CallLog, Data, EditState, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
+import { downloadUrlProblem } from "./tools.ts";
+import type { CallLog, Data, DownloadRow, EditState, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null; run_on?: string };
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
+interface FUser { plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -20,7 +21,7 @@ const sha = (s: unknown) => {                       // a stable stand-in digest;
   return (h >>> 0).toString(16).padStart(8, "0").repeat(8);
 };
 const err = (message: string, code: string) => Object.assign(new Error(message), { code });
-const ALL: Scope[] = ["read", "write", "render_free", "render_final", "edit"];
+const ALL: Scope[] = ["read", "write", "render_free", "render_final", "edit", "fetch_data"];
 
 export class FakeWorld {
   users = new Map<string, FUser>();
@@ -32,7 +33,7 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
+    const u: FUser = { plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
     this.users.set(userId, u);
     return u;
   }
@@ -102,6 +103,20 @@ export class FakeWorld {
         user.versions.push(v);
         return { id: p.id, title, version_id: v.id, number: 1 };
       },
+      requestDownload: async (url, why, folder) => {
+        const user = u();
+        const bad = downloadUrlProblem(url);
+        if (bad) throw err(bad, "22023");
+        if (!why || why.length > 300 || /https?:|[<>]|[A-Za-z]:[\x5c/]/.test(why)) throw err("The reason must be 1 to 300 characters of plain words (no places on a computer, no web addresses, no markup).", "22023");
+        if (folder && (!/^[A-Za-z0-9 ._-]{1,60}$/.test(folder) || folder === "." || folder === "..")) throw err("The folder is a NAME (letters, digits, space, dot, dash), never a path.", "22023");
+        if (user.plans.filter((p) => ["waiting", "downloading", "unpacking"].includes(p.state)).length >= 5) throw err("There are already 5 download requests waiting for the person. Ask them to deal with those first.", "PT429");
+        if (user.plans.length >= 20) throw err("That is 20 download requests in a day. Try again tomorrow.", "PT429");
+        const host = new URL(url).hostname.toLowerCase();
+        const row = { id: id(), host, url, why, folder, state: "waiting", created_at: new Date().toISOString(), receipt: null };
+        user.plans.push(row);
+        return { id: row.id, host, state: "waiting" };
+      },
+      listDownloads: async () => u().plans.slice().reverse().slice(0, 20).map((p) => ({ ...p })),
       saveCompilationRequest: async (pid, request) => {
         const user = u();
         if (!user.projects.some((p) => p.id === pid)) return null;

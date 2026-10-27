@@ -40,6 +40,10 @@ export interface NodeDb {
   compilationRequests(accessHash: string): Promise<CompilationRequestRow[]>;
   /** node_compilation_cancel: an upload that failed or was given up. */
   compilationCancel(accessHash: string, id: string): Promise<boolean>;
+  /** node_download_plans (NEXT-CONNECT 152): the download plans the person's AI wrote that still wait or run, for THIS computer's person (at most 5, newest first). Data only: reading starts nothing. */
+  downloadPlans(accessHash: string): Promise<DownloadPlanRow[]>;
+  /** node_download_update: the app tells the STATE of one plan (and, with 'done', a small receipt: host, size, SHA-256, never a file name or a path). null = not this person's plan. */
+  downloadUpdate(accessHash: string, id: string, state: string, receipt: Record<string, unknown> | null): Promise<string | null>;
   /** node_edit_pending (NEXT-CONNECT 142): the changes the person's AI (or their web editor) has queued for their open compilation, which this computer applies locally. Data only, at most 100, oldest first. */
   editPending(accessHash: string): Promise<EditPendingRow[]>;
   /** node_edit_post_summary: mirror (or stop mirroring) the track summary of one of the person's projects, with the person's own tick for their AI, and say which waiting changes were applied. Names and times only. */
@@ -48,6 +52,9 @@ export interface NodeDb {
 
 /** One saved request, as the database returns it. The router passes on only these five fields. */
 export interface CompilationRequestRow { project_id: string; title: string; request: Record<string, unknown>; sha256: string; updated_at: string }
+
+/** One download plan, as the database returns it: no owner, no account detail. */
+export interface DownloadPlanRow { id: string; request: Record<string, unknown>; state: string }
 
 /** One waiting change, as the database returns it: no owner, no account detail. */
 export interface EditPendingRow { id: number; project_id: string; revision: number; client: string | null; op: Record<string, unknown> }

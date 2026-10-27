@@ -11,7 +11,8 @@
     read: 'See your projects, films and credit balance',
     write: 'Create projects and change your film stories',
     render_free: 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram.',
-    edit: 'Change the look and the clip list in your open editor, as drafts you can undo. It cannot render, spend credits, publish or save for you.'
+    edit: 'Change the look and the clip list in your open editor, as drafts you can undo. It cannot render, spend credits, publish or save for you.',
+    fetch_data: 'Ask the Ryagram app on your computer to download a public data file. Nothing is downloaded until you press Download on your computer, and you can say no. It cannot read your files.'
   };
   const ALWAYS = ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.'];
   const NOT_ALLOWED = 'This AI can’t be connected.';
