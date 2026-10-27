@@ -98,6 +98,7 @@ class AppDownloads(core.Base):
             with self.assertRaises(psycopg.Error, msg=str(bad)) as cm:
                 self.ask(TESTER, bad)
             self.assertEqual(cm.exception.sqlstate, 'PT404')
+            self.assertIn('not a download this page offers', str(cm.exception), str(bad))                # the kind itself is refused, not merely 'no release'
         with self.assertRaises(psycopg.errors.UniqueViolation):
             self.add_release(kind='addon', key='releases/other-addon.zip', name='other-addon.zip')       # a second active add-on
         with self.assertRaises(psycopg.errors.CheckViolation):
@@ -149,6 +150,9 @@ class AppDownloads(core.Base):
             for role in ("anon", "authenticated", "public"):
                 self.assertFalse(c.execute(f"select has_function_privilege('{role}', 'public.request_app_download(uuid,text)', 'EXECUTE')").fetchone()[0], role)
             self.assertTrue(c.execute("select has_function_privilege('service_role', 'public.request_app_download(uuid,text)', 'EXECUTE')").fetchone()[0])
+            for role in ('anon', 'authenticated', 'service_role', 'public'):                    # the tables too: Supabase's default grants must not reach them
+                for tbl in ('app_releases', 'app_downloads'):
+                    self.assertFalse(c.execute(f"select has_table_privilege('{role}', 'public.{tbl}', 'select,insert,update,delete')").fetchone()[0], f'{role} {tbl}')
         finally:
             c.close()
             with psycopg.connect(core._server.get_uri(), autocommit=True) as c2:

@@ -69,7 +69,7 @@ for (const [name, handle, body] of cases) {
 }
 
 // Every function directory has a recorded decision. A new function fails this test until someone classifies it.
-const USER_TOKEN = ['ai-editor', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
+const USER_TOKEN = ['ai-editor', 'app-download', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
 const NO_USER_TOKEN = ['cost-sync', 'creator-beta', 'ops-digest', 'ops-tick', 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-webhook'];
 const NOT_USER_FUNCTIONS = ['_shared', 'connect', 'connect-core', 'node', 'node-core'];   // connect has its own verifier (requires client_id); node has its own (an opaque rgn_ token, hashed, resolved in the database; r9 M4)
 
