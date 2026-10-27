@@ -1,7 +1,7 @@
 // The real database layer: every call is a node_* function, run as the role node_runner, which can execute NOTHING else (WORKER's r9_node_draft.sql).
 // No function takes an owner id; the person is resolved inside the database from the token's SHA-256 hash, on every call. The query function is injected
 // (index.ts wires npm:postgres), so this mapping is plain TypeScript and unit-testable. The function names marked REQUESTED are not in the 49033a5 draft yet.
-import type { CompilationStatus, ExchangeResult, NodeAccount, NodeDb, NodeJob } from "../node-core/types.ts";
+import type { CompilationRequestRow, CompilationStatus, ExchangeResult, NodeAccount, NodeDb, NodeJob } from "../node-core/types.ts";
 
 export type Query = (sql: string, params: unknown[]) => Promise<Record<string, unknown>[]>;
 
@@ -36,6 +36,7 @@ export class NodeSql implements NodeDb {
     return (r ?? {}) as NodeJob;
   }
   async retry(accessHash: string, jobId: string, errorCode: string, errorDetail: string | null) { return String(await this.scalar("node_retry", ["text", "uuid", "text", "text"], [accessHash, jobId, errorCode, errorDetail])); }
+  compilationRequests(accessHash: string) { return this.scalar<CompilationRequestRow[]>("node_compilation_requests", ["text"], [accessHash]); }
   compilationStatus(accessHash: string) { return this.scalar<CompilationStatus>("node_compilation_status", ["text"], [accessHash]); }
   compilationBegin(accessHash: string, title: string, bytes: number, sha256: string, rights: boolean, durationS: number | null, width: number | null, height: number | null) {
     return this.scalar<{ id: string; path: string }>("node_compilation_begin", ["text", "text", "bigint", "text", "boolean", "numeric", "int", "int"], [accessHash, title, bytes, sha256, rights, durationS, width, height]);
