@@ -144,7 +144,7 @@ def leak_scan(root: Path) -> list:
         if parts & FORBIDDEN_DIRS:
             found.append(f"{rel}: a folder that must never travel ({sorted(parts & FORBIDDEN_DIRS)[0]})")
             continue
-        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Open Ryagram.bat")
+        ours = Path(rel).parts[0] in APP_DIRS or rel in ("START-HERE.txt", "Open Ryagram.bat", FORGE_BAT)
         # the file-type rule is for OUR folders; a library may legitimately ship a .pem (certifi's public CA list) or a .db, so libraries are held to the NAME rule only
         if p.name in FORBIDDEN_NAMES or (ours and p.suffix.lower() in FORBIDDEN_SUFFIX):
             found.append(f"{rel}: a file that must never travel")
@@ -157,9 +157,25 @@ def leak_scan(root: Path) -> list:
     return found
 
 
-def write_start_files(out: Path, has_model: bool) -> None:
+MAKER_EXTRA_ALLOWED = ("--song", "--song-forge", "--edit")      # the only page switches a build may bake into the start file
+
+
+def check_maker_extra(extra: str) -> str:
+    words = extra.split()
+    bad = [w for w in words if w not in MAKER_EXTRA_ALLOWED]
+    if bad:
+        raise Refused(f"--maker-extra may only hold {', '.join(MAKER_EXTRA_ALLOWED)}; got {' '.join(bad)}.")
+    return " ".join(words)
+
+
+FORGE_BAT = "Open Ryagram (fill missing words).bat"
+FORGE_EXTRA = "--song --song-forge"           # the second start file; the first one never passes --song-forge
+
+
+def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False) -> None:
     # The file is called "Open Ryagram.bat" and not "Start ...": from a command line, cmd /c "Start X.bat" runs cmd's own START command instead of the file.
-    bat = "\r\n".join([
+    def bat_text(extra: str) -> str:
+      return "\r\n".join([
         "@echo off",
         "rem Starts the Ryagram desktop app from THIS folder, with this folder's own Python. Nothing is installed; nothing outside this folder is changed except the sign-in kept in Windows.",
         "setlocal",
@@ -178,13 +194,17 @@ def write_start_files(out: Path, has_model: bool) -> None:
         "  pause",
         "  exit /b 1",
         ")",
+        *(['if not defined MAKER_EXTRA set "MAKER_EXTRA=' + extra + '"'] if extra else []),
         'set "OPEN=--open"',
         'if defined MAKER_NO_OPEN set "OPEN="',
         '"%~dp0python\\python.exe" -I "%~dp0tools\\desktop_maker.py" --work-dir "%~dp0work" --out-dir "%~dp0films" %OPEN% %MAKER_EXTRA%',
         "if errorlevel 1 pause",
         "",
-    ])
-    (out / "Open Ryagram.bat").write_bytes(bat.encode("ascii"))
+      ])
+
+    (out / "Open Ryagram.bat").write_bytes(bat_text(maker_extra).encode("ascii"))
+    if forge_bat:
+        (out / FORGE_BAT).write_bytes(bat_text(FORGE_EXTRA).encode("ascii"))
     txt = ("RYAGRAM\r\n\r\n1. Double-click  Open Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
            "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one Ryan read to you. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
@@ -231,6 +251,7 @@ def build(a) -> dict:
     app_repo = Path(a.app_repo)
     pyhome = Path(a.python_home)
     model = Path(a.model_dir) if a.model_dir else None
+    maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
     if not a.allow_any_drive and not re.match(r"^[dD]:", str(out.resolve())):
         raise Refused(f"--out must be on D: (the storage rule), not {out}.")
     if out.exists() and any(out.iterdir()):
@@ -285,7 +306,7 @@ def build(a) -> dict:
             shutil.copytree(model, out / "models" / model.name)
         (out / "work").mkdir()
         (out / "films").mkdir()
-        write_start_files(out, has_model=bool(model))
+        write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)))
         notices = write_notices(a, out, ffd)
         leaks = leak_scan(out)
         if leaks:
@@ -343,6 +364,8 @@ def main(argv=None) -> int:
     ap.add_argument("--notices-contact", default="", help="where a person can ask for the source of the GPL parts (wording is Ryan's and the attorney's)")
     ap.add_argument("--ffmpeg-license", default="", help="the ffmpeg build's licence text (default: LICENSE next to its bin folder)")
     ap.add_argument("--ffmpeg-readme", default="", help="the ffmpeg build's README (default: README.txt next to its bin folder)")
+    ap.add_argument("--forge-bat", action="store_true", help="also write the second start file, which starts the song page WITH --song-forge (words built from the person's own sounds); the normal start file never passes it")
+    ap.add_argument("--maker-extra", default="", help="page switches the start file turns on unless the tester sets MAKER_EXTRA himself; only --song --song-forge --edit are allowed (for example \"--song --song-forge\")")
     ap.add_argument("--allow-any-drive", action="store_true", help="tests only")
     a = ap.parse_args(argv)
     try:
