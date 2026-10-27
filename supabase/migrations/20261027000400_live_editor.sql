@@ -31,8 +31,12 @@ insert into public.edit_look_keys (key, kind, choices, min_value, max_value, sta
   ('network.base_color', 'colour', null, null, null, false),
   ('network.context_color', 'colour', null, null, null, false),
   ('state.fill', 'colour', null, null, null, false),
-  ('page.background', 'colour', null, null, null, false);
--- The five keys the worker's schema accepts TODAY (WORKER W1; the same list WEB's editor offers). ENGINE 35's keys (theme beyond light/dark, marker, border, glow, labels) arrive as reviewed inserts
+  ('page.background', 'colour', null, null, null, false),
+  ('choropleth.low', 'colour', null, null, null, false),
+  ('choropleth.high', 'colour', null, null, null, false),
+  ('state.outline_width', 'number', null, 0, 4, false),
+  ('sequence.theme', 'enum', array['light', 'dark'], null, null, false);
+-- The nine keys the worker's schema accepts TODAY (WORKER W1 and WORKER 10:10: choropleth.low / .high, state.outline_width 0 to 4, page.background, sequence.theme light | dark; the network.* and state.fill keys are WEB's first list). ENGINE 35's keys (theme beyond light/dark, marker, border, glow, labels) arrive as reviewed inserts
 -- here, once the worker's schema accepts them; the column kinds 'enum', 'number' and 'bool' exist for that and are tested with rows the tests add.
 
 -- ---------------------------------------------------------------- the shared draft and the log

@@ -1,6 +1,6 @@
 {
   "what": "The live preview editor's op vocabulary, as cases. Run by BOTH supabase/tests/test_live_editor.py (ryagram_private.edit_op_problem, the authority) and tests/connect-edit-tools.test.mjs (connect-core/edit_state.ts, its twin), so the two cannot drift. 'word' must appear in the refusal's sentence. The SQL run adds the three extra_look_keys as rows of edit_look_keys; the node run adds them to LOOK_KEYS.",
-  "look_keys": ["network.base_color", "network.color", "network.context_color", "page.background", "state.fill"],
+  "look_keys": ["choropleth.high", "choropleth.low", "network.base_color", "network.color", "network.context_color", "page.background", "sequence.theme", "state.fill", "state.outline_width"],
   "extra_look_keys": [
     { "key": "test.shape", "kind": "enum", "choices": ["circle", "square"] },
     { "key": "test.width", "kind": "number", "min": 0, "max": 8 },
@@ -103,6 +103,20 @@
     { "mode": "compilation", "ok": true, "op": {"op": "set_clip_text", "id": "t1", "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"} },
     { "mode": "compilation", "ok": false, "word": "1 to 120", "op": {"op": "set_clip_text", "id": "t1", "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"} },
     { "mode": "compilation", "ok": true, "op": {"op": "add_clip", "track": "text", "start": 1, "len": 2, "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"} },
-    { "mode": "compilation", "ok": false, "word": "1 to 120", "op": {"op": "add_clip", "track": "text", "start": 1, "len": 2, "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"} }
+    { "mode": "compilation", "ok": false, "word": "1 to 120", "op": {"op": "add_clip", "track": "text", "start": 1, "len": 2, "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "choropleth.low", "value": "#112233"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "choropleth.high", "value": "#EEDDCC"} },
+    { "mode": "data", "ok": false, "word": "colour", "op": {"op": "set_look", "key": "choropleth.high", "value": "red"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "state.outline_width", "value": 0} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "state.outline_width", "value": 2.5} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "state.outline_width", "value": 4} },
+    { "mode": "data", "ok": false, "word": "between 0 and 4", "op": {"op": "set_look", "key": "state.outline_width", "value": 4.5} },
+    { "mode": "data", "ok": false, "word": "between 0 and 4", "op": {"op": "set_look", "key": "state.outline_width", "value": -1} },
+    { "mode": "data", "ok": false, "word": "needs a number", "op": {"op": "set_look", "key": "state.outline_width", "value": "thick"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "sequence.theme", "value": "dark"} },
+    { "mode": "data", "ok": true, "op": {"op": "set_look", "key": "sequence.theme", "value": "light"} },
+    { "mode": "data", "ok": false, "word": "light, dark", "op": {"op": "set_look", "key": "sequence.theme", "value": "blue"} },
+    { "mode": "data", "ok": false, "word": "light, dark", "op": {"op": "set_look", "key": "sequence.theme", "value": 1} },
+    { "mode": "data", "ok": true, "op": {"op": "unset_look", "key": "sequence.theme"} }
   ]
 }

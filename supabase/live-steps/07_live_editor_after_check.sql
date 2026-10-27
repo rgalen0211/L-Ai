@@ -30,5 +30,5 @@ union all select 'the engine of the drafts (apply, undo, the vocabulary check, t
            and not has_function_privilege('service_role', f, 'execute') and not has_function_privilege('connect_runner', f, 'execute') and not has_function_privilege('node_runner', f, 'execute')) = 5
 union all select 'the consent page now offers the new scope "edit" next to read, write and render_free',
        ryagram_private.connect_offered_scopes() @> array['read', 'write', 'render_free', 'edit']
-union all select 'the look-key list holds the five colour keys the worker accepts today and no draft or log row exists yet',
-       (select count(*) from public.edit_look_keys) >= 5 and (select count(*) from public.edit_drafts) = 0 and (select count(*) from public.edit_ops) = 0;
+union all select 'the look-key list holds the nine keys the worker accepts today and no draft or log row exists yet',
+       (select count(*) from public.edit_look_keys) >= 9 and (select count(*) from public.edit_drafts) = 0 and (select count(*) from public.edit_ops) = 0;

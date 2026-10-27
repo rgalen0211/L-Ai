@@ -118,10 +118,11 @@ class LiveEditor(core.Base):
                 self.assertIsNotNone(got, json.dumps(case["op"]))
                 self.assertIn(case["word"], got, json.dumps(case["op"]))
 
-    def test_the_look_key_rows_in_the_migration_are_the_five_the_worker_accepts_today(self):
+    def test_the_look_key_rows_in_the_migration_are_the_nine_the_worker_accepts_today(self):
         rows = self.admin("select array_agg(key order by key) from public.edit_look_keys")
         self.assertEqual(rows, sorted(CASES["look_keys"]))
-        self.assertEqual(self.admin("select count(*) from public.edit_look_keys where kind <> 'colour' or stand_in"), 0)
+        self.assertEqual(self.admin("select count(*) from public.edit_look_keys where stand_in"), 0)
+        self.assertEqual(self.admin("select array_agg(key order by key) from public.edit_look_keys where kind <> 'colour'"), ["sequence.theme", "state.outline_width"])
 
     # ---------------------------------------------------------------------------------------------- the scope
     def test_edit_is_an_offered_scope_and_a_token_without_it_can_read_but_not_change(self):
