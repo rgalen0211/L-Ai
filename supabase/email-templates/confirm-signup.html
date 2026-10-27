@@ -1,0 +1,23 @@
+<table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#fdfdfc;padding:24px 0;">
+  <tr><td align="center">
+    <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="max-width:560px;width:100%;background:#ffffff;border:1px solid #d9ddda;border-top:4px solid #c9a66b;border-radius:12px;font-family:Arial,Helvetica,sans-serif;color:#252c2e;">
+      <tr><td style="padding:28px 32px 0 32px;">
+        <span style="font-family:Georgia,'Times New Roman',serif;font-size:38px;line-height:1;letter-spacing:-1px;color:#1b6f63;">L'Ai</span>
+        <span style="font-size:13px;color:#667074;padding-left:10px;">Ryagram</span>
+      </td></tr>
+      <tr><td style="padding:20px 32px 0 32px;">
+        <h1 style="margin:0 0 12px 0;font-size:22px;line-height:1.3;color:#252c2e;">Confirm your email</h1>
+        <p style="margin:0 0 20px 0;font-size:16px;line-height:1.55;">You're getting this because someone used {{ .Email }} to create a Ryagram account.</p>
+        <p style="margin:0 0 24px 0;"><a href="{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&amp;type=signup" style="display:inline-block;background:#1b6f63;color:#ffffff;text-decoration:none;font-weight:bold;font-size:16px;padding:12px 22px;border-radius:999px;">Confirm my email</a></p>
+        <p style="margin:0 0 8px 0;font-size:14px;line-height:1.5;color:#667074;">If the button doesn't work, copy this whole address into your browser:</p>
+        <p style="margin:0 0 20px 0;font-size:13px;line-height:1.5;word-break:break-all;color:#14584f;">{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&amp;type=signup</p>
+        <p style="margin:0 0 24px 0;font-size:14px;line-height:1.5;color:#667074;">If that wasn't you, you can ignore this email.</p>
+      </td></tr>
+      <tr><td style="padding:16px 32px 28px 32px;border-top:1px solid #d9ddda;font-size:12px;line-height:1.6;color:#667074;">
+        Ryagram is operated by L'Ai, LLC.<br>
+        Questions: <a href="mailto:ryagram@uselai.com" style="color:#14584f;">ryagram@uselai.com</a><br>
+        <a href="https://uselai.com/ryagram/" style="color:#14584f;">uselai.com/ryagram</a>
+      </td></tr>
+    </table>
+  </td></tr>
+</table>

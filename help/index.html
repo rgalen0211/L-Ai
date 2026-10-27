@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Ryagram help: a self-serve FAQ. DRAFT for review; not linked from anywhere until Ryan approves the wording.
+     Each answer states only what the code does today (sources in the comment above each one). -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Ryagram help | L'Ai</title>
+<meta name="description" content="Answers to common questions about making data films with Ryagram.">
+<link rel="canonical" href="https://uselai.com/help/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20261023a">
+<link rel="stylesheet" href="/assets/help.css?v=20261026a">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="stylesheet" href="/assets/ryagram-look.css?v=20261023a">
+</head>
+<body class="ryagram-look">
+<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
+<main class="container help-main" id="main">
+  <h1>Help</h1>
+  <p class="help-lede">Quick answers first. If yours isn't here, write to us and we reply within 2 working days.</p>
+  <section class="faq" aria-label="Common questions">
+    <!-- source: app-ops.js bannerText; migration service_status / expire_stale_queue (60 minutes) -->
+    <details><summary>The app says "Rendering is delayed". What does that mean?</summary>
+      <p>Your film is made on our render machine, and it hasn't checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If it waits more than an hour we stop it and give your credits back.</p></details>
+    <!-- source: claim_next_job: one job at a time per worker, oldest first -->
+    <details><summary>Why is my film still "Queued"?</summary>
+      <p>Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. The Render panel shows your place in line.</p></details>
+    <!-- source: gate_failed / editorial_action_required: the checks and the plain reason on the job -->
+    <details><summary>A correctness check stopped my film. What now?</summary>
+      <p>Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits.</p></details>
+    <!-- source: credit ledger: failure releases the hold; cancelled while queued releases it -->
+    <details><summary>Do I get my credits back?</summary>
+      <p>Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.</p></details>
+    <!-- source: uploadreader, merged to Ryagram main (b49efa3, 10-08): an uploader's files are always deleted, none of their data kept -->
+    <details><summary>My own data (spreadsheet) won't read.</summary>
+      <p>Ryagram reads spreadsheets (CSV and similar files). If the file can't be read you'll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.</p></details>
+    <!-- source: app-auth: sign-in, password reset (once switched on) -->
+    <details><summary>I can't sign in, or I forgot my password.</summary>
+      <p>Use "Forgot your password?" on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us from the form below.</p></details>
+    <!-- source: report page + report_film_page -->
+    <details><summary>How do I report a film?</summary>
+      <p>Every public film page has a "Report this film" link, or use the <a href="/report/">report form</a>. For reports about child safety, private information, harassment or copyright we hide the film right away while we review it.</p></details>
+  </section>
+  <h2>Still stuck?</h2>
+  <p>If you are signed in, open <a href="/app/#/help">Get help</a> in the app: it attaches the film you came from, so we can look into it (we never see its contents). Otherwise write to <a href="mailto:ryagram@uselai.com">ryagram@uselai.com</a>. We reply within 2 working days.</p>
+</main>
+<footer><div class="container footer-row"><span>Ryagram, from L'Ai. Operated by L'Ai, LLC.</span><a href="/ryagram/">About Ryagram</a><a href="/terms/">Terms of Use</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/ai-content/">AI content</a></div></footer>
+</body>
+</html>

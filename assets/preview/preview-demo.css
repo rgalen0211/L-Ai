@@ -1,0 +1,37 @@
+/* Live preview: the viewer (.pv-*) and the colour rows (.look-*), for /preview-demo/. Builds on workflow-audit.css (tokens) and app.css. */
+.look-field{display:grid;grid-template-columns:minmax(150px,220px) 1fr;gap:6px 12px;align-items:start;margin:8px 0}
+.look-field label{font-size:.9rem}
+@media(max-width:620px){.look-field{grid-template-columns:1fr}}
+.look-colour{display:flex;gap:8px;align-items:center}
+.look-swatch{width:42px;height:32px;padding:0;border:1px solid var(--line);border-radius:6px;background:none}
+.pv-stage{position:relative;width:100%;background:#14141a;border-radius:14px;overflow:hidden;border:1px solid var(--line)}
+.pv-svg,.pv-bitmap{position:absolute;inset:0;width:100%;height:100%;display:block}
+.pv-svg svg{width:100%;height:100%;display:block}
+.pv-controls{display:grid;grid-template-columns:auto 1fr auto;gap:12px;align-items:center;margin-top:12px}
+.pv-track{position:relative}
+.pv-slider{width:100%;min-height:44px;margin:0;accent-color:var(--brand,#18594f)}
+.pv-notches{position:absolute;left:0;right:0;bottom:2px;height:4px;pointer-events:none}
+.pv-notch{position:absolute;top:0;height:4px;background:var(--wheat,#c9a45c);border-radius:2px}
+.pv-label{font-variant-numeric:tabular-nums;font-weight:700;white-space:pre;min-width:7.5em;text-align:right}
+.pv-note{margin-top:6px}
+@media(max-width:520px){.pv-controls{grid-template-columns:1fr auto}.pv-track{grid-column:1/-1;grid-row:2}}
+.pv-edit{margin-top:16px;padding-top:12px;border-top:1px solid var(--line)}
+.pv-edit h3{margin:0 0 4px}
+.pv-hex{width:7.5em;font-family:ui-monospace,SFMono-Regular,Consolas,monospace}
+.pv-warnings{margin:10px 0;padding:10px 14px 10px 30px;border-left:3px solid var(--wheat,#c9a45c);background:var(--soft,#f4f1ea);border-radius:0 10px 10px 0;font-size:.92rem}
+.pv-warnings[hidden]{display:none}
+.pv-theme{margin:16px 0 0;padding:12px 0 0;border:0;border-top:1px solid var(--line)}
+.pv-theme legend{font-weight:700;padding:0 6px 0 0}
+.pv-theme .choice{display:inline-flex;align-items:center;gap:6px;margin-right:18px;font-weight:400}
+.pv-theme .choice input{width:auto;margin:0}
+.pv-endcard{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;padding:24px;text-align:center;background:rgba(20,20,26,.92);color:#f2f2ef}
+.pv-endcard[hidden]{display:none}
+.pv-endcard-mark{margin:0;font-family:'Noto Serif Display',Georgia,serif;font-size:clamp(1.6rem,5vw,3rem);letter-spacing:-.02em}
+.pv-endcard-line{margin:0;max-width:34em;color:#b6b5ae;font-size:clamp(.9rem,2vw,1.1rem)}
+.pv-endcard-actions{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-top:6px}
+.pv-endcard .button.secondary{color:#f2f2ef;border-color:#b6b5ae;background:transparent}
+.pv-endcard .button.secondary:hover{border-color:#f2f2ef}
+/* A phone's film box is about 200 px tall: the end card must fit it (FACES 16:53 found the heading and the Make your own data film button cut off at 428, 390, 375 and 360 px).
+   Compact spacing and type under 640 px keep the heading, the line and both buttons inside the card; the theme choices get a 44 px tap area. */
+@media (max-width:640px){.pv-endcard{gap:6px;padding:10px 12px}.pv-endcard-mark{font-size:1.3rem}.pv-endcard-line{font-size:.72rem;line-height:1.25}.pv-endcard-actions{gap:8px;margin-top:2px}.pv-endcard .button{padding:6px 12px;min-height:36px;font-size:.85rem}}
+.pv-theme .choice{min-height:44px;padding:0 8px;margin-right:10px}.pv-theme .choice input{width:22px;height:22px}

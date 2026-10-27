@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- Live preview demo on the real Interstate film (WEB, 2026-10-11). A static page: no sign-in, no server calls, no credits. NOT LINKED anywhere and
+     NOT DEPLOYED until Ryan says so. The bundle is a real export from the engine on Ryagram main (see PROVENANCE.txt beside it). -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="strict-origin-when-cross-origin">
+<title>Interstate film preview | Ryagram</title>
+<link rel="icon" href="/favicon.ico" sizes="any">
+<!-- The display font is added by preview-offline.js AFTER the page has loaded: a stylesheet from another site in the head would hold the whole page back on bad wifi. -->
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20261023a">
+<link rel="stylesheet" href="/assets/app.css?v=20261023a">
+<link rel="stylesheet" href="/assets/preview/preview-demo.css?v=20261020a">
+</head>
+<body class="ryagram-app">
+<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
+<main class="container app-main" id="main">
+  <h1 tabindex="-1">Drag through the film</h1>
+  <p class="form-intro">This is the Interstate film, drawn in your browser from the same drawing rules the render machine uses. Drag the slider to any moment, or press Play. Switch the theme or change a colour and the whole film updates at once. Nothing here is sent anywhere, and nothing costs credits; the final film is still rendered and checked on the render machine.</p>
+  <p id="demo-status" class="form-note" role="status">Loading the film…</p>
+  <p id="demo-error" class="app-error" role="alert" hidden></p>
+  <div id="demo-host" class="pv-host"></div>
+  <fieldset id="demo-theme" class="pv-theme choices" hidden>
+    <legend>Theme</legend>
+  </fieldset>
+  <div id="demo-edit" class="pv-edit" hidden>
+    <h3>Change the colours</h3>
+    <p class="form-note">Changes show at once. Nothing is saved on this page.</p>
+  </div>
+  <p id="demo-perf" class="form-note" hidden></p>
+  <p id="demo-offline" class="form-note" role="status" hidden></p>
+  <p><button id="demo-offline-btn" class="button secondary small" type="button" hidden>Save for use without internet</button></p>
+  <noscript><p>This page needs JavaScript.</p></noscript>
+</main>
+<footer><div class="container footer-row"><span>Ryagram, from L'Ai. Operated by L'Ai, LLC.</span><a href="/ryagram/">About Ryagram</a><a href="/terms/">Terms of Use</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/ai-content/">AI content</a></div></footer>
+<script src="/assets/preview/scene-draw.min.js?v=20261011a"></script>
+<script src="/assets/preview/preview-zip.js?v=20261011a"></script>
+<script src="/assets/preview/preview-core.js?v=20261011a"></script>
+<script src="/assets/preview/preview-viewer.js?v=20261011a"></script>
+<script src="/assets/preview/preview-edit.js?v=20261018a"></script>
+<script src="/assets/preview/preview-demo.js?v=20261011a"></script>
+<script src="/assets/preview/preview-offline.js?v=20261012a"></script>
+</body>
+</html>

@@ -18,6 +18,22 @@ RYAN, OTHER = core.RYAN, core.OTHER
 ROOT = Path(__file__).resolve().parents[1]
 _outer_setup = core.setUpModule
 
+#: What the INSTALLED worker may run: the committed export of its allowlist (tools/export_allowlist.py's output), not a number
+#: or a list typed in this file. The seed's `runnable` follows it; so does this test.
+ALLOW = {line.strip() for line in (ROOT / "functions" / "_shared" / "worker_allowlist.txt").read_text(encoding="utf-8").splitlines()
+         if line.strip() and not line.startswith("#")}
+
+
+def _ids(name):
+    return [l.strip() for l in (ROOT / "functions" / "_shared" / name).read_text(encoding="utf-8").splitlines() if l.strip() and not l.startswith("#")]
+
+
+#: What may be RUNNABLE/USABLE: on the allowlist AND through the MOTION GATE (RULINGS 5b16d78), derived from the committed files,
+#: never typed here: a pass/na line, or no line but in the baseline, or a skip Ryan named. An unmeasured or skip dataset is not.
+_REC = {l.split()[0]: l.split()[1].split("=")[1] for l in _ids("motion_record.txt")}
+_BASE, _SKIP_OK = set(_ids("motion_baseline.txt")), set(_ids("motion_skip_named.txt"))
+GATED = {i for i in ALLOW if (i in _BASE if i not in _REC else _REC[i] in ("pass", "na") or (_REC[i] == "skip" and i in _SKIP_OK))}
+
 
 def setUpModule():
     _outer_setup()
@@ -59,7 +75,34 @@ class Sources(core.Base):
         self.assertTrue(row[4].startswith("https://"))
         # Fixtures and private data are not in it; a dataset the worker can't run yet is marked not runnable.
         self.assertEqual(self.admin("select count(*) from catalog_sources where id ~ '^(example_corp|ryan_)'"), 0)
-        self.assertFalse(self.admin("select runnable from catalog_sources where id = 'cbp_retail_employment'"))
+        self.assertEqual(self.runnable_mismatches(), [])
+        self.assertGreaterEqual(len(ALLOW), 80)
+        self.assertEqual({r[0] for r in self.db.as_(None).all("select id from catalog_sources where runnable")}, GATED & self.catalog_ids())
+        self.assertLess(len(GATED), len(ALLOW), "the motion gate holds datasets back: some allowlisted ids are not runnable")
+
+    def catalog_ids(self):
+        return {r[0] for r in self.db.as_(None).all("select id from catalog_sources")}
+
+    def not_on_allowlist(self):
+        """A dataset in the catalog that the worker cannot run: derived from the export, never named here."""
+        ids = sorted(self.catalog_ids() - ALLOW)
+        self.assertTrue(ids, "every catalog dataset is on the allowlist; this test needs one that is not")
+        return ids[0]
+
+    def runnable_mismatches(self):
+        """Seed rows whose `runnable` disagrees with the allowlist export THROUGH THE MOTION GATE (empty when the seed follows it)."""
+        return [r[0] for r in self.db.as_(None).all("select id, runnable from catalog_sources") if r[1] != (r[0] in GATED)]
+
+    def test_MUST_FAIL_a_dataset_off_the_allowlist_marked_runnable_is_caught(self):
+        off = self.not_on_allowlist()
+        self.assertEqual(self.runnable_mismatches(), [], "control: the seed follows the allowlist")
+        self.admin("update catalog_sources set runnable = true where id = %s returning 1", off)
+        self.assertEqual(self.runnable_mismatches(), [off])
+        # and the other direction: an allowlisted dataset marked not runnable
+        self.admin("update catalog_sources set runnable = false where id = %s returning 1", off)
+        on = sorted(GATED & self.catalog_ids())[0]
+        self.admin("update catalog_sources set runnable = false where id = %s returning 1", on)
+        self.assertEqual(self.runnable_mismatches(), [on])
 
     def test_a_story_makes_its_sources_with_facts_from_the_database(self):
         vid = self.version("state_obesity_fastfood")
@@ -102,7 +145,7 @@ class Sources(core.Base):
         unknown = self.version("not_a_dataset")
         with self.assertRaisesRegex(psycopg.Error, "don't have data called"):
             self.sync(unknown)
-        later = self.version("cbp_retail_employment")
+        later = self.version(self.not_on_allowlist())
         with self.assertRaisesRegex(psycopg.Error, "can't run it yet"):
             self.sync(later)
         injected = self.version("x'); drop table version_sources; --")
@@ -125,8 +168,8 @@ class Sources(core.Base):
     def test_an_upload_source_survives_a_sync_and_deleting_the_account_removes_all(self):
         vid = self.version("state_obesity_fastfood")
         self.sync(vid)
-        self.admin("insert into version_sources (owner_id, version_id, kind, dataset_ref, title, position) "
-                   "values (%s, %s, 'upload', 'u_abc', 'My file', 2) returning 1", RYAN, vid)
+        self.admin("insert into version_sources (owner_id, version_id, kind, dataset_ref, title, trust_label, position) "
+                   "values (%s, %s, 'upload', 'u_abc', 'My file', 'unverified_user', 2) returning 1", RYAN, vid)
         self.assertEqual([r[1] for r in self.sync(vid)], ["catalog", "upload"])
         self.db.as_(RYAN).one("update versions set story_spec = %s::jsonb where id = %s returning 1", story("bps_county_permits"), vid)
         self.assertEqual(sorted(r[0] for r in self.sync(vid)), ["bps_county_permits", "u_abc"])

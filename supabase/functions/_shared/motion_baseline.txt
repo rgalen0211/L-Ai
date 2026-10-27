@@ -1,0 +1,27 @@
+# Datasets that were USABLE on main before the motion gate existed (main 5e0b78f catalog: 23 usable). GRANDFATHERED, NOT MEASURED
+# under pacing: they stay usable until WORKER's motion record has a line for them, which then decides (pass/na usable, skip next,
+# fail later). Delete a line, or this file, once the record covers the dataset. Never add a dataset here to make it usable:
+# a new dataset gets a motion line (WORKER) or a skip Ryan names (motion_skip_named.txt).
+state_obesity_fastfood
+bps_county_permits
+bls_state_unemployment
+cbp_suppression
+cbp_county_grocery
+cbp_accommodation_food_share_state
+cbp_admin_support_share_state
+cbp_arts_share_state
+cbp_construction_share_state
+cbp_education_share_state
+cbp_finance_share_state
+cbp_health_care_share_state
+cbp_information_share_state
+cbp_management_share_state
+cbp_manufacturing_share_state
+cbp_mining_share_state
+cbp_other_services_share_state
+cbp_professional_share_state
+cbp_real_estate_share_state
+cbp_retail_share_state
+cbp_transportation_share_state
+cbp_utilities_share_state
+cbp_wholesale_share_state

@@ -42,3 +42,33 @@ test('not an admin, or the SQL not applied, means no admin view; the counts call
   const refused = ryagramData({ rpc: async () => ({ data: null, error: { message: 'Only an admin can see the waitlist counts.' } }) });
   await assert.rejects(refused.waitlistByFilm(30), /Only an admin/);
 });
+
+// ---- visits and signups (SQL 20261006000100): the private view's helpers and data calls -----------------
+test('signup rate: a share of visits, one decimal under 10%, a dash with no visits, capped at 100%', () => {
+  assert.equal(A.signupRate(40, 3), '7.5%');
+  assert.equal(A.signupRate(10, 2), '20%');
+  assert.equal(A.signupRate(1000, 1), '0.1%');
+  assert.equal(A.signupRate(0, 0), '—');
+  assert.equal(A.signupRate(0, 5), '—');
+  assert.equal(A.signupRate(2, 5), '100%');                 // a signup from an earlier visit cannot show as over 100%
+  assert.equal(A.signupRate('x', null), '—');
+});
+
+test('totals and top sources: biggest first, ties by signups, the no-link row labelled', () => {
+  const rows = [{ source: '', visits: 30, signups: 1 }, { source: 'youtube', visits: 120, signups: 7 }, { source: 'newsletter', visits: 30, signups: 2 }, { source: 'podcast', visits: 0, signups: 1 }];
+  assert.deepEqual(plain(A.topSources(rows)).map(r => r.source), ['youtube', 'newsletter', '', 'podcast']);
+  assert.deepEqual(plain(A.visitTotals(rows)), { visits: 180, signups: 11, rate: '6.1%' });
+  assert.equal(A.sourceLabel(''), '(no link)');
+  assert.equal(A.sourceLabel('youtube'), 'youtube');
+  assert.deepEqual(plain(A.visitTotals([])), { visits: 0, signups: 0, rate: '—' });
+});
+
+test('the data layer asks for visits by day and by source, and surfaces a refusal', async () => {
+  const data = ryagramData(createFakeClient());
+  const days = await data.visitsByDay(30);
+  assert.deepEqual(plain(days).map(r => r.day), ['2026-10-05', '2026-10-04', '2026-10-03']);
+  assert.equal((await data.visitsBySource(30)).length, 3);
+  assert.equal((await data.visitsBySource(90))[0].visits, 120);
+  const refused = ryagramData({ rpc: async () => ({ data: null, error: { message: 'Only an admin can see visit counts.' } }) });
+  await assert.rejects(refused.visitsByDay(30), /Only an admin/);
+});

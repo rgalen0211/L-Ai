@@ -1,4 +1,4 @@
-// Public film pages. Two callers:
+// Public film pages: OFF until the owner publishes (nothing here ever publishes by itself). Two callers:
 //   GET  ?s=<slug>                       anyone: the page's data, with short-lived signed links
 //   POST { version_id, title? } + JWT    the owner: publish (or refresh) the page, get its slug
 // Unpublishing is the film_unpublish RPC, straight from the app. Tested in tests/film-page.test.mjs.
@@ -11,7 +11,7 @@ export interface Deps {
   publishContext(owner: string, versionId: string): Promise<{ project_title: string; story: unknown; uploaded_data: boolean;
                                                               receipt_path: string; slug: string | null }>;
   readFile(path: string): Promise<string>;
-  publish(owner: string, versionId: string, title: string, summary: unknown): Promise<string>;
+  publish(owner: string, versionId: string, title: string, summary: unknown, confirmed: boolean): Promise<string>;
   publicFilm(slug: string): Promise<{ title: string; summary: unknown; published_at: string;
                                       video_path: string | null; thumb_path: string | null } | null>;
   signedUrl(path: string, seconds: number): Promise<string>;
@@ -57,7 +57,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   const user = jwt ? await deps.verifyUser(jwt).catch(() => null) : null;
   if (!user) return reply(401, { error: "Sign in first." });
 
-  let body: { version_id?: unknown; title?: unknown };
+  let body: { version_id?: unknown; title?: unknown; confirm_uploaded?: unknown };
   try { body = await req.json(); } catch { return reply(400, { error: "Bad request." }); }
   const versionId = String(body.version_id ?? "");
   if (!UUID.test(versionId)) return reply(400, { error: "Bad version." });
@@ -65,11 +65,18 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
 
   try {
     const ctx = await deps.publishContext(user.id, versionId);
+    // A film made from the owner's own upload (which includes every "Don't keep my data" project) is never public by accident: the owner must say, in
+    // this request, that they know anyone with the link will see what the film shows (the values and pattern of their data, frame by frame), while the
+    // page lists the film's sources, not their file. Only the publishContext metadata is read before that; the receipt is not read and nothing is written.
+    if (ctx.uploaded_data && body.confirm_uploaded !== true) {
+      return reply(409, { code: "confirm_uploaded",
+        error: "This film was drawn from data you uploaded, so anyone with the link will see what it shows — your data's values and pattern, frame by frame. The page lists the film's sources, not your file. Publish it anyway?" });
+    }
     let receipt: unknown;
     try { receipt = JSON.parse(await deps.readFile(ctx.receipt_path)); }
     catch { return reply(409, { error: "This film's receipt couldn't be read, so its sources can't be shown." }); }
     const summary = summarize(receipt, ctx.story, { uploaded: ctx.uploaded_data });
-    const slug = await deps.publish(user.id, versionId, title || summary.headline || ctx.project_title, summary);
+    const slug = await deps.publish(user.id, versionId, title || summary.headline || ctx.project_title, summary, body.confirm_uploaded === true);
     return reply(200, { slug, url: `${deps.siteUrl}/film/?s=${slug}` });
   } catch (e) {
     const status = statusOf(e);

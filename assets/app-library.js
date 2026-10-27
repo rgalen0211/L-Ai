@@ -47,8 +47,30 @@
   // Public film pages show once the film-page function is deployed (filmPages: true), or in mock mode.
   const filmPagesOn = () => window.ryagramConfig?.filmPages === true || !!window.ryagramMock;
   // Data choice and account deletion show once SQL 0900 and delete-account are live (accountTools: true), or in mock mode.
+  const byodGuideOn = () => (window.ryagramConfig?.uploads === true && window.ryagramConfig?.byodGuide === true) || !!window.ryagramMock;
   const uploadsOn = () => window.ryagramConfig?.uploads === true || !!window.ryagramMock;
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
+  // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
+  // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
+  const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
+  // "Your look" (the profile editor) shows once SQL 20261017000300 is applied (lookEditor: true), or in mock mode.
+  const looksOn = () => window.ryagramConfig?.lookEditor === true || !!window.ryagramMock;
+  // Full renders go through request_final_render (and its approval queue) once SQL 20261017000500/600 are applied (renderOrders: true), or in mock mode.
+  // Ryan 2026-10-18: the same words on the delivery page and the public film page (assets/film.js).
+  const AI_LABEL = 'AI-assisted (Ryagram)';
+  const ordersOn = () => window.ryagramConfig?.renderOrders === true || !!window.ryagramMock;
+  // Connecting an AI (the consent page and Connected AIs) shows once CONNECT's SQL and function are live (connectAi: true), or in mock mode.
+  const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
+  // The AI-first front door (#/start), needs connectAi too (app-start.js). Off by default; in mock mode it follows the flag so the mock walk can show both.
+  const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
+  // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
+  // so signing in as another account cannot inherit the last answer.
+  const connectAllowed = async data => connectOn() && (await data.connectAccess()) === true;
+  // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in. DRAFT against a mock until the device-code functions exist (desktopApp: false).
+  const desktopOn = () => window.ryagramConfig?.desktopApp === true || !!window.ryagramMock;
+  const requestsOn = () => window.ryagramConfig?.filmRequests === true || !!window.ryagramMock;   // the creator beta's film requests (SQL 20261016000200)
+  const funnelOn = () => window.ryagramConfig?.funnelTracking === true || !!window.ryagramMock;
+  const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
   function mount(root, data) {
@@ -60,26 +82,94 @@
       const hash = location.hash;
       const stops = [];
       const onStop = fn => stops.push(fn);
-      if (!root.childElementCount) root.replaceChildren(h('p', { class: 'form-intro' }, 'Loading…'));
+      if (!root.childElementCount) root.replaceChildren(h('p', { class: 'form-intro loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'));
       let view;
       try {
         let m;
+        // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
+        if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
+        else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
+        else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
+        else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
+        else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
+        else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
+        else if (ordersOn() && (m = hash.match(new RegExp(`^#/delivery/${UUID}$`)))) view = await deliveryView(m[1]);
+        else if (connectOn() && window.ryagramConnect.requestFromHash(hash)) view = (await connectAllowed(data)) ? await connectUi().consentView(window.ryagramConnect.requestFromHash(hash)) : connectUi().inviteOnlyView();
+        else if (desktopOn() && window.ryagramDevice.codeFromHash(hash).page) view = await deviceUi().deviceView(window.ryagramDevice.codeFromHash(hash).code, window.ryagramDevice.codeFromHash(hash).bad);
+        else if (requestsOn() && hash === '#/request') view = await requestView();
+        else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
+        else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
+        else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
+        else if (funnelOn() && hash === '#/admin/funnel' && await data.isAppAdmin()) view = await funnelAdminView(onStop);
+        else if (desktopOn() && hash === '#/admin/tester' && await data.isAppAdmin()) view = await deviceUi().testerAdminView();
+        else if (ordersOn() && hash === '#/admin/renders' && await data.isAppAdmin()) view = await rendersAdminView(onStop);
         else if (paymentsOn() && (m = hash.match(/^#\/credits(?:\?paid=((?:pack|sub)_[a-z]+))?$/))) view = await creditsView(m[1], onStop);
         else view = await libraryView();
       } catch (err) {
-        view = [h('h1', { tabindex: '-1' }, 'Something went wrong'),
-                h('p', { class: 'app-error', role: 'alert' }, err.message),
-                h('a', { href: '#/' }, 'Back to your projects')];
+        // A page that belongs to another account (or was removed) is said plainly, with the way home: never the database's own sentence (live ride 2026-10-26).
+        view = err && err.notAvailable
+          ? [h('h1', { tabindex: '-1' }, 'This page isn’t available on this account'),
+             h('p', { class: 'form-intro', role: 'status' }, 'It may belong to a different account, or it may have been removed.'),
+             h('a', { class: 'button primary', id: 'not-available-home', href: '#/' }, 'Back to your projects')]
+          : [h('h1', { tabindex: '-1' }, 'Something went wrong'),
+             h('p', { class: 'app-error', role: 'alert' }, err.message),
+             h('a', { href: '#/' }, 'Back to your projects')];
       }
       if (mine !== token) { stops.forEach(fn => fn()); return; }   // a newer page load won
       stopView();
       stopView = () => stops.forEach(fn => fn());
-      root.replaceChildren(...[view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
+      const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
+      if (mine !== token) return;
+      root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
       root.querySelector('h1')?.focus();
+    }
+
+    async function delayedNotice() {
+      const text = window.ryagramOps.bannerText(await data.serviceStatus());
+      return text ? h('p', { class: 'app-status', role: 'status' }, text) : null;
+    }
+
+    // --- #/help  the help form. Signed-in people's job (from #/help?job=<id>) is attached by the server.
+    async function helpView() {
+      const O = window.ryagramOps;
+      const job = O.jobFromHash(location.hash);
+      const known = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
+      const error = errorLine();
+      const done = h('p', { class: 'form-note', role: 'status', hidden: true });
+      const email = h('input', { id: 'help-email', type: 'email', required: true, maxlength: '200', autocomplete: 'email', value: known });
+      const topics = O.TOPICS.map(([id, label]) => h('label', { class: 'choice' },
+        h('input', { type: 'radio', name: 'help-topic', value: id, ...(id === (job ? 'render' : 'other') ? { checked: true } : {}) }), ' ', label));
+      const topicValue = () => form.querySelector('input[name="help-topic"]:checked')?.value;
+      const message = h('textarea', { id: 'help-message', required: true, rows: '6', maxlength: '4000' });
+      const trap = h('input', { id: 'help-website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off' });   // honeypot
+      const send = h('button', { class: 'button primary', type: 'submit' }, 'Send');
+      const form = h('form', { class: 'contact-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true;
+        const problem = O.checkSupport({ email: email.value, topic: topicValue(), message: message.value });
+        if (problem) { showError(error, new Error(problem)); return; }
+        await busy(send, 'Sending\u2026', async () => {
+          try {
+            const id = await data.submitSupport({ email: email.value.trim(), topic: topicValue(), message: message.value.trim(), job, website: trap.value });
+            form.hidden = true;
+            done.textContent = `Thank you. We got it${Number(id) > 0 ? ` (ticket #${id})` : ''} and will reply to ${email.value.trim()} within 2 working days.`;
+            done.hidden = false;
+          } catch (err) { showError(error, err); }
+        });
+      } },
+        h('label', { for: 'help-email' }, 'Your email'), email,
+        h('fieldset', { class: 'choices' }, h('legend', {}, 'What is it about?'), topics),
+        h('label', { for: 'help-message' }, 'What happened?'), message,
+        h('div', { class: 'hp-field', 'aria-hidden': 'true' }, h('label', { for: 'help-website' }, 'Leave this empty'), trap),
+        job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
+        send, error);
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
+              h('p', { class: 'form-note' }, 'Common questions are answered in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
+              form, done];
     }
 
     function errorLine() {
@@ -95,6 +185,20 @@
       button.textContent = label;
       try { await work(); } finally { button.disabled = false; button.textContent = was; }
     }
+
+    // The guided builder (assets/app-builder.js): built once, with this page's helpers.
+    let builderCache = null;
+    const builderUi = () => builderCache || (builderCache = window.ryagramBuilder.create({ h, data, busy, showError, errorLine, date }));
+    // "Your look" (assets/app-looks.js): built once, with this page's helpers.
+    let looksCache = null;
+    const looksUi = () => looksCache || (looksCache = window.ryagramLooks.create({ h, data, busy, showError, errorLine, date }));
+    // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
+    let connectCache = null;
+    let startCache = null;
+    const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));
+    const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
+    let deviceCache = null;
+    const deviceUi = () => deviceCache || (deviceCache = window.ryagramDevice.create({ h, data, busy, showError, errorLine, date, whoami: async () => (window.ryagramApp?.client ? (await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '' : '') }));
 
     // --- #/  all projects
     async function libraryView() {
@@ -119,18 +223,27 @@
         ? h('ul', { class: 'project-list' }, projects.map(p => h('li', {},
             h('a', { href: `#/p/${p.id}` }, p.title),
             h('span', { class: 'meta' },
-              p.latest ? [`r${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
+              p.latest ? [`Version ${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
                        : `No versions · updated ${date(p.updated_at)}`))))
-        : h('p', { class: 'form-intro' }, 'No projects yet. Name one above and it starts as r1.');
+        : h('p', { class: 'form-intro' }, builderOn() ? 'No projects yet. The quickest way to start is above: pick a ready-made film and the first picture is free.' : 'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'));
+      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []), ...(desktopOn() ? [' \u00b7 ', h('a', { href: '#/admin/tester' }, 'Tester computers')] : []));
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), credits, adminLinks, form, list];
+      const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
+      // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
+      const buildLink = builderOn() ? (projects.length ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step'))
+        : h('p', { class: 'first-film' }, h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, 'Make your first film'), ' ', h('span', { class: 'meta' }, 'Pick a ready-made film or choose your own data. The first picture is free.'))) : null;
+      const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
+      const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
+      const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
+      const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
+              startStrip, credits, creditsNote, buildLink, looksLink, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -152,7 +265,7 @@
             totals.length ? h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col' }, 'From'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
               h('tbody', {}, totals.map(r => h('tr', {}, h('td', {}, A.campaignLabel(r.campaign)), h('td', {}, r.utm_source || '\u2014'),
-                                                     h('td', { class: 'num' }, String(r.signups)))))) : null,
+                                                     h('td', { class: 'num' }, String(r.signups)))))) : '',
             ...(rows.length ? [h('h2', {}, 'By day'), h('table', { class: 'admin-table' },
               h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'Day'), h('th', { scope: 'col' }, 'Film link'), h('th', { scope: 'col', class: 'num' }, 'Signups'))),
               h('tbody', {}, rows.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', {}, A.campaignLabel(r.campaign)),
@@ -170,6 +283,416 @@
       ];
     }
 
+    // --- #/request  a creator asks for a film: the question, what it costs, and where each request stands (Ryan makes it by hand for now)
+    // --- #/delivery/<id>  a delivered film (kept 30 days): the link is signed for an hour, by the database's say-so
+    async function deliveryView(id) {
+      let got = null, problem = '';
+      try { got = await data.deliveryUrl(id); } catch (err) { problem = err.message; }
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Your film'),
+        got ? [h('video', { controls: true, preload: 'metadata', src: got.url }), h('p', {}, h('a', { class: 'button secondary', href: got.url, rel: 'noopener noreferrer', target: '_blank' }, 'Open or download')),
+               h('p', { class: 'form-note' }, `${AI_LABEL}. This film is kept for 30 days, then deleted. This link works for an hour; come back to this page for a new one.`)]
+            : h('p', { class: 'app-error', role: 'alert' }, problem)];
+    }
+
+    async function requestView() {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const done = h('p', { class: 'form-note', role: 'status', hidden: true });
+      const cost = h('p', { class: 'form-note' }, O.requestCostLine(null));
+      const balance = h('p', { class: 'credit-balance form-note' }, creditsOn() ? 'Loading credits\u2026' : '');
+      const question = h('textarea', { id: 'rq-question', name: 'question', rows: '4', required: true, minlength: '10', maxlength: '1000', placeholder: 'For example: Did cities that legalized duplexes build more homes within five years?' });
+      const notes = h('textarea', { id: 'rq-notes', name: 'notes', rows: '3', maxlength: '1000', placeholder: 'Anything that helps: the years, the places, the data you have in mind' });
+      const send = h('button', { class: 'button primary', type: 'submit' }, 'Send request');
+      const list = h('div', { class: 'request-list' });
+      async function reload() {
+        const [rows, c, bal] = await Promise.all([data.myFilmRequests().catch(() => []), data.filmRequestCost().catch(() => null), creditsOn() ? data.creditBalances().catch(() => null) : null]);
+        cost.textContent = O.requestCostLine(c);
+        if (bal) balance.replaceChildren(window.ryagramCredits.balanceLine(bal));
+        list.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
+          h('strong', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}`), h('span', { class: 'meta' }, ` ${date(r.created_at)}, ${r.credits} credits`),
+          h('p', {}, r.question),
+          r.admin_note ? h('p', { class: 'form-note' }, `Note: ${r.admin_note}`) : null,
+          r.status === 'delivered' && r.delivered_url ? h('p', {}, h('a', { href: r.delivered_url, rel: 'noopener noreferrer', target: '_blank' }, 'Watch your film')) : null)))
+          : h('p', { class: 'form-note' }, 'No requests yet.'));
+      }
+      const form = h('form', { class: 'contact-form', onsubmit: async event => {
+        event.preventDefault();
+        error.hidden = true; done.hidden = true;
+        const problem = O.checkRequest({ question: question.value, notes: notes.value });
+        if (problem) { showError(error, new Error(problem)); return; }
+        await busy(send, 'Sending\u2026', async () => {
+          try {
+            const id = await data.requestFilm(question.value.trim(), notes.value.trim());
+            question.value = ''; notes.value = '';
+            done.textContent = `Request #${id} sent. You can follow it below; the film appears here when it is ready.`;
+            done.hidden = false;
+            await reload();
+          } catch (err) { showError(error, err); }
+        });
+      } }, h('label', { for: 'rq-question' }, 'The question you want answered'), question,
+           h('label', { for: 'rq-notes' }, 'Notes (optional)'), notes, send, error);
+      await reload();
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Request a film'),
+              h('p', { class: 'form-note' }, 'Tell us the question you want data to answer. We make the film and send it back here. This is a private beta, so each one is made by hand.'),
+              balance, cost, form, done, h('h2', {}, 'Your requests'), list];
+    }
+
+    // --- #/admin/ops  Ryan only: is it all running, and what needs him. Counts and ids; the three buttons are the only changes.
+    // --- #/admin/funnel  Ryan only, read-only: people at each step, day by day (signups, first preview, first order). Behind the funnelTracking flag; nothing here changes anything.
+    async function funnelAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const out = h('div', {}, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      let days = 14;
+      async function load() {
+        let got;
+        try { got = await data.adminFunnelEvents(days); } catch (err) { out.replaceChildren(); showError(error, err); return; }
+        error.hidden = true;
+        const d = O.funnelDaily(got.rows, { days });
+        out.replaceChildren(
+          h('p', {}, [7, 14, 30].map(n => h('button', { class: `button secondary small${n === days ? ' is-chosen' : ''}`, type: 'button', 'aria-pressed': String(n === days), onclick: async () => { days = n; await load(); } }, `${n} days`)), ' '),
+          h('p', { class: 'form-note' }, O.funnelDailyLine(d)),
+          got.truncated ? h('p', { class: 'form-note' }, 'Very busy: only the newest 50,000 events were counted.') : '',
+          h('table', { class: 'admin-table funnel-days' }, h('thead', {}, h('tr', {}, h('th', {}, 'Day (Eastern)'), d.steps.map(s => h('th', { class: 'num' }, O.DAY_LABELS[s])))),
+            h('tbody', {}, d.days.map(r => h('tr', {}, h('td', {}, r.day), d.steps.map(s => h('td', { class: 'num' }, String(r.counts[s]))))),
+              h('tr', { class: 'funnel-total' }, h('th', {}, 'Total'), d.steps.map(s => h('th', { class: 'num' }, String(d.totals[s])))))),
+          h('p', { class: 'form-note' }, 'Visits are counted each time; every other step counts an account once, the first time it happens. This page only reads.'));
+      }
+      await load();
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Funnel by day'),
+        h('p', { class: 'form-note' }, 'Signups \u2192 first preview \u2192 first order, counted day by day from our own database. No third-party tools.'), out, error];
+    }
+
+    // --- #/admin/renders  Ryan only: the full renders waiting for approval. Approve starts the render; Decline returns the credits. Redrawn after each call returns.
+    async function rendersAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const out = h('div');
+      const note = id => h('input', { type: 'text', maxlength: '500', autocomplete: 'off', placeholder: 'Note (optional)', 'aria-label': `Note for request ${id}` });
+      async function load() {
+        let rows;
+        try { rows = await data.adminRenderQueue(); } catch (err) { out.replaceChildren(); showError(error, err); return; }
+        const now = Date.now();
+        out.replaceChildren(h('p', { class: 'form-note' }, O.renderQueueLine(rows)),
+          rows.length ? h('ul', { class: 'ops-list render-queue' }, rows.map(r => {
+            const n = note(r.stage_id.slice(0, 8));
+            const decide = (approve, label, busyLabel) => h('button', { class: `button ${approve ? 'primary' : 'secondary'} small`, type: 'button', onclick: async event => {
+              if (!approve && !confirm(`Decline this full render? ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} go back to ${r.owner_email || 'the person'}.`)) return;
+              error.hidden = true;
+              await busy(event.currentTarget, busyLabel, async () => {
+                try { await data.adminRenderDecide(r.stage_id, approve, n.value.trim()); await load(); } catch (err) { showError(error, err); }
+              });
+            } }, label);
+            return h('li', {}, h('strong', {}, r.film_title || 'A film'), h('span', { class: 'meta' }, ` ${r.owner_email || 'an account'}, ${O.RENDER_SOURCE_WORDS[r.source] || r.source}, ${r.credits_held} credit${r.credits_held === 1 ? '' : 's'} held`),
+              h('p', { class: 'form-note' }, O.renderWhen(r, now)), h('div', { class: 'inline-row' }, n, ' ', decide(true, 'Approve', 'Approving\u2026'), ' ', decide(false, 'Decline', 'Declining\u2026')),
+              r.owner_id ? capRow(r) : null);
+          })) : '');
+      }
+      // A cap for the person who asked (the queue knows their id; the caps list below only shows people who already have one)
+      const capRow = r => {
+        const input = h('input', { type: 'text', inputmode: 'numeric', maxlength: '6', size: '6', placeholder: 'credits a day', 'aria-label': `Daily cap for ${r.owner_email || 'this person'}` });
+        const btn = h('button', { class: 'button secondary small', type: 'button' }, 'Set daily cap');
+        btn.addEventListener('click', async () => {
+          if (!input.value.trim()) { showError(error, new Error('Type how many credits a day first.')); return; }          // an empty box would delete the cap
+          const checked = O.checkCap(input.value);
+          if (checked.error) { showError(error, new Error(checked.error)); return; }
+          error.hidden = true;
+          await busy(btn, 'Saving\u2026', async () => { try { await data.adminSetUserCap(r.owner_id, checked.value); input.value = ''; await loadCaps(); } catch (err) { showError(error, err); } });
+        });
+        return h('div', { class: 'inline-row' }, input, ' ', btn);
+      };
+      // --- the auto-render switch and the per-person daily caps (existing admin functions only)
+      const switchBox = h('div', { class: 'render-switch' });
+      const capsBox = h('div', { class: 'render-caps' });
+      async function loadSwitch() {
+        let s;
+        try { s = await data.adminAutoRender(); } catch (err) { switchBox.replaceChildren(); showError(error, err); return; }
+        switchBox.replaceChildren(h('p', { class: s.on ? 'form-note switch-on' : 'form-note' }, O.autoRenderLine(s.on)),
+          h('button', { class: `button ${s.on ? 'secondary' : 'primary'} small`, type: 'button', id: 'auto-render-toggle', onclick: async event => {
+            const turningOn = !s.on;
+            if (turningOn && !confirm('Turn auto-render ON? New full renders will start at once, without your approval. Requests already waiting stay waiting and still need your decision. Daily caps still apply.')) return;
+            error.hidden = true;
+            await busy(event.currentTarget, 'Saving\u2026', async () => {
+              try { await data.adminSetAutoRender(turningOn); await loadSwitch(); await load(); } catch (err) { showError(error, err); }
+            });
+          } }, s.on ? 'Turn auto-render off' : 'Turn auto-render on'),
+          s.defaultCap == null ? '' : h('p', { class: 'form-note' }, `Everyone without their own cap gets ${s.defaultCap} credit${s.defaultCap === 1 ? '' : 's'} a day.`));
+      }
+      async function loadCaps() {
+        let caps;
+        try { caps = await data.adminUserCaps(); } catch (err) { capsBox.replaceChildren(); showError(error, err); return; }
+        const save = async (owner, text, button, after) => {
+          const checked = O.checkCap(text);
+          if (checked.error) { showError(error, new Error(checked.error)); return; }
+          error.hidden = true;
+          await busy(button, 'Saving\u2026', async () => { try { await data.adminSetUserCap(owner, checked.value); await after(); } catch (err) { showError(error, err); } });
+        };
+        capsBox.replaceChildren(h('h2', {}, 'Daily credit caps'),
+          h('p', { class: 'form-note' }, 'A cap limits how many credits one person can spend in 24 hours. Empty and Save puts a person back on the default.'),
+          caps.length ? h('ul', { class: 'ops-list' }, caps.map(c => {
+            const input = h('input', { type: 'text', inputmode: 'numeric', value: String(c.credits_per_day), 'aria-label': `Daily cap for ${c.email || 'this account'}`, maxlength: '6', size: '6' });
+            const btn = h('button', { class: 'button secondary small', type: 'button' }, 'Save');
+            btn.addEventListener('click', () => save(c.owner_id, input.value, btn, loadCaps));
+            return h('li', {}, h('span', { class: 'meta' }, O.capLine(c)), h('div', { class: 'inline-row' }, input, ' ', btn));
+          })) : h('p', { class: 'form-note' }, 'Nobody has their own cap yet. Set one from a waiting request above.'));
+      }
+      await Promise.all([loadSwitch(), loadCaps(), load()]);
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Render approvals'),
+        switchBox, h('p', { class: 'form-note' }, 'Full renders wait here while auto-render is off. The person\u2019s credits are held until you decide.'), out, capsBox, error];
+    }
+
+    async function opsAdminView(onStop) {
+      const O = window.ryagramOps;
+      const error = errorLine();
+      const body = h('div', { class: 'admin-body' }, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      const section = (title, ...kids) => h('section', { class: 'ops-section' }, h('h2', {}, title), ...kids);
+      const none = text => h('p', { class: 'form-note' }, text);
+      const button = (label, work) => h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
+        await busy(event.currentTarget, 'Saving\u2026', async () => { try { await work(); await load(); } catch (err) { showError(error, err); } });
+      } }, label);
+      // --- the invite code just made (shown ONCE: the database keeps only its hash) with a mailto: link, so Ryan reads and sends the email himself
+      let invited = null;
+      function invitePanel() {
+        if (!invited) return null;
+        const { name, email, code, credits } = invited;
+        return h('div', { class: 'invite-panel', role: 'status' },
+          h('p', {}, h('strong', {}, `Invite code for ${name}: `), h('code', {}, code), '  (shown once; copy it now)'),
+          h('p', {}, h('a', { class: 'button secondary small', href: O.inviteMailto({ name, email, code, credits: credits == null ? null : credits }) }, `Email it to ${email}`), ' ',
+            button('Done', async () => { invited = null; })));
+      }
+      // --- Invite someone: a friend Ryan names before the public form is live. The address is used ONLY for the mailto: link; the database gets the name and the credits.
+      function invitePersonForm() {
+        const name = h('input', { id: 'ip-name', name: 'name', type: 'text', required: true, maxlength: '100', autocomplete: 'off' });
+        const email = h('input', { id: 'ip-email', name: 'email', type: 'email', required: true, maxlength: '320', autocomplete: 'off' });
+        const credits = h('input', { id: 'ip-credits', name: 'credits', type: 'number', min: '0', max: '1000', step: '1', placeholder: 'the usual welcome credits' });
+        return miniForm('Invite someone', [field('Their name', name), field('Their email (stays in your mail program)', email), field('Welcome credits (optional)', credits)], 'Make an invite code', async () => {
+          const c = credits.value.trim() === '' ? null : Number(credits.value);
+          const code = await data.adminInvitePerson(name.value, c);
+          invited = { name: name.value.trim(), email: email.value.trim(), code, credits: c };
+        });
+      }
+      // --- the film request queue: what creators asked for, to make by hand and then mark delivered (with the film's https link) or decline (credits go back)
+      function queueSection(q, now) {
+        if (!q) return section('Film requests', h('p', {}, 'Film requests are not set up yet (apply SQL 20261016000200).'));
+        return section(`Film requests (${q.waiting})`,
+          h('p', {}, q.waiting ? `${q.waiting} request${q.waiting === 1 ? '' : 's'} to make. Make each film on your PC, upload it, then paste its https link here.` : 'No requests waiting.'),
+          q.items.length ? h('ul', { class: 'ops-list' }, q.items.map(r => {
+            const url = h('input', { id: `fr-url-${r.id}`, type: 'url', placeholder: 'https:// link to the finished film', maxlength: '500' });
+            const note = h('input', { id: `fr-note-${r.id}`, type: 'text', placeholder: 'Note to the creator (optional)', maxlength: '500' });
+            return h('li', {},
+              h('strong', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}`), h('span', { class: 'meta' }, ` ${r.email || 'unknown'}, ${r.credits} credits, ${O.ago(r.created_at, now)}`),
+              h('p', {}, 'Question: ', r.question), r.notes ? h('p', {}, 'Notes: ', r.notes) : null,
+              h('div', { class: 'ops-form' }, h('label', { class: 'ops-field' }, 'Film link', url), h('label', { class: 'ops-field' }, 'Note', note)),
+              r.status === 'new' ? button('Start', () => data.adminFilmRequestSet(r.id, 'in_progress', note.value, null)) : null, ' ',
+              button('Mark delivered', async () => { const problem = O.checkDelivery(url.value); if (problem) throw new Error(problem); await data.adminFilmRequestSet(r.id, 'delivered', note.value, url.value.trim()); }), ' ',
+              button(`Decline (returns ${r.credits} credits)`, () => data.adminFilmRequestSet(r.id, 'declined', note.value, null)));
+          })) : null,
+          q.recent.length ? h('details', { class: 'ops-details' }, h('summary', {}, 'Last 10 finished'),
+            h('ul', { class: 'ops-list' }, q.recent.map(r => h('li', {}, `#${r.id} ${O.REQUEST_STATUS_WORDS[r.status] || r.status}: ${r.question}`,
+              r.delivered_url ? [' ', h('a', { href: r.delivered_url, rel: 'noopener noreferrer', target: '_blank' }, 'film')] : null)))) : null);
+      }
+      // --- Costs: every $ event the ledger holds (Stripe's own fee per charge, plan fees, render cpu cost, storage and email readings, typed invoices),
+      // a daily rollup, the limits Ryan sets, and the forms to state a plan, a rate or a cost. Unknown is shown as unknown, never as $0.
+      const vendorSelect = (id, withAll) => h('select', { id, name: id },
+        withAll ? [h('option', { value: '' }, 'All vendors')] : [],
+        O.COST_VENDORS.map(([v, label]) => h('option', { value: v }, label)));
+      const field = (label, input) => h('label', { class: 'ops-field' }, label, input);
+      const miniForm = (summary, fields, submitLabel, run) => {
+        const fail = errorLine();
+        const submit = h('button', { class: 'button secondary small', type: 'submit' }, submitLabel);
+        const form = h('form', { class: 'ops-form', onsubmit: async event => {
+          event.preventDefault();
+          fail.hidden = true;
+          await busy(submit, 'Saving\u2026', async () => { try { await run(); await load(); } catch (err) { showError(fail, err); } });
+        } }, fields, submit, fail);
+        return h('details', { class: 'ops-details' }, h('summary', {}, summary), form);
+      };
+      // --- Funnel: counts per step, conversion between steps, by source and by week
+      let funnelWeeks = 8;
+      function funnelSection(f) {
+        if (!f) return section('Funnel', h('p', {}, O.funnelLine(null)));
+        const th = (t, numeric) => h('th', { scope: 'col', class: numeric ? 'num' : null }, t);
+        const rows = O.funnelRows(f), srcs = O.funnelBySource(f), weeks = O.funnelByWeek(f);
+        const label = e => O.FUNNEL_LABELS[e];
+        return section(`Funnel (last ${funnelWeeks} weeks)`,
+          h('p', { class: 'form-note' }, O.funnelLine(f)),
+          h('p', {}, [4, 8, 12, 26].map(n => h('button', { class: `button secondary small${n === funnelWeeks ? ' is-chosen' : ''}`, type: 'button', 'aria-pressed': String(n === funnelWeeks),
+            onclick: async () => { funnelWeeks = n; await load(); } }, `${n} weeks`)), ' '),
+          h('table', { class: 'admin-table funnel-steps' },
+            h('thead', {}, h('tr', {}, th('Step'), th('People', true), th('From the step before', true), th('From the first step', true))),
+            h('tbody', {}, rows.map(r => h('tr', { class: r.side ? 'funnel-side' : null }, h('td', {}, r.label), h('td', { class: 'num' }, String(r.total)), h('td', { class: 'num' }, r.fromPrevious || '\u2014'),
+              h('td', { class: 'num' }, r.fromFirst || '\u2014'))))),
+          h('p', { class: 'form-note' }, 'The last four rows are measured against people who signed up.'),
+          h('h3', {}, 'By source'),
+          srcs.length ? h('table', { class: 'admin-table funnel-sources' },
+            h('thead', {}, h('tr', {}, th('Source'), O.FUNNEL_KEY.map(e => th(label(e), true)), th('Visit to signup', true))),
+            h('tbody', {}, srcs.map(r => h('tr', {}, h('td', {}, r.source), O.FUNNEL_KEY.map(e => h('td', { class: 'num' }, String(r.counts[e]))), h('td', { class: 'num' }, r.signupRate)))))
+            : h('p', { class: 'form-note' }, 'Nothing recorded yet.'),
+          h('h3', {}, 'By week (Monday starts, New York time)'),
+          weeks.length ? h('table', { class: 'admin-table funnel-weeks' },
+            h('thead', {}, h('tr', {}, th('Week'), O.FUNNEL_KEY.map(e => th(label(e), true)))),
+            h('tbody', {}, weeks.map(r => h('tr', {}, h('td', {}, r.week), O.FUNNEL_KEY.map(e => h('td', { class: 'num' }, String(r.counts[e]))))))) : null);
+      }
+      function costSection(c, now) {
+        if (!c) return section('Costs', h('p', {}, O.costLine(null)));
+        const num = (id, extra) => h('input', { id, name: id, type: 'number', min: '0', step: 'any', required: true, ...(extra || {}) });
+        const day = id => h('input', { id, name: id, type: 'date', required: true });
+        const thVendor = vendorSelect('cost-th-vendor', true);
+        const thPeriod = h('select', { id: 'cost-th-period' }, h('option', { value: 'day' }, 'per day'), h('option', { value: 'month' }, 'per month'));
+        const thLimit = num('cost-th-limit', { min: '0.01' });
+        const thWarn = num('cost-th-warn', { min: '1', max: '99', step: '1', value: '80' });
+        const plVendor = vendorSelect('cost-pl-vendor', false);
+        const plName = h('input', { id: 'cost-pl-name', name: 'plan', type: 'text', required: true, maxlength: '60', placeholder: 'For example: Pro' });
+        const plMonthly = num('cost-pl-monthly');
+        const plStart = day('cost-pl-start');
+        const plGb = h('input', { id: 'cost-pl-gb', name: 'gb', type: 'number', min: '0', step: 'any', placeholder: 'optional' });
+        const rtCpu = num('cost-rt-cpu');
+        const mcVendor = vendorSelect('cost-mc-vendor', false);
+        const mcAmount = num('cost-mc-amount');
+        const mcDate = day('cost-mc-date');
+        const mcNote = h('input', { id: 'cost-mc-note', name: 'note', type: 'text', maxlength: '300', placeholder: 'For example: uselai.com renewal' });
+        const th = (t, numeric) => h('th', { scope: 'col', class: numeric ? 'num' : null }, t);
+        return section('Costs',
+          h('p', { class: c.thresholds.some(t => t.status === 'over') ? 'app-error' : '' }, O.costLine(c)),
+          h('p', { class: 'form-note' }, O.usageLine(c.usage)),
+          h('table', { class: 'admin-table' },
+            h('thead', {}, h('tr', {}, th('Day'), th('Known total', true), th('By vendor'), th('Unknown', true))),
+            h('tbody', {}, c.days.map(r => h('tr', {}, h('td', {}, r.day), h('td', { class: 'num' }, O.usd2(r.total_usd)),
+              h('td', {}, Object.entries(r.by_vendor || {}).map(([v, n]) => `${O.vendorWord(v)} ${O.usd2(n)}`).join(', ') || '\u2014'),
+              h('td', { class: 'num' }, r.unknown_events ? String(r.unknown_events) : '\u2014'))))),
+          h('p', { class: 'form-note' }, 'This month by vendor: ', Object.entries(c.month.by_vendor || {}).map(([v, n]) => `${O.vendorWord(v)} ${O.usd2(n)}`).join(', ') || 'nothing known yet', '.'),
+          h('h3', {}, 'Limits (you are emailed once when one is reached)'),
+          c.thresholds.length ? h('ul', { class: 'ops-list' }, c.thresholds.map(t => h('li', { class: t.status === 'over' ? 'app-error' : '' }, O.thresholdLine(t), ' ',
+            button('Remove', () => data.adminCostDeleteThreshold(t.id))))) : h('p', { class: 'form-note' }, 'No limits set yet. Nothing alarms until you set one.'),
+          miniForm('Set a limit', [field('Vendor', thVendor), field('Per', thPeriod), field('Limit ($)', thLimit), field('Warn at (%)', thWarn)], 'Save limit', async () => {
+            const input = { vendor: thVendor.value, period: thPeriod.value, limit: thLimit.value, warnPct: thWarn.value };
+            const problem = O.checkThreshold(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostSetThreshold(input.vendor, input.period, Number(input.limit), Number(input.warnPct));
+          }),
+          h('h3', {}, 'Plans you pay for'),
+          c.plans.length ? h('ul', { class: 'ops-list' }, c.plans.map(p => h('li', {}, `${O.vendorWord(p.vendor)}: ${p.plan}, ${O.usd2(p.monthly_usd)} a month since ${p.starts_on}`))) : h('p', { class: 'form-note' }, 'No plans entered. Plan fees stay out of the totals until you enter them.'),
+          miniForm('Enter a plan', [field('Vendor', plVendor), field('Plan', plName), field('Per month ($)', plMonthly), field('Starts on', plStart), field('Storage included (GB)', plGb)], 'Save plan', async () => {
+            const input = { vendor: plVendor.value, plan: plName.value, monthly: plMonthly.value, startsOn: plStart.value };
+            const problem = O.checkPlan(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostSetPlan(input.vendor, input.plan.trim(), Number(input.monthly), input.startsOn, plGb.value ? { storage_gb: Number(plGb.value) } : {});
+          }),
+          h('h3', {}, 'Render cost per core-hour'),
+          h('p', { class: 'form-note' }, c.rates.filter(r => r.vendor === 'render').length ? c.rates.filter(r => r.vendor === 'render').map(r => `${r.kind}: ${O.usd2(r.unit_usd)}${r.note ? ` (${r.note})` : ''}`).join('; ') : 'Not set, so every render\u2019s cost shows as unknown. On your own machine you may know it is $0 in cash; enter that only if you are sure.'),
+          miniForm('Set the render rate', [field('One core-hour costs ($)', rtCpu)], 'Save rate', async () => {
+            const n = Number(rtCpu.value);
+            if (!Number.isFinite(n) || n < 0 || rtCpu.value.trim() === '') throw new Error('Enter the price in dollars (0 is allowed).');
+            await data.adminCostSetRate('render', 'cpu_hour', n, 'stated by Ryan');
+          }),
+          h('h3', {}, 'A cost nothing here can see'),
+          miniForm('Record a cost (an invoice, a renewal)', [field('Vendor', mcVendor), field('Amount ($)', mcAmount), field('Charged on', mcDate), field('Note', mcNote)], 'Record cost', async () => {
+            const input = { vendor: mcVendor.value, amount: mcAmount.value, on: mcDate.value };
+            const problem = O.checkManualCost(input);
+            if (problem) throw new Error(problem);
+            await data.adminCostRecord(input.vendor, Number(input.amount), input.on, mcNote.value.trim());
+          }),
+          h('details', { class: 'ops-details' }, h('summary', {}, 'Latest 15 recorded events'),
+            c.recent.length ? h('ul', { class: 'ops-list' }, c.recent.map(r => h('li', {},
+              `${O.vendorWord(r.vendor)} ${r.kind}: ${r.amount_usd == null ? 'unknown cost' : O.usd2(r.amount_usd)}${r.mode === 'live' ? '' : r.mode === 'test' ? ' (test mode)' : ' (mode unknown)'}`,
+              h('span', { class: 'meta' }, ` ${O.ago(r.occurred_at, now)}`)))) : h('p', { class: 'form-note' }, 'Nothing recorded yet.')));
+      }
+      async function load() {
+        error.hidden = true;
+        let d;
+        try { d = await data.adminOps(); } catch (err) { body.replaceChildren(); showError(error, err); return; }
+        let cb = null;     // creator applications; null until their SQL is applied (the rest of the screen works without it)
+        try { cb = await data.adminCreatorBeta(); } catch { cb = null; }
+        let fr = null;     // the film request queue; null until SQL 20261016000200 is applied
+        try { fr = await data.adminFilmRequests(); } catch { fr = null; }
+        let cost = null;   // the cost ledger; null until its SQL is applied
+        try { cost = await data.adminCostRollup(14); } catch { cost = null; }
+        let funnel = null; // the funnel; null until SQL 20261017000900 is applied
+        try { funnel = await data.adminFunnel(funnelWeeks); } catch { funnel = null; }
+        const now = Date.now();
+        body.replaceChildren(
+          section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
+          section('Child safety', h('p', { class: d.child_safety && d.child_safety.open_not_hidden ? 'app-error' : '' }, O.childSafetyLine(d.child_safety))),
+          section('Needs you', d.open_alerts.length ? h('ul', { class: 'ops-list' }, d.open_alerts.map(a => h('li', {}, a.detail, h('span', { class: 'meta' }, ` since ${O.ago(a.since, now)}`)))) : none('Nothing needs you.')),
+          section('Stuck jobs', d.stuck.length ? h('ul', { class: 'ops-list' }, d.stuck.map(j => h('li', {}, `${j.job_type} ${j.state}, attempt ${j.attempt}`, h('span', { class: 'meta' }, ` ${j.id}, lease expired ${O.ago(j.lease_expired_at, now)}`)))) : none('None.')),
+          section('Ended without a film (last 7 days)', d.ended.length ? h('ul', { class: 'ops-list' }, d.ended.map(j => h('li', {}, `${O.ENDED_WORDS[j.state] || j.state}: ${j.job_type}`, h('span', { class: 'meta' }, ` ${j.error_code || 'no code'}, ${O.ago(j.ended_at, now)}, ${j.id}`)))) : none('None.'),
+            h('p', { class: 'form-note' }, 'Their credits are released by the ledger; the owner sees the amount on the film.')),
+          section('AI editor spend', O.spendLines(d.ai).map(t => h('p', {}, t))),
+          section('Backups', h('p', {}, O.backupLine(d.backups, now))),
+          section('Payments to review', h('p', { class: d.stripe && d.stripe.open ? 'app-error' : '' }, O.stripeLine(d.stripe)),
+            d.stripe && d.stripe.items.length ? h('ul', { class: 'ops-list' }, d.stripe.items.map(e => h('li', {},
+              h('strong', {}, e.type), h('span', { class: 'meta' }, ` ${e.event_id}, ${O.ago(e.received_at, now)}${e.livemode ? ', LIVE mode' : ', test mode'}`),
+              h('p', {}, e.detail || '(no detail recorded)'), button('Mark reviewed', () => data.adminAckStripe(e.event_id))))) : null),
+          queueSection(fr, now),
+          costSection(cost, now),
+          funnelSection(funnel),
+          section(`Creator beta applications (${cb ? cb.waiting : 0})`, h('p', {}, O.creatorLine(cb)), invitePanel(), invitePersonForm(),
+            cb && cb.items.length ? h('ul', { class: 'ops-list' }, cb.items.map(a => h('li', {},
+              h('strong', {}, `#${a.id} ${a.name}`), h('span', { class: 'meta' }, ` ${O.CREATOR_KIND_WORDS[a.kind] || a.kind}, ${a.email}, ${O.ago(a.created_at, now)}`),
+              h('p', {}, 'Makes: ', a.makes, ' \u00b7 ', h('a', { href: a.link, rel: 'noopener noreferrer', target: '_blank' }, a.link)),
+              h('p', {}, 'Question: ', a.question),
+              button('Approve and make an invite code', async () => { const code = await data.adminCreatorInvite(a.id, null); invited = { name: a.name, email: a.email, code }; }), ' ',
+              button('Approve only', () => data.adminDecideCreator(a.id, 'approved')), ' ', button('Decline', () => data.adminDecideCreator(a.id, 'declined'))))) : null),
+          section(`Help requests (${d.support_open})`, d.support.length ? h('ul', { class: 'ops-list' }, d.support.map(q => h('li', {},
+            h('strong', {}, `#${q.id} ${q.topic}`), h('span', { class: 'meta' }, ` ${q.email}, ${O.ago(q.created_at, now)}${q.job_id ? `, film job ${q.job_id} (${q.job_state}${q.job_error_code ? `, ${q.job_error_code}` : ''})` : ''}`),
+            h('p', {}, q.message), button('Mark answered', () => data.adminAnswerSupport(q.id))))) : none('None waiting.')),
+          section(`Abuse reports (${d.abuse_waiting})`, d.abuse.length ? h('ul', { class: 'ops-list' }, d.abuse.map(r => h('li', {},
+            h('strong', {}, `#${r.id} ${O.REASON_WORDS[r.reason] || r.reason}`), h('span', { class: 'meta' }, ` ${O.ago(r.created_at, now)}${r.auto_held ? ', page hidden' : ', page still up'}, `), h('a', { href: `/film/?s=${r.slug}` }, 'film page'),
+            r.reporter ? h('span', { class: 'meta' }, ` reporter ${r.reporter}`) : null,
+            r.details ? h('p', {}, r.details) : null,
+            r.details_omitted ? h('p', { class: 'form-note' }, 'Short record: this reporter had already sent more than 5 reports in an hour, so only the time, reporter, page and reason were kept (no free text).') : null,
+            button('Restore the page', () => data.adminReviewReport(r.id, 'restored')), ' ', button('Remove the page', () => data.adminReviewReport(r.id, 'removed')), ' ', button('Dismiss', () => data.adminReviewReport(r.id, 'dismissed'))))) : none('None waiting.')),
+          section('Recent messages (dry-run until email is set up)', d.outbox.length ? h('ul', { class: 'ops-list' }, d.outbox.map(o => h('li', {}, `${o.kind}: ${o.subject}`, h('span', { class: 'meta' }, ` ${o.mode === 'live' ? 'sent' : 'not sent (dry run)'}, ${O.ago(o.created_at, now)}`)))) : none('None.')));
+      }
+      load();
+      const timer = setInterval(load, 60000);
+      onStop(() => clearInterval(timer));
+      return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Operations'),
+              h('p', { class: 'form-note' }, 'Everything the daily email says, live. It refreshes every minute.'), body, error];
+    }
+
+    // --- #/admin/visits  Ryan only: visits to /ryagram/ by day and by link source, with signups beside them and the
+    // signup rate. A cookieless tally (SQL 20261006000100): counts only, nothing about any visitor.
+    async function visitsAdminView(onStop) {
+      const A = window.ryagramAdmin;
+      const error = errorLine();
+      const DAYS_ID = 'vs-days';   // (a reporting period, not a dataset picker)
+      const range = h('select', { id: DAYS_ID },
+        [[7, 'Last 7 days'], [30, 'Last 30 days'], [90, 'Last 90 days']].map(([d, t]) => h('option', { value: String(d) }, t)));
+      range.value = '30';
+      const body = h('div', { class: 'admin-body' }, h('p', { class: 'form-note' }, 'Loading\u2026'));
+      const th = (t, num) => h('th', { scope: 'col', class: num ? 'num' : null }, t);
+      async function load() {
+        error.hidden = true;
+        try {
+          const [days, sources] = await Promise.all([data.visitsByDay(Number(range.value)), data.visitsBySource(Number(range.value))]);
+          const t = A.visitTotals(days);
+          const top = A.topSources(sources);
+          body.replaceChildren(
+            h('p', {}, `${t.visits.toLocaleString('en-US')} visit${t.visits === 1 ? '' : 's'}, ${t.signups.toLocaleString('en-US')} signup${t.signups === 1 ? '' : 's'}: ${t.rate} of visits became a signup.`),
+            h('h2', {}, 'Top sources'),
+            top.length ? h('table', { class: 'admin-table' },
+              h('thead', {}, h('tr', {}, th('Source'), th('Visits', true), th('Signups', true), th('Signup rate', true))),
+              h('tbody', {}, top.map(r => h('tr', {}, h('td', {}, A.sourceLabel(r.source)), h('td', { class: 'num' }, String(r.visits)),
+                                           h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : h('p', { class: 'form-note' }, 'Nothing counted yet.'),
+            h('h2', {}, 'By day'),
+            days.length ? h('table', { class: 'admin-table' },
+              h('thead', {}, h('tr', {}, th('Day'), th('Visits', true), th('Signups', true), th('Signup rate', true))),
+              h('tbody', {}, days.map(r => h('tr', {}, h('td', {}, A.dayLabel(r.day)), h('td', { class: 'num' }, String(r.visits)),
+                                          h('td', { class: 'num' }, String(r.signups)), h('td', { class: 'num' }, A.signupRate(r.visits, r.signups)))))) : '');
+        } catch (err) { body.replaceChildren(); showError(error, err); }
+      }
+      range.addEventListener('change', load);
+      load();
+      return [
+        h('a', { href: '#/', class: 'back' }, '\u2190 All projects'),
+        h('h1', { tabindex: '-1' }, 'Visits and signups'),
+        h('p', { class: 'form-note' }, 'Page loads of uselai.com/ryagram/ by day (New York time) and by link source (?ref=youtube, or the film link\u2019s utm_source), next to waitlist signups. A cookieless tally: nothing identifies a visitor, so these are visits, not people. Cloudflare Web Analytics is the independent total.'),
+        h('div', { class: 'inline-row' }, h('label', { for: DAYS_ID }, 'Period'), range),
+        body, error
+      ];
+    }
+
     // --- #/account  password, the data choice, deleting the account
     async function accountView() {
       const email = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
@@ -177,8 +700,8 @@
       // Change password
       const pwError = errorLine();
       const pwDone = h('p', { class: 'form-note', role: 'status' });
-      const pw = h('input', { id: 'acct-password', type: 'password', autocomplete: 'new-password', minlength: '10', required: true });
-      const pw2 = h('input', { id: 'acct-password2', type: 'password', autocomplete: 'new-password', minlength: '10', required: true });
+      const pw = h('input', { id: 'acct-password', type: 'password', autocomplete: 'new-password', minlength: '12', required: true });
+      const pw2 = h('input', { id: 'acct-password2', type: 'password', autocomplete: 'new-password', minlength: '12', required: true });
       const pwSave = h('button', { class: 'button secondary', type: 'submit' }, 'Change password');
       const pwForm = h('form', { class: 'contact-form', onsubmit: async event => {
         event.preventDefault();
@@ -190,16 +713,28 @@
           catch (err) { showError(pwError, err); }
         });
       } },
-        h('label', { for: 'acct-password' }, 'New password (at least 10 characters)'), pw,
+        h('label', { for: 'acct-password' }, 'New password (at least 12 characters)'), pw,
         h('label', { for: 'acct-password2' }, 'The same again'), pw2, pwSave, pwDone, pwError);
 
       const sections = [
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, 'Your account'),
         email ? h('p', { class: 'meta' }, `Signed in as ${email}`) : null,
-        h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm)
+        h('section', { class: 'account-section', 'aria-labelledby': 'acct-pw' }, h('h2', { id: 'acct-pw' }, 'Password'), pwForm),
+        looksOn() ? h('section', { class: 'account-section', 'aria-labelledby': 'acct-look' }, h('h2', { id: 'acct-look' }, 'Your look'),
+          h('p', { class: 'form-note' }, 'How your films look and move: colours, shape, pacing. New films start with your default look.'), h('p', {}, h('a', { class: 'button secondary', href: '#/looks' }, 'Edit your look'))) : null
       ];
-      if (!accountToolsOn()) return sections;
+      let helpSection = null;
+      if (window.ryagramAccount) {
+        const acct = window.ryagramAccount.create({ h, data, busy, showError, errorLine });
+        sections.splice(4, 0, await acct.changeEmailSection(email));
+        sections.push(acct.exportSection(email));
+        helpSection = acct.helpSection();
+      }
+      if (await connectAllowed(data)) sections.push(await connectUi().connectedSection());
+      if (desktopOn()) { const windows = await deviceUi().windowsAppSection(); if (windows) sections.push(windows); }                // the Windows download card: testers only
+      if (desktopOn()) { const computers = await deviceUi().computersSection(); if (computers) sections.push(computers); }          // null for an account that is not a tester and has no computer
+      if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
 
       // The store / don't-keep choice (spec 2B-6), as the default for uploads.
       const choiceNote = h('p', { class: 'form-note', role: 'status' });
@@ -244,6 +779,7 @@
         h('h2', { id: 'acct-delete' }, 'Delete your account'),
         h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
         delForm));
+      if (helpSection) sections.push(helpSection);
       return sections;
     }
 
@@ -267,6 +803,8 @@
       // Back from Stripe: the webhook grants the credits, usually within seconds. Look a few times.
       let thanks = null;
       if (paidCode) {
+        // Shown ONCE, on the return from Checkout: drop ?paid=... from the address now (no hashchange fires), so a reload or a later visit shows no stale thanks.
+        try { history.replaceState(null, '', location.pathname + location.search + '#/credits'); } catch { /* the banner just stays until the next visit */ }
         thanks = h('p', { class: 'form-note credit-thanks', role: 'status' },
           `Thanks. Stripe has your payment for ${C.offerName(paidCode)}; the credits appear here once Stripe confirms it, usually within a minute.`);
         let tries = 0;
@@ -306,6 +844,7 @@
         h('h1', { tabindex: '-1' }, 'Credits'),
         balance, thanks,
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
+        testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,
         current || plan ? h('div', { class: 'plan-now' },
           current ? h('p', {}, current) : null,
           h('button', { class: 'button secondary small', type: 'button',
@@ -351,7 +890,7 @@
         } }, 'Archive project'));
 
       const rows = [...versions].reverse().map(v => h('li', {},
-        h('a', { href: `#/v/${v.id}`, class: 'version-link' }, `r${v.number}`),
+        h('a', { href: `#/v/${v.id}`, class: 'version-link' }, `Version ${v.number}`),
         badge(v.state),
         h('span', { class: 'meta' },
           v.parent_version_id && numberOf[v.parent_version_id] ? `from r${numberOf[v.parent_version_id]} · ` : '',
@@ -361,11 +900,13 @@
             try { const nv = await data.createVersion(project.id, v.id); location.hash = `#/v/${nv.id}`; }
             catch (err) { showError(error, err); }
           });
-        } }, `New version from r${v.number}`)));
+        } }, `Start a new version from version ${v.number}`)));
 
+      const helpNote = requestsOn() ? h('p', { class: 'form-note request-pointer' }, 'Not sure how to build a film? ', h('a', { href: '#/request' }, 'Request a film'), ' and we will make it for you.') : null;
       return [
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, project.title),
+        helpNote,
         actions, renameForm, error,
         h('h2', {}, 'Versions'),
         h('p', { class: 'form-intro' }, 'Each version keeps its own story and files. Making a new version copies the story and leaves the old one as it was.'),
@@ -379,6 +920,7 @@
       const locked = !EDITABLE.includes(v.state);
       const error = errorLine();
       const saved = h('p', { class: 'form-note', role: 'status' });
+      const savedHere = h('p', { class: 'form-note', role: 'status' });          // the same confirmation, beside the Save story button inside the folded form
 
       const newVersion = async event => {
         await busy(event.currentTarget, 'Copying…', async () => {
@@ -401,6 +943,7 @@
         event.preventDefault();
         error.hidden = true;
         saved.textContent = '';
+        savedHere.textContent = '';
         let parsed;
         try { parsed = JSON.parse(story.value); } catch (err) {
           showError(error, new Error(`That isn’t valid JSON: ${err.message}`));
@@ -413,7 +956,7 @@
         await busy(save, 'Saving…', async () => {
           try {
             const result = await data.saveStory(v.id, parsed);
-            saved.textContent = 'Saved. Earlier sheets and previews were of the old story, so the final render needs new ones.';
+            saved.textContent = savedHere.textContent = 'Saved. Earlier sheets and previews were of the old story, so the final render needs new ones.';
             jobs.storyChanged(result.story_sha256);
             sources.refresh();
           } catch (err) { showError(error, err); }
@@ -423,13 +966,18 @@
         h('p', { id: 'story-help', class: 'form-note' }, locked
           ? `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()} and can’t change. Make a new version from it to keep working.`
           : 'The story file this version renders from. The render worker checks it in full before drawing anything.'),
-        story, locked ? null : save, saved, error);
+        story, locked ? null : save, savedHere, error);
 
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
       const sources = sourcesPanel(v, !locked);
       // Using an upload as this film's data points the story's render clips at it (v1: one uploaded dataset per film).
-      const uploads = uploadsOn() ? uploadsPanel(v, !locked, async ref => {
-        const built = window.ryagramUploads.useInStory(v.story_spec, ref);
+      const uploads = uploadsOn() ? uploadsPanel(v, !locked, async (ref, ds) => {
+        let built = window.ryagramUploads.useInStory(v.story_spec, ref);
+        // BYOD guide: a blank story gets a starter film made from the upload (a title and one clip for the data), so the person is never left at a dead end.
+        if (!built && byodGuideOn() && window.ryagramTemplates.isBlank(v.story_spec)) {
+          const per = ds?.ingest_report?.periods;
+          if (per?.first && per?.last) built = window.ryagramTemplates.buildFor({ id: ref, label: ds.filename_label || ds.name || 'Your data', start: String(per.first), end: String(per.last), view: 'map', note: 'Started from your own data. Edit the headline, the years (start and end) or the view, then make a contact sheet.' }, project.title);
+        }
         if (!built) throw new Error('Add a render clip to the story first, then use your data in it.');
         const result = await data.saveStory(v.id, built);
         v.story_spec = built;
@@ -438,13 +986,26 @@
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
       }) : null;
+      const lookApply = looksOn() && !locked ? await looksUi().applyPanel(project, v, locked, newId => { location.hash = `#/v/${newId}`; }) : null;
+      // BYOD guide: a line near the top for people who want their own spreadsheet (the upload sits in the folded Advanced panel at the bottom, which a new person does not look in).
+      let advanced = null;
+      const byodPointer = uploads && byodGuideOn() && !locked
+        ? h('p', { class: 'form-note byod-pointer' }, 'Have your own spreadsheet? ', h('button', { class: 'link-button', type: 'button', onclick: () => {
+          if (!advanced) return;
+          advanced.open = true;
+          advanced.scrollIntoView({ block: 'start' });
+          document.getElementById('upload-file')?.focus();
+        } }, 'Use your own data')) : null;
       const picker = locked ? null : templatePicker(project, v, async built => {
         const blank = window.ryagramTemplates.isBlank(v.story_spec);
         if (!blank && !confirm('Replace the current story with this template? Save a new version first if you want to keep it.')) return false;
+        const styled = looksOn() ? await looksUi().withDefaultLook(built) : { story: built, used: null, warnings: [] };
+        built = styled.story;
         const result = await data.saveStory(v.id, built);
         v.story_spec = built;
         story.value = JSON.stringify(built, null, 2);
-        saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.';
+        saved.textContent = 'Template applied and saved. Change the headline or years if you like, then make a contact sheet.'
+          + (styled.used ? ` Using your look: ${styled.used} (change it under Your look).` : '') + (styled.warnings.length ? ` Note: ${styled.warnings.join(' ')}` : '');
         jobs.storyChanged(result.story_sha256);
         sources.refresh();
         return true;
@@ -458,10 +1019,10 @@
 
       return [
         h('a', { href: `#/p/${project.id}`, class: 'back' }, `← ${project.title}`),
-        h('h1', { tabindex: '-1' }, `r${v.number} `, badge(v.state)),
-        h('p', { class: 'meta' }, parent ? `Made from r${parent.number} · ` : '', `created ${date(v.created_at)}`),
+        h('h1', { tabindex: '-1' }, `Version ${v.number} `, badge(v.state)),
+        h('p', { class: 'meta' }, parent ? `Made from version ${parent.number} · ` : '', `created ${date(v.created_at)}`),
         h('div', { class: 'actions-row' },
-          h('button', { class: 'button secondary', type: 'button', onclick: newVersion }, `New version from r${v.number}`),
+          h('button', { class: 'button secondary', type: 'button', onclick: newVersion }, `Start a new version from version ${v.number}`),
           v.state === 'complete'
             ? h('button', { class: 'button secondary', type: 'button', onclick: async event => {
                 await busy(event.currentTarget, 'Archiving…', async () => {
@@ -471,13 +1032,18 @@
               } }, 'Archive this version')
             : null),
         v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
-        sources.el,
-        uploads?.el,
         picker,
+        byodPointer,
+        saved,                                      // "Template applied and saved ...": shown here, not inside the folded story file
         chat,
-        storyForm,
+        sources.el,
         jobs.el,
-        files.el
+        files.el,
+        lookApply,
+        // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
+        advanced = h('details', { class: 'advanced-panel', id: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
+          h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
+          uploads?.el, storyForm)
       ];
     }
 
@@ -570,11 +1136,30 @@
         h('label', { class: 'choice' }, rights, h('span', {}, 'I have the right to use this data.')),
         send);
 
+      // Where the data comes from (S5). Every word marked PLACEHOLDER is draft wording; the person's answers are kept in `prov` and shown back as the closing card will read.
+      function provenanceFields(prov) {
+        const card = h('ul', { class: 'prov-card', 'aria-live': 'polite' });
+        const draw = () => card.replaceChildren(...U.provenanceCard(prov).map(l => h('li', {}, l)));
+        const text = (id, label, key, hint) => { const i = h('input', { id, type: 'text', maxlength: String(U.FIELD_MAX[key]), autocomplete: 'off', oninput: () => { prov[key] = i.value; draw(); } }); return h('div', { class: 'field' }, h('label', { for: id }, label), i, hint ? h('p', { class: 'form-note' }, hint) : null); };
+        const lic = h('select', { 'aria-label': 'What lets you use it', onchange: () => { prov.licence = lic.value; note.hidden = prov.licence !== 'other'; draw(); } }, h('option', { value: '' }, 'Choose\u2026'), U.LICENCES.map(([k, t]) => h('option', { value: k }, t)));
+        const note = h('div', { class: 'field', hidden: true }, h('label', { for: 'prov-licence-note' }, 'Describe it'), h('input', { id: 'prov-licence-note', type: 'text', maxlength: String(U.FIELD_MAX.licence_note), oninput: e => { prov.licence_note = e.target.value; draw(); } }));
+        const dec = h('select', { 'aria-label': 'Decimals to show', onchange: () => { prov.decimals = Number(dec.value); } }, [0, 1, 2, 3].map(n => h('option', { value: String(n) }, `${n} decimal place${n === 1 ? '' : 's'}`)));
+        const ok = h('input', { id: 'prov-attest', type: 'checkbox', onchange: () => { prov.attested = ok.checked; } });
+        draw();
+        return h('fieldset', { class: 'prov-fields' }, h('legend', {}, 'Where does this data come from?'),
+          h('p', { class: 'form-note prov-placeholder' }, `${U.PLACEHOLDER} Your film will show its source, and say the figures are yours.`),
+          text('prov-publisher', 'Who published or owns it', 'publisher'), text('prov-link', 'A web link to the data (optional; it goes in the video description, never on the film itself)', 'link'),
+          h('label', { class: 'field' }, h('span', {}, 'What lets you use it'), lic), note,
+          text('prov-unit', 'What the numbers are in (dollars, percent, people\u2026)', 'unit'), h('label', { class: 'field' }, h('span', {}, 'Decimals to show (films do not use this yet)'), dec),
+          h('label', { class: 'choice' }, ok, h('span', {}, U.ATTESTATION, ' ', h('span', { class: 'meta' }, U.PLACEHOLDER))),
+          h('p', { class: 'form-note' }, 'This is how the closing card of your film will read:'), card);
+      }
+
       function mappingForm(ds) {
         const report = ds.ingest_report;
-        const mapping = U.draft(report);
+        const mapping = U.draft(report, { wide: byodGuideOn() });
         if (!mapping) {
-          return h('p', { class: 'form-note app-error', role: 'alert' }, U.problem(null, report));
+          return h('p', { class: 'form-note app-error', role: 'alert' }, byodGuideOn() ? U.WIDE_HELP : U.problem(null, report));
         }
         const cols = report.columns;
         const shown = (c) => `${U.text(c.header) || `Column ${c.index + 1}`}${c.sample?.length ? ` (${c.sample.slice(0, 3).map(U.text).join(', ')})` : ''}`;
@@ -620,19 +1205,44 @@
             return h('div', { class: 'value-row' }, h('label', { class: 'choice' }, box, h('span', {}, shown(c))), name);
           }));
         drawCounty();
+        // Wide file (the worker melted it and reports the long columns): 'These columns are years', and which group when there are several.
+        const wideBox = mapping.melt_wide === undefined ? null : (() => {
+          const tick = h('input', { id: 'wide-tick', type: 'checkbox', onchange: () => { mapping.melt_wide = tick.checked; } });
+          const groups = U.wideGroups(report);
+          const pick = groups.length > 1 ? h('div', {}, h('label', { class: 'field' }, h('span', {}, 'Which columns'), h('select', { 'aria-label': 'Which columns are the years', onchange: e => { mapping.wide_prefix = e.target.value; } },
+            groups.map(g => h('option', { value: g.prefix, selected: g.prefix === mapping.wide_prefix }, U.groupLabel(g))))), h('p', { class: 'form-note wide-examples-note' }, 'The example values shown below are from the default choice (' + U.groupLabel(groups.find(g => g.prefix === mapping.wide_prefix) || groups[0]) + '); they stay as they are when you pick another group.')) : null;
+          return h('fieldset', { class: 'choices wide-years' }, h('legend', {}, 'This file has one column for each year'),
+            h('p', { class: 'form-note' }, 'Ryagram turns it into one row for each place and year before it draws. Check that the year columns are the ones you mean.'),
+            h('label', { class: 'choice' }, tick, h('span', {}, U.WIDE_TICK)), pick);
+        })();
+        // S5 scaffold (byodGuide): who published it, the licence or permission, the unit, and the attestation. PLACEHOLDER wording (Ryan's final wording is RYAN-QUEUE Q5).
+        const prov = { publisher: '', link: '', licence: '', licence_note: '', unit: '', decimals: 0, attested: false };
+        const provBox = byodGuideOn() ? provenanceFields(prov) : null;
+        // The trust label and warning (RULINGS 2026-10-26): on EVERY upload, whatever else is switched on, and the person must choose to use the data anyway before it is confirmed.
+        const trust = { acked: false };
+        const trustAck = h('input', { id: 'trust-ack', type: 'checkbox', onchange: () => { trust.acked = trustAck.checked; } });
+        const trustBox = h('fieldset', { class: 'trust-box' }, h('legend', {}, 'Before you use this data'),
+          h('p', { class: 'trust-label' }, h('strong', { id: 'trust-label' }, U.TRUST_LABEL)), h('p', { class: 'trust-warning' }, U.TRUST_WARNING),
+          h('label', { class: 'choice' }, trustAck, h('span', {}, U.TRUST_ACK)));
         const confirmBtn = h('button', { class: 'button', type: 'button', onclick: async () => {
           note.hidden = true;
           const problem = U.problem(mapping, report);
           if (problem) return showError(note, new Error(problem));
+          const tp = U.trustProblem(trust.acked);
+          if (tp) return showError(note, new Error(tp));
+          if (provBox) { const pp = U.provenanceProblem(prov); if (pp) return showError(note, new Error(pp)); }
           await busy(confirmBtn, 'Saving\u2026', async () => {
-            try { await data.confirmMapping(ds.id, U.clean(mapping)); await refresh(); } catch (err) { showError(note, err); }
+            try {
+              if (provBox) await data.setUploadProvenance(ds.id, U.cleanProvenance(prov));
+              await data.confirmMapping(ds.id, U.clean(mapping), trust.acked === true); await refresh();
+            } catch (err) { showError(note, err); }
           });
         } }, 'These are right');
         const rows = report.rows;
         const per = report.periods;
         return h('div', { class: 'mapping-form' },
           h('p', { class: 'form-note' }, `We found ${rows.toLocaleString()} rows${per ? `, ${per.first} to ${per.last}` : ''}. Check what each column means. Only you can see these values.`),
-          select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values,
+          wideBox, select('The place column', 'place_index'), select('The period column', 'period_index'), geo, county, cadence, values, provBox, trustBox,
           h('div', { class: 'actions-row' }, confirmBtn), note);
       }
 
@@ -647,13 +1257,13 @@
         } }, 'Delete');
         const use = c.key === 'ready' && editable && !inUse ? h('button', { class: 'button small', type: 'button', onclick: async () => {
           await busy(use, 'Adding\u2026', async () => {
-            try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref)); v.dataset_id = ds.id; await refresh(); }
+            try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref, ds)); v.dataset_id = ds.id; await refresh(); }
             catch (err) { showError(error, err); }
           });
         } }, 'Use in this film') : null;
         const edit = c.key === 'ready' ? h('button', { class: 'link-button', type: 'button', onclick: () => { open = open === ds.id ? null : ds.id; draw(); } }, 'See the columns') : null;
         return h('li', { class: 'upload-card' },
-          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: `state state-upload-${c.key}` }, c.label),
+          h('strong', {}, ds.filename_label || ds.name || 'Your data'), ' ', h('span', { class: 'trust-chip' }, U.TRUST_LABEL), ' ', h('span', { class: `state state-upload-${c.key}` }, byodGuideOn() && c.key === 'check' && !U.draft(ds.ingest_report) ? 'Needs a different layout' : c.label),
           h('p', { class: 'meta' }, [bytes(ds.bytes), ds.ext ? ds.ext.toUpperCase() : '', ds.retention === 'dont_keep' ? 'Deleted after your final film' : 'Kept until you delete it'].filter(Boolean).join(' \u00b7 '),
             inUse ? ' \u00b7 In use in this film' : ''),
           c.key === 'reading' ? h('p', { class: 'form-note', role: 'status' }, 'We\u2019re reading it. This usually takes under a minute.') : null,
@@ -663,10 +1273,19 @@
           h('div', { class: 'actions-row' }, use, edit, c.key === 'deleting' ? null : del));
       }
 
+      // What a good file looks like (BYOD guide): the shape, as a small table.
+      function exampleBox() {
+        const X = U.EXAMPLE;
+        return h('details', { class: 'byod-hint' }, h('summary', {}, 'What should my file look like?'),
+          h('p', { class: 'form-note' }, 'One row for each place and year: a column for the place, a column for the year, and a column of values. Places are U.S. states or U.S. counties.'),
+          h('table', { class: 'byod-example' }, h('thead', {}, h('tr', {}, X.head.map(t => h('th', {}, t)))), h('tbody', {}, X.rows.map(r => h('tr', {}, r.map(t => h('td', {}, t)))))));
+      }
+
       function draw() {
         el.replaceChildren(...[
           h('h2', { id: 'uploads-title' }, 'Your own data'),
           h('p', { class: 'form-note' }, 'Upload a spreadsheet with one row per U.S. state or county and year. Only you can see it. You can delete it at any time.'),
+          byodGuideOn() ? exampleBox() : null,
           editable ? form : null,
           error,
           list.length ? h('ul', { class: 'upload-cards' }, list.map(card)) : null].filter(Boolean));
@@ -722,7 +1341,12 @@
           if (!confirm('Publish a public page for this film? Anyone with the link can watch it and read its sources and method. Uploaded data is never shown.')) return;
           error.hidden = true;
           await busy(go, 'Publishing…', async () => {
-            try { await data.publishFilm(v.id, title.value); await draw(); } catch (err) { showError(error, err); }
+            try {
+              // A film made from the person's own upload asks once more, in plain words (the page shows the film and its sources, never the data).
+              const out = await data.publishFilmWithConfirm(v.id, title.value, message => confirm(message));
+              await draw();                                                          // published, or (cancelled) back to the plain "Off" panel: nothing is public
+              if (out && out.cancelled) return;
+            } catch (err) { showError(error, err); }
           });
         } }, 'Publish a public page');
         el.replaceChildren(heading,
@@ -759,7 +1383,7 @@
             line('assistant', res.reply);
             for (const a of res.actions || []) {
               if (a.type === 'needs_approval') line('assistant', 'Ready when you are: press “Render final film” in the Render panel below. That click is your approval.');
-              if (a.type === 'version_created') log.append(h('p', { class: 'form-note' }, h('a', { href: `#/v/${a.version_id}` }, `Open r${a.number}`)));
+              if (a.type === 'version_created') log.append(h('p', { class: 'form-note' }, h('a', { href: `#/v/${a.version_id}` }, `Open version ${a.number}`)));
               if (a.type === 'job_submitted') refreshJobs();
             }
             if ((res.actions || []).some(a => a.type === 'story_changed')) storyChanged();
@@ -889,6 +1513,11 @@
       const previewButton = h('button', { class: 'button secondary', type: 'button' }, 'Make preview');
       const finalButton = h('button', { class: 'button primary', type: 'button' }, 'Render final film');
       const finalNote = h('p', { class: 'form-note' });
+      // What comes after the free first picture, in credits only, never money (NEXT-WEB 132 G5)
+      const nextStrip = h('p', { class: 'next-strip', 'aria-live': 'polite', hidden: true });
+      // (outside the run controls on purpose: a finished render makes the version "complete", which hides the controls, and "Open your film" must stay reachable then)
+      const orderBox = h('div', { class: 'order-box', 'aria-live': 'polite' });
+      let openOrders = false;                                        // an order waiting or running keeps the page polling
       const lockedNote = h('p', { class: 'form-note', hidden: true });
       const controls = h('div', { class: 'run-controls' },
         h('div', { class: 'run-step' },
@@ -932,9 +1561,41 @@
         const q = quotes.final_render;
         const cost = creditsOn() && q && !q.error && q.credits
           ? ` It uses ${C.plural(q.credits)}, held now and returned if the render fails.` : '';
-        if (!confirm(`Render the final film of r${v.number}? Its story locks while it renders; later changes need a new version.${cost}`)) return;
+        if (!confirm(`Render the final film of version ${v.number}? Its story locks while it renders; later changes need a new version.${cost}`)) return;
+        if (ordersOn()) { requestOrder(ladder.preview.id); return; }                  // the order path: held for approval while auto_render is off
         submit(finalButton, 'final_render', {}, { sheetJobId: ladder.sheet.id, previewJobId: ladder.preview.id });
       });
+
+      // A full render is REQUESTED: while auto_render is off it waits for Ryan with the credits held; with it on it starts at once. A key is spent for good, so each request makes a new one.
+      async function requestOrder(previewJobId) {
+        error.hidden = true;
+        await busy(finalButton, 'Requesting\u2026', async () => {
+          try {
+            await data.requestFinalRender(previewJobId, `app-${previewJobId.slice(0, 8)}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`);
+            await loadOrders();
+            await refresh();
+          } catch (err) { showError(error, err); }
+        });
+      }
+      async function loadOrders() {
+        if (!ordersOn()) return;
+        let rows = [];
+        try { rows = await data.listOrders(v.id); } catch { return; }
+        const shown = [];
+        for (const o of rows.slice(0, 3)) {
+          let st = null;
+          try { st = await data.orderStatus(o.id); } catch { st = { state: o.state, stages: [] }; }
+          const actions = [];
+          if (J.orderOpen(st.state)) actions.push(h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
+            if (!confirm('Cancel this full render? Your credits are returned.')) return;
+            await busy(event.currentTarget, 'Cancelling\u2026', async () => { try { await data.cancelOrder(o.id); await loadOrders(); } catch (err) { showError(error, err); } });
+          } }, 'Cancel the request'));
+          if (st.state === 'delivered' && st.delivery && !st.delivery.deleted) actions.push(h('a', { class: 'button primary small', href: `#/delivery/${st.delivery.id}` }, 'Open your film'));
+          shown.push(h('li', {}, h('strong', {}, `${J.ORDER_WORDS[st.state] || st.state} `), h('span', { class: 'meta' }, `${date(o.created_at)}. `), J.orderLine(st), ' ', actions));
+        }
+        openOrders = rows.some(o => J.orderOpen(o.state));
+        orderBox.replaceChildren(...(shown.length ? [h('ul', { class: 'order-list' }, shown)] : []));      // (replaceChildren(null) would print the word "null")
+      }
 
       function syncControls() {
         const takes = J.versionTakesJobs(v.state);
@@ -942,27 +1603,46 @@
         lockedNote.hidden = takes;
         lockedNote.textContent = `This version is ${(STATE_LABELS[v.state] || v.state).toLowerCase()}, so it can’t take new jobs.`;
         const busyType = type => jobs.some(j => j.job_type === type && J.isActive(j));
+        const why = { sheet: '', preview: '', final: '' };                 // why a button is off: its tooltip, and the not-allowed cursor
         sheetButton.disabled = busyType('contact_sheet');
+        if (sheetButton.disabled) why.sheet = 'A contact sheet is already being made.';
         previewButton.disabled = busyType('preview');
+        if (previewButton.disabled) why.preview = 'A preview is already being made.';
         const ladder = J.ladder(jobs, storySha, engine);
+        {
+          const q = quotes.final_render;
+          const anySheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === storySha);
+          if (creditsOn() && anySheet && !jobs.some(j => j.job_type === 'final_render') && q && !q.error && typeof q.credits === 'number') {
+            nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' ', ladder.preview ? 'You have a preview too, so the full film is next.' : 'Next make a short preview, then the full film.',
+              ` The full film uses ${C.plural(q.credits)}; you have ${C.plural(Math.max(0, q.available || 0))}.`, ...(paymentsOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
+            nextStrip.hidden = false;
+          } else nextStrip.hidden = true;
+        }
         finalButton.disabled = !ladder.ready || busyType('final_render');
+        if (!ladder.ready) why.final = ladder.missing || 'Make a contact sheet and a preview of this story first.';
+        else if (busyType('final_render')) why.final = 'A full render is already being made.';
         finalNote.textContent = ladder.ready
-          ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. Clicking is your approval.`
+          ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. ${ordersOn() ? 'Clicking requests the full render: while we approve them by hand it waits, with your credits held, and they come back if it is not approved.' : 'Clicking is your approval.'}`
           : ladder.missing;
         if (creditsOn()) {
+          const whyKey = (button, reason) => { const k = button === sheetButton ? 'sheet' : button === previewButton ? 'preview' : 'final'; if (!why[k]) why[k] = reason; };      // (an earlier reason, such as no sheet yet, is the truer one)
           const label = (button, base, type) => {
             const q = quotes[type];
             button.textContent = q && !q.error ? `${base} · ${C.priceLabel(q)}` : base;
             const can = q && !q.error ? C.affordable(q) : { ok: true };
-            if (!can.ok) button.disabled = true;
+            if (!can.ok) { button.disabled = true; whyKey(button, q?.error ? q.error : can.reason); }
             return q?.error ? q.error : can.ok ? '' : can.reason;
           };
           const sheetWhy = label(sheetButton, 'Make contact sheet', 'contact_sheet');
           const previewWhy = label(previewButton, 'Make preview', 'preview');
           const finalWhy = label(finalButton, 'Render final film', 'final_render');
-          if (quotes.final_render?.error) finalButton.disabled = true;
+          if (quotes.final_render?.error) { finalButton.disabled = true; if (!why.final) why.final = quotes.final_render.error; }
           if (finalWhy && ladder.ready) finalNote.textContent = finalWhy;
           balanceNote.textContent = [balance ? `Credits: ${C.balanceLine(balance)}.` : '', sheetWhy, previewWhy].filter(Boolean).join(' ');
+        }
+        for (const [button, key] of [[sheetButton, 'sheet'], [previewButton, 'preview'], [finalButton, 'final']]) {
+          if (button.disabled) { button.dataset.locked = 'true'; button.title = why[key] || button.title || 'Not available right now.'; }
+          else { delete button.dataset.locked; button.removeAttribute('title'); }
         }
       }
 
@@ -980,9 +1660,17 @@
         const row = (k, v) => [h('dt', {}, k), h('dd', {}, v)];
         return h('div', { class: 'job-progress' },
           bar,
-          h('dl', { class: 'progress-fields' },
-            row('Stage', p.stage), row(p.countLabel, p.count), row('ETA', p.eta), row('Running for', p.running)),
+          p.working
+            ? h('p', { class: 'working' }, p.elapsed ? `Working\u2026 ${p.elapsed}` : 'Working\u2026')
+            : h('dl', { class: 'progress-fields' },
+              row('Stage', p.stage), row(p.countLabel, p.count), row('ETA', p.eta), row('Running for', p.running)),
           !j.progress_detail && j.progress_note ? h('p', { class: 'form-note' }, j.progress_note) : null);
+      }
+
+      // "Your credits were returned." under a failed or stopped job, from the ledger (job_accounting), never guessed.
+      function returnedLine(j, note) {
+        const text = C.returnedNote(accounting[j.id]);
+        return text && !(note || '').toLowerCase().includes('returned') ? h('p', { class: 'form-note credit-returned' }, text) : null;
       }
 
       function jobItem(j) {
@@ -1007,7 +1695,13 @@
                 submit(event.currentTarget, j.job_type,
                        j.job_type === 'preview' && !j.params?.window_s ? { ...j.params, window_s: [0, 10] } : j.params || {},
                        j.job_type === 'final_render' ? { sheetJobId: j.sheet_job_id, previewJobId: j.preview_job_id } : undefined)
-              }, 'Try again') : null);
+              }, 'Try again') : null,
+          creditsOn() && failed ? returnedLine(j, note) : null,
+          failed && j.state !== 'cancelled' && (J.rawDetail(j) || opsOn())
+            ? h('details', { class: 'job-help' }, h('summary', {}, 'Get help with this'),
+                J.rawDetail(j) ? h('p', { class: 'form-note' }, 'What the render machine reported, in its own words:') : null,
+                J.rawDetail(j) ? h('code', {}, J.rawDetail(j)) : null,
+                opsOn() ? h('a', { class: 'meta', href: `#/help?job=${j.id}` }, 'Send this to us') : null) : null);
       }
 
       function draw() {
@@ -1064,6 +1758,7 @@
             } catch (err) {
               if (!stopped) showError(error, err);
             }
+            await loadOrders();
             if (!stopped) draw();
           } while (again && !stopped);
         })();
@@ -1072,7 +1767,7 @@
 
       const watch = data.watchJobs(v.id, () => refresh());
       const timer = setInterval(() => {
-        if (!watch.live() || jobs.some(J.isActive)) refresh();
+        if (!watch.live() || jobs.some(J.isActive) || openOrders) refresh();
         else liveNote.textContent = '● Live';
       }, 10000);
       refresh();
@@ -1080,7 +1775,8 @@
       const el = h('section', { class: 'jobs-panel', 'aria-labelledby': 'jobs-title' },
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
-        controls, balanceNote, lockedNote, error, listEl);
+        h('p', { class: 'form-note' }, 'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'),
+        nextStrip, controls, orderBox, balanceNote, lockedNote, error, listEl);
 
       return {
         el,

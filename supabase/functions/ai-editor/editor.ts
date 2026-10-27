@@ -3,6 +3,7 @@
 import { projectBlock, SYSTEM } from "./prompt.ts";
 import { runTool, TOOLS, type UserData } from "./tools.ts";
 
+export const PAUSED_REPLY = "The editor is paused for now to keep costs in check. Your film and everything else in Ryagram work as usual; the editor will be back soon.";
 export const HAIKU = { model: "claude-haiku-4-5", max_tokens: 4000 };
 export const SONNET = { model: "claude-sonnet-5", max_tokens: 8000, output_config: { effort: "medium" } };
 const HISTORY = 12;           // messages kept verbatim; older ones live in the running summary
@@ -14,6 +15,8 @@ export interface Store {
   turnContext(turnId: string): Promise<{ summary: string | null; rulings: string[]; tool_calls_per_turn: number;
                                          message_count: number; messages: { role: "user" | "assistant"; content: string }[] }>;
   allowExecution(turnId: string): Promise<boolean>;
+  /** Asked before EVERY Anthropic call: false when a site-wide or per-project spend cap is reached (ai_budget_ok). */
+  budgetOk(turnId: string): Promise<boolean>;
   recordUsage(turnId: string, usage: Record<string, unknown>): Promise<number | null>;
   addRuling(turnId: string, text: string): Promise<number>;
   finishTurn(turnId: string, status: string, escalated: boolean, toolCalls: number,
@@ -121,6 +124,10 @@ async function runTurn(deps: Deps, jwt: string, versionId: string, message: stri
   let messages: any[] = [...history, { role: "user", content: message }];
   let replyText = "";
   for (let round = 0; round < cap + 2; round++) {
+    if (!(await deps.store.budgetOk(turnId))) {       // the cap is checked in the database before each call, never trusted to this code
+      replyText = PAUSED_REPLY;
+      break;
+    }
     const started = now();
     let res: any;
     try {
@@ -132,10 +139,10 @@ async function runTurn(deps: Deps, jwt: string, versionId: string, message: stri
     }
     const uses = (res.content ?? []).filter((b: any) => b.type === "tool_use");
     await deps.store.recordUsage(turnId, {
-      model: res.model ?? tier.model, message_id: res.id, stop_reason: res.stop_reason, latency_ms: now() - started,
+      model: tier.model, message_id: res.id, stop_reason: res.stop_reason, latency_ms: now() - started,
       input_tokens: res.usage?.input_tokens ?? null, output_tokens: res.usage?.output_tokens ?? null,
-      cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? null,
-      cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? null,
+      cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? 0,        // the API omits these when nothing was cached
+      cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? 0,
       tool_calls: uses.length, tool_log: uses.map((u: any) => ({ tool: u.name })),
     });
 
@@ -197,6 +204,7 @@ async function runTurn(deps: Deps, jwt: string, versionId: string, message: stri
 }
 
 async function summarise(deps: Deps, turnId: string, previous: string | null, recent: { role: string; content: string }[]) {
+  if (!(await deps.store.budgetOk(turnId))) return previous;
   const transcript = recent.map((m) => `${m.role}: ${m.content}`).join("\n").slice(-20000);
   const res = await deps.claude.messages.create({
     ...HAIKU, max_tokens: 800,
@@ -204,10 +212,10 @@ async function summarise(deps: Deps, turnId: string, previous: string | null, re
     messages: [{ role: "user", content: `Previous summary:\n${previous ?? "(none)"}\n\nRecent conversation:\n${transcript}` }],
   });
   await deps.store.recordUsage(turnId, {
-    purpose: "summary", model: res.model ?? HAIKU.model, message_id: res.id, stop_reason: res.stop_reason,
+    purpose: "summary", model: HAIKU.model, message_id: res.id, stop_reason: res.stop_reason,
     input_tokens: res.usage?.input_tokens ?? null, output_tokens: res.usage?.output_tokens ?? null,
-    cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? null,
-    cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? null, tool_calls: 0,
+    cache_read_input_tokens: res.usage?.cache_read_input_tokens ?? 0,
+    cache_creation_input_tokens: res.usage?.cache_creation_input_tokens ?? 0, tool_calls: 0,
   });
   return textOf(res.content ?? []).slice(0, 8000) || previous;
 }

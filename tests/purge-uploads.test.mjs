@@ -1,4 +1,4 @@
-// purge-uploads: only the scheduler may call it; files are removed before rows are marked; failures retry.
+// purge-uploads: only the scheduler (its own per-job secret) or Ryan (the service-role key) may call it; files are removed before rows are marked; failures retry.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handle } from '../supabase/functions/purge-uploads/sweep.ts';
@@ -48,4 +48,39 @@ test('odd rows are skipped and a database error is a plain 500', async () => {
   console.error = quiet;
   assert.equal(res.status, 500);
   assert.doesNotMatch(JSON.stringify(await res.json()), /boom/);
+});
+
+const JOB = 'purge-job-secret-0123456789abcdef0123456789abcdef';
+const OTHER_JOB = 'ops-tick-job-secret-0123456789abcdef0123456789abc';
+const jobWorld = (n, over = {}) => { const w = world(n, over); w.deps.jobSecret = JOB; return w; };
+
+test('the scheduler own job secret runs it and the reply is ok and nothing else (pg_net keeps replies where logins can read them)', async () => {
+  const w = jobWorld(250);
+  const res = await call(w.deps, 'Bearer ' + JOB);
+  assert.equal(res.status, 200);
+  assert.equal(JSON.stringify(await res.json()), '{"ok":true}');
+  assert.equal(w.calls.length, 6);                                                     // it really swept: 3 batches, remove then mark
+});
+
+test('the service-role key still runs it by hand, with the counts', async () => {
+  const res = await call(jobWorld(3).deps);
+  assert.deepEqual(await res.json(), { due: 3, removed: 3 });
+});
+
+test('another job secret, a near miss, a short secret and nothing are refused and nothing runs', async () => {
+  for (const [auth, secret] of [['Bearer ' + OTHER_JOB, JOB], ['Bearer ' + JOB + 'x', JOB], ['Bearer ' + JOB.slice(0, -1), JOB], ['Bearer short', 'short'], ['Bearer ', ''], ['Bearer undefined', undefined], [null, JOB]]) {
+    const w = jobWorld(3); w.deps.jobSecret = secret;
+    assert.equal((await call(w.deps, auth)).status, 403, String(auth));
+    assert.deepEqual(w.calls, []);
+  }
+});
+
+test('a failed sweep is "failed" to the scheduler with no error text, and the words to Ryan', async () => {
+  const boom = { due: async () => { throw new Error('relation uploads_secret does not exist'); } };
+  const job = await call(jobWorld(1, boom).deps, 'Bearer ' + JOB);
+  assert.equal(job.status, 500);
+  assert.equal(JSON.stringify(await job.json()), '{"ok":false}');
+  const hand = await call(jobWorld(1, boom).deps);
+  assert.equal(hand.status, 500);
+  assert.match((await hand.json()).error, /sweep failed/);
 });

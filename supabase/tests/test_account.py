@@ -25,7 +25,7 @@ class Account(core.Base):
         return self.db.as_(None).one(sql, *args)
 
     def dataset(self, retention="keep", who=RYAN):
-        return self.admin("insert into datasets (owner_id, name, retention, status) values (%s, 'upload.csv', %s, 'approved') "
+        return self.admin("insert into datasets (owner_id, name, retention, status, trust_ack_at) values (%s, 'upload.csv', %s, 'approved', now()) "
                           "returning id", who, retention)
 
     # -- the data choice

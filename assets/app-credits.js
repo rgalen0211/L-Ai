@@ -29,6 +29,12 @@
     return plural(a.credits_quoted);
   }
 
+  // The sentence under a failed or stopped job: only when the ledger says credits were released and none were spent.
+  function returnedNote(a) {
+    if (!a || a.free_preview || !a.credits_quoted || !a.released || a.captured) return '';
+    return a.released === 1 ? 'Your credit was returned.' : `Your ${a.released} credits were returned.`;
+  }
+
   // The balance line: available now, and how much is held by jobs in flight.
   function balanceLine(rows) {
     const available = rows.reduce((s, r) => s + r.available, 0);
@@ -64,5 +70,5 @@
   }
   const hasPlan = plan => !!plan && ['incomplete', 'trialing', 'active', 'past_due', 'unpaid'].includes(plan.status);
 
-  window.ryagramCredits = { priceLabel, affordable, jobCredits, balanceLine, plural, offerName, money, offerLine, planLine, hasPlan };
+  window.ryagramCredits = { returnedNote, priceLabel, affordable, jobCredits, balanceLine, plural, offerName, money, offerLine, planLine, hasPlan };
 })();

@@ -4,8 +4,12 @@
 // only reaches arbitrary addresses once custom SMTP is set (supabase/README.md, "Beta invites").
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { handle } from "./redeem.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient,
                              { auth: { persistSession: false } });
 
 async function rpc(name: string, args: Record<string, unknown>) {
@@ -14,7 +18,7 @@ async function rpc(name: string, args: Record<string, unknown>) {
   return data;
 }
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   siteUrl: "https://uselai.com",
   reserve: (code, email, ipHash) => rpc("invite_reserve", { p_code: code, p_email: email, p_ip_hash: ipHash }),

@@ -3,9 +3,14 @@
 // No secrets of its own: it uses the service role that Supabase gives every function, only for
 // the film_* functions and to read the one receipt and sign the film's two links.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { verifyAppUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./page.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+const service = createClient(Deno.env.get("SUPABASE_URL")!, sk.forClient,
                              { auth: { persistSession: false } });
 const bucket = () => service.storage.from("ryagram-artifacts");
 
@@ -15,21 +20,18 @@ async function rpc(name: string, args: Record<string, unknown>) {
   return data;
 }
 
-Deno.serve((req) => handle(req, {
+serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   siteUrl: "https://uselai.com",
-  async verifyUser(jwt) {
-    const { data, error } = await service.auth.getUser(jwt);
-    return error || !data.user ? null : { id: data.user.id };
-  },
+  verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
   publishContext: (owner, versionId) => rpc("film_publish_context", { p_owner: owner, p_version: versionId }),
   async readFile(path) {
     const { data, error } = await bucket().download(path);
     if (error || !data) throw new Error("receipt missing");
     return await data.text();
   },
-  publish: (owner, versionId, title, summary) =>
-    rpc("film_publish", { p_owner: owner, p_version: versionId, p_title: title, p_summary: summary }),
+  publish: (owner, versionId, title, summary, confirmed) =>
+    rpc("film_publish", { p_owner: owner, p_version: versionId, p_title: title, p_summary: summary, p_confirmed: confirmed }),
   publicFilm: (slug) => rpc("public_film", { p_slug: slug }),
   async signedUrl(path, seconds) {
     const { data, error } = await bucket().createSignedUrl(path, seconds);
