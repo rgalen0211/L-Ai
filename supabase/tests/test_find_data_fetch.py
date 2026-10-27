@@ -1,4 +1,4 @@
-"""Find-data step S1: fetching a file from an ALLOWLISTED OFFICIAL host into the upload pipeline (migrations/20261027000200_find_data_fetch.sql, NOT APPLIED) on a local Postgres. NEXT-CONNECT 137.
+"""Find-data step S1: fetching a file from an ALLOWLISTED OFFICIAL host into the upload pipeline (migrations/20261027000300_find_data_fetch.sql, NOT APPLIED) on a local Postgres. NEXT-CONNECT 137.
 
 Same setup as test_uploads.py (all migrations load in order, so the trust-label ones are underneath). Run from the repo root with the SQL venv and TEMP/TMP on D::
     pgvenv/Scripts/python -m unittest supabase/tests/test_find_data_fetch.py -v
@@ -349,11 +349,15 @@ class FindDataFetch(core.Base):
         self.assertEqual(self.admin("select state from fetch_attempts where id = %s", b), "failed")
 
     # ---------------------------------------------------------------- the person's side
-    def test_the_whole_path_official_needs_no_tick_and_the_film_source_names_the_publisher(self):
+    def test_the_whole_path_the_tick_is_still_needed_and_the_film_source_names_the_publisher(self):
         ds, attempt = self.fetched()
         self.read(ds)
         self.assertEqual(self.admin("select status, trust_ack_at is null from datasets where id = %s", ds), ("pending_validation", True))
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, false) is null", ds, json.dumps(MAPPING))      # Official: nothing to tick
+        with self.assertRaises(psycopg.errors.InvalidParameterValue) as cm:                         # Q234: the tick on EVERY upload, an Official fetched file too (whether Official may skip it is Ryan's call)
+            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, false)", ds, json.dumps(MAPPING))
+        self.assertIn("Tick the box", str(cm.exception))
+        self.assertEqual(self.admin("select status from datasets where id = %s", ds), "pending_validation")
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         self.assertEqual(self.admin("select status, trust_ack_at is not null from datasets where id = %s", ds), ("approved", True))
         _, vid = self.project_version()
         ref = self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
@@ -365,7 +369,7 @@ class FindDataFetch(core.Base):
         self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)                  # again: still one row
         self.assertEqual(self.db.as_(RYAN).one("select count(*) from version_sources where version_id = %s", vid), 1)
 
-    def test_any_label_but_official_still_needs_the_tick_and_so_does_a_plain_upload(self):
+    def test_every_label_needs_the_tick_and_so_does_a_plain_upload(self):
         self.set_hosts("insert into fetch_hosts (host_suffix, publisher, label) values ('uni.edu', 'A University', 'published_by_others')")
         a = self.reserve(RYAN, "uni.edu")
         ds, path, *_ = self.register(a, url="https://uni.edu/a.csv")
@@ -423,7 +427,7 @@ class FindDataFetch(core.Base):
     def test_the_job_claim_carries_the_fetched_label(self):
         ds, _ = self.fetched()
         self.read(ds)
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, false) is null", ds, json.dumps(MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         ref = "u_" + str(ds).replace("-", "")[:24]
         story = json.dumps({"schema": 1, "engine": "sequence", "name": "t", "sequence": {"clips": [{"kind": "render", "dataset": ref, "view": "map"}]}})
         got = self.admin("select ryagram_private.upload_trust_for(%s, %s::jsonb)", RYAN, story)
@@ -448,14 +452,46 @@ class FindDataFetch(core.Base):
             self.db.as_(None).c.execute(undo)
             self.assertEqual([r[0] for r in self.db.as_(None).c.execute(sql).fetchall() if not r[1]], [], "after undoing: " + fault)
 
+    def test_a_dataset_in_recently_deleted_cannot_be_confirmed_or_attached_fetched_or_plain_and_comes_back_on_restore(self):
+        """WEB's Recently-deleted rule (20261027000200) holds through this migration's attach_upload_to_version: a trashed upload, fetched or not, is neither confirmed nor attached until it is restored."""
+        fetched, _ = self.fetched()
+        plain = self.uploaded()[0]
+        self.read(fetched)
+        self.read(plain)
+        _, vid = self.project_version()
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", fetched, json.dumps(MAPPING))       # control: approved before it is trashed
+        for ds in (fetched, plain):
+            self.db.as_(RYAN).one("select request_dataset_deletion(%s) is null", ds)
+            self.assertIsNotNone(self.admin("select trashed_at from datasets where id = %s", ds))
+            with self.assertRaises(psycopg.Error) as cm:
+                self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true)", ds, json.dumps(MAPPING))
+            self.assertEqual(cm.exception.sqlstate, "PT404", "confirm")
+            with self.assertRaises(psycopg.Error) as cm2:
+                self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
+            self.assertEqual(cm2.exception.sqlstate, "PT404", "attach")
+        self.assertEqual(self.admin("select count(*) from version_sources where version_id = %s", vid), 0)
+        self.db.as_(RYAN).one("select restore_dataset(%s) is null", fetched)
+        ref = self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, fetched)                         # restored: it attaches again, still labelled and still named for its publisher
+        self.assertEqual(self.db.as_(RYAN).one("select publisher, trust_label, fetched from version_sources where version_id = %s and dataset_ref = %s", vid, ref), ("U.S. Census Bureau", "official", True))
+
+    def test_a_trashed_fetched_dataset_cannot_be_finished_by_the_fetch_function(self):
+        a = self.reserve()
+        ds, path, *_ = self.register(a)
+        self.store(path)
+        self.db.as_(None).c.execute("update datasets set trashed_at = now() where id = %s", (ds,))
+        with self.assertRaises(psycopg.Error) as cm:
+            self.svc("select fetch_finish(%s::uuid)", ds)
+        self.assertEqual(cm.exception.sqlstate, "PT404")
+        self.assertEqual(self.admin("select count(*) from dataset_ingests where dataset_id = %s", ds), 0)
+
     def test_the_rollback_goes_back_to_the_trust_label_state_and_the_migration_can_be_applied_again(self):
         ds, _ = self.fetched()
         self.read(ds)
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, false) is null", ds, json.dumps(MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         _, vid = self.project_version()
         self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
         plain = self.uploaded()[0]
-        rollback = (core.ROOT / "rollbacks" / "20261027000200_find_data_fetch_rollback.sql").read_text(encoding="utf-8")
+        rollback = (core.ROOT / "rollbacks" / "20261027000300_find_data_fetch_rollback.sql").read_text(encoding="utf-8")
         self.db.as_(None).c.execute(rollback)
         self.assertIsNone(self.admin("select to_regclass('public.fetch_hosts')"))
         self.assertEqual(self.admin("select count(*) from information_schema.columns where table_name = 'datasets' and column_name in ('origin', 'licence_class', 'publishable')"), 0)
@@ -472,7 +508,7 @@ class FindDataFetch(core.Base):
         self.assertEqual(self.db.as_(RYAN).one("select publisher, trust_label from version_sources where version_id = %s", vid2), ("Your data", "unverified_user"))
         with self.assertRaises(psycopg.errors.CheckViolation):                                                       # the old label rule is back: an upload can never be official
             self.db.as_(None).c.execute("update datasets set trust_label = 'official' where id = %s", (plain,))
-        self.db.as_(None).c.execute((core.ROOT / "migrations" / "20261027000200_find_data_fetch.sql").read_text(encoding="utf-8"))      # and the migration applies again on top
+        self.db.as_(None).c.execute((core.ROOT / "migrations" / "20261027000300_find_data_fetch.sql").read_text(encoding="utf-8"))      # and the migration applies again on top
         self.assertGreaterEqual(self.admin("select count(*) from fetch_hosts"), 16)
 
     def test_deleting_an_account_deletes_its_fetch_records(self):

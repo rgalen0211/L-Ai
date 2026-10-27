@@ -1,5 +1,5 @@
 -- FIND DATA, STEP S1 (NEXT-CONNECT 137; Ryan 2026-10-26 09:38 'let's start putting time into the tool'): the database side of fetching a file from an ALLOWLISTED OFFICIAL host
--- into the existing upload pipeline. NOT APPLIED: a proposal for CC1. It needs 20261026000100 and 20261026000200 (the trust label and the tick) applied first.
+-- into the existing upload pipeline. NOT APPLIED: a proposal for CC1. It needs 20261026000100 and 20261026000200 (the trust label and the tick) AND 20261027000200 (Recently deleted) applied first: its two function bodies below are built on that file's.
 -- Design: Ryagram-logs/proposals/CONNECT-FIND-DATA-DESIGN.md sections 3 to 5; the function that uses it is supabase/functions/source-fetch.
 --
 -- THE SHAPE. A fetched file is an ordinary upload row (source stays 'upload', so the private bucket, the worker's sandboxed reader, the mapping step, the 20-dataset / 100 MiB limits and the purge all
@@ -10,8 +10,9 @@
 -- rights on their own datasets are unchanged. A person can read their own receipt.
 --
 -- WHAT IT CHANGES IN WHAT EXISTS (each is tested): (1) datasets: three columns and the label rule 'an upload is unverified' now reads 'an UPLOADED upload is unverified' (a fetched file may carry the host's label);
--- (2) confirm_dataset_mapping: the tick is required for every label except Official (an Official source shows no warning, so there is nothing to tick); (3) attach_upload_to_version: a fetched dataset's
--- film source row carries the real publisher, the source address and the licence text instead of 'Your data'; (4) version_sources gains `fetched` so ONLY such a row may carry another label than 'unverified_user'.
+-- (2) attach_upload_to_version (WEB's Recently-deleted body, with its trashed_at rule kept): a fetched dataset's film source row carries the real publisher, the source address and the licence text instead of 'Your data'; (3) version_sources
+-- gains `fetched` so ONLY such a row may carry another label than 'unverified_user'. confirm_dataset_mapping is NOT touched: the tick stays required for every upload and every fetched file (Q234); that an Official source
+-- might skip the tick is a question for Ryan (CC1 02:39), not decided here.
 
 begin;
 
@@ -251,7 +252,7 @@ declare
   f public.dataset_fetches;
   o record;
 begin
-  select * into d from public.datasets where id = p_dataset and origin = 'fetched' and deleted_at is null and delete_requested_at is null for update;
+  select * into d from public.datasets where id = p_dataset and origin = 'fetched' and deleted_at is null and delete_requested_at is null and trashed_at is null for update;
   if not found then
     raise exception 'Dataset not found.' using errcode = 'PT404';
   end if;
@@ -286,39 +287,7 @@ revoke execute on function public.fetch_host_for(text), public.fetch_reserve(uui
 grant execute on function public.fetch_host_for(text), public.fetch_reserve(uuid, text), public.fetch_fail(uuid, text),
   public.fetch_register(uuid, uuid, text, text, bigint, text, text, text, text, text), public.fetch_finish(uuid), public.fetch_abort(uuid) to service_role;
 
--- ---------------------------------------------------------------- (2) the tick: required for every label except Official
-
-drop function public.confirm_dataset_mapping(uuid, jsonb, boolean);
-create function public.confirm_dataset_mapping(p_dataset uuid, p_mapping jsonb, p_trust_ack boolean) returns void
-language plpgsql security definer set search_path = '' as $$
-declare
-  me uuid := ryagram_private.require_signed_in();
-  d public.datasets;
-  problem text;
-begin
-  select * into d from public.datasets
-    where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null and delete_requested_at is null for update;
-  if not found then
-    raise exception 'Dataset not found.' using errcode = 'PT404';
-  end if;
-  -- THE TICK IS REQUIRED BY THE DATABASE for every label except Official (an Official source shows no warning, so there is nothing to tick). Ryan's Q234 sentence.
-  if d.trust_label <> 'official' and p_trust_ack is distinct from true then
-    raise exception 'Tick the box to use this data anyway.' using errcode = '22023';
-  end if;
-  if d.ingest_report is null then
-    raise exception 'We haven''t finished reading this file yet.' using errcode = '22023';
-  end if;
-  problem := ryagram_private.mapping_ok(p_mapping, d.ingest_report);
-  if problem is not null then
-    raise exception '%', problem using errcode = '22023';
-  end if;
-  update public.datasets set mapping = p_mapping, geography = p_mapping->>'geography', status = 'approved',
-                             trust_ack_at = coalesce(trust_ack_at, now()), last_activity_at = now() where id = d.id;
-end $$;
-revoke execute on function public.confirm_dataset_mapping(uuid, jsonb, boolean) from public, anon;
-grant execute on function public.confirm_dataset_mapping(uuid, jsonb, boolean) to authenticated;
-
--- ---------------------------------------------------------------- (3) a film's source row for a fetched dataset
+-- ---------------------------------------------------------------- (2) a film's source row for a fetched dataset (on WEB's Recently-deleted body)
 
 create or replace function public.attach_upload_to_version(p_version uuid, p_dataset uuid) returns text
 language plpgsql security definer set search_path = '' as $$
@@ -333,7 +302,7 @@ begin
   select * into v from public.versions where id = p_version and owner_id = me for update;
   if not found then raise exception 'Version not found.' using errcode = 'PT404'; end if;
   select * into d from public.datasets where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null
-                                          and delete_requested_at is null;
+                                          and delete_requested_at is null and trashed_at is null;
   if not found then raise exception 'Dataset not found.' using errcode = 'PT404'; end if;
   if v.state not in ('draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render') then
     raise exception 'This version is % and can''t change its data. Make a new version.', v.state using errcode = '42501';
