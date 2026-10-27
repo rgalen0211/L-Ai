@@ -12,6 +12,7 @@ import re
 from pathlib import Path
 
 LICENCE_FILE = re.compile(r"^(LICEN[SC]E|COPYING|NOTICE|COPYRIGHT)", re.IGNORECASE)
+SOURCES_SENTENCE = "Each library is listed above with its exact version; its source code is available from that project's official website."
 MAX_TEXT = 300_000                    # one licence file; a larger file is cut (and the cut is said)
 
 
@@ -85,7 +86,7 @@ def render(libs: list, python_licence: str, ffmpeg: dict | None, ffmpeg_licence:
               "Licence of this build: " + ("GNU General Public License version 3 (the build is configured --enable-gpl --enable-version3)" if ffmpeg["gpl"] and ffmpeg["version3"] else
                                            "GNU General Public License (configured --enable-gpl)" if ffmpeg["gpl"] else "see the licence text below"),
               "The two programs are run as separate programs by Ryagram's app; Ryagram does not link them into its own code.",
-              "SOURCE: the build's own README below names the exact upstream source it was made from. A copy of that source (and of the sources of the libraries this build includes) is also available on request: "
+              "SOURCE: the build's own README below names the exact upstream source it was made from. A copy of that source is also available on request: "
               + (contact.strip() or "[no contact given: this is NOT a public build]"), "",
               "----- the build's README, verbatim -----", ffmpeg_readme.strip() or "(not available)", "",
               "----- the licence text that comes with the build, verbatim -----", ffmpeg_licence.strip() or "(not available)", ""]
@@ -99,4 +100,5 @@ def render(libs: list, python_licence: str, ffmpeg: dict | None, ffmpeg_licence:
             L += ["  (this package ships no licence text of its own; the licence above is what it declares)"]
         for fname, text in lib["texts"]:
             L += [f"  ----- {fname} -----", text.rstrip(), ""]
+    L += [SOURCES_SENTENCE]                  # Ryan's own words (Q252 (b), 2026-10-26 21:15), verbatim, as the last line of the list
     return "\n".join(L) + "\n"

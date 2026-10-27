@@ -75,6 +75,8 @@ check(all(f"* {n}" in txt or f"* {n.replace('_', '-')}" in txt for n in libs) an
 check("(this package ships no licence text of its own" in txt, "a package with no text is listed as such")
 check("separate programs" in txt and "av.libs" in txt, "it says ffmpeg is run as a separate program and that the av package carries its own FFmpeg libraries")
 check("\r" not in txt and "not a public build" not in txt, "plain text, no placeholder in a build that has a contact")
+check("A copy of that source is also available on request: source@example.test" in txt and "(and of the sources of the libraries" not in txt, "the source line is Ryan's accepted wording: ffmpeg's source on request, no promise about the libraries' sources")
+check(txt.rstrip().endswith("Each library is listed above with its exact version; its source code is available from that project's official website."), "Ryan's sentence about the libraries is the last line of the file, verbatim")
 check("[no contact given: this is NOT a public build]" in tpn.render(list(libs.values()), py, ff, GPL_TEXT, README, ""), "without a contact the file says plainly that it is not a public build")
 
 print("C. what stops a PUBLIC build")
