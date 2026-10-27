@@ -22,7 +22,7 @@ PORT = 8271
 BASE = f'http://127.0.0.1:{PORT}'
 PROJECT = '00000000-0000-4000-8000-0000000000a1'
 TOKEN = 'T0KEN-for-this-test'
-SUMMARY = {'duration': 12, 'lanes': ['video', 'text'], 'limits': {'text_chars': 20}, 'clips': [
+SUMMARY = {'text_rules': None, 'duration': 12, 'lanes': ['video', 'text'], 'limits': {'text_chars': 20}, 'clips': [
     {'id': 'v1', 'track': 'video', 'start': 0, 'len': 2, 'label': 'great news everyone', 'source': 'a.mp4', 'source_start': 4, 'min_len': 0.3, 'max_len': 6},
     {'id': 'v2', 'track': 'video', 'start': 2, 'len': 2, 'label': 'we built a thing', 'source': 'a.mp4', 'source_start': 20, 'min_len': 0.3, 'max_len': 5, 'ai_altered': True},
     {'id': 'v3', 'track': 'video', 'start': 4, 'len': 3, 'label': 'for the weekend', 'source': 'b.mp4', 'source_start': 0, 'min_len': 0.3, 'max_len': 9},
@@ -63,6 +63,7 @@ def serve():
 
 
 def main():
+    SUMMARY['text_rules'] = RULES                                      # BUILDER 12:25: the film's text rules ride in the track summary
     OUT.mkdir(parents=True, exist_ok=True)
     srv = serve()
     ok = True
@@ -110,7 +111,7 @@ def main():
 
                 def on_rules(route):
                     rules_calls.append(route.request.headers.get('x-maker-token'))
-                    route.fulfill(status=200, content_type='application/json', body=json.dumps({'rules': RULES}))
+                    route.fulfill(status=404, content_type='application/json', body=json.dumps({'error': 'not served'}))      # the summary carries them; the route is only a fallback
                 ctx.route('**/api/live/frame**', on_frame)
                 ctx.route('**/api/live/text-rules', on_rules)
                 p = ctx.new_page()
@@ -130,7 +131,7 @@ def main():
                 p.wait_for_selector('canvas.le-canvas')
                 p.wait_for_timeout(600)
                 check(any('clip=v3' in u for u, _ in frames), 'the preview asked the maker for the frame of the clip under the playhead (v3 at 4.4 s)')
-                check(frames and all(tk == TOKEN for _, tk in frames) and rules_calls == [TOKEN], 'frames and text rules were asked with the token header only')
+                check(frames and all(tk == TOKEN for _, tk in frames) and all(tk == TOKEN for tk in rules_calls), 'frames and the fallback text-rules call carried the token header only')
                 px = lambda x, y: p.evaluate('([x, y]) => Array.from(document.querySelector("canvas.le-canvas").getContext("2d").getImageData(x, y, 1, 1).data)', [x, y])
                 c0 = px(320, 100)
                 check(abs(c0[0] - TEAL[0]) < 6 and abs(c0[1] - TEAL[1]) < 6 and abs(c0[2] - TEAL[2]) < 6, 'the canvas shows the maker\u2019s frame (its picture, not a stand-in card)')

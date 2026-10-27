@@ -35,6 +35,9 @@
     const s = { look: clone(init.look || {}), clips: (init.clips || []).map(stripLocal), duration: init.duration || 0, revision: 0 };
     // From the track summary (BUILDER 21): the lanes the maker can build today (an edit in any other lane is refused), and the engine's own limits (text letters).
     if (Array.isArray(init.lanes)) s.lanes = init.lanes.filter(l => TRACKS.includes(l));
+    // The film's own text rules (BUILDER 12:25: textstyle.rules for the canvas the FINAL film has) ride in the summary; kept only when they have the shape the layout needs, never edited by an op.
+    const tr = init.text_rules;
+    if (tr && typeof tr === 'object' && Array.isArray(tr.canvas) && tr.canvas.length === 2 && tr.canvas.every(n => Number.isFinite(n) && n > 0) && tr.styles && typeof tr.styles === 'object' && Array.isArray(tr.safe) && Array.isArray(tr.keep_out)) s.text_rules = clone(tr);
     if (init.limits && typeof init.limits === 'object') s.limits = { text_chars: Number.isInteger(init.limits.text_chars) ? init.limits.text_chars : undefined };
     return s;
   }

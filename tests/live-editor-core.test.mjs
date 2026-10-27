@@ -168,6 +168,14 @@ test('an op the person undid can not be silently repeated by the AI; a changed v
   assert.equal(again.ok, false);
 });
 
+test('the film\'s text rules ride in the summary (BUILDER 12:25): kept when well-formed, dropped when not, and no op can change them', () => {
+  const rules = { canvas: [1280, 720], safe: [64, 36, 1216, 684], keep_out: [], styles: { title: { size: 0.075 } }, font: 'Arial' };
+  assert.deepEqual(plain(E.newState({ clips: [], text_rules: rules }).text_rules), rules);
+  for (const bad of [null, 5, {}, { ...rules, canvas: [0, 720] }, { ...rules, canvas: [1280] }, { ...rules, styles: null }, { ...rules, safe: 'x' }]) assert.equal(E.newState({ clips: [], text_rules: bad }).text_rules, undefined, JSON.stringify(bad));
+  const s = E.newState({ clips: [{ id: 'v1', track: 'video', start: 0, len: 2, label: 'a' }], text_rules: rules });
+  assert.deepEqual(plain(E.apply(s, { op: 'delete_clip', id: 'v1' }).text_rules), rules);                  // an op leaves them as they were
+});
+
 test('the ops the page sends are exactly the closed list, and every one of them is checked', () => {
   assert.deepEqual(plain(E.OPS), ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip']);
   const s = E.newState(base());

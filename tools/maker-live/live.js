@@ -38,6 +38,9 @@
     const s = { look: clone(init.look || {}), clips: (init.clips || []).map(stripLocal), duration: init.duration || 0, revision: 0 };
     // From the track summary (BUILDER 21): the lanes the maker can build today (an edit in any other lane is refused), and the engine's own limits (text letters).
     if (Array.isArray(init.lanes)) s.lanes = init.lanes.filter(l => TRACKS.includes(l));
+    // The film's own text rules (BUILDER 12:25: textstyle.rules for the canvas the FINAL film has) ride in the summary; kept only when they have the shape the layout needs, never edited by an op.
+    const tr = init.text_rules;
+    if (tr && typeof tr === 'object' && Array.isArray(tr.canvas) && tr.canvas.length === 2 && tr.canvas.every(n => Number.isFinite(n) && n > 0) && tr.styles && typeof tr.styles === 'object' && Array.isArray(tr.safe) && Array.isArray(tr.keep_out)) s.text_rules = clone(tr);
     if (init.limits && typeof init.limits === 'object') s.limits = { text_chars: Number.isInteger(init.limits.text_chars) ? init.limits.text_chars : undefined };
     return s;
   }
@@ -608,7 +611,8 @@
       }
       const contain = (ctx, bmp, x, y, w, hh) => { const k = Math.min(w / bmp.width, hh / bmp.height); ctx.drawImage(bmp, x + (w - bmp.width * k) / 2, y + (hh - bmp.height * k) / 2, bmp.width * k, bmp.height * k); };
       async function drawHost() {
-        const seq = ++drawSeq, at = position, W = rules ? rules.canvas[0] : 1280, H = rules ? rules.canvas[1] : 720;
+        const R = ed.state.text_rules || rules;                                   // the summary's rules (the film's real canvas) first, then the host's own text-rules call
+        const seq = ++drawSeq, at = position, W = R ? R.canvas[0] : 1280, H = R ? R.canvas[1] : 720;
         if (cv.height !== Math.round(640 * H / W)) cv.height = Math.round(640 * H / W);
         const ctx = cv.getContext('2d'), k = cv.width / W;
         const now = ed.state.clips.filter(c => at >= c.start && at < c.start + c.len);
@@ -633,7 +637,7 @@
         for (const w of words) {
           try {
             if (w.card) { ctx.fillStyle = '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
-            else if (L && rules && w.style) { const lay = L.layout(rules, w.text, w.style, ctx); L.draw(ctx, rules, lay, w.text, { text: '#f2f2f2', box: '#14141a', alpha: 0.75 }); }
+            else if (L && R && w.style) { const lay = L.layout(R, w.text, w.style, ctx); L.draw(ctx, R, lay, w.text, { text: '#f2f2f2', box: '#14141a', alpha: 0.75 }); }
             else { const sz = Math.round(H * 0.05); ctx.font = `${sz}px Arial, sans-serif`; const tw = ctx.measureText(w.text).width; const x = (W - tw) / 2, y = H * 0.86; ctx.fillStyle = 'rgba(20,20,26,.75)'; ctx.fillRect(x - sz / 3, y - sz, tw + 2 * sz / 3, sz * 1.5); ctx.fillStyle = '#f2f2f2'; ctx.fillText(w.text, x, y); }
           } catch (e) { layoutProblem = String((e && e.message) || 'That text does not fit.').slice(0, 200); }
         }
