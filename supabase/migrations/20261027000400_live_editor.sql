@@ -69,6 +69,7 @@ create table public.edit_ops (
   inverse jsonb check (inverse is null or pg_column_size(inverse) <= 4096),
   status text not null default 'applied' check (status in ('applied', 'pending', 'undone', 'rejected')),
   undone_at timestamptz,
+  ended_by text check (ended_by in ('person', 'ai', 'app')),         -- who took the op back or refused it: only the PERSON's undo stops the AI repeating it
   created_at timestamptz not null default now(),
   foreign key (project_id, mode) references public.edit_drafts (project_id, mode) on delete cascade
 );
@@ -230,7 +231,10 @@ begin
     if prob is not null then
       raise exception 'Change % was not accepted, and nothing was changed: %', i, prob using errcode = '22023';
     end if;
-    if p_actor = 'ai' and exists (select 1 from public.edit_ops e where e.project_id = p_project and e.mode = p_mode and e.status = 'undone' and e.op = o
+    if p_mode = 'compilation' and o ->> 'op' = 'add_clip' and jsonb_typeof(d.state -> 'lanes') = 'array' and not (d.state -> 'lanes') ? (o ->> 'track') then
+      raise exception 'Change % was not accepted: the editor cannot add to the % track yet.', i, o ->> 'track' using errcode = '22023';
+    end if;
+    if p_actor = 'ai' and exists (select 1 from public.edit_ops e where e.project_id = p_project and e.mode = p_mode and e.status in ('undone', 'rejected') and e.ended_by = 'person' and e.op = o
                                   and e.undone_at > now() - interval '10 minutes') then
       raise exception 'Change % was not accepted: the person undid exactly this a moment ago. Ask them before doing it again.', i using errcode = 'PT409';
     end if;
@@ -284,14 +288,14 @@ begin
   newrev := d.revision;
   for e in select * from public.edit_ops where id = any (p_ids) and project_id = p_project and mode = p_mode and owner_id = p_owner order by id desc loop
     if e.status = 'pending' then
-      update public.edit_ops set status = 'rejected', undone_at = now() where id = e.id;
+      update public.edit_ops set status = 'rejected', undone_at = now(), ended_by = p_actor where id = e.id;
       done := done + 1;
     elsif e.status = 'applied' and e.inverse is not null and p_mode = 'data' then
       if exists (select 1 from public.edit_ops l where l.project_id = p_project and l.mode = p_mode and l.id > e.id and l.status = 'applied' and l.op ->> 'key' = e.op ->> 'key') then
         skipped := skipped + 1;                                   -- a newer change to the same setting stands
       else
         if e.inverse ->> 'op' = 'set_look' then look := look || jsonb_build_object(e.inverse ->> 'key', e.inverse -> 'value'); else look := look - (e.inverse ->> 'key'); end if;
-        update public.edit_ops set status = 'undone', undone_at = now() where id = e.id;
+        update public.edit_ops set status = 'undone', undone_at = now(), ended_by = p_actor where id = e.id;
         done := done + 1;
       end if;
     else
@@ -380,7 +384,7 @@ begin
                                'pending', (select count(*) from public.edit_ops e where e.project_id = p_project and e.mode = 'compilation' and e.status = 'pending'),
                                'editor_open', coalesce(dc.editor_seen_at > now() - interval '30 seconds', false)),
     'recently_undone', coalesce((select jsonb_agg(jsonb_build_object('mode', u.mode, 'op', u.op, 'at', u.undone_at) order by u.undone_at desc)
-                                   from (select * from public.edit_ops e where e.project_id = p_project and e.owner_id = me and e.status = 'undone' and e.undone_at > now() - interval '10 minutes' order by e.undone_at desc limit 20) u), '[]'::jsonb));
+                                   from (select * from public.edit_ops e where e.project_id = p_project and e.owner_id = me and e.status in ('undone', 'rejected') and e.ended_by = 'person' and e.undone_at > now() - interval '10 minutes' order by e.undone_at desc limit 20) u), '[]'::jsonb));
 end $$;
 
 create function public.connect_edit_ops(p_token_hash text, p_project uuid, p_mode text, p_base_revision bigint, p_ops jsonb) returns jsonb
@@ -443,7 +447,7 @@ begin
   select * into d from public.edit_drafts where project_id = p_project and mode = 'compilation' and owner_id = me for update;
   if not found then raise exception 'That project was not found among your projects.' using errcode = 'PT404'; end if;
   if not coalesce(p_mirror, false) then
-    update public.edit_ops set status = 'rejected', undone_at = now() where project_id = p_project and mode = 'compilation' and owner_id = me and status = 'pending';
+    update public.edit_ops set status = 'rejected', undone_at = now(), ended_by = 'app' where project_id = p_project and mode = 'compilation' and owner_id = me and status = 'pending';
     update public.edit_drafts set mirrored = false, ai_visible = false, state = '{}'::jsonb, revision = d.revision + 1, updated_at = now(), updated_by = 'person' where project_id = p_project and mode = 'compilation';
     return jsonb_build_object('revision', d.revision + 1, 'mirrored', false, 'ai_visible', false);
   end if;
@@ -451,11 +455,14 @@ begin
   if p_summary is null or jsonb_typeof(p_summary) <> 'object' or pg_column_size(p_summary) > 65536 then
     raise exception 'That track summary is not valid.' using errcode = '22023';
   end if;
-  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('clips', 'duration', 'lanes', 'limits')) then
+  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('schema', 'clips', 'duration', 'lanes', 'limits')) then
     raise exception 'That track summary has a part the editor does not know.' using errcode = '22023';
   end if;
   if p_summary ? 'duration' and (jsonb_typeof(p_summary -> 'duration') <> 'number' or (p_summary ->> 'duration')::numeric < 0 or (p_summary ->> 'duration')::numeric > 86400) then
     raise exception 'The summary duration must be between 0 and 86400 seconds.' using errcode = '22023';
+  end if;
+  if p_summary ? 'schema' and p_summary -> 'schema' is distinct from '"ryagram.edit-tracks/0"'::jsonb then
+    raise exception 'The summary schema must be ryagram.edit-tracks/0.' using errcode = '22023';
   end if;
   if p_summary ? 'lanes' and (jsonb_typeof(p_summary -> 'lanes') <> 'array' or jsonb_array_length(p_summary -> 'lanes') > 4
        or exists (select 1 from jsonb_array_elements(p_summary -> 'lanes') l where jsonb_typeof(l) <> 'string' or (l #>> '{}') not in ('video', 'pictures', 'text', 'music'))) then
@@ -473,7 +480,7 @@ begin
     raise exception 'That track summary is too long.' using errcode = '22023';
   end if;
   for c in select * from jsonb_array_elements(coalesce(p_summary -> 'clips', '[]'::jsonb)) loop
-    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size')) then
+    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size', 'ai_altered', 'ai_altered_by')) then
       raise exception 'A clip in the summary has a field the editor does not know.' using errcode = '22023';
     end if;
     if jsonb_typeof(c -> 'id') is distinct from 'string' or (c ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then raise exception 'A clip in the summary needs an id.' using errcode = '22023'; end if;
@@ -486,16 +493,18 @@ begin
     if exists (select 1 from unnest(array['source_start', 'min_len', 'max_len']) f where c ? f and (jsonb_typeof(c -> f) <> 'number' or (c ->> f)::numeric not between 0 and 86400)) then raise exception 'A clip time must be a number from 0 to 86400 seconds.' using errcode = '22023'; end if;
     if c ? 'position' and (jsonb_typeof(c -> 'position') <> 'string' or (c ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')) then raise exception 'A clip position must be top, centre, bottom or lower_third.' using errcode = '22023'; end if;
     if c ? 'size' and (jsonb_typeof(c -> 'size') <> 'string' or (c ->> 'size') not in ('small', 'medium', 'large')) then raise exception 'A clip size must be small, medium or large.' using errcode = '22023'; end if;
+    if c ? 'ai_altered' and jsonb_typeof(c -> 'ai_altered') <> 'boolean' then raise exception 'ai_altered must be true or false.' using errcode = '22023'; end if;
+    if c ? 'ai_altered_by' and (jsonb_typeof(c -> 'ai_altered_by') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'ai_altered_by', 200)) then raise exception 'ai_altered_by must be plain words.' using errcode = '22023'; end if;
     if c ? 'file' and (jsonb_typeof(c -> 'file') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'file', 120) or (c ->> 'file') ~ '[\\/:]') then raise exception 'A clip file must be a NAME, never a place on the computer.' using errcode = '22023'; end if;
   end loop;
   newrev := d.revision + 1;
   for a in select * from jsonb_array_elements(coalesce(p_applied, '[]'::jsonb)) loop
-    update public.edit_ops set status = case when (a ->> 'ok')::boolean then 'applied' else 'rejected' end, undone_at = case when (a ->> 'ok')::boolean then null else now() end
+    update public.edit_ops set status = case when (a ->> 'ok')::boolean then 'applied' else 'rejected' end, undone_at = case when (a ->> 'ok')::boolean then null else now() end, ended_by = case when (a ->> 'ok')::boolean then null else 'app' end
      where id = (a ->> 'op_id')::bigint and project_id = p_project and mode = 'compilation' and owner_id = me and status = 'pending';
   end loop;
   update public.edit_drafts set mirrored = true, ai_visible = coalesce(p_ai_visible, false), state = p_summary, revision = newrev, updated_at = now(), updated_by = 'person' where project_id = p_project and mode = 'compilation';
   if not coalesce(p_ai_visible, false) then
-    update public.edit_ops set status = 'rejected', undone_at = now() where project_id = p_project and mode = 'compilation' and owner_id = me and actor = 'ai' and status = 'pending';   -- the person unticked: the AI's waiting changes go
+    update public.edit_ops set status = 'rejected', undone_at = now(), ended_by = 'app' where project_id = p_project and mode = 'compilation' and owner_id = me and actor = 'ai' and status = 'pending';   -- the person unticked: the AI's waiting changes go
   end if;
   return jsonb_build_object('revision', newrev, 'mirrored', true, 'ai_visible', coalesce(p_ai_visible, false));
 end $$;

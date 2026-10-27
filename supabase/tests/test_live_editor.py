@@ -67,8 +67,8 @@ class LiveEditor(core.Base):
         _, a, _ = self.connect(ALICE, scopes=scopes)
         return a
 
-    def project(self, access):
-        return self.runner().one("select connect_create_project(%s, 'Film')", h(access))["id"]
+    def project(self, access, title="Film"):
+        return self.runner().one("select connect_create_project(%s, %s)", h(access), title)["id"]
 
     def ai(self, access, project, ops, base=None, mode="data"):
         if base is None:
@@ -229,6 +229,45 @@ class LiveEditor(core.Base):
         self.assertEqual(self.admin("select count(*) from public.edit_ops where project_id = %s and status = 'pending' and actor = 'ai'", p), 6)
         self.assertEqual(self.admin("select state -> 'clips' -> 0 ->> 'id' from public.edit_drafts where project_id = %s and mode = 'compilation'", p), "v1")     # the summary is the app's to change
         self.assertEqual(self.look(p), {})                                                                  # a compilation op never touches the data draft
+
+    def test_an_add_clip_on_a_track_the_summarys_lanes_do_not_list_is_refused_in_plain_words_and_no_lanes_means_no_such_rule(self):
+        a = self.alice()
+        p = self.project(a)
+        self.mirror(p, summary=dict(SUMMARY, lanes=["video", "text"]))
+        pic = {"op": "add_clip", "track": "pictures", "start": 1, "len": 2, "picture": "logo.png"}
+        msg = self.ai_fails(a, p, [{"op": "add_clip", "track": "text", "start": 0, "len": 1, "text": "ok"}, pic], code="22023", mode="compilation", base=1)
+        self.assertIn("cannot add to the pictures track yet", msg)
+        self.assertEqual(self.admin("select count(*) from public.edit_ops where project_id = %s", p), 0)           # all or none: the good first change did not queue either
+        self.assertEqual(self.ai(a, p, [{"op": "add_clip", "track": "text", "start": 0, "len": 1, "text": "ok"}], mode="compilation", base=1)["changes"], 1)     # control
+        p2 = self.project(a, "no lanes")
+        self.mirror(p2)                                                                                           # SUMMARY has no lanes: the old behaviour
+        self.assertEqual(self.ai(a, p2, [pic], mode="compilation", base=1)["changes"], 1)
+
+    def test_the_persons_undo_of_a_waiting_ai_change_blocks_a_repeat_but_the_apps_refusal_does_not(self):
+        a = self.alice()
+        p = self.project(a)
+        self.mirror(p)
+        op = {"op": "delete_clip", "id": "p1"}
+        self.ai(a, p, [op], mode="compilation", base=1)
+        op_id = self.admin("select max(id) from public.edit_ops where project_id = %s", p)
+        r = self.app(ALICE).one("select editor_undo(%s, 'compilation', %s)", p, op_id)
+        self.assertEqual(r["undone"], 1)
+        self.assertEqual(self.admin("select status || '/' || ended_by from public.edit_ops where id = %s", op_id), "rejected/person")
+        self.assertIn("undid exactly this", self.ai_fails(a, p, [op], code="PT409", mode="compilation"))          # the person's undo of a WAITING change counts
+        self.assertEqual(self.state(a, p)["recently_undone"][0]["op"], op)
+        # the app refusing a change (it could not apply it) is not the person saying no
+        p2 = self.project(a, "app refuses")
+        self.mirror(p2)
+        self.ai(a, p2, [op], mode="compilation", base=1)
+        self.run_sql("update public.edit_ops set status = 'rejected', undone_at = now(), ended_by = 'app' where project_id = %s", p2)
+        self.assertEqual(self.ai(a, p2, [op], mode="compilation")["changes"], 1)
+        # the AI taking back its own change is not the person saying no either
+        p3 = self.project(a, "ai undoes itself")
+        self.mirror(p3)
+        self.ai(a, p3, [op], mode="compilation", base=1)
+        self.runner().one("select connect_edit_undo_ai(%s, %s, 'compilation')", h(a), p3)
+        self.assertEqual(self.admin("select ended_by from public.edit_ops where project_id = %s", p3), "ai")
+        self.assertEqual(self.ai(a, p3, [op], mode="compilation")["changes"], 1)
 
     # ---------------------------------------------------------------------------------------------- the person's editor, undo, and the person winning
     def test_the_person_edits_the_same_draft_through_the_same_function_and_is_logged_as_the_person(self):

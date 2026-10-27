@@ -100,7 +100,7 @@ export function opProblem(mode: Mode, op: unknown): string | null {
 }
 
 // ----------------------------------------------------------------------------------------------------- the draft, as the in-memory stand-in keeps it (the SQL keeps the same facts in edit_drafts / edit_ops)
-export interface OpRow { id: number; revision: number; actor: "person" | "ai"; client: string | null; op: Op; inverse: Op | null; status: "applied" | "pending" | "undone" | "rejected"; at: number; undone_at: number | null }
+export interface OpRow { id: number; revision: number; actor: "person" | "ai"; client: string | null; op: Op; inverse: Op | null; status: "applied" | "pending" | "undone" | "rejected"; at: number; undone_at: number | null; ended_by: "person" | "ai" | "app" | null }
 export interface Draft { mode: Mode; revision: number; look: Record<string, unknown>; tracks: Record<string, unknown>; mirrored: boolean; ai_visible: boolean; editor_seen_at: number | null; ops: OpRow[] }
 export const newDraft = (mode: Mode): Draft => ({ mode, revision: 0, look: {}, tracks: {}, mirrored: false, ai_visible: false, editor_seen_at: null, ops: [] });
 
@@ -119,7 +119,10 @@ export function applyOps(d: Draft, actor: "person" | "ai", client: string | null
   ops.forEach((o, i) => {
     const p = opProblem(d.mode, o);
     if (p) throw e(`Change ${i + 1} was not accepted, and nothing was changed: ${p}`, "22023");
-    if (actor === "ai" && d.ops.some((x) => x.status === "undone" && JSON.stringify(x.op) === JSON.stringify(o) && x.undone_at !== null && now - x.undone_at < LIMITS_EDIT.undoneWindowMs)) {
+    if (d.mode === "compilation" && (o as Op).op === "add_clip" && Array.isArray(d.tracks.lanes) && !d.tracks.lanes.includes((o as Op).track)) {
+      throw e(`Change ${i + 1} was not accepted: the editor cannot add to the ${String((o as Op).track)} track yet.`, "22023");
+    }
+    if (actor === "ai" && d.ops.some((x) => (x.status === "undone" || x.status === "rejected") && x.ended_by === "person" && JSON.stringify(x.op) === JSON.stringify(o) && x.undone_at !== null && now - x.undone_at < LIMITS_EDIT.undoneWindowMs)) {
       throw e(`Change ${i + 1} was not accepted: the person undid exactly this a moment ago. Ask them before doing it again.`, "PT409");
     }
   });
@@ -131,9 +134,9 @@ export function applyOps(d: Draft, actor: "person" | "ai", client: string | null
       let inverse: Op | null;
       if (o.op === "set_look") { inverse = prev === undefined ? { op: "unset_look", key } : { op: "set_look", key, value: prev }; look[key] = o.value; }
       else { inverse = prev === undefined ? null : { op: "set_look", key, value: prev }; delete look[key]; }
-      d.ops.push({ id: nextId(), revision, actor, client, op: o, inverse, status: "applied", at: now, undone_at: null });
+      d.ops.push({ id: nextId(), revision, actor, client, op: o, inverse, status: "applied", at: now, undone_at: null, ended_by: null });
     } else {
-      d.ops.push({ id: nextId(), revision, actor, client, op: o, inverse: null, status: "pending", at: now, undone_at: null });
+      d.ops.push({ id: nextId(), revision, actor, client, op: o, inverse: null, status: "pending", at: now, undone_at: null, ended_by: null });
     }
   }
   if (d.mode === "data") d.look = look;
@@ -142,15 +145,15 @@ export function applyOps(d: Draft, actor: "person" | "ai", client: string | null
 }
 
 /** Undo some ops, newest first. A newer applied change to the same setting stands (skipped); pending compilation ops are simply rejected. */
-export function undoOps(d: Draft, ids: number[], now = Date.now()): { undone: number; skipped: number; revision: number; state: unknown } {
+export function undoOps(d: Draft, ids: number[], now = Date.now(), by: "person" | "ai" = "person"): { undone: number; skipped: number; revision: number; state: unknown } {
   let undone = 0, skipped = 0;
   for (const row of d.ops.filter((x) => ids.includes(x.id)).sort((a, b) => b.id - a.id)) {
-    if (row.status === "pending") { row.status = "rejected"; row.undone_at = now; undone++; }
+    if (row.status === "pending") { row.status = "rejected"; row.undone_at = now; row.ended_by = by; undone++; }
     else if (row.status === "applied" && row.inverse && d.mode === "data") {
       if (d.ops.some((l) => l.id > row.id && l.status === "applied" && l.op.key === row.op.key)) { skipped++; continue; }
       const inv = row.inverse;
       if (inv.op === "set_look") d.look[inv.key as string] = inv.value; else delete d.look[inv.key as string];
-      row.status = "undone"; row.undone_at = now; undone++;
+      row.status = "undone"; row.undone_at = now; row.ended_by = by; undone++;
     } else skipped++;
   }
   if (undone > 0) d.revision++;

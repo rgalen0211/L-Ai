@@ -47,7 +47,7 @@ export class FakeWorld {
   private opId = 0;
   /** The person's desktop app mirrors a track summary (this is what the real node function does); aiVisible = the person ticked "Let my AI see my track list". */
   mirror(userId: string, projectId: string, summary: unknown, aiVisible: boolean) {
-    const d = this.draft(userId, projectId, "compilation"); d.mirrored = true; d.ai_visible = aiVisible; (d as Draft & { summary?: unknown }).summary = summary; d.revision++;
+    const d = this.draft(userId, projectId, "compilation"); d.mirrored = true; d.ai_visible = aiVisible; d.tracks = (summary ?? {}) as Record<string, unknown>; d.revision++;
   }
   /** The person editing in their own page (the editor_apply_ops stand-in). */
   personEdit(userId: string, projectId: string, mode: Mode, base: number, ops: Op[]) { return applyOps(this.draft(userId, projectId, mode), "person", null, base, ops, () => ++this.opId); }
@@ -152,9 +152,9 @@ export class FakeWorld {
           saved_story_sha256: u().versions.filter((v) => v.project_id === pid).reduce((a, b) => (b.number > a.number ? b : a)).story_sha256,
           look_keys: LOOK_KEYS.map((k) => ({ key: k.key, kind: k.kind, choices: k.choices ?? null, min: k.min ?? null, max: k.max ?? null })),
           data: { revision: dd.revision, look: dd.look, editor_open: live(dd) },
-          compilation: { revision: dc.revision, shared: dc.ai_visible, tracks: dc.ai_visible ? ((dc as Draft & { summary?: unknown }).summary ?? {}) : null,
+          compilation: { revision: dc.revision, shared: dc.ai_visible, tracks: dc.ai_visible ? dc.tracks : null,
                          pending: dc.ops.filter((o) => o.status === "pending").length, editor_open: live(dc) },
-          recently_undone: [...dd.ops, ...dc.ops].filter((o) => o.status === "undone" && o.undone_at !== null && Date.now() - o.undone_at < 600_000)
+          recently_undone: [...dd.ops, ...dc.ops].filter((o) => (o.status === "undone" || o.status === "rejected") && o.ended_by === "person" && o.undone_at !== null && Date.now() - o.undone_at < 600_000)
             .sort((a, b) => (b.undone_at ?? 0) - (a.undone_at ?? 0)).slice(0, 20).map((o) => ({ mode: dd.ops.includes(o) ? "data" : "compilation", op: o.op, at: new Date(o.undone_at!).toISOString() })),
         }));
       },
@@ -167,7 +167,7 @@ export class FakeWorld {
         const d = this.draft(userId, pid, mode);
         const mine = d.ops.filter((o) => o.actor === "ai" && (o.status === "applied" || o.status === "pending"));
         const last = mine.length ? Math.max(...mine.map((o) => o.revision)) : -1;
-        return undoOps(d, mine.filter((o) => o.revision === last).map((o) => o.id));
+        return undoOps(d, mine.filter((o) => o.revision === last).map((o) => o.id), Date.now(), "ai");
       },
       currentEngine: async () => this.engine,
       readReceipt: async () => null,
