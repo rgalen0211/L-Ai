@@ -89,6 +89,10 @@ export class ConnectDb {
       readReceipt: async () => null,
       quote: (versionId, jobType) => self.fn("connect_quote", ["text", "uuid", "text"], [h, versionId, jobType]),
       jobById: (jobId) => self.fn("connect_job", ["text", "uuid"], [h, jobId]),
+      // migrations/20261027000400_live_editor.sql (NOT APPLIED until Ryan applies it): the person's live editor, as drafts.
+      editState: (projectId) => self.fn("connect_edit_state", ["text", "uuid"], [h, projectId]),
+      editOps: (projectId, mode, base, ops) => self.fn("connect_edit_ops", ["text", "uuid", "text", "bigint", "jsonb"], [h, projectId, mode, base, ops]),
+      editUndoAi: (projectId, mode) => self.fn("connect_edit_undo_ai", ["text", "uuid", "text"], [h, projectId, mode]),
       // No file links leave the database: the AI is pointed at the person's own Ryagram page, where they sign in to watch.
       async links(versionId, jobId) {
         const v = await d.getVersion(versionId);

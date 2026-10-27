@@ -336,5 +336,126 @@ const filmLink: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink];
+// ---------------------------------------------------------------------------------------------- the live preview editor (NEXT-CONNECT 141)
+// Everything here is a DRAFT in the person's open editor. The person's own Save / Build is the only commit: these tools cannot render, spend credits, publish, fetch or see a path.
+// The vocabulary is closed (edit_state.ts / the SQL edit_op_problem); a change that is not in it is refused whole, and nothing is applied.
+
+const MODE = { type: "string", enum: ["data", "compilation"] };
+const REVISION = { type: "integer", minimum: 0, maximum: 1000000000, description: "The revision you read from get_edit_state. If the editor has moved on since, nothing is changed and you are told, so read it again." };
+
+/** The database's own sentences, with a short machine code for the log. Anything unexpected is rethrown and becomes the generic sentence. */
+function editRefusal(e: unknown): ToolResult | null {
+  const code = (e as { code?: string })?.code ?? "";
+  const why = code === "PT409" ? "conflict" : code === "PT429" ? "rate" : code === "PT403" ? "not_shared" : code === "PT404" ? "not_found" : code === "22023" ? "args" : null;
+  return why ? refuse(friendlyError(e) + " Nothing was changed.", why) : null;
+}
+
+const MAX_LISTED_CLIPS = 120;
+function clipLine(c: Record<string, unknown>): string {
+  const words = typeof c.text === "string" ? ` text ${untrusted("clip-text", c.text.slice(0, 200))}` : typeof c.picture === "string" ? ` picture ${untrusted("picture-name", c.picture.slice(0, 100))}`
+    : typeof c.label === "string" ? ` ${untrusted("clip-label", c.label.slice(0, 120))}` : "";
+  return `${String(c.id)}  ${String(c.track)}  starts ${Number(c.start)}s, ${Number(c.len)}s long${words}`;
+}
+
+const getEditState: ToolDef = {
+  name: "get_edit_state", title: "See the person's open editor", scope: "read", readOnly: true,
+  description: "Shows what is in the person's live preview editor for one project: the look settings currently changed, which settings you may change, and (only if the person ticked \"Let my AI see my track list\" in the Ryagram app) "
+    + "their clip list for a compilation, with each clip's id. Read it before set_look or edit_tracks: you need the revision it gives. It never shows a video, a picture or a place on their computer.",
+  inputSchema: obj({ project_id: uuid }, ["project_id"]),
+  async run(a, ctx) {
+    const s = await ctx.data.editState(String(a.project_id));
+    if (!s) return NOT_YOURS("project");
+    const lines: string[] = [];
+    const set = Object.entries(s.data.look);
+    lines.push(`Data film look (revision ${s.data.revision}; the person's editor is ${s.data.editor_open ? "open now" : "not open right now"}):`);
+    lines.push(set.length ? set.map(([k, v]) => `  ${k} = ${JSON.stringify(v)}`).join("\n") : "  nothing changed yet; the saved story's own look applies.");
+    lines.push("Look settings you may change with set_look:");
+    for (const k of s.look_keys ?? []) {
+      lines.push(`  ${k.key}  (${k.kind}${k.choices ? ": " + k.choices.join(" | ") : ""}${k.min != null && k.max != null ? `, ${k.min} to ${k.max}` : ""})`);
+    }
+    const c = s.compilation;
+    lines.push("", `Compilation (revision ${c.revision}; the person's editor is ${c.editor_open ? "open now" : "not open right now"}):`);
+    if (!c.shared || !c.tracks) {
+      lines.push('  The person has not shared their track list with their AI. If they want your help with a compilation, they tick "Let my AI see my track list" in the Ryagram app. Until then you cannot see or change it.');
+    } else {
+      const clips = (c.tracks.clips ?? []).slice(0, MAX_LISTED_CLIPS);
+      lines.push(`  ${c.tracks.clips?.length ?? 0} clip${c.tracks.clips?.length === 1 ? "" : "s"}${typeof c.tracks.duration === "number" ? `, ${c.tracks.duration}s in all` : ""}; ${c.pending} of your changes are waiting for the person's app to apply them.`);
+      for (const clip of clips) lines.push("  " + clipLine(clip));
+      if ((c.tracks.clips?.length ?? 0) > clips.length) lines.push(`  ... and ${(c.tracks.clips?.length ?? 0) - clips.length} more not listed.`);
+    }
+    if (s.recently_undone.length) {
+      lines.push("", "The person recently took back these changes; do not make them again without asking:");
+      for (const u of s.recently_undone.slice(0, 10)) lines.push(`  ${u.mode}: ${JSON.stringify(u.op).slice(0, 200)}`);
+    }
+    lines.push("", "Everything you change is a draft the person sees and can undo; only their own Save or Build makes it final. You cannot render, spend credits or publish from here.");
+    return ok(lines.join("\n"), { saved_story_sha256: s.saved_story_sha256, look_keys: s.look_keys ?? [], data: s.data, compilation: { revision: c.revision, shared: c.shared, pending: c.pending, editor_open: c.editor_open, tracks: c.shared ? c.tracks : null }, recently_undone: s.recently_undone });
+  },
+};
+
+const setLook: ToolDef = {
+  name: "set_look", title: "Change the look in the person's open editor", scope: "edit", readOnly: false,
+  description: "Changes look settings (like colours) on a DATA film in the person's open editor, as drafts they see within a couple of seconds and can undo. 1 to 20 changes at a time, all or none. "
+    + "Only the settings get_edit_state lists. Nothing is saved or rendered: the person presses Save or Build themselves. Give the revision you read; if the editor moved on you are told and nothing changes.",
+  inputSchema: obj({
+    project_id: uuid, base_revision: REVISION,
+    set: { type: "array", maxItems: 20, items: obj({ key: { type: "string", minLength: 1, maxLength: 60 }, value: { anyOf: [{ type: "string", maxLength: 60 }, { type: "number" }, { type: "boolean" }] } }, ["key", "value"]), description: "Settings to change, each a key from get_edit_state and its new value (a colour is like #1a73e8)." },
+    unset: { type: "array", maxItems: 20, items: { type: "string", minLength: 1, maxLength: 60 }, description: "Settings to put back to the saved story's own look." },
+  }, ["project_id", "base_revision"]),
+  async run(a, ctx) {
+    const ops: Record<string, unknown>[] = [
+      ...((a.set as { key: string; value: unknown }[] | undefined) ?? []).map((x) => ({ op: "set_look", key: x.key, value: x.value })),
+      ...((a.unset as string[] | undefined) ?? []).map((k) => ({ op: "unset_look", key: k })),
+    ];
+    if (!ops.length) return refuse("Say what to change: \"set\" or \"unset\" needs at least one entry.", "args");
+    if (ops.length > 20) return refuse("At most 20 changes at a time.", "args");
+    try {
+      const r = await ctx.data.editOps(String(a.project_id), "data", Number(a.base_revision), ops);
+      return ok(`Changed ${r.changes} look setting${r.changes === 1 ? "" : "s"} as drafts (the editor is now at revision ${r.revision}). The person sees them in their editor and can undo them; nothing is saved until they press Save or Build. `
+        + "To take back your last batch: undo_my_changes.", { revision: r.revision, changes: r.changes, look: (r.state as { look?: unknown } | null)?.look ?? null, saved: false });
+    } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
+  },
+};
+
+const OP_PROPS = {
+  op: { type: "string", enum: ["move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "add_clip"] },
+  id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,40}$", description: "A clip id from get_edit_state." },
+  start: { type: "number", minimum: 0, maximum: 86400 }, edge: { type: "string", enum: ["start", "end"] }, to: { type: "number", minimum: 0, maximum: 86400 },
+  index: { type: "integer", minimum: 0, maximum: 199 }, text: { type: "string", minLength: 1, maxLength: 200 },
+  track: { type: "string", enum: ["text", "pictures"] }, len: { type: "number", minimum: 0.3, maximum: 30 },
+  picture: { type: "string", pattern: PICTURE_PATTERN, description: "The NAME of a picture the person has added in the app." },
+};
+
+const editTracks: ToolDef = {
+  name: "edit_tracks", title: "Change the clip list of a compilation", scope: "edit", readOnly: false,
+  description: "Changes the person's compilation clip list in their open editor, as drafts: move_clip {id,start}, trim_clip {id,edge,to}, reorder_clip {id,index}, set_clip_text {id,text}, delete_clip {id}, "
+    + "add_clip {track: text|pictures, start, len, text|picture}. 1 to 20 changes at a time, all or none. Needs the person to have ticked \"Let my AI see my track list\". "
+    + "The changes are applied by the person's Ryagram app on their own computer when it is open, and they can undo them; nothing is built or saved for them. You cannot add or remove videos.",
+  inputSchema: obj({
+    project_id: uuid, base_revision: REVISION,
+    ops: { type: "array", minItems: 1, maxItems: 20, items: { type: "object", properties: OP_PROPS, required: ["op"], additionalProperties: false } },
+  }, ["project_id", "base_revision", "ops"]),
+  async run(a, ctx) {
+    try {
+      const r = await ctx.data.editOps(String(a.project_id), "compilation", Number(a.base_revision), a.ops as Record<string, unknown>[]);
+      return ok(`Queued ${r.changes} change${r.changes === 1 ? "" : "s"} for the person's clip list (the editor is now at revision ${r.revision}). They are drafts: the person's Ryagram app applies them on their computer when it is open, `
+        + "they can undo them, and nothing is built or saved until they press Build. To take back your last batch: undo_my_changes.", { revision: r.revision, changes: r.changes, pending: true, saved: false });
+    } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
+  },
+};
+
+const undoMine: ToolDef = {
+  name: "undo_my_changes", title: "Take back my last batch of changes", scope: "edit", readOnly: false,
+  description: "Takes back YOUR most recent batch of editor changes on one project (never the person's own). A setting the person changed since stays as they left it. Changes still waiting for the person's app are cancelled.",
+  inputSchema: obj({ project_id: uuid, mode: MODE }, ["project_id", "mode"]),
+  async run(a, ctx) {
+    try {
+      const r = await ctx.data.editUndoAi(String(a.project_id), a.mode as "data" | "compilation");
+      if (!r.undone && !r.skipped) return ok("There was nothing of yours to take back.", { undone: 0, skipped: 0, revision: r.revision });
+      return ok(`Took back ${r.undone} change${r.undone === 1 ? "" : "s"}${r.skipped ? `; ${r.skipped} left as they are because the person or a newer change has since changed them` : ""}. The editor is at revision ${r.revision}.`,
+        { undone: r.undone, skipped: r.skipped, revision: r.revision });
+    } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

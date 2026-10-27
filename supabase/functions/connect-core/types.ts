@@ -5,7 +5,7 @@
 // has an argument that skips, waives or overrides one.
 import type { Job, UserData } from "../ai-editor/tools.ts";
 
-export type Scope = "read" | "write" | "render_free" | "render_final";
+export type Scope = "read" | "write" | "render_free" | "render_final" | "edit";
 
 /** Who is calling. The real server knows only the token's hash: the database resolves the person and client from it on every call, and no
  *  function takes an owner id. userId and clientId exist only in the in-memory stand-in used by tests. */
@@ -55,6 +55,17 @@ export interface Link { kind: string; url: string; expires_in_s: number }
 /** For a job that runs on the person's own computer: when any of their signed-in computers last called the site, and what that computer calls itself (untrusted text). */
 export interface LocalNode { last_seen_at: string | null; computer_name: string | null }
 
+/** The person's open editor, as their AI may see it (NEXT-CONNECT 141). Names and numbers only: never a path, a video, a picture or an account detail. */
+export interface EditState {
+  saved_story_sha256: string | null;
+  look_keys: { key: string; kind: string; choices: string[] | null; min: number | null; max: number | null }[] | null;
+  data: { revision: number; look: Record<string, unknown>; editor_open: boolean };
+  compilation: { revision: number; shared: boolean; tracks: { duration?: number; clips?: Record<string, unknown>[] } | null; pending: number; editor_open: boolean };
+  recently_undone: { mode: string; op: Record<string, unknown>; at: string }[];
+}
+export interface EditResult { revision: number; changes: number; state: unknown; pending: boolean }
+export interface EditUndoResult { undone: number; skipped: number; revision: number; state: unknown }
+
 /** What the tools need from the database, ALWAYS as the signed-in person (RLS / connect_* functions). */
 export interface Data extends Omit<UserData, "submitJob"> {
   /** A final render also names the contact sheet and preview it stands on (the database re-checks the ladder). */
@@ -71,6 +82,11 @@ export interface Data extends Omit<UserData, "submitJob"> {
     /** r9: where the job runs. 'owner_local' = on the person's own computer, made by their Ryagram desktop app. Absent = the house. */
     run_on?: string; node?: LocalNode | null }) | null>;
   links(versionId: string, jobId: string | null): Promise<Link[]>;
+  /** The live editor (scope read for the state, scope edit for the rest). null = the project is not the person's. Changes are DRAFTS the person sees and saves; the AI never saves, renders or spends from here. */
+  editState(projectId: string): Promise<EditState | null>;
+  editOps(projectId: string, mode: "data" | "compilation", baseRevision: number, ops: Record<string, unknown>[]): Promise<EditResult>;
+  /** Takes back the AI's own most recent batch (never the person's changes). */
+  editUndoAi(projectId: string, mode: "data" | "compilation"): Promise<EditUndoResult>;
 }
 
 export interface Deps {

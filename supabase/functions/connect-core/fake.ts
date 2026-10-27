@@ -3,13 +3,14 @@
 // It mirrors the real rules that matter (editable states, one job in progress per type, ladder, holds) but is
 // NOT the authority: the SQL functions are. It lives in the repo only for tests and local development.
 import type { Job } from "../ai-editor/tools.ts";
-import type { CallLog, Data, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
+import { applyOps, LOOK_KEYS, newDraft, undoOps, type Draft, type Mode, type Op } from "./edit_state.ts";
+import type { CallLog, Data, EditState, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null; run_on?: string };
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal }
+interface FUser { requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -19,7 +20,7 @@ const sha = (s: unknown) => {                       // a stable stand-in digest;
   return (h >>> 0).toString(16).padStart(8, "0").repeat(8);
 };
 const err = (message: string, code: string) => Object.assign(new Error(message), { code });
-const ALL: Scope[] = ["read", "write", "render_free", "render_final"];
+const ALL: Scope[] = ["read", "write", "render_free", "render_final", "edit"];
 
 export class FakeWorld {
   users = new Map<string, FUser>();
@@ -31,12 +32,26 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map() };
+    const u: FUser = { requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
     this.users.set(userId, u);
     return u;
   }
   /** Make this person's jobs run on their own computer (owner_local), with the computer's last-seen time and name. */
   setLocal(userId: string, l: FLocal) { this.users.get(userId)!.local = l; }
+  /** The live editor stand-in (the SQL is the authority). The draft of one mode of one project; made on first use. */
+  draft(userId: string, projectId: string, mode: Mode): Draft {
+    const u = this.users.get(userId)!; const k = `${projectId}|${mode}`;
+    if (!u.drafts.has(k)) u.drafts.set(k, newDraft(mode));
+    return u.drafts.get(k)!;
+  }
+  private opId = 0;
+  /** The person's desktop app mirrors a track summary (this is what the real node function does); aiVisible = the person ticked "Let my AI see my track list". */
+  mirror(userId: string, projectId: string, summary: unknown, aiVisible: boolean) {
+    const d = this.draft(userId, projectId, "compilation"); d.mirrored = true; d.ai_visible = aiVisible; (d as Draft & { summary?: unknown }).summary = summary; d.revision++;
+  }
+  /** The person editing in their own page (the editor_apply_ops stand-in). */
+  personEdit(userId: string, projectId: string, mode: Mode, base: number, ops: Op[]) { return applyOps(this.draft(userId, projectId, mode), "person", null, base, ops, () => ++this.opId); }
+  openEditor(userId: string, projectId: string, mode: Mode, open = true) { this.draft(userId, projectId, mode).editor_seen_at = open ? Date.now() : null; }
   invite(userId: string, clientId: string, scopes: Scope[] = ["read", "write", "render_free"]) { this.grants.set(`${userId}|${clientId}`, { scopes }); }
   revoke(userId: string, clientId: string) { this.grants.delete(`${userId}|${clientId}`); }
   issue(token: string, p: Principal) { this.tokens.set(token, p); }
@@ -128,6 +143,31 @@ export class FakeWorld {
           engine_commit: null, error_class: null, error_code: null, error_detail: null, version_id: vid, project_id: v.project_id,
           params, steps: 0, credits: q.credits, progress: null, ...(user.local ? { run_on: "owner_local" } : {}) };
         user.jobs.push(j); return { id: j.id, state: j.state, ...(j.run_on ? { run_on: j.run_on } : {}) };
+      },
+      editState: async (pid): Promise<EditState | null> => {
+        if (!u().projects.some((p) => p.id === pid)) return null;
+        const dd = this.draft(userId, pid, "data"), dc = this.draft(userId, pid, "compilation");
+        const live = (d: Draft) => d.editor_seen_at !== null && Date.now() - d.editor_seen_at < 30_000;
+        return JSON.parse(JSON.stringify({
+          saved_story_sha256: u().versions.filter((v) => v.project_id === pid).reduce((a, b) => (b.number > a.number ? b : a)).story_sha256,
+          look_keys: LOOK_KEYS.map((k) => ({ key: k.key, kind: k.kind, choices: k.choices ?? null, min: k.min ?? null, max: k.max ?? null })),
+          data: { revision: dd.revision, look: dd.look, editor_open: live(dd) },
+          compilation: { revision: dc.revision, shared: dc.ai_visible, tracks: dc.ai_visible ? ((dc as Draft & { summary?: unknown }).summary ?? {}) : null,
+                         pending: dc.ops.filter((o) => o.status === "pending").length, editor_open: live(dc) },
+          recently_undone: [...dd.ops, ...dc.ops].filter((o) => o.status === "undone" && o.undone_at !== null && Date.now() - o.undone_at < 600_000)
+            .sort((a, b) => (b.undone_at ?? 0) - (a.undone_at ?? 0)).slice(0, 20).map((o) => ({ mode: dd.ops.includes(o) ? "data" : "compilation", op: o.op, at: new Date(o.undone_at!).toISOString() })),
+        }));
+      },
+      editOps: async (pid, mode, base, ops) => {
+        if (!u().projects.some((p) => p.id === pid)) throw err("That project was not found among your projects.", "PT404");
+        return applyOps(this.draft(userId, pid, mode), "ai", "Claude", base, ops, () => ++this.opId);
+      },
+      editUndoAi: async (pid, mode) => {
+        if (!u().projects.some((p) => p.id === pid)) throw err("That project was not found among your projects.", "PT404");
+        const d = this.draft(userId, pid, mode);
+        const mine = d.ops.filter((o) => o.actor === "ai" && (o.status === "applied" || o.status === "pending"));
+        const last = mine.length ? Math.max(...mine.map((o) => o.revision)) : -1;
+        return undoOps(d, mine.filter((o) => o.revision === last).map((o) => o.id));
       },
       currentEngine: async () => this.engine,
       readReceipt: async () => null,
