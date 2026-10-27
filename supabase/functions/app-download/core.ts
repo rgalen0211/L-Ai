@@ -4,8 +4,11 @@
 // this function only checks the person's sign-in and signs ONE object of the PRIVATE bucket. It holds three secrets (the R2 account id and an access key that can only READ that one bucket) in function
 // secrets; they are never returned, logged or put in an error. A connected AI's OAuth token is refused (the app is for a person).
 
+export const KINDS = ["app", "addon", "notices"] as const;
+export type Kind = typeof KINDS[number];
+
 export interface Release {
-  link_id: string; file_name: string; size_bytes: number; sha256: string; object_key: string; expires_seconds: number;
+  link_id: string; kind: string; file_name: string; size_bytes: number; sha256: string; object_key: string; expires_seconds: number;
 }
 
 export interface Deps {
@@ -13,8 +16,8 @@ export interface Deps {
   /** false until the three R2 secrets and the bucket name are set: the function then answers 503 BEFORE anything is written. */
   configured(): boolean;
   verifyUser(jwt: string): Promise<{ id: string; clientId: string | null } | null>;
-  /** request_app_download(owner): throws an Error with the database's SQLSTATE in .code (PT401, PT403, PT404, PT429) and a plain sentence in .message. */
-  request(owner: string): Promise<Release>;
+  /** request_app_download(owner, kind): throws an Error with the database's SQLSTATE in .code (PT401, PT403, PT404, PT429) and a plain sentence in .message. */
+  request(owner: string, kind: Kind): Promise<Release>;
   /** A presigned GET for exactly this object, valid for `seconds`, saved with this file name. */
   presign(objectKey: string, seconds: number, fileName: string): Promise<string>;
 }
@@ -37,11 +40,22 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   const user = jwt ? await deps.verifyUser(jwt).catch(() => null) : null;
   if (!user) return reply(401, { error: "Sign in first." });
   if (user.clientId) return reply(403, { error: "The app is downloaded by a person on the website, not by a connected AI." });
+  let kind: Kind = "app";
+  try {                                                                                  // the body is optional: {} or {"kind": "app" | "addon" | "notices"}
+    const text = await req.text();
+    const body = text.trim() ? JSON.parse(text) : {};
+    if (body && typeof body === "object" && "kind" in body) {
+      if (!(KINDS as readonly unknown[]).includes(body.kind)) return reply(400, { error: "Bad request." });
+      kind = body.kind as Kind;
+    }
+  } catch {
+    return reply(400, { error: "Bad request." });
+  }
   if (!deps.configured()) return reply(503, { error: "The download is not set up yet." });
 
   let rel: Release;
   try {
-    rel = await deps.request(user.id);
+    rel = await deps.request(user.id, kind);
   } catch (err) {
     const e = err as { code?: string; message?: string };
     const status = PLAIN[e.code ?? ""];

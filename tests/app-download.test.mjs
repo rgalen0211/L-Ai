@@ -5,7 +5,7 @@ import { handle } from '../supabase/functions/app-download/core.ts';
 import { presignGet } from '../supabase/functions/_shared/r2_presign.ts';
 
 const ALICE = '00000000-0000-4000-8000-00000000a11c';
-const REL = { link_id: '11111111-1111-4111-8111-111111111111', file_name: 'app-1.zip', size_bytes: 273939672, sha256: 'a'.repeat(64), object_key: 'releases/app-1.zip', expires_seconds: 900 };
+const REL = { kind: 'app', link_id: '11111111-1111-4111-8111-111111111111', file_name: 'app-1.zip', size_bytes: 273939672, sha256: 'a'.repeat(64), object_key: 'releases/app-1.zip', expires_seconds: 900 };
 const SECRET = 'TOP-SECRET-ACCESS-KEY-VALUE';
 const NOW = new Date('2026-10-26T20:30:00Z');
 
@@ -15,7 +15,7 @@ function setup(over = {}) {
     allowedOrigins: ['https://uselai.com'],
     configured: () => true,
     verifyUser: async (jwt) => (jwt === 'good' ? { id: ALICE, clientId: null } : jwt === 'oauth' ? { id: ALICE, clientId: 'claude' } : null),
-    request: async (owner) => { calls.request.push(owner); return { ...REL, link_id: crypto.randomUUID() }; },
+    request: async (owner, kind) => { calls.request.push(owner); calls.kinds = [...(calls.kinds ?? []), kind]; return { ...REL, kind, link_id: crypto.randomUUID() }; },
     presign: async (key, seconds, fileName) => {
       calls.presign.push([key, seconds, fileName]);
       return presignGet({ host: 'acct.r2.cloudflarestorage.com', path: `/ryagram-app/${key}`, accessKeyId: 'AKID', secretAccessKey: SECRET, expiresSeconds: seconds, now: NOW,
@@ -107,6 +107,20 @@ test('not set up: 503 before anything is written; a signer that fails is a gener
   const logs = []; const old = console.error; console.error = (...x) => logs.push(x.join(' '));
   try { const r2 = await b.call(); assert.equal(r2.status, 500); assert.ok(!r2.text.includes(SECRET)); } finally { console.error = old; }
   assert.ok(logs.every((l) => !l.includes(SECRET)));
+});
+
+test('the body is optional: {} and nothing mean the app; "addon" and "notices" are the other two; anything else is a 400 before the database', async () => {
+  const a = setup();
+  assert.equal((await a.call('POST', { body: {} })).status, 200);
+  assert.equal((await a.call()).status, 200);
+  assert.equal((await a.call('POST', { body: { kind: 'addon' } })).status, 200);
+  assert.equal((await a.call('POST', { body: { kind: 'notices' } })).status, 200);
+  assert.deepEqual(a.calls.kinds, ['app', 'app', 'addon', 'notices']);
+  const before = a.calls.request.length;
+  for (const bad of [{ kind: 'zip' }, { kind: 7 }, { kind: null }, { kind: '../x' }]) assert.equal((await a.call('POST', { body: bad })).status, 400, JSON.stringify(bad));
+  const r = await (handle(new Request('https://x.test/f', { method: 'POST', headers: { authorization: 'Bearer good', origin: 'https://uselai.com' }, body: '{not json' }), a.deps));
+  assert.equal(r.status, 400);
+  assert.equal(a.calls.request.length, before, 'a bad body never reaches the database');
 });
 
 test('a second request is handled as a new request (the database counts and limits them); the function keeps no state', async () => {

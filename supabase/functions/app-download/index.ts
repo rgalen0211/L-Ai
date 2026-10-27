@@ -22,8 +22,8 @@ serve((req) => handle(req, {
     const u = await verifyAppUser(service.auth, jwt);
     return u ? { id: u.id, clientId: null } : null;
   },
-  async request(owner) {
-    const { data, error } = await service.rpc("request_app_download", { p_owner: owner });
+  async request(owner, kind) {
+    const { data, error } = await service.rpc("request_app_download", { p_owner: owner, p_kind: kind });
     if (error) throw Object.assign(new Error(error.message), { code: error.code });
     return data as Release;
   },

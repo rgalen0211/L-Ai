@@ -24,7 +24,7 @@ from test_2a_core import OTHER, RYAN, WORKER, setUpModule  # noqa: E402,F401  (s
 
 TESTER, PLAIN, ADMIN = (str(uuid.UUID(int=i)) for i in (301, 302, 303))
 SHA = "a" * 64
-KEYS = {"link_id", "file_name", "size_bytes", "sha256", "object_key", "expires_seconds"}
+KEYS = {"link_id", "kind", "file_name", "size_bytes", "sha256", "object_key", "expires_seconds"}
 
 
 class AppDownloads(core.Base):
@@ -44,11 +44,11 @@ class AppDownloads(core.Base):
         row = self.db.c.execute(sql, args).fetchone()
         return row[0] if row and len(row) == 1 else row
 
-    def add_release(self, active=True, key="releases/app-1.zip", name="app-1.zip", size=273939672, sha=SHA):
-        return self.admin("insert into public.app_releases (file_name, size_bytes, sha256, object_key, active) values (%s, %s, %s, %s, %s) returning id", name, size, sha, key, active)
+    def add_release(self, active=True, key="releases/app-1.zip", name="app-1.zip", size=273939672, sha=SHA, kind="app"):
+        return self.admin("insert into public.app_releases (kind, file_name, size_bytes, sha256, object_key, active) values (%s, %s, %s, %s, %s, %s) returning id", kind, name, size, sha, key, active)
 
-    def ask(self, who):
-        return self.db.as_("service").one("select request_app_download(%s::uuid)", who)
+    def ask(self, who, kind="app"):
+        return self.db.as_("service").one("select request_app_download(%s::uuid, %s)", who, kind)
 
     def rows(self):
         return self.admin("select count(*) from public.app_downloads")
@@ -82,6 +82,27 @@ class AppDownloads(core.Base):
         self.admin("update public.app_downloads set asked_at = now() - interval '25 hours' where owner_id = %s returning 1", TESTER)
         self.assertEqual(set(self.ask(TESTER)), KEYS)                                   # older than a day no longer counts
 
+    def test_each_kind_has_its_own_active_release_and_its_own_daily_limit(self):
+        self.add_release(kind='addon', key='releases/forge-addon.zip', name='forge-addon.zip', size=4537)
+        self.add_release(kind='notices', key='releases/notices.txt', name='notices.txt', size=295826)
+        got = {k: self.ask(TESTER, k) for k in ('app', 'addon', 'notices')}
+        self.assertEqual({k: v['file_name'] for k, v in got.items()}, {'app': 'app-1.zip', 'addon': 'forge-addon.zip', 'notices': 'notices.txt'})
+        self.assertEqual({v['kind'] for v in got.values()}, {'app', 'addon', 'notices'})
+        for _ in range(2):
+            self.ask(TESTER, 'addon')
+        with self.assertRaises(psycopg.Error) as cm:
+            self.ask(TESTER, 'addon')                                                     # the fourth add-on link in a day
+        self.assertEqual(cm.exception.sqlstate, 'PT429')
+        self.assertEqual(self.ask(TESTER, 'app')['kind'], 'app')                            # the app's own count is separate
+        for bad in ('zip', None, '', 'APP'):
+            with self.assertRaises(psycopg.Error, msg=str(bad)) as cm:
+                self.ask(TESTER, bad)
+            self.assertEqual(cm.exception.sqlstate, 'PT404')
+        with self.assertRaises(psycopg.errors.UniqueViolation):
+            self.add_release(kind='addon', key='releases/other-addon.zip', name='other-addon.zip')       # a second active add-on
+        with self.assertRaises(psycopg.errors.CheckViolation):
+            self.add_release(active=False, kind='program', key='releases/x.zip', name='x.zip')           # not a kind
+
     def test_the_release_must_be_active_and_only_one_can_be(self):
         self.admin("update public.app_releases set active = false returning 1")
         with self.assertRaises(psycopg.Error) as cm:
@@ -106,8 +127,8 @@ class AppDownloads(core.Base):
                 with self.assertRaises(psycopg.Error, msg=f"{who} {t}"):
                     self.db.as_(who).one(f"select count(*) from public.{t}")
         for role in ("anon", "authenticated", "public"):
-            self.assertFalse(self.admin(f"select has_function_privilege('{role}', 'public.request_app_download(uuid)', 'EXECUTE')"), role)
-        self.assertTrue(self.admin("select has_function_privilege('service_role', 'public.request_app_download(uuid)', 'EXECUTE')"))
+            self.assertFalse(self.admin(f"select has_function_privilege('{role}', 'public.request_app_download(uuid,text)', 'EXECUTE')"), role)
+        self.assertTrue(self.admin("select has_function_privilege('service_role', 'public.request_app_download(uuid,text)', 'EXECUTE')"))
         with self.assertRaises(psycopg.Error):
             self.db.as_(TESTER).one("select request_app_download(%s::uuid)", TESTER)       # a signed-in person cannot call it, not even for themselves
         self.assertEqual(self.rows(), 0)
@@ -126,8 +147,8 @@ class AppDownloads(core.Base):
             for path in core.MIGRATIONS:
                 c.execute(path.read_text(encoding="utf-8"))
             for role in ("anon", "authenticated", "public"):
-                self.assertFalse(c.execute(f"select has_function_privilege('{role}', 'public.request_app_download(uuid)', 'EXECUTE')").fetchone()[0], role)
-            self.assertTrue(c.execute("select has_function_privilege('service_role', 'public.request_app_download(uuid)', 'EXECUTE')").fetchone()[0])
+                self.assertFalse(c.execute(f"select has_function_privilege('{role}', 'public.request_app_download(uuid,text)', 'EXECUTE')").fetchone()[0], role)
+            self.assertTrue(c.execute("select has_function_privilege('service_role', 'public.request_app_download(uuid,text)', 'EXECUTE')").fetchone()[0])
         finally:
             c.close()
             with psycopg.connect(core._server.get_uri(), autocommit=True) as c2:
