@@ -168,8 +168,8 @@ class Sources(core.Base):
     def test_an_upload_source_survives_a_sync_and_deleting_the_account_removes_all(self):
         vid = self.version("state_obesity_fastfood")
         self.sync(vid)
-        self.admin("insert into version_sources (owner_id, version_id, kind, dataset_ref, title, position) "
-                   "values (%s, %s, 'upload', 'u_abc', 'My file', 2) returning 1", RYAN, vid)
+        self.admin("insert into version_sources (owner_id, version_id, kind, dataset_ref, title, trust_label, position) "
+                   "values (%s, %s, 'upload', 'u_abc', 'My file', 'unverified_user', 2) returning 1", RYAN, vid)
         self.assertEqual([r[1] for r in self.sync(vid)], ["catalog", "upload"])
         self.db.as_(RYAN).one("update versions set story_spec = %s::jsonb where id = %s returning 1", story("bps_county_permits"), vid)
         self.assertEqual(sorted(r[0] for r in self.sync(vid)), ["bps_county_permits", "u_abc"])

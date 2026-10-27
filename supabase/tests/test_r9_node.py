@@ -27,7 +27,9 @@ LEDGER = ROOT / "phase-2b" / "credits_ledger.sql"
 R9_MIGRATION = ROOT / "migrations" / "20261021000100_r9_render_node.sql"
 DRAFT = Path(os.environ.get("R9_DRAFT_SQL") or R9_MIGRATION)   # R9_DRAFT_SQL: a mutant copy, for the must-fail probe
 ROLLBACK = ROOT / "rollbacks" / "20261021000100_r9_render_node_rollback.sql"
-BEFORE_R9 = [p for p in core.MIGRATIONS if p.name != R9_MIGRATION.name]
+# Everything that comes BEFORE the r9 migration in apply order (not 'everything but r9': a migration added after r9 would be applied first and collide with it).
+_names = [p.name for p in core.MIGRATIONS]
+BEFORE_R9 = core.MIGRATIONS[:_names.index(R9_MIGRATION.name)]
 RYAN, OTHER, WORKER, WORKER2 = core.RYAN, core.OTHER, core.WORKER, core.WORKER2
 SAM, BOB, ADMIN = (str(uuid.UUID(int=i)) for i in (201, 202, 203))
 _server = None
