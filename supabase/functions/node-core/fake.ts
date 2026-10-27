@@ -173,6 +173,24 @@ export class FakeNodeWorld implements NodeDb {
     return this.requests.filter((r) => r.owner === owner).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 20)
       .map((r) => ({ project_id: r.project_id, title: r.title, request: r.request, sha256: r.sha256, updated_at: r.updated_at }));
   }
+  /** the live editor, as far as the router can tell (the SQL is the authority): waiting changes by owner, and what was mirrored */
+  editQueue: { owner: string; id: number; project_id: string; revision: number; client: string | null; op: Record<string, unknown> }[] = [];
+  editProjects = new Map<string, string>();                                   // project id -> owner (the tests fill it)
+  editPosts: { owner: string; project_id: string; mirror: boolean; ai_visible: boolean; summary: Record<string, unknown> | null; applied: { op_id: number; ok: boolean }[] }[] = [];
+  async editPending(accessHash: string) {
+    this.calls.push("node_edit_pending");
+    const { owner } = this.actor(accessHash);
+    return this.editQueue.filter((r) => r.owner === owner).slice(0, 100).map((r) => ({ id: r.id, project_id: r.project_id, revision: r.revision, client: r.client, op: r.op }));
+  }
+  async editPostSummary(accessHash: string, projectId: string, mirror: boolean, aiVisible: boolean, summary: Record<string, unknown> | null, applied: { op_id: number; ok: boolean }[]) {
+    this.calls.push("node_edit_post_summary");
+    const { owner } = this.actor(accessHash);
+    if (this.editProjects.get(projectId) !== owner) throw err("PT404", "That project was not found among your projects.");
+    this.editPosts.push({ owner, project_id: projectId, mirror, ai_visible: mirror && aiVisible, summary: mirror ? summary : null, applied });
+    for (const a of applied) { const i = this.editQueue.findIndex((r) => r.owner === owner && r.project_id === projectId && r.id === a.op_id); if (i >= 0) this.editQueue.splice(i, 1); }
+    if (!mirror || !aiVisible) this.editQueue = this.editQueue.filter((r) => !(r.owner === owner && r.project_id === projectId && r.client !== null));
+    return { revision: this.editPosts.length, mirrored: mirror, ai_visible: mirror && aiVisible };
+  }
   async compilationStatus(accessHash: string): Promise<CompilationStatus> {
     this.calls.push("node_compilation_status");
     const { owner } = this.actor(accessHash);
