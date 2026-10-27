@@ -617,7 +617,13 @@
     function editorView(kind, onStop) {
       const isData = kind === 'data';
       const onPc = !!window.ryagramLiveHost;                                   // on the person's own computer: no demo film, no stand-in; only what the maker's draft holds
-      const ed = new E.Editor(onPc ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
+      // Data-film mode with the engine's own drawer (NEXT-WEB 154): when the page can get the film's look bundle (the host's bundle(project) call; in mock mode a synthetic one) and
+      // ENGINE's look-draw.js is loaded, the preview IS the engine's drawing and the look panel offers the keys it honours. Without either, the stand-in drawing below stays.
+      const DD = window.ryagramEditorData, RL = window.RyagramLook;
+      const lookLoader = isData && DD && RL ? (window.ryagramLiveHost && typeof window.ryagramLiveHost.bundle === 'function' ? p => window.ryagramLiveHost.bundle(p) : typeof window.ryagramMockLookBundle === 'function' ? p => window.ryagramMockLookBundle(p) : null) : null;
+      const bundleMode = !!lookLoader;
+      let bundle = null, tl = null, bundleState = bundleMode ? 'opening' : 'none', bundleNote = '';
+      const ed = new E.Editor(onPc || bundleMode ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
       const host = window.ryagramLiveHost || null;
@@ -625,7 +631,7 @@
       const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
       const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
-      let position = isData ? LAST : onPc ? 0 : 4.4;                            // a year, or a time in seconds
+      let position = bundleMode ? 0 : isData ? LAST : onPc ? 0 : 4.4;           // a year (stand-in), or a time in seconds
       let selected = isData ? null : onPc ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
       let saved = true, message = '';
@@ -634,7 +640,21 @@
 
       // ---- the preview: a stand-in drawing (ENGINE 35's drawer replaces it); it redraws from the state at once
       const view = h('div', { class: 'le-view', role: 'img' });
+      const pic = h('img', { class: 'le-svg', alt: '', draggable: 'false' });
+      function drawBundle() {
+        if (bundleState !== 'ready') {
+          view.replaceChildren(h('p', { class: 'le-bundle-note', role: 'status' }, bundleState === 'opening' ? 'Opening the film…' : bundleNote));
+          view.setAttribute('aria-label', bundleState === 'opening' ? 'Opening the film' : 'The film could not be opened');
+          return;
+        }
+        const r = DD.pictureFor(RL, bundle, position, { ...ed.state.look, ...(preview || {}) });
+        if (!r.error) pic.src = r.src;
+        view.replaceChildren(pic);
+        if (r.error) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, r.error));
+        view.setAttribute('aria-label', `Preview of ${tl.label(position)}`);
+      }
       function drawData() {
+        if (bundleMode) { drawBundle(); return; }
         const look = { ...ed.state.look, ...(preview || {}) };
         const reveal = (position - FIRST) / (LAST - FIRST);
         const svg = sv('svg', { viewBox: '0 0 160 90', class: 'le-svg' });
@@ -718,22 +738,30 @@
       }
 
       // ---- the scrubber: a real range input (keyboard and screen reader for free)
-      const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? 'Year' : 'Time in the film' });
+      const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? (bundleMode ? 'Period of the film' : 'Year') : 'Time in the film' });
       const posText = h('b', { class: 'le-pos' });
-      const setPos = v => { position = v; paintPreview(); posText.textContent = isData ? String(Math.round(position)) : `${mmss(position)} / ${mmss(ed.state.duration)}`;
-        range.setAttribute('aria-valuetext', isData ? `Year ${Math.round(position)}` : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
+      const setPos = v => { position = v; paintPreview();
+        const shown = bundleMode ? (tl ? tl.label(position) : '') : String(Math.round(position));
+        posText.textContent = isData ? shown : `${mmss(position)} / ${mmss(ed.state.duration)}`;
+        range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
       const paintPreview = () => (isData ? drawData() : hostPreview ? drawHost() : drawClips());
-      range.addEventListener('input', () => setPos(isData ? Number(range.value) : Number(range.value) / 10));
+      range.addEventListener('input', () => setPos(bundleMode ? (tl ? tl.seconds(Number(range.value)) : 0) : isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
         if (timer) { stopPlay(); return; }
         playBtn.textContent = 'Pause';
+        if (bundleMode) {                                                       // one frame per tick at the film's own frame rate (capped at 12 a second so a slow phone keeps up)
+          if (!tl) return;
+          const ms = Math.max(1000 / 12, 1000 / tl.fps);
+          timer = setInterval(() => { const f = tl.frame(position) + 1; setPos(tl.seconds(f >= tl.frames ? 0 : f)); range.value = String(tl.frame(position)); }, ms);
+          return;
+        }
         timer = setInterval(() => { const step = isData ? 0.25 : 0.1, max = isData ? LAST : ed.state.duration; if (position + step > max) { setPos(isData ? FIRST : 0); } else setPos(position + step); range.value = String(isData ? position : Math.round(position * 10)); }, isData ? 60 : 100);
       });
       let timer = null;
       const stopPlay = () => { if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; };
       onStop(stopPlay);
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
-      const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, YEARS.map(y => h('span', {}, String(y)))) : null;
+      const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;
 
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });
@@ -746,6 +774,7 @@
       let locked = false;                                                       // locked: a render is using what was committed
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
+        if (bundleMode) { const rows = DD.honoured(RL).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
         if (isData) return ['The look you can see:', ...LOOK_ROWS.map(([k, l]) => `${l} ${ed.state.look[k]}`)];
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
@@ -869,7 +898,41 @@
 
       // ---- the look panel (data films)
       const lookPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-look-h' });
+      // Bundle mode: the rows the engine's drawer honours (it names the ones it does not), the six presets, and the keys still waiting for the worker. A colour dragged in a chooser
+      // is only previewed; releasing it makes the op. Nothing here uses credits: 'Render final film' is the only button that does.
+      function paintBundleLook() {
+        const touched = new Set(ed.aiTouched()), look = ed.state.look, dflt = DD.defaults(bundle, look), cur = DD.presetOf(look);
+        const rows = DD.honoured(RL).map(([key, label, kind]) => {
+          const id = `le-look-${key}`, val = look[key] !== undefined ? look[key] : dflt[key], mark = touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' \u00b7 by your AI') : null;
+          if (kind === 'theme') {
+            const sel = h('select', { id, disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, w]) => h('option', { value: v, selected: val === v }, w)));
+            sel.addEventListener('change', () => apply({ op: 'set_look', key, value: sel.value }));
+            return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), sel);
+          }
+          if (kind === 'number') {
+            const n = h('input', { type: 'number', id, min: '0', max: '4', step: '0.5', value: val, disabled: locked });
+            n.addEventListener('change', () => apply({ op: 'set_look', key, value: Number(n.value) }));
+            return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), n);
+          }
+          const input = h('input', { type: 'color', value: val, id, 'aria-label': label, disabled: locked });
+          input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });
+          input.addEventListener('change', () => { preview = null; apply({ op: 'set_look', key, value: input.value }); });
+          return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), input);
+        });
+        const presetRows = DD.PRESETS.map(p => {
+          const on = cur && cur.id === p.id, notes = DD.cautions(p);
+          return h('li', { class: `le-preset${on ? ' le-on' : ''}` },
+            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look); if (ops.length && await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
+            h('span', { class: 'meta' }, ` ${p.blurb}`), ...notes.map(t => h('span', { class: 'le-warn le-cau' }, t)));
+        });
+        lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
+          h('h3', {}, 'Ready-made looks'), h('ul', { class: 'le-presets' }, presetRows),
+          h('p', { class: 'meta' }, 'A ready-made look sets the colours below; its middle colour waits for the worker and is not shown until it can be saved.'),
+          ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
+          h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
+      }
       function paintLook() {
+        if (bundleMode) { paintBundleLook(); return; }
         const touched = new Set(ed.aiTouched());
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
           ...LOOK_ROWS.map(([key, label]) => {
@@ -948,6 +1011,17 @@
         say(r.ok ? '' : r.reason);
         paint();
         return r.ok;
+      }
+      async function applyMany(ops) {                                           // a preset: several look ops, each checked; with a draft they travel as one batch
+        stopPlay();
+        if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; }
+        let ok = true, why = '';
+        if (draft) { const r = await draft.send(ops); ok = r.ok; why = r.reason; }
+        else for (const op of ops) { const r = ed.do(op); if (!r.ok) { ok = false; why = r.reason; break; } }
+        if (ok) saved = false;
+        say(ok ? '' : why);
+        paint();
+        return ok;
       }
       let refocus = null;                                                       // a keyboard edit rebuilds the lanes: focus goes back to the clip that was edited
       function keyOn(c) {
@@ -1056,7 +1130,8 @@
       function paintWarns() {
         const out = [];
         if (layoutProblem) out.push(layoutProblem);
-        if (isData) {
+        if (bundleMode) { if (bundleState === 'ready') out.push(...DD.warnings(bundle, ed.state.look)); }
+        else if (isData) {
           const lk = ed.state.look;
           if (lk['network.color'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The lines are the same colour as the page, so you cannot see them. You can still render; the final checks decide if it is publishable.');
           if (lk['state.fill'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The land is the same colour as the page.');
@@ -1073,7 +1148,8 @@
         emptyNote.hidden = !empty;
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
         undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
-        if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
+        if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
+        else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
         paintBanner(); paintWarns(); paintAiLinks(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
@@ -1089,8 +1165,19 @@
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
-        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
+        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
+      if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
+        const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
+        Promise.resolve().then(() => lookLoader(project)).then(b => {
+          const why = DD.bundleProblem(b);
+          if (why) { problem(why); return; }
+          bundle = b; tl = DD.timeline(RL, b); bundleState = 'ready';
+          position = tl.seconds(tl.frames - 1);                                 // open on the last period: the film's finished picture
+          ticks.replaceChildren(...tl.ticks.map(m => { const t = h('span', {}, String(m.period)); t.style.left = `${m.at * 100}%`; return t; }));
+          paint();
+        }).catch(() => problem('The film\u2019s drawing data could not be opened. Try again in a minute.'));
+      }
       if (draft) {                                                              // read the draft, then look for the AI's changes every two seconds while this page is open and visible
         draft.open().then(r => { if (!r.ok) say(r.reason); paint(); });
         const pollTimer = setInterval(async () => { if (document.hidden || locked) return; const r = await draft.poll(); if (r.ok && (r.applied.length || r.skipped.length)) { saved = false; paint(); } }, 2000);

@@ -72,7 +72,7 @@ def main():
 
                 # ---- data film
                 ctx, p, errors = page()
-                p.goto(f'{BASE}/app/?mock#/editor/data', wait_until='load')
+                p.goto(f'{BASE}/app/?mock&standin#/editor/data', wait_until='load')
                 p.wait_for_selector('.le-svg')
                 check(p.inner_text('.le-pill') == 'Saved', 'starts saved, nothing changed')
                 p.fill('#le-range', '1990')
@@ -252,7 +252,7 @@ def main():
 
                 # ---- flag off: today's page
                 ctx, p, errors = page(flag=False)
-                p.goto(f'{BASE}/app/?mock#/editor/data', wait_until='load')
+                p.goto(f'{BASE}/app/?mock&standin#/editor/data', wait_until='load')
                 p.wait_for_timeout(700)
                 check(p.locator('.le').count() == 0 and 'Your projects' in p.inner_text('main'), 'flag off: the address shows the library, not the editor')
                 check(not errors, 'flag off: no console errors')
