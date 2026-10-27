@@ -18,11 +18,13 @@ import json
 import math
 import os
 import re
+import subprocess
 import sys
 import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import parse_qs
 
 SCHEMA = "ryagram.live-draft/0"
 MIN_LEN = 0.3
@@ -600,6 +602,7 @@ class LiveDraft:
 #   POST /api/live/rpc {name, args}      the five editor_* functions on this computer's draft -> {data, error}
 #   GET  /api/live/sync                  {signed_in, mirror, ai_visible, project, message}: what the small card shows
 #   POST /api/live/sync {mirror, ai_visible, project}   the person's two switches and the site project this film belongs to
+#   GET  /api/live/frame?clip=<id>&t=<s> one small JPEG of what a clip shows at that moment (the page's preview); names only
 #   POST /api/live/render {}             builds the film from the edit list (the Edit page's own render: one at a time) -> {message, film} | {error}; answers when the film is made
 # The film itself is still the edit list (edit.json): every accepted change is turned into it by the engine's own tracks module (ryagram.local.edittracks) BEFORE it is kept, so a change the
 # engine could not build (a clip from a video the person did not choose, a trim past the end of a file) is refused in plain words and nothing moves.
@@ -766,6 +769,13 @@ def get(path: str, query: str, send, send_json, auth, host_ok, send_file=None) -
         return True
     if path == "/api/live/sync":
         send_json(200, sync_status())
+    elif path == "/api/live/frame":
+        try:
+            send(200, frame(query), "image/jpeg", LIVE_CSP)
+        except Problem as e:
+            send_json(404, {"error": str(e)})
+        except (OSError, subprocess.SubprocessError):
+            send_json(404, {"error": "The picture for that moment could not be made."})
     else:
         send_json(404, {"error": "Not found."})
     return True
@@ -814,3 +824,62 @@ def post(path: str, body: dict, send_json) -> bool:
     except Problem as e:
         send_json(400, {"error": str(e)})
     return True
+
+
+# --------------------------------------------------------------------------------------------------------- 5. the film's frame for the preview (GET /api/live/frame)
+# The live page's preview draws, from the host, the picture a clip shows at a moment: GET /api/live/frame?clip=<clip id>&t=<seconds into the clip> -> one small JPEG (640 wide at most). The clip is named
+# by the id the draft lists; the video file comes from the maker's own list of chosen media (never from the address); no path is in the request or the answer. A clip with no picture (a text line, a
+# text slide) answers 404 in words.
+FRAME_WIDTH = 640
+FRAME_MAX_BYTES = 400_000
+_FRAME_GATE = threading.Semaphore(2)
+_FRAME_CACHE: dict = {}
+_FRAME_CACHE_MAX = 64
+
+
+def _ffmpeg_jpeg(args_in: list, ss: float | None) -> bytes:
+    cmd = ["ffmpeg", "-hide_banner", "-loglevel", "error"] + (["-ss", f"{ss:.3f}"] if ss is not None else []) + args_in + \
+          ["-frames:v", "1", "-vf", f"scale={FRAME_WIDTH}:-2", "-q:v", "5", "-f", "mjpeg", "-"]
+    with _FRAME_GATE:
+        r = subprocess.run(cmd, capture_output=True, timeout=20)
+    if r.returncode != 0 or not r.stdout or len(r.stdout) > FRAME_MAX_BYTES:
+        raise Problem("The picture for that moment could not be made.")
+    return r.stdout
+
+
+def frame(query: str) -> bytes:
+    q = parse_qs(query)
+    cid = (q.get("clip") or [""])[0]
+    try:
+        t = float((q.get("t") or ["0"])[0])
+    except ValueError:
+        raise Problem("The moment must be a number of seconds.") from None
+    if not ID.match(cid) or not math.isfinite(t) or t < 0 or t > 86400:
+        raise Problem("That is not a clip and a moment this film has.")
+    try:
+        state = draft().state("compilation")
+    except LiveError as e:
+        raise Problem(e.message) from None
+    clip = next((c for c in state["clips"] if c.get("id") == cid), None)
+    if clip is None:
+        raise Problem("That clip is not in this film.")
+    me = _edit()
+    if clip.get("track") == "video" and isinstance(clip.get("source"), str) and _is_num(clip.get("source_start")):
+        try:
+            media = me._eb().resolve_media(me._media_items())
+        except Exception:  # noqa: BLE001
+            raise Problem("The videos could not be read.") from None
+        path = media.get(clip["source"])
+        if path is None:
+            raise Problem("That video is not one you chose.")
+        at = clip["source_start"] + min(t, max(0.0, clip["len"] - 0.05))
+        key = (str(path), round(at, 1))
+        if key not in _FRAME_CACHE:
+            if len(_FRAME_CACHE) >= _FRAME_CACHE_MAX:
+                _FRAME_CACHE.pop(next(iter(_FRAME_CACHE)))
+            _FRAME_CACHE[key] = _ffmpeg_jpeg(["-i", str(path)], at)
+        return _FRAME_CACHE[key]
+    pic = clip.get("picture")
+    if isinstance(pic, str) and me.S()["images"].get(pic) is not None and me.S()["images"][pic].is_file():
+        return _ffmpeg_jpeg(["-i", str(me.S()["images"][pic])], None)
+    raise Problem("That clip has no picture of its own.")

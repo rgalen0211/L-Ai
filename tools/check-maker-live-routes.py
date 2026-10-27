@@ -209,6 +209,37 @@ check(r["applied"] == 1 and ed.saved["texts"][0]["text"] == "From my AI", "an AI
 post = [b for route, b in site.calls if route == "/node/edit-summary"][-1]
 check(post["applied"] == [{"op_id": 7, "ok": True}] and post["summary"]["schema"] == "ryagram.edit-tracks/0" and "C:" not in json.dumps(post), "and is acknowledged, with the new summary and no path")
 
+# the preview's picture: GET /api/live/frame?clip=&t= (real ffmpeg, a made-up video); names only, nothing else is reachable through it
+import os  # noqa: E402
+import subprocess  # noqa: E402
+FFDIR = Path(os.environ.get("FFMPEG_DIR") or "C:/Users/Ryan/AppData/Local/Microsoft/WinGet/Packages/Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe/ffmpeg-9.0.1-full_build/bin")
+if (FFDIR / "ffmpeg.exe").is_file():
+    os.environ["PATH"] = str(FFDIR) + os.pathsep + os.environ["PATH"]
+    clip_file = tmp / "my-clips"
+    clip_file.mkdir()
+    for name, secs in (("a.mp4", 20), ("b.mp4", 8), ("c.mp4", 12)):
+        subprocess.run(["ffmpeg", "-hide_banner", "-loglevel", "error", "-y", "-f", "lavfi", "-i", f"testsrc=s=1280x720:r=10:d={secs}", "-pix_fmt", "yuv420p", str(clip_file / name if name != "c.mp4" else tmp / name)], check=True)
+    dm, ed = make(tmp / "frame")
+    ed._media_items = lambda: [str(clip_file), str(tmp / "c.mp4")]
+    st = ML.draft().state("compilation")
+    vid = [c for c in st["clips"] if c["track"] == "video"][0]
+    txt = [c for c in st["clips"] if c["track"] == "text"][0]
+
+    def frame_get(qs):
+        out = []
+        ML.get("/api/live/frame", qs, lambda code, body, ctype, csp=None: out.append((code, body, ctype)), lambda code, obj: out.append((code, obj, "json")), lambda **k: True, lambda: True)
+        return out[0]
+    code, body, ctype = frame_get(f"clip={vid['id']}&t=0.5")
+    check(code == 200 and ctype == "image/jpeg" and body[:2] == bytes([0xFF, 0xD8]) and 1000 < len(body) < 400_000, "a video clip's frame is one small JPEG")
+    wd = subprocess.run(["ffprobe", "-v", "error", "-show_entries", "stream=width", "-of", "csv=p=0", "-"], input=body, capture_output=True).stdout.decode().strip()
+    check(wd.isdigit() and int(wd) <= 640, f"it is at most 640 wide ({wd})")
+    check(frame_get(f"clip={txt['id']}&t=1")[0] == 404 and frame_get("clip=nope&t=1")[0] == 404 and frame_get("clip=..%2F..%2Fx&t=1")[0] == 404 and frame_get(f"clip={vid['id']}&t=abc")[0] == 404 and frame_get(f"clip={vid['id']}&t=-1")[0] == 404,
+          "a text line, an unknown clip, a path in place of a clip and a bad moment each answer 404 in words")
+    code, obj, _ = frame_get("clip=nope&t=1")
+    check("\\" not in json.dumps(obj) and "C:" not in json.dumps(obj), "no path in an answer")
+else:
+    print("  skip the frame route (no ffmpeg at " + str(FFDIR) + ")")
+
 # the first final film is checked against the list Plan made (FACES --previous): maker_edit seeds committed-edit.json once, and never overwrites it
 import maker_edit as MEd  # noqa: E402
 MEd._dm = types.SimpleNamespace(STATE={"work": tmp / "seed"})
