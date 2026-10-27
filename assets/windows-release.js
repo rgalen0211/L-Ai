@@ -1,3 +1,4 @@
 // The Windows app's release record (NEXT-WEB 118). EMPTY until Ryan hosts the file; the download card then turns on by itself. To release: put the https address of the zip, its exact file name, its size in MB, its unzipped size in MB (unpackedMb: the card works out the free space it asks for from it) and its SHA-256
 // (64 lowercase hex) here, bump this file's ?v= in app/index.html, and the card shows them. The personal-use notice is written by the lawyer, never by a session: put it in personalUseNotice and the card shows it.
+// If url is the address of the app-download function (https://<project>.supabase.co/functions/v1/app-download), the card shows a BUTTON that asks it for a short-lived invite-only link when pressed (Cloudflare R2); any other https address is a plain link.
 window.ryagramWindowsApp = Object.freeze({ url: null, fileName: null, sizeMb: null, unpackedMb: null, sha256: null, personalUseNotice: null });

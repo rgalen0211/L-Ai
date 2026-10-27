@@ -94,10 +94,14 @@ test('THE PERSONAL-USE NOTICE SLOT (wording is the lawyer\'s, never a session\'s
   assert.doesNotMatch(read('assets/app-device.js').replace(/\/\/.*$/gm, ''), /personal use only|not for resale|licen[sc]ed to you/i);          // no session wrote notice text
 });
 
-test('NO NETWORK, NO HTML: the card makes no call (the download is a link the person follows), and writes only text nodes', () => {
+test('NO NETWORK UNTIL THE BUTTON, NO HTML: drawing the card makes no call; the only call is the invite-only download button\'s, through the data layer and then one checked navigation (tests/windows-download.test.mjs); it writes only text nodes', () => {
   const src = read('assets/app-device.js');
   const card = src.slice(src.indexOf('async function windowsAppSection'), src.indexOf('// ---- admin: who is a tester'));
-  assert.doesNotMatch(card.replace(/\/\/.*$/gm, ''), /fetch\(|XMLHttpRequest|sendBeacon|innerHTML|insertAdjacentHTML|localStorage|navigate\(|location\./);
+  const code = card.replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /fetch\(|XMLHttpRequest|sendBeacon|innerHTML|insertAdjacentHTML|localStorage|location\./);
+  assert.equal((code.match(/data\.requestAppDownload\(/g) || []).length, 1, 'one request, inside the button\'s handler');
+  assert.equal((code.match(/\bnavigate\(/g) || []).length, 1, 'one navigation, with the checked link');
+  assert.ok(code.indexOf('data.requestAppDownload(') > code.indexOf('onclick: async event'), 'the request is inside the click handler, never at draw time');
   assert.doesNotMatch(read('assets/windows-release.js').replace(/\/\/.*$/gm, ''), /fetch\(|XMLHttpRequest|http:/);
 });
 
