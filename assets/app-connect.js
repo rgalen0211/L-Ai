@@ -6,11 +6,12 @@
 // Everything from the server goes in as text nodes, never as HTML.
 (() => {
   const REQUEST = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;           // connect_requests.id, a UUID
-  // The scope ids are CONNECT's (read, write, render_free). There is deliberately no wording for a full-render scope: a connection cannot spend credits, so an unknown id is shown as what it is.
+  // The scope ids are CONNECT's (read, write, render_free). There is deliberately no wording for a full-render scope: a connection cannot spend credits, so an unknown id is shown as what it is. `edit` is the live preview editor: drafts only.
   const SCOPE_WORDS = {
     read: 'See your projects, films and credit balance',
     write: 'Create projects and change your film stories',
-    render_free: 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram.'
+    render_free: 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram.',
+    edit: 'Change the look and the clip list in your open editor, as drafts you can undo. It cannot render, spend credits, publish or save for you.'
   };
   const ALWAYS = ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.'];
   const NOT_ALLOWED = 'This AI can’t be connected.';

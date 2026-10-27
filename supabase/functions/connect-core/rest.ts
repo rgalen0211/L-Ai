@@ -38,7 +38,8 @@ export function openApi(baseUrl: string): Record<string, unknown> {
       securitySchemes: { ryagramOAuth: { type: "oauth2", flows: { authorizationCode: {
         authorizationUrl: `${baseUrl}/authorize`, tokenUrl: `${baseUrl}/token`, refreshUrl: `${baseUrl}/token`,
         scopes: { read: "See your projects, films and credit balance", write: "Create projects and change your film stories",
-                  render_free: "Make contact sheets and previews" } } } } },
+                  render_free: "Make contact sheets and previews",
+                  edit: "Change the look and the clip list in your open editor, as drafts you can undo" } } } } },
     },
   };
 }

@@ -791,7 +791,7 @@ class Connect(core.Base):
 
 # Everything connect_runner may CALL, exactly. A function is callable only with EXECUTE and USAGE on its schema, so this is computed over
 # every schema the role has USAGE on (pg_catalog and information_schema hold the built-ins every role has, set_config among them).
-EXPECTED_CALLABLE = ['connect_anon_hit(text, text, integer, integer)', 'connect_begin_authorization(text, text, text, text, text, text, text, text)', 'connect_create_project(text, text)', 'connect_create_version(text, uuid, uuid)', 'connect_current_engine(text)', 'connect_current_version(text, uuid)', 'connect_exchange_code(text, text, text, text, text, text)', 'connect_final_enabled()', 'connect_get_version(text, uuid)', 'connect_hit(text, text, integer, integer)', 'connect_job(text, uuid)', 'connect_list_projects(text)', 'connect_list_versions(text, uuid)', 'connect_log(text, text, integer, text, text, integer)', 'connect_quote(text, uuid, text)', 'connect_refresh(text, text, text, text)', 'connect_register_client(text, text[])', 'connect_revoke(text)', 'connect_save_story(text, uuid, jsonb)', 'connect_scopes(text)', 'connect_set_compilation_request(text, uuid, jsonb)', 'connect_submit_job(text, uuid, text, jsonb, uuid, uuid)', 'connect_whoami(text)']
+EXPECTED_CALLABLE = ['connect_anon_hit(text, text, integer, integer)', 'connect_begin_authorization(text, text, text, text, text, text, text, text)', 'connect_create_project(text, text)', 'connect_create_version(text, uuid, uuid)', 'connect_current_engine(text)', 'connect_current_version(text, uuid)', 'connect_edit_ops(text, uuid, text, bigint, jsonb)', 'connect_edit_state(text, uuid)', 'connect_edit_undo_ai(text, uuid, text)', 'connect_exchange_code(text, text, text, text, text, text)', 'connect_final_enabled()', 'connect_get_version(text, uuid)', 'connect_hit(text, text, integer, integer)', 'connect_job(text, uuid)', 'connect_list_projects(text)', 'connect_list_versions(text, uuid)', 'connect_log(text, text, integer, text, text, integer)', 'connect_quote(text, uuid, text)', 'connect_refresh(text, text, text, text)', 'connect_register_client(text, text[])', 'connect_revoke(text)', 'connect_save_story(text, uuid, jsonb)', 'connect_scopes(text)', 'connect_set_compilation_request(text, uuid, jsonb)', 'connect_submit_job(text, uuid, text, jsonb, uuid, uuid)', 'connect_whoami(text)']
 
 
 def callable_by_runner(d):
@@ -845,7 +845,7 @@ class RealisticDefaults(core.Base):
                 cur.execute(report)
                 rows = cur.fetchall()
             self.assertEqual([r[1] for r in rows if r[0] == "schema usage"], ["public"])
-            self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 23)
+            self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 26)
             self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
             # PUBLIC really does hold EXECUTE on the platform-style functions here, which is the point: only the missing USAGE keeps the runner out
             self.assertTrue(c.execute("select has_function_privilege('connect_runner', 'auth.uid()', 'execute')").fetchone()[0])
@@ -1035,7 +1035,7 @@ class LiveFiles(core.Base):
         rows = report()
         self.assertNotIn(("function execute", "public.fake_trg()"), rows)
         self.assertIn(("trigger function it may execute (cannot be called directly: listed so nothing is hidden)", "public.fake_trg()"), rows)       # still listed, honestly labelled
-        self.assertEqual(sum(1 for k, _ in rows if k == "function execute"), 23)
+        self.assertEqual(sum(1 for k, _ in rows if k == "function execute"), 26)
         # (b) a PUBLIC-executable function in a schema where the role has no USAGE: NOT counted
         c.execute("create schema zz_nouse")
         c.execute("create function zz_nouse.hidden() returns int language sql as $$ select 1 $$")
@@ -1148,7 +1148,7 @@ class LiveFiles(core.Base):
             res = health(RESIDUAL)
             self.assertEqual((res[1], res[2]), ("2", "look"))
             rep = report()
-            self.assertEqual(sum(1 for k, _ in rep if k == "function execute"), 23)
+            self.assertEqual(sum(1 for k, _ in rep if k == "function execute"), 26)
             self.assertEqual(sorted(k for k, n in rep if n.startswith("net.")), ["ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38): pg_net function in schema net, PUBLIC usage, owned by supabase_admin"] * 2)
             self.assertIn(("schema usage", "net"), rep)                           # the reach itself is still reported, never hidden
             # (1) a NEW function in net is not tolerated
@@ -1224,7 +1224,7 @@ class LiveFiles(core.Base):
     def test_runner_privilege_report_has_named_columns_and_the_exact_functions(self):
         cols, rows = self.run_file("04_runner_privilege_report.sql")
         self.assertEqual(cols, ["kind", "name"])
-        self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 23)
+        self.assertEqual(sum(1 for r in rows if r[0] == "function execute"), 26)
         self.assertEqual([r for r in rows if r[0].startswith("RELATION PRIVILEGE")], [])
         self.assertEqual([r[1] for r in rows if r[0] == "schema usage"], ["public"])
         self.assertEqual([r for r in rows if r[0].startswith("member of")], [])
