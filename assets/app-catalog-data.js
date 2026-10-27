@@ -4,6 +4,7 @@
 window.ryagramCatalogData = {
  "engine": "17647409b565",
  "allow": [
+  "bea_sainc1_state_income_index",
   "bls_state_unemployment",
   "bps_county_permits",
   "bps_county_unit_share_1",
@@ -547,7 +548,7 @@ window.ryagramCatalogData = {
    "url": "https://apps.bea.gov/regional/downloadzip.htm",
    "group": "other",
    "family": null,
-   "status": "later",
+   "status": "usable",
    "level": "U.S. states",
    "cadence": "annual",
    "from": "1929",

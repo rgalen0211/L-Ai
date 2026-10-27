@@ -22,6 +22,9 @@ import test_2b_credits as credits  # noqa: E402
 FIVE = ("bps_county_unit_share_1", "bps_county_unit_share_2to4", "bps_county_unit_share_5plus", "bps_us_unit_mix",
         "fhwa_hm212")
 FIX = core.ROOT / "migrations" / "20261017000800_dataset_shapes.sql"
+# Q291 (2026-10-27): the state income index, priced the same way by its own migration.
+INCOME = "bea_sainc1_state_income_index"
+FIX_INCOME = core.ROOT / "migrations" / "20261027000700_bea_income_shape.sql"
 
 
 def setUpModule():
@@ -59,6 +62,20 @@ class Shapes(unittest.TestCase):
         with self.assertRaises(psycopg.Error):
             self.quote("fhwa_hm212")
 
+    def test_income_index_fresh_live_order_and_must_fail(self):
+        self.grant(100)
+        standard = self.quote("test_standard")
+        self.assertEqual(self.admin("select shape from credit_dataset_shapes where dataset = %s", INCOME), "standard")
+        self.assertEqual(self.quote(INCOME), standard)
+        self.admin("delete from credit_dataset_shapes where dataset = %s returning 1", INCOME)   # as live is today
+        with self.assertRaises(psycopg.Error):
+            self.quote(INCOME)                                                                 # must-fail: refused
+        for _ in range(2):
+            self.db.as_(None).c.execute(FIX_INCOME.read_text(encoding="utf-8"))
+        self.assertEqual(self.admin("select count(*) from credit_dataset_shapes where dataset = %s and shape = 'standard'",
+                                    INCOME), 1)
+        self.assertEqual(self.quote(INCOME), standard)
+
 
 class NoLedger(unittest.TestCase):
     def test_the_migration_is_a_no_op_without_the_ledger(self):
@@ -68,6 +85,7 @@ class NoLedger(unittest.TestCase):
         with psycopg.connect(credits._server.get_uri(database="shapes_noledger"), autocommit=True) as c:
             c.execute("drop table public.credit_dataset_shapes cascade")
             c.execute(FIX.read_text(encoding="utf-8"))           # must not raise
+            c.execute(FIX_INCOME.read_text(encoding="utf-8"))    # must not raise
             self.assertIsNone(c.execute("select to_regclass('public.credit_dataset_shapes')").fetchone()[0])
 
 
