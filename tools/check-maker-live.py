@@ -80,6 +80,12 @@ def main():
                     res = pc.evaluate("([n, a]) => window.pc.rpcs[n](a)", [body['name'], body['args']])
                     route.fulfill(status=200, content_type='application/json', body=json.dumps(res))
                 ctx.route('**/api/live/rpc', on_rpc)
+                renders, held = [], []
+
+                def on_render(route):
+                    renders.append((route.request.headers.get('x-maker-token'), route.request.post_data))
+                    held.append(route)                                     # not answered yet: the film is still being built
+                ctx.route('**/api/live/render', on_render)
                 p = ctx.new_page()
                 errors = []
                 p.on('pageerror', lambda e: errors.append(str(e)))
@@ -123,6 +129,22 @@ def main():
                     p.dispatch_event('#le-text', 'change')
                     p.wait_for_timeout(600)
                     check(p.input_value('#le-text') in ('Mine', 'AI again') and ('Your AI changed this just now' in p.inner_text('.form-note') or p.input_value('#le-text') == 'Mine'), 'a change that races the AI is either accepted or brought up to date, never lost silently')
+                # the final film is built by the maker itself: POST /api/live/render {}, the answer comes when it is made, nothing invented in between
+                p.click('button:has-text("Build final film")')
+                check('What will render' in p.inner_text('.le-render'), 'the final button first says in words what will be built')
+                p.click('button:has-text("Start the render")')
+                p.locator('.le-prog-head', has_text='Building your film on this computer.').wait_for(timeout=3000)
+                body = p.inner_text('.le-render')
+                check('Working for' in body and '%' not in body and 'left' not in body, 'while it builds the page says how long it has been working and never invents a percentage or a time left')
+                check(p.is_disabled('button:has-text("Build final film")'), 'editing and the final button are locked while it builds')
+                p.wait_for_timeout(1300)
+                check('Working for 0:0' in p.inner_text('.le-render') and 'Working for 0:00' not in p.inner_text('.le-render'), 'the clock keeps counting while the maker builds')
+                held[0].fulfill(status=200, content_type='application/json', body=json.dumps({'message': 'Built from your edit.', 'film': 'my film.mp4'}))
+                p.locator('.le-prog-head', has_text='Your film is ready.').wait_for(timeout=8000)
+                check('Built from your edit.' in p.inner_text('.le-render') and 'my film.mp4' in p.inner_text('.le-render'), 'the maker\u2019s answer is shown as plain words, with the file name')
+                check(renders == [(TOKEN, '{}')], 'one POST to /api/live/render with an empty object and the token header')
+                p.click('.le-render button:has-text("Close")')
+                check(p.locator('.le-render').is_hidden() and p.is_enabled('button:has-text("Build final film")'), 'closing it opens editing again')
                 p.screenshot(path=str(OUT / f'maker-live-{name}.png'), full_page=True)
                 check(p.evaluate('document.documentElement.scrollWidth <= window.innerWidth + 1'), 'no sideways scroll')
                 check(not other, 'nothing was requested from outside the PC\u2019s own address' + (f': {other[:2]}' if other else ''))

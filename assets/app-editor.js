@@ -110,8 +110,32 @@
         renderBox.hidden = false;
         renderBox.replaceChildren(h('h2', {}, 'What will render'), h('p', { class: 'meta' }, 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.'),
           h('ul', {}, committedWords().map(t => h('li', {}, t))),
-          h('div', { class: 'le-actions' }, btn('Start the render', 'primary', startJob), btn('Not yet', 'secondary', closeRender)));
+          h('div', { class: 'le-actions' }, btn('Start the render', 'primary', host && typeof host.render === 'function' ? startHostBuild : startJob), btn('Not yet', 'secondary', closeRender)));
         renderBox.querySelector('button').focus();
+      }
+      // On the person's own computer the maker builds the film itself (POST /api/live/render, one at a time) and answers when it is made: there is no job row and no per-frame numbers to
+      // read, so the panel says what is happening and how long it has been, and never invents a percentage or a time left.
+      async function startHostBuild() {
+        locked = true; saved = true; ed.base = ed.state; ed.log = []; ed.redo = [];
+        const t0 = Date.now();
+        const head = h('p', { class: 'le-prog-head', role: 'status' }, 'Building your film on this computer.');
+        const sub = h('p', { class: 'meta' }, 'This can take a few minutes. It is made here; nothing is sent anywhere. Keep this window open.');
+        const clock = h('p', { class: 'meta' }, 'Working for 0:00');
+        const result = h('p', { class: 'form-note', role: 'status' });
+        renderBox.hidden = false;
+        renderBox.replaceChildren(h('h2', {}, 'Building your film'), h('p', { class: 'meta' }, 'What you committed is what is built.'), head, sub, clock, result);
+        paint();
+        const tick = setInterval(() => { const s = Math.floor((Date.now() - t0) / 1000); clock.textContent = `Working for ${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`; }, 1000);
+        onStop(() => clearInterval(tick));
+        let r;
+        try { r = await host.render(); } catch (e) { r = { error: 'The Ryagram app on this computer did not answer. Is it still open?' }; }
+        clearInterval(tick);
+        locked = false;
+        const words = t => String((t && (t.message || t.error)) || '').replace(/[\u0000-\u001f<>]/g, ' ').slice(0, 400);
+        if (r && !r.error) { head.textContent = 'Your film is ready.'; result.textContent = [words(r), r.film ? `File: ${String(r.film).replace(/[^A-Za-z0-9 ._()-]/g, '').slice(0, 120)}` : ''].filter(Boolean).join(' '); }
+        else { head.textContent = 'The film could not be built.'; result.textContent = `${words(r)} Your edit is as you left it; you can change it and try again.`; }
+        renderBox.append(h('div', { class: 'le-actions' }, btn('Close', 'secondary', closeRender)));
+        paint();
       }
       // The progress panel. Mock: a fake job walks through drawing, encoding and the checks; the real one reads jobs.progress_detail (the same fields).
       function startJob() {

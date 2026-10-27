@@ -2,7 +2,7 @@
 // (tools/build-maker-live.mjs); the editor itself is the website's own code, not a copy kept by hand.
 //   window.ryagramLiveHost = { rpc, mode, project, media, title }
 //   rpc(name, args) -> Promise<{ data, error: { code, message } | null }>     POST /api/live/rpc  { name, args }, header X-Maker-Token (the maker's own token convention)
-// Only the five editor_* names are ever sent. The address carries ?t=<token>&mode=compilation|data&project=<id>; the token is kept for this tab and taken out of the address bar.
+// render() = POST /api/live/render {} (the film is built on this computer; the answer comes when it is made). Only the five editor_* names are ever sent to the rpc. The address carries ?t=<token>&mode=compilation|data&project=<id>; the token is kept for this tab and taken out of the address bar.
 (() => {
   const NAMES = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];
   const q = new URLSearchParams(location.search);
@@ -25,7 +25,17 @@
       return { data: null, error: { code: null, message: 'The Ryagram app on this computer did not answer. Is it still open?' } };
     }
   }
-  window.ryagramLiveHost = { rpc, mode, project, media: null, title: '' };
+  // The final film is built by the maker itself: POST /api/live/render with an empty object; it answers when the film is made ({ message, film } or { error }), one at a time.
+  async function render() {
+    try {
+      const res = await fetch('/api/live/render', { method: 'POST', headers: { 'X-Maker-Token': token, 'Content-Type': 'application/json' }, body: '{}' });
+      const body = await res.json();
+      return body && typeof body === 'object' ? body : { error: 'The Ryagram app gave an answer this page cannot read.' };
+    } catch (e) {
+      return { error: 'The Ryagram app on this computer did not answer. Is it still open?' };
+    }
+  }
+  window.ryagramLiveHost = { rpc, render, mode, project, media: null, title: '' };
 
   // the element builder the page was written with (the site's own is private to its router)
   function h(tag, attrs = {}, ...children) {
