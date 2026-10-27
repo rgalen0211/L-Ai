@@ -95,7 +95,7 @@
     if (!num(w.beat_s) || !num(w.end_s) || w.beat_s < 0 || !(w.end_s > w.beat_s) || w.end_s > trackSeconds + 0.5) fail(`The word "${w.w}" has a beat outside the music.`);
     if (!STATUSES.includes(w.status)) fail(`The word "${w.w}" must be said as is, built from sounds, or a gap.`);
     const out = { w: w.w.trim(), beat_s: r3(w.beat_s), end_s: r3(w.end_s), status: w.status, speaker_id: null, file_name: null, src_s: null, src_e: null, stretch: null, pieces: [], joins: 0,
-      offset_ms: null, step_db: null, burst: w.burst === true, quiet: w.quiet === true, preview: null, voice_may_clash: w.voice_may_clash === true, alternatives: [] };
+      offset_ms: null, offset_joined: false, step_db: null, burst: w.burst === true, quiet: w.quiet === true, preview: null, voice_may_clash: w.voice_may_clash === true, alternatives: [] };
     if (w.status === 'gap') return out;
     if (typeof w.speaker_id !== 'string' || !castIds.has(w.speaker_id)) fail(`The word "${w.w}" is said by someone the plan does not name.`);
     if (!safeRel(w.file_name)) fail(`The word "${w.w}" must name its video by file name only, not by a full path.`);
@@ -103,6 +103,9 @@
     if (!num(w.stretch) || !(w.stretch > 0) || w.stretch > 20) fail(`The word "${w.w}" has a stretch that is not valid.`);
     if (w.offset_ms !== null && w.offset_ms !== undefined && !num(w.offset_ms)) fail(`The word "${w.w}" has a landing time that is not a number.`);
     Object.assign(out, { speaker_id: w.speaker_id, file_name: relName(w.file_name), src_s: r3(w.src_s), src_e: r3(w.src_e), stretch: r3(w.stretch), offset_ms: num(w.offset_ms) ? ri(w.offset_ms) : null, step_db: num(w.step_db) ? (Math.round(w.step_db * 10) / 10) || 0 : null });
+    // A word that runs straight on from the word before cannot be measured (its sound starts before its own beat): the engine says so with offset_joined (BUILDER songjoined 2026-10-27). It is kept ONLY
+    // when the word has no measured landing time, so a joined word is never also a measured one.
+    out.offset_joined = w.offset_joined === true && out.offset_ms === null;
     if (w.preview !== null && w.preview !== undefined) { if (!safeName(w.preview)) fail(`The play button of "${w.w}" must be a file name only, not a path.`); out.preview = w.preview; }
     if (w.status !== 'whole') {
       if (!Array.isArray(w.pieces) || w.pieces.length < 2) fail(`The word "${w.w}" is built from sounds, so it needs its pieces.`);
@@ -144,7 +147,7 @@
 
   // ---- the summary the person reads before they render ----
   function summarize(plan) {
-    let words = 0, real = 0, built = 0, gaps = 0, quiet = 0, off = 0, stretchy = 0, switches = 0, bursts = 0, fullLines = 0;
+    let words = 0, real = 0, built = 0, gaps = 0, quiet = 0, off = 0, stretchy = 0, switches = 0, bursts = 0, fullLines = 0, joined = 0;
     const errs = [];
     for (const line of plan.lines) {
       let full = true;
@@ -154,6 +157,7 @@
         if (w.status === 'gap') { gaps++; full = false; return; }
         real++; if (w.status !== 'whole') built++;
         if (w.offset_ms !== null) { errs.push(Math.abs(w.offset_ms)); if (Math.abs(w.offset_ms) > OFF_BEAT_MS) off++; }
+        else if (w.offset_joined) joined++;                      // ran on from the word before: not measured, and said so
         if (w.stretch > STRETCH_HIGH || w.stretch < STRETCH_LOW) stretchy++;
         if (w.burst) bursts++;
         const prev = line.words.slice(0, i).reverse().find(x => x.status !== 'gap' && !x.quiet);
@@ -170,9 +174,10 @@
     if (gaps) say.push(`${gaps} word${gaps === 1 ? ' is' : 's are'} a gap: nobody in your files says ${gaps === 1 ? 'it' : 'them'}.`);
     if (quiet) say.push(`${quiet} beat${quiet === 1 ? ' is' : 's are'} left quiet.`);
     if (off) say.push(`${off} word${off === 1 ? ' lands' : 's land'} more than ${OFF_BEAT_MS} ms from the beat.`);
+    if (joined) say.push(`${joined} word${joined === 1 ? ' ran' : 's ran'} together with the word before and ${joined === 1 ? 'was' : 'were'} not measured.`);
     if (stretchy) say.push(`${stretchy} word${stretchy === 1 ? ' is' : 's are'} stretched or squeezed a lot.`);
     say.push(`The voice changes ${switches} time${switches === 1 ? '' : 's'} inside a line.`);
-    return { words, real, whole: real - built, built, gaps, quiet, off_beat: off, stretchy, switches, bursts, full_lines: fullLines, lines: plan.lines.length, pct_real: pct, median_err_ms: med, max_err_ms: max, say };
+    return { words, real, whole: real - built, built, gaps, quiet, off_beat: off, joined_not_measured: joined, stretchy, switches, bursts, full_lines: fullLines, lines: plan.lines.length, pct_real: pct, median_err_ms: med, max_err_ms: max, say };
   }
 
   // ---- the person's choices: each returns a NEW plan ----
@@ -184,7 +189,7 @@
       const p = clone(plan), w = at(p, n, i), a = w.alternatives.find(x => x.id === altId), wasGap = w.status === 'gap';
       if (!a) fail('That other take is not offered for this word.');
       const old = { id: 'was-' + (w.alternatives.length + 1), speaker_id: w.speaker_id, file_name: w.file_name, src_s: w.src_s, src_e: w.src_e, stretch: w.stretch, offset_ms: w.offset_ms };
-      Object.assign(w, { status: 'whole', speaker_id: a.speaker_id, file_name: a.file_name, src_s: a.src_s, src_e: a.src_e, stretch: a.stretch, offset_ms: a.offset_ms, pieces: [], joins: 0, step_db: null, quiet: false });
+      Object.assign(w, { offset_joined: false, status: 'whole', speaker_id: a.speaker_id, file_name: a.file_name, src_s: a.src_s, src_e: a.src_e, stretch: a.stretch, offset_ms: a.offset_ms, pieces: [], joins: 0, step_db: null, quiet: false });
       w.alternatives = w.alternatives.filter(x => x.id !== altId).concat(wasGap ? [] : [old]);
       return normalize(p);
     },

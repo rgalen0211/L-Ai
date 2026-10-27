@@ -585,16 +585,26 @@ def render(body: dict) -> dict:
         except (OSError, ValueError):
             rcpt = {}
         _dm.STATE["last_film"] = str(out)
-        worst = (rcpt.get("offsets") or {}).get("max_abs_ms")
-        built = len(rcpt.get("built_from_sounds") or [])
-        msg = f"Your film is ready: {out.name}, in {out_dir.name}."
-        if worst is not None:
-            msg += f" Measured on the finished film, the word furthest from its beat is {worst} ms off."
-        if built:
-            msg += f" {built} {'word is' if built == 1 else 'words are'} built from sounds, and the receipt says so."
-        return {"message": msg, "film": out.name}
+        return {"message": film_ready_message(out.name, out_dir.name, rcpt), "film": out.name}
     finally:
         _release()
+
+
+def film_ready_message(film_name: str, folder_name: str, rcpt: dict) -> str:
+    """What the page says when the film is made. 'The word furthest from its beat' is only the words that WERE measured, so the words that ran on from the word before (the build cannot measure
+    them: BUILDER's songjoined, receipt rows with joined_to_previous and no measured offset) are counted and named next to it: 'complete' is never read as 'every word measured on the beat'."""
+    rcpt = rcpt if isinstance(rcpt, dict) else {}
+    worst = (rcpt.get("offsets") or {}).get("max_abs_ms")
+    built = len(rcpt.get("built_from_sounds") or [])
+    joined = sum(1 for w in (rcpt.get("words") or []) if isinstance(w, dict) and w.get("joined_to_previous") and w.get("measured_offset_ms") is None)
+    msg = f"Your film is ready: {film_name}, in {folder_name}."
+    if worst is not None:
+        msg += f" Measured on the finished film, the word furthest from its beat is {worst} ms off."
+    if joined:
+        msg += f" {joined} {'word ran' if joined == 1 else 'words ran'} together with the word before and {'was' if joined == 1 else 'were'} not measured."
+    if built:
+        msg += f" {built} {'word is' if built == 1 else 'words are'} built from sounds, and the receipt says so."
+    return msg
 
 
 # ----------------------------------------------------------------------------------------------------- routes
