@@ -271,7 +271,20 @@ def load() -> dict:
     except (eb.EditError, OSError) as e:
         raise Problem(MS.plain(str(e), "other")) from None
     _remember_media(items)
+    _seed_committed(lst)
     return {"edit": lst}
+
+
+def _seed_committed(lst: dict) -> None:
+    """The edit list Plan made is the first 'committed' list: the first final film is then checked against it too (FACES 63: footage marked AI-altered cannot be quietly dropped), not only later ones."""
+    f = _dm.STATE["work"] / "edit" / "committed-edit.json"
+    if f.exists():
+        return
+    try:
+        f.parent.mkdir(parents=True, exist_ok=True)
+        f.write_text(json.dumps(lst), encoding="utf-8")
+    except OSError:
+        pass
 
 
 def save(body: dict) -> dict:

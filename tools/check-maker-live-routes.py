@@ -209,5 +209,15 @@ check(r["applied"] == 1 and ed.saved["texts"][0]["text"] == "From my AI", "an AI
 post = [b for route, b in site.calls if route == "/node/edit-summary"][-1]
 check(post["applied"] == [{"op_id": 7, "ok": True}] and post["summary"]["schema"] == "ryagram.edit-tracks/0" and "C:" not in json.dumps(post), "and is acknowledged, with the new summary and no path")
 
+# the first final film is checked against the list Plan made (FACES --previous): maker_edit seeds committed-edit.json once, and never overwrites it
+import maker_edit as MEd  # noqa: E402
+MEd._dm = types.SimpleNamespace(STATE={"work": tmp / "seed"})
+MEd._seed_committed(BASE)
+seed = tmp / "seed" / "edit" / "committed-edit.json"
+check(seed.is_file() and json.loads(seed.read_text(encoding="utf-8")) == BASE, "Plan's edit list is written as the first committed list")
+seed.write_text('{"kept": true}', encoding="utf-8")
+MEd._seed_committed(BASE)
+check(json.loads(seed.read_text(encoding="utf-8")) == {"kept": True}, "and a later list is never overwritten by it")
+
 print("RESULT: " + ("PASS" if not FAILED else f"FAIL ({len(FAILED)})"))
 sys.exit(1 if FAILED else 0)
