@@ -22,9 +22,9 @@ export interface McpDeps extends Env {
   resourceMetadataUrl: string;
 }
 
-export const toolList = () => TOOLS.map((t) => ({
+export const toolList = () => TOOLS.filter((t) => t.listed !== false).map((t) => ({
   name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema,
-  annotations: { readOnlyHint: t.readOnly, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+  annotations: { readOnlyHint: t.readOnly, destructiveHint: t.destructive === true, idempotentHint: t.idempotent ?? t.readOnly, openWorldHint: false },
 }));
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>

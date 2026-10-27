@@ -118,6 +118,12 @@ export interface ToolDef {
   description: string;
   scope: Scope;
   readOnly: boolean;                    // MCP readOnlyHint; honest, because assistants gate write tools on it
+  /** MCP destructiveHint: true only for a tool that REPLACES or deletes what the person already has. Default false. */
+  destructive?: boolean;
+  /** MCP idempotentHint: asking again with the same arguments changes nothing more. Default = readOnly. */
+  idempotent?: boolean;
+  /** false = kept out of tools/list (a directory reviewer sees only tools that can work); the server still answers a call with its refusal. Default true. */
+  listed?: boolean;
   /** Per-user hourly bucket shared by the render tools, if any. */
   ladder?: boolean;
   inputSchema: Record<string, unknown>; // JSON Schema; additionalProperties:false always

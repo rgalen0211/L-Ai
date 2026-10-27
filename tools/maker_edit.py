@@ -275,6 +275,41 @@ def load() -> dict:
     return {"edit": lst}
 
 
+def plan_sha(plan) -> str:
+    return hashlib.sha256(json.dumps(plan, sort_keys=True, default=str).encode("utf-8")).hexdigest()
+
+
+def plan_changed(plan) -> bool:
+    """A new Plan is a new film. The edit list saved for the OLD plan, the list its final film is checked against and the media remembered for it are dropped, so the editor and 'Build final film' open on the
+    new rough cut (before this, a second Plan reached neither: edit.json was read back for ever). The same plan again (same words, same videos) keeps the person's edits. True when something was dropped."""
+    sha = plan_sha(plan)
+    st = S()
+    if st.get("plan_sha") == sha:
+        return False
+    st["plan_sha"] = sha
+    mark = _dm.STATE["work"] / "edit" / "plan-sha.txt"
+    try:
+        old = mark.read_text(encoding="utf-8").strip()
+    except OSError:
+        old = None
+    try:
+        mark.parent.mkdir(parents=True, exist_ok=True)
+        mark.write_text(sha, encoding="utf-8")
+    except OSError:
+        pass
+    if old == sha:
+        return False
+    for f in (edit_path(), _dm.STATE["work"] / "edit" / "committed-edit.json", _dm.STATE["work"] / "edit-media.json"):
+        try:
+            f.unlink(missing_ok=True)
+        except OSError:
+            pass
+    st["media_items"] = []
+    if st["proxy"].get("state") in ("ready", "failed"):
+        st["proxy"]["state"] = "none"                                    # the preview was made from the old list
+    return True
+
+
 def _seed_committed(lst: dict) -> None:
     """The edit list Plan made is the first 'committed' list: the first final film is then checked against it too (FACES 63: footage marked AI-altered cannot be quietly dropped), not only later ones."""
     f = _dm.STATE["work"] / "edit" / "committed-edit.json"

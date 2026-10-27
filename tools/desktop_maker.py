@@ -471,6 +471,7 @@ def job_status() -> dict:
         STATE["last_plan"] = out.get("plan")
         if STATE.get("job"):
             STATE["last_plan_args"] = STATE["job"].get("args") or []
+        _new_plan(out.get("plan"))
     job = STATE["job"]
     if job and not job.get("logged") and out.get("state") in JOB_STATES:
         job["logged"] = True
@@ -845,6 +846,17 @@ def _tools_on_path() -> None:
     """The portable folder starts this file with python -I, which leaves its own folder off the path: put it on, so the page modules beside this file can be imported."""
     if str(HERE) not in sys.path:
         sys.path.insert(0, str(HERE))
+
+
+def _new_plan(plan) -> None:
+    """A second Plan is a new film: drop the edit list and the live draft made from the old one (tools/maker_edit.py plan_changed). Never raises into the job status."""
+    if not plan or not STATE.get("edit_on"):
+        return
+    try:
+        if _edit_mod().plan_changed(plan) and STATE.get("live_on"):
+            _live_mod().plan_changed()
+    except Exception as e:  # noqa: BLE001
+        print(f"note: the editor could not start again from the new plan ({str(e)[:120]})", flush=True)
 
 
 def _edit_mod():

@@ -305,7 +305,8 @@ test('MCP: initialize, notifications, ping, tools/list, tools/call', async () =>
   assert.equal((await post({ jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
   assert.deepEqual((await (await post({ jsonrpc: '2.0', id: 2, method: 'ping' })).json()).result, {});
   const list = await (await post({ jsonrpc: '2.0', id: 3, method: 'tools/list' })).json();
-  assert.equal(list.result.tools.length, TOOLS.length);
+  assert.equal(list.result.tools.length, TOOLS.length - 1);                                  // request_full_render is not listed: it can only refuse
+  assert.ok(!list.result.tools.some((x) => x.name === 'request_full_render'));
   const t = list.result.tools.find((x) => x.name === 'list_projects');
   assert.equal(t.annotations.readOnlyHint, true); assert.ok(t.inputSchema);
   const call = await (await post({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'whoami_and_credits', arguments: {} } })).json();
@@ -315,6 +316,30 @@ test('MCP: initialize, notifications, ping, tools/list, tools/call', async () =>
   assert.equal(refusal.result.isError, true);
   const unk = await (await post({ jsonrpc: '2.0', id: 6, method: 'resources/list' })).json();
   assert.equal(unk.error.code, -32601);
+});
+
+test('DIRECTORY (CONNECT 147): honest annotations on every listed tool, the refusing render tool is not listed but still refuses, no timestamps in list_projects, no orders in descriptions', async () => {
+  const { post, deps } = faces();
+  const list = (await (await post({ jsonrpc: '2.0', id: 3, method: 'tools/list' })).json()).result.tools;
+  for (const x of list) {
+    const def = TOOLS.find((d) => d.name === x.name);
+    assert.equal(x.annotations.readOnlyHint, def.readOnly, x.name);
+    assert.equal(x.annotations.openWorldHint, false, x.name);
+    assert.equal(typeof x.annotations.destructiveHint, 'boolean'); assert.equal(typeof x.annotations.idempotentHint, 'boolean');
+    assert.ok(!(x.annotations.readOnlyHint && x.annotations.destructiveHint), x.name + ': a read-only tool is never destructive');
+    if (x.annotations.readOnlyHint) assert.equal(x.annotations.idempotentHint, true, x.name);
+  }
+  const by = Object.fromEntries(list.map((x) => [x.name, x.annotations]));
+  assert.equal(by.set_story.destructiveHint, true); assert.equal(by.set_compilation_request.destructiveHint, true);          // they REPLACE what the person has
+  for (const n of ['make_contact_sheet', 'make_preview']) assert.equal(by[n].idempotentHint, false, n + ' starts a job');
+  for (const n of ['whoami_and_credits', 'list_projects', 'job_status', 'get_film_link', 'get_story_schema']) assert.equal(by[n].destructiveHint, false, n);
+  const refused = await (await post({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'request_full_render', arguments: { project_id: 'x' } } })).json();
+  assert.equal(refused.result.isError, true, 'the unlisted tool still answers, with its refusal');
+  const lp = await (await post({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'list_projects', arguments: {} } })).json();
+  assert.ok(!JSON.stringify(lp.result).includes('updated'), 'no timestamp in the project list');
+  for (const d of TOOLS.filter((x) => x.listed !== false)) {
+    assert.ok(!/\b(call it first|read it before|poll every|give them to|do not store|you must|always call)\b/i.test(d.description), d.name + ': a description says what the tool does, not what the AI must do');
+  }
 });
 
 test('MCP: malformed, batched, oversized and wrong-method requests', async () => {
