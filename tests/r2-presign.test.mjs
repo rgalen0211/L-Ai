@@ -46,3 +46,27 @@ test('limits and refusals: an expiry outside 1 to 604800, a path with .., a bad 
     await assert.rejects(presignGet({ ...AWS, ...bad }), undefined, JSON.stringify(bad));
   }
 });
+
+// An independent, deliberately plain re-implementation (node:crypto, written from the SigV4 documentation, sharing no code with the module) must agree on inputs AWS's one example does not cover:
+// another day, R2's region, a path that needs encoding, an extra query parameter.
+import crypto from 'node:crypto';
+function reference({ host, path, accessKeyId, secretAccessKey, region, service, expiresSeconds, now, query = {} }) {
+  const enc = (s, slash) => [...Buffer.from(s, 'utf8')].map((b) => { const c = String.fromCharCode(b); return /[A-Za-z0-9\-_.~]/.test(c) || (slash && c === '/') ? c : '%' + b.toString(16).toUpperCase().padStart(2, '0'); }).join('');
+  const d = now.toISOString().replace(/[-:]/g, '').slice(0, 15) + 'Z', day = d.slice(0, 8), scope = `${day}/${region}/${service}/aws4_request`;
+  const q = { 'X-Amz-Algorithm': 'AWS4-HMAC-SHA256', 'X-Amz-Credential': `${accessKeyId}/${scope}`, 'X-Amz-Date': d, 'X-Amz-Expires': String(expiresSeconds), 'X-Amz-SignedHeaders': 'host', ...query };
+  const cq = Object.keys(q).sort().map((k) => `${enc(k)}=${enc(q[k])}`).join('&');
+  const creq = `GET\n${enc(path, true)}\n${cq}\nhost:${host}\n\nhost\nUNSIGNED-PAYLOAD`;
+  const sts = `AWS4-HMAC-SHA256\n${d}\n${scope}\n${crypto.createHash('sha256').update(creq).digest('hex')}`;
+  const h = (k, m) => crypto.createHmac('sha256', k).update(m).digest();
+  const key = h(h(h(h('AWS4' + secretAccessKey, day), region), service), 'aws4_request');
+  return `https://${host}${enc(path, true)}?${cq}&X-Amz-Signature=${crypto.createHmac('sha256', key).update(sts).digest('hex')}`;
+}
+
+test('it agrees with an independent re-implementation on other days, R2\'s region, an encoded path and an extra parameter', async () => {
+  const base = { host: 'abc.r2.cloudflarestorage.com', accessKeyId: 'AKID1', secretAccessKey: 'sEcReT/+key', region: 'auto', service: 's3', expiresSeconds: 900 };
+  for (const extra of [
+    { path: '/ryagram-app/releases/app-1.zip', now: new Date('2026-10-26T20:30:00Z') },
+    { path: '/ryagram-app/releases/my app é+1.zip', now: new Date('2027-01-02T03:04:05Z') },
+    { path: '/b/k.zip', now: new Date('2026-12-31T23:59:59Z'), query: { 'response-content-disposition': 'attachment; filename="k é.zip"' } },
+  ]) assert.equal(await presignGet({ ...base, ...extra }), reference({ ...base, ...extra }), JSON.stringify(extra).slice(0, 70));
+});
