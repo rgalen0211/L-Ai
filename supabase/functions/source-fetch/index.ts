@@ -1,6 +1,6 @@
 // source-fetch: a signed-in person's request to bring one data file from an ALLOWLISTED OFFICIAL host into their uploads (NEXT-CONNECT 137, find-data S2). Deploy (a Ryan row; the JWT is checked inside):
 //   npx.cmd supabase functions deploy source-fetch --project-ref <ref> --no-verify-jwt
-// Needs migration 20261027000100_find_data_fetch.sql applied first (and the trust-label ones before it). No secret of its own: it uses the project's service key (by name, through _shared/service_key.ts) to call the
+// Needs migration 20261027000200_find_data_fetch.sql applied first (and the trust-label ones before it). No secret of its own: it uses the project's service key (by name, through _shared/service_key.ts) to call the
 // service-role-only fetch_* functions and to put the bytes into the person's slot of the private bucket 'ryagram-uploads'. Nothing here is on until that deploy.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
 import { verifyAppUser } from "../_shared/oauth_guard.ts";

@@ -1,4 +1,4 @@
--- FIND DATA S1: the exact undo of supabase/migrations/20261027000100_find_data_fetch.sql (NEXT-CONNECT 137). NOT a migration: it lives outside migrations/ so nothing applies it by itself.
+-- FIND DATA S1: the exact undo of supabase/migrations/20261027000200_find_data_fetch.sql (NEXT-CONNECT 137). NOT a migration: it lives outside migrations/ so nothing applies it by itself.
 -- It LOSES every fetched dataset (their receipts and the film source rows made from them) and the record of fetch attempts and the host list, and puts back the trust-label state (20261026000100 and 20261026000200):
 -- the two-label rule on uploads, confirm_dataset_mapping demanding the tick for every upload, attach_upload_to_version always writing 'Your data'. The bytes of fetched files stay in the private bucket until
 -- the purge removes them (a deleted dataset row is what the purge looks for); Ryan can remove them by hand.

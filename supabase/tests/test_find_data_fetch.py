@@ -1,4 +1,4 @@
-"""Find-data step S1: fetching a file from an ALLOWLISTED OFFICIAL host into the upload pipeline (migrations/20261027000100_find_data_fetch.sql, NOT APPLIED) on a local Postgres. NEXT-CONNECT 137.
+"""Find-data step S1: fetching a file from an ALLOWLISTED OFFICIAL host into the upload pipeline (migrations/20261027000200_find_data_fetch.sql, NOT APPLIED) on a local Postgres. NEXT-CONNECT 137.
 
 Same setup as test_uploads.py (all migrations load in order, so the trust-label ones are underneath). Run from the repo root with the SQL venv and TEMP/TMP on D::
     pgvenv/Scripts/python -m unittest supabase/tests/test_find_data_fetch.py -v
@@ -206,6 +206,7 @@ class FindDataFetch(core.Base):
         b = self.reserve(RYAN, "data.uni.edu")
         ds2, _, label2, pub2, _ = self.register(b, url="https://data.uni.edu/x.csv")
         self.assertEqual((label2, pub2), ("published_by_others", "A University"))
+        self.assertEqual(self.admin("select label, publisher from dataset_fetches where dataset_id = %s", ds2), ("published_by_others", "A University"))      # the receipt says the same as the dataset
 
     def test_an_off_list_final_address_is_refused_even_when_the_attempt_began_on_a_listed_host(self):
         a = self.reserve()
@@ -446,7 +447,7 @@ class FindDataFetch(core.Base):
         _, vid = self.project_version()
         self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
         plain = self.uploaded()[0]
-        rollback = (core.ROOT / "rollbacks" / "20261027000100_find_data_fetch_rollback.sql").read_text(encoding="utf-8")
+        rollback = (core.ROOT / "rollbacks" / "20261027000200_find_data_fetch_rollback.sql").read_text(encoding="utf-8")
         self.db.as_(None).c.execute(rollback)
         self.assertIsNone(self.admin("select to_regclass('public.fetch_hosts')"))
         self.assertEqual(self.admin("select count(*) from information_schema.columns where table_name = 'datasets' and column_name in ('origin', 'licence_class', 'publishable')"), 0)
@@ -463,7 +464,7 @@ class FindDataFetch(core.Base):
         self.assertEqual(self.db.as_(RYAN).one("select publisher, trust_label from version_sources where version_id = %s", vid2), ("Your data", "unverified_user"))
         with self.assertRaises(psycopg.errors.CheckViolation):                                                       # the old label rule is back: an upload can never be official
             self.db.as_(None).c.execute("update datasets set trust_label = 'official' where id = %s", (plain,))
-        self.db.as_(None).c.execute((core.ROOT / "migrations" / "20261027000100_find_data_fetch.sql").read_text(encoding="utf-8"))      # and the migration applies again on top
+        self.db.as_(None).c.execute((core.ROOT / "migrations" / "20261027000200_find_data_fetch.sql").read_text(encoding="utf-8"))      # and the migration applies again on top
         self.assertGreaterEqual(self.admin("select count(*) from fetch_hosts"), 16)
 
     def test_deleting_an_account_deletes_its_fetch_records(self):

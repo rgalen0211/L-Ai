@@ -115,6 +115,7 @@ begin
   end if;
   return null;
 end $$;
+revoke execute on function ryagram_private.fetched_dataset_has_receipt() from public, anon, authenticated;       -- a trigger fires without the privilege; nobody needs to call it
 create constraint trigger datasets_fetched_needs_receipt after insert or update on public.datasets
   deferrable initially deferred for each row execute function ryagram_private.fetched_dataset_has_receipt();
 
