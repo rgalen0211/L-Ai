@@ -89,7 +89,7 @@ check(all("<" not in r["phrase"] and ">" not in r["phrase"] for r in got), "angl
 check(any(len(r["phrase"]) == 300 for r in got) and all(len(r["phrase"]) <= 300 and len(r["note"]) <= 500 for r in got), "a long phrase is cut to 300 letters")
 check([r["note"] for r in got if r["phrase"] in ("ok", "ok2")] == ["", ""], "MUST-FAIL guard: a note that carries a path or an address is dropped (no place on a computer or the internet reaches the page)")
 check([ (r["mode"], r["search"]) for r in got if r["phrase"] == "ok3"] == [("phrase", "every")], "an unknown mode or search falls back to the plain one")
-check(len(got) == 6 and all(set(r) == {"title", "phrase", "mode", "search", "note", "updated_at"} for r in got), "rows that are not objects, have no phrase, or are blank are dropped; each row has only six plain fields")
+check(len(got) == 6 and all(set(r) == {"title", "phrase", "mode", "search", "note", "updated_at", "project_id"} for r in got), "rows that are not objects, have no phrase, or are blank are dropped; each row has only seven plain fields (the project id only if it is an id)")
 check(not any("\x00" in r["note"] or "\x1f" in r["note"] for r in got), "control characters become spaces")
 s.reply = (200, {"requests": [ROW(f"p{i}") for i in range(40)]})
 check(len(RQ.AiRequests(s, clock=clock).status(force=True)["requests"]) == 20, "at most 20")

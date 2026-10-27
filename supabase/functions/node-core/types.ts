@@ -40,10 +40,18 @@ export interface NodeDb {
   compilationRequests(accessHash: string): Promise<CompilationRequestRow[]>;
   /** node_compilation_cancel: an upload that failed or was given up. */
   compilationCancel(accessHash: string, id: string): Promise<boolean>;
+  /** node_edit_pending (NEXT-CONNECT 142): the changes the person's AI (or their web editor) has queued for their open compilation, which this computer applies locally. Data only, at most 100, oldest first. */
+  editPending(accessHash: string): Promise<EditPendingRow[]>;
+  /** node_edit_post_summary: mirror (or stop mirroring) the track summary of one of the person's projects, with the person's own tick for their AI, and say which waiting changes were applied. Names and times only. */
+  editPostSummary(accessHash: string, projectId: string, mirror: boolean, aiVisible: boolean, summary: Record<string, unknown> | null, applied: { op_id: number; ok: boolean }[]): Promise<EditSummaryResult>;
 }
 
 /** One saved request, as the database returns it. The router passes on only these five fields. */
 export interface CompilationRequestRow { project_id: string; title: string; request: Record<string, unknown>; sha256: string; updated_at: string }
+
+/** One waiting change, as the database returns it: no owner, no account detail. */
+export interface EditPendingRow { id: number; project_id: string; revision: number; client: string | null; op: Record<string, unknown> }
+export interface EditSummaryResult { revision: number; mirrored: boolean; ai_visible: boolean }
 
 /** What the app's launch check gets (node_compilation_status): the facts about the person's plan, never a price or an account detail. */
 export interface CompilationStatus {

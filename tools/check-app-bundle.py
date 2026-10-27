@@ -136,7 +136,7 @@ check(any((out / "python" / "Lib" / "site-packages").glob(f"{LIB}*")), f"the lib
 check((out / "ffmpeg" / "ffmpeg.exe").is_file() and (out / "ffmpeg" / "ffprobe.exe").is_file() and not (out / "ffmpeg" / "ffplay.exe").exists(), "ffmpeg.exe and ffprobe.exe only")
 check((out / "ryagram" / "local" / "engine.py").is_file() and (out / "recipes" / "sam-first.json").is_file() and (out / "ENGINE-MANIFEST.json").is_file(), "the engine, the recipes and the kit's own record of the engine heads are there")
 check(all((out / "tools" / t).is_file() for t in mab.RUNTIME_TOOLS), "the app tools (maker, sign-in, node loop, the self-check) are there")
-check(set(mab.RUNTIME_PAGE_DIRS) == {"maker-edit", "maker-song"} and all((out / "tools" / d / "page.html").is_file() and not (out / "tools" / d / "fixture.js").exists() for d in mab.RUNTIME_PAGE_DIRS), "the edit and song page folders travel with their html, js and css, and the test fixture beside them does not")
+check(set(mab.RUNTIME_PAGE_DIRS) == {"maker-edit", "maker-live", "maker-song"} and all((out / "tools" / d / "page.html").is_file() and not (out / "tools" / d / "fixture.js").exists() for d in mab.RUNTIME_PAGE_DIRS), "the edit, live and song page folders travel with their html, js and css, and the test fixture beside them does not")
 check({"maker_edit.py", "maker_song.py"} <= set(mab.RUNTIME_TOOLS), "MUST-FAIL guard: the edit page and the song page modules travel (desktop_maker imports them when --edit/--song is on; without them the folder cannot open either page)")
 bat = (out / "Open Ryagram.bat").read_text(encoding="ascii")
 check("%~dp0" in bat and "C:\\" not in bat and "C:/" not in bat and ":\\Users" not in bat, "the start file refers only to its own folder (no drive letter, no user folder)")

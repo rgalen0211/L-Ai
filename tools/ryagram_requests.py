@@ -18,6 +18,7 @@ MAX_ITEMS = 20
 MODES = ("phrase", "song")
 SEARCHES = ("every", "words")
 _TAGS = re.compile(r"[<>]")
+_UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
 _PATHISH = re.compile(r"([A-Za-z]:[\\/])|(^|\s)/(Users|home|mnt|var|etc)/|\\\\|https?://|file://", re.IGNORECASE)
 
 
@@ -41,8 +42,9 @@ def _clean(row) -> dict | None:
     note = _text(req.get("note"), 500)
     mode = req.get("mode") if req.get("mode") in MODES else "phrase"
     search = req.get("search") if req.get("search") in SEARCHES else "every"
+    pid = row.get("project_id")
     return {"title": _text(row.get("title"), 200), "phrase": phrase, "mode": mode, "search": search, "note": "" if _PATHISH.search(note) else note,
-            "updated_at": _text(row.get("updated_at"), 40)}
+            "updated_at": _text(row.get("updated_at"), 40), "project_id": pid if isinstance(pid, str) and _UUID.match(pid) else ""}
 
 
 class AiRequests:
