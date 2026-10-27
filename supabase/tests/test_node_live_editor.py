@@ -167,6 +167,18 @@ class NodeEditor(r9.R9):
         self.post(bob, bp, applied=[{"op_id": op, "ok": True}])                                                  # Bob names Sam's op while posting for his own project: it is ignored
         self.assertEqual(self.status(p), ["pending"])
 
+    def test_an_acknowledgement_only_reaches_changes_of_the_project_it_is_posted_for(self):
+        sam = self.signed(SAM)
+        p1, p2 = self.project(SAM, "one"), self.project(SAM, "two")
+        self.post(sam, p1)
+        self.post(sam, p2)
+        self.ai_queue(SAM, p1, 1, [{"op": "delete_clip", "id": "c3"}])
+        op = self.pending(sam)[0]["id"]
+        self.post(sam, p2, applied=[{"op_id": op, "ok": True}])                                                  # the right person, the wrong project: ignored
+        self.assertEqual(self.status(p1), ["pending"])
+        self.post(sam, p1, applied=[{"op_id": op, "ok": True}])                                                  # control: the right project works
+        self.assertEqual(self.status(p1), ["applied"])
+
     def test_a_summary_with_a_place_an_unknown_field_or_a_wrong_shape_is_refused_whole(self):
         sam = self.signed(SAM)
         p = self.project(SAM)
