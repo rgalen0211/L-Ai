@@ -421,6 +421,51 @@ class FindDataFetch(core.Base):
         self.assertEqual(got[ref]["trust_label"], "official")
         self.assertIsNotNone(got[ref]["trust_ack_at"])
 
+    def test_the_after_migration_check_for_ryan_is_all_true_and_goes_false_when_things_are_opened(self):
+        sql = (core.ROOT / "find-data-live" / "01_after_migration_check.sql").read_text(encoding="utf-8")
+        rows = self.db.as_(None).c.execute(sql).fetchall()
+        self.assertEqual(len(rows), 11)
+        self.assertEqual([r[0] for r in rows if not r[1]], [])
+        faults = (("grant select on public.fetch_hosts to authenticated", "revoke select on public.fetch_hosts from authenticated", "readable by nobody"),
+                  ("grant insert on public.dataset_fetches to authenticated", "revoke insert on public.dataset_fetches from authenticated", "READ by its owner and written by nobody"),
+                  ("grant execute on function public.fetch_reserve(uuid,text) to authenticated", "revoke execute on function public.fetch_reserve(uuid,text) from authenticated", "ONLY the service role"),
+                  ("alter table public.fetch_attempts disable row level security", "alter table public.fetch_attempts enable row level security", "row level security is on"),
+                  ("update public.fetch_hosts set label = 'published_by_others' where host_suffix = 'census.gov'", "update public.fetch_hosts set label = 'official' where host_suffix = 'census.gov'", "all Official"))
+        for fault, undo, row in faults:
+            self.db.as_(None).c.execute(fault)
+            bad = [r[0] for r in self.db.as_(None).c.execute(sql).fetchall() if not r[1]]
+            self.assertEqual(len(bad), 1, fault)
+            self.assertIn(row, bad[0], fault)
+            self.db.as_(None).c.execute(undo)
+            self.assertEqual([r[0] for r in self.db.as_(None).c.execute(sql).fetchall() if not r[1]], [], "after undoing: " + fault)
+
+    def test_the_rollback_goes_back_to_the_trust_label_state_and_the_migration_can_be_applied_again(self):
+        ds, _ = self.fetched()
+        self.read(ds)
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, false) is null", ds, json.dumps(MAPPING))
+        _, vid = self.project_version()
+        self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
+        plain = self.uploaded()[0]
+        rollback = (core.ROOT / "rollbacks" / "20261027000100_find_data_fetch_rollback.sql").read_text(encoding="utf-8")
+        self.db.as_(None).c.execute(rollback)
+        self.assertIsNone(self.admin("select to_regclass('public.fetch_hosts')"))
+        self.assertEqual(self.admin("select count(*) from information_schema.columns where table_name = 'datasets' and column_name in ('origin', 'licence_class', 'publishable')"), 0)
+        self.assertEqual(self.admin("select count(*) from pg_proc where left(proname, 6) = 'fetch_'"), 0)
+        self.assertEqual(self.admin("select count(*) from datasets where id = %s", ds), 0)                           # the fetched dataset and its film source row are gone
+        self.assertEqual(self.admin("select count(*) from version_sources where version_id = %s", vid), 0)
+        self.assertEqual(self.admin("select count(*) from datasets where id = %s", plain), 1)                        # a plain upload is untouched
+        self.read(plain)
+        with self.assertRaises(psycopg.errors.InvalidParameterValue):                                                # the tick is required again for every upload
+            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, false)", plain, json.dumps(MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", plain, json.dumps(MAPPING))
+        _, vid2 = self.project_version()
+        self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid2, plain)
+        self.assertEqual(self.db.as_(RYAN).one("select publisher, trust_label from version_sources where version_id = %s", vid2), ("Your data", "unverified_user"))
+        with self.assertRaises(psycopg.errors.CheckViolation):                                                       # the old label rule is back: an upload can never be official
+            self.db.as_(None).c.execute("update datasets set trust_label = 'official' where id = %s", (plain,))
+        self.db.as_(None).c.execute((core.ROOT / "migrations" / "20261027000100_find_data_fetch.sql").read_text(encoding="utf-8"))      # and the migration applies again on top
+        self.assertGreaterEqual(self.admin("select count(*) from fetch_hosts"), 16)
+
     def test_deleting_an_account_deletes_its_fetch_records(self):
         ds, _ = self.fetched()
         self.assertEqual(self.admin("select count(*) from dataset_fetches"), 1)
