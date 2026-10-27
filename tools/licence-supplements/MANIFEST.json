@@ -1,0 +1,42 @@
+[
+ {
+  "package": "ctranslate2",
+  "version": "4.8.2",
+  "file": "ctranslate2.txt",
+  "source_url": "https://raw.githubusercontent.com/OpenNMT/CTranslate2/v4.8.2/LICENSE",
+  "tag": "v4.8.2",
+  "licence_file_sha256": "54aa79d9fe3c09e67a16dcd95b9e88676405a6ec174efda31036983cf7672ecb",
+  "licence_file_bytes": 1115,
+  "fetched": "2026-10-26"
+ },
+ {
+  "package": "flatbuffers",
+  "version": "25.12.19",
+  "file": "flatbuffers.txt",
+  "source_url": "https://raw.githubusercontent.com/google/flatbuffers/v25.12.19/LICENSE",
+  "tag": "v25.12.19",
+  "licence_file_sha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+  "licence_file_bytes": 11358,
+  "fetched": "2026-10-26"
+ },
+ {
+  "package": "onnxruntime",
+  "version": "1.30.0",
+  "file": "onnxruntime.txt",
+  "source_url": "https://raw.githubusercontent.com/microsoft/onnxruntime/v1.30.0/LICENSE",
+  "tag": "v1.30.0",
+  "licence_file_sha256": "2f07c72751aed99790b8a4869cf2311df85a860b22ded05fa22803587a48922c",
+  "licence_file_bytes": 1073,
+  "fetched": "2026-10-26"
+ },
+ {
+  "package": "tokenizers",
+  "version": "0.23.2",
+  "file": "tokenizers.txt",
+  "source_url": "https://raw.githubusercontent.com/huggingface/tokenizers/v0.23.2/LICENSE",
+  "tag": "v0.23.2",
+  "licence_file_sha256": "c71d239df91726fc519c6eb72d318ec65820627232b2f796219e87dcf35d0ab4",
+  "licence_file_bytes": 11357,
+  "fetched": "2026-10-26"
+ }
+]
