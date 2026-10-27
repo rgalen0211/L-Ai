@@ -22,6 +22,16 @@
       created_at: client.now(), updated_at: client.now()
     });
 
+    // The live editor's draft (CONNECT's stand-in of the SQL): loaded here so /app/?mock has the five editor_* functions; the computer's track summary is posted for the compilation editor.
+    window.RYAGRAM_MOCK_EDITOR_PROJECT = '00000000-0000-4000-8000-0000000000a1';
+    if (window.createEditorRpcs) {
+      const m = window.createEditorRpcs({});
+      const sum = window.ryagramEditorPage ? window.ryagramEditorPage.CLIPS_BASE() : { duration: 12, clips: [] };
+      m.app.post(window.RYAGRAM_MOCK_EDITOR_PROJECT, { mirror: true, aiVisible: true, summary: sum });
+      window.ryagramMockRpcs = m.rpcs;
+      window.ryagramMockEditor = m;
+    }
+
     const worker = window.createMockWorker(client);
     setInterval(() => worker.tick(), 1200);
 

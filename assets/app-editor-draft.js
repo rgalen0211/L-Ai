@@ -15,7 +15,9 @@
     const state = { revision: 0, mirrored: false, aiVisible: false, ids: new Map(), seenAi: new Set() };       // ids: revision -> server op ids sent by this page
 
     // The draft as it is now. For a data film the server holds the look overrides; they become the editor's new base. For a compilation the computer's track summary does.
-    async function open(baseFor) {
+    let ready = null;                                                        // the first read of the draft: a change sent before it finishes waits for it (the revision must be known)
+    function open(baseFor) { ready = openNow(baseFor); return ready; }
+    async function openNow(baseFor) {
       const r = await rpc('my_edit_ops_since', { p_project: project, p_mode: mode, p_revision: 0 });
       if (r.error) return { ok: false, reason: WORDS[r.error.code] || plainWords(r.error, 'The draft could not be read.'), code: r.error.code };
       const d = r.data;
@@ -29,6 +31,7 @@
 
     // Send the person's changes (1 to 20 ops). Accepted: applied on screen. Refused: nothing changes on screen, and the reason is a sentence.
     async function send(ops) {
+      if (ready) await ready;
       for (const op of ops) { const why = window.ryagramEditor.check(editor.state, op, editor.lookKeys); if (why) return { ok: false, reason: why }; }
       const r = await rpc('editor_apply_ops', { p_project: project, p_mode: mode, p_base_revision: state.revision, p_ops: ops });
       if (r.error) {

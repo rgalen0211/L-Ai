@@ -66,7 +66,7 @@ test('FILM PAGE: a film made from an upload says "Unverified, user-supplied" in 
 test('WIRING: the stamps moved so a returning visitor gets the new scripts; nothing is shown unless uploads is on (the panel itself is behind it)', () => {
   const html = read('app/index.html');
   assert.match(html, /app-uploads\.js\?v=20261026b/);
-  assert.match(html, /app-data\.js\?v=20261027a/);                    // (data and library moved again with the sign-in landing fix, 2026-10-26 17:3x)
+  assert.match(html, /app-data\.js\?v=20261027b/);                    // (data and library moved again with the sign-in landing fix, 2026-10-26 17:3x)
   assert.match(html, /app-library\.js\?v=20261027b/);
   assert.match(html, /app\.css\?v=20261027a/);
   assert.match(read('film/index.html'), /film\.js\?v=20261026b/);

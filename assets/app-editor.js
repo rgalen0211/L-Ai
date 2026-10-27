@@ -23,12 +23,16 @@
     { id: 'm1', track: 'music', start: 0, len: 12, label: 'your music file (stays on your computer)' }] });
   const TRACK_NAMES = { video: 'Video', pictures: 'Pictures', text: 'Text', music: 'Music' };
 
-  function create({ h }) {
+  function create({ h, data = null }) {
     const btn = (label, cls, onclick, attrs = {}) => h('button', { type: 'button', class: `button ${cls || 'secondary'}`.trim(), onclick, ...attrs }, label);
 
     function editorView(kind, onStop) {
       const isData = kind === 'data';
       const ed = new E.Editor(isData ? DATA_BASE() : CLIPS_BASE());
+      // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
+      const project = window.RYAGRAM_MOCK_EDITOR_PROJECT;
+      const D = window.ryagramEditorDraft;
+      const draft = data && data.editorRpc && window.ryagramMock && project && D ? D.createDraft({ rpc: (n, a) => data.editorRpc(n, a), project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
       let position = isData ? LAST : 4.4;                                       // a year, or a time in seconds
       let selected = isData ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
@@ -85,7 +89,7 @@
 
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });
-      const undoBtn = btn('Undo', 'secondary', () => { stopPlay(); ed.undo(); saved = false; say('Undone.'); paint(); });
+      const undoBtn = btn('Undo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); });
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say('Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) note.focus(); }, { class: 'button secondary le-ai-btn' });
@@ -175,8 +179,14 @@
           btn('Copy', 'secondary', async () => { try { await navigator.clipboard.writeText(line); say('Copied. Paste it into your AI.'); } catch { say('Could not copy. Select the note and copy it by hand.'); } }));
       };
       note.addEventListener('input', paintAiLinks);
-      const mockAi = window.ryagramMock ? btn('(mock) my AI changes the line colour', 'secondary', () => {
-        const r = ed.receive([{ op: 'set_look', key: isData ? 'network.color' : 'network.color', value: '#ff9f6b' }], ed.revision);
+      const mockAi = window.ryagramMock ? btn('(mock) my AI changes the line colour', 'secondary', async () => {
+        if (draft && window.ryagramMockEditor) {                                  // the person's AI, through the connector: onto the shared draft; this page sees it on its next look
+          const aiOp = isData ? { op: 'set_look', key: 'network.color', value: '#ff9f6b' } : { op: 'set_clip_text', id: 't1', text: 'Changed by my AI' };
+          const r = window.ryagramMockEditor.ai.apply(project, kind, draft.revision, [aiOp], 'Claude');
+          say(r.error ? r.error.message : '');
+          return;
+        }
+        const r = ed.receive([{ op: 'set_look', key: 'network.color', value: '#ff9f6b' }], ed.revision);
         say(r.ok ? '' : r.reason === 'stale' ? 'Your AI changed this just now. Try again.' : r.reason); saved = false; paint();
       }, { class: 'button secondary le-mock' }) : null;
 
@@ -188,7 +198,7 @@
           ...LOOK_ROWS.map(([key, label]) => {
             const input = h('input', { type: 'color', value: ed.state.look[key], id: `le-look-${key}`, 'aria-label': label, disabled: locked });
             input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });
-            input.addEventListener('change', () => { preview = null; const r = ed.do({ op: 'set_look', key, value: input.value }); saved = false; say(r.ok ? '' : r.reason); paint(); });
+            input.addEventListener('change', () => { preview = null; apply({ op: 'set_look', key, value: input.value }); });
             return h('div', { class: 'le-row' }, h('label', { for: input.id }, label, touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null), input);
           }),
           ...WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the engine'))),
@@ -203,7 +213,15 @@
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
       function paintHead() { if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
       const pct = t => `${(t / Math.max(1, ed.state.duration)) * 100}%`;
-      function apply(op) { stopPlay(); if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; } const r = ed.do(op); if (r.ok) saved = false; say(r.ok ? '' : r.reason); paint(); return r.ok; }
+      async function apply(op) {
+        stopPlay();
+        if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; }
+        const r = draft ? await draft.send([op]) : ed.do(op);                    // with a draft the server decides first; the screen follows only an accepted change
+        if (r.ok) saved = false;
+        say(r.ok ? '' : r.reason);
+        paint();
+        return r.ok;
+      }
       let refocus = null;                                                       // a keyboard edit rebuilds the lanes: focus goes back to the clip that was edited
       function keyOn(c) {
         return ev => {
@@ -293,7 +311,7 @@
       function paintBanner() {
         const n = ed.log.filter(e => e.by === 'ai').length;
         banner.hidden = n === 0;
-        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below.'), btn('Undo my AI’s changes', 'secondary', () => { ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
+        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below.'), btn('Undo my AI’s changes', 'secondary', async () => { if (draft) await draft.undoAi(); else ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
       }
       function paintWarns() {
         const out = [];
@@ -327,6 +345,12 @@
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
+      if (draft) {                                                              // read the draft, then look for the AI's changes every two seconds while this page is open and visible
+        draft.open().then(r => { if (!r.ok) say(r.reason); paint(); });
+        const pollTimer = setInterval(async () => { if (document.hidden || locked) return; const r = await draft.poll(); if (r.ok && (r.applied.length || r.skipped.length)) { saved = false; paint(); } }, 2000);
+        const beat = setInterval(() => { if (!document.hidden) draft.heartbeat(); }, 15000);
+        onStop(() => { clearInterval(pollTimer); clearInterval(beat); });
+      }
       return root;
     }
     return { editorView };

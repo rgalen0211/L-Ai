@@ -248,6 +248,10 @@ test('the AI-altered marker follows the FOOTAGE (CC1 10:37): a clip whose stretc
   assert.equal(marked('C'), false);
   e.undo(); e.undo();
   assert.equal(marked('B'), false);                                                                             // undone back to 20 to 30
+  // BUILDER 10:43: a marked clip trimmed OFF the altered footage is built unmarked, so the page shows it unmarked; a clip with no recorded source keeps its own marker
+  const off = { id: 'A', track: 'video', start: 0, len: 3, label: 'A', source: 'x.mp4', source_start: 21, ai_altered: true };
+  assert.equal(E.isMarked(e.base, off), false);
+  assert.equal(E.isMarked(e.base, { id: 'q', track: 'video', start: 0, len: 2, label: 'q', ai_altered: true }), true);
   assert.equal(E.isMarked(e.base, { id: 'z', track: 'video', start: 0, len: 2, label: 'z' }), false);        // no source recorded: nothing to compare, not marked by guesswork
   assert.equal(E.isMarked(e.base, { id: 'z', track: 'text', start: 0, len: 2, label: 'z', ai_altered: true }), true);   // its own marker always counts
 });

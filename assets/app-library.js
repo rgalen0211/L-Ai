@@ -202,7 +202,7 @@
     let connectCache = null;
     let startCache = null;
     let editorCache = null;
-    const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h }));
+    const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h, data }));
     let deptCache = null;
     const deptUi = () => deptCache || (deptCache = window.ryagramDepartments.create({ h, data, startUi }));
     const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));
