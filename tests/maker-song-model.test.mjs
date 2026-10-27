@@ -222,3 +222,54 @@ test('THE PAGE\'S SOURCE: no HTML built from text, no call but to its own maker,
   assert.doesNotMatch(read('tools/maker-song/song.css'), /https?:|@import|url\(/);
   assert.doesNotMatch([js, model, html].join(' '), /Exit code|whisper|demucs|ffmpeg|traceback|\[object|\bNaN\b/i);
 });
+
+// ---- the words that ran together and were not measured (BUILDER songjoined abdc437, CC1's LOW on songonset, 2026-10-27) -------------------------------------------------------------------
+// The engine's plan view gives such a word offset_ms null + offset_measured false + offset_joined true, and the plan joined_not_measured. The page keeps the flag (normalize() used to drop unknown
+// fields), says on the word that it runs on from the word before, and says how many words ran together next to the beat summary, so 'every line is fully real' is never read as 'every word measured'.
+const joinedPlan = (marks) => {
+  const raw = clone(plan);
+  let k = 0;
+  for (const l of raw.lines) for (const w of l.words) if (w.status === 'whole' && k < marks.length) { const m = marks[k++]; if (m === 'joined') { w.offset_ms = null; w.offset_joined = true; } else if (m === 'measured') { w.offset_ms = 4; w.offset_joined = false; } else if (m === 'both') { w.offset_ms = 9; w.offset_joined = true; } }
+  raw.joined_not_measured = marks.filter(m => m === 'joined').length;
+  return M.parse(JSON.stringify(raw));
+};
+
+test('JOINED WORDS: the flag is kept only on a word with no measured landing time; a word that has both is a measured word; absent means false', () => {
+  const p = joinedPlan(['joined', 'measured', 'both']);
+  const words = p.lines.flatMap(l => l.words).filter(w => w.status === 'whole').slice(0, 3);
+  assert.deepEqual(words.map(w => [w.offset_ms, w.offset_joined]), [[null, true], [4, false], [9, false]]);
+  assert.equal(p.lines.flatMap(l => l.words).filter(w => w.offset_joined).length, 1);
+  const plain0 = M.parse(JSON.stringify(plan));
+  assert.ok(p.lines.flatMap(l => l.words).every(w => typeof w.offset_joined === 'boolean'), 'every word carries the flag');
+  assert.ok(plain0.lines.flatMap(l => l.words).every(w => w.offset_joined === false), 'a plan without the field has no joined word');
+  const bad = clone(plan); bad.lines[0].words.find(w => w.status === 'whole').offset_joined = 'yes';
+  assert.equal(M.parse(JSON.stringify(bad)).lines[0].words.find(w => w.status === 'whole').offset_joined, false, 'only a real true counts');
+});
+
+test('JOINED WORDS: the summary says how many words ran together and were not measured, next to the beat sentences; none, no sentence; a measured word is never counted', () => {
+  const s0 = M.summarize(joinedPlan([]));
+  assert.equal(s0.joined_not_measured, 0);
+  assert.ok(!s0.say.some(t => /ran together/.test(t)));
+  const s1 = M.summarize(joinedPlan(['joined']));
+  assert.equal(s1.joined_not_measured, 1);
+  assert.ok(s1.say.includes('1 word ran together with the word before and was not measured.'), s1.say.join(' | '));
+  const s3 = M.summarize(joinedPlan(['joined', 'joined', 'measured', 'joined']));
+  assert.equal(s3.joined_not_measured, 3);
+  assert.ok(s3.say.includes('3 words ran together with the word before and were not measured.'), s3.say.join(' | '));
+  const sm = M.summarize(joinedPlan(['measured', 'measured']));
+  assert.equal(sm.joined_not_measured, 0, 'measured words are not joined');
+  // a gap or a quiet word is never called joined
+  const g = clone(plan); const gap = g.lines.flatMap(l => l.words).find(w => w.status === 'gap'); if (gap) { gap.offset_joined = true; }
+  assert.equal(M.summarize(M.parse(JSON.stringify(g))).joined_not_measured, 0);
+});
+
+test('JOINED WORDS: swapping another take in clears the flag; the page says it on the word; the contract and the page agree', () => {
+  const p = joinedPlan(['joined']);
+  const found = firstOf(p, w => w.offset_joined && w.alternatives.length);
+  if (found) { const q = M.ops.swap(p, found.n, found.i, found.w.alternatives[0].id); assert.equal(q.lines[found.n - 1].words[found.i].offset_joined, false); }
+  const src = read('tools/maker-song/song-model.js');
+  assert.match(src, /Object\.assign\(w, \{ offset_joined: false, status: 'whole'/);                                  // a swap is a different take: it is no longer a joined word
+  const page = read('tools/maker-song/song.js');
+  assert.ok(page.includes("w.offset_joined ? 'Runs on from the word before, so it was not measured: its sound starts before its own beat' : 'Not measured yet: the render reports how close each word lands'"));
+  assert.match(read('docs/maker-song-host-contract.md'), /`offset_joined: true`/);
+});

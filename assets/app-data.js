@@ -503,6 +503,12 @@
       async connectAccess() {
         try { const r = await run(client.rpc('connect_consent_check', { p_request: '00000000-0000-0000-0000-000000000000' }), 'Couldn’t check AI access.'); return !!r && r.invited === true; } catch { return false; }
       },
+      // Departments (NEXT-WEB 147, CONNECT's my_departments() and the small interest table): the server says which departments exist for this account and whether each works; 'Tell me when it's ready'
+      // stores the account, the department and the time, and nothing is ever sent.
+      myDepartments() { return run(client.rpc('my_departments'), 'Couldn’t load the departments.'); },
+      async myDepartmentInterests() { const rows = await run(client.rpc('my_department_interests'), 'Couldn’t load that.'); return (Array.isArray(rows) ? rows : []).map(r => (typeof r === 'string' ? r : r && r.department)).filter(x => typeof x === 'string'); },
+      registerDepartmentInterest(id) { return run(client.rpc('register_department_interest', { p_department: id }), 'Couldn’t save that.'); },
+      withdrawDepartmentInterest(id) { return run(client.rpc('withdraw_department_interest', { p_department: id }), 'Couldn’t save that.'); },
       myConnectedAis() { return run(client.rpc('my_connected_ais'), 'Couldn\u2019t load your connected AIs.'); },
       disconnectAi(clientId) { return run(client.rpc('disconnect_ai', { p_client_id: clientId }), 'Couldn\u2019t disconnect that AI.'); },
       // Signing a computer in (r9 M2 DRAFT, against a MOCK: the function names are proposals; the real device-code SQL is CONNECT's and WORKER's and does not exist yet). App sessions only.

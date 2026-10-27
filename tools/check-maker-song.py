@@ -9,6 +9,7 @@ Writes screenshots. Not part of the node suite (needs Chrome).
     python tools/check-maker-song.py [outdir]      (default D:/Ryagram-scratch/WEB/maker-song-shots)
 """
 import http.server
+import re
 import json
 import socketserver
 import sys
@@ -108,6 +109,12 @@ def check(c, w):
     ok = ok and bool(c)
 
 
+def no_null(p, where):
+    # the browser's own append() writes the WORD 'null' for a null argument (the song page showed it twice, found 2026-10-26): no stray null, undefined or NaN may be on the page
+    t = p.locator('body').inner_text()
+    check(not re.search(r'(^|[^A-Za-z])(null|undefined|NaN)([^A-Za-z]|$)', t), 'no stray "null", "undefined" or "NaN" on the page: ' + where)
+
+
 def until(p, js, ms=8000):
     """Poll a page expression (the page's content policy forbids Playwright's string-eval wait_for_function)."""
     end = time.time() + ms / 1000
@@ -165,6 +172,7 @@ def main():
                 print('A. the practice build')
                 p.goto(f'{base}/song.html?fixture', wait_until='load')
                 p.wait_for_selector('html[data-ready="1"]', timeout=15000)
+                no_null(p, 'the words page, before anything is chosen')
                 check(p.locator('#s-board').is_hidden(), 'the board is not there before a build')
                 p.get_by_role('button', name='Build my song').click()
                 check('Paste your words' in p.locator('#msg').inner_text(), 'a build with no words says so in plain words')
@@ -192,6 +200,7 @@ def main():
                 p.wait_for_selector('text=my-guide-vocal.wav')
                 p.get_by_role('button', name='Build my song').click()
                 p.wait_for_selector('#s-board:not([hidden])', timeout=10000)
+                no_null(p, 'the word-by-word board after a build')
                 check(p.locator('button.chip').count() == 20, 'every word is a box: 20 words in 4 lines')
                 check(p.locator('section.line').count() == 4, 'one lane for each line')
                 sumtxt = p.locator('#sum').inner_text()
@@ -318,6 +327,7 @@ def main():
                 p.wait_for_selector('text=api-singing.wav')
                 p.get_by_role('button', name='Build my song').click()
                 p.wait_for_selector('#s-board:not([hidden])', timeout=10000)
+                no_null(p, 'the board in the maker host (part B)')
                 bq = STATE['builds'][-1]
                 check(bq['lines'] == ['one line of my own', 'and a second one'] and bq['track']['file_name'] == 'api-track.mp3' and bq['guide']['file_name'] == 'api-singing.wav' and bq['videos'] == [{'file_name': 'api-one.mp4'}, {'file_name': 'api-two.mp4'}, {'file_name': 'api-clips/one.mp4'}, {'file_name': 'api-clips/sub/two.mp4'}] and bq['folders'] == [{'name': 'api-clips'}], 'the maker received the lines, the videos and the folder by relative names, the track and the singing track by name')
                 if p.locator('#no-forge').count():
