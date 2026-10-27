@@ -224,6 +224,51 @@ class NodeEditor(r9.R9):
         with self.assertRaises(psycopg.Error):                                                                  # no op can set the marker: the vocabulary has no such field
             self.ai_queue(SAM, p, 3, [{"op": "set_clip_text", "id": "v1", "text": "x", "ai_altered": False}])
 
+    def test_text_slides_and_timed_pictures_of_the_makers_state_are_accepted_and_their_wrong_shapes_refused(self):
+        sam = self.signed(SAM)
+        p = self.project(SAM)
+        state = {"schema": "ryagram.edit-tracks/0", "duration": 8, "lanes": ["video", "pictures", "text"], "clips": [
+            {"id": "s1", "track": "video", "start": 0, "len": 2, "label": "Opening", "slide": True, "text": "Opening", "min_len": 0.5, "max_len": 10},
+            {"id": "s2", "track": "video", "start": 2, "len": 2, "slide": True, "picture": "title.png", "min_len": 0.5, "max_len": 10},
+            {"id": "p1", "track": "pictures", "start": 1, "len": 2, "picture": "logo.png", "mode": "corner", "fade_s": 0.3, "min_len": 0.5, "max_len": 30}]}
+        self.assertEqual(self.post(sam, p, summary=state)["revision"], 1)
+        self.assertEqual(self.draft(p)["state"], state)
+        c = state["clips"]
+        styled = dict(state, clips=[{"id": "t1", "track": "text", "start": 0, "len": 2, "text": "Hi", "style": "lower_third", "min_len": 0.5, "max_len": 30}])
+        self.assertEqual(self.post(sam, p, summary=styled)["revision"], 2)                                      # a styled text line (BUILDER 25) posts
+        for badstyle in ("big", 3, ""):
+            with self.assertRaises(psycopg.Error, msg=str(badstyle)) as cms:
+                self.post(sam, p, summary=dict(styled, clips=[dict(styled["clips"][0], style=badstyle)]))
+            self.assertEqual(cms.exception.sqlstate, "22023")
+        self.assertEqual(self.post(sam, p, summary=state)["revision"], 3)
+        for bad in (dict(c[0], slide="yes"), dict(c[2], mode="middle"), dict(c[2], mode=3), dict(c[2], fade_s=2), dict(c[2], fade_s="slow"), dict(c[2], fade_s=-0.1)):
+            with self.assertRaises(psycopg.Error, msg=json.dumps(bad)[:80]) as cm:
+                self.post(sam, p, summary=dict(state, clips=[bad]))
+            self.assertEqual(cm.exception.sqlstate, "22023")
+        self.assertEqual(self.draft(p)["state"], state)
+
+    def test_phrase_rules_picture_names_the_films_look_and_the_music_lane_are_accepted_and_their_wrong_shapes_refused(self):
+        sam = self.signed(SAM)
+        p = self.project(SAM)
+        rich = {"schema": "ryagram.edit-tracks/0", "duration": 8, "lanes": ["video", "text", "music"],
+                "pictures": [{"id": "p1", "name": "logo.png"}],
+                "rules": [{"id": "r1", "phrase": "good news", "picture": "p1", "seconds": 2, "mode": "corner", "fade_s": 0.3}],
+                "look": {"theme": "dark", "text_color": "#F3F6F5", "box_color": "#000000", "box_opacity": 0.6, "letterbox": "#0b0f0e"},
+                "clips": [{"id": "music", "track": "music", "start": 0, "len": 8, "source": "song.mp3", "source_start": 0, "level_db": -12, "fade_in_s": 1, "fade_out_s": 2, "snap": True}]}
+        self.assertEqual(self.post(sam, p, summary=rich)["revision"], 1)
+        self.assertEqual(self.draft(p)["state"], rich)
+        music = rich["clips"][0]
+        bads = [dict(rich, rules=[dict(rich["rules"][0], mode="middle")]), dict(rich, rules=[dict(rich["rules"][0], seconds=20)]), dict(rich, rules=[dict(rich["rules"][0], phrase="see C:" + chr(92) + "x")]),
+                dict(rich, rules=[dict(rich["rules"][0], extra=1)]), dict(rich, rules=[dict(rich["rules"][0], id="a b")]), dict(rich, rules="no"), dict(rich, rules=[rich["rules"][0]] * 51),
+                dict(rich, pictures=[{"id": "p1", "name": "C:" + chr(92) + "p" + chr(92) + "logo.png"}]), dict(rich, pictures=[{"id": "p1", "name": "a/b.png"}]), dict(rich, pictures=[{"id": "p1", "name": "logo.png", "path": "x"}]),
+                dict(rich, look={"theme": "blue"}), dict(rich, look={"font": "x"}), dict(rich, look={"box_opacity": 2}), dict(rich, look={"text_color": "red"}),
+                dict(rich, clips=[dict(music, level_db=7)]), dict(rich, clips=[dict(music, fade_in_s=9)]), dict(rich, clips=[dict(music, fade_out_s=-1)]), dict(rich, clips=[dict(music, snap="yes")])]
+        for bad in bads:
+            with self.assertRaises(psycopg.Error, msg=json.dumps(bad)[:120]) as cm:
+                self.post(sam, p, summary=bad)
+            self.assertEqual(cm.exception.sqlstate, "22023")
+        self.assertEqual(self.draft(p)["state"], rich)
+
     def test_a_summary_with_a_place_an_unknown_field_or_a_wrong_shape_is_refused_whole(self):
         sam = self.signed(SAM)
         p = self.project(SAM)

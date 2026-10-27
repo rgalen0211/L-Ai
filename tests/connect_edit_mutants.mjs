@@ -34,6 +34,14 @@ const mutants = [
   ['another account\'s project can be edited', D + 'fake.ts', 'if (!u().projects.some((p) => p.id === pid)) throw err("That project was not found among your projects.", "PT404");', ''],
   ['the real database call names another function', 'supabase/functions/connect/db.ts', '"connect_edit_ops"', '"connect_edit_opss"', ['connect-oauth.test.mjs'], 'every SQL function the server names'],
   ['the edit scope is not advertised', D + 'rest.ts', 'edit: "Change the look and the clip list in your open editor, as drafts you can undo"', 'edit_off: "x"', ['connect-mcp-sdk.test.mjs'], 'every address the metadata advertises'],
+  ['a music level above 6 dB is accepted', D + 'edit_state.ts', "level_db\", -30, 6,", "level_db\", -30, 60,"],
+  ['a rule may show for any number of seconds', D + 'edit_state.ts', "o.seconds >= 0.5 && o.seconds <= 10", "o.seconds >= 0.5"],
+  ['a rule mode outside the four is accepted', D + 'edit_state.ts', '["full", "centre", "corner", "lower_third"].includes(o.mode)', 'typeof o.mode === "string"'],
+  ['a text style outside the three is accepted', D + 'edit_state.ts', 'STYLES.includes(o.style)', 'typeof o.style === "string"'],
+  ['any key is a film look setting', D + 'edit_state.ts', 'FILM_LOOK.includes(o.key)', 'typeof o.key === "string"'],
+  ['a film colour may be any word', D + 'edit_state.ts', '["text_color", "box_color", "letterbox"].includes(o.key) && !(typeof o.value === "string" && /^#[0-9A-Fa-f]{6}$/.test(o.value))', 'false'],
+  ['set_music with nothing in it is accepted', D + 'edit_state.ts', 'if (Object.keys(o).length < 2) return "set_music', 'if (false) return "set_music'],
+  ['delete_rule needs no rule id', D + 'edit_state.ts', 'kind === "delete_rule") {\n    if (!(typeof o.id === "string" && ID.test(o.id)))', 'kind === "delete_rule") {\n    if (false)'],
 ];
 
 function run(cwd, suites, pattern) {
