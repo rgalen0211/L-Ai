@@ -113,6 +113,21 @@ try:
     (friend / "notrecipe.json").write_text(json.dumps({"name": "hello", "x": 1}), encoding="utf-8")
     check("not a recipe" in (problem_of(lambda: DM.import_recipe(str(friend / "notrecipe.json"))) or ""), "valid JSON that is not a recipe is refused by the engine's own rules")
     check("episode" in (problem_of(lambda: DM.import_recipe(str(friend / "leaky.json"))) or "").lower() or "not added" in (problem_of(lambda: DM.import_recipe(str(friend / "leaky.json"))) or ""), "the refusal of a tied-to-one-show recipe is in words")
+    import importlib
+    saved_portable = sys.modules.get("ryagram.recipe.portable")
+    saved_attr = getattr(R, "portable", None)
+    if saved_attr is not None:
+        delattr(R, "portable")
+    sys.modules["ryagram.recipe.portable"] = None                     # an import of it now raises ImportError, as in a kit that left it out
+    (friend / "fine.json").write_text(json.dumps(dict(shared, name="A fine one")), encoding="utf-8")
+    refused_blind = problem_of(lambda: DM.import_recipe(str(friend / "fine.json")))
+    check("cannot check recipe files" in (refused_blind or "") and not any(p.name.startswith("a-fine-one") for p in recipes.iterdir()), "without the portability check in the kit, a recipe is refused in words and NOT added (never fail open)")
+    if saved_attr is not None:
+        R.portable = saved_attr
+    if saved_portable is not None:
+        sys.modules["ryagram.recipe.portable"] = saved_portable
+    else:
+        del sys.modules["ryagram.recipe.portable"]
     check(problem_of(lambda: DM.import_recipe(str(friend / "missing.json"))) is not None, "a file that is not there is refused")
     before = sorted(p.name for p in recipes.iterdir())
     check("pick.json" not in before and (friend / "pick.json").exists(), "the picked file itself is only read")

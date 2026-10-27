@@ -920,12 +920,11 @@ def import_recipe(path: str | None = None) -> dict:
     try:
         from ryagram.recipe import portable  # noqa: PLC0415
     except ImportError:
-        portable = None
-    if portable is not None:
-        try:
-            portable.check(rec)
-        except Exception as e:  # noqa: BLE001
-            raise Problem("That recipe was not added: " + str(e)[:200]) from None
+        raise Problem("This app cannot check recipe files yet, so that recipe was not added.") from None       # never add a file that could not be checked
+    try:
+        portable.check(rec)
+    except Exception as e:  # noqa: BLE001
+        raise Problem("That recipe was not added: " + str(e)[:200]) from None
     stem = re.sub(r"[^a-z0-9]+", "-", str(rec.get("name") or "recipe").lower()).strip("-")[:40] or "recipe"
     dest = STATE["recipes"] / f"{stem}.json"
     n = 2
