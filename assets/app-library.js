@@ -1251,6 +1251,7 @@
           h('div', { class: 'actions-row' }, confirmBtn), note);
       }
 
+      const downloadUi = {};
       function card(ds) {
         const c = U.chip(ds, ds.ingest);
         const inUse = v.dataset_id === ds.id;
@@ -1260,6 +1261,7 @@
             try { await data.deleteUpload(ds.id); await refresh(); } catch (err) { showError(error, err); }
           });
         } }, 'Delete');
+        const dl = window.ryagramDownloadData && data.downloadParts && ds.uploaded_at ? (downloadUi.cache || (downloadUi.cache = window.ryagramDownloadData.create({ h, data }))).button(ds) : null;     // Download my data (NEXT-WEB 153)
         const use = c.key === 'ready' && editable && !inUse ? h('button', { class: 'button small', type: 'button', onclick: async () => {
           await busy(use, 'Adding\u2026', async () => {
             try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref, ds)); v.dataset_id = ds.id; await refresh(); }
@@ -1275,7 +1277,7 @@
           c.key === 'failed' ? h('p', { class: 'form-note app-error' }, c.detail) : null,
           c.key === 'check' ? mappingForm(ds) : null,
           c.key === 'ready' && open === ds.id ? h('ul', { class: 'column-list' }, (ds.ingest_report?.columns || []).map(col => h('li', {}, `${U.text(col.header)} (${col.kind})`))) : null,
-          h('div', { class: 'actions-row' }, use, edit, c.key === 'deleting' ? null : del));
+          h('div', { class: 'actions-row' }, use, edit, dl, c.key === 'deleting' ? null : del));
       }
 
       // What a good file looks like (BYOD guide): the shape, as a small table.
