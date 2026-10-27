@@ -21,8 +21,12 @@
   const round = n => Math.round(n * 1000) / 1000;
   const has = (o, k) => Object.prototype.hasOwnProperty.call(o, k);
 
+  // Who is speaking, which voice, which cast line: these live ONLY on the person's own computer (FACES 62). The website's editor never carries them, so they are stripped from any clip
+  // that arrives here, and no op can set them. The AI-altered marker (`ai_altered`, FACES 63) is NOT stripped: it travels with the clip through every move, trim, reorder and undo.
+  const LOCAL_ONLY = ['speaker', 'speakers', 'speaker_state', 'speaker_label', 'voice', 'voices', 'voice_id', 'cast', 'cast_badge', 'face', 'faces'];
+  const stripLocal = c => { const o = clone(c); for (const k of LOCAL_ONLY) delete o[k]; return o; };
   function newState(init = {}) {
-    return { look: clone(init.look || {}), clips: clone(init.clips || []), duration: init.duration || 0, revision: 0 };
+    return { look: clone(init.look || {}), clips: (init.clips || []).map(stripLocal), duration: init.duration || 0, revision: 0 };
   }
   const clipOf = (state, id) => state.clips.find(c => c.id === id);
   const videoOf = state => state.clips.filter(c => c.track === 'video');
@@ -174,5 +178,5 @@
     }
   }
 
-  window.ryagramEditor = { MIN_LEN, TRACKS, LOOK_KEYS, OPS, cleanText, newState, check, apply, snap, Editor, repack };
+  window.ryagramEditor = { LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, OPS, cleanText, newState, check, apply, snap, Editor, repack };
 })();

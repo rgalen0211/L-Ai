@@ -174,3 +174,25 @@ test('the ops the page sends are exactly the closed list, and every one of them 
   for (const op of E.OPS) assert.equal(typeof E.check(s, { op }), 'string', op + ' with no arguments must be refused');
   assert.deepEqual(plain(Object.keys(E.LOOK_KEYS).sort()), ['network.base_color', 'network.color', 'network.context_color', 'page.background', 'state.fill']);
 });
+
+test('speaker, voice and cast fields are local-only (FACES 62): stripped from any clip that arrives, never in the state, the log or an undo; the AI-altered marker (FACES 63) is kept through every op', () => {
+  const b = base();
+  b.clips[0].speaker = 'Ann'; b.clips[0].speaker_state = 'one'; b.clips[1].voice = 'v-9'; b.clips[2].cast_badge = { line: 1, person: 'Bob' }; b.clips[2].faces = ['x'];
+  b.clips[1].ai_altered = true; b.clips[1].ai_altered_by = 'face tool';
+  const s = E.newState(b);
+  for (const c of s.clips) for (const k of E.LOCAL_ONLY) assert.ok(!(k in c), `${c.id} still has ${k}`);
+  assert.equal(JSON.stringify(s).includes('Ann'), false);
+  assert.equal(JSON.stringify(s).includes('v-9'), false);
+  const e = new E.Editor(b);
+  e.do({ op: 'reorder_clip', id: 'v2', index: 0 });
+  e.do({ op: 'trim_clip', id: 'v2', edge: 'end', to: 1.5 });
+  e.receive([{ op: 'delete_clip', id: 'v1' }], e.revision);
+  e.undo();
+  const v4 = e.state.clips.find(c => c.id === 'v2');
+  assert.equal(v4.ai_altered, true);
+  assert.equal(v4.ai_altered_by, 'face tool');
+  e.undoAi(); e.revert();
+  assert.equal(e.state.clips.find(c => c.id === 'v2').ai_altered, true);
+  assert.equal(JSON.stringify([e.log, e.state]).includes('Ann'), false);
+  assert.deepEqual(plain(E.LOCAL_ONLY).includes('ai_altered'), false);                                 // the marker is never on the strip list
+});
