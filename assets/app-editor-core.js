@@ -138,6 +138,16 @@
     return next;
   }
 
+  // The AI-altered marker is about FOOTAGE, not clip ids (CC1 10:37): a video clip counts as marked if it carries the marker itself OR its stretch of its source file overlaps a stretch that was
+  // marked when the editor opened (base), even if the marked clip was since deleted or the clip was trimmed back into it. The page only SHOWS this; the maker's edit_from_tracks enforces it.
+  function isMarked(base, clip) {
+    if (clip.ai_altered === true) return true;
+    if (clip.track !== 'video' || typeof clip.source !== 'string' || !Number.isFinite(clip.source_start)) return false;
+    const a0 = clip.source_start, a1 = clip.source_start + clip.len;
+    return base.clips.some(m => m.ai_altered === true && m.track === 'video' && m.source === clip.source && Number.isFinite(m.source_start)
+      && a0 < m.source_start + m.len - 1e-9 && m.source_start < a1 - 1e-9);
+  }
+
   // Snapping while dragging: to the playhead, to another clip's edge, then to a grid; within `reach` seconds, else the raw value.
   function snap(state, id, start, { playhead = null, grid = 0.1, reach = 0.15 } = {}) {
     const c = clipOf(state, id);
@@ -234,5 +244,5 @@
     reload(base) { this.base = newState(base); this.state = this.base; this.log = []; this.redo = []; this.undone.clear(); }
   }
 
-  window.ryagramEditor = { LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, OPS, DATA_OPS, cleanText, newState, check, apply, snap, Editor, repack };
+  window.ryagramEditor = { isMarked, LOCAL_ONLY, MIN_LEN, TRACKS, LOOK_KEYS, OPS, DATA_OPS, cleanText, newState, check, apply, snap, Editor, repack };
 })();

@@ -230,3 +230,24 @@ test('lanes the maker can build (BUILDER 21): an edit in any other lane is refus
   assert.equal(E.newState({ ...base(), lanes: ['video', 'nonsense'] }).lanes.includes('nonsense'), false);       // an unknown lane name is dropped
   assert.equal(E.newState(base()).lanes, undefined);                                                            // no summary lanes: nothing is hidden (the mock)
 });
+
+test('the AI-altered marker follows the FOOTAGE (CC1 10:37): a clip whose stretch of the same file overlaps a stretch marked when the editor opened shows as marked, even after the marked clip is deleted', () => {
+  const clips = [
+    { id: 'A', track: 'video', start: 0, len: 10, label: 'A', source: 'x.mp4', source_start: 10, max_len: 100, ai_altered: true },
+    { id: 'B', track: 'video', start: 10, len: 10, label: 'B', source: 'x.mp4', source_start: 20, max_len: 100 },
+    { id: 'C', track: 'video', start: 20, len: 5, label: 'C', source: 'y.mp4', source_start: 10, max_len: 100 },
+    { id: 'D', track: 'video', start: 25, len: 5, label: 'D', source: 'x.mp4', source_start: 40, max_len: 100 }
+  ];
+  const e = new E.Editor({ duration: 40, clips });
+  const marked = id => E.isMarked(e.base, e.state.clips.find(c => c.id === id));
+  assert.deepEqual(plain(['A', 'B', 'C', 'D'].map(marked)), [true, false, false, false]);                      // touching at 20 s is not overlapping; another file is not; a later stretch is not
+  assert.equal(e.do({ op: 'trim_clip', id: 'B', edge: 'start', to: 5 }).ok, true);                             // the lane time 5 is 5 s before B's start: B now begins 5 s earlier in the file (15 to 30), overlapping A's 10 to 20
+  assert.equal(marked('B'), true);
+  assert.equal(e.do({ op: 'delete_clip', id: 'A' }).ok, true);                                                 // the evidence clip is gone ...
+  assert.equal(marked('B'), true);                                                                              // ... the footage is still marked
+  assert.equal(marked('C'), false);
+  e.undo(); e.undo();
+  assert.equal(marked('B'), false);                                                                             // undone back to 20 to 30
+  assert.equal(E.isMarked(e.base, { id: 'z', track: 'video', start: 0, len: 2, label: 'z' }), false);        // no source recorded: nothing to compare, not marked by guesswork
+  assert.equal(E.isMarked(e.base, { id: 'z', track: 'text', start: 0, len: 2, label: 'z', ai_altered: true }), true);   // its own marker always counts
+});

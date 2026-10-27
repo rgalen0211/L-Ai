@@ -248,7 +248,7 @@
           if (!open(track)) return h('div', { class: 'le-lane' }, h('b', {}, TRACK_NAMES[track]), h('div', { class: 'le-bar le-off' }, h('span', { class: 'meta' }, 'Not available yet')));
           for (const c of ed.state.clips.filter(x => x.track === track)) {
             const el = h('button', { type: 'button', class: `le-clip le-c-${track}${selected === c.id ? ' le-sel' : ''}`, 'data-id': c.id,
-              'aria-label': `${TRACK_NAMES[track]} clip ${c.label}${c.ai_altered === true ? ', altered by an AI tool' : ''}, starts ${mmss(c.start)}, ${c.len} seconds. Arrow keys move it, Shift and arrows trim it, Delete removes it.` }, c.label + (touched.has('clip:' + c.id) ? ' · AI' : '') + (c.ai_altered === true ? ' · AI-altered' : ''),
+              'aria-label': `${TRACK_NAMES[track]} clip ${c.label}${E.isMarked(ed.base, c) ? ', altered by an AI tool' : ''}, starts ${mmss(c.start)}, ${c.len} seconds. Arrow keys move it, Shift and arrows trim it, Delete removes it.` }, c.label + (touched.has('clip:' + c.id) ? ' · AI' : '') + (E.isMarked(ed.base, c) ? ' · AI-altered' : ''),
               h('span', { class: 'le-edge', 'data-edge': 'end', 'aria-hidden': 'true' }));
             el.style.left = pct(c.start); el.style.width = pct(c.len);
             el.addEventListener('click', () => { selected = c.id; paint(); });
@@ -272,7 +272,7 @@
                btn('Later', 'secondary', () => apply({ op: 'move_clip', id: c.id, start: Math.round((c.start + 0.1) * 10) / 10 }), { 'aria-label': `Start ${c.label} later` })];
           return h('div', { class: `le-item le-c-${c.track}${selected === c.id ? ' le-sel' : ''}` },
             h('span', { class: 'le-dot', 'aria-hidden': 'true' }),
-            h('button', { type: 'button', class: 'le-itemtext', onclick: () => { selected = c.id; paint(); } }, `${TRACK_NAMES[c.track]}: ${c.label} · ${mmss(c.start)} · ${c.len} s${touched.has('clip:' + c.id) ? ' · by your AI' : ''}${c.ai_altered === true ? ' · AI-altered' : ''}`),
+            h('button', { type: 'button', class: 'le-itemtext', onclick: () => { selected = c.id; paint(); } }, `${TRACK_NAMES[c.track]}: ${c.label} · ${mmss(c.start)} · ${c.len} s${touched.has('clip:' + c.id) ? ' · by your AI' : ''}${E.isMarked(ed.base, c) ? ' · AI-altered' : ''}`),
             h('span', { class: 'le-mv' }, moves,
               btn('Shorter', 'secondary', () => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + c.len - 0.1) * 10) / 10 }), { 'aria-label': `Make ${c.label} shorter` }),
               btn('Longer', 'secondary', () => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + c.len + 0.1) * 10) / 10 }), { 'aria-label': `Make ${c.label} longer` })));
