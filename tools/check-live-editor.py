@@ -117,6 +117,7 @@ def main():
                 p.fill('#le-note', 'make the lines orange <b>now</b>')
                 links = p.eval_on_selector_all('.le-ai-links a', 'els => els.map(e => e.href)')
                 check(len(links) == 2 and all(u.startswith(('https://claude.ai/new?q=', 'https://chatgpt.com/?q=')) for u in links), 'Ask my AI opens a new chat in Claude or ChatGPT')
+                check(all('00000000-0000-4000-8000-0000000000a1' in __import__('urllib.parse').parse.unquote(u) for u in links), 'the line names the film (its project id), so the AI does not guess which editor is open')
                 check(all('%3C' not in u and '%3E' not in u for u in links), 'the note\u2019s markup characters are stripped before they go in the address')
                 check('render, save or spend credits' in p.eval_on_selector('#le-note', 'e => e.value') or True, 'the line tells the AI not to render, save or spend')
                 # the final button: what will render, in words; then a job with honest progress

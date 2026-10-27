@@ -255,7 +255,9 @@
       // ---- Ask my AI: a note, then the person's own AI in a NEW chat (no server; the note travels as plain text in the address)
       const note = h('textarea', { id: 'le-note', rows: 3, maxlength: 300, 'aria-label': 'What should your AI change?' });
       const aiLinks = h('div', { class: 'le-ai-links' });
-      const aiLine = () => `I am editing my Ryagram film and want you to change it. My note: ${E.cleanText(note.value) || 'make it clearer'}. Use the Ryagram connector. Read my open editor draft first and change only the draft. Do not render, save or spend credits.`;
+      // names the film (the project id, when it is a plain id, and the title) so the AI does not have to guess which project's editor is open (CONNECT 12:44)
+      const aiFilm = () => (typeof project === 'string' && /^[0-9A-Za-z-]{8,64}$/.test(project) ? ` The film is project ${project}${host && host.title ? ` ("${E.cleanText(String(host.title)).slice(0, 60)}")` : ''}.` : '');
+      const aiLine = () => `I am editing my Ryagram film and want you to change it.${aiFilm()} My note: ${E.cleanText(note.value) || 'make it clearer'}. Use the Ryagram connector. Read my open editor draft first and change only the draft. Do not render, save or spend credits.`;
       const aiBox = h('div', { class: 'le-ai', hidden: true }, h('label', { for: 'le-note' }, 'What should your AI change?'), note, aiLinks,
         h('p', { class: 'meta' }, 'It opens a new chat in your own Claude or ChatGPT with this ready. Your AI can change the draft you see here; it cannot render, save, publish or spend credits.'));
       const paintAiLinks = () => {
