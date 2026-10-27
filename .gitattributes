@@ -13,5 +13,6 @@ supabase/functions/_shared/motion_record.txt text eol=lf
 supabase/functions/_shared/motion_baseline.txt text eol=lf
 supabase/functions/_shared/motion_skip_named.txt text eol=lf
 *.bat text eol=crlf
-# The live editor page the maker serves is WEB's pinned file: its hashes (tools/maker-live/PIN) are over LF bytes, so no checkout may change its line endings (CC1 12:11).
+# The maker's standalone live editor is pinned by hash (CONNECT's page check): LF bytes on every checkout, so a Windows checkout does not turn the pins red.
 tools/maker-live/* text eol=lf
+tests/edit-vectors.json text eol=lf
