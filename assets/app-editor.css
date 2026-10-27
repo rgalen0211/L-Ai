@@ -38,3 +38,6 @@
 
 .le-canvas{width:100%;height:100%;display:block;object-fit:contain;background:#000}
 .le>p>a{display:inline-flex;align-items:center;min-height:44px}
+.le-side{display:grid;gap:14px;align-content:start}.le-rule-list{list-style:none;margin:0 0 10px;padding:0}.le-rule-form{border-top:1px solid var(--line,#3a3a44);margin-top:8px;padding-top:8px}
+.le select,.le input[type=checkbox]{min-height:44px}.le input[type=checkbox]{width:28px}
+.le-side,.le-main,.le-panel{min-width:0}.le-itemtext{overflow-wrap:anywhere}.le-rule-form .le-row input,.le-rule-form .le-row select{max-width:11em}

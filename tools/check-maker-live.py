@@ -22,7 +22,7 @@ PORT = 8271
 BASE = f'http://127.0.0.1:{PORT}'
 PROJECT = '00000000-0000-4000-8000-0000000000a1'
 TOKEN = 'T0KEN-for-this-test'
-SUMMARY = {'text_rules': None, 'duration': 12, 'lanes': ['video', 'text'], 'limits': {'text_chars': 20}, 'clips': [
+SUMMARY = {'text_rules': None, 'rules': [{'id': 'r1', 'phrase': 'great news', 'picture': 'img-1', 'seconds': 2, 'mode': 'corner'}], 'pictures': [{'id': 'img-1', 'name': 'house.png'}], 'look': {'theme': 'dark', 'text_color': '#f2f2f2', 'box_color': '#14141a', 'box_opacity': 0.75, 'letterbox': '#000000'}, 'duration': 12, 'lanes': ['video', 'text'], 'limits': {'text_chars': 20}, 'clips': [
     {'id': 'v1', 'track': 'video', 'start': 0, 'len': 2, 'label': 'great news everyone', 'source': 'a.mp4', 'source_start': 4, 'min_len': 0.3, 'max_len': 6},
     {'id': 'v2', 'track': 'video', 'start': 2, 'len': 2, 'label': 'we built a thing', 'source': 'a.mp4', 'source_start': 20, 'min_len': 0.3, 'max_len': 5, 'ai_altered': True},
     {'id': 'v3', 'track': 'video', 'start': 4, 'len': 3, 'label': 'for the weekend', 'source': 'b.mp4', 'source_start': 0, 'min_len': 0.3, 'max_len': 9},
@@ -86,7 +86,7 @@ def main():
                 pc = ctx.new_page()
                 pc.set_content('<html><body>pc</body></html>')
                 pc.add_script_tag(content=fake_js)
-                pc.evaluate("([p, s]) => { window.pc = window.createEditorRpcs({}); window.pc.app.post(p, { mirror: true, aiVisible: true, summary: s }); }", [PROJECT, SUMMARY])
+                pc.evaluate("([p, s]) => { const OK = ['move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look']; window.pc = window.createEditorRpcs({ check: (mode, op) => (op && OK.includes(op.op) ? null : 'not a change this editor knows') }); window.pc.app.post(p, { mirror: true, aiVisible: true, summary: s }); }", [PROJECT, SUMMARY])
                 calls, headers, other = [], [], []
 
                 def on_rpc(route):
@@ -167,6 +167,16 @@ def main():
                     check(p.input_value('#le-text') == 'By my AI', 'and its text is on the clip')
                     # the text cap comes from the summary's limits: the field itself stops at 20 letters
                     check(p.get_attribute('#le-text', 'maxlength') == '20', 'the text field stops at the PC’s limit of 20 letters')
+                    # the film's own settings reach the PC too: a text style, a phrase rule, the film's look (the PC holds them as waiting changes for its applier)
+                    n2 = len(calls)
+                    p.click('.le-clip[data-id="t1"]')
+                    p.select_option('#le-style', 'lower_third')
+                    p.wait_for_timeout(500)
+                    check(pc.evaluate("() => window.pc.app.pending('%s').some(o => o.op.op === 'set_clip_style' && o.op.style === 'lower_third')" % PROJECT), 'a text style goes to the PC as set_clip_style')
+                    check('great news' in p.inner_text('.le-rule-list') and p.locator('#le-fl-theme').count() == 1, 'the summary\u2019s phrase rules and the film\u2019s look are shown (read from the PC\u2019s track summary)')
+                    p.select_option('#le-fl-theme', 'light')
+                    p.wait_for_timeout(500)
+                    check(pc.evaluate("() => window.pc.app.pending('%s').some(o => o.op.op === 'set_film_look' && o.op.key === 'theme' && o.op.value === 'light')" % PROJECT), 'the film\u2019s look goes to the PC as set_film_look')
                     # a stale revision: the AI gets in first, the page says so and the retry works
                     pc.evaluate("([p]) => window.pc.ai.apply(p, 'compilation', window.pc.draft(p, 'compilation').revision, [{ op: 'set_clip_text', id: 't1', text: 'AI again' }], 'Claude')", [PROJECT])
                     p.fill('#le-text', 'Mine')

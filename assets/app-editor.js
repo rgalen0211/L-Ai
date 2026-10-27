@@ -20,7 +20,9 @@
     { id: 'v5', track: 'video', start: 9.5, len: 2.5, label: 'nobody saw that coming' },
     { id: 'p1', track: 'pictures', start: 1.5, len: 2, label: 'house price' }, { id: 'p2', track: 'pictures', start: 6.2, len: 2.2, label: 'rent chart' },
     { id: 't1', track: 'text', start: 0.2, len: 3.5, label: 'Title', text: 'Housing, 2019 to 2024' }, { id: 't2', track: 'text', start: 9, len: 3, label: 'Thanks', text: 'Thanks for watching' },
-    { id: 'm1', track: 'music', start: 0, len: 12, label: 'your music file (stays on your computer)' }] });
+    { id: 'music', track: 'music', start: 0, len: 12, label: 'your music file (stays on your computer)', source: 'song.wav', source_start: 0, level_db: -12, fade_in_s: 0, fade_out_s: 1, snap: false }],
+    rules: [{ id: 'r1', phrase: 'great news', picture: 'img-1', seconds: 2, mode: 'corner', fade_s: 0.2 }], pictures: [{ id: 'img-1', name: 'house.png' }, { id: 'img-2', name: 'chart.png' }],
+    look: { theme: 'dark', text_color: '#f2f2f2', box_color: '#14141a', box_opacity: 0.75, letterbox: '#000000' } });
   const TRACK_NAMES = { video: 'Video', pictures: 'Pictures', text: 'Text', music: 'Music' };
 
   function create({ h, data = null }) {
@@ -101,10 +103,11 @@
         for (const p of now.filter(c => c.track === 'pictures')) bmpPics.push([p, await frameOf(p.id, 0)]);
         if (seq !== drawSeq) return;                                              // a newer playhead position took over
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+        const fl = ed.state.look || {}, light = fl.theme === 'light';
+        ctx.fillStyle = /^#[0-9a-fA-F]{6}$/.test(fl.letterbox) ? fl.letterbox : '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.setTransform(k, 0, 0, k, 0, 0);
         const slideText = vid && vid.slide === true && !vid.picture;
-        if (slideText) { ctx.fillStyle = '#14141a'; ctx.fillRect(0, 0, W, H); }   // a text slide is the words on a card in the film's theme (dark by default)
+        if (slideText) { ctx.fillStyle = light ? '#f2f2f2' : '#14141a'; ctx.fillRect(0, 0, W, H); }   // a text slide is the words on a card in the film's theme (dark by default)
         else if (bmp) contain(ctx, bmp, 0, 0, W, H);
         else if (vid) { ctx.fillStyle = '#b6b5ae'; ctx.font = `${Math.round(H * 0.05)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText(`${vid.label} (no picture for this moment)`, W / 2, H / 2); ctx.textAlign = 'start'; }
         for (const [p, b] of bmpPics) { if (!b) continue; const g = GEOM[p.mode] || GEOM.full; contain(ctx, b, g[0] * W, g[1] * H, g[2] * W, g[3] * H); }
@@ -115,8 +118,8 @@
         for (const t of now.filter(c => c.track === 'text' && c.text)) words.push({ text: t.text, style: t.style || null });
         for (const w of words) {
           try {
-            if (w.card) { ctx.fillStyle = '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
-            else if (L && R && w.style) { const lay = L.layout(R, w.text, w.style, ctx); L.draw(ctx, R, lay, w.text, { text: '#f2f2f2', box: '#14141a', alpha: 0.75 }); }
+            if (w.card) { ctx.fillStyle = light ? '#14141a' : '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
+            else if (L && R && w.style) { const lay = L.layout(R, w.text, w.style, ctx); L.draw(ctx, R, lay, w.text, { text: /^#[0-9a-fA-F]{6}$/.test(fl.text_color) ? fl.text_color : '#f2f2f2', box: /^#[0-9a-fA-F]{6}$/.test(fl.box_color) ? fl.box_color : '#14141a', alpha: Number.isFinite(fl.box_opacity) ? fl.box_opacity : 0.75 }); }
             else { const sz = Math.round(H * 0.05); ctx.font = `${sz}px Arial, sans-serif`; const tw = ctx.measureText(w.text).width; const x = (W - tw) / 2, y = H * 0.86; ctx.fillStyle = 'rgba(20,20,26,.75)'; ctx.fillRect(x - sz / 3, y - sz, tw + 2 * sz / 3, sz * 1.5); ctx.fillStyle = '#f2f2f2'; ctx.fillText(w.text, x, y); }
           } catch (e) { layoutProblem = String((e && e.message) || 'That text does not fit.').slice(0, 200); }
         }
@@ -296,6 +299,56 @@
       // ---- the tracks (compilation): lanes on a wide screen, a list on a phone; both from the same state, both make the same ops
       const open = track => !ed.state.lanes || ed.state.lanes.includes(track);          // the lanes the maker can build today (the track summary says); the others are shown, not editable
       const lanes = h('div', { class: 'le-lanes', role: 'group', 'aria-label': 'Tracks' });
+
+      // ---- the film's own settings (CONNECT 13:12): the phrase rules ("every time a word is said, show a picture") and the look of the film's text and cards
+      const rulesPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-rules-h', hidden: true });
+      const filmLookPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-flook-h', hidden: true });
+      let editingRule = null;
+      const MODE_WORDS = { full: 'full frame', centre: 'centre', corner: 'corner', lower_third: 'lower third' };
+      const field = (id, label, control) => h('div', { class: 'le-row' }, h('label', { for: id }, label), control);
+      function paintRules() {
+        const rules = ed.state.rules, pics = ed.state.pictures || [];
+        rulesPanel.hidden = !Array.isArray(rules) || isData;
+        if (rulesPanel.hidden) return;
+        const picName = id => (pics.find(p => p.id === id) || {}).name || id;
+        const cur = rules.find(r => r.id === editingRule) || null;
+        const phrase = h('input', { type: 'text', id: 'le-r-phrase', maxlength: 60, value: cur ? cur.phrase : '' });
+        const pic = h('select', { id: 'le-r-pic' }, pics.map(p => h('option', { value: p.id, selected: cur && cur.picture === p.id }, p.name)));
+        const secs = h('input', { type: 'number', id: 'le-r-secs', min: '0.5', max: '10', step: '0.5', value: cur ? cur.seconds : 2 });
+        const mode = h('select', { id: 'le-r-mode' }, Object.entries(MODE_WORDS).map(([v, w]) => h('option', { value: v, selected: cur ? cur.mode === v : v === 'corner' }, w)));
+        const fade = h('input', { type: 'number', id: 'le-r-fade', min: '0', max: '1', step: '0.1', value: cur && cur.fade_s !== undefined ? cur.fade_s : 0.2 });
+        const save = async () => {
+          const op = { op: 'set_rule', phrase: phrase.value, picture: pic.value, seconds: Number(secs.value), mode: mode.value, fade_s: Number(fade.value) };
+          if (cur) op.id = cur.id;
+          if (await apply(op)) editingRule = null;
+          paint();
+        };
+        rulesPanel.replaceChildren(h('h2', { id: 'le-rules-h' }, 'When a word is said'),
+          h('p', { class: 'meta' }, 'Every time the film says the words, the picture shows for a few seconds. Add your pictures in the Ryagram app first.'),
+          h('ul', { class: 'le-rule-list' }, rules.length ? rules.map(r => h('li', { class: 'le-item' },
+            h('span', { class: 'le-itemtext' }, `"${r.phrase}": ${picName(r.picture)}, ${r.seconds} s, ${MODE_WORDS[r.mode] || r.mode}`),
+            h('span', { class: 'le-mv' }, btn('Edit', 'secondary', () => { editingRule = r.id; paint(); }, { 'aria-label': `Edit the rule for ${r.phrase}` }),
+              btn('Remove', 'secondary', async () => { await apply({ op: 'delete_rule', id: r.id }); if (editingRule === r.id) editingRule = null; paint(); }, { 'aria-label': `Remove the rule for ${r.phrase}` })))) : [h('li', { class: 'meta' }, 'No rules yet.')]),
+          pics.length ? h('div', { class: 'le-rule-form', role: 'group', 'aria-label': cur ? 'Change this rule' : 'Add a rule' },
+            field('le-r-phrase', 'When this is said', phrase), field('le-r-pic', 'Show this picture', pic), field('le-r-secs', 'For (seconds)', secs), field('le-r-mode', 'Where', mode), field('le-r-fade', 'Fade (seconds)', fade),
+            h('div', { class: 'le-actions' }, btn(cur ? 'Save this rule' : 'Add this rule', 'primary', save), cur ? btn('Cancel', 'secondary', () => { editingRule = null; paint(); }) : null))
+            : h('p', { class: 'meta' }, 'You have no pictures yet. Add one in the Ryagram app, then it appears here.'));
+      }
+      const FILM_LOOK_ROWS = [['theme', 'Page and text'], ['text_color', 'Text colour'], ['box_color', 'Text box colour'], ['box_opacity', 'Text box strength'], ['letterbox', 'Bars around the picture']];
+      function paintFilmLook() {
+        const lk = ed.state.look || {};
+        filmLookPanel.hidden = isData || !FILM_LOOK_ROWS.some(([k]) => k in lk);
+        if (filmLookPanel.hidden) return;
+        const set = (key, value) => apply({ op: 'set_film_look', key, value });
+        const colour = (key, label) => { const i = h('input', { type: 'color', id: `le-fl-${key}`, value: /^#[0-9a-fA-F]{6}$/.test(lk[key]) ? lk[key] : '#000000', 'aria-label': label, disabled: locked }); i.addEventListener('change', () => set(key, i.value)); return field(i.id, label, i); };
+        const theme = h('select', { id: 'le-fl-theme', disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, w]) => h('option', { value: v, selected: lk.theme === v }, w)));
+        theme.addEventListener('change', () => set('theme', theme.value));
+        const op = h('input', { type: 'number', id: 'le-fl-box_opacity', min: '0', max: '1', step: '0.05', value: Number.isFinite(lk.box_opacity) ? lk.box_opacity : 0.75, disabled: locked });
+        op.addEventListener('change', () => set('box_opacity', Number(op.value)));
+        filmLookPanel.replaceChildren(h('h2', { id: 'le-flook-h' }, 'Look of the film'),
+          field('le-fl-theme', 'Page and text', theme), colour('text_color', 'Text colour'), colour('box_color', 'Text box colour'), field('le-fl-box_opacity', 'Text box strength (0 to 1)', op), colour('letterbox', 'Bars around the picture'),
+          h('p', { class: 'le-free' }, 'These settings change how every text and card in the film looks. Free, like everything here.'));
+      }
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
@@ -391,6 +444,19 @@
         const rows = [num('le-start', 'Starts (seconds)', c.start, v => apply({ op: 'move_clip', id: c.id, start: v }), c.track === 'video'),
                       num('le-len', 'Length (seconds)', c.len, v => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + v) * 10) / 10 }))];
         if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
+
+        if (c.track === 'music') {
+          const mnum = (key, label, lo, hi, step) => { const i = h('input', { type: 'number', id: `le-m-${key}`, min: String(lo), max: String(hi), step: String(step), value: Number.isFinite(c[key]) ? c[key] : 0 }); i.addEventListener('change', () => apply({ op: 'set_music', [key]: Number(i.value) })); return h('div', { class: 'le-row' }, h('label', { for: i.id }, label), i); };
+          const snap = h('input', { type: 'checkbox', id: 'le-m-snap', checked: c.snap === true }); snap.addEventListener('change', () => apply({ op: 'set_music', snap: snap.checked }));
+          rows.push(mnum('level_db', 'Loudness (dB, -30 to 6)', -30, 6, 1), mnum('fade_in_s', 'Fade in (seconds)', 0, 5, 0.5), mnum('fade_out_s', 'Fade out (seconds)', 0, 5, 0.5), mnum('source_start', 'Start this far into the song (seconds)', 0, 86400, 1),
+            h('div', { class: 'le-row' }, h('label', { for: 'le-m-snap' }, 'Cut on the beat'), snap));
+        }
+        if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) {
+          const st = h('select', { id: 'le-style', 'aria-label': 'Text style' }, [h('option', { value: '', selected: !c.style, disabled: true }, c.style ? 'Style' : 'Position as before')].concat(
+            [['title', 'Title (top)'], ['caption', 'Caption (bottom)'], ['lower_third', 'Lower third']].map(([v, w]) => h('option', { value: v, selected: c.style === v }, w))));
+          st.addEventListener('change', () => { if (st.value) apply({ op: 'set_clip_style', id: c.id, style: st.value }); });
+          rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-style' }, 'Text style'), st));
+        }
         clipPanel.replaceChildren(h('h2', { id: 'le-clip-h' }, `${TRACK_NAMES[c.track]}: ${c.label}`), ...rows,
           btn('Remove this clip', 'secondary', () => { selected = null; apply({ op: 'delete_clip', id: c.id }); }),
           h('p', { class: 'le-free' }, 'Your videos never leave your computer. This page edits the list; your computer draws it.'));
@@ -422,7 +488,7 @@
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
         undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
-        else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); }
+        else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
         paintBanner(); paintWarns(); paintAiLinks(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
       }
@@ -435,7 +501,7 @@
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
-          isData ? lookPanel : clipPanel),
+          isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();

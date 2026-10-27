@@ -177,7 +177,7 @@ test('the film\'s text rules ride in the summary (BUILDER 12:25): kept when well
 });
 
 test('the ops the page sends are exactly the closed list, and every one of them is checked', () => {
-  assert.deepEqual(plain(E.OPS), ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip']);
+  assert.deepEqual(plain(E.OPS), ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look']);
   const s = E.newState(base());
   for (const op of E.OPS) assert.equal(typeof E.check(s, { op }), 'string', op + ' with no arguments must be refused');
   assert.deepEqual(plain(Object.keys(E.LOOK_KEYS).sort()), ['choropleth.high', 'choropleth.low', 'network.base_color', 'network.color', 'network.context_color', 'page.background', 'sequence.theme', 'state.fill', 'state.outline_width']);
@@ -291,4 +291,30 @@ test('a text SLIDE (BUILDER 23): set_clip_text works on a video-lane clip that i
   assert.equal(e.do({ op: 'set_clip_text', id: 's1', text: 'Edited' }).ok, true);
   assert.equal(e.do({ op: 'trim_clip', id: 's1', edge: 'end', to: 12 }).ok, true);                           // 8 s: inside the slide's 0.5 to 10
   assert.equal(e.do({ op: 'trim_clip', id: 's1', edge: 'end', to: 15 }).ok, false);                          // 11 s: past its maximum
+});
+
+test('the five ops of CONNECT 13:12 apply as the maker will: a style on a text clip or text slide, the music\'s settings (only the fields named), phrase rules (add, replace, delete, at most 50), the film\'s look', () => {
+  const s = E.newState({ duration: 20, lanes: ['video', 'pictures', 'text', 'music'], clips: [
+    { id: 'v1', track: 'video', start: 0, len: 4, label: 'a', source: 'a.mp4', source_start: 0, max_len: 9 },
+    { id: 't1', track: 'text', start: 1, len: 3, label: 'T', text: 'Hi' },
+    { id: 'music', track: 'music', start: 0, len: 20, label: 'song', source: 's.wav', source_start: 0, level_db: -12, fade_in_s: 0, fade_out_s: 0, snap: false }],
+    rules: [{ id: 'r1', phrase: 'one', picture: 'p1', seconds: 2, mode: 'full' }], pictures: [{ id: 'p1', name: 'a.png' }], look: { theme: 'dark' } });
+  assert.equal(E.apply(s, { op: 'set_clip_style', id: 't1', style: 'title' }).clips.find(c => c.id === 't1').style, 'title');
+  const m = E.apply(s, { op: 'set_music', level_db: -6, snap: true }).clips.find(c => c.id === 'music');
+  assert.deepEqual(plain([m.level_db, m.fade_in_s, m.fade_out_s, m.source_start, m.snap]), [-6, 0, 0, 0, true]);          // only the fields named changed
+  const added = E.apply(s, { op: 'set_rule', phrase: 'two words', picture: 'p1', seconds: 3, mode: 'corner', fade_s: 0.25 });
+  assert.equal(added.rules.length, 2);
+  assert.deepEqual(plain(added.rules[1]), { id: 'rule1', phrase: 'two words', picture: 'p1', seconds: 3, mode: 'corner', fade_s: 0.25 });
+  const replaced = E.apply(s, { op: 'set_rule', id: 'r1', phrase: 'uno', picture: 'p1', seconds: 4, mode: 'centre' });
+  assert.deepEqual(plain(replaced.rules), [{ id: 'r1', phrase: 'uno', picture: 'p1', seconds: 4, mode: 'centre' }]);
+  assert.deepEqual(plain(E.apply(s, { op: 'delete_rule', id: 'r1' }).rules), []);
+  assert.equal(E.apply(s, { op: 'set_film_look', key: 'theme', value: 'light' }).look.theme, 'light');
+  assert.equal(s.rules.length, 1);                                                                                         // the input state was not touched
+  const full = E.newState({ duration: 20, clips: [], pictures: [{ id: 'p1', name: 'a.png' }], rules: Array.from({ length: 50 }, (_, i) => ({ id: `r${i}`, phrase: 'x', picture: 'p1', seconds: 1, mode: 'full' })) });
+  assert.match(E.check(full, { op: 'set_rule', phrase: 'one more', picture: 'p1', seconds: 1, mode: 'full' }), /at most 50 rules/);
+  assert.equal(E.check(full, { op: 'set_rule', id: 'r3', phrase: 'replace', picture: 'p1', seconds: 1, mode: 'full' }), null);   // replacing is fine at 50
+  const e = new E.Editor({ duration: 20, clips: s.clips, rules: s.rules, pictures: s.pictures });
+  assert.equal(e.do({ op: 'set_rule', phrase: 'two', picture: 'p1', seconds: 2, mode: 'full' }).ok, true);
+  e.undo();
+  assert.equal(e.state.rules.length, 1);                                                                                   // undo takes the new rule back
 });
