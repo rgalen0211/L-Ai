@@ -15,8 +15,9 @@
 | `POST /node/state` | bearer | `node_report_state` (a node may set only running, validating, uploading, complete, failed) |
 | `POST /node/retry` | bearer | `node_retry` |
 | `POST /node/artifact` | bearer | `node_register_artifact`, then a signed upload URL for the path it returns |
+| `POST /node/compilation-requests` | bearer | `node_compilation_requests` (NEXT-CONNECT 131b): READ ONLY. The requests the person's connected AI wrote down (a phrase, a mode, a note; data only), at most 20, newest first, five fields each (`project_id`, `title`, `request`, `sha256`, `updated_at`). The computer's token resolves the person; nothing names an owner. Always on (not behind the private-link switch); it starts no job, touches no credit and signs no upload. |
 
-Everything else is 404. There is no route to the job list, credits, orders, projects or any other account.
+Everything else is 404. There is no route to the job list, credits, orders, projects or any other account (the one read of the person's own saved compilation requests is the exception named above).
 
 ## 2. Against WORKER's SQL: r9-node-draft rev3 (3ce2c65)
 

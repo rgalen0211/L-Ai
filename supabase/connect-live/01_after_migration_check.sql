@@ -20,14 +20,15 @@ union all select 'connect_runner exists, is not a superuser and has no table pri
 -- revoke it. The role can therefore call pg_net's own functions (it can make the database send web requests; it still cannot read a table). Exactly the
 -- named pg_net functions, owned by supabase_admin in schema net, are tolerated and counted in the row's NAME; any other extra function still makes the row false.
 -- When Supabase support removes PUBLIC's usage on net, the count reads 0 and this tolerance can be deleted.
-union all select 'connect_runner can call exactly 22 functions, all connect_*, and only in the public schema'
+union all select 'connect_runner can call exactly the connect_* functions (22; 23 once 20261026000300_compilation_requests is applied), all of them in the public schema'
        || (select case when count(*) = 0 then '' else ' (plus ' || count(*) || ' named pg_net functions in schema net: ACCEPTED RESIDUAL (Ryan, RYAN-QUEUE Q55, typed to Claude 2026-10-18 21:38))' end
              from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE')
               and (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')),
        (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
          where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype) and not (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')
-           and n.nspname not in ('pg_catalog', 'information_schema')) = 22
+           and n.nspname not in ('pg_catalog', 'information_schema'))
+           = 22 + (case when to_regprocedure('public.connect_set_compilation_request(text, uuid, jsonb)') is not null then 1 else 0 end)
        and (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
              where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype) and not (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')
                and n.nspname not in ('pg_catalog', 'information_schema') and not (n.nspname = 'public' and p.proname like 'connect\_%')) = 0

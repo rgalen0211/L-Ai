@@ -1,10 +1,10 @@
--- PAPER, NOT A MIGRATION (NEXT-CONNECT 118). For CC1's review, then Ryan's go. Nothing here has been applied anywhere and nothing in the repo runs it.
--- It gives set_compilation_request (supabase/functions/connect-core/tools.ts) a place to put a request: DATA only (a phrase, folder NAMES, switches, picture/text overlay rules).
--- The request holds no video, no picture, no path and nothing about the account; the person's Ryagram app reads it on their own computer.
---
--- Same shape as every other connect_* function: the token hash is the only identity (ryagram_private.connect_actor resolves the person and checks the grant and scope inside the same
--- transaction), no function takes an owner id, and the function is granted only to connect_runner.
--- To land: copy this into a new migration AFTER 20261018000100_connect_ai.sql, delete the matching line of PAPER_FUNCTIONS in tests/connect-oauth.test.mjs, and run tests/connect-oauth.test.mjs.
+-- COMPILATION REQUESTS (NEXT-CONNECT 131a; Ryan's go in CC1's window 2026-10-26 ~18:09, part 2). NOT APPLIED: a migration for CC1's review; applying it is a live step Ryan takes.
+-- It gives the connector's tool set_compilation_request (supabase/functions/connect-core/tools.ts, on main since Q203) the place it writes to: ONE request per project, DATA ONLY
+-- (a phrase, folder NAMES, switches, picture/text rules; never a video, a sound, a path or anything about the account). The request starts nothing on the site and touches no credits.
+-- Same shape as every other connect_* function: the token hash is the only identity (ryagram_private.connect_actor resolves the person and checks the grant and the 'write' scope in
+-- the same transaction), no function takes an owner id, and EXECUTE is granted only to connect_runner. A project that is not the person's looks absent ('not found'), and nothing is written.
+-- The person's OWN desktop app reads its request through the signed-in computer's node route (NEXT-CONNECT 131b); the table's one select policy lets a signed-in person read only their own row.
+-- ORDER: independent of the trust-label migrations (20261026000100/200); applies after 20261018000100_connect_ai.sql. The connect function must be redeployed from a tree that has the tool for it to be callable (it already is on main). Undo: supabase/rollbacks/20261026000300_compilation_requests_rollback.sql.
 
 begin;
 

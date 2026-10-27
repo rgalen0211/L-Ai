@@ -35,9 +35,15 @@ export interface NodeDb {
   compilationBegin(accessHash: string, title: string, bytes: number, sha256: string, rights: boolean, durationS: number | null, width: number | null, height: number | null): Promise<{ id: string; path: string }>;
   /** node_compilation_finish: the plan is checked again and the stored size must equal the size said. */
   compilationFinish(accessHash: string, id: string): Promise<{ id: string; expires_at: string }>;
+  /** node_compilation_requests: the requests the person's AI wrote (NEXT-CONNECT 131b). READ ONLY: the computer's token resolves the person, only that person's rows come back (at most 20, newest first),
+   *  each is data (a phrase, folder names, switches, a note), and reading starts nothing and touches no credit. */
+  compilationRequests(accessHash: string): Promise<CompilationRequestRow[]>;
   /** node_compilation_cancel: an upload that failed or was given up. */
   compilationCancel(accessHash: string, id: string): Promise<boolean>;
 }
+
+/** One saved request, as the database returns it. The router passes on only these five fields. */
+export interface CompilationRequestRow { project_id: string; title: string; request: Record<string, unknown>; sha256: string; updated_at: string }
 
 /** What the app's launch check gets (node_compilation_status): the facts about the person's plan, never a price or an account detail. */
 export interface CompilationStatus {

@@ -895,7 +895,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "links", "links-upload", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "ai-requests", "links", "links-upload", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -1039,6 +1039,9 @@ PAGE = """<!doctype html>
 <p id="node-what">While this is on, this computer checks the Ryagram site about every half minute for a film you ordered there, makes it here, and sends back only the finished film. Your own videos never leave this computer, and it uses no credits.</p>
 <label class="logswitch" for="node-on"><input id="node-on" type="checkbox"> Let this computer make my site films</label>
 <p id="node-state" class="note" role="status"></p><ul id="node-uploads"></ul></section>
+<section class="logbox" id="airq" aria-labelledby="h-airq" hidden><h2 id="h-airq">What your AI asked for</h2>
+<p class="note">These were written down by your connected AI. They are only notes: nothing was started and nothing was sent. Use them to set up your film here, from your own videos, on this computer.</p>
+<ul id="airq-list"></ul><p id="airq-msg" class="note" role="status"></p></section>
 <section class="logbox" id="links" aria-labelledby="h-links" hidden><h2 id="h-links">A private link to your finished film</h2>
 <p id="links-what" class="note">Your film stays on this computer. If you press the button, this one finished film is sent to Ryagram and kept for 30 days, private: only you can open it. Your original videos are never sent.</p>
 <p id="links-film" class="note"></p>
@@ -1189,12 +1192,23 @@ JS = r"""(function () {
     $('links-list').replaceChildren(...(r.links || []).map(x => el('li', {}, x.title + ' (kept until ' + x.expires_at + ')')));
     if (busy) linksTimer = setTimeout(refreshLinks, 2000);
   }
+  function drawRequests(r) {
+    const box = $('airq');
+    box.hidden = !(r && r.on && ((r.requests || []).length || r.message));
+    $('airq-list').replaceChildren(...((r && r.requests) || []).map(x => {
+      const what = (x.mode === 'song' ? 'A song film' : 'A compilation') + (x.search === 'words' ? ' of the words' : ' of every time') + ': \u201c' + x.phrase + '\u201d';
+      return el('li', {}, what + (x.title ? ' (project: ' + x.title + ')' : '') + (x.note ? ' \u2014 ' + x.note : ''));
+    }));
+    $('airq-msg').textContent = (r && r.message) || '';
+  }
+  async function refreshRequests() { try { drawRequests(await api('/api/ai-requests')); } catch (e) { /* the card keeps what it had */ } }
+  setInterval(refreshRequests, 60000);
   async function refreshLinks() { try { drawLinks(await api('/api/links')); } catch (e) { /* the card keeps what it had */ } }
   $('links-go').addEventListener('click', async ev3 => {
     const b = ev3.currentTarget; b.disabled = true;
     try { drawLinks(await api('/api/links-upload', { title: $('links-title').value, rights: $('links-rights').checked })); } catch (e) { $('links-msg').textContent = e.message; b.disabled = false; }
   });
-  api('/api/signin').then(r => { drawSignin(r); refreshNode(); refreshLinks(); }).catch(() => {});
+  api('/api/signin').then(r => { drawSignin(r); refreshNode(); refreshLinks(); refreshRequests(); }).catch(() => {});
   let modelChoices = [], dlLast = { state: 'idle', can: false }, dlTimer = null;
   function drawDl(d) {
     dlLast = d;
@@ -1580,6 +1594,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/links":
             if self._auth():
                 self._json(200, links_status())
+        elif path == "/api/ai-requests":
+            if self._auth():
+                self._json(200, ai_requests_status())
         elif path == "/api/overlays":
             if not STATE.get("v2"):
                 self._json(404, {"error": "Not found."})
@@ -2020,6 +2037,20 @@ def _links_mod():
     return ryagram_links
 
 
+def _requests_mod():
+    _tools_on_path()
+    import ryagram_requests
+    return ryagram_requests
+
+
+def ai_requests_status() -> dict:
+    """What the person's AI asked for (NEXT-CONNECT 131b): read-only, from the site, only when this computer is signed in. {"on": false} otherwise. It starts nothing and uploads nothing."""
+    p = STATE.get("airq")
+    if p is None:
+        return {"on": False}
+    return p.status()
+
+
 def links_status() -> dict:
     """The private-link card (NEXT-CONNECT 120): {"on": false} unless the flag file in this app's folder says on, and unless sign-in exists."""
     p = STATE.get("links")
@@ -2111,11 +2142,13 @@ def make_server(engine: Path, recipes: Path, work: Path, out: Path, port: int = 
             STATE["signin_unavailable"] = str(e)
     STATE["links"] = None
     STATE["node"] = None
+    STATE["airq"] = None
     if STATE.get("signin") is not None:              # r9 M4: "this computer renders my site films". OFF until the person switches it on; no renderer yet = it takes no jobs.
         STATE["node"] = _node_mod().NodeLoop(STATE["signin"], STATE["work"], renderer=node_renderer, datasets=node_datasets, validate=node_validate, engine_commit=node_engine_commit,
                                                 cannot_render_reason=node_cannot_render, log=lambda ev: act(ev))
     if STATE.get("signin") is not None:              # NEXT-CONNECT 120: a private link to a finished film. A card only if the flag file in this folder says on; nothing is sent unless the person presses the button.
         STATE["links"] = _links_mod().PrivateLinks(STATE["signin"], STATE["work"], films_dir=STATE["out"], log=lambda ev: act(ev))
+        STATE["airq"] = _requests_mod().AiRequests(STATE["signin"])      # NEXT-CONNECT 131b: shows what the person's AI asked for; read-only, starts and uploads nothing
     srv = LocalServer(("127.0.0.1", port), Handler)
     STATE["port"] = srv.server_address[1]
     act("session_start", maker=MAKER_REVISION, python=f"{sys.version_info.major}.{sys.version_info.minor}", os=platform.system())
