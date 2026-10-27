@@ -1,0 +1,15 @@
+Ryagram
+
+Sign in to Ryagram
+
+You're getting this because someone asked to sign in to Ryagram as {{ .Email }}.
+
+Sign in to Ryagram:
+{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=magiclink
+
+If that wasn't you, you can ignore this email.
+
+--
+Ryagram is operated by L'Ai, LLC.
+Questions: ryagram@uselai.com
+https://uselai.com/ryagram/

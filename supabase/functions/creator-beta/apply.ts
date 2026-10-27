@@ -1,0 +1,77 @@
+// Creator beta applications: the one writer of public.creator_applications. A visitor posts the form; this function (service role) calls the
+// database function, which validates, de-duplicates, rate-limits and raises Ryan's alert. Tested in tests/creator-beta.test.mjs.
+//   POST { name, email, kind, makes, link, question, website? }   from uselai.com only
+export interface Deps {
+  allowedOrigins: string[];
+  hashSecret: string;                  // CALLER_HASH_SECRET (or, failing that, the service key): the caller key is an HMAC under it, never a bare hash
+  apply(a: { name: string; email: string; kind: string; makes: string; link: string; question: string; website: string; caller: string }): Promise<number>;
+}
+
+const MAX_BODY = 8000;
+const FIELDS = ["name", "email", "kind", "makes", "link", "question"] as const;
+
+// Who is calling, for the per-caller limit only. cf-connecting-ip is set by Cloudflare in front of the API and overwrites anything the client sent; without
+// it, the LAST hop of x-forwarded-for (the one our own proxy appended), never the first, which the client writes. Verify once on the real project which
+// of the two arrives (supabase/README.md, "Creator beta"). No address at all gives "" and only the site-wide cap applies.
+export function callerAddress(headers: Headers): string {
+  const cf = (headers.get("cf-connecting-ip") ?? "").trim();
+  if (cf) return cf;
+  const hops = (headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+  return hops.length ? hops[hops.length - 1] : "";
+}
+
+// A hex HMAC-SHA256 of the address and the New York day under a server-held secret (CC1, 2026-10-16: a bare hash of an IPv4 address can be reversed by
+// trying all 2^32 addresses; with the secret it cannot, and the secret is never stored with the rows). The database never sees the address, and the
+// key changes every day. No address gives "" (no per-caller limit, only the site cap); an address with NO secret is an error, never an unsalted hash.
+export async function callerKey(headers: Headers, secret: string, now = new Date()): Promise<string> {
+  const ip = callerAddress(headers).slice(0, 100);
+  if (!ip) return "";
+  if (!secret) throw new Error("creator-beta: no hash secret is set");
+  const day = now.toLocaleDateString("en-CA", { timeZone: "America/New_York" });
+  const enc = new TextEncoder();
+  const key = await crypto.subtle.importKey("raw", enc.encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+  const mac = new Uint8Array(await crypto.subtle.sign("HMAC", key, enc.encode(`creator-beta|${ip}|${day}`)));
+  return [...mac].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+const statusOf = (e: unknown) => {
+  const code = (e as { code?: string })?.code ?? "";
+  return /^PT\d{3}$/.test(code) ? Number(code.slice(2)) : null;
+};
+
+export async function handle(req: Request, deps: Deps): Promise<Response> {
+  const origin = req.headers.get("origin");
+  const allowed = !!origin && deps.allowedOrigins.includes(origin);
+  const headers: Record<string, string> = allowed
+    ? { "Access-Control-Allow-Origin": origin!, "Vary": "Origin", "Access-Control-Allow-Headers": "content-type, apikey, x-client-info",
+        "Access-Control-Allow-Methods": "POST, OPTIONS" }
+    : { "Vary": "Origin" };
+  const reply = (status: number, body: Record<string, unknown>) =>
+    new Response(JSON.stringify(body), { status, headers: { ...headers, "Content-Type": "application/json", "Cache-Control": "no-store" } });
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
+  if (req.method !== "POST") return reply(405, { error: "Use POST." });
+  if (!allowed) return reply(403, { error: "Not allowed from this page." });
+
+  let raw: string;
+  try { raw = await req.text(); } catch { return reply(400, { error: "Bad request." }); }
+  if (raw.length > MAX_BODY) return reply(413, { error: "That is too long." });
+  let body: Record<string, unknown>;
+  try { body = JSON.parse(raw); } catch { return reply(400, { error: "Bad request." }); }
+  if (!body || typeof body !== "object" || Array.isArray(body)) return reply(400, { error: "Bad request." });
+
+  const a: Record<string, string> = {};
+  for (const f of FIELDS) {
+    if (typeof body[f] !== "string") return reply(422, { error: "Please fill in every field." });
+    a[f] = (body[f] as string).trim().slice(0, 1200);
+  }
+  const website = typeof body.website === "string" ? body.website : "";
+  try {
+    await deps.apply({ name: a.name, email: a.email, kind: a.kind, makes: a.makes, link: a.link, question: a.question, website, caller: await callerKey(req.headers, deps.hashSecret) });
+    return reply(200, { ok: true });
+  } catch (e) {
+    const status = statusOf(e);
+    if (status === 422 || status === 429) return reply(status, { error: (e as Error).message });
+    console.error(`creator-beta: ${(e as Error).message}`);
+    return reply(500, { error: "Couldn't send that just now. Please try again in a minute." });
+  }
+}

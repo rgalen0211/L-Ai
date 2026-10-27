@@ -42,7 +42,7 @@ class WorkerUpload(core.Base):
         self.db.as_(who).one("select finish_upload(%s) is null", ds)
         claimed = self.db.as_(WORKER).one("select * from claim_next_ingest()")
         self.db.as_(WORKER).one("select report_ingest(%s, %s::jsonb) is null", claimed[0], json.dumps(REPORT))
-        self.db.as_(who).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps(MAPPING))
+        self.db.as_(who).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(MAPPING))
         return ds
 
     def job_on(self, ds, state="running", worker=WORKER):
@@ -164,6 +164,29 @@ class WorkerUpload(core.Base):
                 self.assertEqual(answered, may)
             self.admin("update jobs set state = 'failed' where id = %s returning 1", job)
 
+    def test_the_claim_rows_and_worker_job_upload_describe_the_same_upload_together(self):
+        """Q239's claim carries upload_trust for the story's upload refs; worker_job_upload names the same upload for the held job."""
+        ds = self.confirmed_upload()
+        d = self.db.as_(RYAN)
+        pid = d.one("insert into projects (title) values ('P') returning id")
+        vid = d.one("select id from create_version(%s)", pid)
+        ref = d.one("select attach_upload_to_version(%s, %s)", vid, ds)
+        story = json.dumps({"schema": 1, "engine": "sequence", "name": "t", "sequence": {"clips": [{"kind": "render", "dataset": ref, "view": "map"}]}})
+        job = self.admin("insert into jobs (owner_id, project_id, version_id, job_type, state, story, story_sha256, dataset_id, params) "
+                         "values (%s, %s, %s, 'preview', 'queued', %s::jsonb, %s, %s, %s::jsonb) returning id",
+                         RYAN, pid, vid, story, "e" * 64, ds, json.dumps({"window_s": [0, 10]}))
+        claimed = self.db.as_(WORKER).one("select upload_trust from claim_next_job()")        # the claim: label and acknowledgement for the ref
+        self.assertEqual(set(claimed), {ref})
+        self.assertEqual(claimed[ref]["trust_label"], "unverified_user")
+        self.assertIsNotNone(claimed[ref]["trust_ack_at"])
+        self.assertEqual(self.admin("select worker_user_id::text from jobs where id = %s", job), WORKER)
+        row = self.db.as_(WORKER).one("select * from worker_job_upload(%s)", job)             # the same job, now held: its file and the same ref
+        self.assertEqual((str(row[0]), row[1]), (str(ds), ref))
+        self.assertIn(row[1], claimed)                                                         # the ref worker_job_upload returns is the one the claim labelled
+        self.assertEqual(self.db.as_(WORKER).one("select count(*) from storage.objects where bucket_id = 'ryagram-uploads'"), 1)
+        self.admin("update datasets set delete_requested_at = now() where id = %s returning 1", ds)
+        with self.assertRaisesRegex(psycopg.Error, "has been deleted"):
+            self.db.as_(WORKER).one("select * from worker_job_upload(%s)", job)
 
 
 if __name__ == "__main__":

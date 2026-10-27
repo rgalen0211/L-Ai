@@ -34,8 +34,18 @@ class FilmPages(core.Base):
     def svc(self):
         return self.db.as_("service")
 
-    def publish(self, vid, who=RYAN, title="Obesity and fast food"):
-        return self.svc().one("select film_publish(%s, %s, %s, %s::jsonb)", who, vid, title, SUMMARY)
+    def publish(self, vid, who=RYAN, title="Obesity and fast food", confirmed=False):
+        return self.svc().one("select film_publish(%s, %s, %s, %s::jsonb, %s)", who, vid, title, SUMMARY, confirmed)
+
+    def with_uploaded_data(self, vid):
+        """Make this film one built from the owner's own upload (versions.dataset_id set). A trigger freezes non-draft versions, so go around it as admin."""
+        admin = self.db.as_(None)
+        ds = admin.one("insert into public.datasets (owner_id, name) values (%s, 'upload.csv') returning id", RYAN)
+        admin.c.execute("set session_replication_role = replica")
+        try:
+            admin.one("update public.versions set dataset_id = %s where id = %s returning 1", ds, vid)
+        finally:
+            admin.c.execute("set session_replication_role = origin")
 
     def test_only_the_owner_can_publish_a_finished_film_and_the_page_shows_it(self):
         _, draft = self.project_with_version()
@@ -60,6 +70,21 @@ class FilmPages(core.Base):
         # Publishing again keeps the link; a blank title falls back to the project's.
         self.assertEqual(self.publish(vid, title="  "), slug)
         self.assertEqual(self.svc().one("select public_film(%s)", slug)["title"], "Obesity")
+
+    def test_a_finished_film_is_NOT_public_until_the_owner_publishes_it(self):
+        """Opt-in per film, off by default (Ryan, 2026-10-13): finishing a film, even looking at its publish context, makes no page."""
+        vid, final = self.finished()
+        count = lambda: self.db.as_(None).one("select count(*) from public.film_pages")
+        self.assertEqual(count(), 0)                                                   # finished, rendered, stored: and still nothing public
+        self.svc().one("select film_publish_context(%s, %s)", RYAN, vid)             # asking what publishing WOULD use creates nothing
+        self.assertEqual(count(), 0)
+        for who in ("anon", RYAN, OTHER):
+            self.denied(who, "select public_film('AbCdEfGhIjKlMnOpQrStUv')")
+        slug = self.publish(vid)
+        self.assertEqual(count(), 1)
+        self.svc().one("select public_film(%s)", slug)
+        self.db.as_(RYAN).one("select film_unpublish(%s)", vid)
+        self.assertIsNone(self.svc().one("select public_film(%s)", slug))             # off again: the link answers "not found"
 
     def test_unpublish_is_the_owners_and_takes_effect_at_once(self):
         vid, _ = self.finished()
@@ -90,7 +115,7 @@ class FilmPages(core.Base):
             with self.subTest(who=who), self.assertRaises(psycopg.Error):
                 self.db.as_(who).one("select public_film(%s)", slug)
             with self.subTest(who=who), self.assertRaises(psycopg.Error):
-                self.db.as_(who).one("select film_publish(%s, %s, 't', '{}')", RYAN, vid)
+                self.db.as_(who).one("select film_publish(%s, %s, 't', '{}', true)", RYAN, vid)
         self.assertIsNone(self.db.as_(OTHER).one("select slug from film_pages"))
         with self.assertRaises(psycopg.Error):
             self.db.as_(RYAN).one("select summary from film_pages")      # the owner reads state, not the stored summary
@@ -103,7 +128,30 @@ class FilmPages(core.Base):
         vid, _ = self.finished()
         for bad in ('[]', json.dumps({"x": "y" * 70000})):
             with self.subTest(bad=bad[:10]), self.assertRaises(psycopg.Error):
-                self.svc().one("select film_publish(%s, %s, 't', %s::jsonb)", RYAN, vid, bad)
+                self.svc().one("select film_publish(%s, %s, 't', %s::jsonb, true)", RYAN, vid, bad)
+
+    def test_a_film_made_from_uploaded_data_needs_the_owners_confirmation_IN_THE_DATABASE_TOO(self):
+        """The backstop under the function's 409: even a caller that skips the question cannot publish an upload film without p_confirmed."""
+        vid, _ = self.finished()
+        self.with_uploaded_data(vid)
+        self.assertTrue(self.svc().one("select film_publish_context(%s, %s)", RYAN, vid)["uploaded_data"])
+        count = lambda: self.db.as_(None).one("select count(*) from public.film_pages")
+        for confirmed in (False, None):
+            with self.subTest(confirmed=confirmed), self.assertRaisesRegex(psycopg.Error, "explicit confirmation") as cm:
+                self.publish(vid, confirmed=confirmed)
+            self.assertEqual(cm.exception.sqlstate, "PT409")
+        with self.assertRaises(psycopg.Error):                       # the old four-argument form is gone, not a way round
+            self.svc().one("select film_publish(%s, %s, 't', '{}'::jsonb)", RYAN, vid)
+        self.assertEqual(count(), 0)                                  # nothing was written
+        slug = self.publish(vid, confirmed=True)
+        self.assertEqual(count(), 1)
+        page = self.svc().one("select public_film(%s)", slug)
+        self.assertEqual(sorted(page["summary"]), ["sources"])        # sources and method only
+
+    def test_film_publish_is_for_the_function_only(self):
+        vid, _ = self.finished()
+        for who in ("anon", RYAN, OTHER):
+            self.denied(who, "select film_publish(%s, %s, 't', '{}'::jsonb, true)", RYAN, vid)
 
 
 if __name__ == "__main__":

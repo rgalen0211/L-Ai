@@ -3,19 +3,23 @@
 // gives every Edge Function; it only ever calls partial_uploads_due and mark_uploads_deleted,
 // and removes exactly the Storage paths the database lists. It takes no input.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
+import { reply, whoCalls } from "../_shared/ops_mail.ts";
+import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
-Deno.serve(async (req) => {
-  // Only the scheduler (or Ryan) calls this, with the service_role key as the bearer token.
-  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
-  if (!serviceKey || req.headers.get("Authorization") !== `Bearer ${serviceKey}`) {
-    return new Response("forbidden", { status: 403 });
-  }
+const sk = resolveServiceKey();            // FUNCTIONS_KEY_NAME picks a key by name; unset = SUPABASE_SERVICE_ROLE_KEY as before (supabase/functions/_shared/service_key.ts)
+const serve = guardedServe(sk);
+
+serve(async (req) => {
+  // Only the scheduler (its own per-job secret, PURGE_PARTIAL_SECRET) or Ryan (the chosen service key) calls this.
+  const serviceKey = sk.key;
+  const caller = whoCalls(req, serviceKey, Deno.env.get("PURGE_PARTIAL_SECRET"));
+  if (!caller) return new Response("forbidden", { status: 403 });
   const db = createClient(Deno.env.get("SUPABASE_URL")!, serviceKey, {
     auth: { persistSession: false },
   });
 
   const { data: due, error } = await db.rpc("partial_uploads_due", { p_limit: 500 });
-  if (error) return Response.json({ error: error.message }, { status: 500 });
+  if (error) return reply(caller, 500, { error: error.message });
 
   let removed = 0;
   const byBucket = new Map<string, { ids: string[]; paths: string[] }>();
@@ -32,5 +36,5 @@ Deno.serve(async (req) => {
     const { data: count } = await db.rpc("mark_uploads_deleted", { p_artifact_ids: ids });
     removed += count ?? 0;
   }
-  return Response.json({ due: due?.length ?? 0, removed });
+  return reply(caller, 200, { due: due?.length ?? 0, removed });
 });

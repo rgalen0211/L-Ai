@@ -1,0 +1,139 @@
+sha256 11002ca5ae57be3c07aa8fe1f75db458617ffe588ca0d85034b3646012ffbcb9
+← Obesity and fast food
+r1
+Draft
+created Sep 28, 2026
+New version from r1
+Start again from a ready-made film
+Shape the film
+Editor
+Describe the film you want or ask about a check. It edits this version’s story and can start sheets and previews; only you can start the final film.
+Message to the editor
+Send
+Render
+Updating every 10 seconds
+A contact sheet and a preview of the current story come first; the final film uses both.
+1. Contact sheet (years, optional)
+Make contact sheet
+2. Preview (seconds; 10 s at most; blank = the first 10 s)
+Make preview
+3. Final film
+Make a contact sheet and a preview of this story first.
+Render final film
+Jobs keep running if you leave this page.
+No jobs yet. Start with a contact sheet.
+Ryagram is operated by L'Ai, LLC.
+ryagram@uselai.com
+Privacy Policy
+Pick a topic.
+Each is a complete film you can then adjust.
+Line
+State unemployment rate
+How a handful of places move over time.
+Map
+Obesity and fast food by state
+Where it is high and low, and how that shifts.
+Residential building permits per 1,000 residents, by county
+Bars
+A ranked bar race: who leads, year by year.
+Paired
+A map and a bar race side by side, one timeline.
+Highest
+The six states with the highest values, year by year.
+Industry
+Manufacturing: share of CBP-covered jobs, by state
+Which states depend most on one industry: a race of its share of jobs, 1998 to 2023.
+Headline
+Use this film
+Shape it: theme, colours, canvas, years.
+Change the words, years, pace and colours here. Leave a box empty to use the default. The story below updates when you apply.
+Title card
+Subhead
+Credit line
+Seconds on screen
+Data view: map
+First period
+Last period
+Seconds on each period
+Caption under the picture
+Look
+Theme
+Night
+Atlas
+Print
+High contrast
+The default: a dark page. Best for lines, paths and networks.
+Shape of the picture
+16:9 (wide)
+1:1 (square) (not available yet)
+9:16 (vertical)
+Frames per second
+24
+25
+30
+Map fill
+(default)
+solid
+hatch
+Map colour for low values
+Map colour for high values
+Number of colour steps
+Smooth colour (no steps)
+on
+off
+State outline width
+Colour for missing data
+Key text for missing data
+Dot colour
+Colour of the starting stock of dots
+Apply changes
+Dark page, a wide yellow-to-purple ramp, heavy outlines, bright dots. Choosing a theme puts the map and dot colours back to its own.
+● Live
+A vertical film needs its own title and end cards: text written for a wide picture rarely fits a narrow one. Check the contact sheet before you render.
+Your colours are customised. Pick a theme to start again from one.
+Saved: 4 changes. Make a new contact sheet to see them.
+Ask the editor in plain English.
+You
+Make the title say where obesity is highest
+Thinking…
+Done. I wrote the title card as you asked and kept your years and colours. Make a contact sheet to see it.
+Watch it render.
+Contact sheet
+Rendering
+Sep 28, 2026
+Stage
+Drawing frames
+Frames
+30 / 300
+ETA
+—
+Running for
+under a minute
+Cancel
+180 / 300
+Checking
+Checking the film against its data
+Clips
+0 / 1
+Make a preview of this story first.
+Complete
+Preview
+Starting
+120 / 300
+240 / 300
+Uses the contact sheet from Sep 28, 2026 and the preview from Sep 28, 2026. Clicking is your approval.
+Queued
+This version is queued, so it can’t take new jobs.
+Final render
+Next in line.
+This version is rendering, so it can’t take new jobs.
+Building the data
+156 / 1,560
+624 / 1,560
+780 / 1,560
+1,092 / 1,560
+1,404 / 1,560
+This version is checking, so it can’t take new jobs.
+Archive this version
+This version is complete, so it can’t take new jobs.
+Your film is ready.

@@ -1,0 +1,15 @@
+Ryagram
+
+You're invited to Ryagram
+
+You're getting this because you were invited to the Ryagram private beta.
+
+Join Ryagram:
+{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=invite
+
+If you weren't expecting this, you can ignore this email and nothing will happen.
+
+--
+Ryagram is operated by L'Ai, LLC.
+Questions: ryagram@uselai.com
+https://uselai.com/ryagram/

@@ -54,7 +54,7 @@ run it until Phase 2B is approved; it goes after the files above.
 
 - **Authentication → Sign In / Providers → Email:** enabled. Turn **off**
   "Allow new users to sign up". Only accounts made in the dashboard can sign in.
-- **Authentication → URL Configuration → Site URL:** `https://uselai.com/app/`
+- **Authentication → URL Configuration → Site URL:** `https://uselai.com` (the bare origin, no `/app/`: the email templates add `/app/#/auth?...` themselves, and a Site URL ending in `/app/` makes every link `/app//app/`)
 
 ## Accounts
 
@@ -84,8 +84,7 @@ cancelled mid-upload, 24 hours after the job ended. People never see those files
 the meantime; the database hides them. Deploy it once (CLI:
 `supabase functions deploy purge-partial-uploads`, or Dashboard → Edge Functions),
 then schedule it hourly: Dashboard → Integrations → Cron → new job → Supabase Edge
-Function `purge-partial-uploads`, with the header `Authorization: Bearer <service
-role key>`. It refuses any other caller and touches only what the database lists.
+Function `purge-partial-uploads`, with the header `Authorization: Bearer <its own per-job secret>` (function secret `PURGE_PARTIAL_SECRET`, 32 or more characters; Vault secret `cron_purge_partial`; NOT the service-role key: pg_net keeps each scheduled call where every database login can read it, see the ops readiness section step 3 for the pattern and the SQL shape). It refuses any other caller (the service-role key still works for a run by hand) and touches only what the database lists. It is not scheduled today.
 
 ## AI editor (branch ai-editor): switching it on
 
@@ -205,6 +204,9 @@ minutes.
 
 1. **SQL Editor:** `migrations/20260929000800_film_pages.sql` (after 0700; independent of the
    2B and Stripe files).
+   **Then** `migrations/20261013000100_film_publish_confirmed.sql`: the database refuses to publish a
+   film made from the owner's own upload unless the caller says the owner confirmed (it replaces
+   `film_publish` with a 5-argument version). Apply it BEFORE deploying the updated function.
 2. **Deploy** (visitors aren't signed in; owners' tokens are checked inside):
 
    ```
@@ -265,7 +267,23 @@ What they do:
 
 **Watch:** `select * from account_deletion_requests`.
 
+## Email templates: who is named
+
+The Auth emails (invite, reset password, confirm) are edited in the Supabase dashboard, not in this repo. End each one with the operator and the Ryagram contact, in plain text:
+
+```
+Ryagram is operated by L'Ai, LLC. Questions: ryagram@uselai.com
+```
+
+**Auth links are spent by a button (2026-10-17):** opening a link (a mail scanner, a preview) spends nothing; `/app/` shows one button and only pressing it runs `verifyOtp`. An expired link shows "That link has expired" with a resend box; the home page and `/ryagram/` forward `#error=...` (or an already-verified `#access_token=...`) to the app (`assets/auth-forward.js`); `passwordReset` is on. Dashboard steps: `Ryagram-logs/proposals/WEB-AUTH-LINKS-FIX-STEPS.md`.
+
+**Auth emails link through our own domain (2026-10-11):** every template's link is `{{ .SiteURL }}/app/#/auth?token_hash={{ .TokenHash }}&type=<type>` (`signup`, `invite`, `magiclink`, `recovery`, `email_change`). The app checks the token itself (`verifyOtp`) and removes it from the address bar; links already sent as `/app/?reset=` or `/app/?invite=` keep working. Six ready-to-paste templates (HTML, matching plain text, subject) are in `supabase/email-templates/` (the sixth, `reauthentication`, carries a one-time CODE, `{{ .Token }}`, not a link: Authentication > Emails > Reauthentication; Supabase sends it only when an action asks to confirm it's you, for example a password change while "Secure password change" is on); paste them in Supabase > Authentication > Emails **only after this route is deployed**. Steps: `Ryagram-logs/proposals/WEB-AUTH-EMAIL-TEMPLATES.md`.
+
+(Ryan, 2026-10-07: the operator is L'Ai, LLC, and Ryagram's pages, policy and app give ryagram@uselai.com. The sender address below is a separate setting: it stays the Google Workspace mailbox until a Send-As for ryagram@ is set up.)
+
 ## Email sender: Google Workspace (ryan.galen@uselai.com) via Supabase custom SMTP
+
+**SUPERSEDED (Ryan, 2026-10-10): custom SMTP is set up with Resend instead**, sender `noreply@uselai.com`, domain verified (DKIM and SPF). The Google Workspace steps below are kept only as a fallback; do not follow them. The Auth email templates are now editable: ready-to-paste versions are in `supabase/email-templates/` (see "Email templates: who is named").
 
 Password-reset and invite emails need this; nothing else changes. Checked against Google's and
 Supabase's docs on 2026-10-03. Gmail's SMTP server takes a Workspace address plus an **app
@@ -432,12 +450,24 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
 **Switching it on**
 
 1. **SQL Editor:** the two migrations above, in order.
-2. Deploy `purge-uploads` (`supabase functions deploy purge-uploads --no-verify-jwt`) and schedule it hourly
-   exactly like `purge-partial-uploads` (service role key as the bearer). Redeploy `delete-account` so an account
-   deletion removes uploaded files too.
-3. Run `20261004000500_worker_job_upload.sql`; merge the Ryagram `uploadreader` branch (WORKER + CC1 review, Ryan's OK), add
-   `[uploads] enabled = true` to worker.toml and update the worker.
-4. Merge this branch, then set `uploads: true`.
+2. Deploy `purge-uploads` (`supabase functions deploy purge-uploads --no-verify-jwt`) and schedule it hourly with its OWN
+   per-job secret, never the service-role key (pg_net keeps every scheduled call where every database login can read it):
+   make a random value of 32 or more characters in your own terminal, set it as the function secret `PURGE_UPLOADS_SECRET`,
+   redeploy `purge-uploads`, add the same value in Dashboard > Integrations > Vault as `cron_purge_uploads`, then:
+   ```sql
+   select cron.schedule('purge-uploads', '0 * * * *', $$ select net.http_post(
+     url := 'https://<project-ref>.supabase.co/functions/v1/purge-uploads',
+     headers := jsonb_build_object('Content-Type', 'application/json',
+       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'cron_purge_uploads')),
+     body := '{}'::jsonb) $$);
+   ```
+   Check a minute past the hour: `select status_code, content::text as content_text, created from net._http_response order by created desc limit 5;`
+   shows 200 and `{"ok":true}`. Redeploy `delete-account` so an account deletion removes uploaded files too.
+3. Run `20261004000500_worker_job_upload.sql`, then `20261004000510_worker_read_policy_follow_up.sql`, BY HAND IN THAT ORDER. They are OLDER than migrations already applied (the trust-label ones,
+   the app download), so the SQL Editor will not order them for you: run them after the migrations they are older than. Neither redefines anything a later migration defines (`worker_may_read_upload` keeps
+   its grants when 000510 replaces it; `worker_job_upload` is new), so the order among them cannot overwrite a newer function. WORKER merges the Ryagram `uploadreader` branch (WORKER + CC1 review, Ryan's OK),
+   adds `[uploads] enabled = true` to worker.toml and updates the worker; the worker's refusal of an unacknowledged upload reads `jobs.upload_trust` from the job claim.
+4. Merge, then set `uploads: true`.
 
 ## Kill switch
 
@@ -493,3 +523,181 @@ allow-lists, the contact sheet → preview → final ladder, worker confinement,
 upload size/type checks, sequential exactly-once claiming, lost-worker retry,
 retry_job vs final failures, metering for handed-back attempts, finished
 versions staying locked, the kill switch and cancel.
+
+## Visit counting (uselai.com/ryagram/)
+
+A cookieless count of visits to the Ryagram page, nothing displayed on the page. Two parts, both off until switched on:
+
+1. **Cloudflare Web Analytics** (the independent total; filters bots). uselai.com is served by GitHub Pages (DNS points at GitHub, not at Cloudflare), so there is no Cloudflare Pages project to toggle: use the JS snippet. In the Cloudflare dashboard: *Analytics & Logs* -> *Web Analytics* -> *Add a site* -> hostname `uselai.com` -> choose the manual JavaScript snippet (not "automatic setup", which needs the site proxied through Cloudflare) -> copy the 32-character `token` from the snippet -> put it in `assets/analytics-config.js` as `cloudflareBeaconToken`. The token is public (it ships in the page), not a secret. Only `/ryagram/` loads the beacon; its Content-Security-Policy already allows `static.cloudflareinsights.com` and `cloudflareinsights.com`.
+2. **A tally by link source** (`?ref=youtube`, or failing that `?utm_source=`), because Cloudflare does not break visits out by query parameter. SQL `migrations/20261006000100_visit_counting.sql` (after 20261003000300): table `ryagram_visits` (day, path, source, count: no visitor id, cookie, address or agent), `record_visit` (anyone may add 1), `visits_by_day` and `visits_by_source` (admin only). Apply it, then set `visitCounting: true` in `assets/ryagram-config.js`. Ryan's view is `/app/#/admin/visits` (visits, signups and signup rate, by day and by source). A signup keeps its `ref` in the existing `source` column.
+
+Counted: one per page load; skipped for Do Not Track, Global Privacy Control, automated browsers and obvious crawlers. The privacy policy has one sentence on it.
+
+## Hands-off operations (branch ops-readiness): switching it on
+
+Design and audit: `Ryagram-logs/proposals/WEB-OPS-READINESS.md`. Nothing below is applied or deployed until Claude has reviewed the SQL.
+
+1. Apply `migrations/20261010000100_ops_readiness.sql` (after the AI editor, film pages and app_admins migrations). It also replaces `ai_reserve_turn` with the capped version and adds `control.ai_daily_usd_cap` ($5), `ai_monthly_usd_cap` ($60) and `ai_project_cap_usd` ($5): tune them in the Table Editor on the `control` row.
+2. Redeploy `ai-editor` (it now asks `ai_budget_ok` before every Anthropic call). Deploy `ops-tick` and `ops-digest` the same way as `purge-uploads` (`--no-verify-jwt`).
+3. Schedule by SQL with `pg_cron` + `pg_net`: `ops-tick` every MINUTE (a child-safety report's first email goes out within a minute), `ops-digest` daily at 13:00 UTC, `cost-sync` hourly. **Key: NOT the service-role key (Q91, 2026-10-25).** pg_net keeps every scheduled call, headers included, in `net.http_request_queue` and its reply in `net._http_response`, and on the live project every database login can read both (PUBLIC holds the grants; the owner `supabase_admin` cannot be changed from SQL). So each job carries its OWN secret, which lets it run that one job and nothing else, and its reply is "ok" or "failed" only:
+   - **Make three random values** of 32 or more characters, one per job (for example `openssl rand -hex 32`, run in your own terminal; never put one in chat, a ticket or the board). A value shorter than 32 characters is ignored by the functions.
+   - **Function secrets** (the same value on both sides): `npx supabase secrets set OPS_TICK_SECRET=<value> OPS_DIGEST_SECRET=<value> COST_SYNC_SECRET=<value> --project-ref <ref>`, then redeploy the three functions. They still accept the service-role key too, so you can run one by hand.
+   - **Vault copies**, one per job, named `cron_ops_tick`, `cron_ops_digest`, `cron_cost_sync`: add them in Dashboard > Integrations > Vault > Add secret (preferred: no SQL text is left in the editor's history). The old `service_role_key` Vault secret is no longer read by any job; delete it once the three jobs below are running (then rotate the service-role key, as its own step).
+   - **Schedule** (running `cron.schedule` with an existing job name replaces that job):
+   ```sql
+   select cron.schedule('ops-tick', '* * * * *', $$ select net.http_post(
+     url := 'https://<project-ref>.supabase.co/functions/v1/ops-tick',
+     headers := jsonb_build_object('Content-Type', 'application/json',
+       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'cron_ops_tick')),
+     body := '{}'::jsonb) $$);
+   select cron.schedule('ops-digest', '0 13 * * *', $$ select net.http_post(
+     url := 'https://<project-ref>.supabase.co/functions/v1/ops-digest',
+     headers := jsonb_build_object('Content-Type', 'application/json',
+       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'cron_ops_digest')),
+     body := '{}'::jsonb) $$);
+   select cron.schedule('cost-sync', '0 * * * *', $$ select net.http_post(
+     url := 'https://<project-ref>.supabase.co/functions/v1/cost-sync',
+     headers := jsonb_build_object('Content-Type', 'application/json',
+       'Authorization', 'Bearer ' || (select decrypted_secret from vault.decrypted_secrets where name = 'cron_cost_sync')),
+     body := '{}'::jsonb) $$);
+   ```
+   Verify: `select status_code, content, created from net._http_response order by created desc limit 5;` shows 200 and `{"ok":true}` (403 = the Vault value and the function secret differ, or are shorter than 32 characters). Check the jobs themselves: `select jobname, command like '%service_role_key%' as still_reads_the_service_key from cron.job;` must be false for all three.
+4. Mail is DRY-RUN by default: every alert and digest is written to the `ops_outbox` table (Table Editor) and nothing is sent. **Secrets already set (Ryan, 2026-10-10): `RESEND_API_KEY` and `OPS_MAIL_FROM`; the Resend domain is verified (DKIM and SPF).** `OPS_MAIL_MODE` is still unset, so it stays in dry-run. **Going live = set the secret `OPS_MAIL_MODE=resend`, but only after CC1 has approved ops-readiness, the SQL is applied and the `ops-tick` and `ops-digest` functions are deployed and scheduled.** Anything missing keeps it in dry-run. (Supabase's own Auth emails use the same Resend account through custom SMTP, set separately in Authentication > Emails.)
+5. WORKER adds one `worker_ping(free_gb)` call per minute. Until then rendering status is `unknown` and no worker alert is raised.
+6. Merge `.github/workflows/ops-ping.yml` only after step 1.
+7. **Launch checklist (Ryan, 2026-10-10): raise the site-wide AI caps before public launch; consider per-user caps tied to credits.** The defaults ($5 a day, $60 a month, $5 a project) suit one user. A call whose model has no row in `ai_prices` is counted at the most expensive known price and raises one alert `ai_price_missing:<model>`: add the price row to clear it.
+8. **Backups:** after the daily backup is installed (proposals/WEB-BACKUP-DESIGN.md), set `ops_settings.backups_expected = true` in the Table Editor; from then on a good dump older than 2 days raises one alert.
+9. **Before go-live, look at one real `ai_usage` row** after the first editor turn: `model` must be the alias in `ai_prices` (`claude-haiku-4-5` / `claude-sonnet-5`), `cost_usd` not null. The editor records usage under the REQUESTED model, so a dated name from the API cannot make a call unpriced; if `ai_price_missing` ever alerts, add the price row.
+10. **HARD GATE before the report form is switched on (`opsTools`): verify the report limits see the real caller.** `report_film_page` keys its limits on the `cf-connecting-ip` header (set by Cloudflare, which a client cannot forge), else the LAST hop of `x-forwarded-for`, else the typed email. If `cf-connecting-ip` does not reach PostgREST, the last forwarded hop is probably a SHARED proxy or edge address: then one person's 5 reports an hour blocks everyone, child safety included, and the check must FAIL. Test from a phone and a laptop: send two harmless reports (reason: other) to a test page from each and read `abuse_reports.reporter_key`: it must differ between the two devices and be the same for two reports from one device. If every key is the same, or every report has a new key, do NOT switch the form on; tell Claude (the limits then fall back to the typed email, which does not stop a flood).
+11. **Child-safety reports (Ryan, 2026-10-12).** A report with the reason `child_safety` is ALWAYS recorded (no limit can refuse it) and raises an URGENT alert that is emailed at once, bypassing the daily alert-mail allowance. The page is hidden pending your review, but at most `ops_settings.child_safety_holds_per_hour` (default 10) pages an hour site-wide; above that the report is still recorded and the alert says the page is NOT hidden, and `#/admin/ops` lists it first. Because the alert goes out on the next `ops-tick`, schedule `ops-tick` **every minute** (Dashboard > Integrations > Cron; it is a cheap SQL pass that only sends mail when something is new) so the worst-case delay is about a minute. **Launch checklist: a lawyer confirms the CSAM reporting duties (NCMEC) and the review process before public launch.** **Ryan's answers (2026-10-14):** (a) the FIRST urgent email goes out at once; after that ONE grouped email at most every 15 minutes (`ops_settings.urgent_mail_every_min`) covers everything since, and nothing is dropped: urgent mail is its own outbox kind (`urgent`), so it never counts against, and is never held by, the 20-a-day allowance for ordinary alerts. One mail lists up to 100 reports; every report is on `#/admin/ops`. (b) A reporter's first 5 reports in an hour (`report_detail_per_reporter_hour`) keep their full details; after that each report is still recorded as a SHORT record (time, reporter, page, reason; no free text, `details_omitted`), and `#/admin/ops` says so. Child-safety reports are never refused for it; other reasons keep their per-reporter limit. Hides by child-safety reports do not use up the ordinary per-reporter or hourly hide allowances, and report handling takes a lock so concurrent reports cannot race past the caps.
+
+## Creator beta (branch creator-beta): switching it on
+
+YouTubers, podcasters, newsletter writers, journalists, teachers and researchers apply on `/ryagram/#creators` (name, email, who they are,
+what they make, a link, and the question they would answer with data). Ryan approves or declines each one on `#/admin/ops`
+("Creator beta applications"). The page says plainly that beta credits are free in exchange for feedback and that any promotion is disclosed.
+
+- **Stored:** `public.creator_applications`, tagged `source = 'creator_beta'`. RLS is on and every grant is revoked, the service role
+  included, so nobody can read or change a row directly. The ONLY writer is `creator_beta_apply`, callable by the service role only (the
+  `creator-beta` function). Ryan's two functions (`admin_creator_beta`, `admin_decide_creator`) are gated by `is_app_admin()`.
+- **Approving sends nothing and grants no credits.** It marks the row and clears its alert. Ryan replies from his inbox and grants the free
+  credits by hand (the invite code or `grant_credits`), so nothing can cost money by itself.
+- **Limits:** one application per email; **3 an hour per caller** and 40 an hour site-wide (each a friendly "try again later"); a hidden
+  honeypot field. The per-caller limit is checked first, so one spammer is refused long before the site-wide cap is near and cannot lock real
+  applicants out. The function hashes the caller's address with the New York day (sha-256) and passes only the hash; the address is never stored
+  and the key changes daily. Only stored applications count. A request with no address gets no per-caller limit (never one shared bucket).
+  People behind one shared address (a school or newsroom) share its 3 an hour.
+- **Verify once on the live project** (like the report form's go-live step): which header carries the real caller address. The function reads
+  `cf-connecting-ip` (set by Cloudflare, overwrites anything the client sent), else the LAST hop of `x-forwarded-for`, never the first.
+  After deploying, apply from two different networks and check `select count(distinct caller_key) from creator_applications` is 2, not 1.
+  If it is 1 (every caller looks the same) the per-caller limit would block everybody after 3: do not switch the form on until fixed.
+- **Alerts:** each new application raises one `creator:<id>` alert (in the daily digest and "Needs you"), cleared when Ryan decides it.
+
+To switch it on (in this order):
+
+1. **SQL Editor:** `migrations/20261014000100_creator_beta.sql`, after `20261010000100_ops_readiness.sql` (it uses that file's alert ledger
+   and `is_app_admin`).
+2. **Deploy** (visitors are not signed in):
+
+   ```
+   npx supabase functions deploy creator-beta --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt
+   ```
+   **Address hashes use a secret (2026-10-17).** The per-caller key is an HMAC-SHA256 of the address and the day, keyed with the Edge secret `CALLER_HASH_SECRET`
+   (any long random string; if it is not set the function uses the project's own service key, so there is never an unsalted hash; an address with no secret at all
+   is refused). The abuse reporter key is made the same way in SQL from a random secret in the closed table `ryagram_private.hash_secret`
+   (`migrations/20261017000100_hash_secrets.sql`, after `20261010000100_ops_readiness.sql`). Rotating either secret only resets that day's limits.
+3. Set `creatorBeta: true` in `assets/ryagram-config.js` and push. Until then the form tells people to email ryagram@uselai.com and sends nothing.
+
+## Creator beta flow (branch creator-flow): invite, sign up, credits, request a film
+
+The whole path for a creator on Stripe TEST mode, with Ryan fulfilling each film by hand from his PC until the job runner has a status file:
+
+1. A creator applies on `/ryagram/#creators` (see "Creator beta").
+2. Ryan opens `#/admin/ops` > Creator beta applications and clicks **Approve and make an invite code**. The database makes a single-use code (valid 30 days, stored only as a hash) that carries welcome credits (default 20; change with `select admin_creator_flow_set(<film request credits>, <welcome credits>);`). The code is shown **once**, with an **Email it** link (a `mailto:`: Ryan reads and sends it himself; nothing is sent for him).
+3. The creator enters the code and their email under "Have an invite code?" (needs `inviteSignup: true`, custom SMTP and `redeem-invite`, see "Beta invites"), gets Supabase's invite email, sets a password. When the invite email goes out, `invite_sent` grants the welcome credits ONCE (ledger entry `grant`, `created_by = invite:<redemption>`).
+4. In the app they open **Request a film** (needs `filmRequests: true`): a question and optional notes. A request costs `film_request_credits` (default 10), taken at once in the ledger's spending order; at most 3 open at a time. It appears in Ryan's queue (`Film requests`) and raises one alert (`film_request:<id>`).
+5. Ryan makes the film on his PC, uploads it anywhere with an https link (YouTube unlisted is fine), and clicks **Mark delivered** with that link; the creator sees **Watch your film**. **Decline** returns exactly the credits that request took, from the pools they came from, once. A delivered request keeps its credits spent.
+
+The seam for BUILDER's job runner: `admin_film_request_set(id, status, note, url)` is the ONE place a request changes state. When a runner status file exists, a service-side caller can move requests through it; the screens and the credit rules do not change. (Today it is `is_app_admin()`-gated; a service-role variant is a small addition when the file's format is known: it does not exist yet.)
+
+To switch it on (after the ledger is live and the creator beta is on): apply `migrations/20261016000200_creator_flow.sql` (after `20261003000200_invite_codes.sql`, `20261010000100_ops_readiness.sql`, `20261014000100_creator_beta.sql` and `phase-2b/credits_ledger.sql`), then set `filmRequests: true` and push. The two numbers are **confirmed by Ryan (2026-10-16): 10 credits per film request and 20 welcome credits** (the defaults in `creator_flow_settings`; `admin_creator_flow_set` can still change them later). **The dollar value of a credit is deliberately unset until costmeter has measured real render costs: no screen, table or message in this flow shows or computes a price per credit.**
+
+
+**Invite someone (2026-10-17, `migrations/20261017000200_invite_someone.sql`, after `20261016000300_retention_purge.sql`).** `#/admin/ops` > Creator beta applications > **Invite someone**: Ryan types a friend's name (and, if he wants, welcome credits; blank = the usual 20) and their email. The database gets only the name and the credits (`admin_invite_person(name, credits)`, admin only): it makes a single-use code valid 30 days, labelled `invite: <name>`, that grants the welcome credits when the person signs up (`invite_sent`, once). The code is shown ONCE with an **Email it** link (a `mailto:` built in the browser from the address Ryan typed: the address is never sent to the database until the person redeems). Retention: `retention_purge()` (replaced in this migration) deletes such a code, and with it the redemption that holds the email, 12 months after it was last used, or 12 months after it expired if nobody used it. The Privacy draft says so.
+
+## Cost ledger (branch cost-ledger): switching it on
+
+Every $-bearing event in one closed table (`cost_events`), a daily rollup and Ryan's limits on `#/admin/ops` > Costs. Full design, the Stripe test-mode plumbing plan and each vendor's spend-cap steps: `Ryagram-logs\proposals\WEB-COST-LEDGER-AND-TEST-PLAN.md`.
+
+- **Unknown is unknown:** `amount_usd` NULL is never added as $0; totals name how many events have an unknown cost. Each event has a `mode`: `live`, `test` (Stripe test mode) or `unknown` (the source gave no live/test flag: never defaulted to live). Only `live` counts as money or toward an alarm; the others are shown apart.
+- **Closed tables:** RLS on, every grant revoked (service role included). Writers are `cost_record_events`, `cost_ingest_render_meter`, `cost_tick`, `cost_sync_get/set` (service role only) and Ryan's `admin_cost_*` functions (`is_app_admin()`).
+- **Sources:** Stripe's own balance transactions (the real fee per charge, read-only, `cost-sync` function), plan fees Ryan states (accrued daily), render cost from `job_metering` cpu seconds (unknown until he states a core-hour rate), a daily stored-bytes and live-email reading, typed costs, and (once BUILDER publishes the format) `renders.jsonl` lines. Sign-up emails and uploaded datasets are NOT counted (UNKNOWN).
+
+To switch it on (in this order):
+
+1. **SQL Editor:** `migrations/20261016000100_cost_ledger.sql`, after `20261010000100_ops_readiness.sql` and the 2A core.
+2. **Stripe key, its OWN secret:** create a NEW **restricted** key (`rk_test_...`, later `rk_live_...`) with **Balance: Read and nothing else** (add "Balance transaction sources: Read" only if the first call is refused), and store it as the secret **`STRIPE_READ_KEY`**. Do NOT reuse `STRIPE_SECRET_KEY`: Supabase secrets are project-wide, so that would hand `cost-sync` the checkout key. `cost-sync` refuses a full `sk_...` key and takes the mode from the `rk_` prefix. A cost event that arrives with no live/test flag is stored as mode `unknown`: shown apart, never counted as money, never alarmed.
+3. **Deploy:** `npx supabase functions deploy cost-sync --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`
+4. **Schedule:** every **hour** (`0 * * * *`) with `cron.schedule` + `net.http_post` to `/functions/v1/cost-sync`, the per-job-secret pattern of `ops-tick` (step 3 of the ops readiness section: function secret `COST_SYNC_SECRET`, Vault secret `cron_cost_sync`; the `cost-sync` schedule is in that step). Alarms are evaluated on that run, so they can be up to an hour late.
+5. **Seeded by the migration (Ryan, 2026-10-16), editable on `#/admin/ops` > Costs:** limits of **$5 a day and $50 a month across every vendor, warning at 80%, alerts only** (nothing here can block or stop anything), and a **render core-hour rate of $0** (renders on his own PC cost $0 in cash; the cloud rate comes from BUILDER's trial). Still to enter: your plans (Supabase, Resend, Workspace; the Supabase plan is being checked) and costs nothing can see (a domain renewal).
+
+Tests: `tests/cost-ledger.test.mjs` (the function, wording, forms, screen wiring) and `supabase/tests/test_cost_ledger.py` (closed tables, idempotence, rollup, plans, render and storage readings, alarms). Run the SQL tests with `TEMP`, `TMP` and `TMPDIR` on D: (the storage rule).
+
+## Retention purge (branch retention-purge): the Privacy Policy's retention promises
+
+`retention_purge()` deletes what the policy says is deleted, once per New York day, called by the **ops-tick** function every minute (no new schedule, no new function): creator beta applications **12 months after the decision** (with the invite code made for them, which holds their name, and its redemption, which holds their email); help requests **3 years after they were answered**; reports **3 years after they were reviewed**, **except child-safety reports, which are never deleted by this job** (they are kept as legal preservation requirements say: counsel to confirm, then change the rule in the function if it needs a period). Undecided applications, unreviewed reports and unanswered requests are never touched: they still need Ryan.
+
+1. **SQL Editor:** `migrations/20261016000300_retention_purge.sql` (after the ops, creator beta and invite code migrations).
+2. **Redeploy `ops-tick`** (it now calls the purge): `npx supabase functions deploy ops-tick --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt`.
+3. Check: `select * from retention_runs;` shows today's date after the next minute tick.
+
+## Your look: the profile editor (branch profile-editor, stacked on ENGINE's engine-profiles)
+
+`#/looks` (account page > Your look; behind `lookEditor: false` until `20261017000300_engine_profiles.sql` is applied and `engine-profiles` is merged): a person picks a preset, tweaks a look, sees an approximate **quick look** and a real **sample sheet**, and saves it as their default. Spec: ENGINE's `proposals/ENGINE-WEB-PROFILE-EDITOR-SPEC.md`.
+
+- **The rules are the engine's, not ours.** `assets/profile-core.js` is generated from `_shared/profile.ts` + `profile_data.ts` by `node tools/make-profile-core.mjs` (types stripped, same code); `tests/profile-core.test.mjs` fails if the committed file is not what the generator builds and replays the engine's fixtures through it. After ENGINE regenerates its files, re-run the generator and commit. The database's `set_engine_profile()` is the backstop; the server's answer counts.
+- **Saving:** `data.saveLook` calls `set_engine_profile(spec, makeDefault)`; reads and deletes are RLS on `engine_profiles`. Errors from the database are shown verbatim.
+- **Sample sheet:** a free `contact_sheet` job on the person's own project **Profile preview (sample)** (created on first use, reused after), with the engine's sample story (`applyProfile(look, SAMPLE_STORY)`) and `SAMPLE_PERIODS`; never a final render. It shows the look the person had when they pressed the button; the button is off while a sheet for the same look text (a hash) runs. The page says "checks passed" only when the job completed; a failed check shows the engine's own sentence (`ryagramJobs.problem`).
+- **On a film:** a template that builds a film is styled with the default look first ("Using your look: <name>"); **Apply my look** on a version shows the changed look fields in words, then makes a NEW version (never edits in place).
+- **Not built:** the Quick look is a client-side mock labelled approximate; fonts/motion/brand are stored but "not applied yet" (the engine does not use them).
+- Tests: `tests/looks.test.mjs` (a new engine knob with no control fails it), real Chrome `tools/check-looks.py`.
+
+## Connecting an AI: the hosted consent page and Connected AIs (branch connect-consent)
+
+`assets/app-connect.js`, behind `connectAi: false` until CONNECT's SQL (`20261018000100_connect_ai.sql`) is applied and its `connect` function is deployed. The authorization server is CONNECT's (option B); these pages are where the SIGNED-IN person decides.
+
+- **Consent page:** `https://uselai.com/app/#/connect/consent?request=<id>` (CONNECT sets `CONNECT_CONSENT_URL=https://uselai.com/app/#/connect/consent?request=`; `<id>` is the `connect_requests` UUID). Not signed in: the normal sign-in shows first and the same address then opens the page. It calls `connect_consent_check(p_request)` and shows the app's name, the EXACT redirect address and its host, what the AI will be able to do (tickable; CONNECT's scope ids `read`, `write`, `render_free`, and `render_final` only if it is ever offered), and "Tools that spend credits will ask you first", with Approve and Deny. Nothing is sent on load. A refused request (not invited, an admin account, expired, unknown) shows only its reason. Approve with nothing ticked is refused in words. `connect_consent_decide(p_request, p_approve, p_scopes)` returns `{redirect_to}`; the page follows it ONLY if it starts with the exact address it showed (same origin and path); otherwise it stops with a sentence. It never sees a token: the code inside `redirect_to` is not read.
+- **Account > Connected AIs:** `my_connected_ais()` lists each active grant (name, what it may do, connected, last used, calls in 30 days) with **Disconnect** (`disconnect_ai(p_client_id)`, which revokes the grant and every live token at once; the page says "disconnected" only after the call returns).
+- **Dashboard steps (Ryan, later):** none from WEB; the redirect allowlist and invitations are CONNECT's admin functions. The page is served from GitHub Pages like the rest of the app (CSP unchanged: it only talks to the project's own host).
+- Tests: `tests/connect.test.mjs` (7), real Chrome `tools/check-connect.py`.
+
+## Funnel tracking (branch funnel-events): first-party, no cookies, no pixels
+
+`migrations/20261017000900_funnel_events.sql` (apply after `20261017000200_invite_someone.sql`; it replaces `retention_purge()` once more) and `assets/funnel.js`, behind `funnelTracking: false` in `assets/ryagram-config.js`. Spec: Ryan, 2026-10-17.
+
+- **Tables:** `funnel_events` (event, time, the account if any, utm_source/medium/campaign, referrer domain) and `funnel_accounts` (the source attached to an account). RLS on, an `is_app_admin()` read policy and nothing else: no one can insert, update or delete through the API; the service role has no grant either.
+- **Render steps (Ryan 2026-10-18):** `render_ordered` (a trigger on `render_orders`: a full render was REQUESTED, i.e. an order row exists; it may still be declined, expire or fail, so this counts requests, not renders that ran) is the funnel's FIRST ORDER; `render_approved` (a trigger on `render_stages`: Ryan's decision stamp on a final render that was not declined). Both once per account. The triggers are installed by `funnel_install_triggers()` only where the PIPE-1 tables exist, so apply this file after `20261017000600`.
+- **Events:** `landing_view` and `signup_started` are anonymous (`funnel_anon()`, callable with the public key, only those two names, stops at 5,000 an hour). `signup_done` (first confirmed email, a trigger on `auth.users`), `first_project`, `contact_sheet`, `preview`, `film_requested`, `film_delivered`, `purchase` (a `purchase` credit-ledger row), `subscription_start` / `subscription_cancel` are written by TRIGGERS on the real tables, so the page cannot invent or skip a step. `return_7d` / `return_30d`: `funnel_return_visit()` when a signed-in person opens the app 7 / 30 or more days after confirming their email. Each account counts once per step except purchases and plan starts/cancels.
+- **Triggers on tables made by hand** (the credits ledger and Stripe, `supabase/phase-2b/*.sql`) are installed by `ryagram_private.funnel_install_triggers()`, which the migration runs once; **run it again after applying a phase-2b file later**.
+- **Source:** `assets/funnel.js` keeps ONE small record in this browser's local storage (not a cookie) when a visit comes from a utm link or another site (a direct visit stores nothing); the first touch wins. At first sign-in it calls `funnel_attach_source()` once (the database keeps the first answer; earlier steps such as `signup_done` take it) and deletes the record. Nothing else personal is sent or stored. Skipped entirely for Do Not Track, Global Privacy Control, automated browsers and crawlers. **A person who signs in from a different browser than the one that saw the link has no source (counted as direct).**
+- **Ryan's view:** `#/admin/ops` > Funnel: people per step, conversion from the step before and from the first step, by source, by week (4 / 8 / 12 / 26 weeks). Visits are counted each time; every other step counts accounts.
+- **Retention:** `retention_purge()` deletes raw events 13 months after they happened (the source row stays while the account does); deleting an account removes its source row and unlinks its events. The Privacy draft says so (`funnel-tracking`).
+- **Switching it on:** apply the SQL, publish the Privacy line (`legal-approve.py ... --requires-ok ...,funnel-tracking`), then set `funnelTracking: true`. Ads later add their own pixels only after the lawyer.
+- Tests: `supabase/tests/test_funnel.py` (13), `tests/funnel.test.mjs` (12), real Chrome `tools/check-funnel.py`.
+
+## Render approvals: #/admin/renders (branch admin-renders)
+
+While `auto_render` is off a full render waits for Ryan. `admin_render_decide` needs an APP session (`require_admin()`), so it cannot be used from the SQL editor; `#/admin/renders` (admin only, behind `renderOrders`; link "Render approvals" among the admin links in the library) lists `admin_render_queue()` (film, who, credits held, when asked, when it expires, from the app or a connected AI) with **Approve** (starts the render) and **Decline** (confirm, optional note, returns the credits), and redraws after each call returns. The daily-cap refusal is shown to Ryan in the database's own sentence and leaves the request waiting (declining is still possible). The auto_render switch and per-user caps are not on this page yet (they come with the connector pages). Tests: `tests/render-approvals.test.mjs` (5), real Chrome `tools/check-render-approvals.py`.
+
+## Guided builder: "Make a film step by step" (branch guided-builder, stacked on ENGINE's engine-profiles)
+
+`#/build` (library link "Make a film step by step"; behind `guidedBuilder: false` until the function is deployed): dataset -> measure -> years -> film type -> look -> title -> review, then a project with the compiled story and a FREE contact sheet. Source and licence are shown as soon as a dataset is picked and again on the review; the raw story is behind "Advanced".
+
+- **Server side:** `supabase/functions/guided-builder/` (`builder.ts`, `index.ts`) is the only thing the page talks to: `catalog` (the entries a person may be shown: listable by RULINGS 2026-10-17 AND usable on the installed worker, each with source and licence), `describe` (one dataset: measures, coverage, method changes, full licence; an unlisted dataset is "not available", the same as an unknown one) and `compile` (ENGINE's `compileFilm`, which checks the story against the worker's own schema; every refusal reason comes back at once, HTTP 422). App sessions only: a connected AI's token (client_id) is refused. Deploy: `npx supabase functions deploy guided-builder --project-ref jxtkfishqfxuptwjzczz --no-verify-jwt` (the person's JWT is checked inside; no secrets).
+- **No rules in the page:** assets/ never imports `film.ts` or the catalog; `tests/builder.test.mjs` fails if it does. A refusal's sentence points back at its step ("Fix it"). The look step offers the person's own looks (Your look) when that feature is present.
+- **Not on this page:** no paid render, no price, no per-credit figure; places cannot be subset (the engine says so); the dataset flags `catalog` / `catalogComingSoon` stay off (this page lists nothing to anyone who is not signed in).
+- Tests: `tests/guided-builder.test.mjs` (6), `tests/builder.test.mjs` (9), real Chrome `tools/check-builder.py`.
+
+## What "usable" means in the catalog (2026-10-17)
+
+A dataset is **usable** only if it is on the INSTALLED render worker's allowlist (`worker.toml` `[datasets].allow`). That list is a COMMITTED export, `supabase/functions/_shared/worker_allowlist.txt` (a `# count: N` header, one id per line, `#views <id> <view,...>` for a view restriction the worker enforces), written by WORKER; the generator (`tools/gen-catalog.py --allowlist ...`, ENGINE's) reads that file and nothing on any machine. It replaced WORKER-SETUP.ps1's 23-id base list (BUILDER's finding: the catalog said 23, the worker runs 83). When WORKER changes the allowlist: export it, regenerate (`assets/app-catalog-data.js`, the catalog_sources seed, `catalog_data.ts`) and commit both. `tests/catalog-usable.test.mjs` fails if the export's count and ids, the public catalog and the server catalog ever disagree, or if an allowlisted id is missing from the catalog. Every usable dataset has a `credit_dataset_shapes` row: the last five (`bps_county_unit_share_1`, `_2to4`, `_5plus`, `bps_us_unit_mix`, `fhwa_hm212`) were priced as `standard` by dataset-shapes c886e09 (CC1, from the engine's DatasetSpec). `tests/app-catalog.test.cjs` fails on any new usable dataset without a row. `tests/app-catalog.test.cjs` names them (UNPRICED) and fails on any new one.

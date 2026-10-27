@@ -5,9 +5,13 @@ create role authenticated nologin;
 create role service_role nologin bypassrls;
 
 create schema auth;
-create table auth.users (id uuid primary key, email text);
+create table auth.users (id uuid primary key, email text, email_confirmed_at timestamptz, created_at timestamptz not null default now());   -- as in Supabase (the funnel reads both)
 create function auth.uid() returns uuid language sql stable as $$
   select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid
+$$;
+-- Supabase's auth.jwt(): the request's claims. Tests set request.jwt.claims (e.g. a client_id for a CONNECT token).
+create function auth.jwt() returns jsonb language sql stable as $$
+  select coalesce(nullif(current_setting('request.jwt.claims', true), '')::jsonb, '{}'::jsonb)
 $$;
 grant usage on schema auth to anon, authenticated;
 

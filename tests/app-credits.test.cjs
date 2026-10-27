@@ -143,3 +143,11 @@ test('shop: current prices that Stripe sells; checkout URLs only go to Stripe', 
     await assert.rejects(ryagramData(answering(bad)).startCheckout('pack_starter'), /Couldn’t start the checkout/);
   }
 });
+
+test('RETURN FROM CHECKOUT: the thanks line is shown once and ?paid=... is dropped from the address right away (a reload or later visit shows nothing)', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'assets', 'app-library.js'), 'utf8');
+  const at = src.indexOf('if (paidCode) {');
+  assert.ok(at > 0);
+  const block = src.slice(at, src.indexOf('Thanks. Stripe has your payment', at));
+  assert.match(block, /history\.replaceState\(null, '', location\.pathname \+ location\.search \+ '#\/credits'\)/);
+});
