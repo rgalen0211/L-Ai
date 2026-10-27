@@ -58,6 +58,15 @@
     return !!rel && typeof rel.url === 'string' && /^https:\/\/[^\s]+$/.test(rel.url) && typeof rel.fileName === 'string' && /^[A-Za-z0-9._ -]{1,80}$/.test(rel.fileName) && typeof rel.sha256 === 'string' && /^[0-9a-f]{64}$/.test(rel.sha256);
   }
 
+  // How much room the unzipped app needs, said from the release record so it cannot go stale (CONNECT 20:02 found 'about 582 MB' on a 736 MB bundle). The record's unpackedMb is the app unzipped;
+  // the listening model is separate (Balanced, 464 MB); the free-space figure is the two together in tenths of a GB, plus a tenth of headroom. With no usable unpackedMb it gives NO number, never a wrong one.
+  const MODEL_MB = 464;
+  const unpackedOk = rel => !!rel && Number.isInteger(rel.unpackedMb) && rel.unpackedMb >= 1 && rel.unpackedMb <= 20000;
+  const freeGb = unpackedMb => (Math.ceil((unpackedMb + MODEL_MB) / 100) + 1) / 10;
+  const spaceWords = rel => (unpackedOk(rel)
+    ? `It needs about ${rel.unpackedMb} MB unpacked, plus the listening model (Balanced is about ${MODEL_MB} MB): about ${freeGb(rel.unpackedMb)} GB free in all.`
+    : `It needs room for the unzipped app and the listening model (Balanced is about ${MODEL_MB} MB).`);
+
   // The admin form's own pre-check (the server checks again; WORKER's draft needs 3 to 300 characters of reason). A courtesy, never the gate.
   const REASON_MIN = 3, REASON_MAX = 300;
   function checkTesterForm(email, reason) {
@@ -205,7 +214,7 @@
           ? h('a', { class: 'button primary', href: rel.url, rel: 'noopener', download: rel.fileName }, 'Download Ryagram for Windows')
           : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'The download appears here when it is ready.')),
         h('ol', { class: 'windows-steps' },
-          h('li', {}, h('strong', {}, 'Download '), `${name} and unzip it into a folder on a drive with room to spare (right-click, Extract all). It needs about 582 MB unpacked, plus the listening model (Balanced is about 464 MB): about 1.1 GB free in all.`),
+          h('li', {}, h('strong', {}, 'Download '), `${name} and unzip it into a folder on a drive with room to spare (right-click, Extract all). ${spaceWords(rel)}`),
           h('li', {}, h('strong', {}, 'Check it. '), 'Optional, but do it: open PowerShell in the folder you downloaded to and paste this line: ', h('code', {}, `Get-FileHash ${ready ? rel.fileName : '<the file>'} -Algorithm SHA256`),
             '. The 64 characters it prints must equal the SHA-256 above.'),
           h('li', {}, h('strong', {}, 'Open it. '), 'In the unzipped folder, double-click ', h('strong', {}, 'Open Ryagram'), ' (it looks like a small window or gear icon, and it is the only file to double-click; the folder holds many). The first time, Windows may say "Windows protected your PC": press More info, then Run anyway, ',
@@ -262,5 +271,5 @@
     return { deviceView, computersSection, windowsAppSection, testerAdminView };
   }
 
-  window.ryagramDevice = { windowsReady, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { windowsReady, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();
