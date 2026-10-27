@@ -47,7 +47,7 @@ class WideSql(core.Base):
 
     def confirm(self, ds, mapping):
         """Confirm as the person (confirm_dataset_mapping returns void). True when it did not raise."""
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps(mapping))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(mapping))
         return True
 
     def with_report(self, rep):

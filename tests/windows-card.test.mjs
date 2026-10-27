@@ -40,11 +40,8 @@ test('READY ONLY WITH A SAFE RELEASE: an https address, a plain file name and a 
                      { ...GOOD, fileName: '../x.zip' }, { ...GOOD, fileName: 'a/b.zip' }, { ...GOOD, sha256: null }, { ...GOOD, sha256: 'A'.repeat(64) }, { ...GOOD, sha256: 'a'.repeat(63) }]) assert.equal(D.windowsReady(bad), false, JSON.stringify(bad));
 });
 
-test('BEFORE RYAN HOSTS THE FILE (the committed record is empty): the button is off and says Not ready yet; there is no link', async () => {
-  const empty = win.ryagramWindowsApp = undefined;
-  vm.runInNewContext(read('assets/windows-release.js'), { window: win });                          // the committed record
-  const rel = win.ryagramWindowsApp;
-  assert.deepEqual(JSON.parse(JSON.stringify(rel)), { url: null, fileName: null, sizeMb: null, sha256: null, personalUseNotice: null });
+test('BEFORE A FILE IS HOSTED (an empty record): the button is off and says Not ready yet; there is no link', async () => {
+  const rel = { url: null, fileName: null, sizeMb: null, unpackedMb: null, sha256: null, personalUseNotice: null };
   const c = await card(TESTER, rel);
   assert.equal(all(c, n => n.tag === 'a').length, 0, 'no download link');
   const b = all(c, n => n.tag === 'button')[0];
@@ -52,6 +49,21 @@ test('BEFORE RYAN HOSTS THE FILE (the committed record is empty): the button is 
   assert.equal(b.attrs.disabled, true);
   assert.match(text(c), /The download appears here when it is ready\./);
   assert.match(text(c), /shown here when the file is ready/);
+});
+
+test('THE COMMITTED RECORD IS app-1026b (Q248/Q255, 2026-10-26): the invite-only function address, the exact file name, size, unzipped size and SHA-256 of the built zip; a tester card shows an ENABLED button (not a link to a file) with the name and hash on screen', async () => {
+  const w2 = {}; vm.runInNewContext(read('assets/windows-release.js'), { window: w2 });
+  const rel = JSON.parse(JSON.stringify(w2.ryagramWindowsApp));
+  assert.deepEqual(rel, { url: 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/app-download', fileName: 'app-1026b.zip', sizeMb: 274, unpackedMb: 736, sha256: '3414a328f7edc641865e0ac250398d65e82b8eb71cb40f3f83480d2c61d356c1', personalUseNotice: null });
+  assert.equal(D.windowsReady(rel), true);
+  assert.equal(D.viaDownloadFunction(rel), true);
+  const c = await card(TESTER, rel);
+  assert.equal(all(c, n => n.tag === 'a').length, 0, 'no link to a file: the link is made when the button is pressed');
+  const b = all(c, n => n.tag === 'button')[0];
+  assert.equal(text(b), 'Download Ryagram for Windows');
+  assert.ok(!b.attrs.disabled);
+  assert.ok(text(c).includes('app-1026b.zip') && text(c).includes(rel.sha256), 'the file name and SHA-256 are on screen');
+  assert.ok(text(c).includes('about 736 MB unpacked'), 'the space line comes from the record');
 });
 
 test('A READY CARD: one https link with the file name, the name and SHA-256 on screen, and the size in plain words', async () => {
@@ -71,7 +83,7 @@ test('THE THREE PLAIN STEPS AND THE RUN-ANYWAY RULE (CC1 16:17): the steps match
   const t = text(await card(TESTER, GOOD));
   for (const s of ['unzip it into a folder', 'double-click Open Ryagram', 'Windows protected your PC', 'More info, then Run anyway', 'but only if the file name is exactly', 'and the SHA-256 matches',
                    'If anyone else ever asks you to press Run anyway, say no.', 'Download the listening model', 'Balanced is already chosen for you, about 464 MB', 'Sign in to Ryagram', 'approve the code on this website',
-                   'Get-FileHash ' + GOOD.fileName + ' -Algorithm SHA256', 'about 1.1 GB free', 'looks like a small window or gear icon', 'the only file to double-click', 'Check it.', 'must equal the SHA-256 above',
+                   'Get-FileHash ' + GOOD.fileName + ' -Algorithm SHA256', 'the listening model (Balanced is about 464 MB)', 'looks like a small window or gear icon', 'the only file to double-click', 'Check it.', 'must equal the SHA-256 above',
                    'need nothing more', 'Google Chrome installed and about 5 GB of free memory', 'To remove it, delete the folder', 'Remove this computer', 'just below this card']) assert.ok(t.includes(s), s);
   const steps = all(await card(TESTER, GOOD), n => n.tag === 'ol');
   assert.equal(steps[0].kids.length, 4, 'four steps');
@@ -94,10 +106,14 @@ test('THE PERSONAL-USE NOTICE SLOT (wording is the lawyer\'s, never a session\'s
   assert.doesNotMatch(read('assets/app-device.js').replace(/\/\/.*$/gm, ''), /personal use only|not for resale|licen[sc]ed to you/i);          // no session wrote notice text
 });
 
-test('NO NETWORK, NO HTML: the card makes no call (the download is a link the person follows), and writes only text nodes', () => {
+test('NO NETWORK UNTIL THE BUTTON, NO HTML: drawing the card makes no call; the only call is the invite-only download button\'s, through the data layer and then one checked navigation (tests/windows-download.test.mjs); it writes only text nodes', () => {
   const src = read('assets/app-device.js');
   const card = src.slice(src.indexOf('async function windowsAppSection'), src.indexOf('// ---- admin: who is a tester'));
-  assert.doesNotMatch(card.replace(/\/\/.*$/gm, ''), /fetch\(|XMLHttpRequest|sendBeacon|innerHTML|insertAdjacentHTML|localStorage|navigate\(|location\./);
+  const code = card.replace(/\/\/.*$/gm, '');
+  assert.doesNotMatch(code, /fetch\(|XMLHttpRequest|sendBeacon|innerHTML|insertAdjacentHTML|localStorage|location\./);
+  assert.equal((code.match(/data\.requestAppDownload\(/g) || []).length, 1, 'one request, inside the button\'s handler');
+  assert.equal((code.match(/\bnavigate\(/g) || []).length, 1, 'one navigation, with the checked link');
+  assert.ok(code.indexOf('data.requestAppDownload(') > code.indexOf('onclick: async event'), 'the request is inside the click handler, never at draw time');
   assert.doesNotMatch(read('assets/windows-release.js').replace(/\/\/.*$/gm, ''), /fetch\(|XMLHttpRequest|http:/);
 });
 
@@ -108,4 +124,25 @@ test('WIRING: the card is added only behind desktopApp (off), before the compute
   assert.match(read('assets/ryagram-config.js'), /desktopApp: true,/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('windows-release.js') > 0 && html.indexOf('windows-release.js') < html.indexOf('app-device.js'));
+});
+
+test('SPACE NEEDED IS DERIVED, NEVER HARD-CODED (CONNECT 20:02 found "582 MB / 1.1 GB" on a 736 MB bundle): the card says what the release record says; with no usable unpackedMb it gives no number', async () => {
+  // the figures: the app unzipped + the 464 MB listening model, in tenths of a GB, plus a tenth of headroom
+  assert.equal(D.MODEL_MB, 464);
+  assert.equal(D.freeGb(736), 1.3);                 // CONNECT's shipped bundle: 736 MB unzipped -> about 1.3 GB free with the listening model
+  assert.equal(D.freeGb(582), 1.2);
+  assert.equal(D.freeGb(100), 0.7);
+  const rel = { ...GOOD, unpackedMb: 736 };
+  assert.equal(D.spaceWords(rel), 'It needs about 736 MB unpacked, plus the listening model (Balanced is about 464 MB): about 1.3 GB free in all.');
+  const t = text(await card(TESTER, rel));
+  assert.ok(t.includes('about 736 MB unpacked') && t.includes('about 1.3 GB free in all'), 'the card shows the record\'s figures');
+  assert.ok(!t.includes('582') && !t.includes('1.1 GB'), 'the old hard-coded figures are gone');
+  // no usable number: the sentence has no figure to go stale
+  for (const bad of [GOOD, { ...GOOD, unpackedMb: null }, { ...GOOD, unpackedMb: 0 }, { ...GOOD, unpackedMb: -5 }, { ...GOOD, unpackedMb: 7.5 }, { ...GOOD, unpackedMb: '736' }, { ...GOOD, unpackedMb: 999999 }, null, undefined]) {
+    const s = D.spaceWords(bad);
+    assert.equal(s, 'It needs room for the unzipped app and the listening model (Balanced is about 464 MB).', JSON.stringify(bad));
+    assert.doesNotMatch(s, /\d+ MB unpacked|GB free/);
+  }
+  // the source has no hard-coded size left
+  assert.doesNotMatch(read('assets/app-device.js').replace(/^\s*\/\/.*$/gm, ''), /about 582|about 1\.1 GB/);
 });
