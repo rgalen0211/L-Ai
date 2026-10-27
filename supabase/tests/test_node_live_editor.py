@@ -234,6 +234,13 @@ class NodeEditor(r9.R9):
         self.assertEqual(self.post(sam, p, summary=state)["revision"], 1)
         self.assertEqual(self.draft(p)["state"], state)
         c = state["clips"]
+        styled = dict(state, clips=[{"id": "t1", "track": "text", "start": 0, "len": 2, "text": "Hi", "style": "lower_third", "min_len": 0.5, "max_len": 30}])
+        self.assertEqual(self.post(sam, p, summary=styled)["revision"], 2)                                      # a styled text line (BUILDER 25) posts
+        for badstyle in ("big", 3, ""):
+            with self.assertRaises(psycopg.Error, msg=str(badstyle)) as cms:
+                self.post(sam, p, summary=dict(styled, clips=[dict(styled["clips"][0], style=badstyle)]))
+            self.assertEqual(cms.exception.sqlstate, "22023")
+        self.assertEqual(self.post(sam, p, summary=state)["revision"], 3)
         for bad in (dict(c[0], slide="yes"), dict(c[2], mode="middle"), dict(c[2], mode=3), dict(c[2], fade_s=2), dict(c[2], fade_s="slow"), dict(c[2], fade_s=-0.1)):
             with self.assertRaises(psycopg.Error, msg=json.dumps(bad)[:80]) as cm:
                 self.post(sam, p, summary=dict(state, clips=[bad]))

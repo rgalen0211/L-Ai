@@ -480,7 +480,7 @@ begin
     raise exception 'That track summary is too long.' using errcode = '22023';
   end if;
   for c in select * from jsonb_array_elements(coalesce(p_summary -> 'clips', '[]'::jsonb)) loop
-    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size', 'ai_altered', 'ai_altered_by', 'ai_altered_derived', 'slide', 'mode', 'fade_s')) then
+    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size', 'ai_altered', 'ai_altered_by', 'ai_altered_derived', 'slide', 'mode', 'fade_s', 'style')) then
       raise exception 'A clip in the summary has a field the editor does not know.' using errcode = '22023';
     end if;
     if jsonb_typeof(c -> 'id') is distinct from 'string' or (c ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then raise exception 'A clip in the summary needs an id.' using errcode = '22023'; end if;
@@ -493,6 +493,7 @@ begin
     if exists (select 1 from unnest(array['source_start', 'min_len', 'max_len']) f where c ? f and (jsonb_typeof(c -> f) <> 'number' or (c ->> f)::numeric not between 0 and 86400)) then raise exception 'A clip time must be a number from 0 to 86400 seconds.' using errcode = '22023'; end if;
     if c ? 'position' and (jsonb_typeof(c -> 'position') <> 'string' or (c ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')) then raise exception 'A clip position must be top, centre, bottom or lower_third.' using errcode = '22023'; end if;
     if c ? 'size' and (jsonb_typeof(c -> 'size') <> 'string' or (c ->> 'size') not in ('small', 'medium', 'large')) then raise exception 'A clip size must be small, medium or large.' using errcode = '22023'; end if;
+    if c ? 'style' and (jsonb_typeof(c -> 'style') <> 'string' or (c ->> 'style') not in ('title', 'caption', 'lower_third')) then raise exception 'A text style must be title, caption or lower_third.' using errcode = '22023'; end if;
     if c ? 'slide' and jsonb_typeof(c -> 'slide') <> 'boolean' then raise exception 'slide must be true or false.' using errcode = '22023'; end if;
     if c ? 'mode' and (jsonb_typeof(c -> 'mode') <> 'string' or (c ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third')) then raise exception 'A picture mode must be full, centre, corner or lower_third.' using errcode = '22023'; end if;
     if c ? 'fade_s' and (jsonb_typeof(c -> 'fade_s') <> 'number' or (c ->> 'fade_s')::numeric not between 0 and 1) then raise exception 'A fade must be a number from 0 to 1 second.' using errcode = '22023'; end if;
