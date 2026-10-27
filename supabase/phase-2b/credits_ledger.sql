@@ -135,6 +135,10 @@ insert into public.credit_dataset_shapes (dataset, shape, noted_by) values
   ('bps_county_unit_share_5plus', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
   ('bps_us_unit_mix', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
   ('fhwa_hm212', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape');
+-- The state income index (Q291, 2026-10-27): DatasetSpec.shape 'areas', so 'standard'. Also in
+-- migrations/20261027000700_bea_income_shape.sql, for a database where this file was applied before it.
+insert into public.credit_dataset_shapes (dataset, shape, noted_by) values
+  ('bea_sainc1_state_income_index', 'standard', 'Q291 2026-10-27: DatasetSpec.shape areas');
 
 -- Free-preview allowance, tunable without code.
 create table public.credit_rules (

@@ -1,5 +1,6 @@
-# count: 83
-# worker.toml [datasets].allow, engine ba0e116, read 2026-10-17 by WORKER
+# count: 84
+# worker.toml [datasets].allow, engine f170ab2, read 2026-10-27 by WORKER
+bea_sainc1_state_income_index
 bls_state_unemployment
 bps_county_permits
 bps_county_unit_share_1
