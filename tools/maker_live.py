@@ -290,14 +290,61 @@ def _cap(state):
     return lim.get("text_chars") if isinstance(lim, dict) else None
 
 
+def _page_values(op):
+    """The value sentences of the page's own core (app-editor-core.js check) for the five newer ops: WEB's words, which differ from the vocabulary's (op_problem) where the page speaks to a person at the keyboard."""
+    kind = op["op"]
+    def unknown(allowed):
+        return "That change has a field the editor does not know." if any(k not in allowed for k in op) else None
+    def num(name, lo, hi, msg):
+        return msg if name in op and not (_is_num(op[name]) and lo <= op[name] <= hi) else None
+    if kind == "set_clip_style":
+        return None if op.get("style") in STYLES else "A text style must be title, caption or lower_third."
+    if kind == "set_music":
+        fields = ("level_db", "fade_in_s", "fade_out_s", "source_start", "snap")
+        if unknown(("op",) + fields):
+            return unknown(("op",) + fields)
+        if not any(k in op for k in fields):
+            return "set_music needs at least one setting."
+        if "snap" in op and not isinstance(op["snap"], bool):
+            return "Snap to the beat is on or off."
+        return (num("level_db", -30, 6, "The level must be a number from -30 to 6.") or num("fade_in_s", 0, 5, "The fade in must be a number from 0 to 5 seconds.")
+                or num("fade_out_s", 0, 5, "The fade out must be a number from 0 to 5 seconds.") or num("source_start", 0, 86400, "Where the music starts must be a number from 0 to 86400 seconds."))
+    if kind == "set_rule":
+        if unknown(("op", "id", "phrase", "picture", "seconds", "mode", "fade_s")):
+            return unknown(("op", "id", "phrase", "picture", "seconds", "mode", "fade_s"))
+        if not text_ok(op.get("phrase"), 60):
+            return "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup)."
+        if not _is_num(op.get("seconds")) or not 0.5 <= op["seconds"] <= 10:
+            return "The picture stays from 0.5 to 10 seconds."
+        if op.get("mode") not in RULE_MODES:
+            return "A rule mode must be full, centre, corner or lower_third."
+        return num("fade_s", 0, 1, "The fade must be a number from 0 to 1 second.")
+    if kind == "set_film_look":
+        key, v = op.get("key"), op.get("value")
+        if key not in FILM_LOOK:
+            return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
+        if "value" not in op:
+            return "A film look change needs a value."
+        if key == "theme" and v not in ("dark", "light"):
+            return "The theme can only be: dark, light."
+        if key in ("text_color", "box_color", "letterbox") and not (isinstance(v, str) and COLOUR.match(v)):
+            return "That needs a colour like #1a73e8."
+        if key == "box_opacity" and not (_is_num(v) and 0 <= v <= 1):
+            return "The box opacity must be a number from 0 to 1."
+    return None
+
+
 def check(state: dict, op, look_keys=None):
     """None when the op may be applied to this state, else the sentence the page shows (app-editor-core.js check(), sentence for sentence)."""
     keys = look_keys or LOOK_KEYS
     ops = ("set_look", "unset_look", "move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "add_clip", "set_clip_style", "set_music", "set_rule", "delete_rule", "set_film_look")
     if not isinstance(op, dict) or op.get("op") not in ops:
         return "That change is not one the editor can make."
+    bad = _page_values(op)
+    if bad:
+        return bad
     if op["op"] == "set_film_look":
-        return None                                                      # the words were checked by op_problem; every film has a look
+        return None
     if op["op"] == "set_rule":
         if op.get("id") is not None and not any(r.get("id") == op["id"] for r in state.get("rules") or []):
             return "That rule is not in this film."
