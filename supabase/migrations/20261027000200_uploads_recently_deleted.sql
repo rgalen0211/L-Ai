@@ -1,5 +1,8 @@
 -- Uploads: "Recently deleted" for 7 days (Ryan, 2026-10-05, WEB-PER-ITEM-DELETE.md section 8). NOT APPLIED. For Claude's review.
--- Needs 20261004000200, 0300, 0500 and 0510 first.
+-- Needs 20261004000200, 0300, 0500, 0510 and the trust migrations 20261026000100/000200 first (apply in that order, by hand).
+-- RENUMBERED from 20261004000700 (WEB, 2026-10-27): it redefines confirm_dataset_mapping, attach_upload_to_version and request_dataset_deletion, which
+-- 20261017000600 (pipe1: 'awaiting_approval' counts as active) and 20261026000100/000200 (trust tick and film source label) changed after it was written.
+-- Those bodies below are re-based on the CURRENT definitions plus the trashed_at rules, so applying this file can not undo the tick, the label or the active-job rule.
 --
 -- Today request_dataset_deletion hides an upload and the sweeper removes its file within the hour. New rule:
 --   * Delete -> the upload moves to RECENTLY DELETED (datasets.trashed_at). It cannot be used (not attached, not read by
@@ -101,13 +104,17 @@ begin
   insert into public.dataset_ingests (dataset_id, owner_id) values (d.id, me);
 end $$;
 
-create or replace function public.confirm_dataset_mapping(p_dataset uuid, p_mapping jsonb) returns void
+create or replace function public.confirm_dataset_mapping(p_dataset uuid, p_mapping jsonb, p_trust_ack boolean) returns void
 language plpgsql security definer set search_path = '' as $$
 declare
   me uuid := ryagram_private.require_signed_in();
   d public.datasets;
   problem text;
 begin
+  -- THE TICK IS REQUIRED BY THE DATABASE (kept exactly as in 20261026000200); the only addition here is "not in Recently deleted".
+  if p_trust_ack is distinct from true then
+    raise exception 'Tick the box to use this data anyway.' using errcode = '22023';
+  end if;
   select * into d from public.datasets
     where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null and delete_requested_at is null and trashed_at is null for update;
   if not found then
@@ -121,7 +128,7 @@ begin
     raise exception '%', problem using errcode = '22023';
   end if;
   update public.datasets set mapping = p_mapping, geography = p_mapping->>'geography', status = 'approved',
-                             last_activity_at = now() where id = d.id;
+                             trust_ack_at = coalesce(trust_ack_at, now()), last_activity_at = now() where id = d.id;
 end $$;
 
 create or replace function public.attach_upload_to_version(p_version uuid, p_dataset uuid) returns text
@@ -153,10 +160,10 @@ begin
   update public.datasets set last_activity_at = now() where id = d.id;
   delete from public.version_sources where version_id = v.id and kind = 'upload' and dataset_ref <> ref;
   insert into public.version_sources (owner_id, version_id, kind, dataset_ref, title, publisher, source_url, coverage,
-                                      licence_short, licence_full, position)
-    values (me, v.id, 'upload', ref, d.name, 'Your data', '', cov, 'You confirm you may use this data', '',
+                                      licence_short, licence_full, trust_label, position)
+    values (me, v.id, 'upload', ref, d.name, 'Your data', '', cov, 'You confirm you may use this data', '', d.trust_label,
             (select coalesce(max(position), 0) + 1 from public.version_sources where version_id = v.id))
-    on conflict (version_id, dataset_ref) do update set title = excluded.title, coverage = excluded.coverage;
+    on conflict (version_id, dataset_ref) do update set title = excluded.title, coverage = excluded.coverage, trust_label = excluded.trust_label;
   return ref;
 end $$;
 
@@ -244,7 +251,7 @@ begin
     where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null and delete_requested_at is null for update;
   if not found then raise exception 'Dataset not found.' using errcode = 'PT404'; end if;
   if d.trashed_at is not null then return; end if;
-  if exists (select 1 from public.jobs j where j.dataset_id = d.id and j.state in ('queued', 'claimed', 'running', 'validating', 'uploading')) then
+  if exists (select 1 from public.jobs j where j.dataset_id = d.id and j.state in ('queued', 'awaiting_approval', 'claimed', 'running', 'validating', 'uploading')) then
     raise exception 'A render that uses this data is still running. Wait for it to finish, or cancel it.' using errcode = '42501';
   end if;
   update public.versions set dataset_id = null, restorability = 'non_restorable' where dataset_id = d.id;
@@ -281,7 +288,7 @@ begin
     where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null and delete_requested_at is null
       and trashed_at is not null for update;
   if not found then raise exception 'Dataset not found.' using errcode = 'PT404'; end if;
-  if exists (select 1 from public.jobs j where j.dataset_id = d.id and j.state in ('queued', 'claimed', 'running', 'validating', 'uploading')) then
+  if exists (select 1 from public.jobs j where j.dataset_id = d.id and j.state in ('queued', 'awaiting_approval', 'claimed', 'running', 'validating', 'uploading')) then
     raise exception 'A render that uses this data is still running. Wait for it to finish, or cancel it.' using errcode = '42501';
   end if;
   update public.datasets set delete_requested_at = now() where id = d.id;
