@@ -9,10 +9,22 @@
   const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, engine_commit, '
     + 'cancel_requested, error_class, error_code, error_detail, progress, progress_note, created_at, started_at, ended_at';
 
+  const LOOK_COLUMNS = 'id, name, title, based_on, spec, is_default, created_at, updated_at';
+
+  // A single-row query that finds no row (a page that belongs to another account, or was removed) is a plain "not available", never the database's own sentence (live ride, Ryan 2026-10-26 17:32:
+  // 'Cannot coerce the result to a single JSON object' after switching accounts). PostgREST says it two ways, by version, and always with code PGRST116.
+  const NOT_AVAILABLE = 'This page isn’t available on this account.';
+  const NO_ROW = /Cannot coerce the result to a single JSON object|JSON object requested, multiple \(or no\) rows returned/;
+  const noRow = error => !!error && (error.code === 'PGRST116' || NO_ROW.test(String(error.message || '')));
+
   function ryagramData(client) {
     async function run(promise, fallback) {
       const { data, error } = await promise;
-      if (error) throw new Error(error.message || fallback);
+      if (error) {
+        const err = new Error(noRow(error) ? NOT_AVAILABLE : (error.message || fallback));
+        if (noRow(error)) err.notAvailable = true;                   // the page shows its own "not available" view for this
+        throw err;
+      }
       return data;
     }
     // An Edge Function that answers { url }: only Stripe's own pages (or the mock's in-app page) are followed.
@@ -109,6 +121,10 @@
       },
 
       saveStory(id, story) {
+        // The worker's title-card limits, checked HERE, before anything is sent (assets/app-limits.js): a story that would fail the render is
+        // refused with a plain sentence at save time. Every save in the app goes through this function.
+        const problems = window.ryagramLimits ? window.ryagramLimits.titleProblems(story) : [];
+        if (problems.length) return Promise.reject(new Error(problems.join(' ')));
         return run(client.from('versions').update({ story_spec: story }).eq('id', id)
           .select('id, story_sha256, updated_at').single(), 'Couldn’t save the story.');
       },
@@ -203,11 +219,53 @@
       // Both return a Stripe URL to go to; card details are entered only on Stripe's pages.
       startCheckout(priceCode) { return invokeUrl('stripe-checkout', { price_code: priceCode }, 'Couldn’t start the checkout.'); },
       openBillingPortal() { return invokeUrl('stripe-checkout', { action: 'portal' }, 'Couldn’t open plan settings.'); },
+      // The Windows app's invite-only download (CONNECT's app-download function, 2026-10-26): asks for a short-lived link for THIS signed-in account. Returns the answer's body as the function gave it
+      // (the card checks it before following anything) or throws an Error carrying the HTTP status, so the card can say a plain sentence for each refusal. Fixed function name: the page never posts to an address it was handed.
+      async requestAppDownload() {
+        const { data, error } = await client.functions.invoke('app-download', { body: {} });
+        if (error) {
+          const e = new Error('Couldn’t get the download link.');
+          e.status = Number(error.context && error.context.status) || 0;
+          try { const j = await error.context.json(); if (j && typeof j.error === 'string') e.serverWords = j.error.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 300); } catch { /* the page's own sentence for this status is used */ }
+          throw e;
+        }
+        return data;
+      },
 
       // Account (queue item 7). The password is Supabase Auth's; the rest is the database's.
       async changePassword(password) {
         const { error } = await client.auth.updateUser({ password });
         if (error) throw new Error(error.message || 'Couldn’t change the password.');
+      },
+      // Supabase Auth sends a confirmation link to the NEW address; the address changes only when it is pressed.
+      async changeEmail(email) {
+        const { error } = await client.auth.updateUser({ email });
+        if (error) throw new Error(error.message || 'Couldn’t start the email change.');
+      },
+      // Everything the person can read as themselves (row-level security returns only their own rows). A table that can't be read becomes { error } so the file says so.
+      async collectMyData() {
+        const read = async (table, columns, order) => {
+          try {
+            let q = client.from(table).select(columns);
+            if (order) q = q.order(order, { ascending: true });
+            const { data, error } = await q;
+            if (error) return { error: error.message || 'not readable' };
+            return data || [];
+          } catch (err) { return { error: String(err?.message || err) }; }
+        };
+        const names = {
+          projects: ['projects', '*', 'created_at'],
+          versions: ['versions', '*', 'created_at'],
+          jobs: ['jobs', JOB_COLUMNS, 'created_at'],
+          film_requests: ['film_requests', 'id, created_at, question, notes, credits, status, admin_note, delivered_url', 'id'],
+          render_orders: ['render_orders', 'id, state, want, error_code, created_at, ended_at, version_id', 'created_at'],
+          credit_balances: ['credit_balances', '*'],
+          credit_ledger: ['credit_ledger', '*', 'created_at'],
+          account_settings: ['account_settings', '*']
+        };
+        const out = {};
+        for (const [key, [table, columns, order]] of Object.entries(names)) out[key] = await read(table, columns, order);
+        return out;
       },
       async uploadRetention() {
         const rows = await run(client.from('account_settings').select('upload_retention'), 'Couldn’t load your settings.');
@@ -276,8 +334,15 @@
         await run(client.rpc('finish_upload', { p_dataset: slot.dataset_id }), 'Couldn’t finish the upload.');
         return slot.dataset_id;
       },
-      confirmMapping(datasetId, mapping) {
-        return run(client.rpc('confirm_dataset_mapping', { p_dataset: datasetId, p_mapping: mapping }), 'Couldn’t save that.');
+      // S5 (proposed SQL set_dataset_provenance; see the MAILBOX post): who published the data, the licence or permission, the unit and the attestation. Refuses until that SQL exists.
+      setUploadProvenance(datasetId, p) {
+        return run(client.rpc('set_dataset_provenance', { p_dataset: datasetId, p_publisher: p.publisher, p_link: p.link || null, p_licence: p.licence, p_licence_note: p.licence_note || null, p_unit: p.unit, p_decimals: p.decimals, p_attested: p.attested === true }),
+          'Couldn\u2019t save where this data comes from.');
+      },
+      // The third argument is the person's tick on 'I understand, use it anyway.' (RULINGS 2026-10-26, Q234). The database REFUSES without it (CONNECT's trust-label migration), so an older page that
+      // does not send it fails safe instead of approving an upload nobody saw labelled. Anything but a real true is sent as false.
+      confirmMapping(datasetId, mapping, trustAck) {
+        return run(client.rpc('confirm_dataset_mapping', { p_dataset: datasetId, p_mapping: mapping, p_trust_ack: trustAck === true }), 'Couldn’t save that.');
       },
       attachUpload(versionId, datasetId) {
         return run(client.rpc('attach_upload_to_version', { p_version: versionId, p_dataset: datasetId }), 'Couldn’t use this data.');
@@ -295,6 +360,172 @@
       waitlistByFilm(days) {
         return run(client.rpc('waitlist_by_film', { p_days: days }), 'Couldn\u2019t load the waitlist counts.');
       },
+      // Visits to /ryagram/ (a cookieless tally, SQL 20261006000100) next to signups, by day and by link source. Admin only.
+      visitsByDay(days) {
+        return run(client.rpc('visits_by_day', { p_days: days }), 'Couldn\u2019t load the visit counts.');
+      },
+      visitsBySource(days) {
+        return run(client.rpc('visits_by_source', { p_days: days }), 'Couldn\u2019t load the visit counts.');
+      },
+
+      // Operations (SQL 20261010000100): is rendering alive? Never throws: no answer means no notice.
+      async serviceStatus() {
+        try {
+          const { data, error } = await client.rpc('service_status');
+          return error ? null : data;
+        } catch { return null; }
+      },
+      // The help form. job is the person's own job id (the server attaches its state and error code, never its content);
+      // website is the hidden honeypot field and must stay empty.
+      async submitSupport({ email, topic, message, job, website }) {
+        return run(client.rpc('submit_support', { p_email: email, p_topic: topic, p_message: message, p_job: job || null, p_website: website || '' }),
+          'Couldn\u2019t send that just now. Please try again, or write to ryagram@uselai.com.');
+      },
+
+      // Ryan's Operations screen (SQL 20261010000100): one summary, and the three buttons. Admin only; the functions refuse everyone else.
+      // The approval queue for full renders (PIPE-1): admin only (the database refuses everyone else). Decide = approve (starts the render) or decline (returns the credits).
+      adminRenderQueue() { return run(client.rpc('admin_render_queue'), 'Couldn\u2019t load the render requests.'); },
+      adminRenderDecide(stage, approve, note) { return run(client.rpc('admin_render_decide', { p_stage: stage, p_approve: approve === true, p_note: note ? String(note).slice(0, 500) : null }), 'Couldn\u2019t record that decision.'); },
+      adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
+      // Auto-render switch and per-person daily caps (PIPE-1, SQL 20261017000600). Admin only; the database refuses everyone else.
+      async adminAutoRender() { const ops = await run(client.rpc('admin_ops'), 'Couldn\u2019t load the auto-render setting.'); return { on: ops?.orders?.auto_render === true, defaultCap: ops?.orders?.default_credits_per_day ?? null }; },
+      adminSetAutoRender(on) { return run(client.rpc('admin_set_auto_render', { p_on: on === true }), 'Couldn\u2019t change auto-render.'); },
+      adminUserCaps() { return run(client.rpc('admin_user_caps'), 'Couldn\u2019t load the caps.'); },
+      adminSetUserCap(owner, perDay) { return run(client.rpc('admin_set_user_cap', { p_owner: owner, p_credits_per_day: perDay }), 'Couldn\u2019t save that cap.'); },
+      adminAnswerSupport(id) { return run(client.rpc('admin_answer_support', { p_id: id }), 'Couldn\u2019t update that.'); },
+      adminAckStripe(id) { return run(client.rpc('admin_ack_stripe', { p_event_id: id }), 'Couldn’t update that payment event.'); },
+      // Creator beta applications (SQL 20261014000100): Ryan's list, and Approve / Decline. Neither sends anything or moves credits.
+      adminCreatorBeta() { return run(client.rpc('admin_creator_beta'), 'Couldn\u2019t load creator applications.'); },
+      adminDecideCreator(id, decision) { return run(client.rpc('admin_decide_creator', { p_id: id, p_decision: decision }), 'Couldn\u2019t update that application.'); },
+      // Creator beta flow (SQL 20261016000200): a signed-in person asks for a film; Ryan makes invites and moves requests along. Each is one RPC.
+      filmRequestCost() { return run(client.rpc('film_request_cost'), 'Couldn\u2019t load the price.'); },
+      requestFilm(question, notes) { return run(client.rpc('request_film', { p_question: question, p_notes: notes || '' }), 'Couldn\u2019t send that request.'); },
+      myFilmRequests() { return run(client.from('film_requests').select('id, created_at, question, notes, credits, status, admin_note, delivered_url').order('id', { ascending: false }).limit(30), 'Couldn\u2019t load your film requests.'); },
+      adminFilmRequests() { return run(client.rpc('admin_film_requests'), 'Couldn\u2019t load film requests.'); },
+      adminFilmRequestSet(id, status, note, url) { return run(client.rpc('admin_film_request_set', { p_id: id, p_status: status, p_note: note || '', p_url: url || null }), 'Couldn\u2019t update that request.'); },
+      adminCreatorInvite(id, credits) { return run(client.rpc('admin_creator_invite', { p_id: id, p_credits: credits == null ? null : credits }), 'Couldn\u2019t make that invite.'); },
+      // Engine profiles, "Your look" (SQL 20261017000300). A person reads and deletes only their own rows; every write goes through set_engine_profile(), which refuses any key the
+      // profile schema does not have. The server's answer is the one that counts.
+      listLooks() { return run(client.from('engine_profiles').select(LOOK_COLUMNS).order('name', { ascending: true }), 'Couldn\u2019t load your looks.'); },
+      async getLook(name) {
+        const rows = await run(client.from('engine_profiles').select(LOOK_COLUMNS).eq('name', name), 'Couldn\u2019t load that look.');
+        return rows[0] || null;
+      },
+      async defaultLook() {
+        const rows = await run(client.from('engine_profiles').select(LOOK_COLUMNS).eq('is_default', true), 'Couldn\u2019t load your default look.');
+        return rows[0] || null;
+      },
+      saveLook(spec, makeDefault) { return run(client.rpc('set_engine_profile', { p_spec: spec, p_make_default: makeDefault === true }), 'Couldn\u2019t save that look.'); },
+      deleteLook(id) { return run(client.from('engine_profiles').delete().eq('id', id).select('id'), 'Couldn\u2019t delete that look.'); },
+      // A free contact sheet of a look on the engine's sample story, in the person's own "Profile preview (sample)" project (never a render that costs credits).
+      async lookSheet(story, periods) {
+        const TITLE = 'Profile preview (sample)';
+        const projects = await api.listProjects();
+        // Only OUR sample project is reused and overwritten: its latest story carries the sample story's name. A person's own project that happens to share the title is never touched.
+        let project = null, version = null;
+        for (const cand of projects.filter(p => p.title === TITLE && !p.archived_at)) {
+          const all = (await api.getProject(cand.id)).versions;
+          const last = all[all.length - 1];
+          if (last && last.story_spec && last.story_spec.name === story.name) {
+            project = cand;
+            version = window.ryagramJobs.versionTakesJobs(last.state) ? last : await api.createVersion(cand.id, null);
+            break;
+          }
+        }
+        if (!project) {
+          const made = await api.createProject(TITLE);
+          project = made.project; version = made.version;
+        }
+        await api.saveStory(version.id, story);
+        await api.submitJob(version.id, 'contact_sheet', { periods }, null);
+        return { projectId: project.id, versionId: version.id };
+      },
+      async lookSheetStatus(versionId) {
+        const got = await api.getVersion(versionId);
+        const job = got.jobs.find(j => j.job_type === 'contact_sheet');
+        if (!job) return null;
+        const art = job.state === 'complete' ? got.artifacts.find(a => a.job_id === job.id && a.kind === 'contact_sheet') : null;
+        let url = null;
+        if (art) { try { url = await api.fileUrl(art.storage_path); } catch { url = null; } }
+        return { state: job.state, job, url };
+      },
+      // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
+      adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
+      // The guided builder (the guided-builder function: ENGINE's compileFilm and the listable catalog). A refusal carries every reason in .errors.
+      async builderCall(body) {
+        const { data, error } = await client.functions.invoke('guided-builder', { body });
+        if (error) {
+          let payload = null;
+          try { payload = await error.context.json(); } catch { payload = null; }
+          const err = new Error(payload?.error || (payload?.errors || []).join(' ') || 'Couldn\u2019t reach the film builder. Try again in a minute.');
+          if (payload?.errors) err.errors = payload.errors;
+          throw err;
+        }
+        return data;
+      },
+      builderCatalog() { return api.builderCall({ action: 'catalog' }); },
+      builderDescribe(id) { return api.builderCall({ action: 'describe', dataset: id }); },
+      builderCompile(request) { return api.builderCall({ action: 'compile', request }); },
+      // Funnel (SQL 20261017000900): Ryan's counts per step, by week and by source. Admin only.
+      // The raw funnel events of the last N days, read as Ryan (the table's own admin-only policy): for the by-day page. Paged, newest first.
+      async adminFunnelEvents(days) {
+        const since = new Date(Date.now() - Math.min(Math.max(days || 14, 1), 60) * 864e5).toISOString();
+        const rows = [];
+        for (let from = 0; from < 50000; from += 1000) {
+          const page = await run(client.from('funnel_events').select('at, event').gte('at', since).order('at', { ascending: false }).range(from, from + 999), 'Couldn\u2019t load the funnel.');
+          rows.push(...page);
+          if (page.length < 1000) return { rows, truncated: false };
+        }
+        return { rows, truncated: true };
+      },
+      adminFunnel(weeks) { return run(client.rpc('admin_funnel', { p_weeks: weeks || 8 }), 'Couldn\u2019t load the funnel.'); },
+      // Render orders (PIPE-1, SQL 20261017000500/600): a full render is REQUESTED, never inserted. While auto_render is off the order waits for Ryan's approval with the credits held.
+      requestFinalRender(previewJobId, key) { return run(client.rpc('request_final_render', { p_preview_job: previewJobId, p_idempotency_key: key }), 'Couldn\u2019t request the full render.'); },
+      listOrders(versionId) { return run(client.from('render_orders').select('id, state, want, error_code, created_at, ended_at, version_id').eq('version_id', versionId).order('created_at', { ascending: false }), 'Couldn\u2019t load the render requests.'); },
+      orderStatus(id) { return run(client.rpc('render_order_status', { p_order: id }), 'Couldn\u2019t load that render request.'); },
+      cancelOrder(id) { return run(client.rpc('cancel_render_order', { p_order: id }), 'Couldn\u2019t cancel that render request.'); },
+      // A delivered film as a 1-hour signed link (the get-delivery-url function signs only what the database says is the person's own, unexpired, undeleted).
+      async deliveryUrl(deliveryId) {
+        const { data, error } = await client.functions.invoke('get-delivery-url', { body: { delivery_id: deliveryId } });
+        if (error) {
+          let text = 'Couldn\u2019t open that film just now. Try again in a minute.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
+      // Connecting an AI (CONNECT's SQL 20261018000100): the consent page's three calls and the account page's list. App sessions only; the page never sees a token or a code.
+      connectConsentCheck(request) { return run(client.rpc('connect_consent_check', { p_request: request }), 'Couldn\u2019t check that connection request.'); },
+      connectConsentDecide(request, approve, scopes) { return run(client.rpc('connect_consent_decide', { p_request: request, p_approve: approve === true, p_scopes: scopes || [] }), 'Couldn\u2019t record your answer.'); },
+      // Can this account use AI connections at all? CONNECT's connect_consent_check returns `invited` (connect_person_ok: invited, enabled, not an admin, not a worker) in EVERY answer, even for a request
+      // that does not exist, so the site asks it about the nil request and reads that one field. No new SQL. It FAILS CLOSED: any error or a missing field means "not invited", and the
+      // page then shows nothing. The server stays the real gate (connect_consent_check and decide refuse a non-invited account whatever the page does).
+      async connectAccess() {
+        try { const r = await run(client.rpc('connect_consent_check', { p_request: '00000000-0000-0000-0000-000000000000' }), 'Couldn’t check AI access.'); return !!r && r.invited === true; } catch { return false; }
+      },
+      myConnectedAis() { return run(client.rpc('my_connected_ais'), 'Couldn\u2019t load your connected AIs.'); },
+      disconnectAi(clientId) { return run(client.rpc('disconnect_ai', { p_client_id: clientId }), 'Couldn\u2019t disconnect that AI.'); },
+      // Signing a computer in (r9 M2 DRAFT, against a MOCK: the function names are proposals; the real device-code SQL is CONNECT's and WORKER's and does not exist yet). App sessions only.
+      deviceRequestCheck(code) { return run(client.rpc('device_request_check', { p_user_code: code }), 'Couldn\u2019t check that code.'); },
+      deviceDecide(code, approve) { return run(client.rpc('device_decide', { p_user_code: code, p_approve: approve === true }), 'Couldn\u2019t record your answer.'); },
+      myComputers() { return run(client.rpc('my_computers'), 'Couldn\u2019t load your computers.'); },
+      // r9 tester flag (WORKER's draft: account_settings.local_compute, set only by an admin; the owner reads their own row). FAILS CLOSED: an error or no row means "not a tester".
+      async myLocalCompute() {
+        try { const rows = await run(client.from('account_settings').select('local_compute'), 'Couldn’t load your settings.'); return Array.isArray(rows) && rows.length > 0 && rows[0].local_compute === true; } catch { return false; }
+      },
+      // Admin: set or clear the tester flag (r9 DRAFT, mock backend). WORKER's draft function takes a user id (admin_set_local_compute(p_user uuid, ...)); the admin types an EMAIL, so these two names are PROPOSALS
+      // for an email variant and a read of the audit rows (the draft revokes direct reads of local_compute_audit). Admin only on the server; every change writes an audit row.
+      adminSetLocalCompute(email, on, reason) { return run(client.rpc('admin_set_local_compute_by_email', { p_email: String(email || '').trim(), p_on: on === true, p_reason: String(reason || '').trim() }), 'Couldn’t change that account.'); },
+      adminLocalComputeAudit() { return run(client.rpc('admin_local_compute_audit'), 'Couldn’t load the tester history.'); },
+      removeComputer(id) { return run(client.rpc('remove_computer', { p_token: id }), 'Couldn\u2019t remove that computer.'); },
+      // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.
+      adminCostRollup(days) { return run(client.rpc('admin_cost_rollup', { p_days: days || 14 }), 'Couldn\u2019t load costs.'); },
+      adminCostSetThreshold(vendor, period, limit, warnPct) { return run(client.rpc('admin_cost_set_threshold', { p_vendor: vendor || null, p_period: period, p_limit_usd: limit, p_warn_pct: warnPct || 80 }), 'Couldn\u2019t save that limit.'); },
+      adminCostDeleteThreshold(id) { return run(client.rpc('admin_cost_delete_threshold', { p_id: id }), 'Couldn\u2019t remove that limit.'); },
+      adminCostSetPlan(vendor, plan, monthly, startsOn, included) { return run(client.rpc('admin_cost_set_plan', { p_vendor: vendor, p_plan: plan, p_monthly_usd: monthly, p_starts_on: startsOn, p_included: included || {} }), 'Couldn\u2019t save that plan.'); },
+      adminCostSetRate(vendor, kind, unitUsd, note) { return run(client.rpc('admin_cost_set_rate', { p_vendor: vendor, p_kind: kind, p_unit_usd: unitUsd, p_note: note || '' }), 'Couldn\u2019t save that rate.'); },
+      adminCostRecord(vendor, amount, on, note) { return run(client.rpc('admin_cost_record', { p_vendor: vendor, p_amount_usd: amount, p_on: on, p_note: note || '' }), 'Couldn\u2019t record that cost.'); },
+      adminReviewReport(id, outcome) { return run(client.rpc('admin_review_report', { p_id: id, p_outcome: outcome }), 'Couldn\u2019t update that report.'); },
 
       // Public film pages: opt-in per finished film. Publishing runs in the film-page function,
       // which builds the page's sources from the receipt; stopping is a plain RPC.
@@ -303,14 +534,27 @@
           .eq('version_id', versionId), 'Couldn’t load the public page.');
         return rows[0] || null;
       },
-      async publishFilm(versionId, title) {
-        const { data, error } = await client.functions.invoke('film-page', { body: { version_id: versionId, title } });
+      // confirmUploaded: the owner has said yes to publishing a film made from their own upload (the page shows the film and its sources, never the data).
+      async publishFilm(versionId, title, { confirmUploaded = false } = {}) {
+        const { data, error } = await client.functions.invoke('film-page', { body: { version_id: versionId, title, ...(confirmUploaded ? { confirm_uploaded: true } : {}) } });
         if (error) {
-          let text = 'Couldn’t publish just now.';
-          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
-          throw new Error(text);
+          let text = 'Couldn’t publish just now.', code = null;
+          try { const body = await error.context.json(); text = body.error || text; code = body.code || null; } catch { /* keep the plain message */ }
+          throw Object.assign(new Error(text), { code });
         }
         return data;
+      },
+      // Publish, asking the owner once more when the film was made from their own upload. ask(message) -> true to go ahead. Returns { cancelled: true } when the
+      // owner says no (nothing is published and no second request is sent), the publish result otherwise; any other error is thrown, never retried. The title is
+      // read once, so an edit made while the question is open cannot change what gets published.
+      async publishFilmWithConfirm(versionId, title, ask) {
+        const fixed = String(title ?? '');
+        try { return await api.publishFilm(versionId, fixed); }
+        catch (err) {
+          if (err.code !== 'confirm_uploaded') throw err;
+          if (!ask(err.message)) return { cancelled: true };
+          return api.publishFilm(versionId, fixed, { confirmUploaded: true });
+        }
       },
       unpublishFilm(versionId) {
         return run(client.rpc('film_unpublish', { p_version: versionId }), 'Couldn’t stop sharing.');
@@ -343,5 +587,7 @@
     return api;
   }
 
+  ryagramData.NOT_AVAILABLE = NOT_AVAILABLE;
+  ryagramData.noRow = noRow;
   window.ryagramData = ryagramData;
 })();

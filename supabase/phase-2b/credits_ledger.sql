@@ -126,6 +126,15 @@ from unnest(array['mining', 'utilities', 'construction', 'manufacturing', 'whole
                   'information', 'finance', 'real_estate', 'professional', 'management', 'admin_support',
                   'education', 'health_care', 'arts', 'accommodation_food', 'other_services']) sector
 cross join unnest(array['_establishments', '_employment', '_share', '_share_state']) suffix;
+-- Five more datasets on the installed worker's allowlist (WEB found them unpriced, 2026-10-17): ENGINE read
+-- DatasetSpec.shape from Ryagram main -- all five 'areas', so 'standard' by the 2026-09-28 rule (Ryan, 2026-10-17).
+-- Also in migrations/20261017000800_dataset_shapes.sql, for a database where this file was applied before them.
+insert into public.credit_dataset_shapes (dataset, shape, noted_by) values
+  ('bps_county_unit_share_1', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('bps_county_unit_share_2to4', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('bps_county_unit_share_5plus', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('bps_us_unit_mix', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape'),
+  ('fhwa_hm212', 'standard', 'Ryan 2026-10-17: ENGINE read DatasetSpec.shape');
 
 -- Free-preview allowance, tunable without code.
 create table public.credit_rules (
@@ -587,7 +596,8 @@ create policy "Signed-in people read view prices" on public.credit_view_prices f
 
 revoke execute on all functions in schema ryagram_private from public, anon, authenticated;
 grant execute on function ryagram_private.owner_may_read(text), ryagram_private.worker_may_write(text),
-  ryagram_private.is_worker() to authenticated;       -- re-grant the ones policies need
+  ryagram_private.is_worker(), ryagram_private.upload_slot_ok(text), ryagram_private.worker_may_read_upload(text)
+  to authenticated;       -- re-grant the ones policies need (all five; the upload two were missing until CC1, 2026-10-17)
 revoke execute on function
   public.grant_credits(uuid, public.credit_entry, int, text, text, text, text, text),
   public.refund_job(uuid, text, text),

@@ -9,6 +9,20 @@
     // Called only inside the form's acknowledged-success branch. No form data is sent.
     auditSubmitted() { track('track', 'Lead'); }
   });
+  // Cloudflare Web Analytics: a cookieless visit count for /ryagram/ only. The token comes from Cloudflare's dashboard
+  // (Web Analytics > Add a site > uselai.com); a value that is not 32 hex characters is ignored.
+  try {
+    const cfToken = window.laiAnalyticsConfig?.cloudflareBeaconToken;
+    const here = window.location.pathname.replace(/index\.html$/, '');
+    if (typeof cfToken === 'string' && /^[0-9a-f]{32}$/.test(cfToken) && (here === '/ryagram/' || here === '/ryagram')) {
+      const beacon = document.createElement('script');
+      beacon.defer = true;
+      beacon.src = 'https://static.cloudflareinsights.com/beacon.min.js';
+      beacon.setAttribute('data-cf-beacon', JSON.stringify({ token: cfToken }));
+      document.head.appendChild(beacon);
+    }
+  } catch { /* Measurement must never block the page. */ }
+
   const pixelId = window.laiAnalyticsConfig?.metaPixelId;
   if (typeof pixelId !== 'string' || !/^[1-9]\d+$/.test(pixelId)) return;
   try {

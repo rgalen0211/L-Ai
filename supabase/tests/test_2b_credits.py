@@ -45,6 +45,9 @@ def setUpModule():
         c.execute("insert into auth.users (id, email) values (%s,'ryan@x'),(%s,'other@x'),(%s,'worker@x'),(%s,'worker2@x')",
                   (RYAN, OTHER, WORKER, WORKER2))
         c.execute("insert into public.workers (user_id, name) values (%s, 'ryan-pc'), (%s, 'spare')", (WORKER, WORKER2))
+        # PIPE-1: these suites test the 2A/2B mechanics, written before render orders, where a final is claimable at once --
+        # the auto_render ON behaviour. test_pipe1_orders.py sets it OFF (the live default) and covers Ryan's queue.
+        c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")   # and no daily cap
         c.execute("insert into public.credit_dataset_shapes (dataset, shape, noted_by) values "
                   "('test_standard', 'standard', 'test'), ('test_path', 'path', 'test'), ('test_flows', 'flows', 'test')")
 
@@ -296,14 +299,14 @@ class Ledger(unittest.TestCase):
 
     def test_persistent_failure_releases_and_keeps_metering(self):
         _, job = self.final("paired", grant=10)
-        for attempt in (1, 2, 3):
+        for attempt in (1, 2):                       # retry once: two attempts in all (Ryan, 2026-10-17; PIPE-1)
             w = self.db.as_(WORKER)
             self.assertEqual(w.one("select id from claim_next_job()"), job)
             w.one("select write_metering(%s, %s, '{\"wall_s\": 12.5}')", job, attempt)
             self.db.as_(WORKER).one("select retry_job(%s, 'crash')", job)
         self.assertEqual(self.admin("select state, error_class from jobs where id = %s", job), ("failed", "infrastructure"))
         self.assertEqual(self.available(), 10)
-        self.assertEqual(self.admin("select count(*), sum(wall_s) from job_metering where job_id = %s", job), (3, 37.5))
+        self.assertEqual(self.admin("select count(*), sum(wall_s) from job_metering where job_id = %s", job), (2, 25.0))
 
     def test_cancel_releases(self):
         _, job = self.final("paired", grant=10)

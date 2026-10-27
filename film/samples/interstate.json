@@ -1,0 +1,64 @@
+{
+  "sample": true,
+  "title": "Rise of the Interstate Highway, 1956–1993",
+  "summary": {
+    "headline": "The Interstate Highway System",
+    "subhead": "Contiguous United States 39,279 Miles Constructed, 1956–1993",
+    "window": {
+      "start": "1956",
+      "end": "1993"
+    },
+    "area": "contiguous US states, Contiguous U.S.",
+    "datasets": [
+      {
+        "label": "The Interstate network by opening year (Brooks & Liscow, 1956-1993)",
+        "credit": "Source: Brooks & Liscow (2023), DOI 10.3886/E144281V1 (CC BY 4.0); transformed by Ryagram",
+        "sources": [
+          {
+            "name": "Brooks & Liscow (2023), Infrastructure Costs, replication package",
+            "url": "https://doi.org/10.3886/E144281V1",
+            "license": "CC BY 4.0. Credit Brooks & Liscow (2023), DOI 10.3886/E144281V1; Ryagram transformed and visualised the data."
+          }
+        ],
+        "method": "39,520 one-mile Interstate segments, each drawn in the year it opened, over a provisional base of segments with no opening year.",
+        "retrieved": "2026-10-15",
+        "values_are": "partly derived",
+        "derivations": [
+          {
+            "measure": "Interstate miles open (cumulative), by state",
+            "method": "sum of curvy_len over segments whose traffic_open_year is at or before the year"
+          }
+        ],
+        "breaks": []
+      }
+    ],
+    "measures": [
+      {
+        "label": "Interstate miles open",
+        "unit": "miles"
+      }
+    ],
+    "uploaded_data": false,
+    "film": {
+      "seconds": 119.5,
+      "width": 1920,
+      "height": 1080,
+      "fps": 30
+    },
+    "engine": {
+      "commit": "b17561adead5",
+      "drawn_at": "2026-10-15"
+    }
+  },
+  "published_at": null,
+  "video_url": null,
+  "poster_url": "/film/samples/interstate-final-frame.jpg",
+  "preview_url": "/preview-demo/",
+  "remix": {
+    "version": 1,
+    "public": true,
+    "kind": "county",
+    "film_ref": "interstate",
+    "places": "interstate-practice"
+  }
+}

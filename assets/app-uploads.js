@@ -46,10 +46,19 @@
     return { key: 'reading', label: 'Reading…' };
   }
 
-  // The mapping the person starts from: what the reader guessed. Null when the file has its years across the columns.
-  function draft(report) {
+  // Wide files (Q6, ENGINE's interface of 12:36, agreed): the worker melts the file in memory and reports the LONG columns; report.wide_groups lists the year-column groups (one is melted) and
+  // report.wide_chosen the default. The page then asks the person to confirm 'These columns are years' and sends melt_wide + wide_prefix with the usual mapping. An old report with guess.wide and
+  // no wide_groups keeps the refusal. Behind byodGuide (the caller decides).
+  const WIDE_TICK = 'These columns are years';
+  const wideGroups = report => (report?.guess?.wide === true && Array.isArray(report.wide_groups) ? report.wide_groups.filter(g => g && typeof g === 'object' && typeof g.prefix === 'string').slice(0, 8) : []);
+  const wideOffered = report => wideGroups(report).length > 0;
+  const groupLabel = g => `${text(g.prefix) || 'The year columns'}: ${text(g.first)} to ${text(g.last)} (${Number(g.count) || 0} years)`;
+  const chosenPrefix = report => { const gs = wideGroups(report); return gs.some(g => g.prefix === report.wide_chosen) ? report.wide_chosen : (gs[0] ? gs[0].prefix : ''); };
+
+  // The mapping the person starts from: what the reader guessed. Null when the file has its years across the columns (unless the wide step is on and offered).
+  function draft(report, opts = {}) {
     const g = report?.guess;
-    if (!g || g.wide) return null;
+    if (!g || (g.wide && !(opts.wide && wideOffered(report)))) return null;
     const cols = Array.isArray(report.columns) ? report.columns : [];
     const names = {};
     for (const i of g.value_indexes || []) names[String(i)] = text(cols[i]?.header).slice(0, 80) || `Value ${i + 1}`;
@@ -57,6 +66,7 @@
                 geography: g.geography || 'us_states', cadence: g.cadence || 'annual', measure_names: names };
     if (m.value_indexes.length) m.banded_index = m.value_indexes[0];
     if (Number.isInteger(report.state_column_index)) m.state_index = report.state_column_index;
+    if (g.wide) { m.melt_wide = false; m.wide_prefix = chosenPrefix(report); }          // the person ticks 'These columns are years'
     return m;
   }
 
@@ -64,6 +74,7 @@
   function problem(m, report) {
     const n = Array.isArray(report?.columns) ? report.columns.length : 0;
     if (!m) return 'This file has its years across the columns. Put the years in one column, with one row per place and year, and upload it again.';
+    if (report?.guess?.wide && wideOffered(report) && m.melt_wide !== true) return `Tick \u201c${WIDE_TICK}\u201d to go on.`;
     if (!Number.isInteger(m.place_index) || !Number.isInteger(m.period_index)) return 'Choose which column is the place and which is the period.';
     if (!['us_states', 'us_counties'].includes(m.geography)) return 'Choose whether the places are U.S. states or counties.';
     if (!['annual', 'monthly'].includes(m.cadence)) return 'Choose whether the periods are yearly or monthly.';
@@ -72,7 +83,7 @@
     if (ints.some(i => !Number.isInteger(i) || i < 0 || i >= n)) return 'One of the chosen columns isn’t in the file.';
     if (new Set(ints).size !== ints.length) return 'Each column can only be used for one thing.';
     if (m.geography === 'us_counties' && m.state_index == null && !m.state) return 'County names need a state. Choose the state, or the column that has it.';
-    if (m.state && !STATES[m.state]) return 'That isn’t a U.S. state.';
+    if (m.state && !Object.hasOwn(STATES, m.state)) return 'That isn’t a U.S. state.';
     for (const i of m.value_indexes) {
       const name = m.measure_names?.[String(i)];
       if (typeof name !== 'string' || !name.trim() || name.length > 80) return 'Each value column’s name needs 1 to 80 characters.';
@@ -88,6 +99,7 @@
     if (m.banded_index != null && m.value_indexes.includes(m.banded_index)) out.banded_index = m.banded_index;
     if (m.state_index != null) out.state_index = m.state_index;
     if (m.geography === 'us_counties' && m.state && m.state_index == null) out.state = m.state;
+    if (m.melt_wide === true) { out.melt_wide = true; out.wide_prefix = typeof m.wide_prefix === 'string' ? m.wide_prefix.slice(0, 40) : ''; }
     return out;
   }
 
@@ -100,5 +112,58 @@
     return next;
   }
 
-  window.ryagramUploads = { EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
+  // BYOD audit: the words for a file that cannot be mapped (its years run across the columns), with the shape that works.
+  const WIDE_HELP = 'This file has its years across the columns (one column per year). Ryagram needs one row for each place and year, like the example above: a place column, a year column, and a column of values. In a spreadsheet program you can reshape it (in Excel: Data, Get & Transform, Unpivot), save it as .csv, and upload it again.';
+  const EXAMPLE = { head: ['State', 'Year', 'Median rent'], rows: [['Alabama', '2015', '1,100'], ['Alabama', '2016', '1,150'], ['Alaska', '2015', '1,400']] };
+  // ---- S5 (ENGINE-BYOD-GAPS.md gaps 2 and 3): who published the data, where it came from, the licence or permission, the unit, and the person's attestation. Behind byodGuide.
+  // EVERY SENTENCE BELOW MARKED PLACEHOLDER IS DRAFT WORDING: Ryan's and the lawyer's final wording is RYAN-QUEUE Q5. Nothing here decides what is allowed; it only collects what the person says,
+  // so the film's closing card and the video description can carry it (the worker and engine side is a proposal: set_dataset_provenance, see the MAILBOX post).
+  const LICENCES = [['public_domain', 'Public domain (for example a U.S. government work)'], ['open_licence', 'An open licence (for example CC BY)'], ['permission', 'I have the owner\u2019s permission'],
+                    ['own_data', 'It is my own data'], ['other', 'Something else (describe it)']];
+  const PLACEHOLDER = '[PLACEHOLDER WORDING, pending Ryan and the lawyer]';
+  const AS_SUPPLIED = 'Figures as supplied by the film\u2019s maker; not checked by Ryagram.';                 // PLACEHOLDER: the closing-card and description label
+  const ATTESTATION = 'I may publish charts of this data.';                                                    // PLACEHOLDER
+  // RULINGS 2026-10-26 (Ryan 09:38, S0): EVERY bring-your-own-data upload carries a visible trust label and a plain warning, and the person chooses to use it anyway. The label is fixed text
+  // the page puts there; it is never typed by the person or an AI, and it does not depend on any other switch. The words are Ryan's (Q234, 2026-10-26 13:16).
+  // The database holds IDS only (CONNECT's datasets.trust_label / version_sources.trust_label); this is the ONE place an id becomes words. Every upload is 'unverified_user' today.
+  const TRUST_LABELS = { unverified_user: 'Unverified, user-supplied' };
+  const trustWords = id => TRUST_LABELS[id] || TRUST_LABELS.unverified_user;
+  const TRUST_LABEL = trustWords('unverified_user');
+  const TRUST_WARNING = 'Ryagram has not checked this data. Your film will show exactly what is in your file, so anything wrong in it will be wrong in the film. Check it before you publish.';
+  const TRUST_ACK = 'I understand, use it anyway.';
+  const trustProblem = acked => (acked === true ? '' : 'Tick the box to use this data anyway.');
+  const FIELD_MAX = { publisher: 200, link: 300, licence_note: 200, unit: 40 };
+  const clip = (v, n) => String(v == null ? '' : v).replace(/[\u0000-\u001f\u007f\u200b-\u200f\u202a-\u202e\u2060\u2066-\u2069]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, n);
+  // A link goes in the video DESCRIPTION only (brand rule 028667d: no link on any frame, a link on a frame is a phishing surface), and only as a plain http(s) address: javascript:, data: and the like are refused.
+  const WEB_LINK = /^https?:\/\/[^\s<>"']{1,290}$/i;
+  const safeLink = v => { const t = clip(v, FIELD_MAX.link); return WEB_LINK.test(t) ? t : ''; };
+  const linkTyped = v => clip(v, FIELD_MAX.link) !== '';
+  function cleanProvenance(p) {
+    p = p || {};
+    return { publisher: clip(p.publisher, FIELD_MAX.publisher), link: safeLink(p.link), licence: LICENCES.some(([k]) => k === p.licence) ? p.licence : '',
+             licence_note: clip(p.licence_note, FIELD_MAX.licence_note), unit: clip(p.unit, FIELD_MAX.unit), decimals: [0, 1, 2, 3].includes(Number(p.decimals)) ? Number(p.decimals) : 0, attested: p.attested === true };
+  }
+  function provenanceProblem(raw) {
+    const p = cleanProvenance(raw);
+    if (!p.publisher) return 'Say who published or owns this data.';
+    if (linkTyped(raw && raw.link) && !p.link) return 'A link must be a web address starting with http:// or https://, or left empty.';
+    if (!p.licence) return 'Say what lets you use it: public domain, an open licence, permission, your own data, or something else.';
+    if (p.licence === 'other' && !p.licence_note) return 'Describe what lets you use this data.';
+    if (!p.unit) return 'Say what the numbers are in (for example dollars, percent, people).';
+    if (!p.attested) return 'Tick the box to confirm you may publish charts of this data.';
+    return '';
+  }
+  // How the closing card will read (a preview for the person; the real card is drawn by the engine).
+  function provenanceCard(raw) {
+    const p = cleanProvenance(raw);
+    const lic = (LICENCES.find(([k]) => k === p.licence) || [])[1] || '';
+    return [`Source: ${p.publisher || '\u2014'}`, `Licence or permission: ${p.licence === 'other' ? p.licence_note : lic.replace(/ \(.*\)$/, '')}${p.licence === 'other' || !p.licence_note ? '' : ` (${p.licence_note})`}`,
+            `Unit: ${p.unit || '\u2014'}`, AS_SUPPLIED];
+  }
+  // What goes in the video DESCRIPTION (the card above carries no link). PLACEHOLDER wording; the engine and worker draw the real description.
+  function descriptionLines(raw) {
+    const p = cleanProvenance(raw);
+    return provenanceCard(p).concat(p.link ? [`Link: ${p.link}`] : []);
+  }
+  window.ryagramUploads = { TRUST_LABELS, trustWords, TRUST_LABEL, TRUST_WARNING, TRUST_ACK, trustProblem, WIDE_TICK, wideGroups, wideOffered, groupLabel, descriptionLines, safeLink, LICENCES, PLACEHOLDER, AS_SUPPLIED, ATTESTATION, FIELD_MAX, cleanProvenance, provenanceProblem, provenanceCard, WIDE_HELP, EXAMPLE, EXTS, MIME, MAX_BYTES, MAX_UPLOADS, STATES, ACCEPT: EXTS.map(e => `.${e}`).join(','), text, extOf, checkFile, chip, draft, problem, clean, useInStory };
 })();

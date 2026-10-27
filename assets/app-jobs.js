@@ -15,9 +15,50 @@
   const isActive = job => ACTIVE.includes(job.state);
   const versionTakesJobs = versionState => !LOCKED_VERSION.includes(versionState);
 
+  // The worker's refusal text is for engineers: ryagram.worker.schema joins EVERY fault with "; " ("$: unknown key 'outro'; $.sequence.fps: \"x\" is not one of 24, 25, 30").
+  // plainDetail splits it, turns each fault into a sentence a person can act on, and for a fault it does not know says so plainly -- never nothing. The raw text is kept
+  // (rawDetail) and shown behind "Get help with this". Golden strings in tests/smoke-fixes.test.mjs come from the real validate_story on planted stories.
+  const LOOKS_LIKE_CODE = /[$\[\]{}]|::|Traceback|\bat line\b|\bException\b|\b[a-z]+_[a-z_]+\b/;
+  const UNREADABLE = 'The render machine gave a reason Ryagram cannot put into plain words. Open “Get help with this” to see it, or send it to us.';
+  const unquote = t => String(t).trim().replace(/^(['"“])(.*)\1$/, '$2');
+  function where(path) {
+    const parts = String(path || '').replace(/^\$\.?/, '').split('.').filter(Boolean)
+      .map(p => { const m = /^([A-Za-z_]+)\[(\d+)\]$/.exec(p); return m ? `${m[1] === 'clips' ? 'clip' : m[1]} ${Number(m[2]) + 1}` : p; });
+    return parts.length ? ` (in ${parts.join(' > ')})` : '';
+  }
+  function plainFault(fault) {
+    const f = /^(\$[^:]*):\s*(.*)$/s.exec(fault.trim());
+    if (!f) return fault.trim() && !LOOKS_LIKE_CODE.test(fault) ? fault.trim().slice(0, 200) : '';
+    const at = where(f[1]), msg = f[2].trim();
+    let m;
+    if ((m = /^unknown key '([^']+)'/i.exec(msg))) return `The story has a setting Ryagram doesn’t recognise: “${m[1]}”${at}.`;
+    if ((m = /^(?:missing|required)(?: key)? '?([^']*)'?/i.exec(msg))) return `The story is missing a required setting${m[1] ? `: “${m[1]}”` : ''}${at}.`;
+    if ((m = /^(.+?) is not on this worker.s dataset allowlist/i.exec(msg))) return `The dataset “${unquote(m[1])}”${at} can’t be drawn here. Pick a dataset from the catalog.`;
+    if ((m = /^(.+?) is not offered for (\S+) on this worker \(offered: ([^)]*)\)/i.exec(msg))) return `${unquote(m[2])} can’t be drawn as ${unquote(m[1])}${at}. It can be drawn as: ${m[3].trim()}.`;
+    if ((m = /^(.+?) is not one of (.+)$/i.exec(msg))) {
+      const choices = m[2].replace(/[\[\]"“”']/g, '').split(',').map(x => x.trim()).filter(Boolean);
+      return `The value “${unquote(m[1])}”${at} isn’t an allowed choice here. ${choices.length && choices.length <= 6 ? `Allowed: ${choices.join(', ')}.` : 'Pick one of the ready-made choices instead.'}`;
+    }
+    if (/^(?:expected|must be|should be)\b/i.test(msg)) return `A setting${at} has the wrong kind of value. Check it against a ready-made film.`;
+    return `Something in the story${at} wasn’t accepted.`;
+  }
+  function plainDetail(raw) {
+    const text = String(raw == null ? '' : raw).trim();
+    if (!text) return '';
+    const faults = text.split(/;\s+(?=\$)/).filter(x => x.trim());
+    const out = [];
+    for (const f of faults) { const s = plainFault(f); if (s && !out.includes(s)) out.push(s); }
+    if (!out.length) return text.startsWith('$') || LOOKS_LIKE_CODE.test(text) ? UNREADABLE : text.slice(0, 200);
+    const advice = faults.some(f => /unknown key/i.test(f)) ? ' Remove the setting(s) above, or pick a ready-made film and start again.' : '';       // said once, not after every fault
+    const shown = out.slice(0, 5).join(' ') + advice;
+    return out.length > 5 ? `${shown} And ${out.length - 5} more: open “Get help with this”.` : shown;
+  }
+  const rawDetail = job => String((job && job.error_detail) || '').trim();
+
   // One sentence for a finished job that did not complete, by error class.
   function problem(job) {
-    const detail = job.error_detail ? ` ${job.error_detail}` : '';
+    const plain = plainDetail(job.error_detail);
+    const detail = plain ? ` ${plain}` : '';
     if (job.state === 'cancelled') return 'Cancelled.';
     if (job.state === 'editorial_action_required' || job.error_class === 'gate') {
       return `Ryagram’s checks stopped this render.${detail} Change the story, then make a new preview.`;
@@ -73,7 +114,7 @@
   // The count a job row carries right now, or null: a stage with a positive total and a done.
   function countOf(job) {
     const d = job && job.progress_detail && typeof job.progress_detail === 'object' ? job.progress_detail : null;
-    if (!d || !STAGES[d.stage]) return null;
+    if (!d || !Object.hasOwn(STAGES, d.stage)) return null;
     const done = Number(d.done), total = Number(d.total);
     if (d.total == null || !(total > 0) || d.done == null || !(done >= 0)) return null;
     return { stage: d.stage, done: Math.min(done, total), total, unit: d.unit === 'clips' ? 'clips' : 'frames' };
@@ -117,13 +158,16 @@
     const secs = (nowMs - started) / 1000;
     const eta = c ? etaSeconds(samples.filter(x => x.stage === c.stage && x.total === c.total), nowMs) : null;
     return {
-      stage: d && STAGES[d.stage] ? STAGES[d.stage] : UNKNOWN,
+      stage: d && Object.hasOwn(STAGES, d.stage) ? STAGES[d.stage] : UNKNOWN,
       countLabel: c && c.unit === 'clips' ? 'Clips' : 'Frames',
       count: c ? `${c.done.toLocaleString('en-US')} / ${c.total.toLocaleString('en-US')}` : UNKNOWN,
       fraction: c ? c.done / c.total : null,
       // An estimate, so "~", and never "under a minute": it reads ~1 min at the least.
       eta: eta == null ? UNKNOWN : `~${duration(Math.max(60, eta))} left in this step`,
-      running: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : UNKNOWN
+      running: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : UNKNOWN,
+      // When the worker has told us none of stage, count or ETA, three dashes say nothing: show "Working" and how long it has been.
+      working: !(d && STAGES[d.stage]) && !c && eta == null,
+      elapsed: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : (job.created_at && Number.isFinite(Date.parse(job.created_at)) && nowMs >= Date.parse(job.created_at) ? duration((nowMs - Date.parse(job.created_at)) / 1000) : '')
     };
   }
 
@@ -187,7 +231,29 @@
     return { value: [a, b] };
   }
 
-  window.ryagramJobs = {
-    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
+  // Render orders (a full render is requested, then waits for approval, renders and is delivered).
+  const ORDER_WORDS = { running: 'Rendering', awaiting_approval: 'Waiting for approval', delivered: 'Delivered', previewed: 'Previewed', failed: 'Failed', declined: 'Not approved',
+                        cancelled: 'Cancelled', expired: 'Expired', editorial_action_required: 'Stopped by a check' };
+  // One sentence for the person, from render_order_status().
+  function orderLine(st) {
+    if (!st) return '';
+    const fin = (st.stages || []).find(s => s.stage === 'final_render') || {};
+    const held = fin.credits_quoted > 0 ? ` ${fin.credits_quoted} credit${fin.credits_quoted === 1 ? '' : 's'} ${st.state === 'awaiting_approval' || st.state === 'running' ? 'are held' : 'were held'}.` : '';
+    switch (st.state) {
+      case 'awaiting_approval': return `Your full render is waiting for approval. We approve each one by hand for now.${held} They come back if it is not approved.`;
+      case 'running': return `Your full render is on its way.${held}`;
+      case 'delivered': return st.delivery && !st.delivery.deleted ? `Your film is ready, kept for 30 days (until ${String(st.delivery.expires_at).slice(0, 10)}).` : 'Your film was kept for 30 days and has been deleted.';
+      case 'declined': return `The full render was not approved, so nothing was rendered and your credits were returned.`;
+      case 'expired': return 'The full render was not approved in time, so it was cancelled and your credits were returned.';
+      case 'cancelled': return 'You cancelled the full render. Your credits were returned.';
+      case 'editorial_action_required': return 'Ryagram\u2019s checks stopped this render. Change the story, then make a new preview. Your credits were returned.';
+      case 'failed': return 'The full render failed. Your credits were returned. You can request it again.';
+      default: return ORDER_WORDS[st.state] || st.state;
+    }
+  }
+  const orderOpen = state => state === 'running' || state === 'awaiting_approval';
+
+  window.ryagramJobs = { ORDER_WORDS, orderLine, orderOpen,
+    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();

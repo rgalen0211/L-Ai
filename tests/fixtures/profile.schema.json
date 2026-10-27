@@ -1,0 +1,334 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "profile_version": {
+      "enum": [
+        1
+      ]
+    },
+    "name": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9-]{0,63}$"
+    },
+    "title": {
+      "type": "string",
+      "maxLength": 80,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$"
+    },
+    "based_on": {
+      "type": "string",
+      "maxLength": 40,
+      "pattern": "^[a-z0-9][a-z0-9-]{0,39}$"
+    },
+    "notes": {
+      "type": "string",
+      "maxLength": 1000,
+      "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$"
+    },
+    "look": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "theme": {
+          "enum": [
+            "light",
+            "dark"
+          ]
+        },
+        "canvas": {
+          "enum": [
+            [
+              1920,
+              1080
+            ],
+            [
+              1280,
+              720
+            ],
+            [
+              1080,
+              1920
+            ]
+          ]
+        },
+        "fps": {
+          "enum": [
+            24,
+            25,
+            30
+          ]
+        },
+        "page_background": {
+          "type": "string",
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "text_muted": {
+          "type": "string",
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "ramp": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "low": {
+              "type": "string",
+              "maxLength": 7,
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "high": {
+              "type": "string",
+              "maxLength": 7,
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "mode": {
+              "enum": [
+                "solid",
+                "hatch"
+              ]
+            },
+            "steps": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "auto"
+                  ]
+                },
+                {
+                  "type": "integer",
+                  "minimum": 3,
+                  "maximum": 9
+                }
+              ]
+            },
+            "continuous": {
+              "type": "boolean"
+            }
+          },
+          "required": []
+        },
+        "hatch_line_color": {
+          "type": "string",
+          "maxLength": 7,
+          "pattern": "^#[0-9a-fA-F]{6}$"
+        },
+        "dots": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "color": {
+              "type": "string",
+              "maxLength": 7,
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "baseline_color": {
+              "type": "string",
+              "maxLength": 7,
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "radius": {
+              "type": "number",
+              "minimum": 0.5,
+              "maximum": 6.0
+            }
+          },
+          "required": []
+        },
+        "state": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fill": {
+              "type": "string",
+              "maxLength": 7,
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "no_data_fill": {
+              "type": "string",
+              "maxLength": 7,
+              "pattern": "^#[0-9a-fA-F]{6}$"
+            },
+            "outline_width": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 4.0
+            }
+          },
+          "required": []
+        },
+        "bars": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "swap_seconds": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 1.5
+            },
+            "label_width": {
+              "type": "integer",
+              "minimum": 60,
+              "maximum": 600
+            },
+            "value_width": {
+              "type": "integer",
+              "minimum": 40,
+              "maximum": 400
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    },
+    "pacing": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "hold_seconds": {
+          "type": "number",
+          "minimum": 0.0,
+          "maximum": 10.0
+        },
+        "transition": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "cut",
+                "crossfade",
+                "fade"
+              ]
+            },
+            "seconds": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 3.0
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        "title_card": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "fade": {
+              "type": "number",
+              "minimum": 0.0,
+              "maximum": 2.0
+            },
+            "align": {
+              "enum": [
+                "center",
+                "left"
+              ]
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    },
+    "reserved": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "fonts": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "bold": {
+              "enum": [
+                "dejavu-sans",
+                "liberation-sans",
+                "noto-sans",
+                "open-sans",
+                "roboto",
+                "inter",
+                "source-sans-3",
+                "lato",
+                "ibm-plex-sans",
+                "fira-sans"
+              ]
+            },
+            "regular": {
+              "enum": [
+                "dejavu-sans",
+                "liberation-sans",
+                "noto-sans",
+                "open-sans",
+                "roboto",
+                "inter",
+                "source-sans-3",
+                "lato",
+                "ibm-plex-sans",
+                "fira-sans"
+              ]
+            }
+          },
+          "required": []
+        },
+        "motion": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "position_easing": {
+              "enum": [
+                "linear",
+                "ease_in_out",
+                "ease_out"
+              ]
+            }
+          },
+          "required": []
+        },
+        "brand": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "channel": {
+              "type": "string",
+              "maxLength": 60,
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$"
+            },
+            "credit_line": {
+              "type": "string",
+              "maxLength": 160,
+              "pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f\\u00ad\\u200b-\\u200f\\u202a-\\u202e\\u2060-\\u206f\\ufeff\\ufff9-\\ufffb]*$"
+            }
+          },
+          "required": []
+        }
+      },
+      "required": []
+    }
+  },
+  "required": [
+    "profile_version",
+    "name"
+  ],
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "ryagram-profile-v1",
+  "description": "A user's engine profile: look and flow defaults only. Generated from ryagram/profile/schema.py; do not edit by hand. It has no field for data, scale, sources, notes, labels that make a claim, the renderer or any check, so those cannot be changed by a profile. `reserved` is stored but not applied until the engine supports it.",
+  "x-not-in-schema": [
+    "colour guards (ramp ends far enough apart, dots visible on the page, no-data fill distinct from state fill, muted text readable): see guards.py; preflight on the rendered frame remains the authority",
+    "ramp.continuous needs ramp.mode 'solid' when both are given",
+    "the profile at most 16 KB, no duplicate keys"
+  ],
+  "x-locked": [
+    "data and its scale: dataset, period window, values, units, breaks, axis, measure, dot value",
+    "vector drawing only",
+    "printed numbers are the published values in every frame",
+    "every preflight check runs; no thresholds can be lowered or skipped",
+    "sources, method notes, callout sources and the film's notes",
+    "wording and marks for no-data, not-applicable, estimated and projected",
+    "data never eases",
+    "sound without a declared source and licence"
+  ]
+}

@@ -4,6 +4,7 @@
 // Starting a render counts against the hourly cap; the final render is never started here.
 import { build, DATASETS, RENDER_VIEWS, TEMPLATES } from "../_shared/templates.ts";
 import { untrusted } from "./prompt.ts";
+import { titleProblems } from "../_shared/title_limits.ts";
 
 export interface Job {
   id: string; job_type: string; state: string; attempt: number; created_at: string;
@@ -116,6 +117,8 @@ function checkStory(story: unknown): string | null {
   const clips = (s.sequence as { clips?: unknown[] } | undefined)?.clips;
   if (!Array.isArray(clips) || clips.length < 1 || clips.length > 40) return "The story needs 1 to 40 clips.";
   if (JSON.stringify(story).length > 256 * 1024) return "The story is too large.";
+  const cards = titleProblems(story);                                  // the worker's title-card limits, refused here with the reason
+  if (cards.length) return `The story was not saved. ${cards.join(" ")}`;
   return null;
 }
 
