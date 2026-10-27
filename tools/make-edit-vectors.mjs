@@ -20,7 +20,8 @@ const comp = () => ({
   clips: [
     { id: 'v1', track: 'video', start: 0, len: 4, label: 'one', source: 'a.mp4', source_start: 2, min_len: 0.3, max_len: 10 },
     { id: 'v2', track: 'video', start: 4, len: 3, label: 'two', source: 'a.mp4', source_start: 3, min_len: 0.3, max_len: 5 },
-    { id: 'v3', track: 'video', start: 7, len: 5, label: 'slide', picture: 'img-1', min_len: 0.5, max_len: 10 },
+    { id: 'v3', track: 'video', start: 7, len: 5, label: 'slide', slide: true, picture: 'img-1', min_len: 0.5, max_len: 10 },
+    { id: 's1', track: 'video', start: 12, len: 3, label: 'words', slide: true, text: 'Hello', min_len: 0.5, max_len: 10 },
     { id: 'p1', track: 'pictures', start: 5, len: 2, label: 'chart', picture: 'img-2' },
     { id: 't1', track: 'text', start: 1, len: 3, label: 'Title', text: 'Housing', min_len: 0.5, max_len: 30 },
     { id: 'm1', track: 'music', start: 0, len: 30, label: 'music' }
@@ -119,6 +120,9 @@ const CASES = [
   ['comp', { op: 'set_clip_text', id: 't1', text: '' }],
   ['comp', { op: 'set_clip_text', id: 't1', text: 12 }],
   ['comp', { op: 'set_clip_text', id: 'v1', text: 'x' }],
+  ['comp', { op: 'set_clip_text', id: 's1', text: 'New words on a slide' }],
+  ['comp', { op: 'set_clip_text', id: 's1', text: '<b>bold</b>' }],
+  ['comp', { op: 'set_clip_text', id: 'v3', text: 'x' }],
   // delete_clip
   ['comp', { op: 'delete_clip', id: 'v1' }],
   ['comp', { op: 'delete_clip', id: 'v2' }],
@@ -146,6 +150,8 @@ const CASES = [
   ['comp_lanes', { op: 'add_clip', track: 'text', start: 3, len: 2, text: 'twenty-one letters 1.' }],
   ['comp_lanes', { op: 'set_clip_text', id: 't1', text: 'twenty letters long!' }],
   ['comp_lanes', { op: 'set_clip_text', id: 't1', text: 'twenty-one letters 1.' }],
+  ['comp_lanes', { op: 'set_clip_text', id: 's1', text: 'twenty letters long!' }],
+  ['comp_lanes', { op: 'set_clip_text', id: 's1', text: 'twenty-one letters 1.' }],
   ['comp_lanes', { op: 'reorder_clip', id: 'v3', index: 0 }],
   ['comp_lanes', { op: 'trim_clip', id: 'v1', edge: 'end', to: 3 }]
 ];

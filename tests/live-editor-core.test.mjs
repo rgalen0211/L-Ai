@@ -268,3 +268,19 @@ test('the AI-altered marker follows the FOOTAGE (CC1 10:37): a clip whose stretc
   assert.equal(E.isMarked(e.base, { id: 'z', track: 'video', start: 0, len: 2, label: 'z' }), false);        // no source recorded: nothing to compare, not marked by guesswork
   assert.equal(E.isMarked(e.base, { id: 'z', track: 'text', start: 0, len: 2, label: 'z', ai_altered: true }), true);   // its own marker always counts
 });
+
+test('a text SLIDE (BUILDER 23): set_clip_text works on a video-lane clip that is a slide with words and no picture, with the same cleaning and cap; a picture slide and a plain video clip still refuse', () => {
+  const s = E.newState({ duration: 30, limits: { text_chars: 20 }, clips: [
+    { id: 'v1', track: 'video', start: 0, len: 4, label: 'clip', source: 'a.mp4', source_start: 0, max_len: 9 },
+    { id: 's1', track: 'video', start: 4, len: 3, label: 'words', slide: true, text: 'Hello', min_len: 0.5, max_len: 10 },
+    { id: 's2', track: 'video', start: 7, len: 3, label: 'picture', slide: true, picture: 'img-1', min_len: 0.5, max_len: 10 }] });
+  assert.equal(E.check(s, { op: 'set_clip_text', id: 's1', text: 'New words' }), null);
+  assert.equal(E.apply(s, { op: 'set_clip_text', id: 's1', text: '<b>New</b> words' }).clips.find(c => c.id === 's1').text, 'bNew/b words');
+  assert.match(E.check(s, { op: 'set_clip_text', id: 's1', text: 'twenty-one letters 1.' }), /at most 20 letters/);
+  assert.match(E.check(s, { op: 'set_clip_text', id: 's2', text: 'x' }), /Only a text clip has text/);
+  assert.match(E.check(s, { op: 'set_clip_text', id: 'v1', text: 'x' }), /Only a text clip has text/);
+  const e = new E.Editor({ duration: 30, clips: s.clips });
+  assert.equal(e.do({ op: 'set_clip_text', id: 's1', text: 'Edited' }).ok, true);
+  assert.equal(e.do({ op: 'trim_clip', id: 's1', edge: 'end', to: 12 }).ok, true);                           // 8 s: inside the slide's 0.5 to 10
+  assert.equal(e.do({ op: 'trim_clip', id: 's1', edge: 'end', to: 15 }).ok, false);                          // 11 s: past its maximum
+});

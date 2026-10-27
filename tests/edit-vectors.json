@@ -692,7 +692,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -761,7 +773,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -829,7 +853,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -898,7 +934,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -966,7 +1014,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1040,7 +1100,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1114,7 +1186,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1188,7 +1272,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1262,7 +1358,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1331,7 +1439,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1399,7 +1519,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1468,7 +1600,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1536,7 +1680,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1610,7 +1766,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1684,7 +1852,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1754,7 +1934,19 @@
       "start": 6,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 11,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1822,7 +2014,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1897,7 +2101,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -1967,7 +2183,19 @@
       "start": 3.3,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 8.3,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2035,7 +2263,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2105,7 +2345,19 @@
       "start": 13,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 18,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2173,7 +2425,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2248,7 +2512,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2318,7 +2594,19 @@
       "start": 6,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 11,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2386,7 +2674,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2461,7 +2761,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2531,7 +2843,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2599,7 +2923,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2669,7 +3005,19 @@
       "start": 5.5,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 10.5,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2737,7 +3085,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2807,7 +3167,19 @@
       "start": 8,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 13,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2875,7 +3247,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -2950,7 +3334,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3025,7 +3421,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3100,7 +3508,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3170,7 +3590,19 @@
       "start": 9,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 14,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3238,7 +3670,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3308,7 +3752,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3376,7 +3832,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3446,7 +3914,19 @@
       "start": 7,
       "len": 10,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 17,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3514,7 +3994,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3589,7 +4081,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3664,7 +4168,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3734,7 +4250,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3802,7 +4330,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3877,7 +4417,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -3947,7 +4499,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4015,7 +4579,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4090,7 +4666,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4165,7 +4753,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4235,7 +4835,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4303,7 +4915,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4378,7 +5002,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4453,7 +5089,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4528,7 +5176,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4603,7 +5263,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4678,7 +5350,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4753,7 +5437,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4800,6 +5496,7 @@
       "start": 0,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
       "min_len": 0.5,
       "max_len": 10
@@ -4825,6 +5522,17 @@
       "source_start": 3,
       "min_len": 0.3,
       "max_len": 5
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
      },
      {
       "id": "p1",
@@ -4890,7 +5598,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -4948,6 +5668,7 @@
       "start": 3,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
       "min_len": 0.5,
       "max_len": 10
@@ -4961,6 +5682,17 @@
       "source": "a.mp4",
       "source_start": 2,
       "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
       "max_len": 10
      },
      {
@@ -5027,7 +5759,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5096,7 +5840,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5164,7 +5920,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5202,7 +5970,82 @@
     "id": "v1",
     "index": 3
    },
-   "refusal": "There is no such place in the list."
+   "state_after": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 0,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 3,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 8,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 11,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 1
+   }
   },
   {
    "name": "074 comp reorder_clip",
@@ -5238,7 +6081,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5312,7 +6167,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5386,7 +6253,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5460,7 +6339,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5529,7 +6420,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5597,7 +6500,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5666,7 +6581,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5734,7 +6661,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5803,7 +6742,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5871,7 +6822,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -5940,7 +6903,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6008,7 +6983,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6077,7 +7064,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6145,7 +7144,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6219,7 +7230,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6260,7 +7283,7 @@
    "refusal": "Only a text clip has text."
   },
   {
-   "name": "084 comp delete_clip",
+   "name": "084 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -6293,7 +7316,427 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_clip_text",
+    "id": "s1",
+    "text": "New words on a slide"
+   },
+   "state_after": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "New words on a slide",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 1
+   }
+  },
+  {
+   "name": "085 comp set_clip_text",
+   "state": "comp",
+   "state_before": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_clip_text",
+    "id": "s1",
+    "text": "<b>bold</b>"
+   },
+   "state_after": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "bbold/b",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 1
+   }
+  },
+  {
+   "name": "086 comp set_clip_text",
+   "state": "comp",
+   "state_before": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 0
+   },
+   "op": {
+    "op": "set_clip_text",
+    "id": "v3",
+    "text": "x"
+   },
+   "refusal": "Only a text clip has text."
+  },
+  {
+   "name": "087 comp delete_clip",
+   "state": "comp",
+   "state_before": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6350,7 +7793,19 @@
       "start": 3,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 8,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6385,7 +7840,7 @@
    }
   },
   {
-   "name": "085 comp delete_clip",
+   "name": "088 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -6418,7 +7873,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6475,7 +7942,19 @@
       "start": 4,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 9,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6510,7 +7989,7 @@
    }
   },
   {
-   "name": "086 comp delete_clip",
+   "name": "089 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -6543,7 +8022,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6611,7 +8102,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6638,7 +8141,7 @@
    }
   },
   {
-   "name": "087 comp delete_clip",
+   "name": "090 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -6671,7 +8174,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6739,7 +8254,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6764,7 +8291,7 @@
    }
   },
   {
-   "name": "088 comp delete_clip",
+   "name": "091 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -6797,7 +8324,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6837,7 +8376,7 @@
    "refusal": "That clip is not in this film."
   },
   {
-   "name": "089 comp add_clip",
+   "name": "092 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -6870,7 +8409,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6941,7 +8492,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -6985,7 +8548,7 @@
    }
   },
   {
-   "name": "090 comp add_clip",
+   "name": "093 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7018,7 +8581,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7061,7 +8636,7 @@
    "refusal": "Give it a start and a length that fit the film."
   },
   {
-   "name": "091 comp add_clip",
+   "name": "094 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7094,7 +8669,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7137,7 +8724,7 @@
    "refusal": "That is outside the film."
   },
   {
-   "name": "092 comp add_clip",
+   "name": "095 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7170,7 +8757,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7213,7 +8812,7 @@
    "refusal": "Give it a start and a length that fit the film."
   },
   {
-   "name": "093 comp add_clip",
+   "name": "096 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7246,7 +8845,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7288,7 +8899,7 @@
    "refusal": "A text line needs some words."
   },
   {
-   "name": "094 comp add_clip",
+   "name": "097 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7321,7 +8932,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7364,7 +8987,7 @@
    "refusal": "A text line needs some words."
   },
   {
-   "name": "095 comp add_clip",
+   "name": "098 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7397,7 +9020,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7468,7 +9103,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7511,7 +9158,7 @@
    }
   },
   {
-   "name": "096 comp add_clip",
+   "name": "099 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7544,7 +9191,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7586,7 +9245,7 @@
    "refusal": "Pick one of your pictures."
   },
   {
-   "name": "097 comp add_clip",
+   "name": "100 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7619,7 +9278,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7662,7 +9333,7 @@
    "refusal": "Give it a start and a length that fit the film."
   },
   {
-   "name": "098 comp add_clip",
+   "name": "101 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7695,7 +9366,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7737,7 +9420,7 @@
    "refusal": "You can add a text line or a picture here."
   },
   {
-   "name": "099 comp add_clip",
+   "name": "102 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {},
@@ -7770,7 +9453,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7812,7 +9507,7 @@
    "refusal": "You can add a text line or a picture here."
   },
   {
-   "name": "100 comp_lanes move_clip",
+   "name": "103 comp_lanes move_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -7845,7 +9540,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7893,7 +9600,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "101 comp_lanes delete_clip",
+   "name": "104 comp_lanes delete_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -7926,7 +9633,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -7973,7 +9692,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "102 comp_lanes trim_clip",
+   "name": "105 comp_lanes trim_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8006,7 +9725,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8055,7 +9786,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "103 comp_lanes add_clip",
+   "name": "106 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8088,7 +9819,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8138,7 +9881,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "104 comp_lanes add_clip",
+   "name": "107 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8171,7 +9914,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8249,7 +10004,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8300,7 +10067,7 @@
    }
   },
   {
-   "name": "105 comp_lanes add_clip",
+   "name": "108 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8333,7 +10100,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8383,7 +10162,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "106 comp_lanes set_clip_text",
+   "name": "109 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8416,7 +10195,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8492,7 +10283,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8534,7 +10337,7 @@
    }
   },
   {
-   "name": "107 comp_lanes set_clip_text",
+   "name": "110 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8567,7 +10370,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8615,7 +10430,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "108 comp_lanes reorder_clip",
+   "name": "111 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8648,7 +10463,287 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "lanes": [
+     "video",
+     "text"
+    ],
+    "limits": {
+     "text_chars": 20
+    }
+   },
+   "op": {
+    "op": "set_clip_text",
+    "id": "s1",
+    "text": "twenty letters long!"
+   },
+   "state_after": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "twenty letters long!",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 1,
+    "lanes": [
+     "video",
+     "text"
+    ],
+    "limits": {
+     "text_chars": 20
+    }
+   }
+  },
+  {
+   "name": "112 comp_lanes set_clip_text",
+   "state": "comp_lanes",
+   "state_before": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "m1",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music"
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "lanes": [
+     "video",
+     "text"
+    ],
+    "limits": {
+     "text_chars": 20
+    }
+   },
+   "op": {
+    "op": "set_clip_text",
+    "id": "s1",
+    "text": "twenty-one letters 1."
+   },
+   "refusal": "Text can be at most 20 letters here."
+  },
+  {
+   "name": "113 comp_lanes reorder_clip",
+   "state": "comp_lanes",
+   "state_before": {
+    "look": {},
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8702,6 +10797,7 @@
       "start": 0,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
       "min_len": 0.5,
       "max_len": 10
@@ -8727,6 +10823,17 @@
       "source_start": 3,
       "min_len": 0.3,
       "max_len": 5
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
      },
      {
       "id": "p1",
@@ -8766,7 +10873,7 @@
    }
   },
   {
-   "name": "109 comp_lanes trim_clip",
+   "name": "114 comp_lanes trim_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {},
@@ -8799,7 +10906,19 @@
       "start": 7,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },
@@ -8876,7 +10995,19 @@
       "start": 6,
       "len": 5,
       "label": "slide",
+      "slide": true,
       "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 11,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
       "min_len": 0.5,
       "max_len": 10
      },

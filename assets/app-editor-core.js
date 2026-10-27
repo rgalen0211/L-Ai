@@ -98,7 +98,8 @@
       if (c.track !== 'video') return 'Only video clips can be reordered.';
       if (!Number.isInteger(op.index) || op.index < 0 || op.index >= videoOf(state).length) return 'There is no such place in the list.';
     } else if (op.op === 'set_clip_text') {
-      if (c.track !== 'text') return 'Only a text clip has text.';
+      // a text line, or a text SLIDE (a video-lane clip that is a slide with words and no picture; BUILDER 23)
+      if (c.track !== 'text' && !(c.track === 'video' && c.slide === true && !c.picture)) return 'Only a text clip has text.';
       if (typeof op.text !== 'string') return 'The text must be words.';
       const cap = state.limits && state.limits.text_chars;
       if (cap && cleanText(op.text).length > cap) return `Text can be at most ${cap} letters here.`;

@@ -308,7 +308,7 @@
         const num = (id, label, value, onchange, dis) => { const i = h('input', { type: 'number', id, step: '0.1', min: '0', value, disabled: dis }); i.addEventListener('change', () => onchange(Number(i.value))); return h('div', { class: 'le-row' }, h('label', { for: id }, label), i); };
         const rows = [num('le-start', 'Starts (seconds)', c.start, v => apply({ op: 'move_clip', id: c.id, start: v }), c.track === 'video'),
                       num('le-len', 'Length (seconds)', c.len, v => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + v) * 10) / 10 }))];
-        if (c.track === 'text') { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
+        if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
         clipPanel.replaceChildren(h('h2', { id: 'le-clip-h' }, `${TRACK_NAMES[c.track]}: ${c.label}`), ...rows,
           btn('Remove this clip', 'secondary', () => { selected = null; apply({ op: 'delete_clip', id: c.id }); }),
           h('p', { class: 'le-free' }, 'Your videos never leave your computer. This page edits the list; your computer draws it.'));
