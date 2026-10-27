@@ -101,7 +101,8 @@
       if (c.track !== 'video') return 'Only video clips can be reordered.';
       if (!Number.isInteger(op.index) || op.index < 0 || op.index >= videoOf(state).length) return 'There is no such place in the list.';
     } else if (op.op === 'set_clip_text') {
-      if (c.track !== 'text') return 'Only a text clip has text.';
+      // a text line, or a text SLIDE (a video-lane clip that is a slide with words and no picture; BUILDER 23)
+      if (c.track !== 'text' && !(c.track === 'video' && c.slide === true && !c.picture)) return 'Only a text clip has text.';
       if (typeof op.text !== 'string') return 'The text must be words.';
       const cap = state.limits && state.limits.text_chars;
       if (cap && cleanText(op.text).length > cap) return `Text can be at most ${cap} letters here.`;
@@ -149,10 +150,11 @@
   // marked when the editor opened (base), even if the marked clip was since deleted or the clip was trimmed back into it. The page only SHOWS this; the maker's edit_from_tracks enforces it.
   function isMarked(base, clip) {
     const known = clip.track === 'video' && typeof clip.source === 'string' && Number.isFinite(clip.source_start);
-    if (!known) return clip.ai_altered === true;                       // a slide, a text or a clip with no recorded source: its own marker (BUILDER: the maker keeps slides by picture)
+    if (!known) return clip.ai_altered === true || clip.ai_altered_derived === true;      // a slide, a text or a clip with no recorded source: its own marker (BUILDER: the maker keeps slides by picture)
     // A video clip with a known stretch of its file is marked by the footage only (BUILDER 10:43): trimmed off the altered stretch, the maker builds it unmarked, so the page shows that.
     const a0 = clip.source_start, a1 = clip.source_start + clip.len;
-    return base.clips.some(m => m.ai_altered === true && m.track === 'video' && m.source === clip.source && Number.isFinite(m.source_start)
+    // the stretches are the marked clips the maker did NOT merely derive (ai_altered_derived is the maker's own overlap result, CONNECT 11:36), as the maker's edit_from_tracks counts them
+    return base.clips.some(m => m.ai_altered === true && m.ai_altered_derived !== true && m.track === 'video' && m.source === clip.source && Number.isFinite(m.source_start)
       && a0 < m.source_start + m.len - 1e-9 && m.source_start < a1 - 1e-9);
   }
 
@@ -741,7 +743,7 @@
         const num = (id, label, value, onchange, dis) => { const i = h('input', { type: 'number', id, step: '0.1', min: '0', value, disabled: dis }); i.addEventListener('change', () => onchange(Number(i.value))); return h('div', { class: 'le-row' }, h('label', { for: id }, label), i); };
         const rows = [num('le-start', 'Starts (seconds)', c.start, v => apply({ op: 'move_clip', id: c.id, start: v }), c.track === 'video'),
                       num('le-len', 'Length (seconds)', c.len, v => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + v) * 10) / 10 }))];
-        if (c.track === 'text') { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
+        if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
         clipPanel.replaceChildren(h('h2', { id: 'le-clip-h' }, `${TRACK_NAMES[c.track]}: ${c.label}`), ...rows,
           btn('Remove this clip', 'secondary', () => { selected = null; apply({ op: 'delete_clip', id: c.id }); }),
           h('p', { class: 'le-free' }, 'Your videos never leave your computer. This page edits the list; your computer draws it.'));

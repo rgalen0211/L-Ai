@@ -91,7 +91,7 @@ for w in wrong[:4]:
 SUMMARY = {"duration": 12, "lanes": ["video", "text"], "limits": {"text_chars": 120}, "clips": [
     {"id": "v1", "track": "video", "start": 0, "len": 5, "label": "great news", "source": "a.mp4", "source_start": 10, "min_len": 0.3, "max_len": 20, "speaker": "Frank", "voice_id": "x"},
     {"id": "v2", "track": "video", "start": 5, "len": 4, "label": "good news", "source": "b.mp4", "source_start": 0, "min_len": 0.3, "max_len": 8},
-    {"id": "t1", "track": "text", "start": 1, "len": 3, "label": "title", "text": "Hello", "min_len": 0.5, "max_len": 30}]}
+    {"id": "t1", "track": "text", "start": 1, "len": 3, "label": "title", "text": "Hello", "min_len": 0.5, "max_len": 30, "private_note": "not for the site"}]}
 DARK, LIGHT = "#112233", "#EEEEEE"
 clock = [1_000_000.0]
 tmp = Path(tempfile.mkdtemp(prefix="maker-live-", dir=None))
@@ -211,7 +211,7 @@ s = d.summary()
 text = json.dumps(s)
 check(s["schema"] == "ryagram.edit-tracks/0" and all(set(c) <= {"id", "track", "start", "len", "label", "text", "picture", "file", "source", "source_start", "min_len", "max_len", "position", "size", "ai_altered", "ai_altered_by"} for c in s["clips"]),
       "the summary that may leave the computer holds only the fields the site accepts")
-check("Frank" not in text and "voice" not in text and "C:" not in text and "\\\\" not in text, "no speaker, voice or path in the summary")
+check("Frank" not in text and "voice" not in text and "C:" not in text and "\\\\" not in text and "private_note" not in text, "no speaker, voice, path or field outside the fixed list in the summary")
 check(not d.editor_open() and (d.heartbeat("compilation") or True) and d.editor_open() and not (clock.__setitem__(0, clock[0] + 31) or d.editor_open()), "the heartbeat says whether the editor page is open, for 30 seconds")
 junk = tmp / "junk.json"
 junk.write_text("not json", encoding="utf-8")

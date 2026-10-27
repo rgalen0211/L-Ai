@@ -814,6 +814,16 @@ V2_HTML = """<section id="v2" aria-labelledby="h-v2"><h2 id="h-v2">4. Pictures t
 
 
 SONG_LINK = '<p><a id="song-link" class="button secondary" href="/song">Sing a line to your music</a></p>'
+LIVE_LINK = '<p><a id="live-link" class="button secondary" href="/live">Edit your film live (after Plan)</a></p>'
+LIVE_CARD = (
+    '<section class="logbox" id="live-card" aria-labelledby="h-live"><h2 id="h-live">Your film and your AI</h2>'
+    '<p class="note">The live editor works on this computer only, on your own videos. If you want your Ryagram website editor, or your connected AI, to see this film\u2019s clip list and suggest changes, '
+    'choose the Ryagram project it belongs to and switch it on. What is sent is only the names of your clips, their times and any words you typed. Your videos, pictures, sound and where they are '
+    'kept on this computer never leave it. Your AI\u2019s changes arrive here as drafts you can undo. It cannot build, spend credits or publish. Switch it off at any time and the list is removed.</p>'
+    '<label for="live-project">The Ryagram project this film belongs to</label> <select id="live-project"><option value="">None</option></select>'
+    '<label class="logswitch" for="live-mirror"><input id="live-mirror" type="checkbox"> Show this film\u2019s clip list in my Ryagram website editor</label>'
+    '<label class="logswitch" for="live-ai"><input id="live-ai" type="checkbox"> Let my AI see my track list</label>'
+    '<p id="live-msg" class="note" role="status"></p></section>')
 EDIT_LINK = '<p><a id="edit-link" class="button secondary" href="/edit">Edit your film (after Plan)</a></p>'
 
 
@@ -851,7 +861,7 @@ def _song_mod():
 
 
 def page_html() -> str:
-    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else ""))
+    return PAGE.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else "") + ((LIVE_LINK + LIVE_CARD) if STATE.get("live_on") else ""))
 
 
 def pick_files(multiple: bool) -> list[str]:
@@ -1115,6 +1125,7 @@ JS = r"""(function () {
   const $ = id => document.getElementById(id);
   if ($('song-link')) $('song-link').href = '/song?t=' + encodeURIComponent(T);
   if ($('edit-link')) $('edit-link').href = '/edit?t=' + encodeURIComponent(T);
+  if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation';
   if (new URLSearchParams(location.search).get('advanced') === '1') document.querySelector('details.paste').hidden = false;      // Ryan's box; Sam never needs it
   const el = (tag, attrs, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs || {})) { if (k === 'class') n.className = v; else if (k.startsWith('on')) n.addEventListener(k.slice(2), v); else if (v !== false && v != null) n.setAttribute(k, v === true ? '' : v); } for (const c of kids.flat()) if (c != null) n.append(c); return n; };
   async function api(path, body) {
@@ -1210,6 +1221,28 @@ JS = r"""(function () {
     }));
     $('airq-msg').textContent = (r && r.message) || '';
   }
+  // the live editor card (NEXT-CONNECT 142): the film's Ryagram project and the person's two switches; nothing is sent until one is on
+  async function drawLive() {
+    if (!$('live-card')) return;
+    try {
+      const s = await api('/api/live/sync');
+      const reqs = (await api('/api/ai-requests').catch(() => ({}))).requests || [];
+      const sel = $('live-project');
+      const seen = new Set();
+      sel.replaceChildren(el('option', { value: '' }, 'None'), ...reqs.filter(x => x.project_id && !seen.has(x.project_id) && seen.add(x.project_id)).map(x => el('option', { value: x.project_id }, x.title || x.phrase)));
+      sel.value = s.project || '';
+      $('live-mirror').checked = !!s.mirror; $('live-ai').checked = !!s.ai_visible; $('live-ai').disabled = !s.mirror;
+      $('live-msg').textContent = s.message || (s.mirror && !s.project ? 'Choose the project first.' : (s.signed_in ? '' : 'Sign this computer in to Ryagram first (the Sign in card) to use this.'));
+      if ($('live-link')) $('live-link').href = '/live?t=' + encodeURIComponent(T) + '&mode=compilation' + (s.project ? '&project=' + encodeURIComponent(s.project) : '');
+    } catch (e) { $('live-msg').textContent = e.message; }
+  }
+  async function saveLive() {
+    try {
+      await api('/api/live/sync', { project: $('live-project').value || null, mirror: $('live-mirror').checked, ai_visible: $('live-mirror').checked && $('live-ai').checked });
+    } catch (e) { $('live-msg').textContent = e.message; }
+    drawLive();
+  }
+  if ($('live-card')) { for (const id of ['live-project', 'live-mirror', 'live-ai']) $(id).addEventListener('change', saveLive); drawLive(); setInterval(drawLive, 30000); }
   async function refreshRequests() { try { drawRequests(await api('/api/ai-requests')); } catch (e) { /* the card keeps what it had */ } }
   setInterval(refreshRequests, 60000);
   async function refreshLinks() { try { drawLinks(await api('/api/links')); } catch (e) { /* the card keeps what it had */ } }

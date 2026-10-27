@@ -96,6 +96,9 @@ check(sync.tick(force=True) == {"asked": False, "applied": 0, "refused": 0, "pos
 site.signed_in = True
 sync.attach(None)
 check(sync.tick(force=True)["asked"] is False and site.calls == [], "not attached to a film of the person's account: nothing is sent")
+site, draft, sync = world("off0")
+sync.set_switches(False, True)
+check(sync.ai_visible is False and sync.mirror is False, "the AI tick cannot be on while the mirror is off")
 site, draft, sync = world("off2", mirror=False)
 check(sync.tick(force=True)["asked"] is False and site.calls == [], "the mirror switched off from the start: nothing is asked and nothing is sent")
 

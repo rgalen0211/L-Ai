@@ -308,7 +308,7 @@ def check(state: dict, op, look_keys=None):
         if not _is_int(op.get("index")) or op["index"] < 0 or op["index"] >= len(_videos(state)):
             return "There is no such place in the list."
     elif op["op"] == "set_clip_text":
-        if c["track"] != "text":
+        if c["track"] != "text" and not (c["track"] == "video" and c.get("slide") is True and not c.get("picture")):         # a text line, or a text SLIDE (a video-lane slide with words and no picture)
             return "Only a text clip has text."
         if not isinstance(op.get("text"), str):
             return "The text must be words."
@@ -442,7 +442,7 @@ class LiveDraft:
         """What the sync may post to the site: names and times only (the shape node_edit_post_summary accepts). Local-only fields never leave."""
         with self.lock:
             s = self._mode("compilation")["state"]
-            keep = ("id", "track", "start", "len", "label", "text", "picture", "file", "source", "source_start", "min_len", "max_len", "position", "size", "ai_altered", "ai_altered_by")
+            keep = ("id", "track", "start", "len", "label", "text", "picture", "file", "source", "source_start", "min_len", "max_len", "position", "size", "ai_altered", "ai_altered_by", "ai_altered_derived", "slide", "mode", "fade_s")
             out = {"schema": "ryagram.edit-tracks/0", "duration": s.get("duration", 0), "clips": [{k: c[k] for k in keep if k in c} for c in s["clips"]]}
             if "lanes" in s:
                 out["lanes"] = list(s["lanes"])
@@ -600,6 +600,7 @@ class LiveDraft:
 #   POST /api/live/rpc {name, args}      the five editor_* functions on this computer's draft -> {data, error}
 #   GET  /api/live/sync                  {signed_in, mirror, ai_visible, project, message}: what the small card shows
 #   POST /api/live/sync {mirror, ai_visible, project}   the person's two switches and the site project this film belongs to
+#   POST /api/live/render {}             builds the film from the edit list (the Edit page's own render: one at a time) -> {message, film} | {error}; answers when the film is made
 # The film itself is still the edit list (edit.json): every accepted change is turned into it by the engine's own tracks module (ryagram.local.edittracks) BEFORE it is kept, so a change the
 # engine could not build (a clip from a video the person did not choose, a trim past the end of a file) is refused in plain words and nothing moves.
 HERE = Path(__file__).resolve().parent
@@ -798,6 +799,16 @@ def post(path: str, body: dict, send_json) -> bool:
                 send_json(200, d.rpc(name, args))
         elif path == "/api/live/sync":
             send_json(200, set_sync(body))
+        elif path == "/api/live/render":
+            try:
+                draft()                                                       # the film as the draft has it is what is built: the edit list on disk is rewritten at every accepted change
+            except LiveError as e:
+                raise Problem(e.message) from None
+            me = _edit()
+            try:
+                send_json(200, me.render({"edit": me.load()["edit"]}))        # the same build the Edit page starts: one at a time, the engine's own checks, nothing is uploaded
+            except me.Problem as e:
+                send_json(400, {"error": str(e)})
         else:
             send_json(404, {"error": "Not found."})
     except Problem as e:

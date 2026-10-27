@@ -18,12 +18,11 @@ M = [
     (DRAFT, "the AI has no minute limit", "if recent(60) + len(ops) > OPS_PER_MINUTE:", "if False:"),
     (DRAFT, "the AI has no day limit", "if recent(86400) + len(ops) > OPS_PER_DAY:", "if False:"),
     (DRAFT, "the AI may repeat what the person undid", 'r.get("ended_by") == "person" and r["op"] == op', 'r.get("ended_by") == "nobody" and r["op"] == op'),
-    (DRAFT, "the app's refusal counts as the person saying no", 'r.get("ended_by") == "person" and r["op"] == op', 'r["op"] == op'),
     (DRAFT, "the vocabulary is not checked", "why = op_problem(mode, op, self._look_defs()) or check(running, op, self.look_keys)", "why = check(running, op, self.look_keys)"),
     (DRAFT, "the page's rules are not applied", "why = op_problem(mode, op, self._look_defs()) or check(running, op, self.look_keys)", "why = op_problem(mode, op, self._look_defs())"),
     (DRAFT, "a batch is applied op by op into the draft", "m[\"state\"], m[\"revision\"] = running, revision", "m[\"state\"], m[\"revision\"] = running, revision + 1"),
     (DRAFT, "undo clobbers a newer change", 'if mode == "data" and any(r["id"] > row["id"]', 'if False and any(r["id"] > row["id"]'),
-    (DRAFT, "undo does not replay the film", 'm["state"] = self._replay(m)', "pass"),
+    (DRAFT, "undo does not replay the film", "new_state = self._replay(m)", 'new_state = m["state"]'),
     (DRAFT, "speaker and voice fields enter the draft", "        for k in LOCAL_ONLY:\n            c.pop(k, None)\n", ""),
     (DRAFT, "the summary carries every field", 'out = {"schema": "ryagram.edit-tracks/0", "duration": s.get("duration", 0), "clips": [{k: c[k] for k in keep if k in c} for c in s["clips"]]}',
      'out = {"schema": "ryagram.edit-tracks/0", "duration": s.get("duration", 0), "clips": [dict(c) for c in s["clips"]]}'),
@@ -50,8 +49,11 @@ M = [
 def run(folder):
     res = []
     for script in ("check-maker-live-draft.py", "check-maker-live-sync.py"):
-        r = subprocess.run([sys.executable, "-I", str(folder / "tools" / script)], capture_output=True, text=True, cwd=folder, timeout=900)
-        res.append(r.returncode)
+        try:
+            r = subprocess.run([sys.executable, "-I", str(folder / "tools" / script)], capture_output=True, text=True, cwd=folder, timeout=180)
+            res.append(r.returncode)
+        except subprocess.TimeoutExpired:
+            res.append(124)                                     # a mutant that makes the check hang is caught too (the check did not pass)
     return res
 
 

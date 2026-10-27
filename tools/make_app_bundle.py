@@ -157,7 +157,7 @@ def leak_scan(root: Path) -> list:
     return found
 
 
-MAKER_EXTRA_ALLOWED = ("--song", "--song-forge", "--edit")      # the only page switches a build may bake into the start file
+MAKER_EXTRA_ALLOWED = ("--song", "--song-forge", "--edit", "--live")      # the only page switches a build may bake into the start file
 
 
 def check_maker_extra(extra: str) -> str:

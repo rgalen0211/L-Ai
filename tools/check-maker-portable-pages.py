@@ -98,6 +98,7 @@ try:
         base, tok = url
         main = get(base, f"/?t={tok}", tok)
         check(main[0] == 200 and 'id="edit-link"' in main[1] and 'id="song-link"' in main[1], "the main page offers both links")
+        check('id="live-link"' in main[1] and 'id="live-card"' in main[1] and 'id="live-project"' in main[1], "the main page offers the live editor link and the card with the film's project and the two switches")
         e = get(base, f"/edit?t={tok}", tok)
         check(e[0] == 200 and "<html" in e[1].lower(), f"the edit page opens (status {e[0]})")
         s = get(base, f"/song?t={tok}", tok)
@@ -116,6 +117,7 @@ print("2. without the flags the pages do not exist")
 p, url, out = start(root, [])
 try:
     base, tok = url if url else ("http://127.0.0.1:1", "x")
+    check(url is not None and 'id="live-card"' not in get(base, f"/?t={tok}", tok)[1] and 'id="live-link"' not in get(base, f"/?t={tok}", tok)[1], "without --live the main page has no live editor card or link")
     check(url is not None and get(base, f"/edit?t={tok}", tok)[0] == 404 and get(base, f"/song?t={tok}", tok)[0] == 404 and get(base, f"/live?t={tok}", tok)[0] == 404, "/edit, /song and /live answer 404 when not asked for")
 finally:
     stop(p)
