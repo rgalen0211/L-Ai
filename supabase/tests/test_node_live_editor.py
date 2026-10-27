@@ -179,6 +179,26 @@ class NodeEditor(r9.R9):
         self.post(sam, p1, applied=[{"op_id": op, "ok": True}])                                                  # control: the right project works
         self.assertEqual(self.status(p1), ["applied"])
 
+    def test_the_makers_read_only_fields_lanes_and_limits_are_accepted_and_their_wrong_shapes_refused(self):
+        sam = self.signed(SAM)
+        p = self.project(SAM)
+        rich = {"duration": 9, "lanes": ["video", "text"], "limits": {"text_chars": 120, "clips": 600, "slides": {"min": 0.5, "max": 10}},
+                "clips": [{"id": "v1", "track": "video", "start": 0, "len": 4, "source": "beach.mp4", "source_start": 12.5, "min_len": 0.3, "max_len": 30},
+                          {"id": "t1", "track": "text", "start": 1, "len": 2, "text": "Hi", "position": "lower_third", "size": "large", "min_len": 0.5, "max_len": 30}]}
+        self.assertEqual(self.post(sam, p, summary=rich)["revision"], 1)
+        self.assertEqual(self.draft(p)["state"], rich)
+        clip = rich["clips"][0]
+        bad = [dict(rich, lanes=["video", "audio"]), dict(rich, lanes="video"), dict(rich, lanes=["video"] * 5), dict(rich, limits={"Text Chars": 1}), dict(rich, limits={"a": "x"}),
+               dict(rich, limits={"a": {"b": "x"}}), dict(rich, limits={"k%d" % i: 1 for i in range(11)}), dict(rich, limits=[1]),
+               dict(rich, clips=[dict(clip, source="C:\\\\clips\\\\beach.mp4")]), dict(rich, clips=[dict(clip, source="a/b.mp4")]), dict(rich, clips=[dict(clip, source_start=-1)]),
+               dict(rich, clips=[dict(clip, max_len="long")]), dict(rich, clips=[dict(clip, min_len=90000)]),
+               dict(rich, clips=[dict(rich["clips"][1], position="middle")]), dict(rich, clips=[dict(rich["clips"][1], size="huge")])]
+        for s in bad:
+            with self.assertRaises(psycopg.Error, msg=json.dumps(s)[:90]) as cm:
+                self.post(sam, p, summary=s)
+            self.assertEqual(cm.exception.sqlstate, "22023", json.dumps(s)[:90])
+        self.assertEqual(self.draft(p)["state"], rich)
+
     def test_a_summary_with_a_place_an_unknown_field_or_a_wrong_shape_is_refused_whole(self):
         sam = self.signed(SAM)
         p = self.project(SAM)

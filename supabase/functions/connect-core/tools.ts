@@ -420,7 +420,7 @@ const OP_PROPS = {
   op: { type: "string", enum: ["move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "add_clip"] },
   id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,40}$", description: "A clip id from get_edit_state." },
   start: { type: "number", minimum: 0, maximum: 86400 }, edge: { type: "string", enum: ["start", "end"] }, to: { type: "number", minimum: 0, maximum: 86400 },
-  index: { type: "integer", minimum: 0, maximum: 199 }, text: { type: "string", minLength: 1, maxLength: 200 },
+  index: { type: "integer", minimum: 0, maximum: 199 }, text: { type: "string", minLength: 1, maxLength: 120 },
   track: { type: "string", enum: ["text", "pictures"] }, len: { type: "number", minimum: 0.3, maximum: 30 },
   picture: { type: "string", pattern: PICTURE_PATTERN, description: "The NAME of a picture the person has added in the app." },
 };

@@ -152,7 +152,7 @@ begin
     if jsonb_typeof(p_op -> 'index') is distinct from 'number' or (p_op ->> 'index') !~ '^[0-9]{1,3}$' then return '"index" must be a whole number from 0 to 199.'; end if;
     if (p_op ->> 'index')::int > 199 then return '"index" must be a whole number from 0 to 199.'; end if;
   elsif kind = 'set_clip_text' then
-    if jsonb_typeof(p_op -> 'text') is distinct from 'string' or not ryagram_private.edit_text_ok(p_op ->> 'text', 200) then return 'The text must be 1 to 200 characters of plain words (no places on a computer, no web addresses, no markup).'; end if;
+    if jsonb_typeof(p_op -> 'text') is distinct from 'string' or not ryagram_private.edit_text_ok(p_op ->> 'text', 120) then return 'The text must be 1 to 120 characters of plain words (no places on a computer, no web addresses, no markup).'; end if;
   elsif kind = 'add_clip' then
     if jsonb_typeof(p_op -> 'track') is distinct from 'string' or (p_op ->> 'track') not in ('text', 'pictures') then return 'The AI can add a "text" or a "pictures" clip.'; end if;
     if not (p_op ? 'start') or not (p_op ? 'len') then return 'A new clip needs "start" and "len".'; end if;
@@ -160,7 +160,7 @@ begin
     if (p_op ->> 'len')::numeric < 0.3 or (p_op ->> 'len')::numeric > 30 then return '"len" must be between 0.3 and 30 seconds.'; end if;
     if p_op ->> 'track' = 'text' then
       if p_op ? 'picture' or not (p_op ? 'text') then return 'A text clip needs "text" and no "picture".'; end if;
-      if jsonb_typeof(p_op -> 'text') <> 'string' or not ryagram_private.edit_text_ok(p_op ->> 'text', 200) then return 'The text must be 1 to 200 characters of plain words (no places on a computer, no web addresses, no markup).'; end if;
+      if jsonb_typeof(p_op -> 'text') <> 'string' or not ryagram_private.edit_text_ok(p_op ->> 'text', 120) then return 'The text must be 1 to 120 characters of plain words (no places on a computer, no web addresses, no markup).'; end if;
     else
       if p_op ? 'text' or not (p_op ? 'picture') then return 'A picture clip needs a "picture" name and no "text".'; end if;
       if jsonb_typeof(p_op -> 'picture') <> 'string' or (p_op ->> 'picture') !~* '^[^\\/:*?"<>|[:cntrl:]]{1,100}\.(png|jpg|jpeg|webp)$' then return 'A picture is the NAME of one the person added in the app (png, jpg or webp), never a place.'; end if;
@@ -447,17 +447,29 @@ begin
   if p_summary is null or jsonb_typeof(p_summary) <> 'object' or pg_column_size(p_summary) > 65536 then
     raise exception 'That track summary is not valid.' using errcode = '22023';
   end if;
-  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('clips', 'duration')) then
+  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('clips', 'duration', 'lanes', 'limits')) then
     raise exception 'That track summary has a part the editor does not know.' using errcode = '22023';
   end if;
   if p_summary ? 'duration' and (jsonb_typeof(p_summary -> 'duration') <> 'number' or (p_summary ->> 'duration')::numeric < 0 or (p_summary ->> 'duration')::numeric > 86400) then
     raise exception 'The summary duration must be between 0 and 86400 seconds.' using errcode = '22023';
   end if;
+  if p_summary ? 'lanes' and (jsonb_typeof(p_summary -> 'lanes') <> 'array' or jsonb_array_length(p_summary -> 'lanes') > 4
+       or exists (select 1 from jsonb_array_elements(p_summary -> 'lanes') l where jsonb_typeof(l) <> 'string' or (l #>> '{}') not in ('video', 'pictures', 'text', 'music'))) then
+    raise exception 'The summary lanes must be video, pictures, text or music.' using errcode = '22023';
+  end if;
+  if p_summary ? 'limits' and (jsonb_typeof(p_summary -> 'limits') <> 'object' or (select count(*) from jsonb_object_keys(p_summary -> 'limits')) > 10
+       or exists (select 1 from jsonb_each(p_summary -> 'limits') x
+                   where x.key !~ '^[a-z_]{1,30}$'
+                      or not (jsonb_typeof(x.value) = 'number'
+                              or (jsonb_typeof(x.value) = 'object' and (select count(*) from jsonb_object_keys(x.value)) <= 6
+                                  and not exists (select 1 from jsonb_each(x.value) y where y.key !~ '^[a-z_]{1,30}$' or jsonb_typeof(y.value) <> 'number'))))) then
+    raise exception 'The summary limits must be named numbers.' using errcode = '22023';
+  end if;
   if jsonb_typeof(coalesce(p_summary -> 'clips', '[]'::jsonb)) <> 'array' or jsonb_array_length(coalesce(p_summary -> 'clips', '[]'::jsonb)) > 300 then
     raise exception 'That track summary is too long.' using errcode = '22023';
   end if;
   for c in select * from jsonb_array_elements(coalesce(p_summary -> 'clips', '[]'::jsonb)) loop
-    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file')) then
+    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size')) then
       raise exception 'A clip in the summary has a field the editor does not know.' using errcode = '22023';
     end if;
     if jsonb_typeof(c -> 'id') is distinct from 'string' or (c ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then raise exception 'A clip in the summary needs an id.' using errcode = '22023'; end if;
@@ -466,6 +478,10 @@ begin
     if c ? 'label' and (jsonb_typeof(c -> 'label') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'label', 120)) then raise exception 'A clip label must be plain words, no places on a computer.' using errcode = '22023'; end if;
     if c ? 'text' and (jsonb_typeof(c -> 'text') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'text', 200)) then raise exception 'Clip text must be plain words, no places on a computer.' using errcode = '22023'; end if;
     if c ? 'picture' and (jsonb_typeof(c -> 'picture') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'picture', 100) or (c ->> 'picture') ~ '[\\/:]') then raise exception 'A picture is a NAME, never a place on the computer.' using errcode = '22023'; end if;
+    if c ? 'source' and (jsonb_typeof(c -> 'source') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'source', 120) or (c ->> 'source') ~ '[\\/:]') then raise exception 'A clip source must be a NAME, never a place on the computer.' using errcode = '22023'; end if;
+    if exists (select 1 from unnest(array['source_start', 'min_len', 'max_len']) f where c ? f and (jsonb_typeof(c -> f) <> 'number' or (c ->> f)::numeric not between 0 and 86400)) then raise exception 'A clip time must be a number from 0 to 86400 seconds.' using errcode = '22023'; end if;
+    if c ? 'position' and (jsonb_typeof(c -> 'position') <> 'string' or (c ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')) then raise exception 'A clip position must be top, centre, bottom or lower_third.' using errcode = '22023'; end if;
+    if c ? 'size' and (jsonb_typeof(c -> 'size') <> 'string' or (c ->> 'size') not in ('small', 'medium', 'large')) then raise exception 'A clip size must be small, medium or large.' using errcode = '22023'; end if;
     if c ? 'file' and (jsonb_typeof(c -> 'file') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'file', 120) or (c ->> 'file') ~ '[\\/:]') then raise exception 'A clip file must be a NAME, never a place on the computer.' using errcode = '22023'; end if;
   end loop;
   newrev := d.revision + 1;

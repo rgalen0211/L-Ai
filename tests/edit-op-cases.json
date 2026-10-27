@@ -84,7 +84,7 @@
     { "mode": "compilation", "ok": false, "word": "plain words", "op": { "op": "set_clip_text", "id": "t1", "text": "<b>bold</b>" } },
     { "mode": "compilation", "ok": false, "word": "plain words", "op": { "op": "set_clip_text", "id": "t1", "text": "" } },
     { "mode": "compilation", "ok": false, "word": "plain words", "op": { "op": "set_clip_text", "id": "t1", "text": 5 } },
-    { "mode": "compilation", "ok": false, "word": "1 to 200", "op": { "op": "set_clip_text", "id": "t1", "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" } },
+    { "mode": "compilation", "ok": false, "word": "1 to 120", "op": { "op": "set_clip_text", "id": "t1", "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" } },
     { "mode": "compilation", "ok": false, "word": "text\" or a \"pictures", "op": { "op": "add_clip", "track": "video", "start": 1, "len": 2 } },
     { "mode": "compilation", "ok": false, "word": "text\" or a \"pictures", "op": { "op": "add_clip", "track": "music", "start": 1, "len": 2 } },
     { "mode": "compilation", "ok": false, "word": "needs \"start\" and \"len\"", "op": { "op": "add_clip", "track": "text", "text": "x" } },
@@ -99,6 +99,10 @@
     { "mode": "compilation", "ok": false, "word": "NAME", "op": { "op": "add_clip", "track": "pictures", "start": 1, "len": 2, "picture": "a.exe" } },
     { "mode": "compilation", "ok": false, "word": "NAME", "op": { "op": "add_clip", "track": "pictures", "start": 1, "len": 2, "picture": "a.png.exe" } },
     { "mode": "compilation", "ok": false, "word": "NAME", "op": { "op": "add_clip", "track": "pictures", "start": 1, "len": 2, "picture": "a:b.png" } },
-    { "mode": "compilation", "ok": false, "word": "picture", "op": { "op": "add_clip", "track": "pictures", "start": 1, "len": 2 } }
+    { "mode": "compilation", "ok": false, "word": "picture", "op": { "op": "add_clip", "track": "pictures", "start": 1, "len": 2 } },
+    { "mode": "compilation", "ok": true, "op": {"op": "set_clip_text", "id": "t1", "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"} },
+    { "mode": "compilation", "ok": false, "word": "1 to 120", "op": {"op": "set_clip_text", "id": "t1", "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"} },
+    { "mode": "compilation", "ok": true, "op": {"op": "add_clip", "track": "text", "start": 1, "len": 2, "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"} },
+    { "mode": "compilation", "ok": false, "word": "1 to 120", "op": {"op": "add_clip", "track": "text", "start": 1, "len": 2, "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy"} }
   ]
 }

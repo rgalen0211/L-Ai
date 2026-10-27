@@ -78,7 +78,7 @@ export function opProblem(mode: Mode, op: unknown): string | null {
   } else if (kind === "reorder_clip") {
     if (!(isNum(o.index) && Number.isInteger(o.index) && o.index >= 0 && o.index <= 199)) return '"index" must be a whole number from 0 to 199.';
   } else if (kind === "set_clip_text") {
-    if (!textOk(o.text, 200)) return "The text must be 1 to 200 characters of plain words (no places on a computer, no web addresses, no markup).";
+    if (!textOk(o.text, 120)) return "The text must be 1 to 120 characters of plain words (no places on a computer, no web addresses, no markup).";
   } else if (kind === "add_clip") {
     if (!(o.track === "text" || o.track === "pictures")) return 'The AI can add a "text" or a "pictures" clip.';
     if (!("start" in o) || !("len" in o)) return 'A new clip needs "start" and "len".';
@@ -86,7 +86,7 @@ export function opProblem(mode: Mode, op: unknown): string | null {
     if ((o.len as number) < 0.3 || (o.len as number) > 30) return '"len" must be between 0.3 and 30 seconds.';
     if (o.track === "text") {
       if ("picture" in o || !("text" in o)) return 'A text clip needs "text" and no "picture".';
-      if (!textOk(o.text, 200)) return "The text must be 1 to 200 characters of plain words (no places on a computer, no web addresses, no markup).";
+      if (!textOk(o.text, 120)) return "The text must be 1 to 120 characters of plain words (no places on a computer, no web addresses, no markup).";
     } else {
       if ("text" in o || !("picture" in o)) return 'A picture clip needs a "picture" name and no "text".';
       if (!(typeof o.picture === "string" && PICTURE.test(o.picture))) return "A picture is the NAME of one the person added in the app (png, jpg or webp), never a place.";
