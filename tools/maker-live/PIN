@@ -1,6 +1,6 @@
-These three files are WEB's standalone live-editor page for the maker (L-Ai branch live-editor @ 34376ac (live.js from 3581f4c's bundle: text slides, then the host.render hook; live.html from 34376ac: its own title; live.css unchanged), NEXT-WEB 152, contract: docs/maker-live-host-contract.md). They are GENERATED there
+These three files are WEB's standalone live-editor page for the maker (L-Ai branch live-editor @ 84c912c (live.js from 84c912c's bundle: text slides, the render hook, then the film's own preview (frame and text rules); live.html from 34376ac: its own title; live.css from 84c912c: the preview canvas), NEXT-WEB 152, contract: docs/maker-live-host-contract.md). They are GENERATED there
 (node tools/build-maker-live.mjs) from the website's own editor files, so the PC's page cannot drift from the site's. Replace them by copying WEB's three files and changing the hashes in this
 file in the same commit; tools/check-maker-live-page.py fails when a hash here is not the file's.
 live.html 637 bytes sha256 6277e70c0c6c453e48562578d94b9cc832489d8aca9da339a91bd1cfff8442e8
-live.css 6561 bytes sha256 fca7b1e1604dd452ab0083277a6e2a28d8befc7dc75b39a12a448be1911321ab
-live.js 70289 bytes sha256 37154c6381f466a6db6e5680e08cb55e1ad8d65e6682c93987e7200793b362b4
+live.css 6646 bytes sha256 3fb6b29d317ce407280abd470973a9f2754fa8f45a849848ad7e9d21788fcf51
+live.js 81056 bytes sha256 f3f4f5e8017916c050a35593a8c0fb41365a13778b339615f491d1c387f0673f

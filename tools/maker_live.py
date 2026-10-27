@@ -604,6 +604,7 @@ class LiveDraft:
 #   POST /api/live/rpc {name, args}      the five editor_* functions on this computer's draft -> {data, error}
 #   GET  /api/live/sync                  {signed_in, mirror, ai_visible, project, message}: what the small card shows
 #   POST /api/live/sync {mirror, ai_visible, project}   the person's two switches and the site project this film belongs to
+#   GET  /api/live/text-rules            {rules}: state.text_rules again (null when the engine gives none)
 #   GET  /api/live/frame?clip=<id>&t=<s> one small JPEG of what a clip shows at that moment (the page's preview); names only
 #   POST /api/live/render {}             builds the film from the edit list (the Edit page's own render: one at a time) -> {message, film} | {error}; answers when the film is made
 # The film itself is still the edit list (edit.json): every accepted change is turned into it by the engine's own tracks module (ryagram.local.edittracks) BEFORE it is kept, so a change the
@@ -771,6 +772,11 @@ def get(path: str, query: str, send, send_json, auth, host_ok, send_file=None) -
         return True
     if path == "/api/live/sync":
         send_json(200, sync_status())
+    elif path == "/api/live/text-rules":                                 # the same dict as state.text_rules (the page uses the state; this is its harmless fallback)
+        try:
+            send_json(200, {"rules": draft().state("compilation").get("text_rules")})
+        except LiveError:
+            send_json(200, {"rules": None})
     elif path == "/api/live/frame":
         try:
             send(200, frame(query), "image/jpeg", LIVE_CSP)

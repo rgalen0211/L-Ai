@@ -3,8 +3,8 @@
     py -I tools/check-maker-live-page.py
 
 Checks (all offline, nothing is run): each file's size and SHA-256 equal the PIN; the page keeps its strict policy in a <meta> (nothing remote, no inline script or style); the script makes no call
-but two fetches, to /api/live/rpc and /api/live/render, and reaches no other address; the stylesheet loads nothing; LF line endings, so the hashes mean the same on every PC. MUST-FAILs: a changed byte, a remote
-script address, an inline script, and a third fetch address are each caught."""
+but four fetches, to /api/live/rpc and /api/live/render, and reaches no other address; the stylesheet loads nothing; LF line endings, so the hashes mean the same on every PC. MUST-FAILs: a changed byte, a remote
+script address, an inline script, and a fifth fetch address are each caught."""
 import hashlib
 import re
 import sys
@@ -42,8 +42,8 @@ def problems(files, pin):
         out.append("the page has inline script, style or handlers")
     if re.search(r"""(src|href)\s*=\s*["']?(https?:)?//""", html):
         out.append("the page loads something from another address")
-    if len(re.findall(r"\bfetch\(", js)) != 2 or "/api/live/rpc" not in js or "/api/live/render" not in js:
-        out.append("the script does not make exactly two fetches, to /api/live/rpc and /api/live/render")
+    if len(re.findall(r"\bfetch\(", js)) != 4 or any(x not in js for x in ("/api/live/rpc", "/api/live/render", "/api/live/frame", "/api/live/text-rules")):
+        out.append("the script does not make exactly four fetches, to /api/live/rpc, /render, /frame and /text-rules")
     if re.search(r"""(https?:)?//[a-z0-9.-]+\.[a-z]{2,}/""", re.sub(r"https?://www\.w3\.org/[^\"']*", "", js), re.I) or "XMLHttpRequest" in js or "WebSocket" in js or "sendBeacon" in js or "importScripts" in js:
         out.append("the script reaches an address of its own")
     if "@import" in css or "url(" in css:
@@ -57,7 +57,7 @@ files = {n: (DIR / n).read_bytes() for n in ("live.html", "live.js", "live.css")
 pin = pins((DIR / "PIN").read_text(encoding="utf-8"))
 check(sorted(pin) == ["live.css", "live.html", "live.js"], "the PIN names the three page files")
 p = problems(files, pin)
-check(not p, "the three files are exactly the pinned ones, with the policy, two fetches and nothing remote" + ("" if not p else f": {p}"))
+check(not p, "the three files are exactly the pinned ones, with the policy, four fetches and nothing remote" + ("" if not p else f": {p}"))
 
 bad = dict(files)
 bad["live.js"] = files["live.js"] + b" "
@@ -70,7 +70,7 @@ bad["live.html"] = files["live.html"].replace(b"</head>", b"<script>alert(1)</sc
 check(any("inline" in x for x in problems(bad, {})), "MUST-FAIL: an inline script is caught")
 bad = dict(files)
 bad["live.js"] = files["live.js"] + b'\nfetch("https://example.test/a");'
-check(any("exactly two fetches" in x or "address of its own" in x for x in problems(bad, {})), "MUST-FAIL: a second fetch address is caught")
+check(any("exactly four fetches" in x or "address of its own" in x for x in problems(bad, {})), "MUST-FAIL: a second fetch address is caught")
 
 print("RESULT: " + ("PASS" if not FAILED else f"FAIL ({len(FAILED)})"))
 sys.exit(1 if FAILED else 0)
