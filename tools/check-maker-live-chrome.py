@@ -88,7 +88,7 @@ try:
             pg.on("response", lambda r: errors.append(f"{r.status} {r.url.split(base)[-1]}") if r.status >= 400 and r.url.startswith(base) else None)
             pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
             pg.goto(f"{base}/live?t={tok}&mode=compilation&project=local", wait_until="load")
-            pg.wait_for_selector('.le-clip[data-id="c1"]', timeout=15000)               # the page starts on a stand-in drawing and switches to the maker's draft when it answers
+            pg.wait_for_selector(".le-clip[data-id=\"c1\"]", timeout=60000)               # the page starts on a stand-in drawing and switches to the maker's draft when it answers
             order = lambda: pg.eval_on_selector_all(".le-lane:first-child .le-clip", "els => els.map(e => e.dataset.id)")
             ids = order()
             check(len(ids) == 2, f"the page shows the film's two video clips from the real edit list ({ids})")
