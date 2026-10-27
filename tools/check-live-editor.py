@@ -190,6 +190,7 @@ def main():
                     p.wait_for_timeout(350)
                     got = p.input_value('#le-start')
                     check(got == '7.3', 'ArrowRight moves a picture by 0.1 s and Alt+ArrowRight by 1 s' + ('' if got == '7.3' else f' (start is {got})'))
+                    p.locator('.le-clip[data-id="p1"]').evaluate('e => e.scrollIntoView({ block: "center" })')              # the mock’s fixed bar must not sit on top of it
                     box = p.locator('.le-clip[data-id="p1"]').bounding_box()
                     p.mouse.move(box['x'] + box['width'] / 2, box['y'] + box['height'] / 2)
                     p.mouse.down()
@@ -197,7 +198,7 @@ def main():
                     p.mouse.up()
                     p.wait_for_timeout(350)
                     p.click('.le-clip[data-id="p1"]')
-                    check(float(p.input_value('#le-start')) > 1.5, 'dragging a picture clip to the right moves it later (one edit)')
+                    check(float(p.input_value('#le-start')) > 1.5, 'dragging a picture clip to the right moves it later (one edit)' + f" (start {p.input_value('#le-start')}, box {box}, note {p.inner_text('.le .form-note')!r})")
                     p.click('.le-clip[data-id="t1"]')
                     p.fill('#le-text', 'Housing <script>x</script>')
                     p.dispatch_event('#le-text', 'change')
