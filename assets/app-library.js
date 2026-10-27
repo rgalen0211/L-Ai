@@ -65,6 +65,8 @@
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
   // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
   const liveEditorOn = () => window.ryagramConfig?.liveEditor === true;
+  // Departments in the top bar and their pages (#/d/<id>): behind `departments`, which needs the door (app-departments.js). Off by default.
+  const departmentsOn = () => window.ryagramDepartments?.flagOn() === true;
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
   // so signing in as another account cannot inherit the last answer.
   const connectAllowed = async data => connectOn() && (await data.connectAccess()) === true;
@@ -95,6 +97,7 @@
         else if (hash === '#/account') view = await accountView();
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
         else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)$/))) view = editorUi().editorView(m[1], onStop);
+        else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
         else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
@@ -200,6 +203,8 @@
     let startCache = null;
     let editorCache = null;
     const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h }));
+    let deptCache = null;
+    const deptUi = () => deptCache || (deptCache = window.ryagramDepartments.create({ h, data, startUi }));
     const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));
     const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
     let deviceCache = null;
@@ -1793,7 +1798,8 @@
 
     window.addEventListener('hashchange', route);
     route();
-    return () => { token++; stopView(); window.removeEventListener('hashchange', route); root.replaceChildren(); };
+    if (departmentsOn()) deptUi().mountBar(document.getElementById('dept-slot'));              // the top bar's departments; on any failure the header stays as it was
+    return () => { token++; stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };
