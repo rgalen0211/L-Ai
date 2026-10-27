@@ -365,6 +365,8 @@ class Ops(core.Base):
                            # creator flow: a signed-in person asks for a film (the database needs their id); the rest are Ryan's, each refusing everyone else inside
                            "request_film(text,text)", "film_request_cost()", "admin_creator_invite(bigint,integer)", "admin_invite_person(text,integer)", "funnel_attach_source(text,text,text,text)", "funnel_return_visit()", "admin_funnel(integer)", "funnel_anon(text,text,text,text,text)", "admin_film_requests()",
                            "admin_film_request_set(bigint,text,text,text)", "admin_creator_flow_set(integer,integer)",
+                           # uploads, Recently deleted (20261027000200): a person restores or removes their OWN upload; each checks auth.uid() ownership inside
+                           "restore_dataset(uuid)", "delete_dataset_forever(uuid)", "my_recently_deleted_uploads()",
                            # engine profiles: the only write path to a person's own look; checks the key tree inside
                            "set_engine_profile(jsonb,boolean)",
                            # render orders (PIPE-1, JOB-CONTRACT-v1 section 3): a person's own orders (app session only, checked inside);
