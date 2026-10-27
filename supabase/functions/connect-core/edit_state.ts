@@ -5,7 +5,7 @@
 export type Mode = "data" | "compilation";
 export type Op = Record<string, unknown>;
 
-/** The five look keys the worker's schema accepts TODAY (WORKER W1; WEB's editor offers the same), a copy of the rows the migration inserts into edit_look_keys; ENGINE 35's keys are added to both by a reviewed change (a test fails if the lists disagree). */
+/** The nine look keys the worker's schema accepts TODAY (WORKER W1 and 10:10; WEB's editor writes the same), a copy of the rows the migration inserts into edit_look_keys; ENGINE 35's keys are added to both by a reviewed change (a test fails if the lists disagree). */
 export interface LookKey { key: string; kind: "colour" | "enum" | "number" | "bool"; choices?: string[]; min?: number; max?: number }
 export const LOOK_KEYS: LookKey[] = [
   { key: "network.color", kind: "colour" },
@@ -13,6 +13,10 @@ export const LOOK_KEYS: LookKey[] = [
   { key: "network.context_color", kind: "colour" },
   { key: "state.fill", kind: "colour" },
   { key: "page.background", kind: "colour" },
+  { key: "choropleth.low", kind: "colour" },
+  { key: "choropleth.high", kind: "colour" },
+  { key: "state.outline_width", kind: "number", min: 0, max: 4 },
+  { key: "sequence.theme", kind: "enum", choices: ["light", "dark"] },
 ];
 
 export const LIMITS_EDIT = Object.freeze({ opsPerCall: 20, opsPerMinute: 60, opsPerDay: 600, undoneWindowMs: 10 * 60 * 1000, maxDraftBytes: 256 * 1024 });
