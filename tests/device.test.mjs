@@ -103,7 +103,12 @@ test('PAGE SOURCE: says to approve only a code on YOUR screen, shows the code, t
 
 test('NO TOKEN, NO HTML: the page never reads, stores or shows a token or secret, and writes nothing but text nodes', () => {
   const code = read('assets/app-device.js').replace(/\/\/.*$/gm, '');
-  assert.doesNotMatch(code, /innerHTML|insertAdjacentHTML|\bstyle:|setAttribute\('style'|localStorage|sessionStorage|document\.cookie|access_token|refresh_token|client_secret|device_secret|Authorization|fetch\(|location\.(assign|href)|navigate\(/);
+  assert.doesNotMatch(code, /innerHTML|insertAdjacentHTML|\bstyle:|setAttribute\('style'|localStorage|sessionStorage|document\.cookie|access_token|refresh_token|client_secret|device_secret|Authorization|fetch\(|location\.href/);
+  // The ONE navigation this file may make: the Windows card's invite-only download button sends the browser to the link the app-download function returned, after the link was checked
+  // (tests/windows-download.test.mjs). Nothing else navigates, and the sign-in page never does.
+  assert.equal((code.match(/location\.assign\(/g) || []).length, 1, 'one place assigns the address (the default of the injectable navigate)');
+  assert.equal((code.match(/\bnavigate\(/g) || []).length, 1, 'one call, with the checked link');
+  assert.match(code, /const got = parseDownloadAnswer\(await data\.requestAppDownload\(\)\);[\s\S]*navigate\(got\.url\);/);
 });
 
 test('WIRING AND FLAG: the route and the account section exist only behind desktopApp (off), the script loads before the library, and Remove confirms and then re-lists', () => {

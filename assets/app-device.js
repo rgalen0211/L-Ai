@@ -67,6 +67,30 @@
     ? `It needs about ${rel.unpackedMb} MB unpacked, plus the listening model (Balanced is about ${MODEL_MB} MB): about ${freeGb(rel.unpackedMb)} GB free in all.`
     : `It needs room for the unzipped app and the listening model (Balanced is about ${MODEL_MB} MB).`);
 
+  // THE INVITE-ONLY DOWNLOAD (CONNECT's app-download function, Cloudflare R2, Ryan 2026-10-26 20:26). A record whose url is the function's own address makes the card's link a BUTTON: pressing it asks the
+  // function (with the person's session) for a short-lived link, and the browser is sent there. Nothing is asked until the button is pressed. The page follows ONLY an https link on R2's own address.
+  const APP_DOWNLOAD_FN = /^https:\/\/[a-z0-9-]+\.supabase\.co\/functions\/v1\/app-download$/;
+  const viaDownloadFunction = rel => windowsReady(rel) && APP_DOWNLOAD_FN.test(rel.url);
+  const R2_HOST = /^[a-z0-9]+\.r2\.cloudflarestorage\.com$/;
+  // The function's answer is data, not instructions: {url, expires_in?}. Anything that is not an https link on R2's own address, with no credentials in it, is refused.
+  function parseDownloadAnswer(a) {
+    const bad = () => { throw new Error('Couldn’t get the download link.'); };
+    if (!a || typeof a !== 'object' || typeof a.url !== 'string' || a.url.length > 2048 || /[\s<>"']/.test(a.url)) bad();
+    let u;
+    try { u = new URL(a.url); } catch { bad(); }
+    if (u.protocol !== 'https:' || u.username || u.password || !R2_HOST.test(u.hostname) || u.port) bad();
+    const s = Number(a.expires_in);
+    return { url: u.href, minutes: Number.isFinite(s) && s >= 60 && s <= 3600 ? Math.round(s / 60) : null };
+  }
+  // One plain sentence for each refusal the function can give (CONNECT 20:35). The function's own plain sentence is shown first (as text, trimmed); this table is the fallback when it sent none.
+  const downloadErrorWords = status => ({
+    401: 'Sign in again, then press the button.',
+    403: 'This download is for invited tester accounts.',
+    404: 'The download is not ready yet.',
+    429: 'You have asked for this download several times today. Try again tomorrow, or write to us if you need it sooner.',
+    503: 'The download is not switched on yet. Try again later.'
+  }[Number(status)] || 'Couldn’t get the download link just now. Try again in a minute.');
+
   // The admin form's own pre-check (the server checks again; WORKER's draft needs 3 to 300 characters of reason). A courtesy, never the gate.
   const REASON_MIN = 3, REASON_MAX = 300;
   function checkTesterForm(email, reason) {
@@ -80,6 +104,7 @@
   // ---------------------------------------------------------------- the screens
   function create(ctx) {
     const { h, data, busy, showError, errorLine, date, whoami } = ctx;
+    const navigate = ctx.navigate || (url => { window.location.assign(url); });             // the browser is sent to the download link (injected in tests)
 
     // ---- the approval page
     async function deviceView(prefill, bad) {
@@ -196,21 +221,36 @@
     }
 
     // ---- "Ryagram for Windows": the download card, for tester accounts only (NEXT-WEB 118; Ryan 17:12 and 17:18: download, double-click, done).
-    // Everything the card says about the file comes from window.ryagramWindowsApp (assets/windows-release.js): until Ryan hosts the file the button is OFF and says so. The page makes no network call:
-    // the button is a plain link the person follows. The personal-use notice has a slot (hidden until the lawyer's wording is put in; no session writes it).
+    // Everything the card says about the file comes from window.ryagramWindowsApp (assets/windows-release.js): until Ryan hosts the file the button is OFF and says so. The card makes no network call
+    // when it is drawn. A record pointing straight at a file gives a plain link; a record pointing at the app-download function gives a BUTTON that asks it for a short-lived link when pressed (invite-only, R2).
+    // The personal-use notice has a slot (hidden until the lawyer's wording is put in; no session writes it).
     async function windowsAppSection() {
       const tester = data.myLocalCompute ? await data.myLocalCompute() : false;
       if (!tester) return null;                                                               // only an account with the tester flag sees the card
       const rel = (typeof window !== 'undefined' && window.ryagramWindowsApp) || {};
       const ready = windowsReady(rel);
       const name = ready ? rel.fileName : 'the file';
+      // The invite-only download: a button that asks the function for a short-lived link when pressed (and makes no request before). The plain-link mode below stays for a record that points straight at a file.
+      const downloadStatus = h('p', { class: 'form-note windows-download-status', role: 'status', 'aria-live': 'polite' });
+      const downloadButton = viaDownloadFunction(rel) ? h('button', { class: 'button primary', type: 'button', id: 'windows-download', onclick: async event => {
+        downloadStatus.replaceChildren();
+        await busy(event.currentTarget, 'Getting your link…', async () => {
+          try {
+            const got = parseDownloadAnswer(await data.requestAppDownload());
+            downloadStatus.replaceChildren('Your download is starting. If it does not, use this link', got.minutes ? ` (it works for ${got.minutes} minutes)` : '', ': ',
+              h('a', { href: got.url, rel: 'noopener', id: 'windows-download-link' }, 'Download Ryagram for Windows'), '.');
+            navigate(got.url);
+          } catch (err) { downloadStatus.replaceChildren(h('span', { class: 'app-error', role: 'alert' }, (err && err.serverWords) || downloadErrorWords(err && err.status))); }
+        });
+      } }, 'Download Ryagram for Windows') : null;
       return h('section', { class: 'account-section windows-card', 'aria-labelledby': 'acct-windows' }, h('h2', { id: 'acct-windows' }, 'Ryagram for Windows'),
         h('p', { class: 'form-note' }, 'The Ryagram app for your Windows computer. Your films are made on it.'),
         h('dl', { class: 'windows-facts' },
           h('dt', {}, 'File'), h('dd', {}, ready ? h('code', {}, rel.fileName) : 'shown here when the file is ready'),
           h('dt', {}, 'Size'), h('dd', {}, ready && rel.sizeMb ? `about ${rel.sizeMb} MB. The listening model is downloaded separately, the first time you run it.` : 'shown here when the file is ready'),
           h('dt', {}, 'SHA-256'), h('dd', {}, ready ? h('code', { class: 'windows-sha' }, rel.sha256) : 'shown here when the file is ready')),
-        ready
+        downloadButton ? h('div', {}, downloadButton, downloadStatus)
+          : ready
           ? h('a', { class: 'button primary', href: rel.url, rel: 'noopener', download: rel.fileName }, 'Download Ryagram for Windows')
           : h('div', {}, h('button', { class: 'button primary', type: 'button', disabled: true }, 'Not ready yet'), h('p', { class: 'form-note' }, 'The download appears here when it is ready.')),
         h('ol', { class: 'windows-steps' },
@@ -271,5 +311,5 @@
     return { deviceView, computersSection, windowsAppSection, testerAdminView };
   }
 
-  window.ryagramDevice = { windowsReady, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { windowsReady, viaDownloadFunction, parseDownloadAnswer, downloadErrorWords, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();
