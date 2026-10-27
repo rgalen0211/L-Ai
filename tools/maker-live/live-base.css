@@ -12,3 +12,4 @@ a{color:#8fe0cf}p{margin:0 0 12px}
 .button:disabled{opacity:.5;cursor:default}
 .button:focus-visible,.le-range:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #fff;outline-offset:2px}
 input[type=text],input[type=number],textarea{background:#101015;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}
+[hidden]{display:none!important}

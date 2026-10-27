@@ -28,7 +28,8 @@
 
     function editorView(kind, onStop) {
       const isData = kind === 'data';
-      const ed = new E.Editor(isData ? DATA_BASE() : CLIPS_BASE());
+      const onPc = !!window.ryagramLiveHost;                                   // on the person's own computer: no demo film, no stand-in; only what the maker's draft holds
+      const ed = new E.Editor(onPc ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
       const host = window.ryagramLiveHost || null;
@@ -36,8 +37,8 @@
       const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
       const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
-      let position = isData ? LAST : 4.4;                                       // a year, or a time in seconds
-      let selected = isData ? null : 'v3';
+      let position = isData ? LAST : onPc ? 0 : 4.4;                            // a year, or a time in seconds
+      let selected = isData ? null : onPc ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
       let saved = true, message = '';
       const status = h('p', { class: 'form-note', role: 'status' });
@@ -356,7 +357,7 @@
               'aria-label': `${TRACK_NAMES[track]} clip ${c.label}${E.isMarked(ed.base, c) ? ', altered by an AI tool' : ''}, starts ${mmss(c.start)}, ${c.len} seconds. Arrow keys move it, Shift and arrows trim it, Delete removes it.` }, c.label + (touched.has('clip:' + c.id) ? ' · AI' : '') + (E.isMarked(ed.base, c) ? ' · AI-altered' : ''),
               h('span', { class: 'le-edge', 'data-edge': 'end', 'aria-hidden': 'true' }));
             el.style.left = pct(c.start); el.style.width = pct(c.len);
-            el.addEventListener('click', () => { selected = c.id; paint(); });
+            el.addEventListener('click', () => { selected = c.id; refocus = c.id; paint(); });
             el.addEventListener('keydown', keyOn(c));
             el.addEventListener('focus', () => { if (selected === c.id) return; selected = c.id; for (const o of lanes.querySelectorAll('.le-clip')) o.classList.toggle('le-sel', o.dataset.id === c.id); paintClipPanel(); });
             dragOn(el, c, bar);
@@ -414,7 +415,11 @@
       }
 
       function paint() {
-        pill.textContent = saved ? 'Saved' : 'Draft, not saved';
+        pill.textContent = onPc ? 'Kept on this computer' : saved ? 'Saved' : 'Draft, not saved';
+        if (onPc) { saveBtn.hidden = true; revertBtn.hidden = true; }                // the maker keeps every change as it happens: there is nothing to save or revert to
+        const empty = onPc && !isData && !ed.state.clips.length;
+        emptyNote.hidden = !empty;
+        if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
         undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); }
@@ -423,10 +428,11 @@
       }
 
       const title = h('h1', { tabindex: '-1' }, host ? String(host.title || 'Edit your film').slice(0, 80) : isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
+      const emptyNote = h('p', { class: 'le-warn', role: 'status', hidden: true }, 'There is no film to edit yet. In the Ryagram app, choose your clips and press Plan, then open this page again.');
       const root = h('div', { class: 'le' },
         host ? null : h('p', {}, h('a', { href: '#/' }, '← All projects')),
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
-        status, aiBox, banner, renderBox,
+        status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
           isData ? lookPanel : clipPanel),
