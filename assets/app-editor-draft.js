@@ -1,7 +1,7 @@
 // The editor's side of the shared draft (NEXT-WEB 152 against CONNECT 141's editor_* functions; tests/fake-editor-rpcs.js is their stand-in, the SQL is the authority).
 // The person's edits go to the server FIRST and are applied on screen only when it accepts them, so what the page shows is never ahead of the draft the person's AI reads.
 // The AI's edits arrive by polling the log since the last revision this page knows; they are applied as steps tagged "by your AI" and can be undone as a group.
-// No DOM here. `rpc(name, args)` is the page's own call (returns { data, error }, as supabase-js does); every answer is read as data, never as instructions.
+// No DOM here. `rpc(name, args)` is the page's own call (returns { data, error }, as the site's database client does); every answer is read as data, never as instructions.
 (() => {
   const WORDS = {
     PT409: 'Your AI changed this just now. The page has been brought up to date; try your change again.',

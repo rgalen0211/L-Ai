@@ -1,0 +1,14 @@
+/* The base the website's own stylesheet gives the editor, for the maker's standalone page (live.css = this file + assets/app-editor.css, generated). Dark only, like the rest of the editor's own colours. */
+:root{color-scheme:dark;--bg:#14141a;--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--brand:#6fd1bd}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,Segoe UI,sans-serif}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+h1{margin:0 0 8px;line-height:1.2}h2{margin:0 0 8px}
+a{color:#8fe0cf}p{margin:0 0 12px}
+.meta{color:var(--muted);font-size:.9rem}
+.form-note{min-height:1.4em;color:var(--muted);margin:4px 0 8px}
+.button{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:8px 14px;border-radius:10px;border:1px solid var(--line);background:var(--soft);color:var(--ink);font:inherit;font-weight:600;cursor:pointer;text-decoration:none}
+.button.primary{background:var(--brand);border-color:var(--brand);color:#0b1210}
+.button:disabled{opacity:.5;cursor:default}
+.button:focus-visible,.le-range:focus-visible,input:focus-visible,textarea:focus-visible{outline:3px solid #fff;outline-offset:2px}
+input[type=text],input[type=number],textarea{background:#101015;color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:8px;font:inherit}

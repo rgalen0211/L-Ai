@@ -30,9 +30,12 @@
       const isData = kind === 'data';
       const ed = new E.Editor(isData ? DATA_BASE() : CLIPS_BASE());
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
-      const project = window.RYAGRAM_MOCK_EDITOR_PROJECT;
+      // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
+      const host = window.ryagramLiveHost || null;
+      const project = host ? host.project : window.RYAGRAM_MOCK_EDITOR_PROJECT;
+      const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
-      const draft = data && data.editorRpc && window.ryagramMock && project && D ? D.createDraft({ rpc: (n, a) => data.editorRpc(n, a), project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
+      const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
       let position = isData ? LAST : 4.4;                                       // a year, or a time in seconds
       let selected = isData ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
@@ -178,7 +181,7 @@
         h('p', { class: 'meta' }, 'It opens a new chat in your own Claude or ChatGPT with this ready. Your AI can change the draft you see here; it cannot render, save, publish or spend credits.'));
       const paintAiLinks = () => {
         const S = window.ryagramStart, line = aiLine();
-        aiLinks.replaceChildren(...['claude', 'chatgpt'].map(app => { const u = S && S.chatUrl ? S.chatUrl(app, line) : null; return u ? h('a', { class: 'button secondary', href: u, target: '_blank', rel: 'noopener noreferrer' }, S.APPS[app].label) : null; }),
+        aiLinks.replaceChildren(...['claude', 'chatgpt'].filter(() => S && S.chatUrl && S.APPS).map(app => { const u = S && S.chatUrl ? S.chatUrl(app, line) : null; return u ? h('a', { class: 'button secondary', href: u, target: '_blank', rel: 'noopener noreferrer' }, S.APPS[app].label) : null; }),
           btn('Copy', 'secondary', async () => { try { await navigator.clipboard.writeText(line); say('Copied. Paste it into your AI.'); } catch { say('Could not copy. Select the note and copy it by hand.'); } }));
       };
       note.addEventListener('input', paintAiLinks);
@@ -337,16 +340,16 @@
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
       }
 
-      const title = h('h1', { tabindex: '-1' }, isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
+      const title = h('h1', { tabindex: '-1' }, host ? String(host.title || 'Edit your film').slice(0, 80) : isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
       const root = h('div', { class: 'le' },
-        h('p', {}, h('a', { href: '#/' }, '← All projects')),
+        host ? null : h('p', {}, h('a', { href: '#/' }, '← All projects')),
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
           isData ? lookPanel : clipPanel),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
-        h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
+        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
       if (draft) {                                                              // read the draft, then look for the AI's changes every two seconds while this page is open and visible
         draft.open().then(r => { if (!r.ok) say(r.reason); paint(); });
