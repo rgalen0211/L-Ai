@@ -274,6 +274,10 @@ class FindDataFetch(core.Base):
         admin = self.db.as_(None)
         with self.assertRaises(psycopg.errors.CheckViolation):                                       # even the owner of the table: not publishable unless Official and open
             admin.c.execute("update datasets set publishable = true where id = %s", (ds2,))
+        admin = self.db.as_(None)
+        for sql in ("update datasets set trust_label = 'unverified_user' where id = %s", "update datasets set licence_class = null where id = %s"):
+            with self.assertRaises(psycopg.errors.CheckViolation, msg=sql):                          # a fetched dataset always carries its host's label and a licence class
+                admin.c.execute(sql, (ds2,))
         up_ds, _ = self.create()
         admin = self.db.as_(None)                                                                      # (create() switched the connection to the person)
         for sql in ("update datasets set trust_label = 'official' where id = %s", "update datasets set publishable = true where id = %s", "update datasets set licence_class = 'open' where id = %s"):
@@ -312,8 +316,12 @@ class FindDataFetch(core.Base):
         self.assertEqual(self.admin("select count(*) from dataset_ingests where dataset_id = %s", ds), 1)
         self.assertEqual(self.admin("select bytes, sha256, mime, uploaded_at is not null from datasets where id = %s", ds), (1234, SHA, "text/csv", True))
         self.assertEqual(self.admin("select state from fetch_attempts where id = %s", a), "stored")
-        with self.assertRaises(psycopg.Error):
-            self.svc("select fetch_finish(%s::uuid)", self.create()[0])                             # a plain upload is not a fetched dataset
+        plain, path_plain = self.create()
+        self.store(path_plain, size=1000)                                                          # even with its bytes stored
+        with self.assertRaises(psycopg.Error) as cm3:
+            self.svc("select fetch_finish(%s::uuid)", plain)                                       # a plain upload is not a fetched dataset: "not found", and nothing is queued
+        self.assertEqual(cm3.exception.sqlstate, "PT404")
+        self.assertEqual(self.admin("select count(*) from dataset_ingests where dataset_id = %s", plain), 0)
 
     def test_abort_removes_an_unfinished_fetch_and_nothing_else(self):
         a = self.reserve()
