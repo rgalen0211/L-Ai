@@ -467,6 +467,7 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
    the app download), so the SQL Editor will not order them for you: run them after the migrations they are older than. Neither redefines anything a later migration defines (`worker_may_read_upload` keeps
    its grants when 000510 replaces it; `worker_job_upload` is new), so the order among them cannot overwrite a newer function. WORKER merges the Ryagram `uploadreader` branch (WORKER + CC1 review, Ryan's OK),
    adds `[uploads] enabled = true` to worker.toml and updates the worker; the worker's refusal of an unacknowledged upload reads `jobs.upload_trust` from the job claim.
+3b. (Only with the Recently deleted list.) Run `20261027000200_uploads_recently_deleted.sql` AFTER step 3 and after the trust migrations. It was written as 20261004000700 and renumbered, because it redefines `confirm_dataset_mapping`, `attach_upload_to_version` and `request_dataset_deletion`, which the pipe1 and trust migrations changed later; its versions are re-based on the current ones (tick, film label, `awaiting_approval`), so it does not undo them. Applied before them it would; do not.
 4. Merge, then set `uploads: true`.
 
 ## Kill switch

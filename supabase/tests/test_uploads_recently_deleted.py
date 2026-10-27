@@ -1,4 +1,4 @@
-"""Uploads: Recently deleted for 7 days (migration 20261004000700). Run from the repo root:
+"""Uploads: Recently deleted for 7 days (migration 20261027000200). Run from the repo root:
     pgvenv/Scripts/python -m unittest supabase/tests/test_uploads_recently_deleted.py -v
 """
 import json
@@ -30,7 +30,7 @@ class RecentlyDeleted(core.Base):
     def confirmed(self):
         ds, path = self.uploaded()
         self.read_by_worker(ds)
-        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb) is null", ds, json.dumps(up.MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(up.MAPPING))
         return ds, path
 
     def trash(self, ds, who=RYAN):
@@ -66,7 +66,7 @@ class RecentlyDeleted(core.Base):
         _, vid = self.project_version()
         self.trash(ds)
         calls = (("attach", "select attach_upload_to_version(%s, %s)", (vid, ds)),
-                 ("confirm", "select confirm_dataset_mapping(%s, '{}'::jsonb)", (ds,)),
+                 ("confirm", "select confirm_dataset_mapping(%s, '{}'::jsonb, true)", (ds,)),
                  ("finish", "select finish_upload(%s)", (ds,)))
         for name, sql, args in calls:
             with self.subTest(call=name), self.assertRaises(psycopg.Error) as e:
@@ -204,6 +204,28 @@ class RecentlyDeleted(core.Base):
         self.assertEqual([c.name for c in cols], ["dataset_id", "label", "bytes", "trashed_at", "removed_after"])
         row = self.db.as_(RYAN).one("select removed_after - trashed_at from my_recently_deleted_uploads()")
         self.assertEqual(str(row), "7 days, 0:00:00")
+
+    # -- this file is applied AFTER the pipe1 and trust migrations and must not undo them (renumbered 20261004000700 -> 20261027000200)
+    def test_it_does_not_undo_the_trust_tick_the_film_label_or_the_awaiting_approval_rule(self):
+        self.assertEqual(self.admin("select count(*) from pg_proc where proname = 'confirm_dataset_mapping'"), 1)      # still one function: the tick form
+        ds, _ = self.uploaded()
+        self.read_by_worker(ds)
+        with self.assertRaises(psycopg.Error):
+            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, false)", ds, json.dumps(up.MAPPING))
+        with self.assertRaises(psycopg.errors.UndefinedFunction):
+            self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb)", ds, json.dumps(up.MAPPING))
+        self.db.as_(RYAN).one("select confirm_dataset_mapping(%s, %s::jsonb, true) is null", ds, json.dumps(up.MAPPING))
+        self.assertIsNotNone(self.admin("select trust_ack_at from datasets where id = %s", ds))
+        _, vid = self.project_version()
+        ref = self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
+        self.assertEqual(self.db.as_(RYAN).one("select trust_label from version_sources where version_id = %s and dataset_ref = %s", vid, ref), "unverified_user")
+        j = self.job(vid, ds, "preview", "queued")
+        self.admin("update jobs set state = 'awaiting_approval' where id = %s returning 1", j)
+        with self.assertRaises(psycopg.Error):                                       # a render waiting for approval still blocks Delete
+            self.trash(ds)
+        self.admin("update jobs set state = 'cancelled' where id = %s returning 1", j)
+        self.trash(ds)                                                               # control
+        self.assertEqual(self.listed(), [ds])
 
 
 if __name__ == "__main__":
