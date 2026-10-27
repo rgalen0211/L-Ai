@@ -40,6 +40,10 @@ In the project: **SQL Editor → New query**, paste the whole file, **Run**.
    see "Sources screen")
 16. `migrations/20261004000200_uploads_schema.sql`, then `migrations/20261004000300_uploads_worker_and_sweep.sql`
    (upload your own data, phase 1; see "Uploads")
+17. `migrations/20261004000500_worker_job_upload.sql` (the worker learns which confirmed upload a render job reads;
+   see "Uploads")
+   then `migrations/20261004000510_worker_read_policy_follow_up.sql` (the storage policy refuses a file whose deletion was
+   requested, an unconfirmed upload, or another person's job)
 
 Each file is one transaction: if it fails, nothing is half-applied.
 
@@ -436,10 +440,12 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
 - Read values only: no formulas evaluated, no macros, no external links; caps on unzipped size, sheets, rows,
   columns and time. A file that breaks a cap is failed, never partly reported.
 - A lost worker's claim lapses after 15 minutes and is retried up to 3 times.
-- **Not built yet (worker/engine):** rendering a story that names `u_...` data. The worker's story validator and
-  dataset allowlist know only catalog names; the engine's `ingested` plug-in needs the confirmed mapping (the
-  `mapping` and `ingest_report` columns). Until that exists a film built on an upload fails at the worker, which is why
-  the flag stays off.
+- **The worker's reader and the render path are built** (Ryagram branch `uploadreader`, docs/WORKER-UPLOADS.md there; review by
+  WORKER, then CC1): CSV, TSV, XLSX and ODS are read in a sandboxed child (no macros, no formulas evaluated, formula-injection
+  safe, zip-bomb and entity-expansion safe, hard caps); a render job whose story names `u_<24 hex>` is allowed by its own
+  `dataset_id`, the worker asks `worker_job_upload(job)` (migration 20261004000500) for the confirmed mapping, builds a
+  job-local dataset for the engine, draws the film, and deletes everything. Uploaded values never reach a receipt, a log or an
+  error; planted-sentinel tests prove it on a real render. Needs the worker's `[uploads]` section (`enabled = true`)
 
 **Switching it on**
 
@@ -457,7 +463,10 @@ Deleted rows keep only a tombstone (id, hash, row count); no name, mapping or sa
    ```
    Check a minute past the hour: `select status_code, content::text as content_text, created from net._http_response order by created desc limit 5;`
    shows 200 and `{"ok":true}`. Redeploy `delete-account` so an account deletion removes uploaded files too.
-3. WORKER builds the reader and the render path above.
+3. Run `20261004000500_worker_job_upload.sql`, then `20261004000510_worker_read_policy_follow_up.sql`, BY HAND IN THAT ORDER. They are OLDER than migrations already applied (the trust-label ones,
+   the app download), so the SQL Editor will not order them for you: run them after the migrations they are older than. Neither redefines anything a later migration defines (`worker_may_read_upload` keeps
+   its grants when 000510 replaces it; `worker_job_upload` is new), so the order among them cannot overwrite a newer function. WORKER merges the Ryagram `uploadreader` branch (WORKER + CC1 review, Ryan's OK),
+   adds `[uploads] enabled = true` to worker.toml and updates the worker; the worker's refusal of an unacknowledged upload reads `jobs.upload_trust` from the job claim.
 4. Merge, then set `uploads: true`.
 
 ## Kill switch
