@@ -1,4 +1,4 @@
-"""End to end through the guided builder (#/build) on a LOCAL server only, in real Chrome, desktop and phone. The committed config keeps guidedBuilder false: this page turns it on for itself
+"""End to end through the guided builder (#/build) on a LOCAL server only, in real Chrome, desktop and phone. The committed config now has guidedBuilder true (Ryan's go, 2026-10-25); this page pins it on for itself
 by answering the config request with a copy that says true, and uses mock mode for the sign-in stub and the guided-builder function (tests/fake-supabase.js). Checks:
 the flag really gates the link (the unmodified config), a listed dataset is picked and built, the free contact sheet job is queued (and no preview or full render), a dataset that is not
 in the catalog is refused by both the describe and the compile calls, and no data leaves this machine (no non-GET request and no Supabase host; public fonts and scripts are still fetched).
@@ -47,8 +47,8 @@ def main():
         print(('  ok   ' if cond else '  FAIL ') + what)
         ok = ok and bool(cond)
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8')
-    check(re.search(r'guidedBuilder:\s*false', cfg), 'the committed config has guidedBuilder false')
-    flipped = re.sub(r'guidedBuilder:\s*false', 'guidedBuilder: true', cfg)
+    check(re.search(r'guidedBuilder:\s*(true|false)', cfg), 'the committed config has a guidedBuilder switch')           # (it has been true since Ryan's go, 2026-10-25; this page works either way)
+    flipped = re.sub(r'guidedBuilder:\s*(true|false)', 'guidedBuilder: true', cfg)
     try:
         with sync_playwright() as pw:
             b = pw.chromium.launch(channel='chrome')

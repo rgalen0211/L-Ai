@@ -61,7 +61,8 @@ test('database refusals reach the view as readable errors', async () => {
   await assert.rejects(data.saveStory(version.id, {}), /locked \(complete\)\. Make a new version/);
   await assert.rejects(data.setVersionState(version.id, 'draft'), /Cannot move a version from complete to draft/);
   assert.equal((await data.setVersionState(version.id, 'archived')).state, 'archived');
-  await assert.rejects(data.getVersion('00000000-0000-4000-8000-999999999999'), /multiple \(or no\) rows|not found/i);
+  // A page that is not there (another account's, or removed) is a plain "not available", flagged for the view, never the database's own sentence (live ride 2026-10-26 17:32).
+  await assert.rejects(data.getVersion('00000000-0000-4000-8000-999999999999'), e => e.message === 'This page isn’t available on this account.' && e.notAvailable === true);
 });
 
 test('files open through short-lived signed links from the private bucket', async () => {

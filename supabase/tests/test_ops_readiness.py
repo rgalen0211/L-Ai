@@ -386,7 +386,9 @@ class Ops(core.Base):
                            "admin_local_compute_audit()", "admin_storage_usage()",
                            # trust label on uploads (find-data S0, 20261026000200): the person's own upload, signed in, checked inside (owner and source);
                            # the third argument is the tick of "use it anyway" and the function refuses unless it is true
-                           "confirm_dataset_mapping(uuid,jsonb,boolean)"}
+                           "confirm_dataset_mapping(uuid,jsonb,boolean)",
+                           # the invite-only app download (20261026000500): the signed-in person lists their OWN links (time and file name only); request_app_download is the service role's alone
+                           "my_app_downloads()"}
             for fn in new:
                 if fn in may_sign_in:
                     continue

@@ -39,6 +39,6 @@ test('NO-CODE PAGE: one line says what it is for, with a Back to my films button
 
 test('WIRING: the stamps moved so a returning visitor gets the fix', () => {
   const html = read('app/index.html');
-  assert.match(html, /app-device\.js\?v=20261026c/);
-  assert.match(html, /app-auth\.js\?v=20261026c/);
+  assert.match(html, /app-device\.js\?v=20261026g/);                  // (moved again with the Windows card's derived space line, 2026-10-26 20:xx)
+  assert.match(html, /app-auth\.js\?v=20261026e/);                    // (app-auth moved again with the sign-in landing fix; tests/signin-landing.test.mjs pins it too)
 });

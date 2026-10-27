@@ -827,6 +827,18 @@
       functions: {
         async invoke(name, { body }) {
           log.push({ fn: name, body });
+          if (name === 'app-download') {
+            // Mock of CONNECT's app-download function (Cloudflare R2, 2026-10-26): the answer is exactly { url, expires_in, file_name, size_bytes, sha256 }; ?dlerr=NNN in the address makes it refuse with that status
+            // and a plain sentence, so the card's refusals can be walked in Chrome.
+            const refusal = typeof location !== 'undefined' && /[?&]dlerr=(\d{3})/.exec(location.search || '');
+            if (refusal) {
+              const sentences = { 401: 'Sign in first.', 403: 'The Ryagram app is for invited testers for now. Ask Ryan to turn it on for your account.', 404: 'The download is not ready yet.',
+                                  429: 'You have asked for the download three times in the last day. Try again tomorrow.', 503: 'The download is not set up yet.' };
+              return { data: null, error: { message: 'x', context: { status: Number(refusal[1]), json: async () => ({ error: sentences[refusal[1]] || 'Something went wrong.' }) } } };
+            }
+            return { data: { url: 'https://0123456789abcdef.r2.cloudflarestorage.com/ryagram-app/Ryagram-for-Windows.zip?X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Expires=900&X-Amz-Signature=mock',
+                             expires_in: 900, file_name: 'Ryagram-for-Windows.zip', size_bytes: 287309824, sha256: 'c'.repeat(64) }, error: null };
+          }
           if (name === 'redeem-invite') {
             // Mock: RYA-TEST-CODE works; the "email" is the link /app/?mock&invite=mock-invite-token.
             const code = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
@@ -971,7 +983,8 @@
           return { data: { subscription: { unsubscribe: () => authListeners.delete(cb) } } };
         },
         async signInWithPassword({ email }) {
-          session = { user: { id: 'u-ryan', email } };
+          // An email that starts with "other" is a DIFFERENT account (id u-other), so the mock can walk switching accounts in one tab (live ride 2026-10-26); the account the mock started with keeps its own id.
+          session = { user: { id: /^other/i.test(String(email || '')) ? 'u-other' : (String(email || '') === user.email ? user.id : 'u-ryan'), email } };
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { error: null };
         },

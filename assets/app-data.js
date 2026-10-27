@@ -11,10 +11,20 @@
 
   const LOOK_COLUMNS = 'id, name, title, based_on, spec, is_default, created_at, updated_at';
 
+  // A single-row query that finds no row (a page that belongs to another account, or was removed) is a plain "not available", never the database's own sentence (live ride, Ryan 2026-10-26 17:32:
+  // 'Cannot coerce the result to a single JSON object' after switching accounts). PostgREST says it two ways, by version, and always with code PGRST116.
+  const NOT_AVAILABLE = 'This page isn’t available on this account.';
+  const NO_ROW = /Cannot coerce the result to a single JSON object|JSON object requested, multiple \(or no\) rows returned/;
+  const noRow = error => !!error && (error.code === 'PGRST116' || NO_ROW.test(String(error.message || '')));
+
   function ryagramData(client) {
     async function run(promise, fallback) {
       const { data, error } = await promise;
-      if (error) throw new Error(error.message || fallback);
+      if (error) {
+        const err = new Error(noRow(error) ? NOT_AVAILABLE : (error.message || fallback));
+        if (noRow(error)) err.notAvailable = true;                   // the page shows its own "not available" view for this
+        throw err;
+      }
       return data;
     }
     // An Edge Function that answers { url }: only Stripe's own pages (or the mock's in-app page) are followed.
@@ -209,6 +219,18 @@
       // Both return a Stripe URL to go to; card details are entered only on Stripe's pages.
       startCheckout(priceCode) { return invokeUrl('stripe-checkout', { price_code: priceCode }, 'Couldn’t start the checkout.'); },
       openBillingPortal() { return invokeUrl('stripe-checkout', { action: 'portal' }, 'Couldn’t open plan settings.'); },
+      // The Windows app's invite-only download (CONNECT's app-download function, 2026-10-26): asks for a short-lived link for THIS signed-in account. Returns the answer's body as the function gave it
+      // (the card checks it before following anything) or throws an Error carrying the HTTP status, so the card can say a plain sentence for each refusal. Fixed function name: the page never posts to an address it was handed.
+      async requestAppDownload() {
+        const { data, error } = await client.functions.invoke('app-download', { body: {} });
+        if (error) {
+          const e = new Error('Couldn’t get the download link.');
+          e.status = Number(error.context && error.context.status) || 0;
+          try { const j = await error.context.json(); if (j && typeof j.error === 'string') e.serverWords = j.error.replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 300); } catch { /* the page's own sentence for this status is used */ }
+          throw e;
+        }
+        return data;
+      },
 
       // Account (queue item 7). The password is Supabase Auth's; the rest is the database's.
       async changePassword(password) {
@@ -565,5 +587,7 @@
     return api;
   }
 
+  ryagramData.NOT_AVAILABLE = NOT_AVAILABLE;
+  ryagramData.noRow = noRow;
   window.ryagramData = ryagramData;
 })();
