@@ -388,7 +388,9 @@ class Ops(core.Base):
                            # the third argument is the tick of "use it anyway" and the function refuses unless it is true
                            "confirm_dataset_mapping(uuid,jsonb,boolean)",
                            # the invite-only app download (20261026000500): the signed-in person lists their OWN links (time and file name only); request_app_download is the service role's alone
-                           "my_app_downloads()"}
+                           "my_app_downloads()",
+                           # departments in the top bar (20261027000100): the signed-in INVITED person's own list and interest (checked inside); the counts refuse everyone but an admin inside
+                           "my_departments()", "my_department_interests()", "register_department_interest(text)", "withdraw_department_interest(text)", "admin_department_interest_counts()"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
