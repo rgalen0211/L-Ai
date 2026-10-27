@@ -150,7 +150,7 @@ test('every address the metadata advertises is a route that answers', async () =
     const spec = await (await fetch(`${base}/openapi.json`)).json();
     const flow = spec.components.securitySchemes.ryagramOAuth.flows.authorizationCode;
     assert.equal(flow.authorizationUrl, oauth.authorization_endpoint); assert.equal(flow.tokenUrl, oauth.token_endpoint);
-    assert.deepEqual(Object.keys(flow.scopes).sort(), ['read', 'render_free', 'write']);
+    assert.deepEqual(Object.keys(flow.scopes).sort(), ['edit', 'read', 'render_free', 'write']);
     assert.equal((await fetch(`${base}/.well-known/mcp`)).status, 404);                                               // the second, stale resource document is gone
   } finally { await r.close(); }
 });

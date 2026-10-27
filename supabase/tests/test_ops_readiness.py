@@ -392,7 +392,9 @@ class Ops(core.Base):
                            # the invite-only app download (20261026000500): the signed-in person lists their OWN links (time and file name only); request_app_download is the service role's alone
                            "my_app_downloads()",
                            # departments in the top bar (20261027000100): the signed-in INVITED person's own list and interest (checked inside); the counts refuse everyone but an admin inside
-                           "my_departments()", "my_department_interests()", "register_department_interest(text)", "withdraw_department_interest(text)", "admin_department_interest_counts()"}
+                           "my_departments()", "my_department_interests()", "register_department_interest(text)", "withdraw_department_interest(text)", "admin_department_interest_counts()",
+                           # the live preview editor (20261027000400): the signed-in person's own editor, resolved from their app session and checked inside (the connector and the computer have their own functions)
+                           "editor_apply_ops(uuid,text,bigint,jsonb)", "editor_undo(uuid,text,bigint)", "editor_undo_all_ai(uuid,text)", "my_edit_ops_since(uuid,text,bigint)", "editor_heartbeat(uuid,text)"}
             for fn in new:
                 if fn in may_sign_in:
                     continue
