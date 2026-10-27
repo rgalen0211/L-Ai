@@ -1,4 +1,4 @@
-// The live editor's logic (assets/editor/editor-core.js, NEXT-WEB 152): ops from a closed list, each checked and undoable; the video lane stays one run;
+// The live editor's logic (assets/app-editor-core.js, NEXT-WEB 152): ops from a closed list, each checked and undoable; the video lane stays one run;
 // snapping; the AI's ops arrive tagged, against a revision, and can be undone as a group; the person's undo can not be silently repeated.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,7 +9,7 @@ import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const window = {};
-vm.runInNewContext(fs.readFileSync(path.join(here, '..', 'assets/editor/editor-core.js'), 'utf8'), { window, Error, Math, Number, Array, Object, String, JSON, Set, RegExp });
+vm.runInNewContext(fs.readFileSync(path.join(here, '..', 'assets/app-editor-core.js'), 'utf8'), { window, Error, Math, Number, Array, Object, String, JSON, Set, RegExp });
 const E = window.ryagramEditor;
 const plain = x => JSON.parse(JSON.stringify(x));
 

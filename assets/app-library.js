@@ -63,6 +63,8 @@
   const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
   // The AI-first front door (#/start), needs connectAi too (app-start.js). Off by default; in mock mode it follows the flag so the mock walk can show both.
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
+  // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
+  const liveEditorOn = () => window.ryagramConfig?.liveEditor === true;
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
   // so signing in as another account cannot inherit the last answer.
   const connectAllowed = async data => connectOn() && (await data.connectAccess()) === true;
@@ -92,6 +94,7 @@
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if (hash === '#/account') view = await accountView();
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
+        else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)$/))) view = editorUi().editorView(m[1], onStop);
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
         else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
@@ -195,6 +198,8 @@
     // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
     let connectCache = null;
     let startCache = null;
+    let editorCache = null;
+    const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h }));
     const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));
     const connectUi = () => connectCache || (connectCache = window.ryagramConnect.create({ h, data, busy, showError, errorLine, date }));
     let deviceCache = null;
