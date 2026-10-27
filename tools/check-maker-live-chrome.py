@@ -101,6 +101,16 @@ try:
             check([c["file_name"] for c in saved["clips"]] == ["two.mp4", "one.mp4"], "and the edit list ON DISK has the new order (page, route, draft, engine's tracks module, file)")
             check(saved["texts"][0]["text"] == "Day one" and saved["clips"][1]["in_s"] == 1.0 and saved["clips"][1]["out_s"] == 3.0, "everything the tracks do not show is carried over unchanged")
             pg.screenshot(path=str(BASE / "live-chrome.png"), full_page=True)
+            # Build final film: the page asks what will be built, then the maker builds it (the Edit page's own render) and the page says the film is ready
+            pg.click("text=Build final film")
+            pg.click("text=Start the render")
+            try:
+                pg.wait_for_selector("text=Your film is ready", timeout=170000)
+                built = sorted((root / "films").glob("edit-*.mp4"))
+                check(bool(built) and built[0].stat().st_size > 1000, "Build final film makes the film on this computer and the page says so (" + (built[0].name if built else "no file") + ")")
+            except Exception:  # noqa: BLE001
+                check(False, "Build final film makes the film: the page said: " + pg.inner_text(".le-render")[:300].replace(chr(10), " "))
+            check(not [e for e in errors if "Content Security Policy" in e], "no policy violation during the build")
             check(not other, "nothing was requested from outside the maker's own address" + (f": {other[:2]}" if other else ""))
             check(set(calls) <= {"my_edit_ops_since", "editor_apply_ops", "editor_undo", "editor_undo_all_ai", "editor_heartbeat"}, "the page used only the five editor names")
             check(not errors, "no console errors" + (f": {errors[:2]}" if errors else ""))
