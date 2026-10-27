@@ -33,7 +33,7 @@ function world() {
   const call = (p, name, args) => callTool(name, args, p, env(p));
   return { w, call, env };
 }
-const project = async (call, p = A) => (await call(p, 'create_project', { title: 'Editor' })).data.project_id;
+const project = async (call, p = A, title = 'Editor') => (await call(p, 'create_project', { title })).data.project_id;
 const look = (key, value) => ({ key, value });
 const rev = async (call, id, p = A) => (await call(p, 'get_edit_state', { project_id: id })).data.data.revision;
 
@@ -131,7 +131,7 @@ test('the AI cannot repeat, for ten minutes, a change the person just undid', as
   await call(A, 'set_look', { project_id: id, base_revision: 0, set: [look('network.color', DARK)] });
   const d = w.draft(A.userId, id, 'data');
   // the person undoes it (the editor_undo stand-in)
-  const row = d.ops[0]; row.status = 'undone'; row.undone_at = Date.now(); d.look = {}; d.revision++;
+  const row = d.ops[0]; row.status = 'undone'; row.undone_at = Date.now(); row.ended_by = 'person'; d.look = {}; d.revision++;
   const again = await call(A, 'set_look', { project_id: id, base_revision: d.revision, set: [look('network.color', DARK)] });
   assert.equal(again.isError, true); assert.equal(again.code, 'conflict'); assert.match(again.text, /undid exactly this/);
   const s = await call(A, 'get_edit_state', { project_id: id });
@@ -171,6 +171,42 @@ test('tracks: the six clip changes queue as drafts for the person\'s app, the su
   const u = await call(A, 'undo_my_changes', { project_id: id, mode: 'compilation' });
   assert.equal(u.data.undone, 6);
   assert.equal((await call(A, 'get_edit_state', { project_id: id })).data.compilation.pending, 0);
+});
+
+test('tracks: add_clip on a track the summary\'s lanes do not list is refused whole in plain words; with no lanes nothing changes', async () => {
+  const { w, call } = world();
+  const id = await project(call);
+  w.mirror(A.userId, id, { ...SUMMARY, lanes: ['video', 'text'] }, true);
+  const base = w.draft(A.userId, id, 'compilation').revision;
+  const r = await call(A, 'edit_tracks', { project_id: id, base_revision: base, ops: [{ op: 'add_clip', track: 'text', start: 0, len: 1, text: 'ok' }, { op: 'add_clip', track: 'pictures', start: 1, len: 2, picture: 'logo.png' }] });
+  assert.equal(r.isError, true); assert.equal(r.code, 'args'); assert.match(r.text, /cannot add to the pictures track yet/);
+  assert.equal(w.draft(A.userId, id, 'compilation').ops.length, 0);
+  const id2 = await project(call, A, 'Editor two');
+  w.mirror(A.userId, id2, SUMMARY, true);
+  const ok2 = await call(A, 'edit_tracks', { project_id: id2, base_revision: w.draft(A.userId, id2, 'compilation').revision, ops: [{ op: 'add_clip', track: 'pictures', start: 1, len: 2, picture: 'logo.png' }] });
+  assert.equal(ok2.isError, undefined, ok2.text);
+});
+
+test('tracks: the person undoing a WAITING change stops the AI repeating it; the app refusing it, or the AI taking it back itself, does not', async () => {
+  const { w, call } = world();
+  const id = await project(call);
+  w.mirror(A.userId, id, SUMMARY, true);
+  const op = { op: 'delete_clip', id: 'c3' };
+  const d = w.draft(A.userId, id, 'compilation');
+  await call(A, 'edit_tracks', { project_id: id, base_revision: d.revision, ops: [op] });
+  const row = d.ops[0];
+  row.status = 'rejected'; row.undone_at = Date.now(); row.ended_by = 'person'; d.revision++;
+  const blocked = await call(A, 'edit_tracks', { project_id: id, base_revision: d.revision, ops: [op] });
+  assert.equal(blocked.isError, true); assert.equal(blocked.code, 'conflict');
+  row.ended_by = 'app';
+  assert.equal((await call(A, 'edit_tracks', { project_id: id, base_revision: d.revision, ops: [op] })).isError, undefined);
+  const id2 = await project(call, A, 'Editor two');
+  w.mirror(A.userId, id2, SUMMARY, true);
+  const d2 = w.draft(A.userId, id2, 'compilation');
+  await call(A, 'edit_tracks', { project_id: id2, base_revision: d2.revision, ops: [op] });
+  const u = await call(A, 'undo_my_changes', { project_id: id2, mode: 'compilation' });
+  assert.equal(u.data.undone, 1); assert.equal(d2.ops[0].ended_by, 'ai');
+  assert.equal((await call(A, 'edit_tracks', { project_id: id2, base_revision: d2.revision, ops: [op] })).isError, undefined);
 });
 
 test('tracks: a place on the computer, markup, a made-up op, a field that is not in the vocabulary and an out-of-range number are refused whole', async () => {

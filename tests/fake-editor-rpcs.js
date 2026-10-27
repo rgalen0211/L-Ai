@@ -32,7 +32,8 @@
       for (let i = 0; i < list.length; i++) {
         const p = check(mode, list[i]);
         if (p) return fail('22023', 'Change ' + (i + 1) + ' was not accepted, and nothing was changed: ' + p);
-        if (actor === 'ai' && ops.some(o => o.project === project && o.mode === mode && o.status === 'undone' && JSON.stringify(o.op) === JSON.stringify(list[i]) && now() - o.undone_at < 600000)) {
+        if (mode === 'compilation' && list[i].op === 'add_clip' && Array.isArray(d.state.lanes) && !d.state.lanes.includes(list[i].track)) return fail('22023', 'Change ' + (i + 1) + ' was not accepted: the editor cannot add to the ' + list[i].track + ' track yet.');
+        if (actor === 'ai' && ops.some(o => o.project === project && o.mode === mode && (o.status === 'undone' || o.status === 'rejected') && o.ended_by === 'person' && JSON.stringify(o.op) === JSON.stringify(list[i]) && now() - o.undone_at < 600000)) {
           return fail('PT409', 'Change ' + (i + 1) + ' was not accepted: the person undid exactly this a moment ago. Ask them before doing it again.');
         }
       }
@@ -44,22 +45,22 @@
           if (op.op === 'set_look') { inverse = prev === undefined ? { op: 'unset_look', key: op.key } : { op: 'set_look', key: op.key, value: prev }; d.state.look[op.key] = op.value; }
           else { inverse = prev === undefined ? null : { op: 'set_look', key: op.key, value: prev }; delete d.state.look[op.key]; }
         }
-        ops.push({ id: nextId++, project, mode, revision, actor, client: actor === 'ai' ? client || 'AI' : null, op, inverse, status: mode === 'data' ? 'applied' : 'pending', at: now(), undone_at: null });
+        ops.push({ id: nextId++, project, mode, revision, actor, client: actor === 'ai' ? client || 'AI' : null, op, inverse, status: mode === 'data' ? 'applied' : 'pending', at: now(), undone_at: null, ended_by: null });
       }
       d.revision = revision;
       return ok({ revision, changes: list.length, state: mode === 'data' ? JSON.parse(JSON.stringify(d.state)) : null, pending: mode === 'compilation' });
     }
 
-    function undo(project, mode, ids) {
+    function undo(project, mode, ids, by) {
       if (!mine(project)) return fail('PT404', 'That project was not found among your projects.');
       const d = draft(project, mode);
       let undone = 0, skipped = 0;
       for (const row of ops.filter(o => o.project === project && o.mode === mode && ids.includes(o.id)).sort((a, b) => b.id - a.id)) {
-        if (row.status === 'pending') { row.status = 'rejected'; row.undone_at = now(); undone++; }
+        if (row.status === 'pending') { row.status = 'rejected'; row.undone_at = now(); row.ended_by = by; undone++; }
         else if (row.status === 'applied' && row.inverse && mode === 'data') {
           if (ops.some(l => l.project === project && l.mode === mode && l.id > row.id && l.status === 'applied' && l.op.key === row.op.key)) { skipped++; continue; }
           if (row.inverse.op === 'set_look') d.state.look[row.inverse.key] = row.inverse.value; else delete d.state.look[row.inverse.key];
-          row.status = 'undone'; row.undone_at = now(); undone++;
+          row.status = 'undone'; row.undone_at = now(); row.ended_by = by; undone++;
         } else skipped++;
       }
       if (undone > 0) d.revision++;
@@ -68,8 +69,8 @@
 
     const rpcs = {
       editor_apply_ops: ({ p_project, p_mode, p_base_revision, p_ops }) => apply(p_project, p_mode, p_base_revision, p_ops, 'person', null),
-      editor_undo: ({ p_project, p_mode, p_op_id }) => undo(p_project, p_mode, [p_op_id]),
-      editor_undo_all_ai: ({ p_project, p_mode }) => undo(p_project, p_mode, ops.filter(o => o.project === p_project && o.mode === p_mode && o.actor === 'ai' && (o.status === 'applied' || o.status === 'pending')).map(o => o.id)),
+      editor_undo: ({ p_project, p_mode, p_op_id }) => undo(p_project, p_mode, [p_op_id], 'person'),
+      editor_undo_all_ai: ({ p_project, p_mode }) => undo(p_project, p_mode, ops.filter(o => o.project === p_project && o.mode === p_mode && o.actor === 'ai' && (o.status === 'applied' || o.status === 'pending')).map(o => o.id), 'person'),
       my_edit_ops_since: ({ p_project, p_mode, p_revision }) => {
         if (!mine(p_project)) return fail('PT404', 'That project was not found among your projects.');
         const d = draft(p_project, p_mode);
@@ -89,7 +90,7 @@
       undoLast: (project, mode) => {
         const mineOps = ops.filter(o => o.project === project && o.mode === mode && o.actor === 'ai' && (o.status === 'applied' || o.status === 'pending'));
         const last = mineOps.length ? Math.max(...mineOps.map(o => o.revision)) : -1;
-        return undo(project, mode, mineOps.filter(o => o.revision === last).map(o => o.id));
+        return undo(project, mode, mineOps.filter(o => o.revision === last).map(o => o.id), 'ai');
       },
     };
 
@@ -99,16 +100,16 @@
         if (!mine(project)) return fail('PT404', 'That project was not found among your projects.');
         const d = draft(project, 'compilation');
         if (!mirror) {
-          ops.filter(o => o.project === project && o.mode === 'compilation' && o.status === 'pending').forEach(o => { o.status = 'rejected'; o.undone_at = now(); });
+          ops.filter(o => o.project === project && o.mode === 'compilation' && o.status === 'pending').forEach(o => { o.status = 'rejected'; o.undone_at = now(); o.ended_by = 'app'; });
           Object.assign(d, { mirrored: false, ai_visible: false, state: {}, revision: d.revision + 1 });
           return ok({ revision: d.revision, mirrored: false, ai_visible: false });
         }
         for (const a of applied) {
           const row = ops.find(o => o.id === a.op_id && o.project === project && o.mode === 'compilation' && o.status === 'pending');
-          if (row) { row.status = a.ok ? 'applied' : 'rejected'; row.undone_at = a.ok ? null : now(); }
+          if (row) { row.status = a.ok ? 'applied' : 'rejected'; row.undone_at = a.ok ? null : now(); row.ended_by = a.ok ? null : 'app'; }
         }
         Object.assign(d, { mirrored: true, ai_visible: !!aiVisible, state: summary, revision: d.revision + 1 });
-        if (!aiVisible) ops.filter(o => o.project === project && o.mode === 'compilation' && o.actor === 'ai' && o.status === 'pending').forEach(o => { o.status = 'rejected'; o.undone_at = now(); });
+        if (!aiVisible) ops.filter(o => o.project === project && o.mode === 'compilation' && o.actor === 'ai' && o.status === 'pending').forEach(o => { o.status = 'rejected'; o.undone_at = now(); o.ended_by = 'app'; });
         return ok({ revision: d.revision, mirrored: true, ai_visible: !!aiVisible });
       },
       pending: project => ops.filter(o => o.project === project && o.mode === 'compilation' && o.status === 'pending' && draft(project, 'compilation').mirrored)
