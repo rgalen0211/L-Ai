@@ -115,7 +115,7 @@
         return q;
       }
       const filters = [];
-      let op = 'select', payload = null, single = false, order = null, window_ = null;
+      let op = 'select', payload = null, single = false, maybe = false, order = null, window_ = null;
       const q = {
         select() { return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
@@ -130,6 +130,7 @@
         order(col, { ascending = true } = {}) { order = { col, ascending }; return q; },
         limit() { return q; },
         single() { single = true; return q; },
+        maybeSingle() { single = true; maybe = true; return q; },
         then(resolve, reject) { return Promise.resolve().then(exec).then(resolve, reject); }
       };
       function exec() {
@@ -172,6 +173,7 @@
         if (window_) result = result.slice(window_[0], window_[1] + 1);
         result = structuredClone(result);
         if (single) {
+          if (maybe && result.length === 0) return { data: null, error: null };
           return result.length === 1 ? { data: result[0], error: null }
                                      : fail('JSON object requested, multiple (or no) rows returned');
         }
@@ -321,7 +323,7 @@
         if (m.geography === 'us_counties' && m.state_index == null && !COUNTY_STATES.includes(m.state)) return fail('County names need a state. Choose the state, or the column that has it.');
         if (!m.value_indexes?.length) return fail('Choose 1 to 8 columns of values.');
         if (p_trust_ack !== true) return fail('Tick the box to use this data anyway.');
-        Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved' });
+        Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved', trust_label: ds.trust_label || 'unverified_user', trust_ack_at: ds.trust_ack_at || now() });     // as the real database records the tick
         return { data: null, error: null };
       },
       // Mock of the PROPOSED set_dataset_provenance (S5). With seed.requireProvenance a dataset cannot be used in a film without it (the real rule would be the database's).
@@ -980,6 +982,12 @@
                 files[path] = file;
               }
               return { data: { path }, error: null };
+            },
+            // the owner reads their own object (policy 'People read their uploads'); a missing file is an error, as in the real client
+            async download(path) {
+              log.push({ download: path, bucket });
+              if (bucket === 'ryagram-uploads' && files[path]) return { data: files[path], error: null };
+              return { data: null, error: { message: 'Object not found' } };
             },
             async createSignedUrl(path, seconds) {
               log.push({ signed: path, bucket, seconds });

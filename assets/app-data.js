@@ -308,6 +308,23 @@
       // Upload your own data (SQL 20261004000200/300): a spreadsheet goes to the person's own private slot, the worker reads
       // it and reports what it found, the person confirms what the columns mean, then it can be a film's data.
       // Null when that SQL isn't applied yet.
+      // Download my data (NEXT-WEB 153): everything the person may take, read with THEIR OWN session: the dataset row (their own, by the owner policy), the fetch receipt if it was fetched,
+      // the file as received from their private slot, and the cleaned table if one has been written next to it (clean.csv; the worker does not write one yet). A missing file is not an error: the receipt still stands.
+      async downloadParts(datasetId) {
+        if (typeof datasetId !== 'string' || !/^[0-9a-f-]{36}$/i.test(datasetId)) throw new Error('That dataset was not found.');
+        const { data: dataset, error } = await client.from('datasets').select('id, name, filename_label, ext, bytes, sha256, status, retention, trust_label, trust_ack_at, mapping, ingest_report, uploaded_at, created_at, origin, licence_class, storage_path').eq('id', datasetId).maybeSingle();
+        if (error) throw new Error('Couldn\u2019t read your data. Try again.');
+        if (!dataset) throw new Error('That dataset was not found.');
+        let fetchRow = null;
+        if (dataset.origin === 'fetched') {
+          const r = await client.from('dataset_fetches').select('final_url, host, publisher, retrieved_at, licence_text, licence_class, licence_source, sha256').eq('dataset_id', datasetId).maybeSingle();
+          fetchRow = r && r.data ? r.data : null;
+        }
+        const grab = async path => { try { const r = await client.storage.from(UPLOAD_BUCKET).download(path); return r && !r.error && r.data ? r.data : null; } catch (e) { return null; } };
+        const file = dataset.storage_path ? await grab(dataset.storage_path) : null;
+        const clean = dataset.storage_path ? await grab(dataset.storage_path.replace(/[^/]+$/, 'clean.csv')) : null;
+        return { dataset, fetchRow, file, clean };
+      },
       async listUploads() {
         const { data, error } = await client.from('datasets')
           .select('id, name, filename_label, ext, bytes, status, retention, geography, mapping, ingest_report, uploaded_at, delete_requested_at, created_at')
