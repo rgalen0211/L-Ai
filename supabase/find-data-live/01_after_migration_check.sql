@@ -1,4 +1,4 @@
--- AFTER migration 20261027000200_find_data_fetch.sql (find-data S1): one SELECT, read-only, nothing is changed. Every row's ok must be true. Paste it into the SQL Editor of the live project.
+-- AFTER migration 20261027000300_find_data_fetch.sql (find-data S1): one SELECT, read-only, nothing is changed. Every row's ok must be true. Paste it into the SQL Editor of the live project.
 select 'the host list exists with its sixteen starting hosts, all Official, none with a licence class yet' as check_name,
        to_regclass('public.fetch_hosts') is not null
        and (select count(*) from public.fetch_hosts) >= 16

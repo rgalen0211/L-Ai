@@ -1,6 +1,6 @@
--- FIND DATA S1: the exact undo of supabase/migrations/20261027000200_find_data_fetch.sql (NEXT-CONNECT 137). NOT a migration: it lives outside migrations/ so nothing applies it by itself.
--- It LOSES every fetched dataset (their receipts and the film source rows made from them) and the record of fetch attempts and the host list, and puts back the trust-label state (20261026000100 and 20261026000200):
--- the two-label rule on uploads, confirm_dataset_mapping demanding the tick for every upload, attach_upload_to_version always writing 'Your data'. The bytes of fetched files stay in the private bucket until
+-- FIND DATA S1: the exact undo of supabase/migrations/20261027000300_find_data_fetch.sql (NEXT-CONNECT 137). NOT a migration: it lives outside migrations/ so nothing applies it by itself.
+-- It LOSES every fetched dataset (their receipts and the film source rows made from them) and the record of fetch attempts and the host list, and puts back the trust-label state (20261026000100, 20261026000200 and the Recently-deleted 20261027000200):
+-- the two-label rule on uploads and attach_upload_to_version always writing 'Your data' (confirm_dataset_mapping was never changed by this migration). The bytes of fetched files stay in the private bucket until
 -- the purge removes them (a deleted dataset row is what the purge looks for); Ryan can remove them by hand.
 begin;
 
@@ -30,37 +30,7 @@ alter table public.datasets drop constraint datasets_uploaded_label_is_unverifie
 alter table public.datasets drop column publishable, drop column licence_class, drop column origin;
 alter table public.datasets add constraint datasets_upload_label_is_unverified check (source <> 'upload' or trust_label = 'unverified_user');
 
--- confirm_dataset_mapping as 20261026000200 left it: the tick is required for every upload, checked first
-drop function public.confirm_dataset_mapping(uuid, jsonb, boolean);
-create function public.confirm_dataset_mapping(p_dataset uuid, p_mapping jsonb, p_trust_ack boolean) returns void
-language plpgsql security definer set search_path = '' as $$
-declare
-  me uuid := ryagram_private.require_signed_in();
-  d public.datasets;
-  problem text;
-begin
-  if p_trust_ack is distinct from true then
-    raise exception 'Tick the box to use this data anyway.' using errcode = '22023';
-  end if;
-  select * into d from public.datasets
-    where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null and delete_requested_at is null for update;
-  if not found then
-    raise exception 'Dataset not found.' using errcode = 'PT404';
-  end if;
-  if d.ingest_report is null then
-    raise exception 'We haven''t finished reading this file yet.' using errcode = '22023';
-  end if;
-  problem := ryagram_private.mapping_ok(p_mapping, d.ingest_report);
-  if problem is not null then
-    raise exception '%', problem using errcode = '22023';
-  end if;
-  update public.datasets set mapping = p_mapping, geography = p_mapping->>'geography', status = 'approved',
-                             trust_ack_at = coalesce(trust_ack_at, now()), last_activity_at = now() where id = d.id;
-end $$;
-revoke execute on function public.confirm_dataset_mapping(uuid, jsonb, boolean) from public, anon;
-grant execute on function public.confirm_dataset_mapping(uuid, jsonb, boolean) to authenticated;
-
--- attach_upload_to_version as 20261026000100 left it
+-- attach_upload_to_version as 20261027000200 (Recently deleted) left it
 create or replace function public.attach_upload_to_version(p_version uuid, p_dataset uuid) returns text
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -73,7 +43,7 @@ begin
   select * into v from public.versions where id = p_version and owner_id = me for update;
   if not found then raise exception 'Version not found.' using errcode = 'PT404'; end if;
   select * into d from public.datasets where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null
-                                          and delete_requested_at is null;
+                                          and delete_requested_at is null and trashed_at is null;
   if not found then raise exception 'Dataset not found.' using errcode = 'PT404'; end if;
   if v.state not in ('draft', 'sampling', 'previewing', 'editorial_action_required', 'ready_to_render') then
     raise exception 'This version is % and can''t change its data. Make a new version.', v.state using errcode = '42501';
