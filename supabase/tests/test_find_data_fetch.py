@@ -85,8 +85,7 @@ class FindDataFetch(core.Base):
     def test_lookalikes_ip_numbers_ports_upper_case_and_bare_gov_match_nothing(self):
         for h in ("census.gov.evil.com", "evilcensus.gov", "notcensus.gov", "xcensus.gov", "census.gov.", "gov", "usda.gov", "1.2.3.4", "127.0.0.1", "localhost", "census.gov:443",
                   "CENSUS.GOV", "www.Census.gov", "cen_sus.gov", "census.gov/x", "census.gov@evil.com", "evil.com#census.gov", "", "census..gov", "-census.gov", "ç.census.gov",
-                  "user@www2.census.gov", "a b.census.gov", "a/b.census.gov", "evil.example/.census.gov", "a%2e.census.gov", "x
-.census.gov"):
+                  "user@www2.census.gov", "a b.census.gov", "a/b.census.gov", "evil.example/.census.gov", "a%2e.census.gov", "x\n.census.gov"):
             self.assertEqual(self.svc("select count(*) from fetch_host_for(%s)", h), 0, h)
         self.assertEqual(self.svc("select count(*) from fetch_host_for('census.gov')"), 1)      # control
         self.set_hosts("update fetch_hosts set active = false where host_suffix = 'census.gov'")

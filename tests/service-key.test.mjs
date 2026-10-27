@@ -109,7 +109,7 @@ test('no function reads SUPABASE_SERVICE_ROLE_KEY directly any more: only the sh
 
 test('every function that uses the service key resolves it through the helper and serves through the guard', () => {
   const users = ['ai-editor', 'app-download', 'cost-sync', 'creator-beta', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'ops-digest', 'ops-tick',
-                 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-checkout', 'stripe-webhook'];
+                 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'source-fetch', 'stripe-checkout', 'stripe-webhook'];
   for (const f of users) {
     const src = fs.readFileSync(path.join(FUNCS, f, 'index.ts'), 'utf8');
     assert.match(src, /import \{ guardedServe, resolveServiceKey \} from "\.\.\/_shared\/service_key\.ts";/, f);
@@ -131,7 +131,7 @@ test('the per-job cron secrets are untouched: ops-tick, ops-digest and cost-sync
 
 test('a problem must give the plain 503, not a boot error: no function builds its database client from the bare key at module level (createClient refuses an empty key)', () => {
   const users = ['ai-editor', 'app-download', 'cost-sync', 'creator-beta', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'ops-digest', 'ops-tick',
-                 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-checkout', 'stripe-webhook'];
+                 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'source-fetch', 'stripe-checkout', 'stripe-webhook'];
   for (const f of users) {
     const src = fs.readFileSync(path.join(FUNCS, f, 'index.ts'), 'utf8');
     if (f === 'purge-partial-uploads') continue;                       // built inside the handler, after the guard and the caller check: the key is real there
