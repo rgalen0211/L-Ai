@@ -12,6 +12,8 @@
 //   POST /node/retry       Bearer {job_id, error_code, error_detail?}                         -> {result}
 //   POST /node/artifact    Bearer {job_id, kind, bytes, sha256, duration_s?, width?, height?}  -> {path, upload_url}
 //   POST /node/compilation-requests  Bearer      -> {requests: [{project_id, title, request, sha256, updated_at}]}   READ ONLY: what the person's AI asked for (data only; starts nothing); always on
+//   POST /node/edit-pending  Bearer {}                                  -> {changes: [{id, project_id, revision, client, op}]}   READ ONLY: the live editor's waiting changes for this person's open compilation (NEXT-CONNECT 142); always on
+//   POST /node/edit-summary  Bearer {project_id, mirror, ai_visible?, summary?, applied?} -> {revision, mirrored, ai_visible}   the app mirrors its track summary (names and times) and says which waiting changes it applied
 //   PRIVATE LINKS for a film made on the person's own computer (NEXT-CONNECT 120; the routes EXIST only when the function is switched on, else 404):
 //   POST /node/compilation/status  Bearer {}                                              -> {status: {switch_on, plan, active, allowed, max_film_bytes, ...}}   (the app's launch check)
 //   POST /node/compilation/start   Bearer {title, bytes, sha256, rights:true, duration_s?, width?, height?} -> {id, path, upload_url}
@@ -29,6 +31,7 @@ const DEVICE_CODE = /^[A-Za-z0-9_-]{32,512}$/;
 const TOKEN = new RegExp("^" + TOKEN_PREFIX + "[A-Za-z0-9_-]{43}$");
 const SHA256 = /^[0-9a-f]{64}$/;
 const NODE_STATES = ["running", "validating", "uploading", "complete", "failed"];       // a node never sets queued, claimed, cancelled or editorial_action_required
+const EDIT_ROUTES = ["/node/edit-pending", "/node/edit-summary"];
 const COMPILATION_ROUTES = ["/node/compilation/status", "/node/compilation/start", "/node/compilation/finish", "/node/compilation/cancel"];
 /** The database's own plain sentences, matched to FIXED sentences (the database's text is still never sent). The first match wins. */
 const COMPILATION_REFUSALS: [RegExp, number, string, string][] = [
@@ -168,7 +171,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     // ---------------------------------------------------------------- signed in: a rgn_ bearer in the Authorization header, nowhere else
     const isCompilation = COMPILATION_ROUTES.includes(route);
     if (isCompilation && !d.compilationLinksOn) return fail(404, "not_found", "Not found.");              // the routes do not exist unless the function is switched on
-    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact", "/node/compilation-requests"].includes(route);
+    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact", "/node/compilation-requests", ...EDIT_ROUTES].includes(route);
     if (!isCall) return fail(404, "not_found", "Not found.");
     const wantGet = route === "/account";
     if ((wantGet && method !== "GET") || (!wantGet && method !== "POST")) return fail(405, "method_not_allowed", "That is not allowed here.");
@@ -194,7 +197,29 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
       return reply(200, { requests: (Array.isArray(rows) ? rows : []).slice(0, 20).map((r) => ({ project_id: r.project_id, title: r.title, request: r.request, sha256: r.sha256, updated_at: r.updated_at })) });
     }
 
+    if (route === "/node/edit-pending") {                                                  // READ ONLY (NEXT-CONNECT 142): what the person's AI or web editor queued for their open compilation
+      const who = await caller(req, d.salt);
+      if (!(await d.db.hit(who, "edit_pending_ip", 120, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
+      const rows = await d.db.editPending(h);
+      return reply(200, { changes: (Array.isArray(rows) ? rows : []).slice(0, 100).map((r) => ({ id: r.id, project_id: r.project_id, revision: r.revision, client: r.client, op: r.op })) });
+    }
+
     const b = await body(req); if (b instanceof Response) return b;
+    if (route === "/node/edit-summary") {
+      const who = await caller(req, d.salt);
+      if (!(await d.db.hit(who, "edit_summary_ip", 60, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
+      const bad = () => fail(400, "invalid_request", "That request was not valid.");
+      if (typeof b.project_id !== "string" || !UUID.test(b.project_id) || typeof b.mirror !== "boolean") return bad();
+      if (b.ai_visible !== undefined && typeof b.ai_visible !== "boolean") return bad();
+      const summary = b.summary === undefined || b.summary === null ? null : b.summary;
+      if (summary !== null && (typeof summary !== "object" || Array.isArray(summary))) return bad();
+      if (b.mirror && summary === null) return bad();                                                // mirroring needs the summary; stopping needs none
+      const applied = b.applied === undefined ? [] : b.applied;
+      if (!Array.isArray(applied) || applied.length > 100 || applied.some((a) => !a || typeof a !== "object" || !Number.isInteger((a as { op_id?: unknown }).op_id) || (a as { op_id: number }).op_id < 1
+          || typeof (a as { ok?: unknown }).ok !== "boolean" || Object.keys(a as object).some((k) => k !== "op_id" && k !== "ok"))) return bad();
+      const r = await d.db.editPostSummary(h, b.project_id, b.mirror, b.ai_visible === true, summary as Record<string, unknown> | null, applied as { op_id: number; ok: boolean }[]);
+      return reply(200, { revision: r.revision, mirrored: r.mirrored, ai_visible: r.ai_visible });
+    }
     if (isCompilation) {
       const who = await caller(req, d.salt);
       if (!(await d.db.hit(who, "compilation_ip", 60, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
@@ -243,6 +268,11 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     return reply(200, { path, upload_url: await d.storage.signUpload(path) });
   } catch (e) {
     if (COMPILATION_ROUTES.includes(route)) { const r = compilationRefusal(e); if (r) return r; }
+    if (EDIT_ROUTES.includes(route)) {
+      const code = (e as { code?: string })?.code;
+      if (code === "PT404") return fail(404, "not_found", "That film was not found among your projects.");
+      if (code === "22023") return fail(400, "invalid_request", "The track summary was not accepted.");
+    }
     return dbError(e);
   }
 }

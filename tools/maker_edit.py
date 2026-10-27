@@ -19,6 +19,7 @@ import json
 import os
 import re
 import secrets
+import shutil
 import struct
 import subprocess
 import sys
@@ -296,11 +297,22 @@ def _release() -> None:
     S()["busy"] = False
 
 
+def _engine_takes_previous() -> bool:
+    """True when this engine's build-edit has --previous (FACES 63: the last committed edit list, so a final film cannot quietly drop footage marked as AI-altered)."""
+    try:
+        return "--previous" in (Path(_dm.STATE["engine"]) / "ryagram" / "local" / "__main__.py").read_text(encoding="utf-8")
+    except OSError:
+        return False
+
+
 def _args_for(lst: dict, out: Path, work: Path, proxy: bool) -> list:
     f = work / ("proxy-edit.json" if proxy else "render-edit.json")
     work.mkdir(parents=True, exist_ok=True)
     f.write_text(json.dumps(lst), encoding="utf-8")
     args = ["build-edit", str(f), "--work-dir", str(work / "w"), "--out", str(out)]
+    committed = work / "committed-edit.json"
+    if not proxy and committed.is_file() and _engine_takes_previous():
+        args += ["--previous", str(committed)]
     for item in _media_items():
         args += ["--media", item]
     for iid, path in sorted(S()["images"].items()):
@@ -367,6 +379,10 @@ def render(body: dict) -> dict:
         except (OSError, ValueError):
             rcpt = {}
         _dm.STATE["last_film"] = str(out)
+        try:
+            shutil.copyfile(_dm.STATE["work"] / "edit" / "render-edit.json", _dm.STATE["work"] / "edit" / "committed-edit.json")     # the list this film was built from: the next final film is checked against it
+        except OSError:
+            pass
         msg = f"Your film is ready: {out.name}, in {out_dir.name}."
         if rcpt.get("seconds"):
             msg += f" It is {rcpt['seconds']:.0f} seconds long."

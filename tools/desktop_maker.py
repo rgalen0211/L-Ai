@@ -832,6 +832,15 @@ def _edit_mod():
     return maker_edit
 
 
+def _live_mod():
+    """tools/maker_live.py when the maker was started with --live, else None (the routes then do not exist)."""
+    if not STATE.get("live_on"):
+        return None
+    _tools_on_path()
+    import maker_live  # noqa: PLC0415
+    return maker_live
+
+
 def _song_mod():
     """tools/maker_song.py when the maker was started with --song, else None (the routes then do not exist)."""
     if not STATE.get("song_on"):
@@ -1563,6 +1572,13 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if me.get(path, u.query, self._send, self._json, self._auth, self._host_ok, self._send_ranged):
                 return
+        if path.startswith(("/api/live", "/live")):
+            ml = _live_mod()
+            if ml is None:
+                self._json(404, {"error": "Not found."})
+                return
+            if ml.get(path, u.query, self._send, self._json, self._auth, self._host_ok):
+                return
         if path.startswith(("/api/song", "/song")):
             ms = _song_mod()
             if ms is None:
@@ -1691,6 +1707,13 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(404, {"error": "Not found."})
                     return
                 if me.post(path, body, self._json):
+                    return
+            if path.startswith("/api/live"):
+                ml = _live_mod()
+                if ml is None:
+                    self._json(404, {"error": "Not found."})
+                    return
+                if ml.post(path, body, self._json):
                     return
             if path.startswith("/api/song"):
                 ms = _song_mod()
@@ -2200,6 +2223,7 @@ def main(argv=None) -> int:
     ap.add_argument("--v2", action="store_true", help="TEST: show the pictures-and-rules section (images as inputs, the every-time-a-word-is-said rule); off by default")
     ap.add_argument("--song", action="store_true", help="TEST: serve the song page (a line sung to your music, words from your own videos); off by default")
     ap.add_argument("--edit", action="store_true", help="TEST: serve the edit page (reorder, trim, slides, pictures, captions, text, then render); off by default")
+    ap.add_argument("--live", action="store_true", help="TEST: serve the live editor page (the same editor as the website, offline, on your own videos); needs --edit; off by default")
     ap.add_argument("--song-forge", action="store_true", help="TEST, with --song: build a word nobody says from the sounds of words your videos do say, when the alignment model is on this PC (it is never downloaded by the maker)")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
@@ -2230,6 +2254,13 @@ def main(argv=None) -> int:
         _tools_on_path()
         import maker_edit  # noqa: PLC0415
         maker_edit.attach(sys.modules[__name__])
+    if a.live or os.environ.get("RYAGRAM_MAKER_LIVE") == "1":
+        if not STATE.get("edit_on"):
+            raise SystemExit("--live needs --edit (the live editor writes the same edit list the edit page builds from).")
+        STATE["live_on"] = True
+        _tools_on_path()
+        import maker_live  # noqa: PLC0415
+        maker_live.attach(sys.modules[__name__])
     url = f"http://127.0.0.1:{STATE['port']}/?t={STATE['token']}"
     print("Desktop maker is running on this computer only.", flush=True)
     print(f"Open  {url}", flush=True)

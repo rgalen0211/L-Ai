@@ -89,9 +89,9 @@ def stop(p):
     p.stdout.close()
 
 
-print("1. a portable set with --edit --song opens both pages")
+print("1. a portable set with --edit --song --live opens all three pages")
 root = build("portable-ok")
-p, url, out = start(root, ["--edit", "--song"])
+p, url, out = start(root, ["--edit", "--song", "--live"])
 try:
     check(url is not None, "the maker starts from the portable set under -I and prints its address" + ("" if url else f" ({out[-300:]!r})"))
     if url:
@@ -102,7 +102,11 @@ try:
         check(e[0] == 200 and "<html" in e[1].lower(), f"the edit page opens (status {e[0]})")
         s = get(base, f"/song?t={tok}", tok)
         check(s[0] == 200 and "<html" in s[1].lower(), f"the song page opens (status {s[0]})")
-        for path in ("/edit.js", "/edit-model.js", "/edit.css", "/song.js", "/song-model.js", "/song.css"):
+        lv = get(base, f"/live?t={tok}", tok)
+        check(lv[0] == 200 and "<html" in lv[1].lower(), f"the live editor page opens (status {lv[0]})")
+        lp = get(base, f"/api/live/sync", tok)
+        check(lp[0] in (200, 401, 403), f"the live routes exist and are behind the token (status {lp[0]})")
+        for path in ("/edit.js", "/edit-model.js", "/edit.css", "/song.js", "/song-model.js", "/song.css", "/live.js", "/live.css"):
             r = get(base, path + f"?t={tok}", tok)
             check(r[0] == 200 and len(r[1]) > 100, f"{path} is served (status {r[0]}, {len(r[1])} characters)")
 finally:
@@ -112,14 +116,14 @@ print("2. without the flags the pages do not exist")
 p, url, out = start(root, [])
 try:
     base, tok = url if url else ("http://127.0.0.1:1", "x")
-    check(url is not None and get(base, f"/edit?t={tok}", tok)[0] == 404 and get(base, f"/song?t={tok}", tok)[0] == 404, "/edit and /song answer 404 when not asked for")
+    check(url is not None and get(base, f"/edit?t={tok}", tok)[0] == 404 and get(base, f"/song?t={tok}", tok)[0] == 404 and get(base, f"/live?t={tok}", tok)[0] == 404, "/edit, /song and /live answer 404 when not asked for")
 finally:
     stop(p)
 
 print("3. MUST-FAIL: a set missing a module or a page folder does not open that page")
-for drop, page in (("maker_song.py", "song"), ("maker_edit.py", "edit"), ("maker-song", "song"), ("maker-edit", "edit")):
+for drop, page in (("maker_song.py", "song"), ("maker_edit.py", "edit"), ("maker-song", "song"), ("maker-edit", "edit"), ("maker_live.py", "live"), ("maker-live", "live")):
     r2 = build("portable-missing", drop=(drop,))
-    p, url, out = start(r2, ["--edit", "--song"])
+    p, url, out = start(r2, ["--edit", "--song", "--live"])
     try:
         opened = False
         if url:

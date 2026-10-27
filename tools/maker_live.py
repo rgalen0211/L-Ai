@@ -18,6 +18,7 @@ import json
 import math
 import os
 import re
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -385,8 +386,9 @@ def _iso(t: float) -> str:
 class LiveDraft:
     """The draft of one project on this computer. `path` = live-draft.json beside edit.json; `clock` is injectable for tests. Thread-safe (the page and the sync both call it)."""
 
-    def __init__(self, path, clock=time.time, look_keys=None):
+    def __init__(self, path, clock=time.time, look_keys=None, hook=None):
         self.path, self.clock, self.look_keys = Path(path), clock, look_keys
+        self.hook = hook                 # hook(mode, state): turns the new state into what the engine builds from, or raises LiveError to refuse it; called before anything is kept
         self.lock = threading.RLock()
         self.data = self._load()
 
@@ -499,6 +501,8 @@ class LiveDraft:
                                          for r in m["ops"]):
                     raise LiveError("PT409", f"Change {i} was not accepted: the person undid exactly this a moment ago. Ask them before doing it again.")
                 running = apply(running, op)
+            if self.hook:
+                self.hook(mode, running)
             revision = m["revision"] + 1
             for op in ops:
                 self._add_row(m, revision, actor, client, op, now)
@@ -539,7 +543,16 @@ class LiveDraft:
                 row["status"], row["undone_at"], row["ended_by"] = "undone", now, by
                 undone += 1
             if undone:
-                m["state"] = self._replay(m)
+                new_state = self._replay(m)
+                try:
+                    if self.hook:
+                        self.hook(mode, new_state)
+                except LiveError:
+                    for row in m["ops"]:                                           # the film could not be rebuilt without them: nothing was taken back
+                        if row["id"] in op_ids and row["undone_at"] == now and row["status"] == "undone":
+                            row["status"], row["undone_at"], row["ended_by"] = "applied", None, None
+                    raise
+                m["state"] = new_state
                 m["revision"] += 1
                 self._save()
             return {"undone": undone, "skipped": skipped, "revision": m["revision"], "state": self._shown(mode, m["state"])}
@@ -579,3 +592,214 @@ class LiveDraft:
         with self.lock:
             t = self._mode(mode)["editor_seen_at"]
             return t is not None and self.clock() - t < within
+
+
+# --------------------------------------------------------------------------------------------------------- 4. the maker's side: routes (off unless the maker is started with --live)
+# Routes, all behind the maker's token, 127.0.0.1 only (the same rules as tools/maker_edit.py):
+#   GET  /live, /live.js, /live.css      WEB's standalone page (tools/maker-live/, pinned), served with its own content policy
+#   POST /api/live/rpc {name, args}      the five editor_* functions on this computer's draft -> {data, error}
+#   GET  /api/live/sync                  {signed_in, mirror, ai_visible, project, message}: what the small card shows
+#   POST /api/live/sync {mirror, ai_visible, project}   the person's two switches and the site project this film belongs to
+# The film itself is still the edit list (edit.json): every accepted change is turned into it by the engine's own tracks module (ryagram.local.edittracks) BEFORE it is kept, so a change the
+# engine could not build (a clip from a video the person did not choose, a trim past the end of a file) is refused in plain words and nothing moves.
+HERE = Path(__file__).resolve().parent
+PAGE_DIR = HERE / "maker-live"
+ASSETS = {"/live": ("live.html", "text/html; charset=utf-8"), "/live.js": ("live.js", "text/javascript; charset=utf-8"), "/live.css": ("live.css", "text/css; charset=utf-8")}
+LIVE_CSP = ("default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'")
+RPC_NAMES = ("editor_apply_ops", "editor_undo", "editor_undo_all_ai", "my_edit_ops_since", "editor_heartbeat")
+UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+NO_TRACKS = "The track editor is not in this build of the app yet."
+_dm = None
+_ME = None                    # tools/maker_edit.py once loaded
+
+
+class Problem(Exception):
+    """A sentence for the page (the maker answers 400 {error})."""
+
+
+def attach(dm) -> None:
+    global _dm
+    _dm = dm
+    dm.STATE.setdefault("live", {"draft": None, "sync": None, "project": None, "mirror": False, "ai_visible": False})
+
+
+def on() -> bool:
+    return bool(_dm and _dm.STATE.get("live_on"))
+
+
+def S() -> dict:
+    return _dm.STATE["live"]
+
+
+def _edit():
+    global _ME
+    if _ME is None:
+        if str(HERE) not in sys.path:
+            sys.path.insert(0, str(HERE))
+        import maker_edit  # noqa: PLC0415
+        _ME = maker_edit
+    return _ME
+
+
+def _tracks():
+    try:
+        from ryagram.local import edittracks  # noqa: PLC0415
+    except ImportError:
+        raise LiveError("PT404", NO_TRACKS) from None
+    return edittracks
+
+
+def _media_seconds() -> dict:
+    """{file name: seconds} of the videos the person chose (names only); the engine reads each file's header once."""
+    me, et = _edit(), _tracks()
+    eb = me._eb()
+    items = me._media_items()
+    try:
+        secs, _unreadable = et.media_seconds(eb.resolve_media(items))
+    except Exception as e:  # noqa: BLE001
+        raise LiveError("22023", str(e)[:200] or "A video could not be read.") from None
+    return secs
+
+
+def _convert(state: dict) -> dict:
+    """The tracks state -> the engine's edit list, or a LiveError with the engine's own sentence. Nothing is written here."""
+    me, et = _edit(), _tracks()
+    try:
+        base = me.load()["edit"]
+        return et.edit_from_tracks(state, base, _media_seconds())
+    except LiveError:
+        raise
+    except Exception as e:  # noqa: BLE001  (TrackError, EditError, Problem: all carry a plain sentence)
+        raise LiveError("22023", (str(e) or "The engine could not build that.")[:300]) from None
+
+
+def _hook(mode: str, state: dict) -> None:
+    """Called by the draft before a change is kept: the film must still be buildable, and edit.json is then rewritten from it."""
+    if mode != "compilation":
+        return
+    new_edit = _convert(state)
+    try:
+        _edit().save({"edit": new_edit})
+    except Exception as e:  # noqa: BLE001
+        raise LiveError("22023", (str(e) or "The edit list could not be saved.")[:300]) from None
+
+
+def draft() -> "LiveDraft":
+    """The draft of the film on this computer, made on first use from the edit list (Plan's rough cut or the saved one)."""
+    s = S()
+    if s["draft"] is None:
+        me, et = _edit(), _tracks()
+        f = _dm.STATE["work"] / "live" / "live-draft.json"
+        f.parent.mkdir(parents=True, exist_ok=True)
+        d = LiveDraft(f, hook=_hook)
+        try:
+            lst = me.load()["edit"]
+        except Exception as e:  # noqa: BLE001
+            raise LiveError("PT404", (str(e) or "Press Plan first.")[:300]) from None
+        d.set_base("compilation", et.tracks_from_edit(lst, _media_seconds()))
+        d.set_ai_visible(bool(s["ai_visible"]))
+        s["draft"] = d
+    return s["draft"]
+
+
+def sync():
+    s = S()
+    if s["sync"] is None and _dm.STATE.get("signin") is not None:
+        if str(HERE) not in sys.path:
+            sys.path.insert(0, str(HERE))
+        import maker_live_sync  # noqa: PLC0415
+        s["sync"] = maker_live_sync.LiveSync(_dm.STATE["signin"], draft())
+        s["sync"].attach(s["project"])
+        s["sync"].set_switches(s["mirror"], s["ai_visible"])
+        threading.Thread(target=s["sync"].run_forever, daemon=True).start()
+    return s["sync"]
+
+
+def sync_status() -> dict:
+    s = S()
+    sy = s["sync"]
+    return {"signed_in": _dm.STATE.get("signin") is not None, "mirror": s["mirror"], "ai_visible": s["ai_visible"], "project": s["project"], "message": (sy.status()["message"] if sy else "")}
+
+
+def set_sync(body: dict) -> dict:
+    s = S()
+    project = body.get("project", s["project"])
+    if project is not None and not (isinstance(project, str) and UUID.match(project)):
+        raise Problem("That film is not one of your Ryagram projects.")
+    for k in ("mirror", "ai_visible"):
+        if k in body and not isinstance(body[k], bool):
+            raise Problem("Switch each one on or off.")
+    want_mirror = bool(body.get("mirror", s["mirror"]))
+    want_ai = bool(want_mirror and body.get("ai_visible", s["ai_visible"]))
+    if _dm.STATE.get("signin") is None and want_mirror:
+        raise Problem("Sign this computer in to Ryagram first (the Sign in card), then switch this on.")
+    s["project"], s["mirror"], s["ai_visible"] = project, want_mirror, want_ai
+    try:
+        sy = sync() if (want_mirror or s["sync"] is not None) else None
+    except LiveError as e:
+        raise Problem(e.message) from None
+    if sy:
+        sy.attach(project)
+        sy.set_switches(want_mirror, want_ai)
+    elif s["draft"] is not None:
+        s["draft"].set_ai_visible(want_ai)
+    return sync_status()
+
+
+def get(path: str, query: str, send, send_json, auth, host_ok, send_file=None) -> bool:
+    if not (path in ASSETS or path.startswith("/api/live")):
+        return False
+    if not on():
+        send_json(404, {"error": "Not found."})
+        return True
+    if path in ASSETS:
+        if path == "/live" and not auth(query_ok=True):
+            return True
+        if path != "/live" and not host_ok():
+            send_json(403, {"error": "no"})
+            return True
+        name, ctype = ASSETS[path]
+        send(200, (PAGE_DIR / name).read_bytes(), ctype, LIVE_CSP)
+        return True
+    if not auth():
+        return True
+    if path == "/api/live/sync":
+        send_json(200, sync_status())
+    else:
+        send_json(404, {"error": "Not found."})
+    return True
+
+
+def _rpc_error(code: str, message: str) -> dict:
+    return {"data": None, "error": {"code": code, "message": message}}
+
+
+def post(path: str, body: dict, send_json) -> bool:
+    if not path.startswith("/api/live"):
+        return False
+    if not on():
+        send_json(404, {"error": "Not found."})
+        return True
+    try:
+        if path == "/api/live/rpc":
+            name, args = body.get("name"), body.get("args")
+            if name not in RPC_NAMES or not isinstance(args, dict):
+                send_json(200, _rpc_error("22023", "That call is not one the editor makes."))
+            elif args.get("p_mode") not in ("compilation", "data"):
+                send_json(200, _rpc_error("22023", "That is not an editor mode."))
+            elif args.get("p_mode") == "data":
+                send_json(200, _rpc_error("PT404", "Data films cannot be edited on this computer yet."))
+            else:
+                try:
+                    d = draft()
+                except LiveError as e:
+                    send_json(200, _rpc_error(e.code, e.message))
+                    return True
+                send_json(200, d.rpc(name, args))
+        elif path == "/api/live/sync":
+            send_json(200, set_sync(body))
+        else:
+            send_json(404, {"error": "Not found."})
+    except Problem as e:
+        send_json(400, {"error": str(e)})
+    return True
