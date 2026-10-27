@@ -360,12 +360,15 @@ function clipLine(c: Record<string, unknown>): string {
 const getEditState: ToolDef = {
   name: "get_edit_state", title: "See the person's open editor", scope: "read", readOnly: true,
   description: "Shows what is in the person's live preview editor for one project: the look settings currently changed, which settings you may change, and (only if the person ticked \"Let my AI see my track list\" in the Ryagram app) "
-    + "their clip list for a compilation, with each clip's id. Read it before set_look or edit_tracks: you need the revision it gives. It never shows a video, a picture or a place on their computer.",
-  inputSchema: obj({ project_id: uuid }, ["project_id"]),
+    + "their clip list for a compilation, with each clip's id. Read it before set_look or edit_tracks: you need the revision it gives. Call it with no project_id to see the project whose editor the person has open right now. It never shows a video, a picture or a place on their computer.",
+  inputSchema: obj({ project_id: { ...uuid, description: "Optional. Leave it out to see the project whose editor the person has open right now." } }, []),
   async run(a, ctx) {
-    const s = await ctx.data.editState(String(a.project_id));
+    const s = await ctx.data.editState(a.project_id === undefined ? null : String(a.project_id));
     if (!s) return NOT_YOURS("project");
-    const lines: string[] = [];
+    if ("open_editor" in s) {
+      return ok("None of the person's editors is open right now. Ask them to open the editor on the film (and tell you which film), or use list_projects and pass a project_id.", { open_editor: false });
+    }
+    const lines: string[] = [`Project ${s.project_id}: use this project_id for set_look, edit_tracks and undo_my_changes.`, ""];
     const set = Object.entries(s.data.look);
     lines.push(`Data film look (revision ${s.data.revision}; the person's editor is ${s.data.editor_open ? "open now" : "not open right now"}):`);
     lines.push(set.length ? set.map(([k, v]) => `  ${k} = ${JSON.stringify(v)}`).join("\n") : "  nothing changed yet; the saved story's own look applies.");
@@ -388,7 +391,7 @@ const getEditState: ToolDef = {
       for (const u of s.recently_undone.slice(0, 10)) lines.push(`  ${u.mode}: ${JSON.stringify(u.op).slice(0, 200)}`);
     }
     lines.push("", "Everything you change is a draft the person sees and can undo; only their own Save or Build makes it final. You cannot render, spend credits or publish from here.");
-    return ok(lines.join("\n"), { saved_story_sha256: s.saved_story_sha256, look_keys: s.look_keys ?? [], data: s.data, compilation: { revision: c.revision, shared: c.shared, pending: c.pending, editor_open: c.editor_open, tracks: c.shared ? c.tracks : null }, recently_undone: s.recently_undone });
+    return ok(lines.join("\n"), { project_id: s.project_id, saved_story_sha256: s.saved_story_sha256, look_keys: s.look_keys ?? [], data: s.data, compilation: { revision: c.revision, shared: c.shared, pending: c.pending, editor_open: c.editor_open, tracks: c.shared ? c.tracks : null }, recently_undone: s.recently_undone });
   },
 };
 

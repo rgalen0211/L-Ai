@@ -364,17 +364,22 @@ grant execute on function public.editor_apply_ops(uuid, text, bigint, jsonb), pu
   public.my_edit_ops_since(uuid, text, bigint), public.editor_heartbeat(uuid, text) to authenticated;
 
 -- ---------------------------------------------------------------- the person's AI (the connector's role; the person is resolved from the token's hash on every call)
-create function public.connect_edit_state(p_token_hash text, p_project uuid) returns jsonb
+create function public.connect_edit_state(p_token_hash text, p_project uuid default null) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
   me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
   dd public.edit_drafts;
   dc public.edit_drafts;
 begin
+  if p_project is null then                              -- no project named: the one whose editor the person has open right now (a heartbeat in the last two minutes)
+    select e.project_id into p_project from public.edit_drafts e where e.owner_id = me and e.editor_seen_at > now() - interval '2 minutes' order by e.editor_seen_at desc limit 1;
+    if p_project is null then return jsonb_build_object('open_editor', false); end if;
+  end if;
   if not exists (select 1 from public.projects where id = p_project and owner_id = me) then return null; end if;
   select * into dd from public.edit_drafts where project_id = p_project and mode = 'data' and owner_id = me;
   select * into dc from public.edit_drafts where project_id = p_project and mode = 'compilation' and owner_id = me;
   return jsonb_build_object(
+    'project_id', p_project,
     'saved_story_sha256', (select v.story_sha256 from public.versions v where v.project_id = p_project order by v.number desc limit 1),
     'look_keys', (select jsonb_agg(jsonb_build_object('key', k.key, 'kind', k.kind, 'choices', k.choices, 'min', k.min_value, 'max', k.max_value) order by k.key) from public.edit_look_keys k),
     'data', jsonb_build_object('revision', coalesce(dd.revision, 0), 'look', coalesce(dd.state -> 'look', '{}'::jsonb),

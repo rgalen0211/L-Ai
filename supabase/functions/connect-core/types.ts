@@ -57,6 +57,7 @@ export interface LocalNode { last_seen_at: string | null; computer_name: string 
 
 /** The person's open editor, as their AI may see it (NEXT-CONNECT 141). Names and numbers only: never a path, a video, a picture or an account detail. */
 export interface EditState {
+  project_id: string;
   saved_story_sha256: string | null;
   look_keys: { key: string; kind: string; choices: string[] | null; min: number | null; max: number | null }[] | null;
   data: { revision: number; look: Record<string, unknown>; editor_open: boolean };
@@ -83,7 +84,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
     run_on?: string; node?: LocalNode | null }) | null>;
   links(versionId: string, jobId: string | null): Promise<Link[]>;
   /** The live editor (scope read for the state, scope edit for the rest). null = the project is not the person's. Changes are DRAFTS the person sees and saves; the AI never saves, renders or spends from here. */
-  editState(projectId: string): Promise<EditState | null>;
+  /** projectId null = the project whose editor is open right now; {open_editor: false} when none is. null = the project is not the person's. */
+  editState(projectId: string | null): Promise<EditState | { open_editor: false } | null>;
   editOps(projectId: string, mode: "data" | "compilation", baseRevision: number, ops: Record<string, unknown>[]): Promise<EditResult>;
   /** Takes back the AI's own most recent batch (never the person's changes). */
   editUndoAi(projectId: string, mode: "data" | "compilation"): Promise<EditUndoResult>;

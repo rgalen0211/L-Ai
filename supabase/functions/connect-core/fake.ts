@@ -144,11 +144,22 @@ export class FakeWorld {
           params, steps: 0, credits: q.credits, progress: null, ...(user.local ? { run_on: "owner_local" } : {}) };
         user.jobs.push(j); return { id: j.id, state: j.state, ...(j.run_on ? { run_on: j.run_on } : {}) };
       },
-      editState: async (pid): Promise<EditState | null> => {
+      editState: async (pid0): Promise<EditState | { open_editor: false } | null> => {
+        let pid = pid0;
+        if (pid === null) {                                              // the project whose editor is open right now (a heartbeat in the last two minutes)
+          let best: { id: string; at: number } | null = null;
+          for (const p of u().projects) for (const m of ["data", "compilation"] as const) {
+            const at = this.draft(userId, p.id, m).editor_seen_at;
+            if (at !== null && Date.now() - at < 120_000 && (!best || at > best.at)) best = { id: p.id, at };
+          }
+          if (!best) return { open_editor: false };
+          pid = best.id;
+        }
         if (!u().projects.some((p) => p.id === pid)) return null;
         const dd = this.draft(userId, pid, "data"), dc = this.draft(userId, pid, "compilation");
         const live = (d: Draft) => d.editor_seen_at !== null && Date.now() - d.editor_seen_at < 30_000;
         return JSON.parse(JSON.stringify({
+          project_id: pid,
           saved_story_sha256: u().versions.filter((v) => v.project_id === pid).reduce((a, b) => (b.number > a.number ? b : a)).story_sha256,
           look_keys: LOOK_KEYS.map((k) => ({ key: k.key, kind: k.kind, choices: k.choices ?? null, min: k.min ?? null, max: k.max ?? null })),
           data: { revision: dd.revision, look: dd.look, editor_open: live(dd) },

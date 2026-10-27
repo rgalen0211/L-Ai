@@ -138,6 +138,24 @@ test('the AI cannot repeat, for ten minutes, a change the person just undid', as
   assert.equal(s.data.recently_undone.length, 1); assert.match(s.text, /recently took back/);
 });
 
+test('get_edit_state with no project_id answers for the project whose editor is open now, names its id, and says so in words when none is open', async () => {
+  const { w, call } = world();
+  const one = await project(call, A, 'Film one'), two = await project(call, A, 'Film two');
+  const none = await call(A, 'get_edit_state', {});
+  assert.equal(none.isError, undefined); assert.equal(none.data.open_editor, false); assert.match(none.text, /None of the person's editors is open/);
+  w.openEditor(A.userId, one, 'data'); await new Promise((r) => setTimeout(r, 5));
+  w.openEditor(A.userId, two, 'compilation');                                   // the newer heartbeat wins
+  const s = await call(A, 'get_edit_state', {});
+  assert.equal(s.data.project_id, two); assert.match(s.text, new RegExp('Project ' + two));
+  w.openEditor(A.userId, two, 'compilation', false);                             // two closes: one is the only one open
+  assert.equal((await call(A, 'get_edit_state', {})).data.project_id, one);
+  const named = await call(A, 'get_edit_state', { project_id: two });           // naming a project still works, open or not
+  assert.equal(named.data.project_id, two);
+  const bobs = await project(call, B, 'Bobs');
+  w.openEditor(B.userId, bobs, 'data');
+  assert.equal((await call(A, 'get_edit_state', {})).data.project_id, one, "another person's open editor is never shown");
+});
+
 test('tracks: the AI sees nothing of the clip list until the person ticks the box, and cannot change it either', async () => {
   const { w, call } = world();
   const id = await project(call);

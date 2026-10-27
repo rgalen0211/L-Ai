@@ -427,6 +427,27 @@ class LiveEditor(core.Base):
             with self.assertRaises(psycopg.Error, msg=stmt):
                 self.db.as_(ALICE).c.execute(stmt)
 
+    def test_get_edit_state_without_a_project_answers_for_the_editor_that_is_open_now(self):
+        a = self.alice()
+        p1 = self.project(a, "Film one")
+        p2 = self.project(a, "Film two")
+        none = self.runner().one("select connect_edit_state(%s, null)", h(a))
+        self.assertEqual(none, {"open_editor": False})                                                         # no editor open: said in a few words, nothing else
+        self.app(ALICE).one("select editor_heartbeat(%s, 'data')", p1)
+        self.run_sql("select pg_sleep(0.05)")
+        self.app(ALICE).one("select editor_heartbeat(%s, 'compilation')", p2)
+        s = self.runner().one("select connect_edit_state(%s)", h(a))                                           # the argument may be left out entirely
+        self.assertEqual(s["project_id"], p2)                                                                  # the newest heartbeat wins, and the answer names its project
+        self.assertEqual(self.state(a, p1)["project_id"], p1)                                                  # naming a project still works
+        self.run_sql("update public.edit_drafts set editor_seen_at = now() - interval '5 minutes' where project_id = %s", p2)
+        self.assertEqual(self.runner().one("select connect_edit_state(%s)", h(a))["project_id"], p1)          # an editor closed more than two minutes ago is not 'open'
+        self.run_sql("update public.edit_drafts set editor_seen_at = now() - interval '5 minutes'")
+        self.assertEqual(self.runner().one("select connect_edit_state(%s)", h(a)), {"open_editor": False})
+        b = self.connect(BOB, scopes=SCOPES)[1]                                                                # another person's open editor is never shown
+        pb = self.project(b, "Bobs")
+        self.app(BOB).one("select editor_heartbeat(%s, 'data')", pb)
+        self.assertEqual(self.runner().one("select connect_edit_state(%s)", h(a)), {"open_editor": False})
+
     def test_the_edit_tools_have_no_way_to_a_render_a_credit_a_story_a_job_or_a_plan(self):
         a = self.alice()
         p = self.project(a)
