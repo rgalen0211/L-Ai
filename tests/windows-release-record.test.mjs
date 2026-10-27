@@ -1,6 +1,8 @@
 // The website's release record (assets/windows-release.js; NEXT-CONNECT 133, CC1 2026-10-26 20:01): it is EMPTY until a built zip is published, and once it is filled it must agree with the zip it names.
 // EMPTY record: the committed shape is all null and the card stays off (this is what main holds). FILLED record: an https GitHub release address whose last part is the file name, a safe .zip name, a
 // 64-hex SHA-256, a whole-number size, AND the built zip itself must be named in RYAGRAM_RELEASE_ZIP so its exact size and SHA-256 are compared (a filled record with no zip named FAILS: it cannot be skipped).
+// THE DOWNLOAD IS INVITE-ONLY ON CLOUDFLARE R2 (Ryan's Q248, 2026-10-26): the record's url is NOT a file, it is the app-download FUNCTION's address on the project's own functions host
+// (https://<project>.supabase.co/functions/v1/app-download), which hands a signed-in invitee a 15-minute link; the file itself is in a private bucket.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -14,9 +16,8 @@ const filled = !!(rec.url || rec.fileName || rec.sha256);
 // the rules, as a function, so the planted faults below can be run through the SAME code
 function problems(r, zipPath) {
   const out = [];
-  if (typeof r.url !== 'string' || !/^https:\/\/github\.com\/rgalen0211\/L-Ai\/releases\/download\/[A-Za-z0-9._-]+\/[A-Za-z0-9._-]+\.zip$/.test(r.url)) out.push('the address is not an https GitHub release asset of rgalen0211/L-Ai');
+  if (typeof r.url !== 'string' || !/^https:\/\/[a-z0-9]{20}\.supabase\.co\/functions\/v1\/app-download$/.test(r.url)) out.push('the address is not the project\'s app-download function (https://<project>.supabase.co/functions/v1/app-download)');
   if (typeof r.fileName !== 'string' || !/^[A-Za-z0-9._-]+\.zip$/.test(r.fileName)) out.push('the file name is not a plain .zip name');
-  else if (typeof r.url === 'string' && r.url.split('/').pop() !== r.fileName) out.push('the file name is not the last part of the address');
   if (typeof r.sha256 !== 'string' || !/^[0-9a-f]{64}$/.test(r.sha256)) out.push('the SHA-256 is not 64 lowercase hex characters');
   if (!Number.isInteger(r.sizeMb) || r.sizeMb < 1) out.push('the size is not a whole number of MB');
   if (!zipPath) out.push('no built zip is named in RYAGRAM_RELEASE_ZIP, so the record cannot be compared with it');
@@ -43,14 +44,16 @@ test('the rules themselves: a good record passes, each fault is named (the same 
   const zip = dir + '/app-test.zip';
   fs.writeFileSync(zip, Buffer.alloc(2_345_678, 7));
   const sha = crypto.createHash('sha256').update(fs.readFileSync(zip)).digest('hex');
-  const good = { url: 'https://github.com/rgalen0211/L-Ai/releases/download/app-test/app-test.zip', fileName: 'app-test.zip', sha256: sha, sizeMb: 2 };
+  const good = { url: 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/app-download', fileName: 'app-test.zip', sha256: sha, sizeMb: 2 };
   assert.deepEqual(problems(good, zip), []);
   const bad = (patch, zp = zip) => problems({ ...good, ...patch }, zp);
   assert.ok(bad({ sha256: '0'.repeat(64) }).some((p) => /not the built zip/.test(p)), 'a wrong hash');
   assert.ok(bad({ sizeMb: 3 }).some((p) => /size/.test(p)), 'a wrong size');
-  assert.ok(bad({ fileName: 'other.zip' }).some((p) => /last part|name/.test(p)), 'a wrong file name');
-  assert.ok(bad({ url: 'http://github.com/rgalen0211/L-Ai/releases/download/app-test/app-test.zip' }).some((p) => /https/.test(p)), 'http');
-  assert.ok(bad({ url: 'https://evil.example/rgalen0211/L-Ai/releases/download/app-test/app-test.zip' }).some((p) => /GitHub/.test(p)), 'another host');
+  assert.ok(bad({ fileName: 'other.zip' }).some((p) => /name/.test(p)), 'a wrong file name');
+  assert.ok(bad({ url: 'http://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/app-download' }).some((p) => /app-download function/.test(p)), 'http');
+  assert.ok(bad({ url: 'https://evil.example/functions/v1/app-download' }).some((p) => /app-download function/.test(p)), 'another host');
+  assert.ok(bad({ url: 'https://github.com/rgalen0211/L-Ai/releases/download/app-test/app-test.zip' }).some((p) => /app-download function/.test(p)), 'MUST-FAIL: a public GitHub release address is no longer accepted');
+  assert.ok(bad({ url: 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/other-function' }).some((p) => /app-download function/.test(p)), 'another function');
   assert.ok(bad({ sha256: 'A'.repeat(64) }).some((p) => /64 lowercase/.test(p)), 'upper case hex');
   assert.ok(bad({}, null).some((p) => /no built zip is named/.test(p)), 'MUST-FAIL: a filled record with no zip named cannot pass');
   fs.rmSync(dir, { recursive: true, force: true });

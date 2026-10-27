@@ -1,11 +1,12 @@
 """Is the file the website points to the file that was built? (NEXT-CONNECT 133; CC1 2026-10-26 20:01.) Run it AFTER the release exists and BEFORE assets/windows-release.js goes live.
 
-    python tools/check-release-asset.py --zip D:/.../app-NNN.zip            the record's address answers 200 with the zip's exact size (a HEAD request: no file is downloaded)
-    python tools/check-release-asset.py --zip D:/.../app-NNN.zip --hash     and the downloaded bytes hash to the record's SHA-256 (streams the whole file once: about 270 MB; ask first)
+    python tools/check-release-asset.py --zip D:/.../app-NNN.zip --url "<a fresh presigned link>"           the link answers 200 with the zip's exact size (a HEAD request: no file is downloaded)
+    python tools/check-release-asset.py --zip D:/.../app-NNN.zip --url "<a fresh presigned link>" --hash    and the downloaded bytes hash to the record's SHA-256 (streams the whole file once: about 270 MB)
+    (the record's own url is the app-download FUNCTION, which cannot be fetched without a person's sign-in; the link it returns is what is checked: Ryan makes one with the card and passes it here)
     python tools/check-release-asset.py --selftest                          the checks of this checker against a local test server (nothing leaves this computer)
 
-The record is assets/windows-release.js (read as text; nothing is run). The address must be https on github.com, the file name must be the address's last part, and every redirect must stay on
-GitHub's own download hosts. Standard library only."""
+The record is assets/windows-release.js (read as text; nothing is run): its file name and SHA-256 are compared with the built zip. The link must be https on the private bucket's own address
+(<account>.r2.cloudflarestorage.com) and a redirect may only stay there. Standard library only."""
 import argparse
 import hashlib
 import http.server
@@ -18,7 +19,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-ALLOWED = ("github.com", "githubusercontent.com")          # a host or a subdomain of one of these
+ALLOWED = ("r2.cloudflarestorage.com",)                    # the private bucket's own address (a presigned link); a host or a subdomain of this
 FAILED = []
 
 
@@ -62,14 +63,15 @@ def open_url(url, allowed, method="HEAD"):
     return op.open(urllib.request.Request(url, method=method, headers={"User-Agent": "ryagram-release-check"}), timeout=60)
 
 
-def verify(rec, zip_path: Path, do_hash: bool, allowed=ALLOWED):
-    url, name, sha = rec.get("url"), rec.get("fileName"), rec.get("sha256")
+def verify(rec, zip_path: Path, do_hash: bool, allowed=ALLOWED, url_override=None):
+    url, name, sha = (url_override or rec.get("url")), rec.get("fileName"), rec.get("sha256")
     check(bool(url and name and sha), "the record has an address, a file name and a SHA-256")
     if not (url and name and sha):
         return
     u = urllib.parse.urlsplit(url)
     check((u.scheme == "https" or (u.hostname == "127.0.0.1" and "127.0.0.1" in allowed)) and host_ok(u.hostname, allowed), f"the address is https on an allowed host ({u.hostname})")
-    check(u.path.rsplit("/", 1)[-1] == name, "the file name is the last part of the address")
+    check(url_override is None or urllib.parse.unquote(u.path).rsplit("/", 1)[-1] == name, "the link's object name is the record's file name")
+    check(url_override is not None or "app-download" in u.path, "(no link was given: the record's own address is the function, which cannot be fetched without a sign-in; give --url)")
     want_bytes = zip_path.stat().st_size
     want_sha = hashlib.sha256(zip_path.read_bytes()).hexdigest()
     check(want_sha == sha, f"the record's SHA-256 equals the built zip's ({want_sha[:12]}...)")
@@ -133,7 +135,8 @@ def selftest():
         import io
         out, sys.stdout = sys.stdout, io.StringIO()
         try:
-            verify({**rec, **(mutate or {})}, z, do_hash, allowed)
+            merged = {**rec, **(mutate or {})}
+            verify(merged, z, do_hash, allowed, url_override=merged["url"])
         finally:
             sys.stdout = out
         return len(FAILED) - before
@@ -157,6 +160,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--zip")
     ap.add_argument("--hash", action="store_true")
+    ap.add_argument("--url", default="", help="a fresh presigned link made by the card (the checker never makes one)")
     ap.add_argument("--record", default=str(ROOT / "assets" / "windows-release.js"))
     ap.add_argument("--selftest", action="store_true")
     a = ap.parse_args()
@@ -164,7 +168,7 @@ def main():
         return selftest()
     if not a.zip:
         sys.exit("give --zip <the built zip>")
-    verify(read_record(Path(a.record)), Path(a.zip), a.hash)
+    verify(read_record(Path(a.record)), Path(a.zip), a.hash, url_override=a.url or None)
     print("all passed" if not FAILED else f"FAILED: {len(FAILED)}")
     return 1 if FAILED else 0
 
