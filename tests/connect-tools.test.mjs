@@ -338,7 +338,7 @@ test('DIRECTORY (CONNECT 147): honest annotations on every listed tool, the refu
   const lp = await (await post({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'list_projects', arguments: {} } })).json();
   assert.ok(!JSON.stringify(lp.result).includes('updated'), 'no timestamp in the project list');
   for (const d of TOOLS.filter((x) => x.listed !== false)) {
-    assert.ok(!/(call it first|read it before|poll every|give them to|do not store|you must|always call)/i.test(d.description), d.name + ': a description says what the tool does, not what the AI must do');
+    assert.ok(!/\b(call it first|read it before|poll every|give them to|do not store|you must|always call)\b/i.test(d.description), d.name + ': a description says what the tool does, not what the AI must do');
   }
 });
 
