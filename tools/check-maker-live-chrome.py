@@ -85,6 +85,7 @@ try:
             pg.on("request", lambda r: other.append(r.url) if not r.url.startswith(base) else None)
             pg.on("request", lambda r: calls.append(json.loads(r.post_data or "{}").get("name")) if r.url.endswith("/api/live/rpc") else None)
             pg.on("pageerror", lambda e: errors.append(str(e)))
+            pg.on("requestfailed", lambda r: errors.append(f"failed {r.url.split(base)[-1]} {r.failure}"))
             pg.on("response", lambda r: errors.append(f"{r.status} {r.url.split(base)[-1]}") if r.status >= 400 and r.url.startswith(base) else None)
             pg.on("console", lambda m: errors.append(m.text) if m.type == "error" else None)
             pg.goto(f"{base}/live?t={tok}&mode=compilation&project=local", wait_until="load")

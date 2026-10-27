@@ -618,6 +618,7 @@ UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12
 NO_TRACKS = "The track editor is not in this build of the app yet."
 _dm = None
 _ME = None                    # tools/maker_edit.py once loaded
+_MAKE = threading.RLock()     # the page's first calls arrive together (the poll and the heartbeat): the draft and the sync are made ONCE
 
 
 class Problem(Exception):
@@ -693,6 +694,11 @@ def _hook(mode: str, state: dict) -> None:
 
 def draft() -> "LiveDraft":
     """The draft of the film on this computer, made on first use from the edit list (Plan's rough cut or the saved one)."""
+    with _MAKE:
+        return _draft_locked()
+
+
+def _draft_locked() -> "LiveDraft":
     s = S()
     if s["draft"] is None:
         me, et = _edit(), _tracks()
@@ -710,6 +716,11 @@ def draft() -> "LiveDraft":
 
 
 def sync():
+    with _MAKE:
+        return _sync_locked()
+
+
+def _sync_locked():
     s = S()
     if s["sync"] is None and _dm.STATE.get("signin") is not None:
         if str(HERE) not in sys.path:
@@ -814,7 +825,10 @@ def post(path: str, body: dict, send_json) -> bool:
                 except LiveError as e:
                     send_json(200, _rpc_error(e.code, e.message))
                     return True
-                send_json(200, d.rpc(name, args))
+                try:
+                    send_json(200, d.rpc(name, args))
+                except Exception:  # noqa: BLE001  (a file that could not be written, a full disk: the page is told in words, never a dropped connection)
+                    send_json(200, _rpc_error("22023", "The Ryagram app could not do that just now. Try again."))
         elif path == "/api/live/sync":
             send_json(200, set_sync(body))
         elif path == "/api/live/render":

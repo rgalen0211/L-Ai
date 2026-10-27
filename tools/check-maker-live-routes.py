@@ -253,5 +253,20 @@ seed.write_text('{"kept": true}', encoding="utf-8")
 MEd._seed_committed(BASE)
 check(json.loads(seed.read_text(encoding="utf-8")) == {"kept": True}, "and a later list is never overwritten by it")
 
+# the page's first calls (the poll and the heartbeat) arrive together: the draft is made ONCE, nobody gets a dropped connection
+import threading  # noqa: E402
+dm_r, ed_r = make(tmp / "race")
+made, boom = [], []
+def _make():
+    try:
+        made.append(id(ML.draft()))
+    except Exception as e:  # noqa: BLE001
+        boom.append(repr(e))
+_th = [threading.Thread(target=_make) for _ in range(32)]
+[x.start() for x in _th]
+[x.join() for x in _th]
+check(not boom and len(set(made)) == 1, "32 first calls at once make ONE draft and none fails" + (f": {boom[:1]}" if boom else ""))
+dm, ed = make(tmp / "again2")
+
 print("RESULT: " + ("PASS" if not FAILED else f"FAIL ({len(FAILED)})"))
 sys.exit(1 if FAILED else 0)
