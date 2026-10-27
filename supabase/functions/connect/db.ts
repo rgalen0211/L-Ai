@@ -71,7 +71,7 @@ export class ConnectDb {
         return { id: r.id, title: r.title, version_id, number: r.number ?? 1 };
       },
       async saveCompilationRequest(projectId, request) {
-        // connect_set_compilation_request is PAPER until CC1 and Ryan apply it (proposals/CONNECT-COMPILATION-REQUEST-SQL-PAPER.md): it returns the request's SHA-256, or null for a project that is not the person's.
+        // connect_set_compilation_request lives in migrations/20261026000300_compilation_requests.sql (NOT APPLIED until Ryan applies it): it returns the request's SHA-256, or null for a project that is not the person's.
         const sha = await self.fn<string | null>("connect_set_compilation_request", ["text", "uuid", "jsonb"], [h, projectId, request]);
         return sha ? { sha256: sha } : null;
       },
