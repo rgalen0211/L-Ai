@@ -715,6 +715,20 @@ def _draft_locked() -> "LiveDraft":
     return s["draft"]
 
 
+def plan_changed() -> None:
+    """Plan was pressed again and maker_edit dropped the old list: the draft starts again from the new rough cut (the revision keeps climbing, so an open page sees it)."""
+    with _MAKE:
+        s = S()
+        if s["draft"] is None:
+            try:
+                (_dm.STATE["work"] / "live" / "live-draft.json").unlink(missing_ok=True)      # a draft file from the old plan must not be picked up
+            except OSError:
+                pass
+            return
+        lst = _edit().load()["edit"]
+        s["draft"].set_base("compilation", _tracks().tracks_from_edit(lst, _media_seconds()))
+
+
 def sync():
     with _MAKE:
         return _sync_locked()
