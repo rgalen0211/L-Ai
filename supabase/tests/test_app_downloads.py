@@ -166,6 +166,15 @@ class AppDownloads(core.Base):
         with self.assertRaises(psycopg.Error):
             self.db.as_("anon").one("select my_app_downloads()")
 
+    def test_the_after_migration_check_for_ryan_is_all_true_and_goes_false_when_the_tables_are_opened(self):
+        sql = (core.ROOT / "app-download-live" / "01_after_migration_check.sql").read_text(encoding="utf-8")
+        rows = self.db.as_(None).c.execute(sql).fetchall()
+        self.assertEqual(len(rows), 6)
+        self.assertEqual([r[0] for r in rows if not r[1]], [])
+        self.db.c.execute("grant select on public.app_downloads to authenticated")                       # a planted fault: the table opened to signed-in people
+        rows = self.db.as_(None).c.execute(sql).fetchall()
+        self.assertEqual([r[0] for r in rows if not r[1]], ["nobody but the database owner can read them (not signed-in people, not the public, not the service role)"])
+
     def test_deleting_an_account_deletes_its_link_records(self):
         self.ask(TESTER)
         self.assertEqual(self.rows(), 1)
