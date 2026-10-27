@@ -26,16 +26,14 @@ create table public.edit_look_keys (
 );
 alter table public.edit_look_keys enable row level security;
 revoke all on public.edit_look_keys from public, anon, authenticated, service_role;
-insert into public.edit_look_keys (key, kind, choices, min_value, max_value) values
-  ('theme', 'enum', array['light', 'dark'], null, null),
-  ('palette.background', 'colour', null, null, null),
-  ('palette.primary', 'colour', null, null, null),
-  ('palette.secondary', 'colour', null, null, null),
-  ('palette.accent', 'colour', null, null, null),
-  ('marker.shape', 'enum', array['circle', 'square', 'diamond'], null, null),
-  ('marker.border_width', 'number', null, 0, 8),
-  ('marker.glow', 'bool', null, null, null),
-  ('labels.show', 'bool', null, null, null);
+insert into public.edit_look_keys (key, kind, choices, min_value, max_value, stand_in) values
+  ('network.color', 'colour', null, null, null, false),
+  ('network.base_color', 'colour', null, null, null, false),
+  ('network.context_color', 'colour', null, null, null, false),
+  ('state.fill', 'colour', null, null, null, false),
+  ('page.background', 'colour', null, null, null, false);
+-- The five keys the worker's schema accepts TODAY (WORKER W1; the same list WEB's editor offers). ENGINE 35's keys (theme beyond light/dark, marker, border, glow, labels) arrive as reviewed inserts
+-- here, once the worker's schema accepts them; the column kinds 'enum', 'number' and 'bool' exist for that and are tested with rows the tests add.
 
 -- ---------------------------------------------------------------- the shared draft and the log
 create table public.edit_drafts (
@@ -83,6 +81,7 @@ create function ryagram_private.edit_text_ok(t text, max_len int) returns boolea
 language sql immutable set search_path = '' as $$
   select t is not null and char_length(t) between 1 and max_len
      and t !~ '[[:cntrl:]]'
+     and t !~ '[<>]'
      and t !~ ('[' || chr(8234) || '-' || chr(8238) || chr(8294) || '-' || chr(8297) || chr(8206) || chr(8207) || ']')
      and t !~ '([A-Za-z]:[\\/]|\\\\|(^|\s)/[A-Za-z]|\.\.[\\/]|[A-Za-z][A-Za-z0-9+.-]*://)'
 $$;
@@ -125,58 +124,45 @@ begin
     end if;
     return null;
   end if;
-  -- mode 'compilation'
-  if kind = 'move_clip' then allowed := array['op', 'clip_id', 'start_s'];
-  elsif kind = 'trim_clip' then allowed := array['op', 'clip_id', 'in_s', 'out_s'];
-  elsif kind = 'replace_clip' then allowed := array['op', 'clip_id', 'candidate_id'];
-  elsif kind = 'remove_clip' then allowed := array['op', 'clip_id'];
-  elsif kind = 'reorder' then allowed := array['op', 'clip_ids'];
-  elsif kind = 'add_overlay' then allowed := array['op', 'kind', 'text', 'picture', 'start_s', 'length_s', 'position', 'size'];
-  elsif kind = 'remove_overlay' then allowed := array['op', 'overlay_id'];
-  elsif kind = 'set_music_level' then allowed := array['op', 'track_id', 'level'];
+  -- mode 'compilation': the same op names and fields as the page's editor core (WEB 152), plus add_clip (a text or picture clip; the video lane comes from the person's own videos, which the AI cannot add)
+  if kind = 'move_clip' then allowed := array['op', 'id', 'start'];
+  elsif kind = 'trim_clip' then allowed := array['op', 'id', 'edge', 'to'];
+  elsif kind = 'reorder_clip' then allowed := array['op', 'id', 'index'];
+  elsif kind = 'set_clip_text' then allowed := array['op', 'id', 'text'];
+  elsif kind = 'delete_clip' then allowed := array['op', 'id'];
+  elsif kind = 'add_clip' then allowed := array['op', 'track', 'start', 'len', 'text', 'picture'];
   else return format('"%s" is not a change this editor knows for a compilation.', left(kind, 40)); end if;
   if exists (select 1 from unnest(keys) x where x <> all (allowed)) then return 'That change has a field the editor does not know.'; end if;
-  -- ids
-  for k in select a as name from unnest(array['clip_id', 'candidate_id', 'overlay_id', 'track_id']) a loop
-    if p_op ? k.name then
-      if jsonb_typeof(p_op -> k.name) <> 'string' or (p_op ->> k.name) !~ '^[A-Za-z0-9_-]{1,40}$' then return format('"%s" must be an id from get_edit_state.', k.name); end if;
-    end if;
-  end loop;
-  if kind in ('move_clip', 'trim_clip', 'replace_clip', 'remove_clip') and not (p_op ? 'clip_id') then return 'This change needs a "clip_id".'; end if;
-  if kind = 'replace_clip' and not (p_op ? 'candidate_id') then return 'replace_clip needs a "candidate_id".'; end if;
-  if kind = 'remove_overlay' and not (p_op ? 'overlay_id') then return 'remove_overlay needs an "overlay_id".'; end if;
-  if kind = 'set_music_level' and not (p_op ? 'track_id') then return 'set_music_level needs a "track_id".'; end if;
-  -- numbers
-  for k in select a as name from unnest(array['start_s', 'in_s', 'out_s', 'length_s', 'level']) a loop
+  if kind <> 'add_clip' then
+    if jsonb_typeof(p_op -> 'id') is distinct from 'string' or (p_op ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then return 'This change needs a clip "id" from get_edit_state.'; end if;
+  end if;
+  for k in select a as name from unnest(array['start', 'to', 'len']) a loop
     if p_op ? k.name then
       if jsonb_typeof(p_op -> k.name) <> 'number' then return format('"%s" must be a number.', k.name); end if;
     end if;
   end loop;
   if kind = 'move_clip' then
-    if not (p_op ? 'start_s') then return 'move_clip needs "start_s".'; end if;
-    if (p_op ->> 'start_s')::numeric < 0 or (p_op ->> 'start_s')::numeric > 86400 then return '"start_s" must be between 0 and 86400 seconds.'; end if;
+    if not (p_op ? 'start') then return 'move_clip needs "start".'; end if;
+    if (p_op ->> 'start')::numeric < 0 or (p_op ->> 'start')::numeric > 86400 then return '"start" must be between 0 and 86400 seconds.'; end if;
   elsif kind = 'trim_clip' then
-    if not (p_op ? 'in_s') or not (p_op ? 'out_s') then return 'trim_clip needs "in_s" and "out_s".'; end if;
-    if (p_op ->> 'in_s')::numeric < 0 or (p_op ->> 'out_s')::numeric > 86400 or (p_op ->> 'out_s')::numeric <= (p_op ->> 'in_s')::numeric then return 'Trim times must run forward, inside 0 to 86400 seconds.'; end if;
-  elsif kind = 'reorder' then
-    if jsonb_typeof(p_op -> 'clip_ids') is distinct from 'array' or jsonb_array_length(p_op -> 'clip_ids') not between 1 and 200 then return '"clip_ids" must list 1 to 200 clips.'; end if;
-    if exists (select 1 from jsonb_array_elements(p_op -> 'clip_ids') e where jsonb_typeof(e) <> 'string' or (e #>> '{}') !~ '^[A-Za-z0-9_-]{1,40}$') then return '"clip_ids" must be ids from get_edit_state.'; end if;
-    if (select count(distinct e #>> '{}') from jsonb_array_elements(p_op -> 'clip_ids') e) <> jsonb_array_length(p_op -> 'clip_ids') then return '"clip_ids" must not repeat a clip.'; end if;
-  elsif kind = 'set_music_level' then
-    if not (p_op ? 'level') then return 'set_music_level needs a "level".'; end if;
-    if (p_op ->> 'level')::numeric < 0 or (p_op ->> 'level')::numeric > 1 then return '"level" must be between 0 and 1.'; end if;
-  elsif kind = 'add_overlay' then
-    if jsonb_typeof(p_op -> 'kind') is distinct from 'string' or (p_op ->> 'kind') not in ('text', 'image') then return 'An overlay is a "text" or an "image".'; end if;
-    if not (p_op ? 'start_s') or not (p_op ? 'length_s') or not (p_op ? 'position') then return 'An overlay needs "start_s", "length_s" and "position".'; end if;
-    if (p_op ->> 'start_s')::numeric < 0 or (p_op ->> 'start_s')::numeric > 3600 then return '"start_s" must be between 0 and 3600 seconds.'; end if;
-    if (p_op ->> 'length_s')::numeric < 0.5 or (p_op ->> 'length_s')::numeric > 30 then return '"length_s" must be between 0.5 and 30 seconds.'; end if;
-    if jsonb_typeof(p_op -> 'position') <> 'string' or (p_op ->> 'position') <> all (pos) and not ((p_op ->> 'position') = any (pos)) then return '"position" must be top, centre, bottom or lower_third.'; end if;
-    if p_op ? 'size' and (jsonb_typeof(p_op -> 'size') <> 'string' or (p_op ->> 'size') not in ('small', 'medium', 'large')) then return '"size" must be small, medium or large.'; end if;
-    if p_op ->> 'kind' = 'text' then
-      if p_op ? 'picture' or not (p_op ? 'text') then return 'A text overlay needs "text" and no "picture".'; end if;
-      if jsonb_typeof(p_op -> 'text') <> 'string' or not ryagram_private.edit_text_ok(p_op ->> 'text', 120) then return 'The overlay text must be 1 to 120 characters of plain words (no places on a computer, no web addresses).'; end if;
+    if jsonb_typeof(p_op -> 'edge') is distinct from 'string' or (p_op ->> 'edge') not in ('start', 'end') then return 'Trim the "start" or the "end".'; end if;
+    if not (p_op ? 'to') then return 'trim_clip needs "to".'; end if;
+    if (p_op ->> 'to')::numeric < 0 or (p_op ->> 'to')::numeric > 86400 then return '"to" must be between 0 and 86400 seconds.'; end if;
+  elsif kind = 'reorder_clip' then
+    if jsonb_typeof(p_op -> 'index') is distinct from 'number' or (p_op ->> 'index') !~ '^[0-9]{1,3}$' then return '"index" must be a whole number from 0 to 199.'; end if;
+    if (p_op ->> 'index')::int > 199 then return '"index" must be a whole number from 0 to 199.'; end if;
+  elsif kind = 'set_clip_text' then
+    if jsonb_typeof(p_op -> 'text') is distinct from 'string' or not ryagram_private.edit_text_ok(p_op ->> 'text', 200) then return 'The text must be 1 to 200 characters of plain words (no places on a computer, no web addresses, no markup).'; end if;
+  elsif kind = 'add_clip' then
+    if jsonb_typeof(p_op -> 'track') is distinct from 'string' or (p_op ->> 'track') not in ('text', 'pictures') then return 'The AI can add a "text" or a "pictures" clip.'; end if;
+    if not (p_op ? 'start') or not (p_op ? 'len') then return 'A new clip needs "start" and "len".'; end if;
+    if (p_op ->> 'start')::numeric < 0 or (p_op ->> 'start')::numeric > 3600 then return '"start" must be between 0 and 3600 seconds.'; end if;
+    if (p_op ->> 'len')::numeric < 0.3 or (p_op ->> 'len')::numeric > 30 then return '"len" must be between 0.3 and 30 seconds.'; end if;
+    if p_op ->> 'track' = 'text' then
+      if p_op ? 'picture' or not (p_op ? 'text') then return 'A text clip needs "text" and no "picture".'; end if;
+      if jsonb_typeof(p_op -> 'text') <> 'string' or not ryagram_private.edit_text_ok(p_op ->> 'text', 200) then return 'The text must be 1 to 200 characters of plain words (no places on a computer, no web addresses, no markup).'; end if;
     else
-      if p_op ? 'text' or not (p_op ? 'picture') then return 'An image overlay needs a "picture" name and no "text".'; end if;
+      if p_op ? 'text' or not (p_op ? 'picture') then return 'A picture clip needs a "picture" name and no "text".'; end if;
       if jsonb_typeof(p_op -> 'picture') <> 'string' or (p_op ->> 'picture') !~* '^[^\\/:*?"<>|[:cntrl:]]{1,100}\.(png|jpg|jpeg|webp)$' then return 'A picture is the NAME of one the person added in the app (png, jpg or webp), never a place.'; end if;
     end if;
   end if;
@@ -461,22 +447,27 @@ begin
   if p_summary is null or jsonb_typeof(p_summary) <> 'object' or pg_column_size(p_summary) > 65536 then
     raise exception 'That track summary is not valid.' using errcode = '22023';
   end if;
-  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('clips', 'overlays', 'music')) then
+  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('clips', 'duration')) then
     raise exception 'That track summary has a part the editor does not know.' using errcode = '22023';
   end if;
+  if p_summary ? 'duration' and (jsonb_typeof(p_summary -> 'duration') <> 'number' or (p_summary ->> 'duration')::numeric < 0 or (p_summary ->> 'duration')::numeric > 86400) then
+    raise exception 'The summary duration must be between 0 and 86400 seconds.' using errcode = '22023';
+  end if;
+  if jsonb_typeof(coalesce(p_summary -> 'clips', '[]'::jsonb)) <> 'array' or jsonb_array_length(coalesce(p_summary -> 'clips', '[]'::jsonb)) > 300 then
+    raise exception 'That track summary is too long.' using errcode = '22023';
+  end if;
   for c in select * from jsonb_array_elements(coalesce(p_summary -> 'clips', '[]'::jsonb)) loop
-    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'label', 'file', 'in_s', 'out_s', 'start_s', 'length_s', 'candidates')) then
+    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file')) then
       raise exception 'A clip in the summary has a field the editor does not know.' using errcode = '22023';
     end if;
     if jsonb_typeof(c -> 'id') is distinct from 'string' or (c ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then raise exception 'A clip in the summary needs an id.' using errcode = '22023'; end if;
+    if jsonb_typeof(c -> 'track') is distinct from 'string' or (c ->> 'track') not in ('video', 'pictures', 'text', 'music') then raise exception 'A clip must be on the video, pictures, text or music track.' using errcode = '22023'; end if;
+    if jsonb_typeof(c -> 'start') is distinct from 'number' or jsonb_typeof(c -> 'len') is distinct from 'number' then raise exception 'Clip times must be numbers.' using errcode = '22023'; end if;
     if c ? 'label' and (jsonb_typeof(c -> 'label') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'label', 120)) then raise exception 'A clip label must be plain words, no places on a computer.' using errcode = '22023'; end if;
+    if c ? 'text' and (jsonb_typeof(c -> 'text') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'text', 200)) then raise exception 'Clip text must be plain words, no places on a computer.' using errcode = '22023'; end if;
+    if c ? 'picture' and (jsonb_typeof(c -> 'picture') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'picture', 100) or (c ->> 'picture') ~ '[\\/:]') then raise exception 'A picture is a NAME, never a place on the computer.' using errcode = '22023'; end if;
     if c ? 'file' and (jsonb_typeof(c -> 'file') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'file', 120) or (c ->> 'file') ~ '[\\/:]') then raise exception 'A clip file must be a NAME, never a place on the computer.' using errcode = '22023'; end if;
-    if exists (select 1 from jsonb_each(c) x where x.key in ('in_s', 'out_s', 'start_s', 'length_s') and jsonb_typeof(x.value) <> 'number') then raise exception 'Clip times must be numbers.' using errcode = '22023'; end if;
   end loop;
-  if jsonb_array_length(coalesce(p_summary -> 'clips', '[]'::jsonb)) > 200 or jsonb_array_length(coalesce(p_summary -> 'overlays', '[]'::jsonb)) > 100 or jsonb_array_length(coalesce(p_summary -> 'music', '[]'::jsonb)) > 20 then
-    raise exception 'That track summary is too long.' using errcode = '22023';
-  end if;
-  if p_summary::text ~ '[A-Za-z]:\\\\|\\\\\\\\' then raise exception 'A track summary holds names and times, never places on a computer.' using errcode = '22023'; end if;
   newrev := d.revision + 1;
   for a in select * from jsonb_array_elements(coalesce(p_applied, '[]'::jsonb)) loop
     update public.edit_ops set status = case when (a ->> 'ok')::boolean then 'applied' else 'rejected' end, undone_at = case when (a ->> 'ok')::boolean then null else now() end

@@ -6,7 +6,7 @@ Same setup as test_connect.py (its helpers are borrowed, the OAuth dance include
 Rules proved (each with a control that passes and a fault that must be refused)
   * the new scope 'edit' is offered; a token without it cannot change the draft (it can still READ the state); a revoked grant ends the AI's access
   * the draft has a revision: a stale base revision is refused and changes nothing; a batch is all-or-nothing; 1 to 20 changes a call
-  * the vocabulary is closed: unknown op, unknown field, unknown look key, wrong value type, out-of-range number, bad colour, places on a computer, web addresses, control characters
+  * the vocabulary is closed (the same op names and fields as the page's editor core): unknown op, unknown field, unknown look key, wrong value type, out-of-range number, bad colour, places, web addresses, markup, control characters
   * a change is undoable: every op has its inverse; the person's undo restores the state; undoing never clobbers a NEWER change; an AI cannot repeat exactly what the person just undid
   * the person's editor and the AI use the same draft and log; the AI is limited (60 a minute, 600 a day); the person is not
   * compilation mode: the AI sees tracks and queues ops only when the person ticked; unticking drops the summary and rejects the AI's waiting ops; the summary holds names and times only
@@ -28,6 +28,13 @@ from test_connect import ALICE, BOB, h, setUpModule  # noqa: E402,F401  (setUpMo
 SCOPES = ("read", "write", "render_free", "edit")
 LOOK = lambda key, value: {"op": "set_look", "key": key, "value": value}  # noqa: E731
 UNSET = lambda key: {"op": "unset_look", "key": key}  # noqa: E731
+DARK, LIGHT = "#101010", "#f0f0f0"
+CASES = json.loads((Path(__file__).resolve().parents[2] / "tests" / "edit-op-cases.json").read_text(encoding="utf-8"))
+SUMMARY = {"duration": 20, "clips": [
+    {"id": "v1", "track": "video", "start": 0, "len": 5, "label": "great news", "file": "interview-3.mp4"},
+    {"id": "v2", "track": "video", "start": 5, "len": 4, "label": "good news", "file": "interview-4.mp4"},
+    {"id": "t1", "track": "text", "start": 1, "len": 3, "label": "title", "text": "Hello"},
+    {"id": "p1", "track": "pictures", "start": 2, "len": 2, "label": "logo", "picture": "logo.png"}]}
 
 
 class LiveEditor(core.Base):
@@ -94,195 +101,196 @@ class LiveEditor(core.Base):
     def logged(self, project, mode="data"):
         return self.admin("select count(*) from public.edit_ops where project_id = %s and mode = %s", project, mode)
 
+    def mirror(self, project, ai_visible=True, summary=SUMMARY):
+        """What the desktop app does: post the track summary (the page and, if ticked, the AI see it)."""
+        self.run_sql("insert into public.edit_drafts (project_id, mode, owner_id, revision, mirrored, ai_visible, state) values (%s, 'compilation', %s, 1, true, %s, %s::jsonb) "
+                     "on conflict (project_id, mode) do update set revision = 1, mirrored = true, ai_visible = excluded.ai_visible, state = excluded.state", project, ALICE, ai_visible, json.dumps(summary))
+
+    # ---------------------------------------------------------------------------------------------- the shared cases (the same file the node twin runs)
+    def test_the_shared_op_cases_agree_with_the_sql_vocabulary(self):
+        self.run_sql("insert into public.edit_look_keys (key, kind, choices, min_value, max_value, stand_in) values "
+                     "('test.shape', 'enum', array['circle','square'], null, null, true), ('test.width', 'number', null, 0, 8, true), ('test.glow', 'bool', null, null, null, true)")
+        for case in CASES["cases"]:
+            got = self.admin("select ryagram_private.edit_op_problem(%s, %s::jsonb)", case["mode"], json.dumps(case["op"]))
+            if case["ok"]:
+                self.assertIsNone(got, json.dumps(case["op"]))
+            else:
+                self.assertIsNotNone(got, json.dumps(case["op"]))
+                self.assertIn(case["word"], got, json.dumps(case["op"]))
+
+    def test_the_look_key_rows_in_the_migration_are_the_five_the_worker_accepts_today(self):
+        rows = self.admin("select array_agg(key order by key) from public.edit_look_keys")
+        self.assertEqual(rows, sorted(CASES["look_keys"]))
+        self.assertEqual(self.admin("select count(*) from public.edit_look_keys where kind <> 'colour' or stand_in"), 0)
+
     # ---------------------------------------------------------------------------------------------- the scope
     def test_edit_is_an_offered_scope_and_a_token_without_it_can_read_but_not_change(self):
         self.assertIn("edit", self.admin("select ryagram_private.connect_offered_scopes()"))
         a = self.alice()
         p = self.project(a)
-        self.assertEqual(self.ai(a, p, [LOOK("theme", "dark")])["revision"], 1)                            # control: with the scope it works
+        self.assertEqual(self.ai(a, p, [LOOK("network.color", DARK)])["revision"], 1)                      # control: with the scope it works
         _, plain, _ = self.connect(ALICE, scopes=("read", "write", "render_free"))
-        self.assertEqual(self.state(plain, p)["data"]["look"], {"theme": "dark"})                          # reading needs only 'read'
+        self.assertEqual(self.state(plain, p)["data"]["look"], {"network.color": DARK})                    # reading needs only 'read'
         with self.assertRaises(psycopg.Error) as cm:
-            self.runner().one("select connect_edit_ops(%s, %s, 'data', 1, %s::jsonb)", h(plain), p, json.dumps([LOOK("theme", "light")]))
+            self.runner().one("select connect_edit_ops(%s, %s, 'data', 1, %s::jsonb)", h(plain), p, json.dumps([LOOK("network.color", LIGHT)]))
         self.assertEqual(cm.exception.sqlstate, "PT403")
         with self.assertRaises(psycopg.Error) as cm2:
             self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(plain), p)
         self.assertEqual(cm2.exception.sqlstate, "PT403")
-        self.assertEqual(self.look(p), {"theme": "dark"})
+        self.assertEqual(self.look(p), {"network.color": DARK})
 
-    def test_a_revoked_grant_or_token_ends_the_ais_access_at_once(self):
-        client, a, _ = self.connect(ALICE, scopes=SCOPES)
+    def test_a_revoked_grant_ends_the_ais_access_at_once(self):
+        a = self.alice()
         p = self.project(a)
-        self.ai(a, p, [LOOK("theme", "dark")])
+        self.ai(a, p, [LOOK("network.color", DARK)])
         self.run_sql("update public.connect_grants set revoked_at = now() where owner_id = %s", ALICE)
         with self.assertRaises(psycopg.Error) as cm:
             self.runner().one("select connect_edit_state(%s, %s)", h(a), p)
         self.assertEqual(cm.exception.sqlstate, "PT403")
-        self.ai_fails(a, p, [LOOK("theme", "light")], code="PT403", base=1)
+        self.ai_fails(a, p, [LOOK("network.color", LIGHT)], code="PT403", base=1)
 
     # ---------------------------------------------------------------------------------------------- the draft, the revision, the log
     def test_changes_are_applied_logged_with_their_inverses_and_the_revision_moves_once_per_call(self):
         a = self.alice()
         p = self.project(a)
-        r = self.ai(a, p, [LOOK("theme", "dark"), LOOK("palette.accent", "#1a73e8"), LOOK("marker.border_width", 2.5)])
+        r = self.ai(a, p, [LOOK("network.color", DARK), LOOK("state.fill", "#1a73e8"), LOOK("page.background", "#ffffff")])
         self.assertEqual((r["revision"], r["changes"]), (1, 3))
-        self.assertEqual(r["state"]["look"], {"theme": "dark", "palette.accent": "#1a73e8", "marker.border_width": 2.5})
-        r2 = self.ai(a, p, [LOOK("theme", "light"), UNSET("palette.accent")], base=1)
-        self.assertEqual((r2["revision"], r2["state"]["look"]), (2, {"theme": "light", "marker.border_width": 2.5}))
+        self.assertEqual(r["state"]["look"], {"network.color": DARK, "state.fill": "#1a73e8", "page.background": "#ffffff"})
+        r2 = self.ai(a, p, [LOOK("network.color", LIGHT), UNSET("state.fill")], base=1)
+        self.assertEqual((r2["revision"], r2["state"]["look"]), (2, {"network.color": LIGHT, "page.background": "#ffffff"}))
         rows = self.admin("select jsonb_agg(jsonb_build_object('rev', revision, 'actor', actor, 'client', client_label, 'status', status, 'inverse', inverse) order by id) from public.edit_ops where project_id = %s", p)
         self.assertEqual([x["rev"] for x in rows], [1, 1, 1, 2, 2])
         self.assertTrue(all(x["actor"] == "ai" and x["client"] == "Claude" and x["status"] == "applied" for x in rows))
-        self.assertEqual(rows[0]["inverse"], {"op": "unset_look", "key": "theme"})                        # theme was unset before
-        self.assertEqual(rows[3]["inverse"], {"op": "set_look", "key": "theme", "value": "dark"})        # and 'dark' before the second call
+        self.assertEqual(rows[0]["inverse"], {"op": "unset_look", "key": "network.color"})                 # it was unset before
+        self.assertEqual(rows[3]["inverse"], {"op": "set_look", "key": "network.color", "value": DARK})    # and DARK before the second call
         self.assertEqual(self.admin("select updated_by from public.edit_drafts where project_id = %s and mode = 'data'", p), "Claude")
 
     def test_a_stale_revision_is_refused_with_the_current_one_and_changes_nothing(self):
         a = self.alice()
         p = self.project(a)
-        self.ai(a, p, [LOOK("theme", "dark")])
-        msg = self.ai_fails(a, p, [LOOK("theme", "light")], code="PT409", base=0)
+        self.ai(a, p, [LOOK("network.color", DARK)])
+        msg = self.ai_fails(a, p, [LOOK("network.color", LIGHT)], code="PT409", base=0)
         self.assertIn("revision 1", msg)
-        self.ai_fails(a, p, [LOOK("theme", "light")], code="PT409", base=7)
-        self.assertEqual((self.look(p), self.revision(p), self.logged(p)), ({"theme": "dark"}, 1, 1))
-        self.assertEqual(self.ai(a, p, [LOOK("theme", "light")], base=1)["revision"], 2)               # control: the right revision works
+        self.ai_fails(a, p, [LOOK("network.color", LIGHT)], code="PT409", base=7)
+        self.assertEqual((self.look(p), self.revision(p), self.logged(p)), ({"network.color": DARK}, 1, 1))
+        self.assertEqual(self.ai(a, p, [LOOK("network.color", LIGHT)], base=1)["revision"], 2)             # control: the right revision works
 
     def test_a_batch_is_all_or_nothing(self):
         a = self.alice()
         p = self.project(a)
-        self.ai_fails(a, p, [LOOK("theme", "dark"), LOOK("palette.accent", "#112233"), LOOK("palette.accent", "red")], code="22023")
+        self.ai_fails(a, p, [LOOK("network.color", DARK), LOOK("state.fill", "#112233"), LOOK("state.fill", "red")], code="22023")
         self.assertEqual((self.look(p), self.revision(p), self.logged(p)), ({}, 0, 0))
-        self.ai(a, p, [LOOK("theme", "dark"), LOOK("palette.accent", "#112233")])
+        self.ai(a, p, [LOOK("network.color", DARK), LOOK("state.fill", "#112233")])
         self.assertEqual(self.logged(p), 2)
 
     def test_one_to_twenty_changes_a_call(self):
         a = self.alice()
         p = self.project(a)
-        for ops in ([], [LOOK("theme", "dark")] * 21):
+        for ops in ([], [LOOK("network.color", DARK)] * 21):
             self.ai_fails(a, p, ops, code="22023")
-        self.runner().c.execute("select 1")
         for bad in (None, {"op": "set_look"}, "x"):
             with self.assertRaises(psycopg.Error):
                 self.runner().one("select connect_edit_ops(%s, %s, 'data', 0, %s::jsonb)", h(a), p, json.dumps(bad))
-        self.assertEqual(self.ai(a, p, [LOOK("theme", "dark")] * 20)["changes"], 20)                    # control: exactly 20
+        self.assertEqual(self.ai(a, p, [LOOK("network.color", DARK)] * 20)["changes"], 20)                  # control: exactly 20
 
-    # ---------------------------------------------------------------------------------------------- the closed vocabulary
-    def test_the_data_vocabulary_is_closed_each_fault_has_its_own_refusal_and_changes_nothing(self):
+    # ---------------------------------------------------------------------------------------------- the closed vocabulary (the details are in tests/edit-op-cases.json, shared with the node twin)
+    def test_a_refused_batch_changes_nothing_and_the_vocabulary_has_no_way_to_a_story_a_save_or_a_render(self):
         a = self.alice()
         p = self.project(a)
-        bad = [
-            ({"op": "delete_everything"}, "knows"), ({"op": "set_look", "key": "theme", "value": "dark", "extra": 1}, "field"), ({"op": 5}, "naming"), ("x", "object"),
-            (LOOK("not.a.key", "x"), "not a look setting"), (LOOK("theme", "purple"), "can only be"), (LOOK("theme", 5), "can only be"),
-            (LOOK("palette.accent", "red"), "colour"), (LOOK("palette.accent", "#12345"), "colour"), (LOOK("palette.accent", "#12345G"), "colour"), (LOOK("palette.accent", 5), "colour"),
-            (LOOK("marker.border_width", 9), "between 0 and 8"), (LOOK("marker.border_width", -1), "between 0 and 8"), (LOOK("marker.border_width", "2"), "number"),
-            (LOOK("marker.glow", "yes"), "true or false"), (LOOK("labels.show", 1), "true or false"), ({"op": "set_look", "key": "theme"}, "value"),
-            ({"op": "set_look", "value": "dark"}, "key"), ({"op": "unset_look", "key": "nope"}, "not a look setting"),
-            ({"op": "move_clip", "clip_id": "c1", "start_s": 1}, "data film"),
-        ]
-        for op, word in bad:
-            msg = self.ai_fails(a, p, [op], code="22023")
-            self.assertIn(word, msg, str(op))
-        self.assertEqual((self.look(p), self.revision(p), self.logged(p)), ({}, 0, 0))
-        for good in (LOOK("palette.accent", "#1A73E8"), LOOK("marker.border_width", 0), LOOK("marker.border_width", 8), LOOK("marker.glow", False), LOOK("marker.shape", "diamond")):
-            self.assertEqual(self.ai(a, p, [good])["changes"], 1, str(good))                           # controls
+        self.mirror(p)
+        for op in ({"op": "save_story"}, {"op": "render"}, {"op": "request_final_render"}, {"op": "submit_job"}, {"op": "set_story", "story": {}}, {"op": "fetch", "url": "https://x.example/a.csv"},
+                   {"op": "delete_project"}, {"op": "publish"}, {"op": "spend", "credits": 5}):
+            self.ai_fails(a, p, [op], code="22023")
+            self.ai_fails(a, p, [op], code="22023", mode="compilation")
+        self.assertEqual((self.logged(p), self.logged(p, "compilation"), self.revision(p), self.revision(p, "compilation")), (0, 0, 0, 1))
 
-    def test_no_place_on_a_computer_no_web_address_no_control_character_in_an_overlay_or_a_picture(self):
+    def test_no_place_on_a_computer_no_web_address_no_markup_no_control_character_in_a_clip_text_or_a_picture(self):
         a = self.alice()
         p = self.project(a)
-        self.admin("select 1")
-        self.run_sql("insert into public.edit_drafts (project_id, mode, owner_id, mirrored, ai_visible) values (%s, 'compilation', %s, true, true)", p, ALICE)
-        for text in ("C:\\Users\\Sam\\secret", "\\\\server\\share", "see ../../etc/passwd", "/etc/passwd", "https://evil.example/x?q=1", "file:///c:/x", "tab\there", "line\nbreak", "rtl\u202eevil", ""):
-            self.ai_fails(a, p, [{"op": "add_overlay", "kind": "text", "text": text, "start_s": 1, "length_s": 2, "position": "top"}], code="22023", mode="compilation")
+        self.mirror(p)
+        for text in ("C:\\Users\\Sam\\secret", "\\\\server\\share", "see ../../etc/passwd", "/etc/passwd", "https://evil.example/x?q=1", "file:///c:/x", "tab\there", "line\nbreak", "rtl\u202eevil", "<b>bold</b>", ""):
+            self.ai_fails(a, p, [{"op": "set_clip_text", "id": "t1", "text": text}], code="22023", mode="compilation", base=1)
+            self.ai_fails(a, p, [{"op": "add_clip", "track": "text", "start": 1, "len": 2, "text": text}], code="22023", mode="compilation", base=1)
         for pic in ("C:\\x\\a.png", "../a.png", "a/b.png", "a.exe", "a.png.exe", "", "x" * 101 + ".png", "a:b.png"):
-            self.ai_fails(a, p, [{"op": "add_overlay", "kind": "image", "picture": pic, "start_s": 1, "length_s": 2, "position": "top"}], code="22023", mode="compilation")
+            self.ai_fails(a, p, [{"op": "add_clip", "track": "pictures", "start": 1, "len": 2, "picture": pic}], code="22023", mode="compilation", base=1)
         self.assertEqual(self.logged(p, "compilation"), 0)
-        ok = self.ai(a, p, [{"op": "add_overlay", "kind": "text", "text": "Great news, everyone", "start_s": 1, "length_s": 2, "position": "lower_third", "size": "large"},
-                           {"op": "add_overlay", "kind": "image", "picture": "logo.PNG", "start_s": 4, "length_s": 3, "position": "top"}], mode="compilation")
+        ok = self.ai(a, p, [{"op": "set_clip_text", "id": "t1", "text": "Great news, everyone"}, {"op": "add_clip", "track": "pictures", "start": 4, "len": 3, "picture": "logo.PNG"}], mode="compilation", base=1)
         self.assertEqual(ok["changes"], 2)
 
-    def test_the_compilation_vocabulary_is_closed_too(self):
+    def test_the_compilation_ops_are_queued_pending_and_nothing_else_changes(self):
         a = self.alice()
         p = self.project(a)
-        self.run_sql("insert into public.edit_drafts (project_id, mode, owner_id, mirrored, ai_visible) values (%s, 'compilation', %s, true, true)", p, ALICE)
-        bad = [
-            {"op": "move_clip", "clip_id": "c1"}, {"op": "move_clip", "clip_id": "c1", "start_s": -1}, {"op": "move_clip", "clip_id": "c1", "start_s": 86401}, {"op": "move_clip", "clip_id": "../c1", "start_s": 1},
-            {"op": "move_clip", "clip_id": "c1", "start_s": "1"}, {"op": "move_clip", "clip_id": "c 1", "start_s": 1}, {"op": "move_clip", "clip_id": "c" * 41, "start_s": 1},
-            {"op": "trim_clip", "clip_id": "c1", "in_s": 5, "out_s": 5}, {"op": "trim_clip", "clip_id": "c1", "in_s": 5, "out_s": 4}, {"op": "trim_clip", "clip_id": "c1", "in_s": -1, "out_s": 4},
-            {"op": "replace_clip", "clip_id": "c1"}, {"op": "remove_clip"}, {"op": "reorder", "clip_ids": []}, {"op": "reorder", "clip_ids": ["a", "a"]}, {"op": "reorder", "clip_ids": ["a/b"]},
-            {"op": "reorder", "clip_ids": [f"c{i}" for i in range(201)]}, {"op": "set_music_level", "track_id": "m1", "level": 1.5}, {"op": "set_music_level", "level": 0.5},
-            {"op": "add_overlay", "kind": "text", "text": "x", "start_s": 1, "length_s": 31, "position": "top"}, {"op": "add_overlay", "kind": "text", "text": "x", "start_s": 1, "length_s": 0.4, "position": "top"},
-            {"op": "add_overlay", "kind": "text", "text": "x", "start_s": 1, "length_s": 2, "position": "middle"}, {"op": "add_overlay", "kind": "text", "text": "x", "start_s": 1, "length_s": 2, "position": "top", "size": "huge"},
-            {"op": "add_overlay", "kind": "text", "text": "x", "picture": "a.png", "start_s": 1, "length_s": 2, "position": "top"}, {"op": "add_overlay", "kind": "video", "start_s": 1, "length_s": 2, "position": "top"},
-            {"op": "remove_overlay"}, {"op": "set_look", "key": "theme", "value": "dark"}, {"op": "trim_clip", "clip_id": "c1", "in_s": 1, "out_s": 2, "path": "C:\\x"},
-        ]
-        for op in bad:
-            self.ai_fails(a, p, [op], code="22023", mode="compilation")
-        good = [{"op": "move_clip", "clip_id": "c1", "start_s": 12.5}, {"op": "trim_clip", "clip_id": "c1", "in_s": 1, "out_s": 4.25}, {"op": "replace_clip", "clip_id": "c1", "candidate_id": "k7"},
-                {"op": "remove_clip", "clip_id": "c2"}, {"op": "reorder", "clip_ids": ["c3", "c1"]}, {"op": "remove_overlay", "overlay_id": "o1"}, {"op": "set_music_level", "track_id": "m1", "level": 0.4}]
-        self.assertEqual(self.ai(a, p, good, mode="compilation")["changes"], 7)
-        self.assertEqual(self.admin("select count(*) from public.edit_ops where project_id = %s and status = 'pending'", p), 7)
+        self.mirror(p)
+        good = [{"op": "move_clip", "id": "t1", "start": 12.5}, {"op": "trim_clip", "id": "v1", "edge": "end", "to": 4.25}, {"op": "reorder_clip", "id": "v2", "index": 0},
+                {"op": "set_clip_text", "id": "t1", "text": "New words"}, {"op": "delete_clip", "id": "p1"}, {"op": "add_clip", "track": "text", "start": 3, "len": 2.5, "text": "Added"}]
+        r = self.ai(a, p, good, mode="compilation", base=1)
+        self.assertEqual((r["revision"], r["changes"], r["pending"]), (2, 6, True))
+        self.assertEqual(self.admin("select count(*) from public.edit_ops where project_id = %s and status = 'pending' and actor = 'ai'", p), 6)
+        self.assertEqual(self.admin("select state -> 'clips' -> 0 ->> 'id' from public.edit_drafts where project_id = %s and mode = 'compilation'", p), "v1")     # the summary is the app's to change
+        self.assertEqual(self.look(p), {})                                                                  # a compilation op never touches the data draft
 
     # ---------------------------------------------------------------------------------------------- the person's editor, undo, and the person winning
     def test_the_person_edits_the_same_draft_through_the_same_function_and_is_logged_as_the_person(self):
         a = self.alice()
         p = self.project(a)
-        self.assertEqual(self.person(ALICE, p, [LOOK("theme", "dark")])["revision"], 1)
-        self.ai(a, p, [LOOK("palette.accent", "#00ff00")])
-        self.assertEqual(self.look(p), {"theme": "dark", "palette.accent": "#00ff00"})
+        self.assertEqual(self.person(ALICE, p, [LOOK("network.color", DARK)])["revision"], 1)
+        self.ai(a, p, [LOOK("state.fill", "#00ff00")])
+        self.assertEqual(self.look(p), {"network.color": DARK, "state.fill": "#00ff00"})
         feed = self.app(ALICE).one("select my_edit_ops_since(%s, 'data', 0)", p)
         self.assertEqual((feed["revision"], [x["actor"] for x in feed["ops"]], feed["ops"][1]["client"]), (2, ["person", "ai"], "Claude"))
-        self.assertEqual(self.app(ALICE).one("select my_edit_ops_since(%s, 'data', 1)", p)["ops"][0]["op"], LOOK("palette.accent", "#00ff00"))        # only what is newer
+        self.assertEqual(self.app(ALICE).one("select my_edit_ops_since(%s, 'data', 1)", p)["ops"][0]["op"], LOOK("state.fill", "#00ff00"))        # only what is newer
         self.assertEqual(self.app(ALICE).one("select my_edit_ops_since(%s, 'data', 2)", p)["ops"], [])
-        with self.assertRaises(psycopg.Error) as cm:                                                     # the person is held to the same revision rule
-            self.person(ALICE, p, [LOOK("theme", "light")], base=0)
+        with self.assertRaises(psycopg.Error) as cm:                                                         # the person is held to the same revision rule
+            self.person(ALICE, p, [LOOK("network.color", LIGHT)], base=0)
         self.assertEqual(cm.exception.sqlstate, "PT409")
 
     def test_the_persons_undo_restores_the_state_and_marks_the_op_and_the_ai_cannot_repeat_it_for_ten_minutes(self):
         a = self.alice()
         p = self.project(a)
-        self.person(ALICE, p, [LOOK("palette.accent", "#111111")])
-        self.ai(a, p, [LOOK("palette.accent", "#ff0000")])
+        self.person(ALICE, p, [LOOK("state.fill", "#111111")])
+        self.ai(a, p, [LOOK("state.fill", "#ff0000")])
         op_id = self.admin("select max(id) from public.edit_ops where project_id = %s", p)
         r = self.app(ALICE).one("select editor_undo(%s, 'data', %s)", p, op_id)
-        self.assertEqual((r["undone"], r["state"]["look"]), (1, {"palette.accent": "#111111"}))
+        self.assertEqual((r["undone"], r["state"]["look"]), (1, {"state.fill": "#111111"}))
         self.assertEqual(self.admin("select status from public.edit_ops where id = %s", op_id), "undone")
-        self.assertEqual(self.state(a, p)["recently_undone"][0]["op"], LOOK("palette.accent", "#ff0000"))
-        msg = self.ai_fails(a, p, [LOOK("palette.accent", "#ff0000")], code="PT409")
+        self.assertEqual(self.state(a, p)["recently_undone"][0]["op"], LOOK("state.fill", "#ff0000"))
+        msg = self.ai_fails(a, p, [LOOK("state.fill", "#ff0000")], code="PT409")
         self.assertIn("undid exactly this", msg)
-        self.assertEqual(self.ai(a, p, [LOOK("palette.accent", "#ff0001")])["changes"], 1)                # a different value is a new idea
+        self.assertEqual(self.ai(a, p, [LOOK("state.fill", "#ff0001")])["changes"], 1)                         # a different value is a new idea
         self.run_sql("update public.edit_ops set undone_at = now() - interval '11 minutes' where id = %s", op_id)
-        self.assertEqual(self.ai(a, p, [LOOK("palette.accent", "#ff0000")])["changes"], 1)                # after ten minutes it may be proposed again
+        self.assertEqual(self.ai(a, p, [LOOK("state.fill", "#ff0000")])["changes"], 1)                         # after ten minutes it may be proposed again
 
     def test_undoing_never_clobbers_a_newer_change_and_undo_all_ai_takes_only_the_ais(self):
         a = self.alice()
         p = self.project(a)
-        self.ai(a, p, [LOOK("palette.accent", "#aa0000")])
-        self.person(ALICE, p, [LOOK("palette.accent", "#00bb00")])                                          # the person then changes the same setting
-        self.ai(a, p, [LOOK("theme", "dark")])
+        self.ai(a, p, [LOOK("state.fill", "#aa0000")])
+        self.person(ALICE, p, [LOOK("state.fill", "#00bb00")])                                                # the person then changes the same setting
+        self.ai(a, p, [LOOK("network.color", DARK)])
         r = self.app(ALICE).one("select editor_undo_all_ai(%s, 'data')", p)
-        self.assertEqual((r["undone"], r["skipped"]), (1, 1))                                                # theme undone; the accent stands (the person's newer change)
-        self.assertEqual(self.look(p), {"palette.accent": "#00bb00"})
+        self.assertEqual((r["undone"], r["skipped"]), (1, 1))                                                  # the line colour undone; the fill stands (the person's newer change)
+        self.assertEqual(self.look(p), {"state.fill": "#00bb00"})
         self.assertEqual(self.admin("select count(*) from public.edit_ops where project_id = %s and actor = 'person' and status = 'applied'", p), 1)
         # the AI's own undo touches only its latest batch and never the person's
-        self.ai(a, p, [LOOK("theme", "light")])
-        self.person(ALICE, p, [LOOK("marker.glow", True)])
+        self.ai(a, p, [LOOK("network.color", LIGHT)])
+        self.person(ALICE, p, [LOOK("page.background", "#222222")])
         out = self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(a), p)
-        self.assertEqual((out["undone"], out["state"]["look"]), (1, {"palette.accent": "#00bb00", "marker.glow": True}))
+        self.assertEqual((out["undone"], out["state"]["look"]), (1, {"state.fill": "#00bb00", "page.background": "#222222"}))
 
     def test_applying_random_changes_then_undoing_them_all_in_reverse_restores_the_draft_exactly(self):
         a = self.alice()
         p = self.project(a)
         rng = random.Random(141)
-        keys = [("theme", ["light", "dark"]), ("palette.accent", ["#111111", "#222222", "#333333"]), ("marker.shape", ["circle", "square", "diamond"]), ("marker.glow", [True, False]), ("marker.border_width", [0, 1, 2.5, 8])]
-        base = {"marker.shape": "square"}
-        self.person(ALICE, p, [LOOK("marker.shape", "square")])
+        keys = ["network.color", "network.base_color", "network.context_color", "state.fill", "page.background"]
+        colours = ["#111111", "#222222", "#333333", "#abcdef"]
+        self.person(ALICE, p, [LOOK("page.background", "#777777")])
         before = self.look(p)
         for _ in range(12):
             ops = []
             for _ in range(rng.randint(1, 4)):
-                k, vals = rng.choice(keys)
-                ops.append(UNSET(k) if rng.random() < 0.2 else LOOK(k, rng.choice(vals)))
+                k = rng.choice(keys)
+                ops.append(UNSET(k) if rng.random() < 0.2 else LOOK(k, rng.choice(colours)))
             self.ai(a, p, ops)
-        self.assertEqual(before, base)
+        self.assertEqual(before, {"page.background": "#777777"})
         ids = self.admin("select array_agg(id order by id desc) from public.edit_ops where project_id = %s and actor = 'ai'", p)
         for op_id in ids:
             self.app(ALICE).one("select editor_undo(%s, 'data', %s)", p, op_id)
@@ -304,17 +312,17 @@ class LiveEditor(core.Base):
         a = self.alice()
         p = self.project(a)
         for _ in range(3):
-            self.ai(a, p, [LOOK("marker.glow", True)] * 20)
-        msg = self.ai_fails(a, p, [LOOK("marker.glow", False)], code="PT429")
+            self.ai(a, p, [LOOK("page.background", "#000000")] * 20)
+        msg = self.ai_fails(a, p, [LOOK("page.background", "#ffffff")], code="PT429")
         self.assertIn("60 changes in a minute", msg)
-        self.assertEqual(self.person(ALICE, p, [LOOK("marker.glow", False)] * 20)["changes"], 20)           # the person has no such limit
+        self.assertEqual(self.person(ALICE, p, [LOOK("page.background", "#ffffff")] * 20)["changes"], 20)    # the person has no such limit
         self.run_sql("update public.edit_ops set created_at = now() - interval '2 hours' where actor = 'ai'")
         for _ in range(3):
-            self.ai(a, p, [LOOK("marker.glow", True)] * 20)
+            self.ai(a, p, [LOOK("page.background", "#000000")] * 20)
         self.run_sql("update public.edit_ops set created_at = now() - interval '2 hours' where actor = 'ai'")
         self.run_sql("insert into public.edit_ops (project_id, mode, owner_id, revision, actor, op, status, created_at) select %s, 'data', %s, 1, 'ai', %s::jsonb, 'applied', now() - interval '3 hours' from generate_series(1, 540)",
-                     p, ALICE, json.dumps(LOOK("marker.glow", True)))
-        msg2 = self.ai_fails(a, p, [LOOK("marker.glow", False)] * 20, code="PT429")
+                     p, ALICE, json.dumps(LOOK("page.background", "#000000")))
+        msg2 = self.ai_fails(a, p, [LOOK("page.background", "#ffffff")] * 20, code="PT429")
         self.assertIn("600 changes in a day", msg2)
 
     # ---------------------------------------------------------------------------------------------- compilation mode (the app is the source of truth)
@@ -323,35 +331,35 @@ class LiveEditor(core.Base):
         p = self.project(a)
         st = self.state(a, p)["compilation"]
         self.assertEqual((st["shared"], st["tracks"]), (False, None))
-        msg = self.ai_fails(a, p, [{"op": "move_clip", "clip_id": "c1", "start_s": 3}], code="PT403", mode="compilation")
+        msg = self.ai_fails(a, p, [{"op": "move_clip", "id": "v1", "start": 3}], code="PT403", mode="compilation")
         self.assertIn("Let my AI see my track list", msg)
+        self.mirror(p, ai_visible=False)                                                                       # mirrored for the person's page, still not visible to the AI
+        self.assertIsNone(self.state(a, p)["compilation"]["tracks"])
+        self.ai_fails(a, p, [{"op": "move_clip", "id": "v1", "start": 3}], code="PT403", mode="compilation", base=1)
         self.assertEqual(self.logged(p, "compilation"), 0)
 
     def test_a_ticked_summary_lets_the_ai_read_tracks_and_queue_ops_and_unticking_drops_both(self):
         a = self.alice()
         p = self.project(a)
-        self.run_sql("insert into public.edit_drafts (project_id, mode, owner_id, mirrored, ai_visible, state) values (%s, 'compilation', %s, true, true, %s::jsonb)",
-                     p, ALICE, json.dumps({"clips": [{"id": "c1", "label": "great news", "file": "interview-3.mp4", "in_s": 1, "out_s": 2, "start_s": 0, "length_s": 1}], "overlays": [], "music": []}))
+        self.mirror(p)
         st = self.state(a, p)["compilation"]
         self.assertTrue(st["shared"])
         self.assertEqual(st["tracks"]["clips"][0]["file"], "interview-3.mp4")
-        r = self.ai(a, p, [{"op": "move_clip", "clip_id": "c1", "start_s": 5}], mode="compilation")
-        self.assertEqual((r["revision"], r["pending"]), (1, True))
+        r = self.ai(a, p, [{"op": "move_clip", "id": "t1", "start": 5}], mode="compilation", base=1)
+        self.assertEqual((r["revision"], r["pending"]), (2, True))
         self.assertEqual(self.state(a, p)["compilation"]["pending"], 1)
-        self.assertEqual(self.look(p), {})                                                                  # a compilation op never touches the data draft
-        # the person unticks (the app posts p_ai_visible = false): the AI sees nothing and its waiting op is rejected
         self.run_sql("update public.edit_drafts set ai_visible = false where project_id = %s and mode = 'compilation'", p)
         self.assertIsNone(self.state(a, p)["compilation"]["tracks"])
-        self.ai_fails(a, p, [{"op": "move_clip", "clip_id": "c1", "start_s": 6}], code="PT403", mode="compilation")
+        self.ai_fails(a, p, [{"op": "move_clip", "id": "t1", "start": 6}], code="PT403", mode="compilation", base=2)
 
     def test_the_person_can_edit_tracks_in_the_web_editor_only_when_the_app_mirrors_them(self):
         a = self.alice()
         p = self.project(a)
         with self.assertRaises(psycopg.Error) as cm:
-            self.person(ALICE, p, [{"op": "move_clip", "clip_id": "c1", "start_s": 1}], mode="compilation")
+            self.person(ALICE, p, [{"op": "move_clip", "id": "t1", "start": 1}], mode="compilation")
         self.assertEqual(cm.exception.sqlstate, "PT403")
-        self.run_sql("insert into public.edit_drafts (project_id, mode, owner_id, mirrored) values (%s, 'compilation', %s, true)", p, ALICE)
-        self.assertTrue(self.person(ALICE, p, [{"op": "move_clip", "clip_id": "c1", "start_s": 1}], mode="compilation")["pending"])
+        self.mirror(p, ai_visible=False)
+        self.assertTrue(self.person(ALICE, p, [{"op": "move_clip", "id": "t1", "start": 1}], mode="compilation", base=1)["pending"])
         self.assertIsNone(self.state(a, p)["compilation"]["tracks"])                                          # mirrored for the page, not visible to the AI
 
     # ---------------------------------------------------------------------------------------------- what it cannot do, and who can call what
@@ -360,7 +368,7 @@ class LiveEditor(core.Base):
         _, b, _ = self.connect(BOB, scopes=SCOPES)
         pa = self.project(a)
         self.assertIsNone(self.state(b, pa))                                                                   # Bob cannot read Alice's editor
-        msg = self.ai_fails(b, pa, [LOOK("theme", "dark")], code="PT404", base=0)
+        msg = self.ai_fails(b, pa, [LOOK("network.color", DARK)], code="PT404", base=0)
         self.assertIn("not found", msg)
         self.assertEqual(self.logged(pa), 0)
         for tbl in ("edit_drafts", "edit_ops", "edit_look_keys"):
@@ -371,7 +379,7 @@ class LiveEditor(core.Base):
                     continue
                 with self.assertRaises(psycopg.Error, msg=f"{who} {tbl}"):
                     self.db.as_(who).one(f"select count(*) from public.{tbl}")
-        self.person(ALICE, pa, [LOOK("theme", "dark")])
+        self.person(ALICE, pa, [LOOK("network.color", DARK)])
         self.assertEqual(self.db.as_(ALICE).one("select count(*) from public.edit_ops"), 1)                      # the person reads their own log...
         self.assertEqual(self.db.as_(BOB).one("select count(*) from public.edit_ops"), 0)                       # ...and nobody else's
         for stmt in ("insert into public.edit_ops (project_id, mode, owner_id, revision, actor, op) values (gen_random_uuid(), 'data', gen_random_uuid(), 1, 'ai', '{}')",
@@ -384,16 +392,14 @@ class LiveEditor(core.Base):
         p = self.project(a)
         vid = self.runner().one("select connect_current_version(%s, %s)", h(a), p)
         self.runner().one("select connect_save_story(%s, %s, %s::jsonb)", h(a), vid, tc.STORY)
-        before = self.admin("select jsonb_build_object('stories', (select jsonb_agg(story_sha256 order by id) from public.versions), 'jobs', (select count(*) from public.jobs), "
-                            "'projects', (select count(*) from public.projects), 'ledger', (select count(*) from information_schema.tables where table_name = 'credit_ledger'))")
-        self.ai(a, p, [LOOK("theme", "dark"), LOOK("marker.glow", True)])
-        self.person(ALICE, p, [LOOK("palette.accent", "#445566")])
+        snap = "select jsonb_build_object('stories', (select jsonb_agg(story_sha256 order by id) from public.versions), 'jobs', (select count(*) from public.jobs), 'projects', (select count(*) from public.projects))"
+        before = self.admin(snap)
+        self.ai(a, p, [LOOK("network.color", DARK), LOOK("page.background", "#101010")])
+        self.person(ALICE, p, [LOOK("state.fill", "#445566")])
         self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(a), p)
         self.state(a, p)
-        after = self.admin("select jsonb_build_object('stories', (select jsonb_agg(story_sha256 order by id) from public.versions), 'jobs', (select count(*) from public.jobs), "
-                           "'projects', (select count(*) from public.projects), 'ledger', (select count(*) from information_schema.tables where table_name = 'credit_ledger'))")
-        self.assertEqual(before, after)                                                                          # the saved story, the jobs and the projects are untouched
-        names = self.admin("select array_agg(proname order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname in ('connect_edit_state', 'connect_edit_ops', 'connect_edit_undo_ai')")
+        self.assertEqual(before, self.admin(snap))                                                              # the saved story, the jobs and the projects are untouched
+        names = self.admin("select array_agg(proname order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname like 'connect\\_edit%%'")
         self.assertEqual(names, ["connect_edit_ops", "connect_edit_state", "connect_edit_undo_ai"])             # exactly three connector doors, none named for a render, save or fetch
 
     def test_every_function_is_callable_by_exactly_the_roles_intended_also_under_supabases_default_privileges(self):
@@ -437,17 +443,17 @@ class LiveEditor(core.Base):
         a = self.alice()
         p = self.project(a)
         with self.assertRaises(psycopg.Error):
-            self.runner().one("select editor_apply_ops(%s, 'data', 0, %s::jsonb)", p, json.dumps([LOOK("theme", "dark")]))
+            self.runner().one("select editor_apply_ops(%s, 'data', 0, %s::jsonb)", p, json.dumps([LOOK("network.color", DARK)]))
         with self.assertRaises(psycopg.Error):
-            self.app(ALICE).one("select connect_edit_ops(%s, %s, 'data', 0, %s::jsonb)", h(a), p, json.dumps([LOOK("theme", "dark")]))
+            self.app(ALICE).one("select connect_edit_ops(%s, %s, 'data', 0, %s::jsonb)", h(a), p, json.dumps([LOOK("network.color", DARK)]))
         with self.assertRaises(psycopg.Error):                                                                   # an OAuth-style token (it carries a client_id) is refused by the person's functions
-            self.app(ALICE, claims=json.dumps({"sub": ALICE, "client_id": "someone"})).one("select editor_apply_ops(%s, 'data', 0, %s::jsonb)", p, json.dumps([LOOK("theme", "dark")]))
+            self.app(ALICE, claims=json.dumps({"sub": ALICE, "client_id": "someone"})).one("select editor_apply_ops(%s, 'data', 0, %s::jsonb)", p, json.dumps([LOOK("network.color", DARK)]))
         self.assertEqual(self.logged(p), 0)
 
     def test_deleting_the_project_deletes_its_draft_and_log_and_the_purge_drops_old_summaries_and_ops(self):
         a = self.alice()
         p = self.project(a)
-        self.ai(a, p, [LOOK("theme", "dark")])
+        self.ai(a, p, [LOOK("network.color", DARK)])
         self.run_sql("insert into public.edit_drafts (project_id, mode, owner_id, mirrored, state, editor_seen_at) values (%s, 'compilation', %s, true, %s::jsonb, now() - interval '25 hours')", p, ALICE, json.dumps({"clips": []}))
         self.run_sql("update public.edit_ops set created_at = now() - interval '8 days'")
         out = self.admin("select ryagram_private.edit_purge()")
@@ -462,7 +468,7 @@ class LiveEditor(core.Base):
         self.assertGreaterEqual(len(rows), 6)
         self.assertEqual([r[0] for r in rows if not r[1]], [])
         faults = (("grant execute on function public.connect_edit_ops(text,uuid,text,bigint,jsonb) to authenticated", "revoke execute on function public.connect_edit_ops(text,uuid,text,bigint,jsonb) from authenticated", "ONLY the connector"),
-                  ("grant select on public.edit_drafts to authenticated", "revoke select on public.edit_drafts from authenticated", "nobody can touch"),
+                  ("grant select on public.edit_drafts to authenticated", "revoke select on public.edit_drafts from authenticated", "untouchable"),
                   ("grant insert on public.edit_ops to authenticated", "revoke insert on public.edit_ops from authenticated", "READ their own"))
         for fault, undo, word in faults:
             self.db.as_(None).c.execute(fault)
@@ -475,7 +481,7 @@ class LiveEditor(core.Base):
     def test_the_rollback_removes_everything_and_puts_the_old_scope_list_back(self):
         a = self.alice()
         p = self.project(a)
-        self.ai(a, p, [LOOK("theme", "dark")])
+        self.ai(a, p, [LOOK("network.color", DARK)])
         rb = (core.ROOT / "rollbacks" / "20261027000400_live_editor_rollback.sql").read_text(encoding="utf-8")
         self.db.as_(None).c.execute(rb)
         self.assertEqual(self.admin("select ryagram_private.connect_offered_scopes()"), ["read", "write", "render_free"])
