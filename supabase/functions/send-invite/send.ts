@@ -1,7 +1,8 @@
 // Send an invite email from Ryagram (NEXT-WEB 155). Admin only: the caller's own login is checked (an AI's token is refused), and the database decides everything else
 // (admin_invite_send_begin: the address is bound to the code on the first send, 60 seconds between sends, 3 at most). The message goes through the ops mail sender
 // (OPS_MAIL_MODE), is recorded in ops_outbox (kind 'invite') and says plainly whether it was SENT or only SAVED (dry-run: nothing leaves the project).
-// Tested in tests/send-invite.test.mjs. The email's words are RYAN'S: they are DRAFT until he approves them (proposals\WEB-INVITE-EMAIL.md).
+// Tested in tests/send-invite.test.mjs. The email's words are RYAN'S and are APPROVED (Ryan 2026-10-28 10:59: 'sign it "The Ryagram Team"; keep 20 beta credits as the default;
+// otherwise the draft words are OK'); proposals\WEB-INVITE-EMAIL.md holds them. No reply-to was asked for: none is added.
 
 export interface Begun { to: string; name: string; credits: number; expires_at: string; sends: number }
 export interface Deps {
@@ -32,7 +33,8 @@ export function compose(b: Begun, code: string, siteUrl: string): { subject: str
     `Or go to ${siteUrl.replace(/\/$/, "")}/app/, choose "Have an invite code?", and enter the code with this email address. You will get an email to set your password`
       + (b.credits > 0 ? `, and ${plural(b.credits, "beta credit")} will be waiting for you.` : "."), "",
     "Beta credits are free, in exchange for your feedback. If you talk about or promote Ryagram, or a film you made with it, please say your credits were free.", "",
-    `The code works once and expires on ${expires}.`,
+    `The code works once and expires on ${expires}.`, "",
+    "The Ryagram Team",
   ].join("\n");
   return { subject: "Your Ryagram invite", body };
 }
