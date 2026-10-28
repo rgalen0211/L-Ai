@@ -158,6 +158,18 @@ try:
     BD.load_session = lambda m: "session"
     import numpy as np  # noqa: E402
     BL.scan = lambda session, ff, p, a, b, frame, **k: scanned.append((a, b)) or [{"id": "t1", "kf": [[a, np.float32(100), np.float32(100), np.float32(80), np.float32(80)]], "n": 1, "score": np.float32(0.9)}]      # like the real finder: numpy float32, which json cannot write (WORKER 48)
+    real_new_spec = BL.new_spec
+
+    def numpy_everywhere(x):
+        if isinstance(x, float):
+            return np.float32(x)
+        if isinstance(x, dict):
+            return {k: numpy_everywhere(v) for k, v in x.items()}
+        if isinstance(x, (list, tuple)):
+            return [numpy_everywhere(v) for v in x]
+        return x
+
+    BL.new_spec = lambda frame, tracks: numpy_everywhere(real_new_spec(frame, tracks))               # whatever the engine does with the numbers, the spec the app gets has numpy in it: the app's own plain-number step is then the ONLY protection, and this check sees it go (CC1 10:27)
     lst = json.loads(json.dumps(edit))
     lst["clips"].append({"id": "s1", "slide": {"text": "The end"}, "in_s": 0, "out_s": 2, "words": []})
     ME.set_blur({"on": False})
