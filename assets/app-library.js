@@ -455,25 +455,45 @@
       const button = (label, work) => h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
         await busy(event.currentTarget, 'Saving\u2026', async () => { try { await work(); await load(); } catch (err) { showError(error, err); } });
       } }, label);
-      // --- the invite code just made (shown ONCE: the database keeps only its hash) with a mailto: link, so Ryan reads and sends the email himself
+      // --- the invite just made. Ryagram sends the invite email itself (the send-invite function, NEXT-WEB 155); this card says what happened in plain words, offers Resend (the database
+      // limits it: 60 seconds apart, 3 sends) and keeps Copy code as the fallback. The code is shown ONCE (the database keeps only its hash): copy it now.
       let invited = null;
+      async function sendTheInvite(button) {
+        await busy(button, 'Sending…', async () => {
+          try {
+            const res = await data.sendInvite(invited.code, invited.email);
+            invited.line = O.inviteSendLine(res, invited.email); invited.ok = res && res.status === 'sent';
+          } catch (err) { invited.line = `Not sent: ${err.message} You can copy the code and send it yourself.`; invited.ok = false; }
+          await load();
+        });
+      }
       function invitePanel() {
         if (!invited) return null;
-        const { name, email, code, credits } = invited;
+        const { name, email, code } = invited;
+        const copy = h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
+          try { await navigator.clipboard.writeText(code); event.currentTarget.textContent = 'Copied'; } catch { event.currentTarget.textContent = 'Select the code and copy it by hand'; }
+        } }, 'Copy code');
         return h('div', { class: 'invite-panel', role: 'status' },
           h('p', {}, h('strong', {}, `Invite code for ${name}: `), h('code', {}, code), '  (shown once; copy it now)'),
-          h('p', {}, h('a', { class: 'button secondary small', href: O.inviteMailto({ name, email, code, credits: credits == null ? null : credits }) }, `Email it to ${email}`), ' ',
-            button('Done', async () => { invited = null; })));
+          h('p', { class: 'form-note', 'data-key': 'invite-line' }, invited.line || ''),
+          h('p', {}, h('button', { class: 'button secondary small', type: 'button', 'data-key': 'invite-resend', onclick: event => sendTheInvite(event.currentTarget) }, invited.ok ? `Resend to ${email}` : `Send to ${email}`), ' ', copy, ' ',
+            button('Done', async () => { invited = null; })),
+          h('p', { class: 'form-note' }, 'After they sign up, turn on Connect an AI (and tester mode, if they should have it) for them: ', h('a', { href: '#/admin/tester' }, 'Tester computers and Connect an AI'), '.'));
       }
-      // --- Invite someone: a friend Ryan names before the public form is live. The address is used ONLY for the mailto: link; the database gets the name and the credits.
+      // --- Invite someone: a friend Ryan names before the public form is live. One press makes the code and Ryagram emails it to them. The address goes to the send-invite function
+      // (the database binds it to the code and keeps it with the code, 12 months at most), never anywhere else.
       function invitePersonForm() {
         const name = h('input', { id: 'ip-name', name: 'name', type: 'text', required: true, maxlength: '100', autocomplete: 'off' });
         const email = h('input', { id: 'ip-email', name: 'email', type: 'email', required: true, maxlength: '320', autocomplete: 'off' });
         const credits = h('input', { id: 'ip-credits', name: 'credits', type: 'number', min: '0', max: '1000', step: '1', placeholder: 'the usual welcome credits' });
-        return miniForm('Invite someone', [field('Their name', name), field('Their email (stays in your mail program)', email), field('Welcome credits (optional)', credits)], 'Make an invite code', async () => {
+        return miniForm('Invite someone', [field('Their name', name), field('Their email (Ryagram sends the invite here)', email), field('Welcome credits (optional)', credits)], 'Send the invite', async () => {
           const c = credits.value.trim() === '' ? null : Number(credits.value);
           const code = await data.adminInvitePerson(name.value, c);
-          invited = { name: name.value.trim(), email: email.value.trim(), code, credits: c };
+          invited = { name: name.value.trim(), email: email.value.trim(), code, credits: c, line: '', ok: false };
+          try {                                                                    // the code exists now; if the send fails the card still shows it, with Send again
+            const res = await data.sendInvite(code, invited.email);
+            invited.line = O.inviteSendLine(res, invited.email); invited.ok = res && res.status === 'sent';
+          } catch (err) { invited.line = `Not sent: ${err.message} You can send it again, or copy the code and send it yourself.`; }
         });
       }
       // --- the film request queue: what creators asked for, to make by hand and then mark delivered (with the film's https link) or decline (credits go back)
@@ -1251,6 +1271,7 @@
           h('div', { class: 'actions-row' }, confirmBtn), note);
       }
 
+      const downloadUi = {};
       function card(ds) {
         const c = U.chip(ds, ds.ingest);
         const inUse = v.dataset_id === ds.id;
@@ -1260,6 +1281,7 @@
             try { await data.deleteUpload(ds.id); await refresh(); } catch (err) { showError(error, err); }
           });
         } }, 'Delete');
+        const dl = window.ryagramDownloadData && data.downloadParts && ds.uploaded_at ? (downloadUi.cache || (downloadUi.cache = window.ryagramDownloadData.create({ h, data }))).button(ds) : null;     // Download my data (NEXT-WEB 153)
         const use = c.key === 'ready' && editable && !inUse ? h('button', { class: 'button small', type: 'button', onclick: async () => {
           await busy(use, 'Adding\u2026', async () => {
             try { await data.attachUpload(v.id, ds.id).then(ref => useInFilm(ref, ds)); v.dataset_id = ds.id; await refresh(); }
@@ -1275,7 +1297,7 @@
           c.key === 'failed' ? h('p', { class: 'form-note app-error' }, c.detail) : null,
           c.key === 'check' ? mappingForm(ds) : null,
           c.key === 'ready' && open === ds.id ? h('ul', { class: 'column-list' }, (ds.ingest_report?.columns || []).map(col => h('li', {}, `${U.text(col.header)} (${col.kind})`))) : null,
-          h('div', { class: 'actions-row' }, use, edit, c.key === 'deleting' ? null : del));
+          h('div', { class: 'actions-row' }, use, edit, dl, c.key === 'deleting' ? null : del));
       }
 
       // What a good file looks like (BYOD guide): the shape, as a small table.

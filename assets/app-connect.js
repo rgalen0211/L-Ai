@@ -15,6 +15,23 @@
     fetch_data: 'Ask the Ryagram app on your computer to download a public data file. Nothing is downloaded until you press Download on your computer, and you can say no. It cannot read your files.'
   };
   const ALWAYS = ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.'];
+  // How to connect an AI, on the Account page (NEXT-WEB 156, Ryan 20:05). The steps are the reviewed ones on the public connect guide (CONNECT), shortened; that guide has the full
+  // version and the other assistants (it is deliberately not linked from here: only the AI-first door may link it, tests/connect-page.test.mjs). The address is the site's own Supabase address plus the connector path, so it can never differ from the one the consent page talks to.
+  const CONNECT_PATH = '/functions/v1/connect/mcp';
+  function connectorAddress(config) {
+    const base = String((config && config.supabaseUrl) || '').replace(/\/+$/, '');
+    return /^https:\/\/[a-z0-9-]+\.supabase\.co$/.test(base) ? base + CONNECT_PATH : '';
+  }
+  const CONNECT_STEPS = {
+    claude: { label: 'Claude', note: 'Claude on the web, Desktop or your phone. On a Free, Pro or Max plan you add it yourself (a Free plan can have one custom connector). On Team or Enterprise an administrator adds it first.',
+      steps: ['Open Customize, then Connectors. Press + Add, then Add custom connector.', 'Name it Ryagram. For the address, paste the address above. Leave any client id and secret empty. If Claude asks how it should identify itself, choose Register automatically.',
+        'Press Add, then Connect. Sign in to Ryagram, check the page says Claude, then press Allow.', 'In a chat, turn the Ryagram connector on and try: “Using Ryagram, show my credits.”'] },
+    chatgpt: { label: 'ChatGPT', note: 'This works only on plans that allow custom MCP connectors. Look in Settings, then Apps or Connectors: if there is an option to add a custom MCP server (sometimes behind Developer mode), you can use it. If there is not, ChatGPT cannot connect to Ryagram on your plan.',
+      steps: ['In Settings, Apps or Connectors, choose Create (custom MCP). Name it Ryagram, paste the address above, and choose OAuth for authentication.', 'Accept the notice about custom servers, then Create and Connect.',
+        'Sign in to Ryagram, check the address, and press Allow.', 'ChatGPT asks you to confirm actions that save or start something. Read what it will do before you confirm.'] }
+  };
+  const AFTER_ALLOW = 'After you press Allow, your AI appears in the list above.';
+  const ADDRESS_TIP = 'Use the whole address. The /mcp at the end is the part people miss.';
   const NOT_ALLOWED = 'This AI can’t be connected.';
   const INVITE_ONLY = 'Connecting an AI is by invitation for now.';
 
@@ -138,8 +155,29 @@
           } }, 'Disconnect')))) : h('p', { class: 'form-note' }, 'No AI is connected to your account.'));
       }
       await draw();
+      // Connect an AI: a button that opens the steps. The list refreshes when the person comes back to this tab, so a new AI shows up after Allow without a reload.
+      const address = connectorAddress(window.ryagramConfig), how = h('div', { class: 'connect-how', hidden: true });
+      const copyNote = h('p', { class: 'form-note', role: 'status' });
+      const toggle = h('button', { class: 'button secondary', type: 'button', 'aria-expanded': 'false', 'data-key': 'connect-an-ai', onclick: () => {
+        how.hidden = !how.hidden; toggle.setAttribute('aria-expanded', String(!how.hidden));
+      } }, 'Connect an AI');
+      const group = k => { const g = CONNECT_STEPS[k]; return h('details', { class: 'connect-app', open: k === 'claude' }, h('summary', {}, g.label),
+        h('p', { class: 'form-note' }, g.note), h('ol', {}, g.steps.map(t => h('li', {}, t)))); };
+      how.append(
+        address ? h('div', { class: 'connect-address' }, h('p', {}, h('strong', {}, 'Ryagram’s connector address')),
+          h('p', {}, h('code', { 'data-key': 'connector-address' }, address), ' ', h('button', { class: 'button secondary small', type: 'button', 'data-key': 'copy-address', onclick: async () => {
+            try { await navigator.clipboard.writeText(address); copyNote.textContent = 'Copied. Paste it where the steps say “the address”.'; } catch { copyNote.textContent = 'Could not copy. Select the address and copy it by hand.'; }
+          } }, 'Copy')), h('p', { class: 'form-note' }, ADDRESS_TIP), copyNote)
+          : h('p', { class: 'form-note' }, 'The connector address is not available on this page. Ask Ryan for it.'),
+        group('claude'), group('chatgpt'),
+        h('p', { class: 'form-note' }, AFTER_ALLOW));
+      const again = () => {
+        if (!list.isConnected) { window.removeEventListener('focus', again); document.removeEventListener('visibilitychange', again); return; }        // the page moved on
+        if (!how.hidden && !document.hidden) draw();
+      };
+      window.addEventListener('focus', again); document.addEventListener('visibilitychange', again);
       return h('section', { class: 'account-section', 'aria-labelledby': 'acct-ais' }, h('h2', { id: 'acct-ais' }, 'Connected AIs'),
-        h('p', { class: 'form-note' }, 'An AI you connect acts as your Ryagram account. It cannot spend your credits. Disconnecting stops it at once.'), list, error);
+        h('p', { class: 'form-note' }, 'An AI you connect acts as your Ryagram account. It cannot spend your credits. Disconnecting stops it at once.'), list, h('p', {}, toggle), how, error);
     }
 
     // An account that is not invited and follows a consent link: one plain line, not a blank page (CC1 LOW-2). The server has already refused it; this only says why.
@@ -150,5 +188,5 @@
     return { consentView, connectedSection, inviteOnlyView };
   }
 
-  window.ryagramConnect = { INVITE_ONLY, shownScopes, UNKNOWN_ADDRESS, expiry, EXPIRED, create, SCOPE_WORDS, ALWAYS, requestFromHash, scopeWord, safeRedirect, hostOf, ago, callsLine, REQUEST };
+  window.ryagramConnect = { CONNECT_STEPS, connectorAddress, AFTER_ALLOW, ADDRESS_TIP, INVITE_ONLY, shownScopes, UNKNOWN_ADDRESS, expiry, EXPIRED, create, SCOPE_WORDS, ALWAYS, requestFromHash, scopeWord, safeRedirect, hostOf, ago, callsLine, REQUEST };
 })();

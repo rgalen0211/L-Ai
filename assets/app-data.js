@@ -308,6 +308,23 @@
       // Upload your own data (SQL 20261004000200/300): a spreadsheet goes to the person's own private slot, the worker reads
       // it and reports what it found, the person confirms what the columns mean, then it can be a film's data.
       // Null when that SQL isn't applied yet.
+      // Download my data (NEXT-WEB 153): everything the person may take, read with THEIR OWN session: the dataset row (their own, by the owner policy), the fetch receipt if it was fetched,
+      // the file as received from their private slot, and the cleaned table if one has been written next to it (clean.csv; the worker does not write one yet). A missing file is not an error: the receipt still stands.
+      async downloadParts(datasetId) {
+        if (typeof datasetId !== 'string' || !/^[0-9a-f-]{36}$/i.test(datasetId)) throw new Error('That dataset was not found.');
+        const { data: dataset, error } = await client.from('datasets').select('id, name, filename_label, ext, bytes, sha256, status, retention, trust_label, trust_ack_at, mapping, ingest_report, uploaded_at, created_at, origin, licence_class, storage_path').eq('id', datasetId).maybeSingle();
+        if (error) throw new Error('Couldn\u2019t read your data. Try again.');
+        if (!dataset) throw new Error('That dataset was not found.');
+        let fetchRow = null;
+        if (dataset.origin === 'fetched') {
+          const r = await client.from('dataset_fetches').select('final_url, host, publisher, retrieved_at, licence_text, licence_class, licence_source, sha256').eq('dataset_id', datasetId).maybeSingle();
+          fetchRow = r && r.data ? r.data : null;
+        }
+        const grab = async path => { try { const r = await client.storage.from(UPLOAD_BUCKET).download(path); return r && !r.error && r.data ? r.data : null; } catch (e) { return null; } };
+        const file = dataset.storage_path ? await grab(dataset.storage_path) : null;
+        const clean = dataset.storage_path ? await grab(dataset.storage_path.replace(/[^/]+$/, 'clean.csv')) : null;
+        return { dataset, fetchRow, file, clean };
+      },
       async listUploads() {
         const { data, error } = await client.from('datasets')
           .select('id, name, filename_label, ext, bytes, status, retention, geography, mapping, ingest_report, uploaded_at, delete_requested_at, created_at')
@@ -450,6 +467,17 @@
         return { state: job.state, job, url };
       },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
+      // Ryagram sends the invite email itself (the send-invite function, admin only; the database binds the address to the code and limits resends). Answers
+      // { status: 'sent' | 'saved', to, sends, at, message }; 'saved' = mail is not switched on, nothing was sent.
+      async sendInvite(code, email) {
+        const { data, error } = await client.functions.invoke('send-invite', { body: { code, email } });
+        if (error) {
+          let text = 'Couldn’t send the invite just now.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
       // The guided builder (the guided-builder function: ENGINE's compileFilm and the listable catalog). A refusal carries every reason in .errors.
       async builderCall(body) {
@@ -522,6 +550,10 @@
       // Admin: set or clear the tester flag (r9 DRAFT, mock backend). WORKER's draft function takes a user id (admin_set_local_compute(p_user uuid, ...)); the admin types an EMAIL, so these two names are PROPOSALS
       // for an email variant and a read of the audit rows (the draft revokes direct reads of local_compute_audit). Admin only on the server; every change writes an audit row.
       adminSetLocalCompute(email, on, reason) { return run(client.rpc('admin_set_local_compute_by_email', { p_email: String(email || '').trim(), p_on: on === true, p_reason: String(reason || '').trim() }), 'Couldn’t change that account.'); },
+      // The Connect-an-AI switch (SQL 20261027000900): an account's right to connect an AI, with a reason, a history and the list of who has it now. Admin only; the server is the gate.
+      adminSetConnectAccess(email, on, reason) { return run(client.rpc('admin_connect_access_set', { p_email: String(email || '').trim(), p_on: on === true, p_reason: String(reason || '').trim() }), 'Couldn\u2019t change that.'); },
+      adminConnectAccessAudit() { return run(client.rpc('admin_connect_access_audit'), 'Couldn\u2019t load the Connect an AI history.'); },
+      adminConnectAccessList() { return run(client.rpc('admin_connect_access_list'), 'Couldn\u2019t load who can connect an AI.'); },
       adminLocalComputeAudit() { return run(client.rpc('admin_local_compute_audit'), 'Couldn’t load the tester history.'); },
       removeComputer(id) { return run(client.rpc('remove_computer', { p_token: id }), 'Couldn\u2019t remove that computer.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.

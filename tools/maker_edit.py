@@ -414,6 +414,7 @@ def render(body: dict) -> dict:
     _eb()
     _claim()
     try:
+        lst = _with_blur(lst)
         out_dir = _dm.STATE["out"]
         out_dir.mkdir(parents=True, exist_ok=True)
         out = out_dir / f"edit-{time.strftime('%Y%m%d-%H%M%S')}.mp4"
@@ -441,6 +442,110 @@ def render(body: dict) -> dict:
         return {"message": msg, "film": out.name}
     finally:
         _release()
+
+
+# ----------------------------------------------------------------------------------------------------- share as a recipe, and blur faces
+def _committed_edit() -> dict:
+    f = _dm.STATE["work"] / "edit" / "committed-edit.json"
+    if not f.is_file() or not _dm.STATE.get("last_film"):
+        raise Problem("Build a final film from the editor first. The recipe is made from the film you built.")
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        raise Problem("The list your last film was built from could not be read. Build the film again.") from None
+
+
+def share_recipe(body: dict) -> dict:
+    """'Share this film as a recipe' (NEXT-CONNECT 149): BUILDER's recipe.export.from_edit on the list the last final film was built from and the recipe the Plan ran. The recipe is saved beside the films;
+    it holds the person's own words in the edited order and no file, folder, picture or music (the engine refuses anything that would name one). The notes say what was left out."""
+    edit = _committed_edit()
+    base = _dm.STATE.get("last_recipe")
+    if not isinstance(base, dict):
+        raise Problem("Press Plan first, so the program knows which recipe this film came from.")
+    try:
+        from ryagram.recipe import export as RX  # noqa: PLC0415
+    except ImportError:
+        raise Problem("This build of the app cannot share a recipe yet.") from None
+    name = " ".join(str(body.get("name") or "").split())[:60] or None
+    try:
+        recipe, notes = RX.from_edit(edit, base, name=name)
+    except (ValueError, KeyError) as e:
+        raise Problem(MS.plain(str(e), "other")) from None
+    out_dir = _dm.STATE["out"]
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stem = Path(_dm.STATE["last_film"]).stem
+    dest = out_dir / f"{stem}.recipe.json"
+    dest.write_text(json.dumps(recipe, indent=1, ensure_ascii=False), encoding="utf-8")
+    return {"message": f"Saved {dest.name} in {out_dir.name}. Send that file to a friend: in the app they press Use a recipe from a file, give it their own videos, and press Plan.", "file": dest.name, "notes": list(notes)}
+
+
+MODEL_GLOBS = ("*yunet*.onnx",)
+
+
+def blur_model():
+    """The face-finder file (YuNet), if the app has one: in the models folder (RYAGRAM_MODEL_DIR) or beside the engine. None = this build has no face finder."""
+    dirs = [os.environ.get("RYAGRAM_MODEL_DIR") or "", str(_dm.STATE["engine"].parent / "models"), str(_dm.STATE["engine"] / "models")]
+    for d in dirs:
+        if d and Path(d).is_dir():
+            for g in MODEL_GLOBS:
+                for p in sorted(Path(d).glob(g)):
+                    if p.is_file():
+                        return p
+    return None
+
+
+def blur_state() -> dict:
+    model = blur_model()
+    on = bool(S().get("blur")) and model is not None
+    if model is None:
+        msg = "This app does not have the face finder file yet, so faces cannot be found. The switch stays off."
+    elif on:
+        msg = "On: when you build the final film, every face the program finds is pixelated. Nobody is recognised and nobody is marked as named here, so every face is blurred."
+    else:
+        msg = "Off. Switch it on to pixelate every face in the final film. The program only finds faces; it never says who anyone is."
+    return {"available": model is not None, "on": on, "message": msg}
+
+
+def set_blur(body: dict) -> dict:
+    if blur_model() is None and body.get("on"):
+        raise Problem("This app does not have the face finder file yet, so faces cannot be found. The switch stays off.")
+    S()["blur"] = bool(body.get("on"))
+    return blur_state()
+
+
+def _with_blur(lst: dict) -> dict:
+    """The final film's list with a blur spec on every clip (every face found is pixelated; nobody is marked as kept). Only when the person switched it on and the finder file is there."""
+    if not S().get("blur"):
+        return lst
+    model = blur_model()
+    if model is None:
+        raise Problem("Blur faces is on, but this app does not have the face finder file. Switch it off, or add the file.")
+    eb = _eb()
+    from ryagram.core import binaries  # noqa: PLC0415
+    from ryagram.local import bystander as BL  # noqa: PLC0415
+    try:
+        from ryagram.local import bystander_detect as BD  # noqa: PLC0415
+        session = BD.load_session(model)
+    except Exception as e:  # noqa: BLE001
+        raise Problem("The face finder could not start: " + str(e)[:160]) from None
+    media = eb.resolve_media(_media_items())
+    ff = binaries.ffmpeg().argv
+    out = json.loads(json.dumps(lst))
+    for c in out.get("clips", []):
+        if c.get("slide") or "file_name" not in c:
+            continue
+        p = media.get(c["file_name"])
+        if p is None:
+            continue
+        frame = BL.video_size(ff, p)
+        if frame is None:
+            raise Problem("A video could not be read to look for faces.")
+        try:
+            tracks = BL.scan(session, ff, p, float(c["in_s"]), float(c["out_s"]), frame)
+        except BL.BlurError as e:
+            raise Problem(str(e)) from None
+        c["bystander_blur"] = BL.new_spec(frame, tracks)
+    return out
 
 
 # ----------------------------------------------------------------------------------------------------- routes
@@ -475,6 +580,8 @@ def get(path: str, query: str, send, send_json, auth, host_ok, send_file) -> boo
             send_json(200, load())
         elif path == "/api/edit/proxy":
             send_json(200, proxy_state())
+        elif path == "/api/edit/blur":
+            send_json(200, blur_state())
         elif path == "/api/image/file":
             got = image_bytes(query)
             if got is None:
@@ -501,6 +608,10 @@ def post(path: str, body: dict, send_json) -> bool:
             send_json(200, rebuild_proxy(body))
         elif path == "/api/edit/render":
             send_json(200, render(body))
+        elif path == "/api/edit/share-recipe":
+            send_json(200, share_recipe(body))
+        elif path == "/api/edit/blur":
+            send_json(200, set_blur(body))
         elif path == "/api/image/pick":
             send_json(200, pick_image())
         elif path == "/api/image/folder":

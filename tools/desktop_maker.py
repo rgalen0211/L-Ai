@@ -419,6 +419,11 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     threading.Thread(target=_pump, args=(job, proc.stdout, "stdout"), daemon=True).start()
     STATE["job"] = job
     if kind == "plan":
+        try:
+            STATE["last_recipe"] = json.loads(recipe_bytes(body).decode("utf-8-sig"))      # the recipe AS RUN (with the words typed on the page): what 'Share this film as a recipe' starts from
+        except (ValueError, OSError):
+            STATE["last_recipe"] = None
+    if kind == "plan":
         STATE["planned"] = None
         STATE["sound"] = None
     STATE["attempts"][kind] = STATE["attempts"].get(kind, 0) + 1
@@ -831,6 +836,15 @@ DOWNLOAD_CARD = (
     'Ryagram does not get a copy, and the program never opens or runs it.</p>'
     '<p><button type="button" id="dl-folder" class="button secondary">Choose the folder for my data</button> <span id="dl-folder-note" class="note"></span></p>'
     '<ul id="dl-list"></ul><p id="dl-msg" class="note" role="status"></p></section>')
+SHARE_CARD = (
+    '<section class="logbox" id="share-card" aria-labelledby="h-share"><h2 id="h-share">Share your film as a recipe</h2>'
+    '<p class="note">After you have built a final film in the editor, you can save its recipe: the words you kept, in the order you put them, so another person can make the same kind of film from their own videos. '
+    'Nothing of yours goes in it: no file names, no folders, no pictures and no music. It is saved as a file beside your films; send it to whoever you like.</p>'
+    '<p><button type="button" id="share-go" class="button secondary">Share this film as a recipe</button></p>'
+    '<p id="share-msg" class="note" role="status"></p><ul id="share-notes"></ul>'
+    '<h2 id="h-blur">Faces in your film</h2>'
+    '<label class="logswitch" for="blur-on"><input id="blur-on" type="checkbox"> Blur faces I haven' + chr(8217) + 't named</label>'
+    '<p id="blur-msg" class="note" role="status"></p></section>')
 EDIT_LINK = '<p><a id="edit-link" class="button secondary" href="/edit">Edit your film (after Plan)</a></p>'
 
 
@@ -879,8 +893,54 @@ def _song_mod():
 
 
 def page_html() -> str:
-    page = PAGE.replace('<section class="logbox" id="airq"', (LIVE_CARD if STATE.get("live_on") else "") + (DOWNLOAD_CARD if STATE.get("data_on") else "") + '<section class="logbox" id="airq"', 1)     # the card sits with the other account cards, below the recipe, not above it
+    page = PAGE.replace('<section class="logbox" id="airq"', (LIVE_CARD if STATE.get("live_on") else "") + (SHARE_CARD if STATE.get("edit_on") else "") + (DOWNLOAD_CARD if STATE.get("data_on") else "") + '<section class="logbox" id="airq"', 1)     # the card sits with the other account cards, below the recipe, not above it
     return page.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else "") + (LIVE_LINK if STATE.get("live_on") else ""))
+
+
+def pick_recipe_file() -> str:
+    """The operating system's own file dialog for ONE recipe file (.json). Returns its path, or "" when the person closed the dialog."""
+    code = ("import tkinter as tk" + chr(92) + "nfrom tkinter import filedialog" + chr(92) + "nr = tk.Tk(); r.withdraw(); r.attributes('-topmost', True)" + chr(92) + "n"
+            "res = filedialog.askopenfilename(title='Choose a recipe file', filetypes=[('Recipe files', '*.json')])" + chr(92) + "n"
+            "import json; print(json.dumps(res or ''))")
+    r = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True, encoding="utf-8", timeout=600)
+    try:
+        return str(json.loads(r.stdout.strip().splitlines()[-1]))
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def import_recipe(path: str | None = None) -> dict:
+    """'Use a recipe from a file': the person picks a recipe file; the engine checks it (the recipe rules and the portability check: no place on a computer, no address, no episode number) and a COPY goes into the
+    recipes folder, where it shows in the list. Nothing is run. The original file is only read."""
+    got = path if path is not None else pick_recipe_file()
+    if not got:
+        return {"file": None}
+    try:
+        raw = Path(got).read_bytes()[:200_000]
+    except OSError:
+        raise Problem("That file could not be read.") from None
+    try:
+        rec = STATE["R"].parse_recipe(raw)
+    except Exception as e:  # noqa: BLE001
+        raise Problem("That file is not a recipe this program can use: " + str(e)[:160]) from None
+    try:
+        from ryagram.recipe import portable  # noqa: PLC0415
+    except ImportError:
+        raise Problem("This app cannot check recipe files yet, so that recipe was not added.") from None       # never add a file that could not be checked
+    try:
+        portable.check(rec)
+    except Exception as e:  # noqa: BLE001
+        raise Problem("That recipe was not added: " + str(e)[:200]) from None
+    stem = re.sub(r"[^a-z0-9]+", "-", str(rec.get("name") or "recipe").lower()).strip("-")[:40] or "recipe"
+    dest = STATE["recipes"] / f"{stem}.json"
+    n = 2
+    while dest.exists():
+        if dest.read_bytes() == raw:
+            return {"file": dest.name, "name": rec["name"], "message": f"\u201c{rec['name']}\u201d is already in your list."}
+        dest = STATE["recipes"] / f"{stem}-{n}.json"
+        n += 1
+    dest.write_bytes(raw)
+    return {"file": dest.name, "name": rec["name"], "message": f"\u201c{rec['name']}\u201d was added to your list. Give each slot your own videos, then press Plan."}
 
 
 def pick_files(multiple: bool) -> list[str]:
@@ -1090,6 +1150,7 @@ PAGE = """<!doctype html>
 <p class="intro">Make a film from a recipe and your own video files, on this computer. Choose a recipe, give each slot a file, press Plan to hear the files and see what would be built, then Build.</p>
 <section aria-labelledby="h-recipe"><h2 id="h-recipe">1. Recipe</h2>
 <label for="recipe">Recipe</label><select id="recipe"></select>
+<p><button type="button" id="recipe-import" class="button secondary">Use a recipe from a file</button></p>
 <p id="recipe-note" class="note" role="status"></p>
 <label for="words">The words to find in your videos</label><input id="words" type="text" maxlength="200" autocomplete="off" spellcheck="false" aria-describedby="words-note">
 <p id="words-note" class="note">The film is cut from these words, in this order. Change them here if you like; the recipe file stays as it is.</p></section>
@@ -1293,6 +1354,26 @@ JS = r"""(function () {
     $('dl-folder').addEventListener('click', async () => { dlErr = ''; try { await api('/api/downloads/folder', {}); } catch (e) { dlErr = e.message; } drawDownloads(); });
     drawDownloads(); setInterval(drawDownloads, 4000);
   }
+  async function drawBlur() {
+    try {
+      const b = await api('/api/edit/blur');
+      $('blur-on').checked = !!b.on; $('blur-on').disabled = !b.available; $('blur-msg').textContent = b.message || '';
+    } catch (e) { $('blur-msg').textContent = e.message; }
+  }
+  if ($('share-card')) {
+    $('share-go').addEventListener('click', async () => {
+      const btn = $('share-go'); btn.disabled = true; $('share-msg').textContent = 'Working' + String.fromCharCode(8230); $('share-notes').replaceChildren();
+      try {
+        const r = await api('/api/edit/share-recipe', {});
+        $('share-msg').textContent = r.message; $('share-notes').replaceChildren(...(r.notes || []).map(n => el('li', {}, n)));
+      } catch (e) { $('share-msg').textContent = e.message; } finally { btn.disabled = false; }
+    });
+    $('blur-on').addEventListener('change', async () => {
+      try { const b = await api('/api/edit/blur', { on: $('blur-on').checked }); $('blur-on').checked = !!b.on; $('blur-msg').textContent = b.message || ''; }
+      catch (e) { $('blur-msg').textContent = e.message; drawBlur(); }
+    });
+    drawBlur();
+  }
   async function refreshRequests() { try { drawRequests(await api('/api/ai-requests')); } catch (e) { /* the card keeps what it had */ } }
   setInterval(refreshRequests, 60000);
   async function refreshLinks() { try { drawLinks(await api('/api/links')); } catch (e) { /* the card keeps what it had */ } }
@@ -1410,7 +1491,8 @@ JS = r"""(function () {
     const r = recipes.find(x => x.file === $('recipe').value);
     current = r && r.ok ? r : null; binds = {}; fresh();
     $('recipe-note').textContent = !r ? '' : !r.ok ? `This recipe is refused: ${r.problem}` : '';
-    $('words').value = ''; $('words').placeholder = current ? current.find : ''; $('words').disabled = !current || !current.has_find;
+    $('words').value = current && current.has_find && current.op === 'words' ? current.find : ''; $('words').placeholder = current ? current.find : '';      // a recipe made of words runs on its own words (a shared recipe needs no retyping); an every-time recipe still asks for the person's own
+    $('words').disabled = !current || !current.has_find;
     $('words-note').textContent = current && current.op === 'every' ? 'Type one word or a short phrase. The film shows EVERY time it is said in your videos, one after another.' : WORDS_NOTE;
     drawSlots();
   }
@@ -1594,12 +1676,23 @@ JS = r"""(function () {
     return { refresh: () => api('/api/overlays').then(put).catch(() => {}) };
   }
   const v2 = $('v2') ? makeV2() : null;
+  async function loadRecipes(choose) {
+    recipes = (await api('/api/recipes')).recipes.sort((a, b) => Number(b.ok) - Number(a.ok));      // the ones that work first, so the first choice is a usable one
+    $('recipe').replaceChildren(...recipes.map(r => el('option', { value: r.file }, r.ok ? r.name : `${r.file} (refused)`)));
+    if (choose && recipes.some(r => r.file === choose)) $('recipe').value = choose;
+    if (!recipes.length) $('recipe-note').textContent = 'No recipe files (.json) were found in the recipes folder.';
+  }
+  $('recipe-import').addEventListener('click', async () => {
+    const btn = $('recipe-import'); btn.disabled = true;
+    try {
+      const r = await api('/api/recipes/import', {});
+      if (r.file) { await loadRecipes(r.file); drawRecipe(); $('recipe-note').textContent = r.message; ev('recipe_imported', {}); }
+    } catch (e) { $('recipe-note').textContent = e.message; } finally { btn.disabled = false; }
+  });
   (async () => {
     try {
       await loadModels();
-      recipes = (await api('/api/recipes')).recipes.sort((a, b) => Number(b.ok) - Number(a.ok));      // the ones that work first, so the first choice is a usable one
-      $('recipe').replaceChildren(...recipes.map(r => el('option', { value: r.file }, r.ok ? r.name : `${r.file} (refused)`)));
-      if (!recipes.length) $('recipe-note').textContent = 'No recipe files (.json) were found in the recipes folder.';
+      await loadRecipes();
       drawRecipe(); const j = await api('/api/job'); if (j.state === 'running') { poll = setInterval(watch, 1200); drawJob(j); }
     } catch (e) { $('recipe-note').textContent = e.message; }
   })();
@@ -1841,6 +1934,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(200, v2_post(path, body))
             elif path.startswith("/api/downloads/"):
                 self._json(200, downloads_post(path.rsplit("/", 1)[1], body))
+            elif path == "/api/recipes/import":
+                self._json(200, import_recipe())
             elif path == "/api/pick-folder":
                 got = pick_folder_path()
                 act("files_picked", multiple=True, count=0) if got else None

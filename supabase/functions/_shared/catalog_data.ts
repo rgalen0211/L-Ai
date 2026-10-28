@@ -1195,7 +1195,7 @@ export const CATALOG: any[] = [
   "short": "Per capita personal income by state, % of the U.S.",
   "group": "other",
   "family": null,
-  "status": "later",
+  "status": "usable",
   "publisher": "U.S. Bureau of Economic Analysis",
   "source_line": "Source: U.S. Bureau of Economic Analysis, SAINC1 (state per capita personal income)",
   "url": "https://apps.bea.gov/regional/downloadzip.htm",

@@ -109,14 +109,14 @@
   function checkDelivery(url) {
     return /^https:\/\/\S+$/.test(String(url || '').trim()) && String(url).trim().length <= 500 ? null : 'To mark it delivered, paste the https link to the film.';
   }
-  // The email Ryan sends with an invite code: a mailto: link, so he reads and sends it himself (nothing is sent for him).
-  function inviteMailto({ name, email, code, credits }) {
-    const subject = 'Your Ryagram creator beta invite';
-    const body = [`Hi ${String(name || '').split(' ')[0] || 'there'},`, '',
-      `You're in. Your invite code is ${code}.`, '',
-      'Go to https://uselai.com/app/, choose "Have an invite code?", and enter the code with this email address. You will get an email to set your password' + (Number(credits) > 0 ? `, and ${plural(Number(credits), 'beta credit')} will be waiting for you.` : '.'), '',
-      'Beta credits are free, in exchange for your feedback. If you talk about or promote Ryagram, or a film you made with it, please say your credits were free.'].join('\n');
-    return `mailto:${encodeURIComponent(email)}?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+  // The invite email is sent by Ryagram (send-invite, NEXT-WEB 155). What the card says about the send, from the function's answer: SENT only when mail really went out;
+  // 'saved' means mail is not switched on and nothing left the project; the time is the person's own clock.
+  function inviteSendLine(res, email) {
+    if (!res || (res.status !== 'sent' && res.status !== 'saved')) return `Not sent to ${email}. Copy the code and send it yourself.`;
+    const t = new Date(res.at);
+    const when = Number.isFinite(t.getTime()) ? t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+    if (res.status === 'sent') return `Sent to ${res.to || email}${when ? ` at ${when}` : ''}${Number(res.sends) > 1 ? ` (send ${res.sends} of 3)` : ''}.`;
+    return `Not sent: mail is not switched on yet. The message is saved under Recent messages${when ? ` (${when})` : ''}. Copy the code and send it yourself.`;
   }
 
   // ---- Funnel on the Operations screen (SQL 20261017000900): counts per step, conversion between steps, by source and by week.
@@ -256,5 +256,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteMailto, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
+  window.ryagramOps = { autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteSendLine, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
 })();

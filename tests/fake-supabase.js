@@ -115,7 +115,7 @@
         return q;
       }
       const filters = [];
-      let op = 'select', payload = null, single = false, order = null, window_ = null;
+      let op = 'select', payload = null, single = false, maybe = false, order = null, window_ = null;
       const q = {
         select() { return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
@@ -130,6 +130,7 @@
         order(col, { ascending = true } = {}) { order = { col, ascending }; return q; },
         limit() { return q; },
         single() { single = true; return q; },
+        maybeSingle() { single = true; maybe = true; return q; },
         then(resolve, reject) { return Promise.resolve().then(exec).then(resolve, reject); }
       };
       function exec() {
@@ -172,6 +173,7 @@
         if (window_) result = result.slice(window_[0], window_[1] + 1);
         result = structuredClone(result);
         if (single) {
+          if (maybe && result.length === 0) return { data: null, error: null };
           return result.length === 1 ? { data: result[0], error: null }
                                      : fail('JSON object requested, multiple (or no) rows returned');
         }
@@ -321,7 +323,7 @@
         if (m.geography === 'us_counties' && m.state_index == null && !COUNTY_STATES.includes(m.state)) return fail('County names need a state. Choose the state, or the column that has it.');
         if (!m.value_indexes?.length) return fail('Choose 1 to 8 columns of values.');
         if (p_trust_ack !== true) return fail('Tick the box to use this data anyway.');
-        Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved' });
+        Object.assign(ds, { mapping: structuredClone(m), geography: m.geography, status: 'approved', trust_label: ds.trust_label || 'unverified_user', trust_ack_at: ds.trust_ack_at || now() });     // as the real database records the tick
         return { data: null, error: null };
       },
       // Mock of the PROPOSED set_dataset_provenance (S5). With seed.requireProvenance a dataset cannot be used in a film without it (the real rule would be the database's).
@@ -562,6 +564,27 @@
         return { data: p_on === true, error: null };
       },
       admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
+      // Mock of the Connect-an-AI switch (NEXT-WEB 157, SQL 20261027000900): admin only, a reason, refuses an administrator and a worker, every change in a history. maya@example.com and
+      // sam@example.com start ON (as after tonight's by-hand SQL); ryan@example.com is an administrator.
+      admin_connect_access_set({ p_email, p_on, p_reason }) {
+        if (!adminMock()) return fail('Admins only.');
+        if (!p_reason || p_reason.trim().length < 3) return fail('Say why, in a few words.');
+        const email = String(p_email || '').trim().toLowerCase();
+        const known = ['sam@example.com', 'maya@example.com', 'nobody@example.com', 'worker@example.com', 'ryan@example.com'];
+        if (!known.includes(email)) return fail('No account with that email.');
+        if (email === 'ryan@example.com') return fail('Administrator accounts cannot be connected to an AI assistant.');
+        if (email === 'worker@example.com') return fail('A worker account is not a person and cannot be connected to an AI assistant.');
+        db.connectOn = db.connectOn || { 'maya@example.com': true, 'sam@example.com': true }; db.connectAudit = db.connectAudit || [];
+        const was = !!db.connectOn[email]; db.connectOn[email] = p_on === true;
+        db.connectAudit.unshift({ user_email: email, was_on: was, turned_on: p_on === true, set_by_email: 'ryan@example.com', reason: p_reason.trim(), at: new Date().toISOString() });
+        return { data: p_on === true, error: null };
+      },
+      admin_connect_access_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.connectAudit || []), error: null }; },
+      admin_connect_access_list() {
+        if (!adminMock()) return fail('Admins only.');
+        db.connectOn = db.connectOn || { 'maya@example.com': true, 'sam@example.com': true };
+        return { data: Object.keys(db.connectOn).filter(k => db.connectOn[k]).sort().map(e => ({ user_email: e, added_at: '2026-10-27T19:59:00Z' })), error: null };
+      },
       my_computers() { return { data: structuredClone(db.computers || []), error: null }; },
       remove_computer({ p_token }) { const had = (db.computers || []).some(x => x.id === p_token); db.computers = (db.computers || []).filter(x => x.id !== p_token); return { data: had, error: null }; },
       // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.
@@ -864,6 +887,24 @@
             log.push({ invited: body.email });
             return { data: { message: 'If that email can join, a link to finish joining is on its way. It works once. Already have an account? Sign in instead.' }, error: null };
           }
+          if (name === 'send-invite') {
+            // Mock of send-invite (NEXT-WEB 155): the first send binds the address to the code, a different address is refused, 3 sends at most. ?mailoff = mail not switched on (saved, not sent);
+            // ?sendfail = the mail service refuses; ?wait = the 60-second wait. Nothing is sent anywhere.
+            const q = typeof location !== 'undefined' ? location.search || '' : '';
+            const refuse = (status, text) => ({ data: null, error: { message: 'x', context: { status, json: async () => ({ error: text }) } } });
+            db.inviteSends = db.inviteSends || {};
+            const addr = String(body.email || '').trim().toLowerCase();
+            if (!/^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(addr)) return refuse(409, 'That does not look like one email address.');
+            const rec = db.inviteSends[body.code];
+            if (rec && rec.to !== addr) return refuse(409, 'That invite was made for another address, so it cannot be sent to this one.');
+            if (rec && rec.sends >= 3) return refuse(409, 'That invite has been sent 3 times, the most it allows. Make a new one.');
+            if (rec && /[?&]wait/.test(q)) return refuse(409, 'Wait 42 more seconds before sending it again.');
+            if (/[?&]sendfail/.test(q)) return refuse(502, 'The mail service did not accept the message. Nothing was sent; try again in a minute, or copy the code.');
+            const r2 = db.inviteSends[body.code] = { to: addr, sends: (rec ? rec.sends : 0) + 1 };
+            log.push({ inviteMail: addr });
+            const live = !/[?&]mailoff/.test(q);
+            return { data: { status: live ? 'sent' : 'saved', to: addr, sends: r2.sends, at: new Date().toISOString(), message: live ? `Sent to ${addr}.` : 'Mail is not switched on, so nothing was sent. The message is saved under Recent messages.' }, error: null };
+          }
           if (name === 'delete-account') {
             if ((body.confirm_email || '').trim().toLowerCase() !== (session?.user?.email || '').toLowerCase()) {
               return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Type your account’s email address exactly to confirm.' }) } } };
@@ -980,6 +1021,12 @@
                 files[path] = file;
               }
               return { data: { path }, error: null };
+            },
+            // the owner reads their own object (policy 'People read their uploads'); a missing file is an error, as in the real client
+            async download(path) {
+              log.push({ download: path, bucket });
+              if (bucket === 'ryagram-uploads' && files[path]) return { data: files[path], error: null };
+              return { data: null, error: { message: 'Object not found' } };
             },
             async createSignedUrl(path, seconds) {
               log.push({ signed: path, bucket, seconds });
