@@ -69,6 +69,18 @@
     history.replaceState(null, '', location.pathname + (query.toString() ? `?${query}` : '') + (hasAuthHash ? '#/' : location.hash));
   }
 
+  // The link in Ryagram's invite email (NEXT-WEB 155): /app/#/join?code=...&email=... The code and the address ride in the FRAGMENT, which a browser never sends to any server or log. They are read
+  // here, checked for shape, and the address bar and history entry are cleaned at once; the invite form opens below with both boxes filled and NOTHING submits itself.
+  let joinFill = null;
+  {
+    const m = /^#\/join\?(.*)$/.exec(location.hash);
+    if (m) {
+      const jp = new URLSearchParams(m[1]), code = jp.get('code') || '', mail = jp.get('email') || '';
+      if (/^[A-Za-z0-9 -]{8,24}$/.test(code) && mail.length <= 320 && !/[\s<>,;"]/.test(mail)) joinFill = { code, email: mail };
+      history.replaceState(null, '', location.pathname + location.search + '#/');
+    }
+  }
+
   // A one-time message (welcome, saved, confirmed): shown, then cleared on the person's next move, so it never greets them again on another page.
   function sayOnce(message) {
     say(message);
@@ -385,6 +397,13 @@
       const haveInvite = $('have-invite');
       const inviteForm = $('invite-form');
       const inviteNote = $('invite-note');
+      if (joinFill && !$('invite-row').hidden) {                                   // from the invite email: open the form with both boxes filled; the person presses the button
+        inviteForm.hidden = false;
+        haveInvite.setAttribute('aria-expanded', 'true');
+        inviteForm.elements.code.value = joinFill.code;
+        inviteForm.elements.email.value = joinFill.email;
+        joinFill = null;
+      }
       haveInvite.addEventListener('click', () => {
         inviteForm.hidden = !inviteForm.hidden;
         haveInvite.setAttribute('aria-expanded', String(!inviteForm.hidden));

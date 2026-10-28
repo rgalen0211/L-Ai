@@ -8,7 +8,7 @@
 
 export const OPS_TO = "ryagram@uselai.com";
 
-export interface Message { kind: "alert" | "digest" | "ack" | "urgent"; to: string; subject: string; body: string }
+export interface Message { kind: "alert" | "digest" | "ack" | "urgent" | "invite"; to: string; subject: string; body: string }
 export interface Outbox { add(kind: Message["kind"], mode: "dry_run" | "live", to: string, subject: string, body: string): Promise<boolean> }
 export interface Sender { mode: "dry_run" | "live"; send(m: Message): Promise<void> }
 

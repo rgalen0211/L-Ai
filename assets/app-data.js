@@ -467,6 +467,17 @@
         return { state: job.state, job, url };
       },
       // Invite someone (SQL 20261017000200): a single-use code with welcome credits for a person Ryan names; the address stays in Ryan's mail program, never here.
+      // Ryagram sends the invite email itself (the send-invite function, admin only; the database binds the address to the code and limits resends). Answers
+      // { status: 'sent' | 'saved', to, sends, at, message }; 'saved' = mail is not switched on, nothing was sent.
+      async sendInvite(code, email) {
+        const { data, error } = await client.functions.invoke('send-invite', { body: { code, email } });
+        if (error) {
+          let text = 'Couldn’t send the invite just now.';
+          try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+          throw new Error(text);
+        }
+        return data;
+      },
       adminInvitePerson(name, credits) { return run(client.rpc('admin_invite_person', { p_name: name, p_credits: credits == null ? null : credits }), 'Couldn’t make that invite.'); },
       // The guided builder (the guided-builder function: ENGINE's compileFilm and the listable catalog). A refusal carries every reason in .errors.
       async builderCall(body) {

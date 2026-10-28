@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { isOAuthToken, verifyAppUser } from '../supabase/functions/_shared/oauth_guard.ts';
 import { handle as deleteAccount } from '../supabase/functions/delete-account/remove.ts';
+import { handle as sendInvite } from '../supabase/functions/send-invite/send.ts';
 import { handle as stripeCheckout } from '../supabase/functions/stripe-checkout/checkout.ts';
 import { handle as filmPage } from '../supabase/functions/film-page/page.ts';
 import { handle as aiEditor } from '../supabase/functions/ai-editor/editor.ts';
@@ -45,6 +46,7 @@ const strict = (extra) => new Proxy({ allowedOrigins: [ORIGIN, 'https://www.usel
 });
 const cases = [
   ['delete-account', deleteAccount, { confirm_email: 'a@example.test' }],
+  ['send-invite', sendInvite, { code: 'RYA-ABCD-EFGH', email: 'a@example.test' }],
   ['stripe-checkout', stripeCheckout, { price_code: 'x' }],
   ['film-page (publish)', filmPage, { version_id: '11111111-1111-4111-8111-111111111111' }],
   ['ai-editor', aiEditor, { version_id: '11111111-1111-4111-8111-111111111111', message: 'hi' }],
@@ -69,7 +71,7 @@ for (const [name, handle, body] of cases) {
 }
 
 // Every function directory has a recorded decision. A new function fails this test until someone classifies it.
-const USER_TOKEN = ['ai-editor', 'app-download', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'source-fetch', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
+const USER_TOKEN = ['ai-editor', 'app-download', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'send-invite', 'source-fetch', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
 const NO_USER_TOKEN = ['cost-sync', 'creator-beta', 'ops-digest', 'ops-tick', 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-webhook'];
 const NOT_USER_FUNCTIONS = ['_shared', 'connect', 'connect-core', 'node', 'node-core'];   // connect has its own verifier (requires client_id); node has its own (an opaque rgn_ token, hashed, resolved in the database; r9 M4)
 
