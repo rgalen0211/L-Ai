@@ -214,6 +214,25 @@ test('a reset link: the token leaves the address bar, NOTHING is checked until t
   assert.equal(junk.calls.replaced.length, 1);
 });
 
+test('the invite email’s link (#/join?code=&email=) opens the invite form with both boxes filled, submits nothing, and is removed from the address bar', async () => {
+  const cfg = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true };
+  const h = harness({ config: cfg, location: { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/join?code=RYA-K7M2-9QPX&email=maya%40example.com', origin: 'https://uselai.com' } });
+  assert.equal(h.inviteForm.hidden, false);
+  assert.equal(h.inviteForm.elements.code.value, 'RYA-K7M2-9QPX');
+  assert.equal(h.inviteForm.elements.email.value, 'maya@example.com');
+  assert.equal(h.calls.invoked.length, 0);                                           // nothing submits itself
+  assert.equal(h.calls.replaced.length, 1);
+  assert.ok(!/join|code=|email=/.test(String(h.calls.replaced[0][2])), 'the address bar no longer carries the code or the address');
+  for (const bad of ['#/join?code=x&email=a@b.co', '#/join?code=RYA-K7M2-9QPX&email=a%20b@c.co', '#/join?code=RYA-K7M2-9QPX&email=a%40b.co%2Cc%40d.co', '#/join?code=%3Cscript%3E1234&email=a%40b.co']) {
+    const j = harness({ config: cfg, location: { hostname: 'uselai.com', search: '', pathname: '/app/', hash: bad, origin: 'https://uselai.com' } });
+    assert.equal(j.inviteForm.hidden, true, bad);                                     // a link that does not look right fills nothing
+    assert.equal(j.inviteForm.elements.code.value || '', '', bad);
+    assert.equal(j.calls.replaced.length, 1, bad);                                    // but it is still removed from the address bar
+  }
+  const off = harness({ location: { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/join?code=RYA-K7M2-9QPX&email=a%40b.co', origin: 'https://uselai.com' } });
+  assert.equal(off.els['invite-row'].hidden, true);                                  // invite sign-up not switched on: nothing is opened
+});
+
 test('invite codes: hidden until the invite email is set up; a code and email go to redeem-invite', async () => {
   assert.equal(harness().els['invite-row'].hidden, true);
   const h = harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true } });

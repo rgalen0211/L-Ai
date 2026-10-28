@@ -61,5 +61,5 @@ test('SIGN-IN LANDING: a DIFFERENT account from a tab left on the last account\'
 
 test('WIRING: the stamps moved so a returning visitor gets the fix', () => {
   const html = read('app/index.html');
-  for (const [f, v] of [['app-data.js', '20261027b'], ['app-library.js', '20261027b'], ['app-auth.js', '20261026e']]) assert.match(html, new RegExp(`${f.replace('.', '\\.')}\\?v=${v}`), f);        // (app-data moved again with the Windows download button)
+  for (const [f, v] of [['app-data.js', '20261027c'], ['app-library.js', '20261027c'], ['app-auth.js', '20261027a']]) assert.match(html, new RegExp(`${f.replace('.', '\\.')}\\?v=${v}`), f);        // (app-data moved again with the Windows download button)
 });
