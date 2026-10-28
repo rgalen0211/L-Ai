@@ -133,7 +133,14 @@ try:
         caught = True
     finally:
         ME._plain, BL.scan = keep, real_scan
-    check(caught, "MUST-FAIL: with the numbers left as numpy float32 the list cannot be written (this is the fault; the app's plain-number step is what prevents it)")
+    # An engine that coerces the numbers itself (FACES' faces-blur-json, 2eb4d9b) covers this too: then the mutant is NOT a fault any more, and that is said, not hidden. Two layers; either alone is enough.
+    new_spec_plain = True
+    try:
+        json.dumps(BL.new_spec(size, [{"id": "t1", "kf": [[np.float32(0.5), np.float32(100), np.float32(100), np.float32(80), np.float32(80)]], "n": 1, "score": np.float32(0.9)}]))
+    except TypeError:
+        new_spec_plain = False
+    check(caught or new_spec_plain, "MUST-FAIL: with the numbers left as numpy float32 the list cannot be written, unless the engine itself makes them plain" + ("" if caught else " (this engine does: the app's own plain-number step is a second layer)"))
+    print("  note the engine " + ("makes numpy numbers plain itself" if new_spec_plain else "does NOT make numpy numbers plain: the app's step is the only protection"))
 finally:
     shutil.rmtree(tmp, ignore_errors=True)
 print()
