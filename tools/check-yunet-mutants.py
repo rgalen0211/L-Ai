@@ -31,6 +31,10 @@ M = [
     ("a model with no licence text does not stop a public build", "third_party_notices.py", '        if not mo.get("text", "").strip():', "        if False:", NOTICES),
     ("the maker uses any file with a yunet name", "maker_edit.py", "                    if p.is_file() and _sha256(p) == YUNET_SHA256:", "                    if p.is_file():", SHARE),
     ("the maker does not say a wrong file is ignored", "maker_edit.py", "    if model is None and _wrong_model_present():", "    if False:", SHARE),
+    ("the face tracks are written as the finder returned them (numpy float32 cannot be saved)", "maker_edit.py", '        c["bystander_blur"] = _plain(BL.new_spec(frame, tracks))', '        c["bystander_blur"] = BL.new_spec(frame, tracks)', SHARE),
+    ("the main page's Build makes an unblurred film while the switch is on", "desktop_maker.py", '    if kind == "build" and blur_refusal():', "    if False:", SHARE),
+    ("the song page's film button makes an unblurred film while the switch is on", "maker_song.py", "    if _dm.blur_refusal():", "    if False:", SHARE),
+    ("the refusal never fires (the switch is not asked)", "desktop_maker.py", '    return BLUR_BUILD_REFUSAL if me is not None and me.blur_wanted() else ""', '    return ""', SHARE),
     ("the maker's pin is another hash", "maker_edit.py", 'YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"', 'YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa5"', "PIN"),
 ]
 
