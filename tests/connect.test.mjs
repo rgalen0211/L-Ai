@@ -155,3 +155,34 @@ test('INHERITED NAMES (the MED-3 class): a scope called constructor, __proto__ o
   for (const bad of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) assert.equal(C.scopeWord(bad), `Use the tool called ${bad}`, bad);
   assert.equal(C.scopeWord('read'), 'See your projects, films and credit balance');
 });
+
+// ---- NEXT-WEB 156: "Connect an AI" on the Account page (Ryan 20:05): the steps are the reviewed ones on /connect-ai/, the address comes from the site's own Supabase address.
+test('CONNECT AN AI: the address is the site’s own Supabase address plus the connector path, and nothing else is accepted', () => {
+  assert.equal(C.connectorAddress({ supabaseUrl: 'https://jxtkfishqfxuptwjzczz.supabase.co' }), 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp');
+  assert.equal(C.connectorAddress({ supabaseUrl: 'https://jxtkfishqfxuptwjzczz.supabase.co/' }), 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp');
+  for (const bad of [null, {}, { supabaseUrl: '' }, { supabaseUrl: 'http://abc.supabase.co' }, { supabaseUrl: 'https://evil.example' }, { supabaseUrl: 'https://abc.supabase.co.evil.example' }, { supabaseUrl: 'https://abc.supabase.co/x' }]) assert.equal(C.connectorAddress(bad), '', JSON.stringify(bad));
+  // the page's address is the same one the public guide gives
+  assert.match(read('connect-ai/index.html'), /https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co\/functions\/v1\/connect\/mcp/);
+  assert.match(read('assets/ryagram-config.js'), /supabaseUrl: 'https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co'/);
+});
+
+test('CONNECT AN AI: the steps for Claude and ChatGPT are the reviewed ones from /connect-ai/, and the page says what happens after Allow', () => {
+  const claude = plain(C.CONNECT_STEPS.claude), gpt = plain(C.CONNECT_STEPS.chatgpt), guide = read('connect-ai/index.html').replace(/&[a-z]+;|<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+  assert.equal(claude.steps.length, 4); assert.equal(gpt.steps.length, 4);
+  assert.match(claude.steps.join(' '), /Customize, then Connectors\. Press \+ Add, then Add custom connector\./);
+  assert.match(claude.steps.join(' '), /Register automatically/); assert.match(claude.steps.join(' '), /check the page says Claude, then press Allow/);
+  assert.match(gpt.steps.join(' '), /Create \(custom MCP\)/); assert.match(gpt.steps.join(' '), /OAuth/);
+  assert.match(gpt.note, /only on plans that allow custom MCP connectors/);
+  for (const phrase of ['Customize, then Connectors. Press + Add, then Add custom connector.', 'choose Register automatically', 'choose Create (custom MCP)', 'only on plans that allow custom MCP connectors']) assert.ok(guide.includes(phrase), `the public guide does not say: ${phrase}`);
+  assert.equal(C.AFTER_ALLOW, 'After you press Allow, your AI appears in the list above.');
+  assert.match(C.ADDRESS_TIP, /\/mcp at the end/);
+});
+
+test('CONNECT AN AI: the section is built inside connectedSection (already shown only to connect_access accounts), copies the address, refreshes the list on return, and does not link the unlisted guide', () => {
+  const src = read('assets/app-connect.js');
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\)\)/);
+  assert.match(src, /'data-key': 'connect-an-ai'/); assert.match(src, /'data-key': 'copy-address'/); assert.match(src, /navigator\.clipboard\.writeText\(address\)/);
+  assert.match(src, /addEventListener\('visibilitychange', again\)/); assert.doesNotMatch(src, /connect-ai/);
+  assert.doesNotMatch(src.replace(/\/\/.*$/gm, ''), /innerHTML|insertAdjacentHTML/);
+});
