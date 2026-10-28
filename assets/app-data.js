@@ -539,6 +539,10 @@
       // Admin: set or clear the tester flag (r9 DRAFT, mock backend). WORKER's draft function takes a user id (admin_set_local_compute(p_user uuid, ...)); the admin types an EMAIL, so these two names are PROPOSALS
       // for an email variant and a read of the audit rows (the draft revokes direct reads of local_compute_audit). Admin only on the server; every change writes an audit row.
       adminSetLocalCompute(email, on, reason) { return run(client.rpc('admin_set_local_compute_by_email', { p_email: String(email || '').trim(), p_on: on === true, p_reason: String(reason || '').trim() }), 'Couldn’t change that account.'); },
+      // The Connect-an-AI switch (SQL 20261027000900): an account's right to connect an AI, with a reason, a history and the list of who has it now. Admin only; the server is the gate.
+      adminSetConnectAccess(email, on, reason) { return run(client.rpc('admin_connect_access_set', { p_email: String(email || '').trim(), p_on: on === true, p_reason: String(reason || '').trim() }), 'Couldn\u2019t change that.'); },
+      adminConnectAccessAudit() { return run(client.rpc('admin_connect_access_audit'), 'Couldn\u2019t load the Connect an AI history.'); },
+      adminConnectAccessList() { return run(client.rpc('admin_connect_access_list'), 'Couldn\u2019t load who can connect an AI.'); },
       adminLocalComputeAudit() { return run(client.rpc('admin_local_compute_audit'), 'Couldn’t load the tester history.'); },
       removeComputer(id) { return run(client.rpc('remove_computer', { p_token: id }), 'Couldn\u2019t remove that computer.'); },
       // Cost ledger (SQL 20261016000100): the rollup, and Ryan's limits, plans, rates and typed costs. Admin only.

@@ -6,7 +6,7 @@ begin;
 do $$ declare r record; begin
   for r in select p.oid::regprocedure as sig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
            where (n.nspname = 'public' and (p.proname like 'connect\_%' or p.proname in ('my_connected_ais', 'disconnect_ai', 'admin_set_connect_access', 'admin_connect_allowlist_set',
-                                                                                          'admin_connect_set_enabled', 'admin_connect_revoke_all')))
+                                                                                          'admin_connect_set_enabled', 'admin_connect_revoke_all', 'admin_connect_access_set', 'admin_connect_access_audit', 'admin_connect_access_list')))
               or (n.nspname = 'ryagram_private' and p.proname like 'connect\_%') loop
     execute 'drop function ' || r.sig || ' cascade';
   end loop;

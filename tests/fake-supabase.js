@@ -564,6 +564,27 @@
         return { data: p_on === true, error: null };
       },
       admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
+      // Mock of the Connect-an-AI switch (NEXT-WEB 157, SQL 20261027000900): admin only, a reason, refuses an administrator and a worker, every change in a history. maya@example.com and
+      // sam@example.com start ON (as after tonight's by-hand SQL); ryan@example.com is an administrator.
+      admin_connect_access_set({ p_email, p_on, p_reason }) {
+        if (!adminMock()) return fail('Admins only.');
+        if (!p_reason || p_reason.trim().length < 3) return fail('Say why, in a few words.');
+        const email = String(p_email || '').trim().toLowerCase();
+        const known = ['sam@example.com', 'maya@example.com', 'nobody@example.com', 'worker@example.com', 'ryan@example.com'];
+        if (!known.includes(email)) return fail('No account with that email.');
+        if (email === 'ryan@example.com') return fail('Administrator accounts cannot be connected to an AI assistant.');
+        if (email === 'worker@example.com') return fail('A worker account is not a person and cannot be connected to an AI assistant.');
+        db.connectOn = db.connectOn || { 'maya@example.com': true, 'sam@example.com': true }; db.connectAudit = db.connectAudit || [];
+        const was = !!db.connectOn[email]; db.connectOn[email] = p_on === true;
+        db.connectAudit.unshift({ user_email: email, was_on: was, turned_on: p_on === true, set_by_email: 'ryan@example.com', reason: p_reason.trim(), at: new Date().toISOString() });
+        return { data: p_on === true, error: null };
+      },
+      admin_connect_access_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.connectAudit || []), error: null }; },
+      admin_connect_access_list() {
+        if (!adminMock()) return fail('Admins only.');
+        db.connectOn = db.connectOn || { 'maya@example.com': true, 'sam@example.com': true };
+        return { data: Object.keys(db.connectOn).filter(k => db.connectOn[k]).sort().map(e => ({ user_email: e, added_at: '2026-10-27T19:59:00Z' })), error: null };
+      },
       my_computers() { return { data: structuredClone(db.computers || []), error: null }; },
       remove_computer({ p_token }) { const had = (db.computers || []).some(x => x.id === p_token); db.computers = (db.computers || []).filter(x => x.id !== p_token); return { data: had, error: null }; },
       // Mock of ops_settings.auto_render and user_caps (PIPE-1). The switch starts from the seed or ?autorender=off, then follows admin_set_auto_render. Admin only.

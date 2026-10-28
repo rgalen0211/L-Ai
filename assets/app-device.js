@@ -299,13 +299,53 @@
       onBtn.addEventListener('click', () => change(onBtn, true));
       offBtn.addEventListener('click', () => change(offBtn, false));
       await drawHistory();
+      // ---- Connect an AI (NEXT-WEB 157): the per-account right to connect an AI, beside tester mode. Same shape: an email, a reason, On or Off, the history; plus who has it now.
+      const cEmail = h('input', { id: 'connect-email', type: 'email', autocomplete: 'off', maxlength: '200', spellcheck: 'false' });
+      const cReason = h('input', { id: 'connect-reason', type: 'text', autocomplete: 'off', maxlength: String(REASON_MAX), 'aria-describedby': 'connect-reason-note' });
+      const cStatus = h('p', { class: 'form-note', role: 'status' }), cError = errorLine();
+      const cNow = h('div', { class: 'connect-now' }), cHistory = h('div', { class: 'connect-history' });
+      async function drawConnect() {
+        try {
+          const [now, rows] = await Promise.all([data.adminConnectAccessList(), data.adminConnectAccessAudit()]);
+          cNow.replaceChildren(now.length ? h('ul', { class: 'project-list' }, now.map(r => h('li', {}, h('strong', {}, String(r.user_email || 'an account').slice(0, 120))))) : h('p', { class: 'form-note' }, 'No account can connect an AI yet.'));
+          cHistory.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
+            h('strong', {}, String(r.user_email || 'an account').slice(0, 120)),
+            h('span', { class: 'meta' }, ` ${r.was_on ? 'on' : 'off'} to ${r.turned_on ? 'on' : 'off'} by ${String(r.set_by_email || 'an admin').slice(0, 120)}, ${new Date(r.at).toLocaleString()}`),
+            h('p', { class: 'form-note' }, 'Why: ', String(r.reason || '').slice(0, REASON_MAX))))) : h('p', { class: 'form-note' }, 'No changes yet.'));
+        } catch (err) { cNow.replaceChildren(h('p', { class: 'form-note' }, err.message)); }
+      }
+      const cChange = async (button, on) => {
+        cError.hidden = true; cStatus.textContent = '';
+        const problem = checkTesterForm(cEmail.value, cReason.value);
+        if (problem) { showError(cError, new Error(problem)); return; }
+        await busy(button, on ? 'Turning on\u2026' : 'Turning off\u2026', async () => {
+          try {
+            await data.adminSetConnectAccess(cEmail.value, on, cReason.value);
+            cStatus.textContent = `${cEmail.value.trim()} ${on ? 'can now' : 'can no longer'} connect an AI.${on ? '' : ' Any AI already connected to that account stopped working.'} The change is in the history below.`;
+            cReason.value = '';
+            await drawConnect();
+          } catch (err) { showError(cError, err); }
+        });
+      };
+      const cOn = h('button', { class: 'button primary', type: 'button', 'data-key': 'connect-on' }, 'Turn on'), cOff = h('button', { class: 'button secondary', type: 'button', 'data-key': 'connect-off' }, 'Turn off');
+      cOn.addEventListener('click', () => cChange(cOn, true));
+      cOff.addEventListener('click', () => cChange(cOff, false));
+      await drawConnect();
+      const connectSection = h('section', { class: 'account-section', 'aria-labelledby': 'connect-access-h' }, h('h2', { id: 'connect-access-h' }, 'Connect an AI'),
+        h('p', { class: 'form-intro' }, 'An account with this on can connect its own AI (Claude, ChatGPT) to Ryagram, and sees the Connected AIs section. Turning it off also stops any AI already connected to that account. Administrator and worker accounts cannot have it. Every change is written down.'),
+        h('h3', {}, 'Who has it now'), cNow,
+        h('label', { for: 'connect-email' }, 'Account email'), cEmail,
+        h('label', { for: 'connect-reason' }, 'Why (a few words, saved in the history)'), cReason,
+        h('p', { id: 'connect-reason-note', class: 'form-note' }, `${REASON_MIN} to ${REASON_MAX} characters.`),
+        h('div', { class: 'actions-row' }, cOn, cOff), cStatus, cError,
+        h('h3', {}, 'History'), cHistory);
       return [back, h('h1', { tabindex: '-1' }, 'Tester computers'),
         h('p', { class: 'form-intro' }, 'A tester account makes its films on its own computer instead of Ryagram’s machine, and pays no credits for them. Only an admin can change this, and every change is written down.'),
         h('label', { for: 'tester-email' }, 'Account email'), email,
         h('label', { for: 'tester-reason' }, 'Why (a few words, saved in the history)'), reason,
         h('p', { id: 'tester-reason-note', class: 'form-note' }, `${REASON_MIN} to ${REASON_MAX} characters.`),
         h('div', { class: 'actions-row' }, onBtn, offBtn), status, error,
-        h('h2', {}, 'History'), history];
+        h('h2', {}, 'History'), history, connectSection];
     }
 
     return { deviceView, computersSection, windowsAppSection, testerAdminView };
