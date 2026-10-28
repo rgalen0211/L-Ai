@@ -165,9 +165,10 @@
       // An estimate, so "~", and never "under a minute": it reads ~1 min at the least.
       eta: eta == null ? UNKNOWN : `~${duration(Math.max(60, eta))} left in this step`,
       running: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : UNKNOWN,
-      // When the worker has told us none of stage, count or ETA, three dashes say nothing: show "Working" and how long it has been.
+      // When the worker has told us none of stage, count or ETA, three dashes say nothing: show "Working" and how long it has been. Like `running`, a time past 12 h is a clock problem or a
+      // stale row, never shown (King's Island walk W4: a preview with no started_at showed 'Working... 710 h 46 min'), also when it is counted from created_at.
       working: !(d && STAGES[d.stage]) && !c && eta == null,
-      elapsed: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : (job.created_at && Number.isFinite(Date.parse(job.created_at)) && nowMs >= Date.parse(job.created_at) ? duration((nowMs - Date.parse(job.created_at)) / 1000) : '')
+      elapsed: Number.isFinite(started) && secs >= 0 && secs < 12 * 3600 ? duration(secs) : (job.created_at && Number.isFinite(Date.parse(job.created_at)) && nowMs >= Date.parse(job.created_at) && (nowMs - Date.parse(job.created_at)) / 1000 < 12 * 3600 ? duration((nowMs - Date.parse(job.created_at)) / 1000) : '')
     };
   }
 
