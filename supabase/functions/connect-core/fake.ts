@@ -29,6 +29,8 @@ export class FakeWorld {
   counters = new Map<string, number>();             // bucket counts (fixed windows are not modelled: tests set max)
   logs: CallLog[] = [];
   finals = false;
+  /** what the render machine says about itself (the tests set it) */
+  rendering: "ok" | "delayed" | "unknown" = "ok";
   engine = "fake0001";
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
@@ -78,6 +80,7 @@ export class FakeWorld {
     const advance = (j: FJob) => {                  // each look at a job moves it one step: queued, running, complete
       if (j.state === "complete" || j.state === "failed" || j.state === "cancelled") return;
       if (j.run_on === "owner_local" && !u().local?.awake) return;            // the computer is asleep or the app is closed: the job waits, it does not move and it does not fail
+      if (j.run_on !== "owner_local" && this.rendering === "delayed") return;       // the render machine is not responding: the job waits where it is
       j.steps++;
       if (j.steps === 1) { j.state = "running"; j.progress = 0.4; }
       else if (j.steps >= 2) {
@@ -187,6 +190,7 @@ export class FakeWorld {
       currentEngine: async () => this.engine,
       readReceipt: async () => null,
       quote: async (vid, t) => quote(vid, t),
+      renderingState: async () => this.rendering,
       jobById: async (jid) => {
         const j = u().jobs.find((x) => x.id === jid); if (!j) return null; advance(j);
         const l = u().local;

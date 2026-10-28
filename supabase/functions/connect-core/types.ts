@@ -74,6 +74,8 @@ export interface DownloadRow {
 }
 
 export interface Data extends Omit<UserData, "submitJob"> {
+  /** The render machine as the public status page shows it: ok, delayed (not checking in right now) or unknown (never seen). */
+  renderingState(): Promise<"ok" | "delayed" | "unknown">;
   /** Writes down a download plan for the person's desktop app to show. Throws the database's sentences (PT429 too many waiting, 22023 not valid). */
   requestDownload(url: string, why: string, folder: string): Promise<{ id: string; host: string; state: string }>;
   listDownloads(): Promise<(DownloadRow & { url?: string; why?: string; folder?: string })[]>;

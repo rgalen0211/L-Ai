@@ -92,7 +92,7 @@ test('THE HOUSE IS UNCHANGED: a normal job is described exactly as before, with 
   assert.equal(sheet.data.run_on, undefined);
   assert.doesNotMatch(sheet.text, /own computer/);
   const st = await call(A, 'job_status', { job_id: sheet.data.job_id });
-  assert.match(st.text, /^contact sheet rendering, 40% done\.$/);
+  assert.match(st.text, /^contact sheet rendering, 40% done\. /);                                          // the status sentence is as before; the waiting advice (NEXT-CONNECT 153) follows it
   assert.doesNotMatch(st.text, /Ryagram app|your computer/);
   assert.equal(st.data.run_on, undefined);
   const empty = (await call(A, 'create_project', { title: 'Empty' })).data.project_id;

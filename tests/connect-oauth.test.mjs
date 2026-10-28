@@ -143,6 +143,7 @@ test('every SQL function the server names exists in the migration, and none take
   const DOWNLOADS = 'supabase/migrations/20261027000500_download_plans.sql';                                  // download plans (NEXT-CONNECT 152)
   const EDITOR = 'supabase/migrations/20261027000400_live_editor.sql';                                       // the live preview editor (NEXT-CONNECT 141)
   const LATER = { connect_set_compilation_request: 'supabase/migrations/20261026000300_compilation_requests.sql', connect_edit_state: EDITOR, connect_edit_ops: EDITOR, connect_edit_undo_ai: EDITOR,
+    connect_rendering_state: 'supabase/migrations/20261027001100_connect_rendering_state.sql',
     connect_request_download: DOWNLOADS, connect_list_downloads: DOWNLOADS };
   const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
   for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);

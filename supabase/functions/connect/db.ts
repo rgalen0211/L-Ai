@@ -90,6 +90,7 @@ export class ConnectDb {
       currentEngine: () => self.fn("connect_current_engine", ["text"], [h]),
       readReceipt: async () => null,
       quote: (versionId, jobType) => self.fn("connect_quote", ["text", "uuid", "text"], [h, versionId, jobType]),
+      renderingState: () => self.fn("connect_rendering_state", ["text"], [h]),
       jobById: (jobId) => self.fn("connect_job", ["text", "uuid"], [h, jobId]),
       // migrations/20261027000400_live_editor.sql (NOT APPLIED until Ryan applies it): the person's live editor, as drafts.
       editState: (projectId) => self.fn("connect_edit_state", ["text", "uuid"], [h, projectId]),
