@@ -553,6 +553,8 @@ def _same_plan(page: dict, view: dict) -> bool:
 
 
 def render(body: dict) -> dict:
+    if _dm.blur_refusal():
+        raise Problem(_dm.blur_refusal())
     ans = S().get("plan")
     plan = validate_plan(body.get("plan"))
     if not ans:

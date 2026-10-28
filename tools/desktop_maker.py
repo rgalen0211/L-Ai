@@ -388,6 +388,8 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     job = STATE["job"]
     if job and job["proc"].poll() is None:
         raise Problem("Something is already running here. Cancel it or wait for it to finish.")
+    if kind == "build" and blur_refusal():
+        raise Problem(blur_refusal())
     pc = precheck(body)
     if not pc["ok"]:
         raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
@@ -863,6 +865,16 @@ def _new_plan(plan) -> None:
             _live_mod().plan_changed()
     except Exception as e:  # noqa: BLE001
         print(f"note: the editor could not start again from the new plan ({str(e)[:120]})", flush=True)
+
+
+BLUR_BUILD_REFUSAL = ("Blur faces is switched on, and this Build does not blur, so nothing was made. Switch it off to build here, "
+                      "or press Plan, then 'New editor: edit your film live', and press Build final film there: that one blurs every face it finds.")
+
+
+def blur_refusal() -> str:
+    """The sentence for a Build button that cannot blur while the switch is on (a film that looks unblurred without a word would be worse than none); '' when it may go ahead."""
+    me = _edit_mod()
+    return BLUR_BUILD_REFUSAL if me is not None and me.blur_wanted() else ""
 
 
 def _edit_mod():

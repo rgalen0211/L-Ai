@@ -531,6 +531,16 @@ def set_blur(body: dict) -> dict:
     return blur_state()
 
 
+def blur_wanted() -> bool:
+    """True when the person switched 'Blur faces I haven't named' on. Only the editor's Build final film (and the live editor's) can blur; the other Build buttons ask this and refuse (WORKER 48, 2026-10-28)."""
+    return bool(on() and _dm.STATE.get("edit") and S().get("blur"))
+
+
+def _plain(x):
+    """The face tracks as plain JSON numbers: a finder may hand back numpy float32, which json cannot write (WORKER 48: 'Object of type float32 is not JSON serializable')."""
+    return json.loads(json.dumps(x, default=float))
+
+
 def _with_blur(lst: dict) -> dict:
     """The final film's list with a blur spec on every clip (every face found is pixelated; nobody is marked as kept). Only when the person switched it on and the finder file is there."""
     if not S().get("blur"):
@@ -562,7 +572,7 @@ def _with_blur(lst: dict) -> dict:
             tracks = BL.scan(session, ff, p, float(c["in_s"]), float(c["out_s"]), frame)
         except BL.BlurError as e:
             raise Problem(str(e)) from None
-        c["bystander_blur"] = BL.new_spec(frame, tracks)
+        c["bystander_blur"] = _plain(BL.new_spec(frame, tracks))
     return out
 
 
