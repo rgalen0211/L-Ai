@@ -141,7 +141,8 @@ test('every SQL function the server names exists in the migration, and none take
   assert.ok(used.length >= 20);
   // Functions the server names that live in a LATER migration than connect_ai (each must be there with the same shape, with no owner or user argument).
   const EDITOR = 'supabase/migrations/20261027000400_live_editor.sql';                                       // the live preview editor (NEXT-CONNECT 141)
-  const LATER = { connect_set_compilation_request: 'supabase/migrations/20261026000300_compilation_requests.sql', connect_edit_state: EDITOR, connect_edit_ops: EDITOR, connect_edit_undo_ai: EDITOR };
+  const LATER = { connect_set_compilation_request: 'supabase/migrations/20261026000300_compilation_requests.sql', connect_edit_state: EDITOR, connect_edit_ops: EDITOR, connect_edit_undo_ai: EDITOR,
+    connect_rendering_state: 'supabase/migrations/20261027001100_connect_rendering_state.sql' };
   const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
   for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);
   for (const text of [mig, ...Object.values(later)]) for (const m of text.matchAll(/create function public\.(connect_[a-z_]+)\(([^)]*)\)/g)) assert.doesNotMatch(m[2], /owner|user/i, m[1]);

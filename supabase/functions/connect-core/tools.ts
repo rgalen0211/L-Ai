@@ -192,6 +192,23 @@ const setCompilationRequest: ToolDef = {
 // ---------------------------------------------------------------------------------------------- rendering
 
 /** Shared by the sheet and preview tools: quote, refuse anything that costs credits (a connection cannot spend), never queue a second identical job. */
+// ---------------------------------------------------------------------------------------------- waiting without burning the person's AI allowance (NEXT-CONNECT 153, Ryan 22:54)
+// A queued job can wait minutes, or for ever if the render machine is off. An AI that asks job_status in a loop spends the PERSON's own AI usage for nothing. So every answer about an unfinished job
+// says plainly where it stands and what to do: when the machine is not responding, DO NOT CHECK AGAIN; otherwise at most once a minute and only if the person is waiting.
+const STOP_CHECKING = " Do not keep checking: every check uses the person's own AI allowance. Tell the person it is under way, and that they can ask you again later or watch their Ryagram projects page.";
+const MACHINE_OFFLINE = " The Ryagram render machine is not responding right now (it may be offline or very busy). The job is safe and is not failed: it will start when the machine is back, and I cannot say when that will be.";
+const SLOW_CHECK = " If the person is waiting, check again in about a minute at the earliest; there is no time estimate to give yet.";
+
+export interface Waiting { text: string; data: { rendering: string; do_not_poll: boolean; poll_after_s: number | null } }
+/** The words and the fields for a job that is not finished. null for a finished, failed or cancelled job (nothing to wait for). */
+export function waitAdvice(state: string, rendering: string, local: boolean): Waiting | null {
+  if (!IN_PROGRESS.has(state)) return null;
+  const offline = !local && state === "queued" && rendering === "delayed";
+  if (offline) return { text: MACHINE_OFFLINE + STOP_CHECKING, data: { rendering, do_not_poll: true, poll_after_s: null } };
+  if (local && state === "queued") return { text: STOP_CHECKING, data: { rendering, do_not_poll: true, poll_after_s: null } };
+  return { text: SLOW_CHECK + STOP_CHECKING, data: { rendering, do_not_poll: false, poll_after_s: 60 } };
+}
+
 async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnType<Data["getVersion"]>>, jobType: "contact_sheet" | "preview",
                         params: Record<string, unknown>, label: string): Promise<ToolResult> {
   const sha = view.version.story_sha256;
@@ -211,11 +228,14 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
   }
   const job = await ctx.data.submitJob(versionId, jobType, params);
   if (job.run_on === "owner_local") {
-    return ok(`${label} queued (job ${job.id}). It is free, and it will be made on the person's own computer by their Ryagram app, so it waits until that app is open. Use job_status to follow it.`,
-      { job_id: job.id, state: job.state, started: true, credits_held: 0, run_on: "owner_local" });
+    const w = waitAdvice(job.state, "ok", true)!;
+    return ok(`${label} queued (job ${job.id}). It is free, and it will be made on the person's own computer by their Ryagram app, so it waits until that app is open.` + w.text,
+      { job_id: job.id, state: job.state, started: true, credits_held: 0, run_on: "owner_local", ...w.data });
   }
-  return ok(`${label} queued (job ${job.id}). It is free. Use job_status to follow it.`,
-    { job_id: job.id, state: job.state, started: true, credits_held: 0 });
+  const rendering = await ctx.data.renderingState().catch(() => "unknown" as const);
+  const w = waitAdvice(job.state, rendering, false) ?? { text: "", data: { rendering, do_not_poll: false, poll_after_s: null } };
+  return ok(`${label} queued (job ${job.id}). It is free.` + w.text + " Use job_status for one check later.",
+    { job_id: job.id, state: job.state, started: true, credits_held: 0, ...w.data });
 }
 
 const contactSheet: ToolDef = {
@@ -305,10 +325,13 @@ const jobStatus: ToolDef = {
     let text = bits.join(", ") + ".";
     const waiting = !!local && j.state === "queued";
     if (waiting) text += localSeen(j.node) + " It has not failed: it waits for that computer.";
+    const rendering = local ? "ok" : await ctx.data.renderingState().catch(() => "unknown" as const);
+    const adv = waitAdvice(j.state, rendering, !!local);
+    if (adv) text += adv.text;
     if (j.error_detail) text += `\nWhat Ryagram said:\n${untrusted("job-error", j.error_detail.slice(0, 1500))}`;
     if (j.state === "complete") text += " Use get_film_link to open the results.";
     return ok(text, { job_id: j.id, job_type: j.job_type, state: j.state, progress: j.progress ?? null, queue_position: local ? null : (j.queue_position ?? null), error_code: j.error_code,
-      ...(j.run_on === "owner_local" ? { run_on: "owner_local", waiting_for: waiting ? "your_computer" : null, last_seen_at: j.node?.last_seen_at ?? null } : {}) });
+      ...(adv ? adv.data : {}), ...(j.run_on === "owner_local" ? { run_on: "owner_local", waiting_for: waiting ? "your_computer" : null, last_seen_at: j.node?.last_seen_at ?? null } : {}) });
   },
 };
 
@@ -327,8 +350,14 @@ const filmLink: ToolDef = {
       const pending = pv.view.jobs.find((j) => IN_PROGRESS.has(j.state) && (!a.job_id || j.id === a.job_id));
       const jb = pending ? await ctx.data.jobById(pending.id) : null;
       if (jb && jb.run_on === "owner_local" && PLAIN_LOCAL[jb.state]) {
-        return ok(`Nothing is finished yet. The ${jb.job_type.replace("_", " ")} is ${PLAIN_LOCAL[jb.state]}.${jb.state === "queued" ? localSeen(jb.node) + " It has not failed: it waits for that computer." : ""}`,
-          { links: [], waiting_for: jb.state === "queued" ? "your_computer" : null, last_seen_at: jb.node?.last_seen_at ?? null });
+        const wl = waitAdvice(jb.state, "ok", true);
+        return ok(`Nothing is finished yet. The ${jb.job_type.replace("_", " ")} is ${PLAIN_LOCAL[jb.state]}.${jb.state === "queued" ? localSeen(jb.node) + " It has not failed: it waits for that computer." : ""}${wl ? wl.text : ""}`,
+          { links: [], waiting_for: jb.state === "queued" ? "your_computer" : null, last_seen_at: jb.node?.last_seen_at ?? null, ...(wl ? wl.data : {}) });
+      }
+      if (jb && jb.run_on !== "owner_local" && IN_PROGRESS.has(jb.state)) {
+        const rendering = await ctx.data.renderingState().catch(() => "unknown" as const);
+        const wh = waitAdvice(jb.state, rendering, false)!;
+        return ok(`Nothing is finished yet. The ${jb.job_type.replace("_", " ")} is ${PLAIN[jb.state] ?? jb.state}.${wh.text}`, { links: [], ...wh.data });
       }
       return ok("Nothing is finished yet for this project. Use make_contact_sheet or make_preview, then job_status.", { links: [] });
     }

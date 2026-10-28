@@ -68,6 +68,8 @@ export interface EditUndoResult { undone: number; skipped: number; revision: num
 
 /** What the tools need from the database, ALWAYS as the signed-in person (RLS / connect_* functions). */
 export interface Data extends Omit<UserData, "submitJob"> {
+  /** The render machine as the public status page shows it: ok, delayed (not checking in right now) or unknown (never seen). */
+  renderingState(): Promise<"ok" | "delayed" | "unknown">;
   /** A final render also names the contact sheet and preview it stands on (the database re-checks the ladder). */
   submitJob(versionId: string, jobType: string, params: Record<string, unknown>, sheetId?: string, previewId?: string): Promise<{ id: string; state: string; run_on?: string }>;
   whoami(): Promise<{ label: string; available: number; held: number }>;

@@ -11,6 +11,7 @@ const scratch = path.join(root, '.mut-in');
 const C = 'supabase/functions/connect-core/';
 const N = 'supabase/functions/node-core/';
 const TOOLS = ['connect-intake.test.mjs'];
+const JOBS = ['connect-job-wait.test.mjs'];
 const I = C + 'intake.ts';
 const mutants = [
   ['the scale is asked even when known', I, 'if (k.scale === undefined) {', 'if (true) {'],
@@ -33,6 +34,16 @@ const mutants = [
   ['the tool is not read-only', C + 'tools.ts', 'title: "What to ask the person next", scope: "read", readOnly: true,', 'title: "What to ask the person next", scope: "read", readOnly: false,'],
   ['the instructions lose the never-ask-again rule', C + 'mcp.ts', 'never ask for something they already told you, even in their first message: pass what they said to suggest_next_step and put only the one question it returns. ', ''],
   ['the instructions lose the coming-soon rule', C + 'mcp.ts', 'Offer only what Ryagram draws today and say plainly what is coming soon (the 3D interactive globe is). ', ''],
+  ['the offline machine is not recognised', C + 'tools.ts', 'const offline = !local && state === "queued" && rendering === "delayed";', 'const offline = false;', JOBS],
+  ['a sleeping computer of the person is not told to stop checking', C + 'tools.ts', '  if (local && state === "queued") return', '  if (false) return', JOBS],
+  ['a finished job is given waiting advice', C + 'tools.ts', '  if (!IN_PROGRESS.has(state)) return null;', '', JOBS],
+  ['job_status leaves the advice out', C + 'tools.ts', '    if (adv) text += adv.text;', '', JOBS],
+  ['the answer to the start leaves the advice out', C + 'tools.ts', '`${label} queued (job ${job.id}). It is free.` + w.text +', '`${label} queued (job ${job.id}). It is free.` +', JOBS],
+  ['the film link leaves the advice out for a house job', C + 'tools.ts', '      if (jb && jb.run_on !== "owner_local" && IN_PROGRESS.has(jb.state)) {', '      if (false) {', JOBS],
+  ['no time is given for the next check', C + 'tools.ts', 'data: { rendering, do_not_poll: false, poll_after_s: 60 } };', 'data: { rendering, do_not_poll: false, poll_after_s: null } };', JOBS],
+  ['the offline words lose what is wrong', C + 'tools.ts', 'The Ryagram render machine is not responding right now (it may be offline or very busy).', 'The Ryagram render machine is fine.', JOBS],
+  ['the stop-checking plea is dropped', C + 'tools.ts', 'const STOP_CHECKING = " Do not keep checking: every check uses the person' + "'" + 's own AI allowance.', 'const STOP_CHECKING = " Checking is free.', JOBS],
+  ['the database call names another function', 'supabase/functions/connect/db.ts', '"connect_rendering_state"', '"connect_rendering_states"', ['connect-oauth.test.mjs'], 'every SQL function the server names'],
 ];
 
 function run(cwd, suites, pattern) {
@@ -48,7 +59,7 @@ function fresh() {
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
-const base = [run(scratch, TOOLS)].find((r) => r.status !== 0);
+const base = [run(scratch, TOOLS), run(scratch, JOBS)].find((r) => r.status !== 0);
 if (base) { console.log('BASELINE FAILS (nothing proved):\n' + base.stdout.slice(-800)); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
