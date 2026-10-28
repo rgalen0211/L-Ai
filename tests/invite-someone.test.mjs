@@ -56,6 +56,7 @@ test('INVITE SOMEONE: the panel form sends the invite in one press, the card say
   assert.match(src, /\(shown once; copy it now\)/);
   assert.match(src, /'Copy code'/);                                                                       // the fallback stays
   assert.match(src, /data-key': 'invite-resend'/);
+  assert.match(src, /After they sign up, turn on Connect an AI/);                                         // the two switches need an account, which exists only after sign-up (NEXT-WEB 157)
   const data = read('assets/app-data.js');
   assert.match(data, /functions\.invoke\('send-invite', \{ body: \{ code, email \} \}\)/);
   assert.match(data, /adminInvitePerson\(name, credits\) \{ return run\(client\.rpc\('admin_invite_person', \{ p_name: name, p_credits: credits == null \? null : credits \}\)/);

@@ -477,7 +477,8 @@
           h('p', {}, h('strong', {}, `Invite code for ${name}: `), h('code', {}, code), '  (shown once; copy it now)'),
           h('p', { class: 'form-note', 'data-key': 'invite-line' }, invited.line || ''),
           h('p', {}, h('button', { class: 'button secondary small', type: 'button', 'data-key': 'invite-resend', onclick: event => sendTheInvite(event.currentTarget) }, invited.ok ? `Resend to ${email}` : `Send to ${email}`), ' ', copy, ' ',
-            button('Done', async () => { invited = null; })));
+            button('Done', async () => { invited = null; })),
+          h('p', { class: 'form-note' }, 'After they sign up, turn on Connect an AI (and tester mode, if they should have it) for them: ', h('a', { href: '#/admin/tester' }, 'Tester computers and Connect an AI'), '.'));
       }
       // --- Invite someone: a friend Ryan names before the public form is live. One press makes the code and Ryagram emails it to them. The address goes to the send-invite function
       // (the database binds it to the code and keeps it with the code, 12 months at most), never anywhere else.
