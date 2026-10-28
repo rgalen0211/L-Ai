@@ -1526,7 +1526,12 @@
       const orderBox = h('div', { class: 'order-box', 'aria-live': 'polite' });
       let openOrders = false;                                        // an order waiting or running keeps the page polling
       const lockedNote = h('p', { class: 'form-note', hidden: true });
+      // A new project has no film yet (an empty story): the three buttons below would only answer "The story is not a schema-1 sequence yet." far from where it was pressed
+      // (King's Island walk W1), so they stay off and this line, next to them, says what to do. It goes away the moment a film is chosen.
+      const NO_FILM = 'Choose a film above first.';
+      const blankNote = h('p', { class: 'form-note', role: 'status', 'data-key': 'no-film-yet', hidden: true }, 'This version has no film yet. Choose one above and press \u201cUse this film\u201d. Then you can make a contact sheet.');
       const controls = h('div', { class: 'run-controls' },
+        blankNote,
         h('div', { class: 'run-step' },
           h('label', { for: 'run-periods' }, '1. Contact sheet ', h('span', {}, '(years, optional)')),
           h('div', { class: 'inline-row' }, periods, sheetButton)),
@@ -1545,7 +1550,9 @@
             await data.submitJob(v.id, type, params, ladder);
             if (type === 'final_render') { versionChanged(); return; }
             await refresh();
-          } catch (err) { showError(error, err); }
+          } catch (err) {
+            showError(error, /not a schema-1 sequence/i.test(String(err && err.message)) ? new Error('This version has no film yet. Choose one above and press \u201cUse this film\u201d, or fix the story file under Advanced.') : err);
+          }
         });
       }
 
@@ -1616,6 +1623,9 @@
         previewButton.disabled = busyType('preview');
         if (previewButton.disabled) why.preview = 'A preview is already being made.';
         const ladder = J.ladder(jobs, storySha, engine);
+        const noFilm = !!(window.ryagramTemplates && window.ryagramTemplates.isBlank(v.story_spec));
+        blankNote.hidden = !noFilm;
+        if (noFilm) { sheetButton.disabled = true; previewButton.disabled = true; why.sheet = NO_FILM; why.preview = NO_FILM; }
         {
           const q = quotes.final_render;
           const anySheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === storySha);
@@ -1626,11 +1636,12 @@
           } else nextStrip.hidden = true;
         }
         finalButton.disabled = !ladder.ready || busyType('final_render');
-        if (!ladder.ready) why.final = ladder.missing || 'Make a contact sheet and a preview of this story first.';
+        if (noFilm) why.final = NO_FILM;
+        else if (!ladder.ready) why.final = ladder.missing || 'Make a contact sheet and a preview of this story first.';
         else if (busyType('final_render')) why.final = 'A full render is already being made.';
         finalNote.textContent = ladder.ready
           ? `Uses the contact sheet from ${date(ladder.sheet.created_at)} and the preview from ${date(ladder.preview.created_at)}. ${ordersOn() ? 'Clicking requests the full render: while we approve them by hand it waits, with your credits held, and they come back if it is not approved.' : 'Clicking is your approval.'}`
-          : ladder.missing;
+          : (noFilm ? NO_FILM : ladder.missing);
         if (creditsOn()) {
           const whyKey = (button, reason) => { const k = button === sheetButton ? 'sheet' : button === previewButton ? 'preview' : 'final'; if (!why[k]) why[k] = reason; };      // (an earlier reason, such as no sheet yet, is the truer one)
           const label = (button, base, type) => {
