@@ -70,6 +70,8 @@ export class ConnectDb {
         const version_id = r.version_id ?? (await d.currentVersionId(r.id)) ?? "";
         return { id: r.id, title: r.title, version_id, number: r.number ?? 1 };
       },
+      requestDownload: (url, why, folder) => self.fn("connect_request_download", ["text", "text", "text", "text"], [h, url, why, folder]),
+      listDownloads: () => self.fn("connect_list_downloads", ["text"], [h]),
       async saveCompilationRequest(projectId, request) {
         // connect_set_compilation_request lives in migrations/20261026000300_compilation_requests.sql (NOT APPLIED until Ryan applies it): it returns the request's SHA-256, or null for a project that is not the person's.
         const sha = await self.fn<string | null>("connect_set_compilation_request", ["text", "uuid", "jsonb"], [h, projectId, request]);

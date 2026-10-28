@@ -22,7 +22,7 @@ export interface OAuthDeps {
   consentUrl: string;
 }
 
-export const SCOPES = ["read", "write", "render_free", "edit"];
+export const SCOPES = ["read", "write", "render_free", "edit", "fetch_data"];
 const NO_STORE = { "Cache-Control": "no-store", Pragma: "no-cache" };
 const CORS = { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, content-type, mcp-protocol-version",
                "Access-Control-Allow-Methods": "GET, POST, OPTIONS", "Access-Control-Max-Age": "600" };

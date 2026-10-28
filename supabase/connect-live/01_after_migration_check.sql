@@ -31,6 +31,7 @@ union all select 'connect_runner can call exactly the connect_* functions (22; 2
            = 22 + (case when to_regprocedure('public.connect_set_compilation_request(text, uuid, jsonb)') is not null then 1 else 0 end)
            + (case when to_regprocedure('public.connect_edit_state(text, uuid)') is not null then 3 else 0 end)
            + (case when to_regprocedure('public.connect_rendering_state(text)') is not null then 1 else 0 end)
+           + (case when to_regprocedure('public.connect_request_download(text, text, text, text)') is not null then 2 else 0 end)
        and (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace
              where p.prokind in ('f', 'p') and has_schema_privilege('connect_runner', n.oid, 'USAGE') and has_function_privilege('connect_runner', p.oid, 'EXECUTE') and p.prorettype not in ('trigger'::regtype, 'event_trigger'::regtype) and not (n.nspname = 'net' and p.proname in ('http_get', 'http_post', 'http_delete', 'http_collect_response', '_await_response', '_encode_url_with_params_array', '_http_collect_response', '_urlencode_string', 'check_worker_is_up', 'wait_until_running', 'wake', 'worker_restart') and pg_get_userbyid(p.proowner) = 'supabase_admin')
                and n.nspname not in ('pg_catalog', 'information_schema') and not (n.nspname = 'public' and p.proname like 'connect\_%')) = 0

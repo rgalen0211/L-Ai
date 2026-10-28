@@ -12,6 +12,8 @@
 //   POST /node/retry       Bearer {job_id, error_code, error_detail?}                         -> {result}
 //   POST /node/artifact    Bearer {job_id, kind, bytes, sha256, duration_s?, width?, height?}  -> {path, upload_url}
 //   POST /node/compilation-requests  Bearer      -> {requests: [{project_id, title, request, sha256, updated_at}]}   READ ONLY: what the person's AI asked for (data only; starts nothing); always on
+//   POST /node/download-plans Bearer {}                                -> {plans: [{id, request, state}]}   READ ONLY: the download plans the person's AI wrote (NEXT-CONNECT 152); the app shows them for the person to approve
+//   POST /node/download-update Bearer {id, state, receipt?}            -> {state}   the app tells the state of one plan (a receipt of host, size and SHA-256 only with 'done')
 //   POST /node/edit-pending  Bearer {}                                  -> {changes: [{id, project_id, revision, client, op}]}   READ ONLY: the live editor's waiting changes for this person's open compilation (NEXT-CONNECT 142); always on
 //   POST /node/edit-summary  Bearer {project_id, mirror, ai_visible?, summary?, applied?} -> {revision, mirrored, ai_visible}   the app mirrors its track summary (names and times) and says which waiting changes it applied
 //   PRIVATE LINKS for a film made on the person's own computer (NEXT-CONNECT 120; the routes EXIST only when the function is switched on, else 404):
@@ -32,6 +34,8 @@ const TOKEN = new RegExp("^" + TOKEN_PREFIX + "[A-Za-z0-9_-]{43}$");
 const SHA256 = /^[0-9a-f]{64}$/;
 const NODE_STATES = ["running", "validating", "uploading", "complete", "failed"];       // a node never sets queued, claimed, cancelled or editorial_action_required
 const EDIT_ROUTES = ["/node/edit-pending", "/node/edit-summary"];
+const DOWNLOAD_ROUTES = ["/node/download-plans", "/node/download-update"];
+const DL_STATES = ["declined", "downloading", "unpacking", "done", "refused", "cancelled"];
 const COMPILATION_ROUTES = ["/node/compilation/status", "/node/compilation/start", "/node/compilation/finish", "/node/compilation/cancel"];
 /** The database's own plain sentences, matched to FIXED sentences (the database's text is still never sent). The first match wins. */
 const COMPILATION_REFUSALS: [RegExp, number, string, string][] = [
@@ -171,7 +175,7 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     // ---------------------------------------------------------------- signed in: a rgn_ bearer in the Authorization header, nowhere else
     const isCompilation = COMPILATION_ROUTES.includes(route);
     if (isCompilation && !d.compilationLinksOn) return fail(404, "not_found", "Not found.");              // the routes do not exist unless the function is switched on
-    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact", "/node/compilation-requests", ...EDIT_ROUTES].includes(route);
+    const isCall = isCompilation || ["/account", "/signout", "/node/claim", "/node/heartbeat", "/node/state", "/node/retry", "/node/artifact", "/node/compilation-requests", ...EDIT_ROUTES, ...DOWNLOAD_ROUTES].includes(route);
     if (!isCall) return fail(404, "not_found", "Not found.");
     const wantGet = route === "/account";
     if ((wantGet && method !== "GET") || (!wantGet && method !== "POST")) return fail(405, "method_not_allowed", "That is not allowed here.");
@@ -197,6 +201,13 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
       return reply(200, { requests: (Array.isArray(rows) ? rows : []).slice(0, 20).map((r) => ({ project_id: r.project_id, title: r.title, request: r.request, sha256: r.sha256, updated_at: r.updated_at })) });
     }
 
+    if (route === "/node/download-plans") {                                                // READ ONLY (NEXT-CONNECT 152): the download plans the person's AI wrote; the app shows them and the person decides
+      const who = await caller(req, d.salt);
+      if (!(await d.db.hit(who, "download_plans_ip", 60, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
+      const rows = await d.db.downloadPlans(h);
+      return reply(200, { plans: (Array.isArray(rows) ? rows : []).slice(0, 5).map((r) => ({ id: r.id, request: r.request, state: r.state })) });
+    }
+
     if (route === "/node/edit-pending") {                                                  // READ ONLY (NEXT-CONNECT 142): what the person's AI or web editor queued for their open compilation
       const who = await caller(req, d.salt);
       if (!(await d.db.hit(who, "edit_pending_ip", 120, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
@@ -205,6 +216,17 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     }
 
     const b = await body(req); if (b instanceof Response) return b;
+    if (route === "/node/download-update") {                                               // the app tells the STATE of one plan; a receipt only with 'done'
+      const who = await caller(req, d.salt);
+      if (!(await d.db.hit(who, "download_update_ip", 120, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
+      const bad = () => fail(400, "invalid_request", "That request was not valid.");
+      if (typeof b.id !== "string" || !UUID.test(b.id) || typeof b.state !== "string" || !DL_STATES.includes(b.state)) return bad();
+      const receipt = b.receipt === undefined || b.receipt === null ? null : b.receipt;
+      if (receipt !== null && (typeof receipt !== "object" || Array.isArray(receipt) || b.state !== "done")) return bad();
+      const r = await d.db.downloadUpdate(h, b.id, b.state, receipt as Record<string, unknown> | null);
+      if (r === null || r === undefined) return fail(404, "not_found", "That download request was not found.");
+      return reply(200, { state: String(r) });
+    }
     if (route === "/node/edit-summary") {
       const who = await caller(req, d.salt);
       if (!(await d.db.hit(who, "edit_summary_ip", 60, 60))) return fail(429, "slow_down", "Too many tries. Wait a minute and try again.");
@@ -268,6 +290,9 @@ export async function handleNode(req: Request, route: string, d: NodeDeps): Prom
     return reply(200, { path, upload_url: await d.storage.signUpload(path) });
   } catch (e) {
     if (COMPILATION_ROUTES.includes(route)) { const r = compilationRefusal(e); if (r) return r; }
+    if (DOWNLOAD_ROUTES.includes(route)) {
+      if ((e as { code?: string })?.code === "22023") return fail(400, "invalid_request", "That download update was not accepted.");
+    }
     if (EDIT_ROUTES.includes(route)) {
       const code = (e as { code?: string })?.code;
       if (code === "PT404") return fail(404, "not_found", "That film was not found among your projects.");
