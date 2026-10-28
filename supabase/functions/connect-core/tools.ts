@@ -5,6 +5,7 @@ import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStory } from "./story_check.ts";
+import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { LIMITS, type CompilationRequest, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -457,5 +458,29 @@ const undoMine: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine];
+// ---------------------------------------------------------------------------------------------- the intake (NEXT-CONNECT 153)
+const suggestNextStep: ToolDef = {
+  name: "suggest_next_step", title: "What to ask the person next", scope: "read", readOnly: true, idempotent: true,
+  description: "Tells you the ONE next question to put to a person who wants to make something, or the next thing to do, from what they have already told you. Pass every detail they have already given, "
+    + "even in their first message (a county map of rent in Ohio since 2010 answers the kind, the scale, the place, the topic, the years and the picture): it never asks again for a detail you pass. "
+    + "It offers only what Ryagram can draw today and says plainly when something is coming soon. It changes nothing and reads nothing of the person's.",
+  inputSchema: obj({
+    kind: { type: "string", enum: [...KINDS], description: "data_film (numbers as a map or chart over time), compilation (clips from the person's own videos), or department (a part of Ryagram that is coming soon)." },
+    scale: { type: "string", enum: [...SCALES], description: "How big a place: city, county, state, country or world." },
+    place: { type: "string", maxLength: 100, description: "The place the person named, in their words." },
+    dataset: { type: "string", maxLength: 100, description: "What they want to measure, in their words (for example rent)." },
+    years: { type: "string", maxLength: 40, description: "The years they want, in their words." },
+    picture: { type: "string", enum: [...PICTURES], description: "The picture they asked for. globe is accepted only so you can be told it is coming soon." },
+    have_app: { type: "boolean", description: "Compilation: whether they have the Ryagram desktop app for Windows." },
+    folders_named: { type: "boolean", description: "Compilation: true once they have told you the NAMES of their video folders." },
+    chose: { type: "string", enum: [...CHOSE], description: "Compilation: phrase (every time it is said) or song." },
+    department: { type: "string", maxLength: 60, description: "A part of Ryagram they asked for that you do not see a tool for." },
+  }),
+  async run(a) {
+    const step = nextStep(a as Known);
+    return ok(stepText(step), { step: step.step, asking: step.asking, reask: step.reask === true, ask: step.ask, options: step.options, say: step.say, then: step.then, kind: step.kind, already_known: step.known });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, suggestNextStep];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
