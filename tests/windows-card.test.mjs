@@ -51,10 +51,10 @@ test('BEFORE A FILE IS HOSTED (an empty record): the button is off and says Not 
   assert.match(text(c), /shown here when the file is ready/);
 });
 
-test('THE COMMITTED RECORD IS app-1026b (Q248/Q255, 2026-10-26): the invite-only function address, the exact file name, size, unzipped size and SHA-256 of the built zip; a tester card shows an ENABLED button (not a link to a file) with the name and hash on screen', async () => {
+test('THE COMMITTED RECORD IS app-1027h (Q248/Q255, 2026-10-26; app-1027h 2026-10-28): the invite-only function address, the exact file name, size, unzipped size and SHA-256 of the built zip; a tester card shows an ENABLED button (not a link to a file) with the name and hash on screen', async () => {
   const w2 = {}; vm.runInNewContext(read('assets/windows-release.js'), { window: w2 });
   const rel = JSON.parse(JSON.stringify(w2.ryagramWindowsApp));
-  assert.deepEqual(rel, { url: 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/app-download', fileName: 'app-1026b.zip', sizeMb: 274, unpackedMb: 736, sha256: '3414a328f7edc641865e0ac250398d65e82b8eb71cb40f3f83480d2c61d356c1', personalUseNotice: null });
+  assert.deepEqual(rel, { url: 'https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/app-download', fileName: 'app-1027h.zip', sizeMb: 274, unpackedMb: 737, sha256: 'd32e983efd620884b29b04324a5e19a0aebc5afed7a53dc1c2be6ca6664d99c6', personalUseNotice: null });
   assert.equal(D.windowsReady(rel), true);
   assert.equal(D.viaDownloadFunction(rel), true);
   const c = await card(TESTER, rel);
@@ -62,8 +62,8 @@ test('THE COMMITTED RECORD IS app-1026b (Q248/Q255, 2026-10-26): the invite-only
   const b = all(c, n => n.tag === 'button')[0];
   assert.equal(text(b), 'Download Ryagram for Windows');
   assert.ok(!b.attrs.disabled);
-  assert.ok(text(c).includes('app-1026b.zip') && text(c).includes(rel.sha256), 'the file name and SHA-256 are on screen');
-  assert.ok(text(c).includes('about 736 MB unpacked'), 'the space line comes from the record');
+  assert.ok(text(c).includes('app-1027h.zip') && text(c).includes(rel.sha256), 'the file name and SHA-256 are on screen');
+  assert.ok(text(c).includes('about 737 MB unpacked'), 'the space line comes from the record');
 });
 
 test('A READY CARD: one https link with the file name, the name and SHA-256 on screen, and the size in plain words', async () => {
