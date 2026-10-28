@@ -27,6 +27,25 @@ test('a good send: one message to the invite address, subject, the code and the 
   assert.ok(m.body.includes('https://uselai.com/app/#/join?code=RYA-K7M2-9QPX&email=maya%40example.com'));
 });
 
+test('THE APPROVED WORDS (Ryan 2026-10-28 10:59), in full: the draft body, signed "The Ryagram Team" as the very last line, with nothing after it', () => {
+  const body = compose({ ...begun }, 'RYA-K7M2-9QPX', 'https://uselai.com').body;
+  assert.equal(body, [
+    'Hi Maya,', '',
+    "You're in. Your invite code is RYA-K7M2-9QPX.", '',
+    'To sign up, open this link. It fills in your email and your code:', 'https://uselai.com/app/#/join?code=RYA-K7M2-9QPX&email=maya%40example.com', '',
+    'Or go to https://uselai.com/app/, choose "Have an invite code?", and enter the code with this email address. You will get an email to set your password, and 20 beta credits will be waiting for you.', '',
+    'Beta credits are free, in exchange for your feedback. If you talk about or promote Ryagram, or a film you made with it, please say your credits were free.', '',
+    'The code works once and expires on November 26, 2026.', '',
+    'The Ryagram Team',
+  ].join('\n'));
+  assert.equal(body.split('\n').at(-1), 'The Ryagram Team');
+  assert.equal(body.split('\n').at(-2), '');
+  assert.ok(!body.endsWith('\n'));
+  // the credits sentence still goes for a 0-credit invite; the signature stays
+  const none = compose({ ...begun, credits: 0 }, 'RYA-K7M2-9QPX', 'https://uselai.com').body;
+  assert.ok(none.includes('to set your password.') && !none.includes('beta credit')); assert.equal(none.split('\n').at(-1), 'The Ryagram Team');
+});
+
 test('the address and code travel in the URL FRAGMENT, never the query string', () => {
   const l = joinLink('https://uselai.com/', 'RYA-K7M2-9QPX', 'a+b@example.com');
   assert.equal(l, 'https://uselai.com/app/#/join?code=RYA-K7M2-9QPX&email=a%2Bb%40example.com');
