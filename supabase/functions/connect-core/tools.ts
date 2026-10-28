@@ -457,5 +457,61 @@ const undoMine: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine];
+// ---------------------------------------------------------------------------------------------- download plans (NEXT-CONNECT 152)
+// The AI WRITES DOWN a plan to download a public data file; the person's own Ryagram desktop app shows it and the person presses Download on their own computer. The site never contacts the address, stores
+// no file, and the AI never sees one: these tools can only write a plan and read the state of the plans.
+
+const DL_NAME = "^[A-Za-z0-9 ._-]{1,60}$";
+const DL_HOST = /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+
+/** The address checked before it goes anywhere: https, a website name (no user name, no port, no bare IP number), visible ASCII only. The database checks again. */
+export function downloadUrlProblem(u: unknown): string | null {
+  if (typeof u !== "string" || u.length === 0 || u.length > 2000 || /[^\x21-\x7e]/.test(u)) return "The address must be plain visible characters, at most 2000, with no spaces.";
+  let p: URL;
+  try { p = new URL(u); } catch { return "That is not an address."; }
+  if (p.protocol !== "https:") return "Only https:// addresses are accepted.";
+  if (p.username || p.password || u.includes("@")) return "An address with a user name or password in it is not accepted.";
+  if (p.port) return "An address with a port number is not accepted.";
+  if (!DL_HOST.test(p.hostname) || /^[0-9.]+$/.test(p.hostname)) return "Use a website name (like www.example.org), not a number.";
+  return null;
+}
+
+const requestDownload: ToolDef = {
+  name: "request_download", title: "Ask to download a public data file", scope: "fetch_data", readOnly: false, idempotent: false,
+  description: "Writes down a plan to download a public data file onto the person's OWN computer. It is DATA only: an https address, a short reason, and the NAME of a folder. Nothing is downloaded by Ryagram "
+    + "and you never receive the file: the person opens the Ryagram desktop app, sees the website, the file name and the size, and presses Download themselves. They can say no. At most 5 plans can wait at "
+    + "once and 20 are accepted a day. Use list_my_downloads to see what became of them.",
+  inputSchema: obj({
+    url: { type: "string", maxLength: 2000, pattern: "^https://[^\\s@]+$", description: "The https:// address of one public data file (csv, tsv, json, parquet, xlsx, zip, gz). No user name, port or bare IP number." },
+    why: { type: "string", minLength: 1, maxLength: 300, description: "One sentence for the person: what this file is for. Plain words, no addresses." },
+    folder: { type: "string", maxLength: 60, pattern: DL_NAME, description: "Optional. The NAME of a folder inside the person's data folder (letters, digits, space, dot, dash). Never a path." },
+  }, ["url", "why"]),
+  async run(a, ctx) {
+    const bad = downloadUrlProblem(a.url);
+    if (bad) return refuse(bad + " Nothing was written.", "args");
+    const why = cleanText(a.why, 300);
+    if (!why) return refuse("Give a short reason for the person to read. Nothing was written.", "args");
+    try {
+      const r = await ctx.data.requestDownload(String(a.url), why, typeof a.folder === "string" ? a.folder : "");
+      return ok(`Written down. The person will see a request from ${untrusted("download-host", r.host)} in their Ryagram desktop app and decides there. Nothing is downloaded until they press Download on their computer. Use list_my_downloads to follow it.`,
+        { id: r.id, host: r.host, state: r.state });
+    } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
+  },
+};
+
+const listDownloads: ToolDef = {
+  name: "list_my_downloads", title: "See my download requests", scope: "read", readOnly: true,
+  description: "Lists the download plans written for the person (newest first, at most 20): the website, the state (waiting for them, downloading, unpacking, done, refused, declined, cancelled) and, once finished, "
+    + "a small receipt: size, SHA-256, how many files were unpacked, and whether the website was an official one. It never shows a file, a file name or a place on the person's computer.",
+  inputSchema: obj(),
+  async run(_a, ctx) {
+    const rows = (await ctx.data.listDownloads()).slice(0, 20);
+    if (!rows.length) return ok("There are no download requests. Use request_download.", { downloads: [] });
+    const line = (r: (typeof rows)[number]) => `${r.id}  ${untrusted("download-host", r.host)}  ${r.state}`
+      + (r.receipt ? `  (${Number(r.receipt.bytes)} bytes, SHA-256 ${String(r.receipt.sha256).slice(0, 12)}..., ${Number(r.receipt.members)} files unpacked, ${r.receipt.trust_label === "official" ? "an official website" : "a website Ryagram has not checked"})` : "");
+    return ok(rows.map(line).join("\n"), { downloads: rows.map((r) => ({ id: r.id, host: r.host, state: r.state, created_at: r.created_at, receipt: r.receipt })) });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
