@@ -59,13 +59,15 @@ def main():
                 fb.scroll_into_view_if_needed()
                 check(fb.is_disabled(), 'the final render button is off before a sheet and preview exist')
                 check(p.evaluate("getComputedStyle(document.querySelector('.run-step button.primary')).cursor") == 'not-allowed', 'its cursor is not-allowed (not the wait wheel)')
-                title = fb.get_attribute('title') or ''
-                check(len(title) > 10 and 'contact sheet' in title.lower(), f'hover reason: {title!r}')
+                blank_title = fb.get_attribute('title') or ''
+                check(blank_title == 'Choose a film above first.', f'a BLANK project says to choose a film first: {blank_title!r}')       # (King's Island W1)
                 p.wait_for_selector('.template-picker summary', timeout=20000)
                 if p.locator('details.template-picker[open]').count() == 0:
                     p.click('.template-picker summary')
                 p.click('button:has-text("Use this film")')
                 p.wait_for_function("document.body.innerText.includes('Template applied and saved')", timeout=20000)
+                title = fb.get_attribute('title') or ''
+                check(len(title) > 10 and 'contact sheet' in title.lower(), f'hover reason on a real story (the original proof): {title!r}')
                 check('null' not in p.inner_text('main').split(), 'no stray "null" word under the final render button')
                 # a failed job with the engine jargon, and a running job the worker never reported on
                 p.evaluate("""() => { const db = window.ryagramMock.client.db; const v = { id: location.hash.split('/')[2].split('?')[0] };
