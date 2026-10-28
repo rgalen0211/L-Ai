@@ -63,6 +63,11 @@ test('WORKING: with no stage, count or ETA the view says working and how long; w
   assert.equal(p.elapsed, '4 min');
   const q = J.progressView({ state: 'claimed', created_at: '2026-10-03T09:59:00Z', progress_detail: null }, now);
   assert.deepEqual([q.working, q.elapsed], [true, '1 min']);
+  // King's Island W4: a job with no started_at counted from created_at must not show hundreds of hours; past 12 h it shows no time at all, like `running`
+  const stale = J.progressView({ state: 'claimed', created_at: new Date(now - 710 * 3600e3).toISOString(), progress_detail: null }, now);
+  assert.deepEqual([stale.working, stale.elapsed, stale.running], [true, '', '\u2014']);
+  const edge = J.progressView({ state: 'claimed', created_at: new Date(now - 11 * 3600e3).toISOString(), progress_detail: null }, now);
+  assert.match(edge.elapsed, /^11 h/);
   const known = J.progressView({ state: 'running', started_at: '2026-10-03T09:56:00Z', progress_detail: { stage: 'drawing', done: 5, total: 10, unit: 'frames' } }, now);
   assert.equal(known.working, false);
 });
