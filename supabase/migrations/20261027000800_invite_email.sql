@@ -28,6 +28,9 @@ language sql immutable set search_path = '' as $$
   from (select lower(btrim(coalesce(p_email, ''))) as a) x
 $$;
 
+-- A new function gets EXECUTE for PUBLIC by default; the private schema stays closed (test_policy_grants: only the five policy functions). The two public functions below are definer functions that call it.
+revoke execute on function ryagram_private.invite_address(text) from public, anon, authenticated, service_role;
+
 -- Step 1 of a send (the admin's own login calls this from the edge function): checks everything and RESERVES the send; returns what the email needs.
 create function public.admin_invite_send_begin(p_code text, p_email text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
