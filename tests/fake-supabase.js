@@ -887,6 +887,24 @@
             log.push({ invited: body.email });
             return { data: { message: 'If that email can join, a link to finish joining is on its way. It works once. Already have an account? Sign in instead.' }, error: null };
           }
+          if (name === 'send-invite') {
+            // Mock of send-invite (NEXT-WEB 155): the first send binds the address to the code, a different address is refused, 3 sends at most. ?mailoff = mail not switched on (saved, not sent);
+            // ?sendfail = the mail service refuses; ?wait = the 60-second wait. Nothing is sent anywhere.
+            const q = typeof location !== 'undefined' ? location.search || '' : '';
+            const refuse = (status, text) => ({ data: null, error: { message: 'x', context: { status, json: async () => ({ error: text }) } } });
+            db.inviteSends = db.inviteSends || {};
+            const addr = String(body.email || '').trim().toLowerCase();
+            if (!/^[^@\s<>,;"]+@[^@\s<>,;"]+\.[^@\s<>,;"]+$/.test(addr)) return refuse(409, 'That does not look like one email address.');
+            const rec = db.inviteSends[body.code];
+            if (rec && rec.to !== addr) return refuse(409, 'That invite was made for another address, so it cannot be sent to this one.');
+            if (rec && rec.sends >= 3) return refuse(409, 'That invite has been sent 3 times, the most it allows. Make a new one.');
+            if (rec && /[?&]wait/.test(q)) return refuse(409, 'Wait 42 more seconds before sending it again.');
+            if (/[?&]sendfail/.test(q)) return refuse(502, 'The mail service did not accept the message. Nothing was sent; try again in a minute, or copy the code.');
+            const r2 = db.inviteSends[body.code] = { to: addr, sends: (rec ? rec.sends : 0) + 1 };
+            log.push({ inviteMail: addr });
+            const live = !/[?&]mailoff/.test(q);
+            return { data: { status: live ? 'sent' : 'saved', to: addr, sends: r2.sends, at: new Date().toISOString(), message: live ? `Sent to ${addr}.` : 'Mail is not switched on, so nothing was sent. The message is saved under Recent messages.' }, error: null };
+          }
           if (name === 'delete-account') {
             if ((body.confirm_email || '').trim().toLowerCase() !== (session?.user?.email || '').toLowerCase()) {
               return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Type your account’s email address exactly to confirm.' }) } } };

@@ -1,5 +1,5 @@
 // "Invite someone" on #/admin/ops: Ryan names a friend, the database makes a single-use code with welcome credits (SQL 20261017000200, tested in
-// supabase/tests/test_invite_someone.py), the panel shows it ONCE with a mailto: link. The address never goes to the database.
+// supabase/tests/test_invite_someone.py), the panel shows it ONCE. Ryagram sends the email itself (NEXT-WEB 155; send-invite, tests/send-invite.test.mjs).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -27,24 +27,38 @@ test('INVITE SOMEONE: the data layer asks only for a name and credits, and the c
   await assert.rejects(data.adminInvitePerson('Maya', 1001), /0 to 1,000/);
 });
 
-test('INVITE SOMEONE: the mailto: link carries the code, the welcome credits when Ryan typed them, and the free-credits disclosure; the address stays in the link', () => {
-  const link = O.inviteMailto({ name: 'Maya Ortiz', email: 'maya@example.com', code: 'RYA-K7M2-9QPX', credits: 35 });
-  assert.match(link, /^mailto:maya%40example\.com\?subject=/);
-  const body = decodeURIComponent(link.split('&body=')[1]);
-  assert.match(body, /Your invite code is RYA-K7M2-9QPX\./);
-  assert.match(body, /35 beta credits will be waiting/);
-  assert.match(body, /Beta credits are free, in exchange for your feedback/);
+test('INVITE SOMEONE: Ryagram sends the email: the data layer asks send-invite for the code and the address, and says SENT only when mail went out', async () => {
+  const client = createFakeClient();
+  const data = ryagramData(client);
+  const code = await data.adminInvitePerson('Maya Ortiz', null);
+  const res = await data.sendInvite(code, 'Maya@Example.com');
+  assert.equal(res.status, 'sent'); assert.equal(res.to, 'maya@example.com'); assert.equal(res.sends, 1);
+  assert.match(O.inviteSendLine(res, 'maya@example.com'), /^Sent to maya@example\.com at /);
+  assert.match(O.inviteSendLine({ ...res, sends: 2 }, 'maya@example.com'), /\(send 2 of 3\)/);
+  const saved = O.inviteSendLine({ status: 'saved', to: 'maya@example.com', at: res.at }, 'maya@example.com');
+  assert.match(saved, /^Not sent: mail is not switched on yet/); assert.doesNotMatch(saved, /^Sent/);
+  assert.match(O.inviteSendLine(null, 'maya@example.com'), /^Not sent to maya@example\.com/);
+  await assert.rejects(data.sendInvite(code, 'stranger@example.com'), /made for another address/);       // the mock mirrors the database's binding
+  await assert.rejects(data.sendInvite(code, 'not an address'), /one email address/);
+  await data.sendInvite(code, 'maya@example.com'); await data.sendInvite(code, 'maya@example.com');
+  await assert.rejects(data.sendInvite(code, 'maya@example.com'), /3 times/);
 });
 
-test('INVITE SOMEONE: the panel form is in the Creator beta section, the email goes to the mailto only, and the code panel is the existing shown-once one', () => {
+test('INVITE SOMEONE: the panel form sends the invite in one press, the card says what happened, and the address goes only to send-invite', () => {
   const src = read('assets/app-library.js');
   assert.match(src, /h\('p', \{\}, O\.creatorLine\(cb\)\), invitePanel\(\), invitePersonForm\(\),/);
   const form = src.slice(src.indexOf('function invitePersonForm()'), src.indexOf('// --- the film request queue'));
   assert.match(form, /data\.adminInvitePerson\(name\.value, c\)/);
+  assert.match(form, /data\.sendInvite\(code, invited\.email\)/);
   assert.match(form, /type: 'email'/);
-  assert.doesNotMatch(form.replace(/invited = \{[^}]*\};/, ''), /email\.value/);                          // the address is read only to build the mailto link
+  assert.match(form, /'Send the invite'/);
+  assert.doesNotMatch(src, /mailto:/);                                                                    // no mail program is opened any more
   assert.match(src, /\(shown once; copy it now\)/);
+  assert.match(src, /'Copy code'/);                                                                       // the fallback stays
+  assert.match(src, /data-key': 'invite-resend'/);
+  assert.match(src, /After they sign up, turn on Connect an AI/);                                         // the two switches need an account, which exists only after sign-up (NEXT-WEB 157)
   const data = read('assets/app-data.js');
+  assert.match(data, /functions\.invoke\('send-invite', \{ body: \{ code, email \} \}\)/);
   assert.match(data, /adminInvitePerson\(name, credits\) \{ return run\(client\.rpc\('admin_invite_person', \{ p_name: name, p_credits: credits == null \? null : credits \}\)/);
 });
 
