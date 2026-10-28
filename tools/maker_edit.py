@@ -480,6 +480,16 @@ def share_recipe(body: dict) -> dict:
 
 
 MODEL_GLOBS = ("*yunet*.onnx",)
+# The ONLY face file the maker uses: YuNet, by its SHA-256 (the same pin as tools/make_app_bundle.py and tools/verify_bundle.py). Any other file with a yunet name is ignored and said so.
+YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+
+
+def _sha256(p: Path) -> str:
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for blk in iter(lambda: f.read(1 << 20), b""):
+            h.update(blk)
+    return h.hexdigest()
 
 
 def blur_model():
@@ -489,15 +499,23 @@ def blur_model():
         if d and Path(d).is_dir():
             for g in MODEL_GLOBS:
                 for p in sorted(Path(d).glob(g)):
-                    if p.is_file():
+                    if p.is_file() and _sha256(p) == YUNET_SHA256:
                         return p
     return None
+
+
+def _wrong_model_present() -> bool:
+    """A file with a yunet name is in the models folder but is not the pinned one: it is never used, and the person is told."""
+    dirs = [os.environ.get("RYAGRAM_MODEL_DIR") or "", str(_dm.STATE["engine"].parent / "models"), str(_dm.STATE["engine"] / "models")]
+    return any(d and Path(d).is_dir() and any(p.is_file() and _sha256(p) != YUNET_SHA256 for g in MODEL_GLOBS for p in Path(d).glob(g)) for d in dirs)
 
 
 def blur_state() -> dict:
     model = blur_model()
     on = bool(S().get("blur")) and model is not None
-    if model is None:
+    if model is None and _wrong_model_present():
+        msg = "The face finder file in this folder is not the one this app was built with, so it is not used and faces cannot be found. The switch stays off."
+    elif model is None:
         msg = "This app does not have the face finder file yet, so faces cannot be found. The switch stays off."
     elif on:
         msg = "On: when you build the final film, every face the program finds is pixelated. Nobody is recognised and nobody is marked as named here, so every face is blurred."

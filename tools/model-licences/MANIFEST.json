@@ -1,0 +1,18 @@
+[
+ {
+  "model": "yunet",
+  "name": "YuNet face detector (opencv_zoo, face_detection_yunet)",
+  "file": "yunet.onnx",
+  "bytes": 232589,
+  "sha256": "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4",
+  "model_source": "https://github.com/opencv/opencv_zoo/tree/main/models/face_detection_yunet",
+  "licence": "MIT",
+  "copyright": "Copyright (c) 2020 Shiqi Yu <shiqi.yu@gmail.com>",
+  "licence_file": "yunet.txt",
+  "licence_source_url": "https://raw.githubusercontent.com/opencv/opencv_zoo/main/models/face_detection_yunet/LICENSE",
+  "licence_file_sha256": "c83b8120c50ccbd4c4f96edf53141bdd566ebb8f8e9227e415326aa1b1aba958",
+  "licence_file_bytes": 1085,
+  "fetched": "2026-10-28",
+  "note": "Detection only: it finds where faces are and nothing else. The model file is FACES' copy (D:\\Ryagram-scratch\\FACES\\models\\yunet.onnx), pinned here by its SHA-256; the licence text was fetched from the project's own repository (branch main, 2026-10-28)."
+ }
+]
