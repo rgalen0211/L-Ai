@@ -791,6 +791,62 @@ class Connect(core.Base):
 
 # Everything connect_runner may CALL, exactly. A function is callable only with EXECUTE and USAGE on its schema, so this is computed over
 # every schema the role has USAGE on (pg_catalog and information_schema hold the built-ins every role has, set_config among them).
+
+    # ------------------------------------------------------------------ NEXT-WEB 157: the Connect-an-AI switch on the admin page (migrations/20261027000900_connect_access_admin.sql)
+    def test_access_switch_is_admin_only_app_session_only_and_needs_a_reason(self):
+        self.app(ALICE)
+        self.fails("select admin_connect_access_set('nobody@x', true, 'testing with Maria')", code="42501")                 # not an admin
+        self.app(ALICE)
+        self.fails("select admin_connect_access_audit()", code="42501")
+        self.app(ALICE)
+        self.fails("select admin_connect_access_list()", code="42501")
+        claims = '{"sub": "%s", "role": "authenticated", "client_id": "x"}' % ADMIN
+        self.app(ADMIN, claims)
+        self.fails("select admin_connect_access_set('nobody@x', true, 'testing with Maria')", code="42501")                 # an AI's token is refused
+        for bad in ("", "  ", "ab", "x" * 301):
+            self.app(ADMIN)
+            self.fails("select admin_connect_access_set('nobody@x', true, %s)", bad, code="22023")
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.connect_access where user_id = %s", NOBODY), 0)
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.connect_access_audit"), 0)
+
+    def test_access_switch_turns_on_writes_the_history_and_lists_who_has_it(self):
+        self.assertTrue(self.app(ADMIN).one("select admin_connect_access_set(' Nobody@X ', true, '  testing with Maria ')"))
+        self.assertTrue(self.db.as_(None).one("select enabled from public.connect_access where user_id = %s", NOBODY))
+        row = self.db.as_(None).one("select was_on, turned_on, set_by = %s, reason from public.connect_access_audit", ADMIN)
+        self.assertEqual(tuple(row), (False, True, True, "testing with Maria"))                                           # trimmed, who, why
+        self.app(ADMIN)
+        hist = self.db.one("select count(*) from public.admin_connect_access_audit() where user_email = 'nobody@x' and turned_on and set_by_email = 'admin@x'")
+        self.assertEqual(hist, 1)
+        self.app(ADMIN)
+        on = sorted(r[0] for r in self.db.all("select user_email from public.admin_connect_access_list()"))
+        self.assertEqual(on, ["alice@x", "bob@x", "nobody@x"])                                                           # the two already on, plus the new one
+        self.app(ADMIN).one("select admin_connect_access_set('nobody@x', true, 'again, no change')")                       # same state: still recorded, was_on true
+        self.assertEqual(self.db.as_(None).one("select was_on from public.connect_access_audit order by id desc limit 1"), True)
+
+    def test_access_switch_off_revokes_the_ais_and_is_recorded(self):
+        _, a, _ = self.connect(ALICE)
+        self.app(ADMIN).one("select admin_connect_access_set('alice@x', false, 'she asked to stop')")
+        self.runner(); self.fails("select connect_whoami(%s)", h(a), code="PT401")                                         # her AI stops working at once
+        self.assertFalse(self.db.as_(None).one("select enabled from public.connect_access where user_id = %s", ALICE))
+        self.assertEqual(tuple(self.db.as_(None).one("select was_on, turned_on from public.connect_access_audit")), (True, False))
+        self.app(ADMIN)
+        self.assertEqual(sorted(r[0] for r in self.db.all("select user_email from public.admin_connect_access_list()")), ["bob@x"])
+
+    def test_access_switch_refuses_admin_worker_and_unknown_accounts_and_the_table_is_closed(self):
+        self.app(ADMIN)
+        self.fails("select admin_connect_access_set('admin@x', true, 'testing')", code="42501")                            # never an administrator
+        self.db.as_(None).c.execute("insert into public.workers (user_id, name) values (%s, 'w')", (NOBODY,))
+        self.app(ADMIN)
+        self.fails("select admin_connect_access_set('nobody@x', true, 'testing')", code="42501")                           # never a worker
+        self.app(ADMIN)
+        self.fails("select admin_connect_access_set('nobody-at-all@x', true, 'testing')", code="PT404")
+        self.assertEqual(self.db.as_(None).one("select count(*) from public.connect_access_audit"), 0)                      # a refusal leaves no history
+        for who in (ADMIN, ALICE, "anon"):
+            self.db.as_(who)
+            with self.assertRaises(psycopg.Error):
+                self.db.one("select * from public.connect_access_audit")
+
+
 EXPECTED_CALLABLE = ['connect_anon_hit(text, text, integer, integer)', 'connect_begin_authorization(text, text, text, text, text, text, text, text)', 'connect_create_project(text, text)', 'connect_create_version(text, uuid, uuid)', 'connect_current_engine(text)', 'connect_current_version(text, uuid)', 'connect_edit_ops(text, uuid, text, bigint, jsonb)', 'connect_edit_state(text, uuid)', 'connect_edit_undo_ai(text, uuid, text)', 'connect_exchange_code(text, text, text, text, text, text)', 'connect_final_enabled()', 'connect_get_version(text, uuid)', 'connect_hit(text, text, integer, integer)', 'connect_job(text, uuid)', 'connect_list_projects(text)', 'connect_list_versions(text, uuid)', 'connect_log(text, text, integer, text, text, integer)', 'connect_quote(text, uuid, text)', 'connect_refresh(text, text, text, text)', 'connect_register_client(text, text[])', 'connect_revoke(text)', 'connect_save_story(text, uuid, jsonb)', 'connect_scopes(text)', 'connect_set_compilation_request(text, uuid, jsonb)', 'connect_submit_job(text, uuid, text, jsonb, uuid, uuid)', 'connect_whoami(text)']
 
 
