@@ -4,6 +4,7 @@
 
 The REAL tools/maker_edit.py and tools/desktop_maker.py functions, the engine's own recipe, export, portability and bystander modules, a small fake face finder (the real one is a model file the app does not
 have yet). No video is made, no network, no dialog opens: the file dialog is replaced by the path a person would have picked. Scratch is deleted at the end."""
+import hashlib
 import json
 import os
 import shutil
@@ -140,6 +141,10 @@ try:
     models.mkdir()
     (models / "face_detection_yunet_2023mar.onnx").write_bytes(b"not a real model")
     os.environ["RYAGRAM_MODEL_DIR"] = str(models)
+    stw = ME.blur_state()
+    check(stw["available"] is False and "not the one this app was built with" in stw["message"], "MUST-FAIL: a file with a yunet name that is NOT the pinned one is never used, and the switch says so")
+    check("face finder" in (problem_of(lambda: ME.set_blur({"on": True})) or ""), "and the switch cannot be turned on with it")
+    ME.YUNET_SHA256 = hashlib.sha256(b"not a real model").hexdigest()                            # the stand-in below is pinned for this check only; the real pin is in the maker
     check(ME.blur_state()["available"] is True and ME.blur_state()["on"] is False, "with the file the switch can be used and starts off")
     check(ME.set_blur({"on": True})["on"] is True and "pixelated" in ME.blur_state()["message"] and ME.set_blur({"on": False})["on"] is False, "it can be switched on and off, and says what it does")
 

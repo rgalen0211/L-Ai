@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 APP_DIRS = ("ryagram", "tools", "recipes", "docs")
+# THE FACE FINDER: the one model file whose bytes are pinned HERE as well as in the builder and the maker (Ryan 2026-10-28). It is small, so it is hashed at every start, not only with --deep.
+YUNET_FILE, YUNET_SHA256 = "models/yunet.onnx", "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
 SKIP_NAMES = {"__pycache__"}
 SKIP_SUFFIX = {".pyc"}
 
@@ -64,6 +66,15 @@ def check(root: Path, deep: bool = False) -> list:
             problems.append(f"{rel} is missing.")
         elif sha256_file(p) != want:
             problems.append(f"{rel} has been changed.")
+    face = manifest.get("face_model")
+    p_face = root / YUNET_FILE
+    if face:
+        if not p_face.is_file():
+            problems.append(f"{YUNET_FILE} (the face finder) is missing.")
+        elif sha256_file(p_face) != YUNET_SHA256:
+            problems.append(f"{YUNET_FILE} (the face finder) is not the file this program was built with.")
+    elif p_face.is_file():
+        problems.append(f"{YUNET_FILE} was added and is not part of what was built.")
     expected = set(sums)
     for rel in app_files(root):
         if rel not in expected:
