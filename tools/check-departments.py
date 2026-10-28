@@ -48,8 +48,9 @@ def main():
         print(('  ok   ' if cond else '  FAIL ') + what)
         ok = ok and bool(cond)
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf-8')
-    check(re.search(r'departments:\s*false', cfg), 'the committed config has departments false')
-    flipped = re.sub(r'aiFirst:\s*false', 'aiFirst: true', re.sub(r'departments:\s*false', 'departments: true', cfg))
+    check(re.search(r'departments:\s*true', cfg) and re.search(r'aiFirst:\s*true', cfg), 'the committed config has departments and aiFirst ON (Ryan 2026-10-28, Q303)')
+    off = re.sub(r'aiFirst:\s*true', 'aiFirst: false', re.sub(r'departments:\s*true', 'departments: false', cfg))                      # the 'flag off' cases below run against this
+    flipped = cfg
     try:
         with sync_playwright() as pw:
             b = pw.chromium.launch(channel='chrome')
@@ -59,8 +60,7 @@ def main():
 
                 def page(flag=True):
                     ctx = b.new_context(**opts)
-                    if flag:
-                        ctx.route('**/assets/ryagram-config.js*', (lambda body: (lambda route: route.fulfill(status=200, content_type='text/javascript', body=body)))(flipped))
+                    ctx.route('**/assets/ryagram-config.js*', (lambda body: (lambda route: route.fulfill(status=200, content_type='text/javascript', body=body)))(flipped if flag else off))
                     p = ctx.new_page()
                     errors = []
                     p.on('pageerror', lambda e: errors.append(str(e)))
@@ -101,7 +101,7 @@ def main():
                 p.wait_for_selector('h1:has-text("Compilations")', timeout=10000)
                 t = p.inner_text('main')
                 check('coming soon' in t.lower() and 'Say a phrase.' in t and p.locator('.soon-picture').count() == 1 and 'Tell me when it’s ready' in t, 'Compilations: tag, line, picture and the button')
-                check('[DRAFT WORDING, pending Ryan]' in t, 'the draft-wording note is on the page until Ryan answers')
+                check('DRAFT WORDING' not in t, 'the draft-wording note is gone from the page (the words are approved)')
                 p.screenshot(path=str(OUT / f'soon-before-{name}.png'), full_page=True)
                 p.click('#soon-notify')
                 p.wait_for_selector('#soon-noted', timeout=10000)

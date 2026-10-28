@@ -50,8 +50,9 @@ def main():
         print(('  ok   ' if cond else '  FAIL ') + what)
         ok = ok and bool(cond)
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf-8')
-    check(re.search(r'aiFirst:\s*false', cfg), 'the committed config has aiFirst false')
-    flipped = re.sub(r'aiFirst:\s*false', 'aiFirst: true', cfg)
+    check(re.search(r'aiFirst:\s*true', cfg), 'the committed config has aiFirst ON (Ryan 2026-10-28, Q303)')
+    off = re.sub(r'aiFirst:\s*true', 'aiFirst: false', cfg)                      # the 'flag off' cases below run against this
+    flipped = cfg
     try:
         with sync_playwright() as pw:
             b = pw.chromium.launch(channel='chrome')
@@ -60,8 +61,7 @@ def main():
                 print(name)
 
                 def page(ctx, flag=True):
-                    if flag:
-                        ctx.route('**/assets/ryagram-config.js*', lambda route: route.fulfill(status=200, content_type='text/javascript', body=flipped))
+                    ctx.route('**/assets/ryagram-config.js*', (lambda body: (lambda route: route.fulfill(status=200, content_type='text/javascript', body=body)))(flipped if flag else off))
                     ctx.route('https://claude.ai/**', lambda route: route.abort())          # the approval's redirect goes nowhere, so the page (and its fake data) stays
                     p = ctx.new_page()
                     errors = []
@@ -72,7 +72,7 @@ def main():
                 # 1. no AI connected: the plain address lands on the door
                 ctx = b.new_context(**opts)
                 p, errors = page(ctx)
-                p.goto(f'{BASE}/app/?mock#/', wait_until='load')
+                p.goto(f'{BASE}/app/?mock&door#/', wait_until='load')
                 p.wait_for_selector('h1:has-text("Use your AI to make films")', timeout=20000)
                 check(p.evaluate('location.hash') == '#/start', 'no AI connected: the plain address lands on #/start')
                 t = p.inner_text('main')
@@ -133,10 +133,10 @@ def main():
                 # 6. the flag OFF (the committed config): nothing changes
                 ctx = b.new_context(**opts)
                 p, errors = page(ctx, flag=False)
-                p.goto(f'{BASE}/app/?mock#/', wait_until='load')
+                p.goto(f'{BASE}/app/?mock&door#/', wait_until='load')
                 p.wait_for_selector('h1:has-text("Your projects")', timeout=20000)
                 check(p.evaluate('location.hash') in ('#/', '') and p.locator('.start-strip, .start-bar').count() == 0, 'flag off: the library, no bar, no strip')
-                p.goto(f'{BASE}/app/?mock#/start', wait_until='load')
+                p.goto(f'{BASE}/app/?mock&door#/start', wait_until='load')
                 p.wait_for_selector('h1:has-text("Your projects")', timeout=20000)
                 check('Use your AI' not in p.inner_text('main'), 'flag off: #/start shows the library')
                 check(errors == [], 'no console errors')

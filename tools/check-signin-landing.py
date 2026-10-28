@@ -5,6 +5,7 @@ with a way home, never the database's own sentence; the 'You have signed out.' n
     python tools/check-signin-landing.py [outdir]        (default D:/Ryagram-scratch/WEB/signin-shots)
 """
 import http.server
+import re
 import socketserver
 import sys
 import threading
@@ -36,6 +37,9 @@ def serve():
     return srv
 
 
+OFF_CFG = re.sub(r'aiFirst:\s*true', 'aiFirst: false', re.sub(r'departments:\s*true', 'departments: false', (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf-8')))
+
+
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     srv = serve()
@@ -59,6 +63,7 @@ def main():
                                ('phone', dict(viewport={'width': 390, 'height': 844}, device_scale_factor=3, is_mobile=True, has_touch=True))):
                 print(name)
                 ctx = b.new_context(**opts)
+                ctx.route('**/assets/ryagram-config.js*', lambda route: route.fulfill(status=200, content_type='text/javascript', body=OFF_CFG))      # this check walks the library; the AI-first door (ON since Q303) is checked by check-start.py
                 p = ctx.new_page()
                 errors = []
                 p.on('pageerror', lambda e: errors.append(str(e)))
