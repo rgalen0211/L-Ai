@@ -1,7 +1,7 @@
 // An in-memory stand-in for WORKER's r9_node_draft.sql (never applied), with the same rules, so the HTTP face can be proven end to end without a database.
 // The SQL is the authority and has its own tests (supabase/tests/test_r9_node.py); the places where this goes beyond that draft are marked REQUESTED
 // (node_hit) and are also listed in docs/node-function-contract.md for WORKER. Aligned with r9-node-draft rev3 (3ce2c65).
-import type { CompilationRequestRow, CompilationStatus, ExchangeResult, NodeAccount, NodeDb, NodeJob } from "./types.ts";
+import type { CompilationRequestRow, CompilationStatus, DownloadPlanRow, ExchangeResult, NodeAccount, NodeDb, NodeJob } from "./types.ts";
 
 const mask = (e: string) => e.split("@")[0].slice(0, 1) + "***@" + e.split("@")[1];
 const err = (code: string, m: string) => Object.assign(new Error(m), { code });
@@ -172,6 +172,22 @@ export class FakeNodeWorld implements NodeDb {
     const { owner } = this.actor(accessHash);
     return this.requests.filter((r) => r.owner === owner).sort((a, b) => b.updated_at.localeCompare(a.updated_at)).slice(0, 20)
       .map((r) => ({ project_id: r.project_id, title: r.title, request: r.request, sha256: r.sha256, updated_at: r.updated_at }));
+  }
+  /** download plans by owner (the tests fill it), and what the app told about them */
+  dlPlans: { owner: string; id: string; request: Record<string, unknown>; state: string; receipt: Record<string, unknown> | null }[] = [];
+  async downloadPlans(accessHash: string): Promise<DownloadPlanRow[]> {
+    this.calls.push("node_download_plans");
+    const { owner } = this.actor(accessHash);
+    return this.dlPlans.filter((p) => p.owner === owner && ["waiting", "downloading", "unpacking"].includes(p.state)).slice(0, 5).map((p) => ({ id: p.id, request: p.request, state: p.state }));
+  }
+  async downloadUpdate(accessHash: string, id: string, state: string, receipt: Record<string, unknown> | null) {
+    this.calls.push("node_download_update");
+    const { owner } = this.actor(accessHash);
+    const p = this.dlPlans.find((x) => x.owner === owner && x.id === id);
+    if (!p) return null;
+    if (receipt && state !== "done") throw err("22023", "A receipt comes with a finished download only.");
+    p.state = state; if (receipt) p.receipt = receipt;
+    return state;
   }
   /** the live editor, as far as the router can tell (the SQL is the authority): waiting changes by owner, and what was mirrored */
   editQueue: { owner: string; id: number; project_id: string; revision: number; client: string | null; op: Record<string, unknown> }[] = [];

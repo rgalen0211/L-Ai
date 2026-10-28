@@ -4,6 +4,7 @@
 
 The REAL tools/maker_edit.py and tools/desktop_maker.py functions, the engine's own recipe, export, portability and bystander modules, a small fake face finder (the real one is a model file the app does not
 have yet). No video is made, no network, no dialog opens: the file dialog is replaced by the path a person would have picked. Scratch is deleted at the end."""
+import hashlib
 import json
 import os
 import shutil
@@ -140,6 +141,10 @@ try:
     models.mkdir()
     (models / "face_detection_yunet_2023mar.onnx").write_bytes(b"not a real model")
     os.environ["RYAGRAM_MODEL_DIR"] = str(models)
+    stw = ME.blur_state()
+    check(stw["available"] is False and "not the one this app was built with" in stw["message"], "MUST-FAIL: a file with a yunet name that is NOT the pinned one is never used, and the switch says so")
+    check("face finder" in (problem_of(lambda: ME.set_blur({"on": True})) or ""), "and the switch cannot be turned on with it")
+    ME.YUNET_SHA256 = hashlib.sha256(b"not a real model").hexdigest()                            # the stand-in below is pinned for this check only; the real pin is in the maker
     check(ME.blur_state()["available"] is True and ME.blur_state()["on"] is False, "with the file the switch can be used and starts off")
     check(ME.set_blur({"on": True})["on"] is True and "pixelated" in ME.blur_state()["message"] and ME.set_blur({"on": False})["on"] is False, "it can be switched on and off, and says what it does")
 
@@ -151,7 +156,20 @@ try:
     scanned = []
     BL.video_size = lambda ff, p: (1280, 720)
     BD.load_session = lambda m: "session"
-    BL.scan = lambda session, ff, p, a, b, frame, **k: scanned.append((a, b)) or [{"id": "t1", "kf": [[a, 100, 100, 80, 80]], "n": 1, "score": 0.9}]
+    import numpy as np  # noqa: E402
+    BL.scan = lambda session, ff, p, a, b, frame, **k: scanned.append((a, b)) or [{"id": "t1", "kf": [[a, np.float32(100), np.float32(100), np.float32(80), np.float32(80)]], "n": 1, "score": np.float32(0.9)}]      # like the real finder: numpy float32, which json cannot write (WORKER 48)
+    real_new_spec = BL.new_spec
+
+    def numpy_everywhere(x):
+        if isinstance(x, float):
+            return np.float32(x)
+        if isinstance(x, dict):
+            return {k: numpy_everywhere(v) for k, v in x.items()}
+        if isinstance(x, (list, tuple)):
+            return [numpy_everywhere(v) for v in x]
+        return x
+
+    BL.new_spec = lambda frame, tracks: numpy_everywhere(real_new_spec(frame, tracks))               # whatever the engine does with the numbers, the spec the app gets has numpy in it: the app's own plain-number step is then the ONLY protection, and this check sees it go (CC1 10:27)
     lst = json.loads(json.dumps(edit))
     lst["clips"].append({"id": "s1", "slide": {"text": "The end"}, "in_s": 0, "out_s": 2, "words": []})
     ME.set_blur({"on": False})
@@ -162,8 +180,26 @@ try:
     check(len(scanned) == 3 and specs[0] and specs[3] is None, "every video clip is scanned, a slide is not")
     check(all(s["on"] is True and all(t["kept"] is False and t["consent"] is False and t["name"] is None for t in s["tracks"]) for s in specs if s) and BL.blurred_tracks(specs[0]), "every face found is blurred and nobody is marked as named")
     check("bystander_blur" not in json.dumps(lst), "the person's own edit list is not changed")
+    try:
+        json.dumps(blurred)
+        plain = True
+    except TypeError:
+        plain = False
+    check(plain, "MUST-FAIL (WORKER 48): the face tracks a real finder returns (numpy float32) are written as plain numbers, so the list can be saved and the engine can read it")
     parsed = EB.parse_edit(ME._with_blur(edit))
     check(all(c.get("bystander_blur") and c["bystander_blur"]["on"] for c in parsed["clips"]), "the engine reads the list with the specs in it and keeps them on every clip")
+
+    # the OTHER Build buttons cannot blur: while the switch is on they refuse in words and make nothing (WORKER 48: the main page's Build gave an unblurred film without a word)
+    ME.set_blur({"on": True})
+    DM.STATE["job"] = None
+    said = problem_of(lambda: DM.start_job("build", {}))
+    check(said is not None and "does not blur" in said and "Build final film" in said, f"MUST-FAIL: the main page's Build refuses while the switch is on, and says where blurring happens: {str(said)[:80]}")
+    import maker_song as MS  # noqa: E402
+    said = problem_of(lambda: MS.render({}))
+    check(said is not None and "does not blur" in said, "MUST-FAIL: the song page's film button refuses while the switch is on too")
+    ME.set_blur({"on": False})
+    check("does not blur" not in (problem_of(lambda: DM.start_job("build", {})) or ""), "switched off, the main page's Build is not stopped by the blur rule")
+    ME.set_blur({"on": True})
 
     # the final build uses it
     captured = {}

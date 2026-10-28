@@ -5,6 +5,7 @@ import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStory } from "./story_check.ts";
+import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { LIMITS, type CompilationRequest, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -191,6 +192,23 @@ const setCompilationRequest: ToolDef = {
 // ---------------------------------------------------------------------------------------------- rendering
 
 /** Shared by the sheet and preview tools: quote, refuse anything that costs credits (a connection cannot spend), never queue a second identical job. */
+// ---------------------------------------------------------------------------------------------- waiting without burning the person's AI allowance (NEXT-CONNECT 153, Ryan 22:54)
+// A queued job can wait minutes, or for ever if the render machine is off. An AI that asks job_status in a loop spends the PERSON's own AI usage for nothing. So every answer about an unfinished job
+// says plainly where it stands and what to do: when the machine is not responding, DO NOT CHECK AGAIN; otherwise at most once a minute and only if the person is waiting.
+const STOP_CHECKING = " Do not keep checking: every check uses the person's own AI allowance. Tell the person it is under way, and that they can ask you again later or watch their Ryagram projects page.";
+const MACHINE_OFFLINE = " The Ryagram render machine is not responding right now (it may be offline or very busy). The job is safe and is not failed: it will start when the machine is back, and I cannot say when that will be.";
+const SLOW_CHECK = " If the person is waiting, check again in about a minute at the earliest; there is no time estimate to give yet.";
+
+export interface Waiting { text: string; data: { rendering: string; do_not_poll: boolean; poll_after_s: number | null } }
+/** The words and the fields for a job that is not finished. null for a finished, failed or cancelled job (nothing to wait for). */
+export function waitAdvice(state: string, rendering: string, local: boolean): Waiting | null {
+  if (!IN_PROGRESS.has(state)) return null;
+  const offline = !local && state === "queued" && rendering === "delayed";
+  if (offline) return { text: MACHINE_OFFLINE + STOP_CHECKING, data: { rendering, do_not_poll: true, poll_after_s: null } };
+  if (local && state === "queued") return { text: STOP_CHECKING, data: { rendering, do_not_poll: true, poll_after_s: null } };
+  return { text: SLOW_CHECK + STOP_CHECKING, data: { rendering, do_not_poll: false, poll_after_s: 60 } };
+}
+
 async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnType<Data["getVersion"]>>, jobType: "contact_sheet" | "preview",
                         params: Record<string, unknown>, label: string): Promise<ToolResult> {
   const sha = view.version.story_sha256;
@@ -210,11 +228,14 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
   }
   const job = await ctx.data.submitJob(versionId, jobType, params);
   if (job.run_on === "owner_local") {
-    return ok(`${label} queued (job ${job.id}). It is free, and it will be made on the person's own computer by their Ryagram app, so it waits until that app is open. Use job_status to follow it.`,
-      { job_id: job.id, state: job.state, started: true, credits_held: 0, run_on: "owner_local" });
+    const w = waitAdvice(job.state, "ok", true)!;
+    return ok(`${label} queued (job ${job.id}). It is free, and it will be made on the person's own computer by their Ryagram app, so it waits until that app is open.` + w.text,
+      { job_id: job.id, state: job.state, started: true, credits_held: 0, run_on: "owner_local", ...w.data });
   }
-  return ok(`${label} queued (job ${job.id}). It is free. Use job_status to follow it.`,
-    { job_id: job.id, state: job.state, started: true, credits_held: 0 });
+  const rendering = await ctx.data.renderingState().catch(() => "unknown" as const);
+  const w = waitAdvice(job.state, rendering, false) ?? { text: "", data: { rendering, do_not_poll: false, poll_after_s: null } };
+  return ok(`${label} queued (job ${job.id}). It is free.` + w.text + " Use job_status for one check later.",
+    { job_id: job.id, state: job.state, started: true, credits_held: 0, ...w.data });
 }
 
 const contactSheet: ToolDef = {
@@ -304,10 +325,13 @@ const jobStatus: ToolDef = {
     let text = bits.join(", ") + ".";
     const waiting = !!local && j.state === "queued";
     if (waiting) text += localSeen(j.node) + " It has not failed: it waits for that computer.";
+    const rendering = local ? "ok" : await ctx.data.renderingState().catch(() => "unknown" as const);
+    const adv = waitAdvice(j.state, rendering, !!local);
+    if (adv) text += adv.text;
     if (j.error_detail) text += `\nWhat Ryagram said:\n${untrusted("job-error", j.error_detail.slice(0, 1500))}`;
     if (j.state === "complete") text += " Use get_film_link to open the results.";
     return ok(text, { job_id: j.id, job_type: j.job_type, state: j.state, progress: j.progress ?? null, queue_position: local ? null : (j.queue_position ?? null), error_code: j.error_code,
-      ...(j.run_on === "owner_local" ? { run_on: "owner_local", waiting_for: waiting ? "your_computer" : null, last_seen_at: j.node?.last_seen_at ?? null } : {}) });
+      ...(adv ? adv.data : {}), ...(j.run_on === "owner_local" ? { run_on: "owner_local", waiting_for: waiting ? "your_computer" : null, last_seen_at: j.node?.last_seen_at ?? null } : {}) });
   },
 };
 
@@ -326,8 +350,14 @@ const filmLink: ToolDef = {
       const pending = pv.view.jobs.find((j) => IN_PROGRESS.has(j.state) && (!a.job_id || j.id === a.job_id));
       const jb = pending ? await ctx.data.jobById(pending.id) : null;
       if (jb && jb.run_on === "owner_local" && PLAIN_LOCAL[jb.state]) {
-        return ok(`Nothing is finished yet. The ${jb.job_type.replace("_", " ")} is ${PLAIN_LOCAL[jb.state]}.${jb.state === "queued" ? localSeen(jb.node) + " It has not failed: it waits for that computer." : ""}`,
-          { links: [], waiting_for: jb.state === "queued" ? "your_computer" : null, last_seen_at: jb.node?.last_seen_at ?? null });
+        const wl = waitAdvice(jb.state, "ok", true);
+        return ok(`Nothing is finished yet. The ${jb.job_type.replace("_", " ")} is ${PLAIN_LOCAL[jb.state]}.${jb.state === "queued" ? localSeen(jb.node) + " It has not failed: it waits for that computer." : ""}${wl ? wl.text : ""}`,
+          { links: [], waiting_for: jb.state === "queued" ? "your_computer" : null, last_seen_at: jb.node?.last_seen_at ?? null, ...(wl ? wl.data : {}) });
+      }
+      if (jb && jb.run_on !== "owner_local" && IN_PROGRESS.has(jb.state)) {
+        const rendering = await ctx.data.renderingState().catch(() => "unknown" as const);
+        const wh = waitAdvice(jb.state, rendering, false)!;
+        return ok(`Nothing is finished yet. The ${jb.job_type.replace("_", " ")} is ${PLAIN[jb.state] ?? jb.state}.${wh.text}`, { links: [], ...wh.data });
       }
       return ok("Nothing is finished yet for this project. Use make_contact_sheet or make_preview, then job_status.", { links: [] });
     }
@@ -457,5 +487,85 @@ const undoMine: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine];
+// ---------------------------------------------------------------------------------------------- the intake (NEXT-CONNECT 153)
+const suggestNextStep: ToolDef = {
+  name: "suggest_next_step", title: "What to ask the person next", scope: "read", readOnly: true, idempotent: true,
+  description: "Tells you the ONE next question to put to a person who wants to make something, or the next thing to do, from what they have already told you. Pass every detail they have already given, "
+    + "even in their first message (a county map of rent in Ohio since 2010 answers the kind, the scale, the place, the topic, the years and the picture): it never asks again for a detail you pass. "
+    + "It offers only what Ryagram can draw today and says plainly when something is coming soon. It changes nothing and reads nothing of the person's.",
+  inputSchema: obj({
+    kind: { type: "string", enum: [...KINDS], description: "data_film (numbers as a map or chart over time), compilation (clips from the person's own videos), or department (a part of Ryagram that is coming soon)." },
+    scale: { type: "string", enum: [...SCALES], description: "How big a place: city, county, state, country or world." },
+    place: { type: "string", maxLength: 100, description: "The place the person named, in their words." },
+    dataset: { type: "string", maxLength: 100, description: "What they want to measure, in their words (for example rent)." },
+    years: { type: "string", maxLength: 40, description: "The years they want, in their words." },
+    picture: { type: "string", enum: [...PICTURES], description: "The picture they asked for. globe is accepted only so you can be told it is coming soon." },
+    have_app: { type: "boolean", description: "Compilation: whether they have the Ryagram desktop app for Windows." },
+    folders_named: { type: "boolean", description: "Compilation: true once they have told you the NAMES of their video folders." },
+    chose: { type: "string", enum: [...CHOSE], description: "Compilation: phrase (every time it is said) or song." },
+    department: { type: "string", maxLength: 60, description: "A part of Ryagram they asked for that you do not see a tool for." },
+  }),
+  async run(a) {
+    const step = nextStep(a as Known);
+    return ok(stepText(step), { step: step.step, asking: step.asking, reask: step.reask === true, ask: step.ask, options: step.options, say: step.say, then: step.then, kind: step.kind, already_known: step.known });
+  },
+};
+
+// ---------------------------------------------------------------------------------------------- download plans (NEXT-CONNECT 152)
+// The AI WRITES DOWN a plan to download a public data file; the person's own Ryagram desktop app shows it and the person presses Download on their own computer. The site never contacts the address, stores
+// no file, and the AI never sees one: these tools can only write a plan and read the state of the plans.
+
+const DL_NAME = "^[A-Za-z0-9 ._-]{1,60}$";
+const DL_HOST = /^[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+
+/** The address checked before it goes anywhere: https, a website name (no user name, no port, no bare IP number), visible ASCII only. The database checks again. */
+export function downloadUrlProblem(u: unknown): string | null {
+  if (typeof u !== "string" || u.length === 0 || u.length > 2000 || /[^\x21-\x7e]/.test(u)) return "The address must be plain visible characters, at most 2000, with no spaces.";
+  let p: URL;
+  try { p = new URL(u); } catch { return "That is not an address."; }
+  if (p.protocol !== "https:") return "Only https:// addresses are accepted.";
+  if (p.username || p.password || u.includes("@")) return "An address with a user name or password in it is not accepted.";
+  if (p.port) return "An address with a port number is not accepted.";
+  if (!DL_HOST.test(p.hostname) || /^[0-9.]+$/.test(p.hostname)) return "Use a website name (like www.example.org), not a number.";
+  return null;
+}
+
+const requestDownload: ToolDef = {
+  name: "request_download", title: "Ask to download a public data file", scope: "fetch_data", readOnly: false, idempotent: false,
+  description: "Writes down a plan to download a public data file onto the person's OWN computer. It is DATA only: an https address, a short reason, and the NAME of a folder. Nothing is downloaded by Ryagram "
+    + "and you never receive the file: the person opens the Ryagram desktop app, sees the website, the file name and the size, and presses Download themselves. They can say no. At most 5 plans can wait at "
+    + "once and 20 are accepted a day. Use list_my_downloads to see what became of them.",
+  inputSchema: obj({
+    url: { type: "string", maxLength: 2000, pattern: "^https://[^\\s@]+$", description: "The https:// address of one public data file (csv, tsv, json, parquet, xlsx, zip, gz). No user name, port or bare IP number." },
+    why: { type: "string", minLength: 1, maxLength: 300, description: "One sentence for the person: what this file is for. Plain words, no addresses." },
+    folder: { type: "string", maxLength: 60, pattern: DL_NAME, description: "Optional. The NAME of a folder inside the person's data folder (letters, digits, space, dot, dash). Never a path." },
+  }, ["url", "why"]),
+  async run(a, ctx) {
+    const bad = downloadUrlProblem(a.url);
+    if (bad) return refuse(bad + " Nothing was written.", "args");
+    const why = cleanText(a.why, 300);
+    if (!why) return refuse("Give a short reason for the person to read. Nothing was written.", "args");
+    try {
+      const r = await ctx.data.requestDownload(String(a.url), why, typeof a.folder === "string" ? a.folder : "");
+      return ok(`Written down. The person will see a request from ${untrusted("download-host", r.host)} in their Ryagram desktop app and decides there. Nothing is downloaded until they press Download on their computer. Use list_my_downloads to follow it.`,
+        { id: r.id, host: r.host, state: r.state });
+    } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
+  },
+};
+
+const listDownloads: ToolDef = {
+  name: "list_my_downloads", title: "See my download requests", scope: "read", readOnly: true,
+  description: "Lists the download plans written for the person (newest first, at most 20): the website, the state (waiting for them, downloading, unpacking, done, refused, declined, cancelled) and, once finished, "
+    + "a small receipt: size, SHA-256, how many files were unpacked, and whether the website was an official one. It never shows a file, a file name or a place on the person's computer.",
+  inputSchema: obj(),
+  async run(_a, ctx) {
+    const rows = (await ctx.data.listDownloads()).slice(0, 20);
+    if (!rows.length) return ok("There are no download requests. Use request_download.", { downloads: [] });
+    const line = (r: (typeof rows)[number]) => `${r.id}  ${untrusted("download-host", r.host)}  ${r.state}`
+      + (r.receipt ? `  (${Number(r.receipt.bytes)} bytes, SHA-256 ${String(r.receipt.sha256).slice(0, 12)}..., ${Number(r.receipt.members)} files unpacked, ${r.receipt.trust_label === "official" ? "an official website" : "a website Ryagram has not checked"})` : "");
+    return ok(rows.map(line).join("\n"), { downloads: rows.map((r) => ({ id: r.id, host: r.host, state: r.state, created_at: r.created_at, receipt: r.receipt })) });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, createProject, getSchema, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

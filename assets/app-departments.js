@@ -4,8 +4,7 @@
 // A "Coming soon" page has one plain line, an optional picture, and "Tell me when it's ready", which stores the person's interest (account, department, time: nothing else) and sends NOTHING:
 // there is no email or message path in this file. Everything from the server goes in as text nodes, never as HTML.
 (() => {
-  // ALL PUBLIC WORDING BELOW IS DRAFT until Ryan answers RYAN-QUEUE Q244 (and the attorney's T11): it is shown with its own draft note and tests/departments.test.mjs pins that note.
-  const DRAFT_NOTE = '[DRAFT WORDING, pending Ryan]';
+  // The public wording below is APPROVED as drafted (Ryan 2026-10-28 10:59, Q303 / Q244): the draft note that used to sit on every Coming soon page is gone.
   const KNOWN = {
     data_films: { label: 'Data films', page: true, sentence: 'Questions answered with public data, drawn as a short animated film, with every source shown.' },
     compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
@@ -149,7 +148,7 @@
       };
       draw();
       return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
-              k.picture === 'phrase' ? phrasePicture() : null, area, msg, h('p', { class: 'form-note soon-draft' }, DRAFT_NOTE)];
+              k.picture === 'phrase' ? phrasePicture() : null, area, msg];
     }
 
     // #/d/<id>. An id this account's list does not include, or any failure, is the plain "not available" page with a way home: never a blank page.
@@ -164,5 +163,5 @@
     return { mountBar, unmountBar, pageView, load };
   }
 
-  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DRAFT_NOTE, normalize, hasAny, pathOf, idFromHash, flagOn, create };
+  window.ryagramDepartments = { KNOWN, ORDER, WORDS, normalize, hasAny, pathOf, idFromHash, flagOn, create };
 })();

@@ -24,7 +24,7 @@ const hh = (...a) => { const e = h(...a); return withReplace(e); };
 
 test('FLAG: departments is OFF in the committed config and needs aiFirst and connectAi', () => {
   const cfg = read('assets/ryagram-config.js');
-  assert.match(cfg, /departments: false,/);
+  assert.match(cfg, /departments: true,/);
   win.ryagramConfig = { departments: true, aiFirst: true, connectAi: true }; assert.equal(Dp.flagOn(), true);
   for (const c of [{ departments: false, aiFirst: true, connectAi: true }, { departments: true, aiFirst: false, connectAi: true }, { departments: true, aiFirst: true, connectAi: false }, {}]) { win.ryagramConfig = c; assert.equal(Dp.flagOn(), false, JSON.stringify(c)); }
   win.ryagramConfig = {};
@@ -49,8 +49,9 @@ test('ROUTES: #/d/<id> only for ids the page knows', () => {
   assert.equal(Dp.pathOf('games'), '#/d/games');
 });
 
-test('DRAFT WORDING: every public line is DRAFT until Ryan answers Q244; the draft note is on every Coming soon page; Games is flagged as a placeholder; no date, price or plan anywhere', () => {
-  assert.equal(Dp.DRAFT_NOTE, '[DRAFT WORDING, pending Ryan]');
+test('APPROVED WORDING (Ryan 2026-10-28 10:59, Q244): the draft note is gone from the module and the page; Games is flagged as a placeholder; no date, price or plan anywhere', () => {
+  assert.equal(Dp.DRAFT_NOTE, undefined);
+  assert.doesNotMatch(read('assets/app-departments.js'), /DRAFT WORDING|DRAFT_NOTE|soon-draft/);
   assert.deepEqual(Object.keys(Dp.KNOWN), ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio']);
   assert.equal(Dp.KNOWN.games.placeholder, true);
   const lines = Object.values(Dp.KNOWN).filter(k => k.line).map(k => k.line).join(' ');
@@ -79,7 +80,7 @@ const press = async (view, id) => { const b = all(wrap(view), n => n.attrs && n.
 test('A COMING SOON PAGE: tag, heading, one line, the picture only where there is one, the button, the draft note; no email or send path', async () => {
   const { view } = await pageOf('compilations');
   const t = textOf(view);
-  assert.ok(t.includes('Coming soon') && t.includes('Compilations') && t.includes('Say a phrase.') && t.includes('Tell me when it’s ready') && t.includes('[DRAFT WORDING, pending Ryan]'));
+  assert.ok(t.includes('Coming soon') && t.includes('Compilations') && t.includes('Say a phrase.') && t.includes('Tell me when it’s ready') && !t.includes('DRAFT WORDING'));
   assert.equal(all(wrap(view), n => n.attrs && /soon-picture/.test(n.attrs.class || '')).length, 1, 'Compilations has its picture');
   const g = await pageOf('games');
   assert.equal(all(wrap(g.view), n => n.attrs && /soon-picture/.test(n.attrs.class || '')).length, 0, 'Games has none yet');
@@ -146,9 +147,9 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261027a/);
-  assert.match(html, /app-data\.js\?v=20261027c/);
-  assert.match(html, /app-library\.js\?v=20261027c/);
+  assert.match(html, /app-departments\.js\?v=20261028a/);
+  assert.match(html, /app-data\.js\?v=20261027d/);
+  assert.match(html, /app-library\.js\?v=20261028k/);
 });
 
 test('THE MOCK MIRRORS THE PROPOSED SERVER: five departments (one works), interest once per person per department, an unannounced id refused, withdraw removes it', async () => {

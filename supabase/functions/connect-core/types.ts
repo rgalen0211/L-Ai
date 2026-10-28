@@ -5,7 +5,7 @@
 // has an argument that skips, waives or overrides one.
 import type { Job, UserData } from "../ai-editor/tools.ts";
 
-export type Scope = "read" | "write" | "render_free" | "render_final" | "edit";
+export type Scope = "read" | "write" | "render_free" | "render_final" | "edit" | "fetch_data";
 
 /** Who is calling. The real server knows only the token's hash: the database resolves the person and client from it on every call, and no
  *  function takes an owner id. userId and clientId exist only in the in-memory stand-in used by tests. */
@@ -67,7 +67,18 @@ export interface EditResult { revision: number; changes: number; state: unknown;
 export interface EditUndoResult { undone: number; skipped: number; revision: number; state: unknown }
 
 /** What the tools need from the database, ALWAYS as the signed-in person (RLS / connect_* functions). */
+/** A download plan as the AI sees it: the website, the state and, when finished, a small receipt (never a file name or a path). */
+export interface DownloadRow {
+  id: string; host: string; state: string; created_at: string;
+  receipt: { bytes: number; sha256: string; members: number; trust_label: string; retrieved: string } | null;
+}
+
 export interface Data extends Omit<UserData, "submitJob"> {
+  /** The render machine as the public status page shows it: ok, delayed (not checking in right now) or unknown (never seen). */
+  renderingState(): Promise<"ok" | "delayed" | "unknown">;
+  /** Writes down a download plan for the person's desktop app to show. Throws the database's sentences (PT429 too many waiting, 22023 not valid). */
+  requestDownload(url: string, why: string, folder: string): Promise<{ id: string; host: string; state: string }>;
+  listDownloads(): Promise<(DownloadRow & { url?: string; why?: string; folder?: string })[]>;
   /** A final render also names the contact sheet and preview it stands on (the database re-checks the ladder). */
   submitJob(versionId: string, jobType: string, params: Record<string, unknown>, sheetId?: string, previewId?: string): Promise<{ id: string; state: string; run_on?: string }>;
   whoami(): Promise<{ label: string; available: number; held: number }>;

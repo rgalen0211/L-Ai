@@ -12,12 +12,12 @@ const S = win.ryagramStart;
 const plain = x => JSON.parse(JSON.stringify(x));
 const NOW = Date.UTC(2026, 9, 26, 12, 0, 0);
 
-test('FLAG: aiFirst is OFF in the committed config, and it needs connectAi', () => {
+test('FLAG: aiFirst is ON in the committed config (Ryan 2026-10-28 10:59, Q303), and it needs connectAi', () => {
   const cfg = read('assets/ryagram-config.js');
-  assert.match(cfg, /aiFirst: false,/);
+  assert.match(cfg, /aiFirst: true,/);
   const w = {};
   vm.runInNewContext(cfg, { window: w });
-  assert.equal(w.ryagramConfig.aiFirst, false);
+  assert.equal(w.ryagramConfig.aiFirst, true);
   win.ryagramConfig = { aiFirst: true, connectAi: false }; assert.equal(S.flagOn(), false);
   win.ryagramConfig = { aiFirst: false, connectAi: true }; assert.equal(S.flagOn(), false);
   win.ryagramConfig = { aiFirst: true, connectAi: true }; assert.equal(S.flagOn(), true);

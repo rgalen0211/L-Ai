@@ -30,7 +30,12 @@ sys.path.insert(0, str(HERE))
 from verify_bundle import sha256_file, APP_DIRS, SKIP_NAMES, SKIP_SUFFIX           # noqa: E402
 
 LARGE_BYTES = 1_000_000
-RUNTIME_TOOLS = ("desktop_maker.py", "maker_edit.py", "maker_live.py", "maker_live_sync.py", "maker_song.py", "ryagram_signin.py", "ryagram_node.py", "ryagram_links.py", "ryagram_requests.py", "verify_bundle.py", "model_download.py")
+# THE FACE FINDER (Ryan 2026-10-28 08:55, relayed by CC1): ONLY the YuNet detection model ships, pinned by its SHA-256 here, in the self-check (verify_bundle.py) and in the maker. A different file, or any of
+# the recognition / landmark models that sit beside it in FACES' folder, is refused by name and by hash: nothing about WHO a face is ever ships.
+YUNET_FILE, YUNET_BYTES = "models/yunet.onnx", 232_589
+YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4"
+FORBIDDEN_MODEL_WORDS = ("sface", "blaze", "landmark", "arcface", "facenet", "recogni")
+RUNTIME_TOOLS = ("desktop_maker.py", "maker_edit.py", "maker_live.py", "maker_live_sync.py", "maker_song.py", "ryagram_signin.py", "ryagram_node.py", "ryagram_links.py", "ryagram_requests.py", "maker_fetch.py", "verify_bundle.py", "model_download.py")
 RUNTIME_PAGE_DIRS = ("maker-edit", "maker-live", "maker-song")          # the edit and song pages (html, js, css); a test fixture beside them is left out
 FORBIDDEN_NAMES ={"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
 FORBIDDEN_DIRS = {".git", "node_modules", "RYAN-ONLY", "faces", "my-answers"}
@@ -157,7 +162,7 @@ def leak_scan(root: Path) -> list:
     return found
 
 
-MAKER_EXTRA_ALLOWED = ("--song", "--song-forge", "--edit", "--live")      # the only page switches a build may bake into the start file
+MAKER_EXTRA_ALLOWED = ("--song", "--song-forge", "--edit", "--live", "--data")      # the only page switches a build may bake into the start file
 
 
 def check_maker_extra(extra: str) -> str:
@@ -186,7 +191,7 @@ FORGE_BAT = "Open Ryagram (fill missing words).bat"
 FORGE_EXTRA = "--song --song-forge"           # the second start file; the first one never passes --song-forge
 
 
-def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False, word_builder: bool = False) -> None:
+def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False, word_builder: bool = False, face_model: bool = False) -> None:
     # The file is called "Open Ryagram.bat" and not "Start ...": from a command line, cmd /c "Start X.bat" runs cmd's own START command instead of the file.
     def bat_text(extra: str) -> str:
       return "\r\n".join([
@@ -224,6 +229,7 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
            "   The licences of the software written by others that this folder contains are in docs\\THIRD-PARTY-NOTICES.txt.\r\n"
            + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n")
+           + ("" if not face_model else "   Blur faces I haven't named  (a switch on the main page, off until you switch it on) uses one small file, models\\yunet.onnx, that only finds where faces are. It never says who anyone is. The Start check makes sure it is the exact file this folder was built with.\r\n")
            + ("" if not word_builder else "   Optional, to let Ryagram build a word nobody said from your own sounds: open  Get word builder.bat  once. It says the size (about 378 MB), and downloads only after you type YES; every file is checked before it is kept. Then use  " + FORGE_BAT + "  (if this folder has it).\r\n"))
     (out / "START-HERE.txt").write_bytes(txt.encode("ascii"))
 
@@ -235,6 +241,17 @@ def ffmpeg_version_text(ffd: Path) -> str:
         return r.stdout if r.returncode == 0 else ""
     except (OSError, subprocess.SubprocessError):
         return ""
+
+
+def check_face_model(path: Path) -> None:
+    """Refuses anything but the pinned YuNet file (name, size and SHA-256)."""
+    if not path.is_file():
+        raise Refused(f"--face-model {path} is not a file.")
+    low = path.name.lower()
+    if any(w in low for w in FORBIDDEN_MODEL_WORDS):
+        raise Refused(f"{path.name} is a face recognition or landmark model. Only the YuNet detection file ships; nothing that says who a face is.")
+    if path.stat().st_size != YUNET_BYTES or sha256_file(path) != YUNET_SHA256:
+        raise Refused(f"{path.name} is not the YuNet file this build is pinned to (expected {YUNET_BYTES} bytes, SHA-256 {YUNET_SHA256}).")
 
 
 def write_notices(a, out: Path, ffd: Path) -> dict:
@@ -251,13 +268,20 @@ def write_notices(a, out: Path, ffd: Path) -> dict:
     ff_lic = lic_file.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n") if lic_file.is_file() else ""
     ff_readme = readme_file.read_text(encoding="utf-8", errors="replace").replace("\r\n", "\n") if readme_file.is_file() else ""
     contact = getattr(a, "notices_contact", "") or ""
-    problems = tpn.public_problems(libs, ff, ff_lic, ff_readme, contact)
+    models = []
+    if getattr(a, "face_model", ""):
+        mdir = Path(getattr(a, "model_licences", "") or Path(a.app_repo) / "tools" / "model-licences")
+        models = tpn.model_rows(mdir, ["yunet"])
+        for mo in models:
+            if mo.get("sha256") != YUNET_SHA256:
+                mo["text"], mo["problem"] = "", "its record does not carry the pinned SHA-256"
+    problems = tpn.public_problems(libs, ff, ff_lic, ff_readme, contact, models)
     if ff is None:
         problems.insert(0, "ffmpeg -version could not be read, so its licence cannot be stated.")
     if getattr(a, "public", False) and problems:
         raise Refused("A PUBLIC build needs more before it can be made:\n  " + "\n  ".join(problems))
     (out / "docs").mkdir(exist_ok=True)
-    (out / "docs" / "THIRD-PARTY-NOTICES.txt").write_text(tpn.render(libs, python_licence, ff, ff_lic, ff_readme, contact), encoding="utf-8", newline="\n")
+    (out / "docs" / "THIRD-PARTY-NOTICES.txt").write_text(tpn.render(libs, python_licence, ff, ff_lic, ff_readme, contact, models), encoding="utf-8", newline="\n")
     return {"libraries": len(libs), "public": bool(getattr(a, "public", False)), "problems": problems}
 
 
@@ -266,6 +290,9 @@ def build(a) -> dict:
     app_repo = Path(a.app_repo)
     pyhome = Path(a.python_home)
     model = Path(a.model_dir) if a.model_dir else None
+    face_model = Path(a.face_model) if getattr(a, "face_model", "") else None
+    if face_model:
+        check_face_model(face_model)
     maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
     if not a.allow_any_drive and not re.match(r"^[dD]:", str(out.resolve())):
         raise Refused(f"--out must be on D: (the storage rule), not {out}.")
@@ -319,10 +346,12 @@ def build(a) -> dict:
         (out / "models").mkdir()
         if model:
             shutil.copytree(model, out / "models" / model.name)
+        if face_model:
+            shutil.copy2(face_model, out / YUNET_FILE)
         (out / "work").mkdir()
         (out / "films").mkdir()
         word_builder = bool(getattr(a, "word_builder", False))
-        write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)), word_builder=word_builder)
+        write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)), word_builder=word_builder, face_model=bool(face_model))
         if word_builder:
             write_word_builder(out, app_repo)
         notices = write_notices(a, out, ffd)
@@ -348,7 +377,7 @@ def build(a) -> dict:
             "app_head": heads["app"]["head"], "app_branch": heads["app"]["branch"], "engine_manifest": "ENGINE-MANIFEST.json (the kit's own record of the engine heads)",
             "python": sys.version.split()[0] if Path(a.python_home).resolve() == Path(sys.base_prefix).resolve() else "see python/",
             "libraries": closure, "ffmpeg_sha256": {e: large[f"ffmpeg/{e}"]["sha256"] for e in ("ffmpeg.exe", "ffprobe.exe")},
-            "model": model.name if model else None, "large_files": large, "large_file_count": len(large), "app_file_count": len(sums),
+            "model": model.name if model else None, "face_model": ({"file": YUNET_FILE, "bytes": YUNET_BYTES, "sha256": YUNET_SHA256, "what": "YuNet face DETECTOR (MIT); finds faces, never says who"} if face_model else None), "large_files": large, "large_file_count": len(large), "app_file_count": len(sums),
             "downloads_made": 0, "note": "Nothing was downloaded to build this folder; every part was copied from this PC. verify_bundle.py checks it at every start.",
         }
         (out / "BUNDLE-MANIFEST.json").write_text(json.dumps(manifest, indent=1, sort_keys=True), encoding="utf-8")
@@ -374,6 +403,8 @@ def main(argv=None) -> int:
     ap.add_argument("--ffmpeg-dir", required=True)
     ap.add_argument("--python-home", default=sys.base_prefix)
     ap.add_argument("--model-dir")
+    ap.add_argument("--face-model", default="", help="the YuNet face-finder file (pinned by name, size and SHA-256; any other file is refused)")
+    ap.add_argument("--model-licences", default="", help="the folder with the licence record of bundled model files (default: tools/model-licences in the app repo)")
     ap.add_argument("--app-repo", default=str(HERE.parent))
     ap.add_argument("--libraries", nargs="*", default=["faster-whisper"], help="the libraries to copy, with everything they need (default: faster-whisper)")
     ap.add_argument("--zip", action="store_true")

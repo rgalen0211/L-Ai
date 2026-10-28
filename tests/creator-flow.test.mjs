@@ -12,6 +12,7 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8');
 function loadAssets(file) { const window = {}; vm.runInNewContext(read(`assets/${file}`), { window }); return window; }
 const O = loadAssets('app-ops.js').ryagramOps;
 const ryagramData = loadAssets('app-data.js').ryagramData;
+import { compose } from '../supabase/functions/send-invite/send.ts';
 const QUESTION = 'Which states built the most apartments between 2015 and 2024?';
 
 test('REQUEST: the form checks the question before asking the database, in plain sentences', () => {
@@ -59,17 +60,16 @@ test('REQUEST: three open requests at most (the mock mirrors the database rule)'
   await assert.rejects(data.requestFilm(QUESTION + ' four'), /already have 3 film requests waiting/);
 });
 
-test('INVITE: the email is a mailto: link Ryan reads and sends himself, with the code, the sign-up steps, the welcome credits and the free-credits disclosure', () => {
-  const link = O.inviteMailto({ name: 'Maya Ortiz', email: 'maya@example.com', code: 'RYA-K7M2-9QPX', credits: 20 });
-  assert.match(link, /^mailto:maya%40example\.com\?subject=/);
-  const body = decodeURIComponent(link.split('&body=')[1]);
+test('INVITE: the email Ryagram sends carries the code, the sign-up steps, the welcome credits and the free-credits disclosure (the words are in send-invite; tests/send-invite.test.mjs holds the rest)', () => {
+  const body = compose({ to: 'maya@example.com', name: 'Maya Ortiz', credits: 20, expires_at: '2026-11-26T15:00:00Z', sends: 1 }, 'RYA-K7M2-9QPX', 'https://uselai.com').body;
   assert.match(body, /^Hi Maya,/);
   assert.match(body, /Your invite code is RYA-K7M2-9QPX\./);
   assert.match(body, /Have an invite code\?/);
   assert.match(body, /20 beta credits will be waiting/);
   assert.match(body, /Beta credits are free, in exchange for your feedback\. If you talk about or promote Ryagram/);
-  assert.doesNotMatch(decodeURIComponent(O.inviteMailto({ name: '', email: 'a@b.co', code: 'RYA-AAAA-BBBB', credits: 0 }).split('&body=')[1]), /beta credits? will be waiting|^Hi ,/);
-  assert.match(decodeURIComponent(O.inviteMailto({ name: '', email: 'a@b.co', code: 'RYA-AAAA-BBBB', credits: 0 }).split('&body=')[1]), /^Hi there,/);
+  const none = compose({ to: 'a@b.co', name: '', credits: 0, expires_at: '2026-11-26T15:00:00Z', sends: 1 }, 'RYA-AAAA-BBBB', 'https://uselai.com').body;
+  assert.doesNotMatch(none, /beta credits? will be waiting|^Hi ,/);
+  assert.match(none, /^Hi there,/);
 });
 
 test('INVITE: data layer asks the database to approve and invite (the only way a code is made over the API) and the mock refuses a second invite', async () => {
@@ -97,12 +97,12 @@ test('SCREEN: the request page and its link exist only behind the filmRequests f
   assert.match(read('assets/ryagram-config.js'), /filmRequests: true,/);                        // ON for the launch block (SQL 20261016000200 applied, invite-only test mode)
 });
 
-test('SCREEN: nothing in the flow sends mail, takes payment or calls out: Ryan sends the invite and the film himself', () => {
+test('SCREEN: nothing in the flow takes payment or talks to a mail provider: the invite goes through the send-invite function, the film is sent by Ryan', () => {
   const lib = read('assets/app-library.js');
-  const flowScreens = lib.slice(lib.indexOf('async function requestView()'), lib.indexOf('// --- #/admin/ops  Ryan only:')) + lib.slice(lib.indexOf('// --- the invite code just made'), lib.indexOf('// --- Costs: every'));
+  const flowScreens = lib.slice(lib.indexOf('async function requestView()'), lib.indexOf('// --- #/admin/ops  Ryan only:')) + lib.slice(lib.indexOf('// --- the invite just made'), lib.indexOf('// --- Costs: every'));
   const ops = read('assets/app-ops.js'); const flowWords = ops.slice(ops.indexOf('// ---- The creator beta flow'), ops.indexOf('// ---- Costs on the Operations screen'));
   const dat = read('assets/app-data.js'); const flowData = dat.slice(dat.indexOf('// Creator beta flow (SQL 20261016000200)'), dat.indexOf('// Cost ledger (SQL 20261016000100)'));
-  for (const part of [flowScreens, flowWords, flowData]) { assert.ok(part.length > 300); assert.doesNotMatch(part, /resend|smtp|sendMail|inviteUserByEmail|api\.stripe|checkout\.stripe/i); }
+  for (const part of [flowScreens, flowWords, flowData]) { assert.ok(part.length > 300); assert.doesNotMatch(part, /api\.resend|smtp|sendMail|inviteUserByEmail|api\.stripe|checkout\.stripe/i); }
 });
 
 // ---- Ryan (2026-10-16): 10 credits a film request and 20 welcome credits are LOCKED IN; a credit has NO dollar value yet (until costmeter has measured real render costs)
@@ -128,7 +128,7 @@ test('NO PRICE PER CREDIT: nothing in the creator flow stores, computes or shows
   const o = read('assets/app-ops.js');
   const start = o.indexOf('// ---- The creator beta flow'); const flowWords = o.slice(start, o.indexOf('// ---- Costs on the Operations screen'));        // (the cost ledger's own wording, right after, is about dollars of COSTS, not credits)
   assert.doesNotMatch(flowWords, /\$\d|price|per credit|dollar|usd/i);   // nor the queue and invite wording (the invite mail says credits, never dollars)
-  assert.doesNotMatch(decodeURIComponent(O.inviteMailto({ name: 'A B', email: 'a@b.co', code: 'RYA-AAAA-BBBB', credits: 20 })), /\$|price|dollar|per credit/i);
+  assert.doesNotMatch(compose({ to: 'a@b.co', name: 'A B', credits: 20, expires_at: '2026-11-26T15:00:00Z', sends: 1 }, 'RYA-AAAA-BBBB', 'https://uselai.com').body, /\$|price|dollar|per credit/i);
   // and no screen anywhere computes a per-credit price from a pack (price / credits)
   for (const f of ['assets/app-credits.js', 'assets/app-library.js', 'assets/app-ops.js', 'assets/ryagram.js', 'assets/creator-beta.js', 'assets/film.js']) {
     assert.doesNotMatch(read(f), /price_cents\s*\/\s*[a-z.]*credits|credits\s*\/\s*[a-z.]*price|per[ _-]?credit|\/\s*credit\b|usd[_ ]per/i, f);

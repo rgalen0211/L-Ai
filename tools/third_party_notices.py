@@ -59,7 +59,34 @@ def ffmpeg_facts(version_text: str) -> dict:
     return {"version_line": first, "gpl": "--enable-gpl" in flags, "version3": "--enable-version3" in flags, "nonfree": "--enable-nonfree" in flags}
 
 
-def public_problems(libs: list, ffmpeg: dict | None, ffmpeg_licence: str, ffmpeg_readme: str, contact: str) -> list:
+def model_rows(models_dir: Path | None, shipped: list) -> list:
+    """The bundled MODEL FILES (not libraries): for each model name in `shipped`, the row from <models_dir>/MANIFEST.json with its licence text read from the file the manifest names. A model with no manifest
+    row, a missing licence file, or a licence file whose SHA-256 is not the one recorded is returned with text '' (a public build is then refused). Nothing is fetched here."""
+    import hashlib
+    import json
+    rows = []
+    man = {}
+    if models_dir is not None and (Path(models_dir) / "MANIFEST.json").is_file():
+        try:
+            man = {m["model"]: m for m in json.loads((Path(models_dir) / "MANIFEST.json").read_text(encoding="utf-8"))}
+        except (ValueError, KeyError, TypeError):
+            man = {}
+    for name in shipped:
+        m = man.get(name)
+        if not m:
+            rows.append({"model": name, "name": name, "text": "", "problem": "no licence record"})
+            continue
+        f = Path(models_dir) / m.get("licence_file", "")
+        text = ""
+        if f.is_file():
+            body = f.read_bytes().decode("utf-8", errors="replace").replace("\r\n", "\n").partition("\n")[2]
+            if hashlib.sha256(body.encode("utf-8")).hexdigest() == m.get("licence_file_sha256"):
+                text = body
+        rows.append(dict(m, text=text, problem="" if text else "its licence text is missing or is not the recorded one"))
+    return rows
+
+
+def public_problems(libs: list, ffmpeg: dict | None, ffmpeg_licence: str, ffmpeg_readme: str, contact: str, models: list | None = None) -> list:
     """What would stop a PUBLIC build (each is a sentence for the person who runs the build)."""
     out = []
     if ffmpeg:
@@ -74,10 +101,13 @@ def public_problems(libs: list, ffmpeg: dict | None, ffmpeg_licence: str, ffmpeg
     for lib in libs:
         if not lib["texts"]:
             out.append(f"{lib['name']} {lib['version']} ships no licence text (declared: {lib['licence']}).")
+    for mo in models or []:
+        if not mo.get("text", "").strip():
+            out.append(f"The model file {mo.get('name', mo.get('model'))} is in the folder but {mo.get('problem') or 'has no licence text'}.")
     return out
 
 
-def render(libs: list, python_licence: str, ffmpeg: dict | None, ffmpeg_licence: str, ffmpeg_readme: str, contact: str) -> str:
+def render(libs: list, python_licence: str, ffmpeg: dict | None, ffmpeg_licence: str, ffmpeg_readme: str, contact: str, models: list | None = None) -> str:
     L = ["THIRD-PARTY NOTICES", "=" * 19, "",
          "This folder contains software written by others. Each is used under its own licence, listed below with the licence text the package itself ships.",
          "Ryagram's own files (the folders ryagram, tools, recipes) are Ryagram's; the notice about using them is the lawyer's and is not part of this list.", ""]
@@ -91,6 +121,13 @@ def render(libs: list, python_licence: str, ffmpeg: dict | None, ffmpeg_licence:
               "----- the build's README, verbatim -----", ffmpeg_readme.strip() or "(not available)", "",
               "----- the licence text that comes with the build, verbatim -----", ffmpeg_licence.strip() or "(not available)", ""]
     L += ["-" * 79, "Python (python\\)", "-" * 79, "Python is used under the Python Software Foundation licence, whose text is python\\LICENSE.txt and is repeated here:", "", python_licence.strip() or "(not available)", ""]
+    for mo in models or []:
+        L += ["-" * 79, f"Model file: {mo.get('name', mo.get('model'))} (models\\{mo.get('file', '')})", "-" * 79,
+              f"Licence: {mo.get('licence', 'see below')}. {mo.get('copyright', '')}".strip(),
+              f"Where it comes from: {mo.get('model_source', '')}",
+              f"The file is pinned by its SHA-256: {mo.get('sha256', '')} ({mo.get('bytes', '')} bytes). It finds where faces are in a picture; it does not say who anyone is.",
+              f"The licence text below was fetched from {mo.get('licence_source_url', '')} on {mo.get('fetched', '')}.", "",
+              "----- the licence text, verbatim -----", (mo.get("text") or "").strip() or "(not available)", ""]
     L += ["-" * 79, f"Libraries in python\\Lib\\site-packages ({len(libs)})", "-" * 79]
     for lib in libs:
         L += ["", f"* {lib['name']} {lib['version']}", f"  licence declared by the package: {lib['licence']}"] + ([f"  home: {lib['home']}"] if lib["home"] else [])

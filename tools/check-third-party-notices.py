@@ -144,6 +144,24 @@ if len(sys.argv) > 1:
     check([l["name"] for l in real if not l["texts"]] == [], "with the supplements, every library of the real bundle has a licence text")
     check(tpn.public_problems(real, tpn.ffmpeg_facts(GPL_VERSION), GPL_TEXT, README, "c@example.test") == [], "so a public build is no longer stopped by a library (only the contact and ffmpeg's own files remain)")
 
+print("H. bundled model files (the face finder)")
+import json as _json
+MD = ROOT / "tools" / "model-licences"
+mm = tpn.model_rows(MD, ["yunet"])[0]
+check(mm["text"].startswith("MIT License") and "Copyright (c) 2020 Shiqi Yu" in mm["text"] and mm["sha256"] == "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4" and mm["problem"] == "", "the YuNet record reads: MIT text, the copyright line, the pinned model hash")
+check(tpn.public_problems(full, ff, GPL_TEXT, README, "c@example.test", [mm]) == [], "with its licence text a PUBLIC build is not stopped by the model")
+nomanifest = tpn.model_rows(None, ["yunet"])[0]
+check(any("yunet" in p.lower() and "licence" in p for p in tpn.public_problems(full, ff, GPL_TEXT, README, "c@example.test", [nomanifest])), "MUST-FAIL: a model with no licence record stops a PUBLIC build")
+tampered = tmp / "ml"
+tampered.mkdir(exist_ok=True)
+(tampered / "MANIFEST.json").write_text((MD / "MANIFEST.json").read_text(encoding="utf-8"), encoding="utf-8")
+(tampered / "yunet.txt").write_text((MD / "yunet.txt").read_text(encoding="utf-8").replace("Permission is hereby granted", "Permission is NOT granted"), encoding="utf-8")
+bad = tpn.model_rows(tampered, ["yunet"])[0]
+check(bad["text"] == "" and "not the recorded one" in bad["problem"] and any("yunet" in p.lower() for p in tpn.public_problems(full, ff, GPL_TEXT, README, "c@example.test", [bad])), "MUST-FAIL: a licence text that is not the one recorded (changed by one phrase) is not used and stops a PUBLIC build")
+rend = tpn.render(list(libs.values()), py, ff, GPL_TEXT, README, "c@example.test", [mm])
+check("Model file: YuNet" in rend and "Permission is hereby granted" in rend and rend.index("Model file") < rend.index("Libraries in python"), "the notices print the model's section with its text, before the libraries")
+check("Model file" not in tpn.render(list(libs.values()), py, ff, GPL_TEXT, README, "c@example.test"), "without a bundled model there is no such section")
+
 print("F. MUST-FAIL: the same checks against broken-on-purpose copies of the tool")
 src = (ROOT / "tools" / "third_party_notices.py").read_text(encoding="utf-8")
 

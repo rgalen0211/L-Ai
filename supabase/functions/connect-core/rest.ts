@@ -39,7 +39,8 @@ export function openApi(baseUrl: string): Record<string, unknown> {
         authorizationUrl: `${baseUrl}/authorize`, tokenUrl: `${baseUrl}/token`, refreshUrl: `${baseUrl}/token`,
         scopes: { read: "See your projects, films and credit balance", write: "Create projects and change your film stories",
                   render_free: "Make contact sheets and previews",
-                  edit: "Change the look and the clip list in your open editor, as drafts you can undo" } } } } },
+                  edit: "Change the look and the clip list in your open editor, as drafts you can undo",
+                  fetch_data: "Ask the Ryagram desktop app to download a public data file, only when you press Download on your computer" } } } } },
     },
   };
 }

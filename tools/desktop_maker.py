@@ -388,6 +388,8 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     job = STATE["job"]
     if job and job["proc"].poll() is None:
         raise Problem("Something is already running here. Cancel it or wait for it to finish.")
+    if kind == "build" and blur_refusal():
+        raise Problem(blur_refusal())
     pc = precheck(body)
     if not pc["ok"]:
         raise Problem("Fix what is listed first: " + " ".join(pc["problems"][:3]))
@@ -830,6 +832,12 @@ LIVE_CARD = (
     '<label class="logswitch" for="live-mirror"><input id="live-mirror" type="checkbox"> Show this film\u2019s clip list in my Ryagram website editor</label>'
     '<label class="logswitch" for="live-ai"><input id="live-ai" type="checkbox"> Let my AI see my track list</label>'
     '<p id="live-msg" class="note" role="status"></p></section>')
+DOWNLOAD_CARD = (
+    '<section class="logbox" id="dl-card" aria-labelledby="h-dl"><h2 id="h-dl">Downloads your AI asked for</h2>'
+    '<p class="note">Your AI can ask this program to download a data file for you. Nothing is downloaded until you press <b>Download</b> on a request. The file comes straight from the website to a folder you choose on this computer; '
+    'Ryagram does not get a copy, and the program never opens or runs it.</p>'
+    '<p><button type="button" id="dl-folder" class="button secondary">Choose the folder for my data</button> <span id="dl-folder-note" class="note"></span></p>'
+    '<ul id="dl-list"></ul><p id="dl-msg" class="note" role="status"></p></section>')
 SHARE_CARD = (
     '<section class="logbox" id="share-card" aria-labelledby="h-share"><h2 id="h-share">Share your film as a recipe</h2>'
     '<p class="note">After you have built a final film in the editor, you can save its recipe: the words you kept, in the order you put them, so another person can make the same kind of film from their own videos. '
@@ -857,6 +865,16 @@ def _new_plan(plan) -> None:
             _live_mod().plan_changed()
     except Exception as e:  # noqa: BLE001
         print(f"note: the editor could not start again from the new plan ({str(e)[:120]})", flush=True)
+
+
+BLUR_BUILD_REFUSAL = ("Blur faces is switched on, and this Build does not blur, so nothing was made. Switch it off to build here, "
+                      "or press Plan, then 'New editor: edit your film live', and press Build final film there: that one blurs every face it finds.")
+
+
+def blur_refusal() -> str:
+    """The sentence for a Build button that cannot blur while the switch is on (a film that looks unblurred without a word would be worse than none); '' when it may go ahead."""
+    me = _edit_mod()
+    return BLUR_BUILD_REFUSAL if me is not None and me.blur_wanted() else ""
 
 
 def _edit_mod():
@@ -887,7 +905,7 @@ def _song_mod():
 
 
 def page_html() -> str:
-    page = PAGE.replace('<section class="logbox" id="airq"', (LIVE_CARD if STATE.get("live_on") else "") + (SHARE_CARD if STATE.get("edit_on") else "") + '<section class="logbox" id="airq"', 1)     # the card sits with the other account cards, below the recipe, not above it
+    page = PAGE.replace('<section class="logbox" id="airq"', (LIVE_CARD if STATE.get("live_on") else "") + (SHARE_CARD if STATE.get("edit_on") else "") + (DOWNLOAD_CARD if STATE.get("data_on") else "") + '<section class="logbox" id="airq"', 1)     # the card sits with the other account cards, below the recipe, not above it
     return page.replace("<!--V2-->", V2_HTML if STATE.get("v2") else "").replace("<!--SONG-->", (SONG_LINK if STATE.get("song_on") else "") + (EDIT_LINK if STATE.get("edit_on") else "") + (LIVE_LINK if STATE.get("live_on") else ""))
 
 
@@ -1317,6 +1335,37 @@ JS = r"""(function () {
     drawLive();
   }
   if ($('live-card')) { for (const id of ['live-project', 'live-mirror', 'live-ai']) $(id).addEventListener('change', saveLive); drawLive(); setInterval(drawLive, 30000); }
+  // downloads your AI asked for (NEXT-CONNECT 152): every request waits for the person's press
+  let dlErr = '';                                                  // the last refusal stays on screen until the person does something else
+  const dlGB = n => n == null ? 'size not stated' : (n >= 1073741824 ? (n / 1073741824).toFixed(2) + ' GB' : (n / 1048576).toFixed(1) + ' MB');
+  async function drawDownloads() {
+    if (!$('dl-card')) return;
+    let r; try { r = await api('/api/downloads'); } catch (e) { $('dl-msg').textContent = e.message; return; }
+    $('dl-card').hidden = !r.on;
+    if (!r.on) return;
+    $('dl-folder-note').textContent = r.folder_set ? 'A folder is chosen.' : 'No folder chosen yet.';
+    $('dl-msg').textContent = dlErr || r.message || '';
+    $('dl-list').replaceChildren(...r.plans.map(p => {
+      const li = el('li', { class: 'panel' });
+      const head = el('p', {}, el('strong', {}, p.shown), p.punycode ? ' (written as ' + p.host + ')' : '', ' \u2014 ' + (p.label === 'official' ? 'an official website' : 'Ryagram has NOT checked this website'));
+      li.append(head, el('p', {}, 'Your AI says: \u201c' + (p.why || '(no reason given)') + '\u201d'), el('p', { class: 'note' }, 'File: ' + (p.name || 'not looked up yet') + ' \u00b7 ' + dlGB(p.size) + (p.state === 'downloading' ? ' \u00b7 ' + p.progress + '%' : '') + ' \u00b7 ' + p.state + (p.note ? ' \u2014 ' + p.note : '')));
+      if (p.state === 'waiting') {
+        const anyway = el('input', { type: 'checkbox', id: 'dl-any-' + p.id });
+        const act = async (what, body) => { dlErr = ''; try { await api('/api/downloads/' + what, Object.assign({ id: p.id }, body || {})); } catch (e) { dlErr = e.message; } drawDownloads(); };
+        const row = el('div', { class: 'actions' }, el('button', { type: 'button', class: 'button secondary' }, 'Look up the size'), el('button', { type: 'button', class: 'button primary' }, 'Download'), el('button', { type: 'button', class: 'button secondary' }, 'No'));
+        row.children[0].addEventListener('click', () => act('look')); row.children[1].addEventListener('click', () => act('approve', { use_anyway: anyway.checked })); row.children[2].addEventListener('click', () => act('decline'));
+        li.append(row);
+        if (p.label !== 'official') li.append(el('label', { class: 'logswitch', for: 'dl-any-' + p.id }, anyway, ' Use it anyway: I trust this website'));
+      } else if (p.state === 'downloading' || p.state === 'unpacking') {
+        const b = el('button', { type: 'button', class: 'button secondary' }, 'Cancel'); b.addEventListener('click', async () => { try { await api('/api/downloads/cancel', { id: p.id }); } catch (e) { /* shown next time */ } drawDownloads(); }); li.append(b);
+      }
+      return li;
+    }));
+  }
+  if ($('dl-card')) {
+    $('dl-folder').addEventListener('click', async () => { dlErr = ''; try { await api('/api/downloads/folder', {}); } catch (e) { dlErr = e.message; } drawDownloads(); });
+    drawDownloads(); setInterval(drawDownloads, 4000);
+  }
   async function drawBlur() {
     try {
       const b = await api('/api/edit/blur');
@@ -1752,6 +1801,9 @@ class Handler(BaseHTTPRequestHandler):
         elif path == "/api/ai-requests":
             if self._auth():
                 self._json(200, ai_requests_status())
+        elif path == "/api/downloads":
+            if self._auth():
+                self._json(200, downloads_get())
         elif path == "/api/overlays":
             if not STATE.get("v2"):
                 self._json(404, {"error": "Not found."})
@@ -1892,6 +1944,8 @@ class Handler(BaseHTTPRequestHandler):
                     self._json(404, {"error": "Not found."})
                 else:
                     self._json(200, v2_post(path, body))
+            elif path.startswith("/api/downloads/"):
+                self._json(200, downloads_post(path.rsplit("/", 1)[1], body))
             elif path == "/api/recipes/import":
                 self._json(200, import_recipe())
             elif path == "/api/pick-folder":
@@ -2215,6 +2269,55 @@ def ai_requests_status() -> dict:
     return p.status()
 
 
+def downloads_obj():
+    """The download plans (NEXT-CONNECT 152), made on first use: only with --data, and only when this computer is signed in. None otherwise."""
+    if not STATE.get("data_on") or STATE.get("signin") is None:
+        return None
+    if STATE.get("fetch") is None:
+        _tools_on_path()
+        import maker_fetch  # noqa: PLC0415
+        saved = STATE["work"] / "data-folder.txt"
+        folder = None
+        try:
+            t = saved.read_text(encoding="utf-8").strip()
+            folder = Path(t) if t and Path(t).is_dir() else None
+        except OSError:
+            pass
+        STATE["fetch"] = maker_fetch.DownloadPlans(STATE["signin"], data_dir=folder)
+    return STATE["fetch"]
+
+
+def downloads_get() -> dict:
+    d = downloads_obj()
+    return {"on": False} if d is None else d.refresh()
+
+
+def downloads_post(action: str, body: dict) -> dict:
+    d = downloads_obj()
+    if d is None:
+        raise Problem("This computer is not signed in, or downloads from your AI are not switched on.")
+    import maker_fetch  # noqa: PLC0415
+    try:
+        if action == "folder":
+            got = pick_folder_path()
+            if got:
+                d.set_folder(Path(got))
+                (STATE["work"] / "data-folder.txt").write_text(str(got), encoding="utf-8")
+            return d.view()
+        pid = str(body.get("id") or "")
+        if action == "look":
+            return d.look(pid)
+        if action == "approve":
+            return d.approve(pid, use_anyway=bool(body.get("use_anyway")))
+        if action == "decline":
+            return d.decline(pid)
+        if action == "cancel":
+            return d.cancel(pid)
+    except maker_fetch.FetchError as e:
+        raise Problem(str(e)) from None
+    raise Problem("Not found.")
+
+
 def links_status() -> dict:
     """The private-link card (NEXT-CONNECT 120): {"on": false} unless the flag file in this app's folder says on, and unless sign-in exists."""
     p = STATE.get("links")
@@ -2365,6 +2468,7 @@ def main(argv=None) -> int:
     ap.add_argument("--song", action="store_true", help="TEST: serve the song page (a line sung to your music, words from your own videos); off by default")
     ap.add_argument("--edit", action="store_true", help="TEST: serve the edit page (reorder, trim, slides, pictures, captions, text, then render); off by default")
     ap.add_argument("--live", action="store_true", help="TEST: serve the live editor page (the same editor as the website, offline, on your own videos); needs --edit; off by default")
+    ap.add_argument("--data", action="store_true", help="TEST: accept download plans from your AI (each waits for your press; needs the computer signed in); off by default")
     ap.add_argument("--song-forge", action="store_true", help="TEST, with --song: build a word nobody says from the sounds of words your videos do say, when the alignment model is on this PC (it is never downloaded by the maker)")
     ap.add_argument("--no-activity-log", action="store_true", help="start with the local activity log turned off (the page also has a switch)")
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
@@ -2395,6 +2499,8 @@ def main(argv=None) -> int:
         _tools_on_path()
         import maker_edit  # noqa: PLC0415
         maker_edit.attach(sys.modules[__name__])
+    if a.data or os.environ.get("RYAGRAM_MAKER_DATA") == "1":
+        STATE["data_on"] = True
     if a.live or os.environ.get("RYAGRAM_MAKER_LIVE") == "1":
         if not STATE.get("edit_on"):
             raise SystemExit("--live needs --edit (the live editor writes the same edit list the edit page builds from).")

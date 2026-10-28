@@ -347,6 +347,65 @@ git(w["repo"], "commit", "-q", "-m", "no script")
 good, why = refused(w, "the add-on", word_builder=True)
 check(good and not w["out"].exists(), "MUST-FAIL: --word-builder with no script in the app repo is refused, leaving nothing: " + why)
 
+# ================================================================================================== H
+print("H. the face finder (Ryan 2026-10-28 08:55: ONLY YuNet ships, pinned by hash in the builder and the self-check; nothing about who a face is)")
+REAL = Path(os.environ.get("YUNET_MODEL") or r"D:/Ryagram-scratch/FACES/models/yunet.onnx")
+LIC = HERE / "model-licences"
+check(REAL.is_file() and REAL.stat().st_size == mab.YUNET_BYTES and hashlib.sha256(REAL.read_bytes()).hexdigest() == mab.YUNET_SHA256 == vb.YUNET_SHA256, f"the real YuNet file ({REAL}) is the pinned one, and the builder and the self-check carry the SAME pin")
+w = world("h")
+r = mab.build(args(w, face_model=str(REAL), model_licences=str(LIC), public=False))
+o = w["out"]
+mf = json.loads((o / "BUNDLE-MANIFEST.json").read_text(encoding="utf-8"))
+check((o / "models" / "yunet.onnx").read_bytes() == REAL.read_bytes() and mf["face_model"]["sha256"] == mab.YUNET_SHA256 and not any(p.name in ("sface.onnx", "blaze.tflite", "landmarker.task") for p in o.rglob("*")), "ONLY yunet.onnx is in the bundle; the manifest names it and its pin; no recognition or landmark model")
+nt = (o / "docs" / "THIRD-PARTY-NOTICES.txt").read_text(encoding="utf-8")
+check("Model file: YuNet" in nt and "Copyright (c) 2020 Shiqi Yu" in nt and "Permission is hereby granted" in nt and mab.YUNET_SHA256 in nt and "does not say who anyone is" in nt, "the notices carry YuNet's MIT licence text verbatim, its copyright line, its source and its pinned hash")
+check("yunet.onnx" in (o / "START-HERE.txt").read_text(encoding="ascii") and "never says who" in (o / "START-HERE.txt").read_text(encoding="ascii"), "START-HERE says what the file is for in plain words")
+check(vb.check(o) == [], "as built: the self-check is quiet")
+rc = subprocess.run([sys.executable, str(o / "tools" / "verify_bundle.py"), str(o)], capture_output=True, text=True)
+check(rc.returncode == 0, "run as a program from the folder, the real self-check passes too")
+(o / "models" / "yunet.onnx").unlink()
+got = vb.check(o)
+check(any("yunet.onnx" in g and "missing" in g for g in got), f"MUST-FAIL: a MISSING face finder fails the self-check ({got[:2]})")
+rc = subprocess.run([sys.executable, str(o / "tools" / "verify_bundle.py"), str(o)], capture_output=True, text=True)
+check(rc.returncode == 1, "and as a program it exits 1")
+swap = bytearray(REAL.read_bytes())
+swap[100] ^= 1
+(o / "models" / "yunet.onnx").write_bytes(bytes(swap))
+got = vb.check(o)
+check(any("face finder" in g and "not the file this program was built with" in g for g in got), f"MUST-FAIL: a SWAPPED face finder (one bit) fails the self-check even though its size is right ({got[:2]})")
+mf2 = dict(mf)
+(o / "models" / "yunet.onnx").write_bytes(REAL.read_bytes())
+check(vb.check(o) == [], "(restored: as built again)")
+# a self-check that trusts the manifest alone would be fooled by a rewritten manifest: the pin is in the program
+mfp = json.loads((o / "BUNDLE-MANIFEST.json").read_text(encoding="utf-8"))
+mfp["large_files"]["models/yunet.onnx"] = {"bytes": len(swap), "sha256": hashlib.sha256(bytes(swap)).hexdigest()}
+(o / "models" / "yunet.onnx").write_bytes(bytes(swap))
+(o / "BUNDLE-MANIFEST.json").write_text(json.dumps(mfp, indent=1, sort_keys=True), encoding="utf-8")
+sumsp = vb.read_sums(o / "SHA256SUMS.txt")
+sumsp["BUNDLE-MANIFEST.json"] = vb.sha256_file(o / "BUNDLE-MANIFEST.json")
+(o / "SHA256SUMS.txt").write_text("".join(f"{hh}  {rel}\n" for rel, hh in sorted(sumsp.items())), encoding="utf-8", newline="\n")
+got = vb.check(o)
+check(any("face finder" in g for g in got), f"MUST-FAIL: even with the manifest and the checksum list rewritten to match a swapped file, the PIN inside the self-check catches it ({got[:2]})")
+w = world("h2")
+mab.build(args(w))
+(w["out"] / "models").mkdir(exist_ok=True)
+(w["out"] / "models" / "yunet.onnx").write_bytes(REAL.read_bytes())
+check(any("added" in g for g in vb.check(w["out"])), "MUST-FAIL: a face finder in a bundle that was built without one is reported as added")
+# the builder refuses anything else
+for label, name, content in (("a different file with the YuNet name", "yunet.onnx", b"not yunet"), ("the recognition model (sface)", "sface.onnx", REAL.read_bytes()), ("blaze", "blaze.tflite", b"x"),
+                             ("the landmarker", "landmarker.task", b"x"), ("a recognition model with the right bytes", "arcface_yunet.onnx", REAL.read_bytes())):
+    w = world("h3")
+    bad = w["root"] / name
+    bad.write_bytes(content)
+    good, why = refused(w, "yunet" if name == "yunet.onnx" else "recognition", face_model=str(bad), model_licences=str(LIC))
+    check(good and not w["out"].exists(), f"MUST-FAIL: {label} is refused and nothing is built: {why[:120]}")
+w = world("h4")
+good, why = refused(w, "not a file", face_model=str(w["root"] / "nowhere.onnx"), model_licences=str(LIC))
+check(good and not w["out"].exists(), "MUST-FAIL: a missing face-model path is refused: " + why[:100])
+w = world("h5")
+good, why = refused(w, "yunet", face_model=str(REAL), model_licences=str(w["root"] / "no-licences"), public=True, notices_contact="x@example.test")
+check(good and not w["out"].exists(), "MUST-FAIL: a PUBLIC build whose YuNet licence record is missing is refused: " + why[:140])
+
 print()
 if FAILS:
     print(f"FAILED: {len(FAILS)}")

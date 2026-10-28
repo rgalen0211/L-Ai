@@ -4,6 +4,14 @@
 // positions). Loaded only by app-auth.js on localhost; never on uselai.com.
 (function () {
   window.createMockApp = function createMockApp() {
+    // The AI-first door is ON in the committed config since Q303 (Ryan 2026-10-28), so a plain /app/?mock would land every library walk on the door. The mock therefore starts with 'Not now'
+    // already pressed (the door's own 7-day snooze) UNLESS the address asks for the door (?door) or for a connected AI (?aiconnected). Mock mode only; the real app is untouched.
+    try {
+      const asked = /[?&](door|aiconnected)(&|$|#)/.test(location.search || ''), key = 'ryagram.start.notnow', first = !window.sessionStorage.getItem('ryagram.mock.doorinit');
+      if (!asked) window.localStorage.setItem(key, String(Date.now()));
+      else if (first && /[?&]door(&|$|#)/.test(location.search || '')) window.localStorage.removeItem(key);        // ?door starts without the snooze, once per tab: Not now and a reload still hold
+      window.sessionStorage.setItem('ryagram.mock.doorinit', '1');
+    } catch { /* blocked storage: the door simply shows */ }
     // Mock mode starts with 30 beta credits so the credit screens can be tried.
     const client = window.createFakeClient({ credits: 30 }, { user: { id: 'mock-user', email: 'mock@localhost' } });
     const db = client.db;
