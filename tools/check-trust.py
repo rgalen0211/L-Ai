@@ -50,6 +50,7 @@ def main():
         print(('  ok   ' if cond else '  FAIL ') + what)
         ok = ok and bool(cond)
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf-8')
+    cfg = re.sub(r'aiFirst:\s*true', 'aiFirst: false', re.sub(r'departments:\s*true', 'departments: false', cfg))      # this check walks the library; the AI-first door (ON since Q303) is checked by check-start.py
     tmp = Path(tempfile.mkdtemp(dir='D:/Ryagram-scratch/WEB/temp'))
     f = tmp / 'rents.csv'
     f.write_text(CSV, encoding='utf-8')

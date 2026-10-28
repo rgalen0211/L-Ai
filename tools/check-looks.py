@@ -94,7 +94,7 @@ def main():
                 p.wait_for_selector('.look-list', timeout=10000)
                 check('House style' in p.inner_text('.look-list') and 'Default' in p.inner_text('.look-list'), 'saved as the default look and listed')
                 p.screenshot(path=str(OUT / f'list-{name}.png'), full_page=True)
-                p.click('a:has-text("Edit")')
+                p.click('.look-list a:has-text("Edit")')
                 p.wait_for_selector('#look-name', timeout=10000)
                 check(p.input_value('#look-title') == 'House style' and p.input_value('#look-look-ramp-high') == '#ffd23f', 'edit shows the saved values')
                 check(p.locator('#look-name[readonly]').count() == 1, 'the name is fixed once saved')

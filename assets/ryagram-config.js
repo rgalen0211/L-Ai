@@ -72,11 +72,11 @@ window.ryagramConfig = Object.freeze({
   // (supabase/README.md, "Connecting an AI"; RYAN-GO-LIVE-SESSION.md part D). With the connect-gate in place only an INVITED account sees the consent page and Connected AIs; anyone else gets one plain line.
   connectAi: true,
   // The AI-first front door (#/start): 'Connect your AI' first for an invited account with no connected AI, then 'Start a film' (Ryan 2026-10-26 12:12; proposals/WEB-AI-FIRST-FRONT-DOOR.md).
-  // Needs connectAi: true. Off until Ryan has seen it and the Claude and ChatGPT starter links have been tried by hand once.
-  aiFirst: false,
+  // Needs connectAi: true. ON (Ryan's typed yes 2026-10-28 10:59, Q303): live for INVITED accounts only (the server's connect_access decides; anyone else sees nothing new).
+  aiFirst: true,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.
-  // Off until Ryan has seen it; the public wording is DRAFT until he answers Q244.
-  departments: false,
+  // ON (Ryan's typed yes 2026-10-28 10:59, Q303), with the words as drafted (Q244 answered): shown to invited accounts only, the server's my_departments() says which.
+  departments: true,
   // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in (testers only), the admin Tester computers page, and the Windows download card (testers only). ON (Ryan's typed yes) once the r9 migration is applied and the `node` function is deployed (RYAN-GO-LIVE-SESSION.md part C); only an account with the tester flag, or one that already has a computer, sees anything on Account.
   desktopApp: true,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
