@@ -48,7 +48,7 @@ test('MUST-FAIL: a not-invited account cannot use the consent page by URL: the s
 test('WIRING: the section and the route both go through connectAllowed, which needs the flag AND a yes; nothing is cached; the flag stays off', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /const connectAllowed = async data => connectOn\(\) && \(await data\.connectAccess\(\)\) === true;/);
-  assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\)\);/);
+  assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\{ open: connectApp \}\)\);/);
   assert.equal([...lib.matchAll(/connectUi\(\)\.connectedSection\(/g)].length, 1);
   assert.equal([...lib.matchAll(/connectUi\(\)\.consentView\(/g)].length, 1);
   assert.doesNotMatch(lib, /connectAccessAnswer|connectAccessCache/);                   // never cached across accounts

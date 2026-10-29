@@ -93,7 +93,7 @@
           h('button', { class: 'button', type: 'button', 'aria-label': `Copy: ${line.text}`, onclick: () => copyLine(line.text, note) }, 'Copy')));
     }
 
-    const builderLink = () => h('a', { href: '#/build' }, 'No AI? Build it step by step');
+    const builderLink = () => h('a', { class: 'button secondary', href: '#/build', 'data-key': 'door-builder' }, 'No AI? Build it step by step');
 
     function connectScreen() {
       const check = async () => { try { const rows = await data.myConnectedAis(); if (Array.isArray(rows) && rows.length > 0) refresh(); } catch { /* keep waiting */ } };
@@ -105,11 +105,11 @@
       const view = [
         h('h1', { tabindex: '-1' }, 'Use your AI to make films'),
         h('p', { class: 'form-intro' }, 'Connect Claude or ChatGPT once. Then you just tell it what you want, and it makes the film with Ryagram.'),
-        h('div', { class: 'start-step' }, h('strong', {}, '1. Pick your AI'), h('p', { class: 'meta' }, 'We show the exact steps for it, in a new tab.')),
-        h('p', {}, h('a', { class: 'button primary', href: '/connect-ai/#claude', target: '_blank', rel: 'noopener' }, 'Connect Claude')),
-        h('p', {}, h('a', { class: 'button primary', href: '/connect-ai/#chatgpt', target: '_blank', rel: 'noopener' }, 'Connect ChatGPT (beta)')),
+        h('div', { class: 'start-step' }, h('strong', {}, '1. Pick your AI'), h('p', { class: 'meta' }, 'We show the exact steps for it on your Account page.')),
+        h('p', {}, h('a', { class: 'button primary', href: '#/account?connect=claude', 'data-key': 'door-claude' }, 'Connect Claude')),
+        h('p', {}, h('a', { class: 'button primary', href: '#/account?connect=chatgpt', 'data-key': 'door-chatgpt' }, 'Connect ChatGPT (beta)')),
         h('div', { class: 'start-step' }, h('strong', {}, '2. Come back here'), h('p', { class: 'meta', role: 'status' }, 'This page notices when your AI is connected and takes you to the next step.')),
-        h('p', { class: 'meta' }, builderLink(), ' · ', h('button', { class: 'linklike', type: 'button', id: 'start-notnow', onclick: () => { store.set(Date.now()); location.hash = '#/'; } }, 'Not now'))
+        h('p', { class: 'start-outs' }, builderLink(), ' ', h('button', { class: 'button secondary', type: 'button', id: 'start-notnow', onclick: () => { store.set(Date.now()); location.hash = '#/'; } }, 'Not now'))
       ];
       return { view, stop };
     }

@@ -120,7 +120,7 @@
     function button(ds) {
       if (!canDownload(ds)) return null;
       const note = h('span', { class: 'meta', role: 'status' });
-      const b = h('button', { class: 'button secondary small', type: 'button', 'data-key': 'download-my-data' }, 'Download my data');
+      const b = h('button', { class: 'button secondary small', type: 'button', 'data-key': 'download-my-data' }, 'Download this dataset');
       b.addEventListener('click', async () => {
         b.disabled = true; note.textContent = 'Making your zip…';
         try {

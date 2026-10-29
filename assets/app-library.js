@@ -130,7 +130,7 @@
         if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
         if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
-        else if (hash === '#/account') view = await accountView();
+        else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
         else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
@@ -757,7 +757,7 @@
     }
 
     // --- #/account  password, the data choice, deleting the account
-    async function accountView() {
+    async function accountView(connectApp = '') {
       const email = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
 
       // Change password
@@ -794,7 +794,7 @@
         sections.push(acct.exportSection(email));
         helpSection = acct.helpSection();
       }
-      if (await connectAllowed(data)) sections.push(await connectUi().connectedSection());
+      if (await connectAllowed(data)) sections.push(await connectUi().connectedSection({ open: connectApp }));
       if (desktopOn()) { const windows = await deviceUi().windowsAppSection(); if (windows) sections.push(windows); }                // the Windows download card: testers only
       if (desktopOn()) { const computers = await deviceUi().computersSection(); if (computers) sections.push(computers); }          // null for an account that is not a tester and has no computer
       if (!accountToolsOn()) return helpSection ? [...sections, helpSection] : sections;
