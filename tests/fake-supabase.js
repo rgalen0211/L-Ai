@@ -836,7 +836,8 @@
     };
 
     if (typeof location !== 'undefined' && /[?&]tester/.test(location.search || '') && !db.account_settings.length) db.account_settings.push({ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true });      // ?tester: a tester account in mock mode
-    const adminMock = () => !(seed.admin === false || (typeof location !== 'undefined' && /[?&]nonadmin/.test(location.search || '')));
+    // (the account the mock switches to by signing in as 'other...' is a plain account, so a tab that goes admin -> sign out -> other account can be walked)
+    const adminMock = () => !(seed.admin === false || (typeof location !== 'undefined' && /[?&]nonadmin/.test(location.search || '')) || (session && session.user && session.user.id === 'u-other'));
     let session = user ? { user } : null;
     const authListeners = new Set();
     const client = {

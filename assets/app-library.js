@@ -75,9 +75,47 @@
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
+  // The admin menu in the top bar (NEXT-WEB 159, Ryan 21:07): for an ADMIN account only, an 'Admin' menu beside Help and Account with a link to every admin page that is switched on, plus the
+  // normal pages. The server decides who is an admin (is_app_admin); a non-admin, or a failed check, gets nothing new. It is a real <details> (keyboard and screen reader for free) that closes on
+  // a choice, on Escape and when the address changes.
+  function adminNav(data) {
+    const slot = document.getElementById('account');
+    if (!slot) return () => {};
+    // Start clean: nothing left by an earlier session in this tab may carry over (an admin signing out and a non-admin signing in must NOT inherit the menu).
+    slot.querySelectorAll('.admin-menu').forEach(m => m.remove());
+    if (slot.parentElement) slot.parentElement.classList.remove('has-admin');
+    let alive = true, menu = null;
+    const close = () => { if (menu) menu.open = false; };
+    const outside = event => { if (menu && menu.open && !menu.contains(event.target)) close(); };
+    const cleanup = () => {                                                      // called when this mount ends (sign-out): the menu, the class and both listeners go
+      alive = false;
+      if (menu) { menu.remove(); menu = null; }
+      if (slot.parentElement) slot.parentElement.classList.remove('has-admin');
+      window.removeEventListener('hashchange', close);
+      document.removeEventListener('click', outside);
+    };
+    Promise.resolve().then(() => data.isAppAdmin()).then(yes => {
+      if (!alive || yes !== true) return;                                         // the check belongs to THIS mount: a later sign-in starts its own
+      const normal = [['#/', 'All projects'], ['#/account', 'Account'], ['#/help', 'Help']].filter(l => l[0] !== '#/help' || opsOn());
+      const admin = [['#/admin/ops', 'Operations and invites', opsOn()], ['#/admin/renders', 'Render approvals', ordersOn()], ['#/admin/tester', 'Tester computers and Connect an AI', desktopOn()],
+        ['#/admin/waitlist', 'Waitlist by film', true], ['#/admin/visits', 'Visits and signups', true], ['#/admin/funnel', 'Funnel by day', funnelOn()]].filter(l => l[2]);
+      const list = (title, rows) => [h('p', { class: 'admin-menu-title' }, title), h('ul', {}, rows.map(([href, label]) => h('li', {}, h('a', { href }, label))))];
+      menu = h('details', { class: 'admin-menu' }, h('summary', { class: 'app-nav-link', 'aria-label': 'Admin menu' }, 'Admin'),
+        h('nav', { class: 'admin-menu-panel', 'aria-label': 'Admin pages' }, ...list('Admin', admin), ...list('Your pages', normal)));
+      menu.addEventListener('click', event => { if (event.target.closest('a')) close(); });
+      menu.addEventListener('keydown', event => { if (event.key === 'Escape') { close(); menu.querySelector('summary').focus(); } });
+      window.addEventListener('hashchange', close);
+      document.addEventListener('click', outside);
+      slot.prepend(menu);
+      if (slot.parentElement) slot.parentElement.classList.add('has-admin');           // lets the phone header wrap onto a second row instead of overflowing
+    }).catch(() => { /* a failed check shows nothing new */ });
+    return cleanup;
+  }
+
   function mount(root, data) {
     let token = 0;
     let stopView = () => {};                      // timers and subscriptions of the page on screen
+    const stopAdminNav = adminNav(data);
 
     async function route() {
       const mine = ++token;
@@ -1827,7 +1865,7 @@
     window.addEventListener('hashchange', route);
     route();
     if (departmentsOn()) deptUi().mountBar(document.getElementById('dept-slot'));              // the top bar's departments; on any failure the header stays as it was
-    return () => { token++; stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
+    return () => { token++; stopAdminNav(); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };
