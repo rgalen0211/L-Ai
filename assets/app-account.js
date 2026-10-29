@@ -65,7 +65,7 @@
     function exportSection(currentEmail) {
       const error = errorLine();
       const done = h('p', { class: 'form-note', role: 'status' });
-      const button = h('button', { class: 'button secondary', type: 'button' }, 'Download my data');
+      const button = h('button', { class: 'button secondary', type: 'button' }, 'Download my account file');
       button.addEventListener('click', async () => {
         error.hidden = true; done.textContent = '';
         await busy(button, 'Collecting…', async () => {

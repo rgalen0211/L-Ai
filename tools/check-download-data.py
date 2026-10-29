@@ -95,7 +95,7 @@ def main():
                 p.get_by_role('button', name='These are right').click()
                 p.wait_for_selector('.upload-card button:has-text("Use in this film")', timeout=15000)
                 btn = p.locator('.upload-card button[data-key="download-my-data"]')
-                check(btn.count() == 1 and btn.inner_text() == 'Download my data', 'the dataset card has a Download my data button')
+                check(btn.count() == 1 and btn.inner_text() == 'Download this dataset', 'the dataset card has a Download my data button')
                 btn.scroll_into_view_if_needed()
                 with p.expect_download(timeout=15000) as dl:
                     btn.click()

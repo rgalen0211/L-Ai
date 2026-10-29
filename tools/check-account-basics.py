@@ -69,7 +69,7 @@ def main():
                 p.wait_for_selector('text=We sent a link to new@example.com')
                 check(p.input_value('#acct-new-email') == '', 'the field is cleared after sending')
                 with p.expect_download() as dl:
-                    p.click('text=Download my data')
+                    p.click('text=Download my account file')
                 d = dl.value
                 path = OUT / f'{name}-{d.suggested_filename}'
                 d.save_as(path)
