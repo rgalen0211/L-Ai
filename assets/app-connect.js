@@ -136,7 +136,7 @@
     }
 
     // ---- the account page's list
-    async function connectedSection() {
+    async function connectedSection(opts = {}) {
       const error = errorLine();
       const list = h('div');
       async function draw() {
@@ -158,10 +158,11 @@
       // Connect an AI: a button that opens the steps. The list refreshes when the person comes back to this tab, so a new AI shows up after Allow without a reload.
       const address = connectorAddress(window.ryagramConfig), how = h('div', { class: 'connect-how', hidden: true });
       const copyNote = h('p', { class: 'form-note', role: 'status' });
+      const want = opts.open === 'chatgpt' ? 'chatgpt' : 'claude';                // the door sends people here with ?connect=claude|chatgpt: the steps open on that assistant
       const toggle = h('button', { class: 'button secondary', type: 'button', 'aria-expanded': 'false', 'data-key': 'connect-an-ai', onclick: () => {
         how.hidden = !how.hidden; toggle.setAttribute('aria-expanded', String(!how.hidden));
       } }, 'Connect an AI');
-      const group = k => { const g = CONNECT_STEPS[k]; return h('details', { class: 'connect-app', open: k === 'claude' }, h('summary', {}, g.label),
+      const group = k => { const g = CONNECT_STEPS[k]; return h('details', { class: 'connect-app', open: k === want }, h('summary', {}, g.label),
         h('p', { class: 'form-note' }, g.note), h('ol', {}, g.steps.map(t => h('li', {}, t)))); };
       how.append(
         address ? h('div', { class: 'connect-address' }, h('p', {}, h('strong', {}, 'Ryagram’s connector address')),
@@ -176,8 +177,10 @@
         if (!how.hidden && !document.hidden) draw();
       };
       window.addEventListener('focus', again); document.addEventListener('visibilitychange', again);
-      return h('section', { class: 'account-section', 'aria-labelledby': 'acct-ais' }, h('h2', { id: 'acct-ais' }, 'Connected AIs'),
+      const sec = h('section', { class: 'account-section', 'aria-labelledby': 'acct-ais' }, h('h2', { id: 'acct-ais' }, 'Connected AIs'),
         h('p', { class: 'form-note' }, 'An AI you connect acts as your Ryagram account. It cannot spend your credits. Disconnecting stops it at once.'), list, h('p', {}, toggle), how, error);
+      if (opts.open) { how.hidden = false; toggle.setAttribute('aria-expanded', 'true'); setTimeout(() => { if (sec.isConnected) sec.scrollIntoView({ block: 'start' }); }, 80); }
+      return sec;
     }
 
     // An account that is not invited and follows a consent link: one plain line, not a blank page (CC1 LOW-2). The server has already refused it; this only says why.
