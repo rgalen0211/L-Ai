@@ -75,9 +75,34 @@
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
+  // The admin menu in the top bar (NEXT-WEB 159, Ryan 21:07): for an ADMIN account only, an 'Admin' menu beside Help and Account with a link to every admin page that is switched on, plus the
+  // normal pages. The server decides who is an admin (is_app_admin); a non-admin, or a failed check, gets nothing new. It is a real <details> (keyboard and screen reader for free) that closes on
+  // a choice, on Escape and when the address changes.
+  function adminNav(data) {
+    const slot = document.getElementById('account');
+    if (!slot || slot.querySelector('.admin-menu')) return;
+    Promise.resolve().then(() => data.isAppAdmin()).then(yes => {
+      if (yes !== true || slot.querySelector('.admin-menu')) return;
+      const normal = [['#/', 'All projects'], ['#/account', 'Account'], ['#/help', 'Help']].filter(l => l[0] !== '#/help' || opsOn());
+      const admin = [['#/admin/ops', 'Operations and invites', opsOn()], ['#/admin/renders', 'Render approvals', ordersOn()], ['#/admin/tester', 'Tester computers and Connect an AI', desktopOn()],
+        ['#/admin/waitlist', 'Waitlist by film', true], ['#/admin/visits', 'Visits and signups', true], ['#/admin/funnel', 'Funnel by day', funnelOn()]].filter(l => l[2]);
+      const list = (title, rows) => [h('p', { class: 'admin-menu-title' }, title), h('ul', {}, rows.map(([href, label]) => h('li', {}, h('a', { href }, label))))];
+      const menu = h('details', { class: 'admin-menu' }, h('summary', { class: 'app-nav-link', 'aria-label': 'Admin menu' }, 'Admin'),
+        h('nav', { class: 'admin-menu-panel', 'aria-label': 'Admin pages' }, ...list('Admin', admin), ...list('Your pages', normal)));
+      const close = () => { menu.open = false; };
+      menu.addEventListener('click', event => { if (event.target.closest('a')) close(); });
+      menu.addEventListener('keydown', event => { if (event.key === 'Escape') { close(); menu.querySelector('summary').focus(); } });
+      window.addEventListener('hashchange', close);
+      document.addEventListener('click', event => { if (menu.open && !menu.contains(event.target)) close(); });
+      slot.prepend(menu);
+      if (slot.parentElement) slot.parentElement.classList.add('has-admin');           // lets the phone header wrap onto a second row instead of overflowing
+    }).catch(() => { /* a failed check shows nothing new */ });
+  }
+
   function mount(root, data) {
     let token = 0;
     let stopView = () => {};                      // timers and subscriptions of the page on screen
+    adminNav(data);
 
     async function route() {
       const mine = ++token;
