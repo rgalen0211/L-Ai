@@ -65,6 +65,24 @@ with sync_playwright() as pw:
             check(p.locator('.admin-menu[open]').count() == 0, f'{label}: the menu closed on the choice')
         check(not errs, 'no page errors' + (f': {errs[:2]}' if errs else ''))
         ctx.close()
+        # MUST-FAIL (CC1 21:17): ONE tab, accounts switched: an admin signs out, a NON-ADMIN signs in: no Admin menu and no #/admin link left in the header; then the admin again: the menu once, never twice
+        ctx = b.new_context(**opts); t = ctx.new_page()
+        t.goto(f'http://127.0.0.1:{PORT}/app/?mock#/account', wait_until='load'); t.wait_for_selector('.admin-menu', state='attached', timeout=15000)
+        check(t.locator('.admin-menu').count() == 1, 'switch walk: the admin has the menu')
+
+        def sign_out_and_in(email):
+            if t.locator('#sign-out').is_hidden() and t.locator('button:has-text("Menu")').count(): t.locator('button:has-text("Menu")').first.click()
+            t.click('#sign-out'); t.wait_for_selector('#si-email', state='visible', timeout=15000)
+            t.fill('#si-email', email); t.fill('#si-password', 'a-long-password-12'); t.click('#sign-in-form button[type=submit]'); t.wait_for_selector('#account:not([hidden])', timeout=15000); t.wait_for_timeout(1500)
+        sign_out_and_in('other@example.com')
+        check(t.locator('.admin-menu').count() == 0, 'switch walk: the non-admin who signs in next gets NO Admin menu')
+        check(t.locator('header a[href^="#/admin"]').count() == 0, 'and no #/admin link anywhere in the header')
+        check(t.evaluate("document.querySelector('.nav').classList.contains('has-admin')") is False, 'and the header is not left in the admin layout')
+        sign_out_and_in('mock@localhost')
+        check(t.locator('.admin-menu').count() == 1, 'switch walk: the admin again: the menu exactly once, not twice')
+        t.keyboard.press('Escape'); t.locator('.admin-menu > summary').click(); t.locator('.admin-menu-panel a', has_text='Account').first.click(); t.wait_for_timeout(300)
+        check(t.locator('.admin-menu[open]').count() == 0, 'switch walk: the menu still works after the switch')
+        ctx.close()
         # a non-admin account gets nothing new
         ctx = b.new_context(**opts); q = ctx.new_page()
         q.goto(f'http://127.0.0.1:{PORT}/app/?mock&nonadmin#/account', wait_until='load'); q.wait_for_timeout(2500)
