@@ -29,7 +29,11 @@ def check(c, w):
 
 with sync_playwright() as pw:
     b = pw.chromium.launch(channel='chrome')
-    on_cfg = base.replace('uploads: false', 'uploads: true').replace('window.ryagramConfig = Object.freeze({', 'window.ryagramConfig = Object.freeze({ liveEditor: true,', 1)
+    on_cfg = base.replace('uploads: false', 'uploads: true')
+    if re.search(r'liveEditor:\s*false', on_cfg):                                # the editor branches add this switch to the config; main has no such key yet
+        on_cfg = re.sub(r'liveEditor:\s*false', 'liveEditor: true', on_cfg)
+    else:
+        on_cfg = on_cfg.replace('window.ryagramConfig = Object.freeze({', 'window.ryagramConfig = Object.freeze({ liveEditor: true,', 1)
     for label, cfg, shown in (('as shipped', base, ['How do I connect Claude']), ('all switches on', on_cfg, ['How do I connect Claude', 'change my film', 'get my data'])):
         print(label)
         ctx = b.new_context(viewport={'width': 375, 'height': 800})
