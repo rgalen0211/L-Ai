@@ -1,9 +1,10 @@
 These three files are WEB's standalone live-editor page for the maker (L-Ai branch live-editor @ b0635a7 (live.js and live.css from b0635a7's bundle: the five new ops on the page, the preview follows the film's look; REGENERATED 2026-10-30 on L-Ai branch live-editor-data-2 (WEB 165): the engine's newer drawer and banded maps in the website editor; the PC page has no data mode, so nothing changes for it, but the bytes moved.
 REGENERATED 2026-10-30 on L-Ai branch live-editor-bars (WEB 169): the bar race and streamed films in the website editor (assets/app-editor.js and app-editor-data.js changed); the PC page has no data mode, so nothing changes for it, but the bytes moved.
 REGENERATED 2026-10-30 on L-Ai branch live-editor-ai-tweaks (WEB 171): the AI panel (suggestions, waiting line, a list of what the AI changed) in the website editor; the PC page has no data mode, so nothing changes for it, but the bytes moved.
+REGENERATED 2026-10-30 on L-Ai branch live-editor-banded-draft (WEB 175): banded maps take the low and high colours, and the engine's draft frame while a slider is dragged (the PC page has no data mode, so nothing changes for it, but the bytes moved).
 live.html from 34376ac: its own title, unchanged), NEXT-WEB 152, contract: docs/maker-live-host-contract.md). They are GENERATED there
 (node tools/build-maker-live.mjs) from the website's own editor files, so the PC's page cannot drift from the site's. Replace them by copying WEB's three files and changing the hashes in this
 file in the same commit; tools/check-maker-live-page.py fails when a hash here is not the file's.
 live.html 637 bytes sha256 6277e70c0c6c453e48562578d94b9cc832489d8aca9da339a91bd1cfff8442e8
 live.css 8308 bytes sha256 d4601062a3f565a2e964956747dab3de7ced8621b863bb5a3f49fdae02c0f605
-live.js 108630 bytes sha256 44cb5bd37c7d0320122420b86ab4c9ca09f02bad3519239d9106d1377c21a31d
+live.js 109856 bytes sha256 d79971d449a3a214db1b432e8cde660a6ef5bd90dbb454316257e50c88fc6e57

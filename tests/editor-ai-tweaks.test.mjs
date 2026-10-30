@@ -22,7 +22,9 @@ const scene = JSON.parse(read('tests/fixtures/look-bars-scene.json'));
 test('the suggestions are only things this film can really change', () => {
   const m = J(D.suggestions(RL, mapB)), b = J(D.suggestions(RL, banded)), s = J(D.suggestions(RL, scene));
   assert.ok(m.includes('Make the page white') && m.includes('Switch to the light theme') && m.some(t => /colour-blind/.test(t)));
-  assert.ok(b.includes('Make the page white') && !b.some(t => /light theme|colour-blind/.test(t)), 'a banded map: no light theme, no low/high colours to ask about');
+  assert.ok(b.includes('Make the page white') && b.some(t => /colour-blind/.test(t)) && !b.some(t => /light theme/.test(t)), 'a banded map that records its ramp takes low/high (so colour-blind-safe is offered), and has no light theme');
+  const old = J(D.suggestions(RL, { ...banded, ramp: undefined }));
+  assert.ok(old.includes('Make the page white') && !old.some(t => /colour-blind|light theme/.test(t)), 'an older banded bundle that records no ramp ignores low and high: only the page');
   assert.ok(s.includes('Make the page black') && s.includes('Switch to the light theme') && !s.some(t => /colour-blind/.test(t)), 'a bar race: page and theme only');
   assert.ok(m.length <= 4);
 });

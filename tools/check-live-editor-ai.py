@@ -42,7 +42,7 @@ with sync_playwright() as pw:
         p.click('.le-ai-btn'); p.wait_for_selector('.le-chip', timeout=5000)
         chips = p.locator('.le-chip').all_inner_texts()
         banded = 'banded' in query
-        check('Make the page white' in chips and (any('light theme' in c for c in chips) is (not banded)) and (any('colour-blind' in c for c in chips) is (not banded)), f'the chips are only what this film can change {chips}')
+        check('Make the page white' in chips and (any('light theme' in c for c in chips) is (not banded)) and (any('colour-blind' in c for c in chips)), f'the chips are only what this film can change {chips}')
         p.click('.le-chip >> nth=0'); check(p.input_value('#le-note') == chips[0], 'a chip puts its words in the note')
         check(p.locator('.le-ai-wait').is_hidden(), 'nothing says it is waiting before anything is sent')
         p.click('.le-ai >> text=Copy'); p.wait_for_timeout(300)

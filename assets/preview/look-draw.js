@@ -193,14 +193,32 @@
     return {elements: elements, extra: extra};
   }
 
+  // look.is_outline: a county outline use (what a draft frame leaves out)
+  function isOutline(e) { return e.indexOf('<use href="#a') === 0 && e.indexOf(' fill="none"') >= 0 && e.indexOf(" stroke=") >= 0; }
+
   function retheme(e, pairs) {
     e = e.replace(/rgb\(\d+,\d+,\d+\)/g, function (m) { return Object.prototype.hasOwnProperty.call(pairs.colours, m) ? pairs.colours[m] : m; });
     return e.replace(/perimeter-glow-[0-9a-f]+/g, function (m) { return Object.prototype.hasOwnProperty.call(pairs.glow, m) ? pairs.glow[m] : m; });
   }
 
+  // look.ramp_colours: the band colours of a banded map for the look's low / mid / high (the engine's arithmetic)
+  function rampColours(r, pal) {
+    var low = (pal.low || r.low).map(Math.trunc), high = (pal.high || r.high).map(Math.trunc), n = r.count, out = [], i;
+    if (r.kind === "diverging") {
+      var mid = (pal.mid || r.mid).map(Math.trunc);
+      for (i = 0; i < n; i++) { out.push(divergingColour((i + 0.5) / n, low, mid, high)); }
+      return out;
+    }
+    if (n === 1) { return [low]; }
+    var a = toLab(low), b = toLab(high);
+    for (i = 0; i < n; i++) { out.push(toRgb([a[0] + (b[0] - a[0]) * i / (n - 1), a[1] + (b[1] - a[1]) * i / (n - 1), a[2] + (b[2] - a[2]) * i / (n - 1)])); }
+    return out;
+  }
+
   function applyLook(bundle, look) {
     if (bundle.mode === "banded") {
       var bs = bundle.stops.map(function (c) { return [c[0], c[1], c[2]]; });
+      if (look && look.palette && bundle.ramp) { bs = rampColours(bundle.ramp, look.palette); }
       ((look && look.bands) || []).forEach(function (c, i) { bs[i] = [Math.trunc(c[0]), Math.trunc(c[1]), Math.trunc(c[2])]; });
       return {stops: bs, anchors: [], metal: 0.0};
     }
@@ -214,7 +232,8 @@
   }
 
   function sameStops(a, b) {
-    for (var i = 0; i < 3; i++) { for (var j = 0; j < 3; j++) { if (a[i][j] !== b[i][j]) { return false; } } }
+    if (a.length !== b.length) { return false; }
+    for (var i = 0; i < a.length; i++) { for (var j = 0; j < 3; j++) { if (a[i][j] !== b[i][j]) { return false; } } }
     return true;
   }
 
@@ -258,7 +277,7 @@
       fillsEl.push('<use href="#' + h + '" fill="rgb(' + c[0] + ',' + c[1] + ',' + c[2] + ')"/>');
     }
     var metalEl = [], extra = {};
-    if (metal > 0) {
+    if (metal > 0 && !look.draft) {
       var me = metalElements(metalGroups(fillsKey, anchors), bundle.metal_href, metal, bundle.canvas);
       metalEl = me.elements; extra = me.extra;
     }
@@ -281,12 +300,23 @@
       head = head.filter(notGlow); tail = tail.filter(notGlow);
       dropExtra = "perimeter-glow";
     }
+    if (bundle.mode === "banded" && tpl.key_polys && !sameStops(stops, bundle.stops)) {
+      tail = tail.slice();
+      tpl.key_polys.forEach(function (ji) {
+        tail[ji[0]] = tail[ji[0]].replace(/fill="rgb\(\d+,\d+,\d+\)"/, 'fill="rgb(' + stops[ji[1]][0] + "," + stops[ji[1]][1] + "," + stops[ji[1]][2] + ')"');
+      });
+    }
     if (key && !sameStops(stops, bundle.stops)) {
       tail = tail.slice();
       for (var k = 0; k < KEY_STEPS; k++) {
         var kc = keyColour(k, edges, stops);
         tail[key[0] + k] = key[1][k] + "rgb(" + kc[0] + "," + kc[1] + "," + kc[2] + ')"/>';
       }
+    }
+    if (look.draft) {
+      // A DRAFT FRAME (a drag, not a result): the same frame without the county outlines and the metal finish; every element kept is byte-identical to the full frame's.
+      var notOutline = function (e) { return !isOutline(e); };
+      head = head.filter(notOutline); tail = tail.filter(notOutline); fillsEl = fillsEl.filter(notOutline);
     }
     return {elements: head.concat(fillsEl, metalEl, tail), extra: extra, drop_extra: dropExtra};
   }
