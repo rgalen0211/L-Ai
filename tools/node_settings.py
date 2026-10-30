@@ -57,7 +57,7 @@ def find_browser(env=None, exists=lambda p: Path(p).is_file()) -> str | None:
     return None
 
 
-def settings_text(app: Path, *, python: Path, ffmpeg_dir: Path, browser: str | None, computer: str) -> str:
+def settings_text(app: Path, *, python: Path, ffmpeg_dir: Path, browser: str | None, computer: str, allow_c_inside_app: bool = False) -> str:
     app = Path(app)
     lines = [
         "# Written by the Ryagram app at first start (tools/node_settings.py). Do not edit: it is rewritten whenever the app starts.",
@@ -84,18 +84,18 @@ def settings_text(app: Path, *, python: Path, ffmpeg_dir: Path, browser: str | N
     ]
     for kind, (wall, size) in LIMITS.items():
         lines += [f"[limits.{kind}]", f"wall_s = {wall}", f"output_bytes = {size}"]
-    lines += ["", "[node]", f"gpu_lock = {_q(app / 'tools' / 'gpu_lock.py')}", f"gpu_lock_dir = {_q(app / REL_LOCK)}", "no_house_worker = true", "who = \"MAKER\"", ""]
+    lines += ["", "[node]", f"gpu_lock = {_q(app / 'tools' / 'gpu_lock.py')}", f"gpu_lock_dir = {_q(app / REL_LOCK)}", "no_house_worker = true", f"allow_c_inside_app = {'true' if allow_c_inside_app else 'false'}", "who = \"MAKER\"", ""]
     return "\n".join(lines)
 
 
-def ensure(app, *, python=None, ffmpeg_dir=None, env=None, exists=lambda p: Path(p).is_file(), computer=None) -> Path:
+def ensure(app, *, python=None, ffmpeg_dir=None, env=None, exists=lambda p: Path(p).is_file(), computer=None, allow_c_inside_app: bool = False) -> Path:
     """Write (or refresh) the settings file inside the app's own folder and return its path. Creates the small state folders it names, only under <app>/work. Never raises for a missing Chrome: the file says so and
     make() reports it in words."""
     app = Path(app).resolve()
     env = os.environ if env is None else env
     py = Path(python) if python else Path(sys.executable)
     ff = Path(ffmpeg_dir) if ffmpeg_dir else (Path(env["FFMPEG_PATH"]).parent if env.get("FFMPEG_PATH") else app / "ffmpeg")
-    text = settings_text(app, python=py, ffmpeg_dir=ff, browser=find_browser(env, exists), computer=computer or socket.gethostname())
+    text = settings_text(app, python=py, ffmpeg_dir=ff, browser=find_browser(env, exists), computer=computer or socket.gethostname(), allow_c_inside_app=allow_c_inside_app)
     for rel in (REL_ROOT, REL_DATA, REL_LOCK, REL_SETTINGS.parent):
         (app / rel).mkdir(parents=True, exist_ok=True)
     target = app / REL_SETTINGS

@@ -117,6 +117,41 @@ if ENGINE:
 else:
     print("  SKIP the house worker's own Config was not given (pass a Ryagram checkout as the second argument)")
 
+print("D2. a tester who has only C: (OFF unless the build says so; Ryan's rule otherwise untouched)")
+check(tomllib.loads(path.read_text(encoding="utf-8"))["node"]["allow_c_inside_app"] is False and s.allow_c_inside_app is False, "by default the file says allow_c_inside_app = false")
+real_on_c = rr.on_c
+rr.on_c = lambda p: os.path.abspath(str(p)).startswith(str(BASE.resolve()))                # treat the whole scratch drive as 'C:' for this section
+try:
+    app_c, env_c = fake_app("dc")
+    p_off = ns.ensure(app_c, python=app_c / "python" / "python.exe", ffmpeg_dir=app_c / "ffmpeg", env=env_c, computer="X")
+    probs = rr.find_problems(rr.read_settings(p_off), app_c / "work", **ok_kw)
+    check(sum("C:" in x for x in probs) >= 2, f"MUST-FAIL: with the option OFF an app folder on C: is refused as before ({len([x for x in probs if 'C:' in x])} sentences)")
+    p_on = ns.ensure(app_c, python=app_c / "python" / "python.exe", ffmpeg_dir=app_c / "ffmpeg", env=env_c, computer="X", allow_c_inside_app=True)
+    s_on = rr.read_settings(p_on)
+    probs_on = rr.find_problems(s_on, app_c / "work", **ok_kw)
+    check(s_on.allow_c_inside_app is True and not any("C:" in x for x in probs_on) and probs_on == [], f"with the option ON the app's OWN folder on C: is accepted and nothing else is wrong ({probs_on[:2]})")
+    outside = BASE / "dc-elsewhere"
+    outside.mkdir(exist_ok=True)
+    text = p_on.read_text(encoding="utf-8").replace(str(app_c / "work" / "node-root").replace(chr(92), "/"), str(outside).replace(chr(92), "/"))
+    p_bad = BASE / "dc" / "bad-root.toml"
+    p_bad.write_text(text, encoding="utf-8")
+    check(any("C:" in x for x in rr.find_problems(rr.read_settings(p_bad), app_c / "work", **ok_kw)), "MUST-FAIL: even with the option ON a worker folder OUTSIDE the app on C: is still refused")
+    text2 = p_on.read_text(encoding="utf-8").replace(str(app_c / "work" / "node-lock").replace(chr(92), "/"), str(outside / "lock").replace(chr(92), "/"))
+    p_bad2 = BASE / "dc" / "bad-lock.toml"
+    p_bad2.write_text(text2, encoding="utf-8")
+    check(any("lock folder on C:" in x for x in rr.find_problems(rr.read_settings(p_bad2), app_c / "work", **ok_kw)), "MUST-FAIL: ... and so is a GPU-lock folder outside the app")
+    check(any("C:" in x for x in rr.find_problems(s_on, outside, **ok_kw)), "MUST-FAIL: ... and so is a work folder outside the app")
+    check(rr.c_blocked(outside, s_on) and not rr.c_blocked(app_c / "work", s_on) and rr.c_blocked(app_c / "work", s), "c_blocked: outside the app is blocked, inside is allowed only when the option is on")
+finally:
+    rr.on_c = real_on_c
+sig2 = mab.check_signin("https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", ["uselai.com"], True, True)
+check(sig2.endswith("--node-auto --node-allow-c") and "--node-allow-c" not in mab.check_signin("https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", ["uselai.com"], True), "the build option adds --node-allow-c to the start file only when asked for, after --node-auto")
+try:
+    mab.check_signin("https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", ["uselai.com"], False, True)
+    check(False, "MUST-FAIL: --node-allow-c without --node-auto is refused")
+except mab.Refused as e:
+    check("needs --node-auto" in str(e), "MUST-FAIL: --node-allow-c without --node-auto is refused")
+
 print("E. the wiring: --node-auto in the start file, the module travels, the page's parser knows it")
 sig = mab.check_signin("https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", ["uselai.com"], True)
 check(sig.endswith('--approval-host uselai.com --node-auto') and mab.check_signin("https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", ["uselai.com"]).endswith("uselai.com"), "--node-auto is added to the sign-in text only when asked for")
@@ -148,7 +183,7 @@ except _Parsed as e:
     got = e.args[0]
 finally:
     dm.argparse.ArgumentParser.parse_args = _orig
-check(got is not None and got.node_auto is True and got.node_config in ("", None), "the real desktop_maker reads --node-auto")
+check(got is not None and got.node_auto is True and got.node_allow_c is False and got.node_config in ("", None), "the real desktop_maker reads --node-auto (and --node-allow-c is off by default)")
 src = (HERE / "desktop_maker.py").read_text(encoding="utf-8")
 check("a.node_auto and a.site and not a.node_config" in src, "MUST-FAIL guard: --node-auto does nothing without --site, and never overrides a --node-config the person gave")
 
