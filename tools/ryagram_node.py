@@ -17,7 +17,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
+import shutil
 import threading
 import time
 import urllib.error
@@ -32,6 +34,7 @@ HEARTBEAT_SECONDS = 20
 MAX_UPLOAD_BYTES = 200_000_000                # the app's own cap; the site enforces its own as well
 OUTPUT_KINDS = {"contact_sheet": ".png", "preview": ".mp4", "final_video": ".mp4", "thumbnail": ".jpg", "receipt": ".json", "receipt_text": ".txt", "metering": ".json"}
 SWITCH_NAME = "ryagram-node.json"
+KEEP_SET_ASIDE_SECONDS = 7 * 24 * 3600         # a dead attempt's folder (set aside, below) is kept this long as evidence, then swept at start
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
 
 
@@ -215,6 +218,20 @@ class NodeLoop:
             self._log("node_job_refused")
             return "rejected"
         work = self.work_root / jid
+        if work.exists():
+            # Left by an earlier attempt that died with this computer (shut down or crashed mid-render; the site requeued the job when its
+            # lease ran out). Never reused: something it half-wrote must not be sent as this attempt's film. Moved aside, not deleted,
+            # as the house worker does; if it cannot be moved the job fails plainly and nothing is removed.
+            aside = work.with_name(f"{jid}.attempt-before-{int(self.clock())}")
+            try:
+                work.rename(aside)
+            except OSError:
+                self._report(jid, "failed", "node_leftover", "An earlier attempt's folder could not be set aside, so the film was not made.")
+                with self._lock:
+                    self._set("idle", "An earlier attempt's files are in the way, so that film was not made.")
+                self._log("node_job_failed")
+                return "failed"
+            self._log("node_attempt_set_aside")
         work.mkdir(parents=True, exist_ok=True)
         last_beat = [self.clock()]
 
@@ -306,8 +323,31 @@ class NodeLoop:
         ctype = {".png": "image/png", ".mp4": "video/mp4", ".jpg": "image/jpeg", ".json": "application/json", ".txt": "text/plain"}[path.suffix.lower()]
         self.uploader(r["upload_url"], path, ctype, {self.signin.host})
 
+    def sweep_set_aside(self, now: float | None = None) -> int:
+        """At start: delete dead attempts' folders (`<job id>.attempt-before-<time>`, set aside by _work) older than KEEP_SET_ASIDE_SECONDS.
+        Only folders named so, directly in the job folder; never a link or junction, never followed."""
+        now = self.clock() if now is None else now
+        n = 0
+        try:
+            entries = list(self.work_root.iterdir())
+        except OSError:
+            return 0
+        for p in entries:
+            head, _, tail = p.name.partition(".attempt-before-")
+            if not (UUID.match(head) and tail.isdigit()) or os.path.islink(p) or os.path.isjunction(p) or not p.is_dir():
+                continue
+            try:
+                old = now - p.stat().st_mtime > KEEP_SET_ASIDE_SECONDS
+            except OSError:
+                continue
+            if old:
+                shutil.rmtree(p, ignore_errors=True)
+                n += not p.exists()
+        return n
+
     # ---- the background thread (the page switch starts and stops it)
     def start(self):
+        self.sweep_set_aside()
         with self._lock:
             if self._thread and self._thread.is_alive():
                 return
