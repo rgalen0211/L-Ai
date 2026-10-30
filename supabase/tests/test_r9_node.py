@@ -243,6 +243,18 @@ class House(R9):
         self.assertEqual(self.admin("select state::text, run_on::text, attempt from jobs where id = %s", job), ("queued", "owner_local", 2))
         self.assertEqual(self.claim_node(tok), job)
 
+    def test_a_lost_house_job_requeues_to_the_house_only(self):
+        # the mirror of the test above (NEXT-WORKER 61: the PC worker and a tester PC never claim the same film): a house job whose
+        # lease ran out goes back to the HOUSE queue, keeps run_on 'house', and a tester's node never takes it, even an owner who is a tester
+        self.make_tester()
+        tok = self.node()
+        job = self.submit(BOB, self.version(BOB), "contact_sheet")
+        self.assertEqual(self.claim_house(), job)
+        self.admin("update jobs set lease_expires_at = now() - interval '1 minute' where id = %s returning 1", job)
+        self.assertIsNone(self.claim_node(tok))           # the node reaps it, and does not take it
+        self.assertEqual(self.admin("select state::text, run_on::text, attempt from jobs where id = %s", job), ("queued", "house", 2))
+        self.assertEqual(self.claim_house(WORKER2), job)   # only a house worker gets attempt 2
+
     def test_the_house_claim_refuses_inside_a_node_call(self):
         self.make_tester()
         tok = self.node()
