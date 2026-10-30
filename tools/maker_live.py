@@ -167,8 +167,9 @@ def op_problem(mode: str, op, look_keys=None):
             return 'Trim the "start" or the "end".'
         if "to" not in op:
             return 'trim_clip needs "to".'
-        if op["to"] < 0 or op["to"] > 86400:
-            return '"to" must be between 0 and 86400 seconds.'
+        lo = -3600 if op.get("edge") == "start" else 0              # a video clip's start trim moves the file back: more lead-in is a negative `to` (the same rule as the page, TypeScript and SQL)
+        if op["to"] < lo or op["to"] > 86400:
+            return '"to" must be between %d and 86400 seconds.' % lo
     elif kind == "reorder_clip":
         if not (_is_int(op.get("index")) and 0 <= op["index"] <= 199):
             return '"index" must be a whole number from 0 to 199.'

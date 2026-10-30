@@ -36,7 +36,7 @@ input[type=text],input[type=number],textarea{background:#101015;color:var(--ink)
 .le-ai{background:var(--soft,#23232d);border:1px solid #3a4a8a;border-radius:10px;padding:12px;margin:8px 0}.le-ai[hidden]{display:none}.le-ai textarea{width:100%;min-height:80px}.le-ai-links{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
 .le-lanes{border:1px solid var(--line,#3a3a44);border-radius:10px;background:#101015;padding:8px;margin-top:10px}
 .le-lane{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;align-items:center;margin:6px 0}.le-lane b{font-size:.85rem;color:var(--muted,#b6b5ae);font-weight:600}
-.le-bar{position:relative;height:44px;background:var(--soft,#23232d);border-radius:8px}
+.le-bar{position:relative;height:50px;background:var(--soft,#23232d);border-radius:8px}
 .le-clip{position:absolute;top:3px;bottom:3px;border-radius:6px;padding:4px 10px 4px 8px;font-size:.85rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:left;color:#0b1210;font-weight:600;border:0;cursor:grab;touch-action:none;min-width:12px}
 .le-c-video.le-clip,.le-c-video .le-dot{background:#6fd1bd}.le-c-pictures.le-clip,.le-c-pictures .le-dot{background:#c9a66b}.le-c-text.le-clip,.le-c-text .le-dot{background:#9fb6ff}.le-c-music.le-clip,.le-c-music .le-dot{background:#b78fd8}
 .le-sel.le-clip{outline:2px solid #f2f2ef}.le-clip:focus-visible{outline:3px solid #fff;outline-offset:1px}
@@ -61,3 +61,13 @@ input[type=text],input[type=number],textarea{background:#101015;color:var(--ink)
 .le-side{display:grid;gap:14px;align-content:start}.le-rule-list{list-style:none;margin:0 0 10px;padding:0}.le-rule-form{border-top:1px solid var(--line,#3a3a44);margin-top:8px;padding-top:8px}
 .le select,.le input[type=checkbox]{min-height:44px}.le input[type=checkbox]{width:28px}
 .le-side,.le-main,.le-panel{min-width:0}.le-itemtext{overflow-wrap:anywhere}.le-rule-form .le-row input,.le-rule-form .le-row select{max-width:11em}
+.le-ticks{position:relative;height:1.3em}.le-ticks span{position:absolute;transform:translateX(-50%)}
+.le-bundle-note{margin:0;padding:24px 16px;text-align:center;color:var(--muted,#b6b5ae)}
+.le-view img.le-svg{object-fit:contain}
+.le-presets{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:8px}.le-preset{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}.le-preset .button{min-height:44px}.le-preset.le-on .button{outline:2px solid var(--accent,#c9a66b)}
+.le-cau{flex-basis:100%;font-size:.9rem}
+.le-panel h3{margin:8px 0 6px;font-size:1rem}
+.le-bands{margin:8px 0}.le-band-row{display:flex;gap:6px}.le-swatch{display:inline-block;width:44px;height:28px;border:1px solid var(--line,#3a3a44);border-radius:6px}
+.le-ai-chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}.le-chip{min-height:36px}.le-ai-list{margin:6px 0 0;padding-left:20px}.le-ai-wait{margin:6px 0 0}
+/* the first and last period labels stay inside the scrubber instead of poking half their width past the edge (found at 320 px, NEXT-WEB 172) */
+.le-ticks span:first-child{transform:none}.le-ticks span:last-child{transform:translateX(-100%)}

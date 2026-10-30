@@ -74,6 +74,8 @@ window.ryagramConfig = Object.freeze({
   // The AI-first front door (#/start): 'Connect your AI' first for an invited account with no connected AI, then 'Start a film' (Ryan 2026-10-26 12:12; proposals/WEB-AI-FIRST-FRONT-DOOR.md).
   // Needs connectAi: true. ON (Ryan's typed yes 2026-10-28 10:59, Q303): live for INVITED accounts only (the server's connect_access decides; anyone else sees nothing new).
   aiFirst: true,
+  // The live editor (#/editor/data and #/editor/compilation): scrub, change the look, edit tracks, ask your AI; NEXT-WEB 152, proposals/WEB-LIVE-EDITOR.md. Off until Ryan has seen it; this first version runs on a stand-in drawing and clip list.
+  liveEditor: false,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.
   // ON (Ryan's typed yes 2026-10-28 10:59, Q303), with the words as drafted (Q244 answered): shown to invited accounts only, the server's my_departments() says which.
   departments: true,

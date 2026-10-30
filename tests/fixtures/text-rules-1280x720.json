@@ -1,0 +1,75 @@
+{
+ "canvas": [
+  1280,
+  720
+ ],
+ "font": "Arial",
+ "keep_out": [
+  {
+   "name": "top_left",
+   "rect": [
+    0.0,
+    0.0,
+    230.4,
+    115.2
+   ]
+  },
+  {
+   "name": "top_right",
+   "rect": [
+    1049.6,
+    0.0,
+    1280.0,
+    115.2
+   ]
+  },
+  {
+   "name": "bottom_left",
+   "rect": [
+    0.0,
+    604.8,
+    230.4,
+    720.0
+   ]
+  },
+  {
+   "name": "bottom_right",
+   "rect": [
+    1049.6,
+    604.8,
+    1280.0,
+    720.0
+   ]
+  }
+ ],
+ "keep_out_source": "16:9 corners (PLACEHOLDER: not measured: YouTube's 16:9 player draws its title, buttons and channel watermark in the corners; a grid-upload measurement replaces this)",
+ "line_ratio": 1.25,
+ "lower_third_at": 0.72,
+ "pad_ratio": 0.3333333333333333,
+ "safe": [
+  64.0,
+  36.0,
+  1216.0,
+  684.0
+ ],
+ "styles": {
+  "caption": {
+   "align": "centre",
+   "min_size": 0.035,
+   "row": "bottom",
+   "size": 0.055
+  },
+  "lower_third": {
+   "align": "left",
+   "min_size": 0.035,
+   "row": "lower_third",
+   "size": 0.05
+  },
+  "title": {
+   "align": "centre",
+   "min_size": 0.045,
+   "row": "top",
+   "size": 0.075
+  }
+ }
+}

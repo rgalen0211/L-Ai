@@ -33,7 +33,7 @@ SCAN = r"""() => {
     if (vis(el) && !inline && (r.height < 40 || r.width < 24) && !(el.type === 'checkbox' || el.type === 'radio')) out.small.push(desc(el) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height));
   }
   let last = 0;
-  for (const h of main.querySelectorAll('h1,h2,h3,h4')) { if (!vis(h)) continue; const n = +h.tagName[1]; if (last && n > last + 1) out.headings.push('skips from h' + last + ' to h' + n + ': ' + h.textContent.trim().slice(0, 30)); last = n; }
+  for (const h of main.querySelectorAll('h1,h2,h3,h4')) { if (!vis(h)) continue; const n = +h.tagName[1]; if (last && n > last + 1) out.headings.push('skips from h' + last + ' to h' + n + ': ' + h.textContent.trim().slice(0, 60)); last = n; }
   const h1 = [...main.querySelectorAll('h1')].filter(vis).length; if (h1 !== 1) out.headings.push(h1 + ' visible h1');
   const rgb = c => { const m = c.match(/[\d.]+/g).map(Number); return { r: m[0], g: m[1], b: m[2], a: m.length > 3 ? m[3] : 1 }; };
   const lum = c => { const f = v => { v /= 255; return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4); }; return 0.2126 * f(c.r) + 0.7152 * f(c.g) + 0.0722 * f(c.b); };
@@ -81,7 +81,7 @@ def tab_walk(p):
         if (!((r.width > 0 && r.height > 0) || isRadio || e.type === 'checkbox')) continue;
         const d = e.closest('details:not([open])'); if (d && !(e.tagName === 'SUMMARY' && e.parentElement === d)) continue;     // inside a folded section: reached by opening it
         if (e.closest('[hidden]')) continue;
-        const key = isRadio ? 'radio:' + e.name : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 24);
+        const key = isRadio ? 'radio:' + e.name : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 60);
         if (seen.has(key)) continue; seen.add(key); out.push(key);
       }
       return out; }""")  # a radio group takes one Tab stop (arrows move inside it)
@@ -92,7 +92,7 @@ def tab_walk(p):
         p.keyboard.press('Tab')
         info = p.evaluate("""() => { const e = document.activeElement; if (!e || e === document.body) return null; const s = getComputedStyle(e); const w = e.closest('label,.builder-card') || e; const ws = getComputedStyle(w);
           const ring = (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || (s.boxShadow && s.boxShadow !== 'none') || (ws.outlineStyle !== 'none' && parseFloat(ws.outlineWidth) > 0 && w.matches(':focus-within')) || (ws.boxShadow && ws.boxShadow !== 'none' && w.matches(':focus-within'));
-          return { d: e.type === 'radio' ? 'radio:' + e.name : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 24), ring: !!ring, inMain: !!e.closest('main') }; }""")
+          return { d: e.type === 'radio' ? 'radio:' + e.name : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 60), ring: !!ring, inMain: !!e.closest('main') }; }""")
         if info is None:
             continue
         if prev == info['d']:
