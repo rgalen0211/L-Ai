@@ -51,6 +51,24 @@
     return word + seen + disk;
   }
 
+  // Worker stats for #/admin/renders (NEXT-WORKER 58): rows from admin_worker_stats(days), one per day, newest first:
+  //   { day: 'YYYY-MM-DD', made, failed, avg_min, failures: [{ code, count }] }. Plain sentences only; a code is shown as it is
+  //   (it is the worker's own error code, never a person's data). Returns { summary, lines }.
+  function workerStatsLines(rows) {
+    const list = (Array.isArray(rows) ? rows : []).filter(r => r && /^\d{4}-\d{2}-\d{2}$/.test(String(r.day || ''))).slice(0, 31);
+    const num = v => (Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : 0);
+    const code = c => String(c || 'unknown').replace(/[^a-z0-9_]/gi, '').slice(0, 40) || 'unknown';
+    const lines = list.map(r => {
+      const made = num(r.made), failed = num(r.failed);
+      const avg = made && r.avg_min != null && Number.isFinite(Number(r.avg_min)) ? `, average ${Number(r.avg_min) < 1 ? 'under a minute' : plural(Math.round(Number(r.avg_min)), 'minute')}` : '';
+      const why = (Array.isArray(r.failures) ? r.failures : []).filter(f => f && num(f.count) > 0).slice(0, 6).map(f => `${code(f.code)} x${num(f.count)}`).join(', ');
+      return `${r.day}: ${plural(made, 'film')} made${avg}; ${failed ? `${failed} failed${why ? ` (${why})` : ''}` : 'none failed'}.`;
+    });
+    const made = list.reduce((s, r) => s + num(r.made), 0), failed = list.reduce((s, r) => s + num(r.failed), 0);
+    const summary = list.length ? `Last ${plural(list.length, 'day')}: ${plural(made, 'film')} made, ${failed} failed.` : 'No films in this period.';
+    return { summary, lines };
+  }
+
   function queueLine(d) {
     const old = d.oldest_queued_min > 0 ? ` The oldest has waited ${d.oldest_queued_min >= 60 ? plural(Math.floor(d.oldest_queued_min / 60), 'hour') : plural(d.oldest_queued_min, 'minute')}.` : '';
     return `${d.queued} queued, ${d.running} running.${d.queued ? old : ''}`;
@@ -256,5 +274,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteSendLine, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
+  window.ryagramOps = { workerStatsLines, autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteSendLine, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
 })();
