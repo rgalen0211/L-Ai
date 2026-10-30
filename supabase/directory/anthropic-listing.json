@@ -1,0 +1,47 @@
+{
+  "status": "DRAFT",
+  "who_decides": "Every word below is a draft for Ryan (and the attorney for the privacy and terms text). Nothing is submitted until Ryan says so.",
+  "directory": "Anthropic Connectors Directory (claude.ai/directory/manage, MCP connector)",
+  "name": "Ryagram",
+  "one_liner": "Turn data into a short film: create a project, write the film's story, preview it, and change its look in your open editor, with your own Claude.",
+  "description": "Ryagram makes short, accurate data films. This connector lets your AI work on your own Ryagram projects: list them, read the story format and the dataset catalogue, write and check a story, ask for a contact sheet or a short preview, and (with a separate permission) change the look and the clip list in the editor you have open, as drafts you can undo. It can write down a plan to download a public data file, but only you can start that download, in the Ryagram desktop app. It can never render the final film, spend your credits, publish anything or fetch a web address on its own: those stay your buttons in the Ryagram app. Sign in with your Ryagram account; you choose which permissions to give and can disconnect at any time in Account > Connected AIs.",
+  "categories": ["Data & analytics", "Creative & media"],
+  "website": "https://uselai.com/",
+  "documentation_url": "https://uselai.com/connect-ai/",
+  "privacy_policy_url": "https://uselai.com/privacy-policy.html",
+  "terms_url": "https://uselai.com/terms/terms.html",
+  "support_contact": "ryagram@uselai.com",
+  "server": {
+    "url": "https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp",
+    "transport": "Streamable HTTP",
+    "auth": "OAuth 2.0 (authorization code, PKCE S256, dynamic client registration, rotating refresh tokens)",
+    "tools": "see tools.json (generated from the live tool list; tools/connect-directory.mjs --check keeps it honest)",
+    "blocker": "G1: the address is a supabase.co function URL. Decide the custom domain (the paper suggests mcp.uselai.com) BEFORE the first submission; for OpenAI the origin may never change afterwards."
+  },
+  "use_cases": [
+    "Describe a film in plain words and have your AI write the story, check it against Ryagram's rules and save it.",
+    "Ask for a contact sheet or a 10-second preview of the saved story and get the link to watch it.",
+    "Ask your AI to change colours and styles, or reorder clips, in the editor you have open, and undo it."
+  ],
+  "before_you_connect": "A Ryagram account that has been invited to connect an AI (invite-only for now). You sign in on Ryagram's own page and choose the permissions.",
+  "data_handling": {
+    "what_the_assistant_can_read": "Project titles, film stories, job states, and only if the person ticks it, the names and times in an editor's clip list.",
+    "what_it_cannot_see": "The person's videos, pictures, sound, file locations, credit history or payment details.",
+    "what_ryagram_keeps": "A log of each call: the tool name, the credits involved, whether it worked and a short code. Not the arguments, the story text or the conversation.",
+    "tokens": "Stored only as one-way hashes; revocable in Account > Connected AIs."
+  },
+  "test_account": {
+    "needed": "One reviewer account, invited to connect an AI, with a project, a saved story and a finished contact sheet. Created by Ryan.",
+    "credentials": "IN THE VENDOR PORTAL ONLY (never in this repository, the board or a log)",
+    "sign_in_note": "Verify the sign-in works with no email code or magic link before submitting (paper G5)."
+  },
+  "not_accepted_check": "None of Anthropic's excluded categories applies: no money or crypto, no image/video/audio generation through AI models, no access to Claude memory or chats, no use of another service's API.",
+  "open_items_for_ryan": [
+    "Approve or change the words above.",
+    "Decide the custom domain (G1) and the invite wall (G10).",
+    "Make the Connect your AI page public and link it (G6; today it is noindex).",
+    "Confirm ryagram@uselai.com is read (G7).",
+    "Create and fill the reviewer account (G5); enter its credentials in the portal only.",
+    "Decide destructive hints for the three editor tools (decision a in the paper)."
+  ]
+}
