@@ -461,6 +461,15 @@ both = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
 frg = (w["out"] / mab.FORGE_BAT).read_text(encoding="ascii")
 check(' --site "' + SITE + '" --approval-host uselai.com --approval-host www.uselai.com %OPEN%' in both and frg.replace("MAKER_EXTRA=--song --song-forge", "MAKER_EXTRA=--song") == both, "two approval hosts are both passed, and the fill-missing-words start file carries the same sign-in")
 
+w = world("na")
+mab.build(args(w, maker_extra="--song", signin_site=SITE, signin_approval_host=["uselai.com"], node_auto=True))
+nabat = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
+naline = next(l for l in nabat.splitlines() if "desktop_maker.py" in l)
+check(naline.endswith(' --site "' + SITE + '" --approval-host uselai.com --node-auto %OPEN% %MAKER_EXTRA%') and (w["out"] / "tools" / "node_settings.py").is_file(), "NEXT-CONNECT 171: with --node-auto the app line also passes --node-auto, and the settings module travels")
+check(sbat.replace(" --node-auto", "") == sbat and nabat.replace(" --node-auto", "") == sbat, "without --node-auto the start file is the sign-in one, unchanged; with it, it differs only by that switch")
+w = world("nb")
+good, why = refused(w, "needs --signin-site", node_auto=True)
+check(good and not w["out"].exists(), "MUST-FAIL: --node-auto without a sign-in site is refused and nothing is built: " + why[:90])
 for label, over in (("a plain http site", dict(signin_site="http://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", signin_approval_host=["uselai.com"])),
                     ("another host's site (a look-alike)", dict(signin_site="https://jxtkfishqfxuptwjzczz.supabase.co.evil.example/functions/v1/node", signin_approval_host=["uselai.com"])),
                     ("a site that is not a Ryagram node address", dict(signin_site="https://evil.example/functions/v1/node", signin_approval_host=["uselai.com"])),
