@@ -32,7 +32,7 @@ M = [
     ("any house-worker module is taken", "make_app_bundle.py", "            if len(parts) != 3 or parts[2] not in NODE_JOB_WORKER_FILES:", "            if False:"),
     ("a node-job file that differs from the kit's own is taken", "make_app_bundle.py", "            if sha256_file(twin) != want:", "            if False:"),
     ("a node-job file outside the ryagram folder is taken", "make_app_bundle.py", 'if parts[0] != "ryagram" or ".." in parts or rel.startswith("/") or ":" in rel:', "if False:"),
-    ("a new file outside ryagram/worker is taken", "make_app_bundle.py", '        elif parts[:2] != ["ryagram", "worker"]:', "        elif False:"),
+    ("a new file outside ryagram/worker and ryagram/sequence is taken", "make_app_bundle.py", '        elif not (parts[:2] == ["ryagram", "worker"] or', "        elif False and (parts[:2] == [\"ryagram\", \"worker\"] or"),
     ("a node-job kit with no config.py is taken", "make_app_bundle.py", '    if not any(r == "ryagram/worker/config.py" for r in listed):', "    if False:"),
     ("the node-job files are never copied into the bundle", "make_app_bundle.py", "            shutil.copy2(node_kit / rel, out / rel)", "            pass"),
     ("the build ignores --node-job-kit", "make_app_bundle.py", "node_add = check_node_job_kit(node_kit, kit) if node_kit else []", "node_add = []"),
