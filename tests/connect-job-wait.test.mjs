@@ -18,9 +18,14 @@ function world() {
   return { w, call: (p, name, args) => callTool(name, args, p, env(p)) };
 }
 const goodStory = () => { const t = TEMPLATES[0]; return build(t.id, t.datasets[0], 'Test headline'); };
-async function queued(call, tool = 'make_contact_sheet') {
+async function queued(call, tool = 'make_contact_sheet', afterSheet = () => {}) {
   const id = (await call(A, 'create_project', { title: 'Film' })).data.project_id;
   await call(A, 'set_story', { project_id: id, story: goodStory() });
+  if (tool === 'make_preview') {                       // a preview waits for a FINISHED contact sheet of the same story (PUNCH P3)
+    const sheet = await call(A, 'make_contact_sheet', { project_id: id });
+    for (let i = 0; i < 4; i++) await call(A, 'job_status', { job_id: sheet.data.job_id });
+  }
+  afterSheet();
   const started = await call(A, tool, { project_id: id });
   return { id, started };
 }
@@ -54,10 +59,9 @@ test('THE MACHINE IS OFFLINE: the answer to the start says so, says the job is s
 
 test('A PREVIEW is told the same, and so is the film link of a project whose job is waiting', async () => {
   const { w, call } = world();
-  w.rendering = 'delayed';
-  const { id, started } = await queued(call, 'make_preview');
+  const { id, started } = await queued(call, 'make_preview', () => { w.rendering = 'delayed'; });   // the machine goes away after the sheet
   assert.equal(started.data.do_not_poll, true);
-  const link = await call(A, 'get_film_link', { project_id: id });
+  const link = await call(A, 'get_film_link', { project_id: id, job_id: started.data.job_id });   // the sheet is finished; ask for the waiting preview
   assert.match(link.text, /Nothing is finished yet/); assert.match(link.text, /not responding right now/); assert.match(link.text, /Do not keep checking/);
   assert.equal(link.data.do_not_poll, true);
 });
