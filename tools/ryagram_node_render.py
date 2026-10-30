@@ -159,7 +159,7 @@ def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> li
     if not s.python.is_file():
         out.append("The Python the Ryagram engine uses was not found.")
     if not (s.chrome and Path(s.chrome).is_file()):
-        out.append("Google Chrome or Microsoft Edge was not found where the settings say.")
+        out.append("Google Chrome was not found where the settings say. Site films need Google Chrome installed (Microsoft Edge does not work with the film maker).")
     if not any((Path(d) / "ffmpeg.exe").is_file() for d in s.path_dirs):
         out.append("ffmpeg (the video tool) was not found where the settings say.")
     if s.cache_dir is None or not s.cache_dir.is_dir():
