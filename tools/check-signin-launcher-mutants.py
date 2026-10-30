@@ -23,7 +23,7 @@ M = [
     ("the site is left out of the app line", "make_app_bundle.py", "    return f'--site \"{site}\" ' + \" \".join(", "    return \"\" + \" \".join("),
     ("the build never hands the sign-in to the start file", "make_app_bundle.py", "face_model=bool(face_model), signin=signin)", "face_model=bool(face_model))"),
     ("the sign-in is put after %MAKER_EXTRA%", "make_app_bundle.py", "' + (signin + \" \" if signin else \"\") + '%OPEN% %MAKER_EXTRA%',", "'%OPEN% %MAKER_EXTRA% ' + (signin if signin else \"\") + '',"),
-    ("every build signs in by default", "make_app_bundle.py", 'getattr(a, "signin_approval_host", None) or [])', 'getattr(a, "signin_approval_host", None) or []) or \'--site "https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node" --approval-host uselai.com\''),
+    ("every build signs in by default", "make_app_bundle.py", 'bool(getattr(a, "node_allow_c", False)))', 'bool(getattr(a, "node_allow_c", False))) or '--site "https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node" --approval-host uselai.com''),
     ("the command line option for the approval host is not read", "make_app_bundle.py", 'ap.add_argument("--signin-approval-host", action="append", default=[]', 'ap.add_argument("--signin-approval-hostx", dest="unused", action="append", default=[]'),
     ("the command line option for the site is not read", "make_app_bundle.py", 'ap.add_argument("--signin-site", default=""', 'ap.add_argument("--signin-sitex", dest="unused2", default=""'),
     # NEXT-CONNECT 164: the node-job closure merged into the bundle (check-app-bundle.py section J)
