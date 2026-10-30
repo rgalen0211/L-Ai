@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<!-- The page behind the app link in an invite email (NEXT-CONNECT 162). Unlisted (noindex), linked from nowhere but that email. The token is in the address FRAGMENT (never sent to a server); assets/get-app.js reads it.
+     Off until the app-link function is deployed with APP_LINK_ON=1. -->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self'; connect-src https://jxtkfishqfxuptwjzczz.supabase.co; base-uri 'none'; form-action 'none'; object-src 'none'">
+<meta name="referrer" content="no-referrer">
+<meta name="robots" content="noindex, nofollow">
+<title>Get the Ryagram app | L'Ai</title>
+<link rel="canonical" href="https://uselai.com/get-app/">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/assets/workflow-audit.css?v=20261023a">
+<link rel="stylesheet" href="/assets/help.css?v=20261026a">
+<link rel="icon" href="/favicon.ico" sizes="any"><link rel="stylesheet" href="/assets/ryagram-look.css?v=20261023a">
+</head>
+<body class="ryagram-look">
+<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a></div></header>
+<main class="container help-main" id="main" data-get-app="ready">
+  <h1>Get the Ryagram app</h1>
+  <p id="ga-msg" role="status" aria-live="polite">One moment…</p>
+  <p id="ga-detail" class="help-intro" hidden></p>
+  <p><button id="ga-go" class="button" type="button" hidden>Download Ryagram for Windows</button></p>
+  <div id="ga-after" hidden></div>
+  <p class="note">This page is only for the person the invite was sent to. The link works once. If it does not work, sign in at <a href="/app/">uselai.com/app</a> and use the Download card there.</p>
+</main>
+<script src="/assets/get-app.js?v=20261030a"></script>
+</body>
+</html>
