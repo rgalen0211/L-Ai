@@ -339,6 +339,8 @@ export function waitAdvice(state: string, rendering: string, local: boolean): Wa
   return { text: SLOW_CHECK + STOP_CHECKING, data: { rendering, do_not_poll: false, poll_after_s: 60 } };
 }
 
+const FAILED_JOB = new Set(["failed", "editorial_action_required"]);
+
 async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnType<Data["getVersion"]>>, jobType: "contact_sheet" | "preview",
                         params: Record<string, unknown>, label: string): Promise<ToolResult> {
   const sha = view.version.story_sha256;
@@ -369,6 +371,12 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
       return refuse("Make the contact sheet of this saved story first (make_contact_sheet). NOTHING was started: the sheet runs Ryagram's correctness checks, and a preview waits until it is finished so a free preview is not used on a story those checks would stop.",
         "sheet_first", { data: { started: false } });
     }
+  }
+  // NEXT-CONNECT 169: the same story that has already failed this many times will fail again; stop asking and say what to do (a changed story has another hash, so it starts fresh)
+  const failedBefore = view.jobs.filter((j) => j.job_type === jobType && j.story_sha256 === sha && FAILED_JOB.has(j.state)).length;
+  if (failedBefore >= LIMITS.failedJobsPerStory) {
+    return refuse(`${label} of this exact story has already failed ${failedBefore} times (the limit is ${LIMITS.failedJobsPerStory}). NOTHING was started. Read why with job_status on the last one, change the story with set_story (a changed story starts fresh), or tell the person to look in the Ryagram app.`,
+      "repeated_failures", { data: { started: false, failed_attempts: failedBefore, limit: LIMITS.failedJobsPerStory } });
   }
   const q = await ctx.data.quote(versionId, jobType);
   if (q.credits > 0) {

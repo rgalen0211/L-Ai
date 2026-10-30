@@ -63,7 +63,7 @@ export class FakeWorld {
     return {
       grantFor: async (p) => this.grants.get(`${p.userId}|${p.clientId}`) ?? null,
       hit: async (p, bucket, max) => {
-        const k = `${p.userId}|${bucket}`; const c = (this.counters.get(k) ?? 0) + 1; this.counters.set(k, c); return c <= max;
+        const k = `${p.userId}|${bucket}${bucket === "calls" ? ":" + p.clientId : ""}`; const c = (this.counters.get(k) ?? 0) + 1; this.counters.set(k, c); return c <= max;
       },
       finalRendersEnabled: async () => this.finals,
       log: async (_p, e) => { this.logs.push(e); },
