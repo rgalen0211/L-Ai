@@ -1,0 +1,50 @@
+{
+  "status": "DRAFT",
+  "who_decides": "Every word below is a draft for Ryan (and the attorney for the privacy and terms text). Nothing is submitted until Ryan says so.",
+  "directory": "OpenAI ChatGPT app directory (Platform Dashboard, remote MCP server)",
+  "displayName": "Ryagram",
+  "shortDescription": "Make short data films",
+  "longDescription": "Ryagram makes short, accurate data films. Connect your Ryagram account and ChatGPT can list your film projects, read the story format and the dataset catalogue, write a story, check it against Ryagram's rules and save it, then ask for a contact sheet or a short preview and bring you the link to watch it. With a separate permission it can change the look of the film in the editor you have open, as drafts you can undo. It can write down a plan to download a public data file, but only you can start that download, in the Ryagram desktop app. It cannot render the final film, spend your credits, publish anything or fetch a web address on its own: those stay your buttons in the Ryagram app. You sign in with your own Ryagram account, choose which permissions to give, and can disconnect at any time.",
+  "developerName": "Ryagram",
+  "category": "Data & analytics",
+  "website": "https://uselai.com/",
+  "support_url": "https://uselai.com/help/",
+  "privacy_policy_url": "https://uselai.com/privacy-policy.html",
+  "terms_url": "https://uselai.com/terms/terms.html",
+  "logo": { "status": "NOT MADE: a square logo, at least 48 px, at most 5 MiB, is Ryan's to supply", "file": null },
+  "brand_colours": null,
+  "country_availability": "Ryan's decision",
+  "default_prompts": [
+    "List my Ryagram projects.",
+    "Make a short film about housing permits and show me a preview.",
+    "Change the colours of my film to a calmer look."
+  ],
+  "server": {
+    "url": "https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/connect/mcp",
+    "blocker": "G1: OpenAI needs a domain-verification file at /.well-known/openai-apps-challenge on the MCP host and forbids changing the origin between versions. A supabase.co function host cannot serve that path at its root: choose the custom domain first.",
+    "headers": "none (the MCP server headers field must stay empty)"
+  },
+  "test_cases": [
+    { "kind": "positive", "prompt": "List my Ryagram projects.", "tools": ["list_projects"], "expected": "The assistant lists the reviewer account's projects by title and state." },
+    { "kind": "positive", "prompt": "Create a Ryagram project called Test film.", "tools": ["create_project"], "expected": "A new empty project named Test film is created (or the existing one is returned); the assistant says which." },
+    { "kind": "positive", "prompt": "Show me the Ryagram story format and the datasets I can use.", "tools": ["get_story_schema"], "expected": "The assistant summarises the story format and names some datasets from the catalogue." },
+    { "kind": "positive", "prompt": "Save a short story about housing permits to my Test film project and check it.", "tools": ["get_story_schema", "set_story"], "expected": "The story is checked; if every check passes it is saved, otherwise the assistant lists the failed checks and nothing is saved." },
+    { "kind": "positive", "prompt": "Make a contact sheet for my Test film project and tell me when it is ready.", "tools": ["make_contact_sheet", "job_status", "get_film_link"], "expected": "A free contact-sheet job is queued, its state is reported until finished, and the link to see it is given." },
+    { "kind": "negative", "prompt": "Render the final film of my Test film project now.", "tools": [], "expected": "No tool renders a final film; the assistant says the render button is in the Ryagram app and nothing is started." },
+    { "kind": "negative", "prompt": "Spend 50 credits on a high-quality preview.", "tools": [], "expected": "A connection cannot spend credits; the assistant says so in words and no credits are used." },
+    { "kind": "negative", "prompt": "Fetch https://example.com/data.csv into my Ryagram account right now.", "tools": [], "expected": "No tool fetches an address; the assistant can offer to write down a download plan, which only the person can start in the desktop app." }
+  ],
+  "demo_account": {
+    "needed": "One demo account, invited to connect an AI, no MFA, no email code, no magic link, reachable from outside any private network, with a project, a saved story and a finished contact sheet.",
+    "credentials": "IN THE VENDOR PORTAL ONLY (never in this repository, the board or a log)"
+  },
+  "demo_recording": "NOT MADE: a 2 to 3 minute screen recording of the demo account doing the five positive cases is Ryan's or Sam's to record.",
+  "open_items_for_ryan": [
+    "Approve or change the words above.",
+    "Decide the custom domain (G1); OpenAI's origin can never change afterwards.",
+    "Verify the Platform organisation; supply the logo; decide country availability.",
+    "Create and fill the demo account (G5); enter its credentials in the portal only.",
+    "Record the demo (about 3 minutes).",
+    "Add the exact OAuth callback URL the portal shows to connect_redirect_allowlist (G9; do not guess it)."
+  ]
+}
