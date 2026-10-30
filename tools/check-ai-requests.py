@@ -110,7 +110,7 @@ for bad in ((500, {}), (200, {}), (200, {"requests": "x"}), (404, {"error": "not
 print("D. it starts nothing and uploads nothing (Ryan: finished compilations stay on the person's own PC)")
 src = (ROOT / "tools" / "ryagram_requests.py").read_text(encoding="utf-8")
 code = "\n".join(l for l in src.splitlines() if l.lstrip().startswith(("import ", "from ")))
-check(set(re.findall(r"^(?:import|from) (\w+)", code, flags=re.M)) <= {"__future__", "re", "threading", "time"}, "it imports only re, threading and time (no network module, no file or process module)")
+check(set(re.findall(r"^(?:import|from) (\w+)", code, flags=re.M)) <= {"__future__", "re", "threading", "time", "maker_checklist"}, "it imports only re, threading, time and the local-only checklist helper (no network module, no file or process module)")
 body_lines = re.sub(r"#.*", "", src.split('"""', 2)[2]).splitlines()          # the code, without the docstring and the comments
 check(len(re.findall(r"\.api\(", src)) == 1 and src.count('ROUTE = "/node/compilation-requests"') == 1, "exactly one call to the site, to the one read route")
 check(not re.search(r"\b(open|write_text|write_bytes|put_file|upload|signUpload|subprocess|os\.)\b", "\n".join(body_lines)), "it opens no file, writes none, and names no upload or process")

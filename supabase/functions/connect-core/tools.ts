@@ -7,7 +7,7 @@ import { untrusted } from "../ai-editor/prompt.ts";
 import { checkStoryStructured } from "./story_check.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
-import { LIMITS, type CompilationRequest, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
+import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 const uuid = { type: "string", pattern: UUID };
@@ -254,6 +254,10 @@ const PICTURE_PATTERN = String.raw`^[^\\/:*?"<>|\u0000-\u001f]{1,100}\.(png|jpg|
 /** A drive letter and a slash, a network share, a parent folder, or a path from the root: a place on a computer. */
 const PLACE = /[A-Za-z]:[\\/]|\\\\|(^|\s)\/[A-Za-z]|\.\.[\\/]/;
 const looksLikePlace = (s: string) => PLACE.test(s);
+/** A web address, a file link or a bare "www." name: a checklist names a SITE in words ("the National Archives"), it never carries a link a person could click or Ryagram could follow. */
+const LINKISH = /[A-Za-z][A-Za-z0-9+.-]*:\/\/|\bwww\.|\b[A-Za-z0-9-]+\.(com|org|net|gov|edu|io|co|us|uk)\b\/?/i;
+const looksLikeLink = (s: string) => LINKISH.test(s);
+const MAX_CHECKLIST = 12;
 
 const setCompilationRequest: ToolDef = {
   name: "set_compilation_request", title: "Ask for a compilation", scope: "write", readOnly: false, destructive: true, idempotent: true,
@@ -275,6 +279,13 @@ const setCompilationRequest: ToolDef = {
       text: { type: "string", minLength: 1, maxLength: 120 }, start_s: { type: "number", minimum: 0, maximum: 3600 }, length_s: { type: "number", minimum: 0.5, maximum: 30 },
       position: { type: "string", enum: ["top", "centre", "bottom", "lower_third"] }, size: { type: "string", enum: ["small", "medium", "large"] } }, ["text", "start_s", "length_s", "position"]) },
     note: { type: "string", maxLength: 500, description: "A sentence for the person to read when they open the request." },
+    checklist: { type: "array", maxItems: MAX_CHECKLIST, items: obj({
+      what: { type: "string", minLength: 1, maxLength: 200, description: "What footage to get, in plain words (for example: the 1969 launch, wide shot)." },
+      from: { type: "string", maxLength: 200, description: "Where the person might find it: the NAME of a site or a library in words. Never a web address or a link: write 'the National Archives', not an address." },
+      must_contain: { type: "string", maxLength: 200, description: "What words or people it must contain, so the person knows it is the right clip." },
+      folder: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] }, description: "The NAME of one of the folders listed in 'folders': where the person puts the files." },
+      count: { type: "integer", minimum: 1, maximum: 20, description: "How many files to expect in that folder for this item (default 1). The app ticks the item when the folder holds that many videos." } }, ["what", "folder"]),
+      description: "Optional guided footage: a checklist of footage the PERSON gets for themselves (Ryagram downloads nothing and the AI sends no file). The desktop app shows it beside the request and ticks an item when its folder holds the files." },
   }, ["project_id", "phrase", "folders"]),
   async run(a, ctx) {
     const phrase = cleanText(a.phrase, 200);
@@ -288,16 +299,23 @@ const setCompilationRequest: ToolDef = {
     if (rules.some((r) => !r.phrase) || texts.some((t) => !t.text)) return refuse("Every rule and every text needs its words.", "args");
     const folders = [...new Set((a.folders as string[]).map((f) => f.trim()).filter(Boolean))];
     if (!folders.length) return refuse("Name at least one of the person's folders.", "args");
+    const rawList = (a.checklist as Record<string, unknown>[] | undefined) ?? [];
+    const checklist: ChecklistItem[] = rawList.map((c, i) => ({ id: `c${i + 1}`, what: cleanText(c.what, 200), from: cleanText(c.from ?? "", 200), must_contain: cleanText(c.must_contain ?? "", 200),
+      folder: String(c.folder).trim(), count: c.count === undefined ? 1 : Number(c.count) }));
+    if (checklist.some((c) => !c.what)) return refuse("Every checklist item needs its words (what footage to get).", "args");
+    if (checklist.some((c) => looksLikePlace(`${c.what} ${c.from} ${c.must_contain}`))) return refuse("Write words, not a place on the computer, in the checklist. Folders are named, never located.", "args");
+    if (checklist.some((c) => looksLikeLink(`${c.what} ${c.from} ${c.must_contain}`))) return refuse("The checklist names a site in words (like 'the National Archives'); it never carries a web address or a link. Ryagram downloads nothing: the person gets the footage themselves.", "args");
+    if (checklist.some((c) => !folders.includes(c.folder))) return refuse("A checklist item names a folder that is not in 'folders'. Put each item in one of the folders you listed.", "args");
     if (!(await ctx.policy.hit(ctx.principal, "compilation_requests", LIMITS.compilationRequestsPerDayPerUser, 86400))) {
       return refuse(`You can send ${LIMITS.compilationRequestsPerDayPerUser} compilation requests a day through a connection. Try tomorrow.`, "rate");
     }
     const request: CompilationRequest = { schema: "ryagram.compilation-request/0", phrase, search: (a.search ?? "every") as "every" | "words",
-      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note };
+      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(checklist.length ? { checklist } : {}) };
     const saved = await ctx.data.saveCompilationRequest(String(a.project_id), request);
     if (!saved) return NOT_YOURS("project");
     return ok(`Saved the request for ${untrusted("phrase", phrase)}${request.song ? " as a song" : ""} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
       + "Nothing has been built and no credit was used. The person opens the Ryagram app on their own computer, checks the request and builds the film there; their videos never leave it.",
-      { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length });
+      { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length, checklist: checklist.length });
   },
 };
 
