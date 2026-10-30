@@ -149,6 +149,8 @@ export interface ToolDef {
 
 export const LIMITS = Object.freeze({
   callsPerMinutePerClient: 60,
+  callsPerMinutePerAccount: 120,        // NEXT-CONNECT 169: all of one person's connected AIs together (Claude, ChatGPT, Claude Code ...)
+  failedJobsPerStory: 3,                // NEXT-CONNECT 169: after this many failed contact sheets (or previews) of the SAME story, another is refused until the story changes
   ladderPerHourPerUser: 30,             // the editor's number
   linksPerDayPerUser: 50,
   projectsPerDayPerUser: 20,
