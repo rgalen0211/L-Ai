@@ -240,5 +240,50 @@ except ML.LiveError as e:
     code_msg = e.message
 check(code_msg is not None and "past the end of the video file" in code_msg, "a trim past the end of the video file is refused with the page's sentence")
 
+# ------------------------------------------------------------------------------------------------ 4. the vocabulary piece: text style, music, phrase rules, the film's look
+S2 = dict(SUMMARY, lanes=["video", "text", "music"], pictures=[{"id": "p1", "name": "logo.png"}], rules=[{"id": "r1", "phrase": "good news", "picture": "p1", "seconds": 2, "mode": "corner"}],
+          clips=SUMMARY["clips"] + [{"id": "music", "track": "music", "start": 0, "len": 12, "label": "Song", "source": "song.mp3", "source_start": 0, "level_db": -12, "fade_in_s": 0, "fade_out_s": 1, "snap": False}])
+v = ML.LiveDraft(tmp / "vocab.json", clock=lambda: clock[0])
+v.set_base("compilation", S2)
+v.set_ai_visible(True)
+st0 = v.state("compilation")
+check(st0["rules"][0]["id"] == "r1" and st0["pictures"][0]["name"] == "logo.png", "rules and picture names come into the draft with the film")
+
+
+def one(op):
+    rev = v.ops_since("compilation", 0)["revision"]
+    return v.rpc("editor_apply_ops", {"p_project": "p", "p_mode": "compilation", "p_base_revision": rev, "p_ops": [op]})
+
+
+def word(op):
+    r = one(op)
+    return r["error"]["message"] if r["error"] else None
+
+
+check(word({"op": "set_clip_style", "id": "t1", "style": "caption"}) is None and [c for c in v.state("compilation")["clips"] if c["id"] == "t1"][0]["style"] == "caption", "a text clip takes a style")
+check("Only a text clip has a style." in (word({"op": "set_clip_style", "id": "v1", "style": "title"}) or ""), "a video clip does not")
+check(word({"op": "set_music", "level_db": -6, "fade_in_s": 1.5, "snap": True}) is None and [c for c in v.state("compilation")["clips"] if c["id"] == "music"][0]["level_db"] == -6 and [c for c in v.state("compilation")["clips"] if c["id"] == "music"][0]["snap"] is True, "set_music changes only the fields it names")
+check([c for c in v.state("compilation")["clips"] if c["id"] == "music"][0]["fade_out_s"] == 1, "the music fields it did not name are left alone")
+nm = ML.LiveDraft(tmp / "nomusic.json", clock=lambda: clock[0])
+nm.set_base("compilation", SUMMARY)
+check("There is no music on this film." in (nm.rpc("editor_apply_ops", {"p_project": "p", "p_mode": "compilation", "p_base_revision": nm.ops_since("compilation", 0)["revision"], "p_ops": [{"op": "set_music", "level_db": 0}]})["error"] or {"message": ""})["message"], "set_music on a film with no music lane is refused in words")
+check(word({"op": "set_rule", "phrase": "great news", "picture": "p1", "seconds": 3, "mode": "centre", "fade_s": 0.25}) is None and [r["id"] for r in v.state("compilation")["rules"]][-1].startswith("rule"), "a rule without an id is added with a new id")
+check(word({"op": "set_rule", "id": "r1", "phrase": "good news!", "picture": "p1", "seconds": 4, "mode": "full"}) is None and [r for r in v.state("compilation")["rules"] if r["id"] == "r1"][0]["seconds"] == 4, "a rule with an id replaces that rule")
+check("That picture is not one of yours." in (word({"op": "set_rule", "phrase": "x", "picture": "nope", "seconds": 2, "mode": "full"}) or ""), "a rule naming a picture the person does not have is refused")
+check("That rule is not in this film." in (word({"op": "set_rule", "id": "zzz", "phrase": "x", "picture": "p1", "seconds": 2, "mode": "full"}) or "") and "That rule is not in this film." in (word({"op": "delete_rule", "id": "zzz"}) or ""), "changing or deleting a rule that is not there is refused")
+check(word({"op": "delete_rule", "id": "r1"}) is None and not any(r["id"] == "r1" for r in v.state("compilation")["rules"]), "delete_rule takes it out")
+many = ML.LiveDraft(tmp / "manyrules.json", clock=lambda: clock[0])
+many.set_base("compilation", dict(S2, rules=[{"id": f"r{i}", "phrase": "a", "picture": "p1", "seconds": 1, "mode": "full"} for i in range(50)]))
+r51 = many.rpc("editor_apply_ops", {"p_project": "p", "p_mode": "compilation", "p_base_revision": many.ops_since("compilation", 0)["revision"], "p_ops": [{"op": "set_rule", "phrase": "b", "picture": "p1", "seconds": 1, "mode": "full"}]})
+check("at most 50 rules" in ((r51["error"] or {}).get("message") or ""), "the 51st rule is refused")
+check(word({"op": "set_film_look", "key": "theme", "value": "light"}) is None and word({"op": "set_film_look", "key": "box_opacity", "value": 0.5}) is None and v.state("compilation")["look"]["theme"] == "light" and v.state("compilation")["look"]["box_opacity"] == 0.5, "the film's look changes")
+sm = v.summary()
+check([r["phrase"] for r in sm["rules"]] == ["great news"] and sm["pictures"] == [{"id": "p1", "name": "logo.png"}] and sm["look"] == {"theme": "light", "box_opacity": 0.5}, "the summary carries the rules, the picture NAMES and the film's look")
+mc = [c for c in sm["clips"] if c["id"] == "music"][0]
+check(mc["level_db"] == -6 and mc["fade_in_s"] == 1.5 and mc["fade_out_s"] == 1 and mc["snap"] is True, "the summary carries the music lane's settings")
+undo_rev = v.ops_since("compilation", 0)["revision"]
+last = [o for o in v.ops_since("compilation", 0)["ops"] if o["status"] == "applied"][-1]
+check(v.rpc("editor_undo", {"p_mode": "compilation", "p_op_id": last["id"]})["error"] is None and "box_opacity" not in v.state("compilation")["look"], "undoing a film look change puts it back")
+
 print("RESULT: " + ("PASS" if not FAILED else f"FAIL ({len(FAILED)})"))
 sys.exit(1 if FAILED else 0)

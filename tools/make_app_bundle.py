@@ -173,6 +173,30 @@ def check_maker_extra(extra: str) -> str:
     return " ".join(words)
 
 
+# NEXT-CONNECT 163 (tester sign-in): the released app showed no Sign in card because its start file passed no --site. A build may now bake in the site's node address and the host the site sends the person to
+# for approving this computer. OFF unless asked for; both are checked whole against a fixed shape here, so nothing but a Ryagram node address and a plain host name can ride into the start file.
+SIGNIN_SITE_SHAPE = re.compile(r"^https://[a-z0-9]{20}[.]supabase[.]co/functions/v1/node$")
+SIGNIN_HOST_SHAPE = re.compile(r"^(?=.{4,100}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?([.][a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
+
+
+def check_signin(site: str, approval_hosts) -> str:
+    """The text the start file adds to the app line, or "" when no sign-in is asked for."""
+    site = (site or "").strip()
+    hosts = [h.strip() for h in (approval_hosts or []) if h and h.strip()]
+    if not site and not hosts:
+        return ""
+    if not site:
+        raise Refused("--signin-approval-host needs --signin-site.")
+    if not SIGNIN_SITE_SHAPE.fullmatch(site):
+        raise Refused("--signin-site must be a Ryagram node address like https://<20 letters or digits>.supabase.co/functions/v1/node (nothing else, no spaces, no query).")
+    if not hosts:
+        raise Refused("--signin-site needs at least one --signin-approval-host (the site the person is sent to for approving this computer, for example uselai.com).")
+    for h in hosts:
+        if not SIGNIN_HOST_SHAPE.fullmatch(h):
+            raise Refused(f"--signin-approval-host must be a plain lower-case host name like uselai.com; got {h!r}.")
+    return f'--site "{site}" ' + " ".join(f"--approval-host {h}" for h in hosts)
+
+
 WORD_BUILDER_BAT = "Get word builder.bat"            # --word-builder (NEXT-CONNECT 136, one zip): the add-on's start file at the root; its script travels inside tools\
 WORD_BUILDER_PY = "get_word_builder.py"
 
@@ -191,7 +215,7 @@ FORGE_BAT = "Open Ryagram (fill missing words).bat"
 FORGE_EXTRA = "--song --song-forge"           # the second start file; the first one never passes --song-forge
 
 
-def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False, word_builder: bool = False, face_model: bool = False) -> None:
+def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_bat: bool = False, word_builder: bool = False, face_model: bool = False, signin: str = "") -> None:
     # The file is called "Open Ryagram.bat" and not "Start ...": from a command line, cmd /c "Start X.bat" runs cmd's own START command instead of the file.
     def bat_text(extra: str) -> str:
       return "\r\n".join([
@@ -216,7 +240,7 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
         *(['if not defined MAKER_EXTRA set "MAKER_EXTRA=' + extra + '"'] if extra else []),
         'set "OPEN=--open"',
         'if defined MAKER_NO_OPEN set "OPEN="',
-        '"%~dp0python\\python.exe" -I "%~dp0tools\\desktop_maker.py" --work-dir "%~dp0work" --out-dir "%~dp0films" %OPEN% %MAKER_EXTRA%',
+        '"%~dp0python\\python.exe" -I "%~dp0tools\\desktop_maker.py" --work-dir "%~dp0work" --out-dir "%~dp0films" ' + (signin + " " if signin else "") + '%OPEN% %MAKER_EXTRA%',
         "if errorlevel 1 pause",
         "",
       ])
@@ -294,6 +318,7 @@ def build(a) -> dict:
     if face_model:
         check_face_model(face_model)
     maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
+    signin = check_signin(getattr(a, "signin_site", "") or "", getattr(a, "signin_approval_host", None) or [])
     if not a.allow_any_drive and not re.match(r"^[dD]:", str(out.resolve())):
         raise Refused(f"--out must be on D: (the storage rule), not {out}.")
     if out.exists() and any(out.iterdir()):
@@ -351,7 +376,7 @@ def build(a) -> dict:
         (out / "work").mkdir()
         (out / "films").mkdir()
         word_builder = bool(getattr(a, "word_builder", False))
-        write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)), word_builder=word_builder, face_model=bool(face_model))
+        write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)), word_builder=word_builder, face_model=bool(face_model), signin=signin)
         if word_builder:
             write_word_builder(out, app_repo)
         notices = write_notices(a, out, ffd)
@@ -416,6 +441,8 @@ def main(argv=None) -> int:
     ap.add_argument("--forge-bat", action="store_true", help="also write the second start file, which starts the song page WITH --song-forge (words built from the person's own sounds); the normal start file never passes it")
     ap.add_argument("--word-builder", action="store_true", help="put the word-builder add-on INSIDE the folder (one zip): Get word builder.bat at the root, tools\\get_word_builder.py; the 378 MB model is still fetched later, on a YES, by that file")
     ap.add_argument("--maker-extra", default="", help="page switches the start file turns on unless the tester sets MAKER_EXTRA himself; only --song --song-forge --edit are allowed (for example \"--song --song-forge\")")
+    ap.add_argument("--signin-site", default="", help="tester builds: the Ryagram node address (https://<project>.supabase.co/functions/v1/node) the start file passes as --site, so the app shows its Sign in card; off unless given")
+    ap.add_argument("--signin-approval-host", action="append", default=[], help="with --signin-site: the host the site sends the person to for approving this computer (repeat for more), for example uselai.com")
     ap.add_argument("--allow-any-drive", action="store_true", help="tests only")
     a = ap.parse_args(argv)
     try:

@@ -22,7 +22,16 @@
     'sequence.theme': v => v === 'light' || v === 'dark'
   });
   // The vocabulary is CONNECT's (tests/edit-op-cases.json is run by both the SQL and TypeScript checks): the data mode's set_look / unset_look and the compilation mode's clip ops plus add_clip.
-  const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip'];
+  const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look'];
+  // The five ops of CONNECT 13:12 (shared cases: tests/edit-op-cases.json): a text style, the music's settings, the phrase rules, the film's own look.
+  const STYLES = ['title', 'caption', 'lower_third'];
+  const RULE_MODES = ['full', 'centre', 'corner', 'lower_third'];
+  const FILM_LOOK = ['theme', 'text_color', 'box_color', 'box_opacity', 'letterbox'];
+  const MAX_RULES = 50;
+  const num = v => typeof v === 'number' && Number.isFinite(v);
+  const inRange = (v, lo, hi) => num(v) && v >= lo && v <= hi;
+  const PLAIN = 'The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup).';
+  const plainPhrase = v => typeof v === 'string' && v.trim().length >= 1 && v.length <= 60 && !/[<>\\/]|https?:|www\./i.test(v);
   const DATA_OPS = ['set_look', 'unset_look'];
   // Text from the AI or the person is data: capped, control and bidirectional characters removed, never markup.
   const cleanText = s => String(s).replace(new RegExp('[' + [[0, 31], [127, 127], [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069], [60, 60], [62, 62]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g'), '').slice(0, MAX_TEXT);
@@ -41,6 +50,9 @@
     // The film's own text rules (BUILDER 12:25: textstyle.rules for the canvas the FINAL film has) ride in the summary; kept only when they have the shape the layout needs, never edited by an op.
     const tr = init.text_rules;
     if (tr && typeof tr === 'object' && Array.isArray(tr.canvas) && tr.canvas.length === 2 && tr.canvas.every(n => Number.isFinite(n) && n > 0) && tr.styles && typeof tr.styles === 'object' && Array.isArray(tr.safe) && Array.isArray(tr.keep_out)) s.text_rules = clone(tr);
+    // The phrase rules, the person's pictures (NAMES only) and the music's settings ride in the summary (CONNECT 13:12): read-only for the page except through the ops below.
+    if (Array.isArray(init.rules)) s.rules = clone(init.rules.filter(r => r && typeof r === 'object' && typeof r.id === 'string').slice(0, MAX_RULES));
+    if (Array.isArray(init.pictures)) s.pictures = clone(init.pictures.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string').slice(0, 50).map(p => ({ id: p.id, name: p.name })));
     if (init.limits && typeof init.limits === 'object') s.limits = { text_chars: Number.isInteger(init.limits.text_chars) ? init.limits.text_chars : undefined };
     return s;
   }
@@ -77,6 +89,42 @@
       } else if (typeof op.picture !== 'string' || !op.picture) return 'Pick one of your pictures.';
       return null;
     }
+    if (op.op === 'set_music') {
+      const m = state.clips.find(x => x.id === 'music' && x.track === 'music');
+      if (!m) return 'There is no music on this film.';
+      if (state.lanes && !state.lanes.includes('music')) return 'That part of the film can not be edited here yet.';
+      const known = ['op', 'level_db', 'fade_in_s', 'fade_out_s', 'source_start', 'snap'];
+      if (Object.keys(op).some(k => !known.includes(k))) return 'That change has a field the editor does not know.';
+      if (Object.keys(op).length < 2) return 'set_music needs at least one setting.';
+      if ('level_db' in op && !inRange(op.level_db, -30, 6)) return 'The level must be a number from -30 to 6.';
+      if ('fade_in_s' in op && !inRange(op.fade_in_s, 0, 5)) return 'The fade in must be a number from 0 to 5 seconds.';
+      if ('fade_out_s' in op && !inRange(op.fade_out_s, 0, 5)) return 'The fade out must be a number from 0 to 5 seconds.';
+      if ('source_start' in op && !inRange(op.source_start, 0, 86400)) return 'Where the music starts must be a number from 0 to 86400 seconds.';
+      if ('snap' in op && typeof op.snap !== 'boolean') return 'Snap to the beat is on or off.';
+      return null;
+    }
+    if (op.op === 'set_rule' || op.op === 'delete_rule') {
+      const rules = state.rules || [];
+      if (op.op === 'delete_rule') return typeof op.id === 'string' && rules.some(r => r.id === op.id) ? null : 'That rule is not in this film.';
+      const known = ['op', 'id', 'phrase', 'picture', 'seconds', 'mode', 'fade_s'];
+      if (Object.keys(op).some(k => !known.includes(k))) return 'That change has a field the editor does not know.';
+      if (!plainPhrase(op.phrase)) return PLAIN;
+      if (!inRange(op.seconds, 0.5, 10)) return 'The picture stays from 0.5 to 10 seconds.';
+      if (!RULE_MODES.includes(op.mode)) return 'A rule mode must be full, centre, corner or lower_third.';
+      if ('fade_s' in op && !inRange(op.fade_s, 0, 1)) return 'The fade must be a number from 0 to 1 second.';
+      if (typeof op.picture !== 'string' || (state.pictures && !state.pictures.some(p => p.id === op.picture))) return 'That picture is not one of yours.';
+      if ('id' in op) { if (!rules.some(r => r.id === op.id)) return 'That rule is not in this film.'; }
+      else if (rules.length >= MAX_RULES) return `A film can have at most ${MAX_RULES} rules.`;
+      return null;
+    }
+    if (op.op === 'set_film_look') {
+      if (!FILM_LOOK.includes(op.key)) return 'That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox).';
+      if (!('value' in op)) return 'A film look change needs a value.';
+      if (op.key === 'theme' && !(op.value === 'dark' || op.value === 'light')) return 'The theme can only be: dark, light.';
+      if (['text_color', 'box_color', 'letterbox'].includes(op.key) && !COLOR(op.value)) return 'That needs a colour like #1a73e8.';
+      if (op.key === 'box_opacity' && !inRange(op.value, 0, 1)) return 'The box opacity must be a number from 0 to 1.';
+      return null;
+    }
     const c = clipOf(state, op.id);
     if (!c) return 'That clip is not in this film.';
     if (state.lanes && !state.lanes.includes(c.track)) return 'That part of the film can not be edited here yet.';
@@ -103,6 +151,9 @@
     } else if (op.op === 'reorder_clip') {
       if (c.track !== 'video') return 'Only video clips can be reordered.';
       if (!Number.isInteger(op.index) || op.index < 0 || op.index >= videoOf(state).length) return 'There is no such place in the list.';
+    } else if (op.op === 'set_clip_style') {
+      if (!(c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture))) return 'Only a text clip has a style.';
+      if (!STYLES.includes(op.style)) return 'A text style must be title, caption or lower_third.';
     } else if (op.op === 'set_clip_text') {
       // a text line, or a text SLIDE (a video-lane clip that is a slide with words and no picture; BUILDER 23)
       if (c.track !== 'text' && !(c.track === 'video' && c.slide === true && !c.picture)) return 'Only a text clip has text.';
@@ -117,6 +168,17 @@
   function apply(state, op) {
     const next = clone(state);
     if (op.op === 'set_look') next.look[op.key] = op.value;
+    else if (op.op === 'set_film_look') next.look[op.key] = op.value;
+    else if (op.op === 'set_music') {
+      const m = next.clips.find(x => x.id === 'music' && x.track === 'music');
+      for (const k of ['level_db', 'fade_in_s', 'fade_out_s', 'source_start', 'snap']) if (k in op) m[k] = op[k];
+    } else if (op.op === 'set_rule') {
+      next.rules = next.rules || [];
+      const rule = { id: op.id || `rule${state.revision + 1}`, phrase: cleanText(op.phrase).slice(0, 60), picture: op.picture, seconds: round(op.seconds), mode: op.mode };
+      if ('fade_s' in op) rule.fade_s = round(op.fade_s);
+      const at = next.rules.findIndex(r => r.id === rule.id);
+      if (at >= 0) next.rules[at] = rule; else next.rules.push(rule);
+    } else if (op.op === 'delete_rule') next.rules = (next.rules || []).filter(r => r.id !== op.id);
     else if (op.op === 'unset_look') delete next.look[op.key];
     else if (op.op === 'add_clip') {
       const id = `new${state.revision + 1}`;
@@ -141,6 +203,8 @@
         const others = next.clips.filter(x => x.track !== 'video');
         next.clips = [...vids, ...others];
         repack(next);
+      } else if (op.op === 'set_clip_style') {
+        c.style = op.style;
       } else if (op.op === 'set_clip_text') c.text = cleanText(op.text);
       else if (op.op === 'delete_clip') { next.clips = next.clips.filter(x => x !== c); if (c.track === 'video') repack(next); }
     }
@@ -542,7 +606,9 @@
     { id: 'v5', track: 'video', start: 9.5, len: 2.5, label: 'nobody saw that coming' },
     { id: 'p1', track: 'pictures', start: 1.5, len: 2, label: 'house price' }, { id: 'p2', track: 'pictures', start: 6.2, len: 2.2, label: 'rent chart' },
     { id: 't1', track: 'text', start: 0.2, len: 3.5, label: 'Title', text: 'Housing, 2019 to 2024' }, { id: 't2', track: 'text', start: 9, len: 3, label: 'Thanks', text: 'Thanks for watching' },
-    { id: 'm1', track: 'music', start: 0, len: 12, label: 'your music file (stays on your computer)' }] });
+    { id: 'music', track: 'music', start: 0, len: 12, label: 'your music file (stays on your computer)', source: 'song.wav', source_start: 0, level_db: -12, fade_in_s: 0, fade_out_s: 1, snap: false }],
+    rules: [{ id: 'r1', phrase: 'great news', picture: 'img-1', seconds: 2, mode: 'corner', fade_s: 0.2 }], pictures: [{ id: 'img-1', name: 'house.png' }, { id: 'img-2', name: 'chart.png' }],
+    look: { theme: 'dark', text_color: '#f2f2f2', box_color: '#14141a', box_opacity: 0.75, letterbox: '#000000' } });
   const TRACK_NAMES = { video: 'Video', pictures: 'Pictures', text: 'Text', music: 'Music' };
 
   function create({ h, data = null }) {
@@ -623,10 +689,11 @@
         for (const p of now.filter(c => c.track === 'pictures')) bmpPics.push([p, await frameOf(p.id, 0)]);
         if (seq !== drawSeq) return;                                              // a newer playhead position took over
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+        const fl = ed.state.look || {}, light = fl.theme === 'light';
+        ctx.fillStyle = /^#[0-9a-fA-F]{6}$/.test(fl.letterbox) ? fl.letterbox : '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.setTransform(k, 0, 0, k, 0, 0);
         const slideText = vid && vid.slide === true && !vid.picture;
-        if (slideText) { ctx.fillStyle = '#14141a'; ctx.fillRect(0, 0, W, H); }   // a text slide is the words on a card in the film's theme (dark by default)
+        if (slideText) { ctx.fillStyle = light ? '#f2f2f2' : '#14141a'; ctx.fillRect(0, 0, W, H); }   // a text slide is the words on a card in the film's theme (dark by default)
         else if (bmp) contain(ctx, bmp, 0, 0, W, H);
         else if (vid) { ctx.fillStyle = '#b6b5ae'; ctx.font = `${Math.round(H * 0.05)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText(`${vid.label} (no picture for this moment)`, W / 2, H / 2); ctx.textAlign = 'start'; }
         for (const [p, b] of bmpPics) { if (!b) continue; const g = GEOM[p.mode] || GEOM.full; contain(ctx, b, g[0] * W, g[1] * H, g[2] * W, g[3] * H); }
@@ -637,8 +704,8 @@
         for (const t of now.filter(c => c.track === 'text' && c.text)) words.push({ text: t.text, style: t.style || null });
         for (const w of words) {
           try {
-            if (w.card) { ctx.fillStyle = '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
-            else if (L && R && w.style) { const lay = L.layout(R, w.text, w.style, ctx); L.draw(ctx, R, lay, w.text, { text: '#f2f2f2', box: '#14141a', alpha: 0.75 }); }
+            if (w.card) { ctx.fillStyle = light ? '#14141a' : '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
+            else if (L && R && w.style) { const lay = L.layout(R, w.text, w.style, ctx); L.draw(ctx, R, lay, w.text, { text: /^#[0-9a-fA-F]{6}$/.test(fl.text_color) ? fl.text_color : '#f2f2f2', box: /^#[0-9a-fA-F]{6}$/.test(fl.box_color) ? fl.box_color : '#14141a', alpha: Number.isFinite(fl.box_opacity) ? fl.box_opacity : 0.75 }); }
             else { const sz = Math.round(H * 0.05); ctx.font = `${sz}px Arial, sans-serif`; const tw = ctx.measureText(w.text).width; const x = (W - tw) / 2, y = H * 0.86; ctx.fillStyle = 'rgba(20,20,26,.75)'; ctx.fillRect(x - sz / 3, y - sz, tw + 2 * sz / 3, sz * 1.5); ctx.fillStyle = '#f2f2f2'; ctx.fillText(w.text, x, y); }
           } catch (e) { layoutProblem = String((e && e.message) || 'That text does not fit.').slice(0, 200); }
         }
@@ -818,6 +885,56 @@
       // ---- the tracks (compilation): lanes on a wide screen, a list on a phone; both from the same state, both make the same ops
       const open = track => !ed.state.lanes || ed.state.lanes.includes(track);          // the lanes the maker can build today (the track summary says); the others are shown, not editable
       const lanes = h('div', { class: 'le-lanes', role: 'group', 'aria-label': 'Tracks' });
+
+      // ---- the film's own settings (CONNECT 13:12): the phrase rules ("every time a word is said, show a picture") and the look of the film's text and cards
+      const rulesPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-rules-h', hidden: true });
+      const filmLookPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-flook-h', hidden: true });
+      let editingRule = null;
+      const MODE_WORDS = { full: 'full frame', centre: 'centre', corner: 'corner', lower_third: 'lower third' };
+      const field = (id, label, control) => h('div', { class: 'le-row' }, h('label', { for: id }, label), control);
+      function paintRules() {
+        const rules = ed.state.rules, pics = ed.state.pictures || [];
+        rulesPanel.hidden = !Array.isArray(rules) || isData;
+        if (rulesPanel.hidden) return;
+        const picName = id => (pics.find(p => p.id === id) || {}).name || id;
+        const cur = rules.find(r => r.id === editingRule) || null;
+        const phrase = h('input', { type: 'text', id: 'le-r-phrase', maxlength: 60, value: cur ? cur.phrase : '' });
+        const pic = h('select', { id: 'le-r-pic' }, pics.map(p => h('option', { value: p.id, selected: cur && cur.picture === p.id }, p.name)));
+        const secs = h('input', { type: 'number', id: 'le-r-secs', min: '0.5', max: '10', step: '0.5', value: cur ? cur.seconds : 2 });
+        const mode = h('select', { id: 'le-r-mode' }, Object.entries(MODE_WORDS).map(([v, w]) => h('option', { value: v, selected: cur ? cur.mode === v : v === 'corner' }, w)));
+        const fade = h('input', { type: 'number', id: 'le-r-fade', min: '0', max: '1', step: '0.1', value: cur && cur.fade_s !== undefined ? cur.fade_s : 0.2 });
+        const save = async () => {
+          const op = { op: 'set_rule', phrase: phrase.value, picture: pic.value, seconds: Number(secs.value), mode: mode.value, fade_s: Number(fade.value) };
+          if (cur) op.id = cur.id;
+          if (await apply(op)) editingRule = null;
+          paint();
+        };
+        rulesPanel.replaceChildren(h('h2', { id: 'le-rules-h' }, 'When a word is said'),
+          h('p', { class: 'meta' }, 'Every time the film says the words, the picture shows for a few seconds. Add your pictures in the Ryagram app first.'),
+          h('ul', { class: 'le-rule-list' }, rules.length ? rules.map(r => h('li', { class: 'le-item' },
+            h('span', { class: 'le-itemtext' }, `"${r.phrase}": ${picName(r.picture)}, ${r.seconds} s, ${MODE_WORDS[r.mode] || r.mode}`),
+            h('span', { class: 'le-mv' }, btn('Edit', 'secondary', () => { editingRule = r.id; paint(); }, { 'aria-label': `Edit the rule for ${r.phrase}` }),
+              btn('Remove', 'secondary', async () => { await apply({ op: 'delete_rule', id: r.id }); if (editingRule === r.id) editingRule = null; paint(); }, { 'aria-label': `Remove the rule for ${r.phrase}` })))) : [h('li', { class: 'meta' }, 'No rules yet.')]),
+          pics.length ? h('div', { class: 'le-rule-form', role: 'group', 'aria-label': cur ? 'Change this rule' : 'Add a rule' },
+            field('le-r-phrase', 'When this is said', phrase), field('le-r-pic', 'Show this picture', pic), field('le-r-secs', 'For (seconds)', secs), field('le-r-mode', 'Where', mode), field('le-r-fade', 'Fade (seconds)', fade),
+            h('div', { class: 'le-actions' }, btn(cur ? 'Save this rule' : 'Add this rule', 'primary', save), cur ? btn('Cancel', 'secondary', () => { editingRule = null; paint(); }) : null))
+            : h('p', { class: 'meta' }, 'You have no pictures yet. Add one in the Ryagram app, then it appears here.'));
+      }
+      const FILM_LOOK_ROWS = [['theme', 'Page and text'], ['text_color', 'Text colour'], ['box_color', 'Text box colour'], ['box_opacity', 'Text box strength'], ['letterbox', 'Bars around the picture']];
+      function paintFilmLook() {
+        const lk = ed.state.look || {};
+        filmLookPanel.hidden = isData || !FILM_LOOK_ROWS.some(([k]) => k in lk);
+        if (filmLookPanel.hidden) return;
+        const set = (key, value) => apply({ op: 'set_film_look', key, value });
+        const colour = (key, label) => { const i = h('input', { type: 'color', id: `le-fl-${key}`, value: /^#[0-9a-fA-F]{6}$/.test(lk[key]) ? lk[key] : '#000000', 'aria-label': label, disabled: locked }); i.addEventListener('change', () => set(key, i.value)); return field(i.id, label, i); };
+        const theme = h('select', { id: 'le-fl-theme', disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, w]) => h('option', { value: v, selected: lk.theme === v }, w)));
+        theme.addEventListener('change', () => set('theme', theme.value));
+        const op = h('input', { type: 'number', id: 'le-fl-box_opacity', min: '0', max: '1', step: '0.05', value: Number.isFinite(lk.box_opacity) ? lk.box_opacity : 0.75, disabled: locked });
+        op.addEventListener('change', () => set('box_opacity', Number(op.value)));
+        filmLookPanel.replaceChildren(h('h2', { id: 'le-flook-h' }, 'Look of the film'),
+          field('le-fl-theme', 'Page and text', theme), colour('text_color', 'Text colour'), colour('box_color', 'Text box colour'), field('le-fl-box_opacity', 'Text box strength (0 to 1)', op), colour('letterbox', 'Bars around the picture'),
+          h('p', { class: 'le-free' }, 'These settings change how every text and card in the film looks. Free, like everything here.'));
+      }
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
@@ -913,6 +1030,19 @@
         const rows = [num('le-start', 'Starts (seconds)', c.start, v => apply({ op: 'move_clip', id: c.id, start: v }), c.track === 'video'),
                       num('le-len', 'Length (seconds)', c.len, v => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + v) * 10) / 10 }))];
         if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
+
+        if (c.track === 'music') {
+          const mnum = (key, label, lo, hi, step) => { const i = h('input', { type: 'number', id: `le-m-${key}`, min: String(lo), max: String(hi), step: String(step), value: Number.isFinite(c[key]) ? c[key] : 0 }); i.addEventListener('change', () => apply({ op: 'set_music', [key]: Number(i.value) })); return h('div', { class: 'le-row' }, h('label', { for: i.id }, label), i); };
+          const snap = h('input', { type: 'checkbox', id: 'le-m-snap', checked: c.snap === true }); snap.addEventListener('change', () => apply({ op: 'set_music', snap: snap.checked }));
+          rows.push(mnum('level_db', 'Loudness (dB, -30 to 6)', -30, 6, 1), mnum('fade_in_s', 'Fade in (seconds)', 0, 5, 0.5), mnum('fade_out_s', 'Fade out (seconds)', 0, 5, 0.5), mnum('source_start', 'Start this far into the song (seconds)', 0, 86400, 1),
+            h('div', { class: 'le-row' }, h('label', { for: 'le-m-snap' }, 'Cut on the beat'), snap));
+        }
+        if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) {
+          const st = h('select', { id: 'le-style', 'aria-label': 'Text style' }, [h('option', { value: '', selected: !c.style, disabled: true }, c.style ? 'Style' : 'Position as before')].concat(
+            [['title', 'Title (top)'], ['caption', 'Caption (bottom)'], ['lower_third', 'Lower third']].map(([v, w]) => h('option', { value: v, selected: c.style === v }, w))));
+          st.addEventListener('change', () => { if (st.value) apply({ op: 'set_clip_style', id: c.id, style: st.value }); });
+          rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-style' }, 'Text style'), st));
+        }
         clipPanel.replaceChildren(h('h2', { id: 'le-clip-h' }, `${TRACK_NAMES[c.track]}: ${c.label}`), ...rows,
           btn('Remove this clip', 'secondary', () => { selected = null; apply({ op: 'delete_clip', id: c.id }); }),
           h('p', { class: 'le-free' }, 'Your videos never leave your computer. This page edits the list; your computer draws it.'));
@@ -944,7 +1074,7 @@
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
         undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
         if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
-        else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); }
+        else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
         paintBanner(); paintWarns(); paintAiLinks(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
       }
@@ -957,7 +1087,7 @@
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
-          isData ? lookPanel : clipPanel),
+          isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
