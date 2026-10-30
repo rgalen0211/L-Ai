@@ -499,6 +499,7 @@ def nodekit(w, name, extra=None, drop=(), tamper=None, same_engine=True, manifes
     nk = w["root"] / name
     files = {f"ryagram/worker/{f}": f"# node-job stand-in {f}\n" for f in WORKER_FILES if f not in drop}
     files["ryagram/local/engine.py"] = (w["kit"] / "ryagram" / "local" / "engine.py").read_bytes().decode("utf-8") if same_engine else "print('another engine head')" + chr(10)
+    files["ryagram/sequence/RENDER.py"] = "# render driver stand-in" + chr(10)                    # the node job starts the render driver: the closure carries the modules the kit lacks
     files.update(extra or {})
     lines = []
     for rel, text in files.items():
@@ -520,6 +521,7 @@ nk = nodekit(w, "nk-good")
 before = tree_hash(w["kit"])
 mab.build(args(w, maker_extra="--song", node_job_kit=str(nk)))
 o = w["out"]
+check((o / "ryagram" / "sequence" / "RENDER.py").is_file(), "a render-driver module the kit does not have (ryagram/sequence) is carried too")
 check(all((o / "ryagram" / "worker" / f).is_file() for f in WORKER_FILES) and (o / "ryagram" / "local" / "engine.py").read_text(encoding="utf-8") == "print('engine')" + chr(10), "the closure's seven worker files are in the bundle's ryagram/worker, and the kit's own engine file is untouched")
 sums = (o / "SHA256SUMS.txt").read_text(encoding="utf-8")
 check("ryagram/worker/config.py" in sums and vb.check(o) == [], "they are in the self-check's list, and it says 'as built'")
@@ -542,7 +544,9 @@ for label, build_kit, frag in (
         ("a worker sub-folder", dict(extra={"ryagram/worker/sub/config.py": "x = 1" + chr(10)}), "house-worker module"),
         ("a file outside the ryagram folder", dict(extra={"tools/evil.py": "x = 1" + chr(10)}), "outside the ryagram folder"),
         ("a manifest line whose path climbs out (the folder cannot hold such a file, so the lists differ)", dict(extra={"ryagram/../evil.py": "x = 1" + chr(10)}), "not the files in its manifest"),
-        ("a new file outside ryagram/worker", dict(extra={"ryagram/extra.py": "x = 1" + chr(10)}), "only ryagram/worker files may be added"),
+        ("a new file outside ryagram/worker and ryagram/sequence", dict(extra={"ryagram/extra.py": "x = 1" + chr(10)}), "may be added"),
+        ("a new module in another package", dict(extra={"ryagram/maprace/newthing.py": "x = 1" + chr(10)}), "may be added"),
+        ("a sub-folder inside ryagram/sequence", dict(extra={"ryagram/sequence/sub/x.py": "x = 1" + chr(10)}), "may be added"),
         ("a file the kit has with other content", dict(same_engine=False), "different engine heads"),
         ("no config.py", dict(drop=("config.py",)), "no ryagram/worker/config.py")):
     w = world("u")

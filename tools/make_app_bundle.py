@@ -201,6 +201,7 @@ def check_signin(site: str, approval_hosts) -> str:
 # runner, schema, and restricted, which runner reads lazily). The normal kit carries none of ryagram/worker. --node-job-kit merges that closure into the bundle, and ONLY that: every file is checked against the
 # closure's own MANIFEST.sha256, nothing outside ryagram/ may ride along, a file also in the kit must be identical, and a house-worker module that is not on the list (queue, uploads, safesheet, liveness,
 # progress, worker) is refused by name.
+NODE_JOB_SEQUENCE_FILE = re.compile(r"[A-Za-z0-9_]+[.]py")                       # the render driver the node job starts (python -m ryagram.sequence): the kit has its core, the closure adds the few modules the job runner reaches
 NODE_JOB_WORKER_FILES = ("__init__.py", "config.py", "contract.py", "engine.py", "runner.py", "schema.py", "restricted.py")
 
 
@@ -234,8 +235,8 @@ def check_node_job_kit(node_kit: Path, kit: Path) -> list:
         if twin.is_file():
             if sha256_file(twin) != want:
                 raise Refused(f"--node-job-kit: {rel} is also in the kit with other content (the two were cut from different engine heads).")
-        elif parts[:2] != ["ryagram", "worker"]:
-            raise Refused(f"--node-job-kit: {rel} is not in the kit and is not a node-job worker module; only ryagram/worker files may be added.")
+        elif not (parts[:2] == ["ryagram", "worker"] or (parts[:2] == ["ryagram", "sequence"] and len(parts) == 3 and NODE_JOB_SEQUENCE_FILE.fullmatch(parts[2]))):
+            raise Refused(f"--node-job-kit: {rel} is not in the kit and is not a node-job module; only ryagram/worker files and the engine's own ryagram/sequence modules may be added.")
         else:
             add.append(rel)
     if not any(r == "ryagram/worker/config.py" for r in listed):
