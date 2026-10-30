@@ -3,7 +3,7 @@
 -- (set_clip_style, set_music, set_rule, delete_rule, set_film_look), and the desktop app's track summary may carry rules, pictures and look, plus the clip fields
 -- slide, mode, fade_s, style, level_db, fade_in_s, fade_out_s and snap. The same rules as the TypeScript and Python twins and tests/edit-op-cases.json.
 -- Only the two function bodies change: same names, same arguments, same owners and grants (create or replace keeps them). No table changes.
--- Undo: supabase/rollbacks/20261029000100_live_editor_new_ops_rollback.sql. After-check: supabase/live-steps/09_live_editor_new_ops_after_check.sql.
+-- Undo: supabase/rollbacks/20261029000100_live_editor_new_ops_rollback.sql. After-check: supabase/live-steps/13_live_editor_new_ops_after_check.sql.
 
 begin;
 
