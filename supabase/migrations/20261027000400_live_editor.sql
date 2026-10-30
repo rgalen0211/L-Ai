@@ -136,14 +136,9 @@ begin
   elsif kind = 'set_clip_text' then allowed := array['op', 'id', 'text'];
   elsif kind = 'delete_clip' then allowed := array['op', 'id'];
   elsif kind = 'add_clip' then allowed := array['op', 'track', 'start', 'len', 'text', 'picture'];
-  elsif kind = 'set_clip_style' then allowed := array['op', 'id', 'style'];
-  elsif kind = 'set_music' then allowed := array['op', 'level_db', 'fade_in_s', 'fade_out_s', 'source_start', 'snap'];
-  elsif kind = 'set_rule' then allowed := array['op', 'id', 'phrase', 'picture', 'seconds', 'mode', 'fade_s'];
-  elsif kind = 'delete_rule' then allowed := array['op', 'id'];
-  elsif kind = 'set_film_look' then allowed := array['op', 'key', 'value'];
   else return format('"%s" is not a change this editor knows for a compilation.', left(kind, 40)); end if;
   if exists (select 1 from unnest(keys) x where x <> all (allowed)) then return 'That change has a field the editor does not know.'; end if;
-  if kind in ('move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'set_clip_style') then
+  if kind <> 'add_clip' then
     if jsonb_typeof(p_op -> 'id') is distinct from 'string' or (p_op ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then return 'This change needs a clip "id" from get_edit_state.'; end if;
   end if;
   for k in select a as name from unnest(array['start', 'to', 'len']) a loop
@@ -175,30 +170,6 @@ begin
       if p_op ? 'text' or not (p_op ? 'picture') then return 'A picture clip needs a "picture" name and no "text".'; end if;
       if jsonb_typeof(p_op -> 'picture') <> 'string' or (p_op ->> 'picture') !~* '^[^\\/:*?"<>|[:cntrl:]]{1,100}\.(png|jpg|jpeg|webp)$' then return 'A picture is the NAME of one the person added in the app (png, jpg or webp), never a place.'; end if;
     end if;
-  elsif kind = 'set_clip_style' then
-    if jsonb_typeof(p_op -> 'style') is distinct from 'string' or (p_op ->> 'style') not in ('title', 'caption', 'lower_third') then return 'A text style must be title, caption or lower_third.'; end if;
-  elsif kind = 'set_music' then
-    if (select count(*) from jsonb_object_keys(p_op)) < 2 then return 'set_music needs at least one setting.'; end if;
-    if p_op ? 'level_db' and (jsonb_typeof(p_op -> 'level_db') <> 'number' or (p_op ->> 'level_db')::numeric not between -30 and 6) then return '"level_db" must be a number from -30 to 6.'; end if;
-    if p_op ? 'fade_in_s' and (jsonb_typeof(p_op -> 'fade_in_s') <> 'number' or (p_op ->> 'fade_in_s')::numeric not between 0 and 5) then return '"fade_in_s" must be a number from 0 to 5 seconds.'; end if;
-    if p_op ? 'fade_out_s' and (jsonb_typeof(p_op -> 'fade_out_s') <> 'number' or (p_op ->> 'fade_out_s')::numeric not between 0 and 5) then return '"fade_out_s" must be a number from 0 to 5 seconds.'; end if;
-    if p_op ? 'source_start' and (jsonb_typeof(p_op -> 'source_start') <> 'number' or (p_op ->> 'source_start')::numeric not between 0 and 86400) then return '"source_start" must be a number from 0 to 86400 seconds.'; end if;
-    if p_op ? 'snap' and jsonb_typeof(p_op -> 'snap') <> 'boolean' then return '"snap" must be true or false.'; end if;
-  elsif kind = 'set_rule' then
-    if p_op ? 'id' and (jsonb_typeof(p_op -> 'id') <> 'string' or (p_op ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$') then return 'A rule "id" is letters, digits, - and _ (leave it out to add a new rule).'; end if;
-    if jsonb_typeof(p_op -> 'phrase') is distinct from 'string' or not ryagram_private.edit_text_ok(p_op ->> 'phrase', 60) then return 'The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup).'; end if;
-    if jsonb_typeof(p_op -> 'picture') is distinct from 'string' or (p_op ->> 'picture') !~ '^[A-Za-z0-9_.-]{1,100}$' then return 'A rule needs the "picture" id from the editor state.'; end if;
-    if jsonb_typeof(p_op -> 'seconds') is distinct from 'number' or (p_op ->> 'seconds')::numeric not between 0.5 and 10 then return '"seconds" must be a number from 0.5 to 10.'; end if;
-    if jsonb_typeof(p_op -> 'mode') is distinct from 'string' or (p_op ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third') then return 'A rule mode must be full, centre, corner or lower_third.'; end if;
-    if p_op ? 'fade_s' and (jsonb_typeof(p_op -> 'fade_s') <> 'number' or (p_op ->> 'fade_s')::numeric not between 0 and 1) then return '"fade_s" must be a number from 0 to 1 second.'; end if;
-  elsif kind = 'delete_rule' then
-    if jsonb_typeof(p_op -> 'id') is distinct from 'string' or (p_op ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then return 'This change needs a rule "id" from get_edit_state.'; end if;
-  elsif kind = 'set_film_look' then
-    if jsonb_typeof(p_op -> 'key') is distinct from 'string' or (p_op ->> 'key') not in ('theme', 'text_color', 'box_color', 'box_opacity', 'letterbox') then return 'That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox).'; end if;
-    if not (p_op ? 'value') then return 'A film look change needs a "value".'; end if;
-    if p_op ->> 'key' = 'theme' and (jsonb_typeof(p_op -> 'value') <> 'string' or (p_op ->> 'value') not in ('dark', 'light')) then return '"theme" can only be: dark, light.'; end if;
-    if p_op ->> 'key' in ('text_color', 'box_color', 'letterbox') and (jsonb_typeof(p_op -> 'value') <> 'string' or (p_op ->> 'value') !~ '^#[0-9A-Fa-f]{6}$') then return format('"%s" needs a colour like #1a73e8.', p_op ->> 'key'); end if;
-    if p_op ->> 'key' = 'box_opacity' and (jsonb_typeof(p_op -> 'value') <> 'number' or (p_op ->> 'value')::numeric not between 0 and 1) then return '"box_opacity" must be a number from 0 to 1.'; end if;
   end if;
   return null;
 end $$;
@@ -484,7 +455,7 @@ begin
   if p_summary is null or jsonb_typeof(p_summary) <> 'object' or pg_column_size(p_summary) > 65536 then
     raise exception 'That track summary is not valid.' using errcode = '22023';
   end if;
-  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('schema', 'clips', 'duration', 'lanes', 'limits', 'rules', 'pictures', 'look')) then
+  if exists (select 1 from jsonb_object_keys(p_summary) k where k not in ('schema', 'clips', 'duration', 'lanes', 'limits')) then
     raise exception 'That track summary has a part the editor does not know.' using errcode = '22023';
   end if;
   if p_summary ? 'duration' and (jsonb_typeof(p_summary -> 'duration') <> 'number' or (p_summary ->> 'duration')::numeric < 0 or (p_summary ->> 'duration')::numeric > 86400) then
@@ -492,31 +463,6 @@ begin
   end if;
   if p_summary ? 'schema' and p_summary -> 'schema' is distinct from '"ryagram.edit-tracks/0"'::jsonb then
     raise exception 'The summary schema must be ryagram.edit-tracks/0.' using errcode = '22023';
-  end if;
-  if p_summary ? 'rules' and (jsonb_typeof(p_summary -> 'rules') <> 'array' or jsonb_array_length(p_summary -> 'rules') > 50
-       or exists (select 1 from jsonb_array_elements(p_summary -> 'rules') r
-                   where jsonb_typeof(r) <> 'object' or exists (select 1 from jsonb_object_keys(r) k where k not in ('id', 'phrase', 'picture', 'seconds', 'mode', 'fade_s'))
-                      or jsonb_typeof(r -> 'id') is distinct from 'string' or (r ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$'
-                      or jsonb_typeof(r -> 'phrase') is distinct from 'string' or not ryagram_private.edit_text_ok(r ->> 'phrase', 60)
-                      or jsonb_typeof(r -> 'picture') is distinct from 'string' or (r ->> 'picture') !~ '^[A-Za-z0-9_.-]{1,100}$'
-                      or jsonb_typeof(r -> 'seconds') is distinct from 'number' or (r ->> 'seconds')::numeric not between 0.5 and 10
-                      or jsonb_typeof(r -> 'mode') is distinct from 'string' or (r ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third')
-                      or (r ? 'fade_s' and (jsonb_typeof(r -> 'fade_s') <> 'number' or (r ->> 'fade_s')::numeric not between 0 and 1)))) then
-    raise exception 'The summary rules must be up to 50 rules with a phrase, a picture id, seconds and a mode.' using errcode = '22023';
-  end if;
-  if p_summary ? 'pictures' and (jsonb_typeof(p_summary -> 'pictures') <> 'array' or jsonb_array_length(p_summary -> 'pictures') > 50
-       or exists (select 1 from jsonb_array_elements(p_summary -> 'pictures') r
-                   where jsonb_typeof(r) <> 'object' or exists (select 1 from jsonb_object_keys(r) k where k not in ('id', 'name'))
-                      or jsonb_typeof(r -> 'id') is distinct from 'string' or (r ->> 'id') !~ '^[A-Za-z0-9_.-]{1,100}$'
-                      or jsonb_typeof(r -> 'name') is distinct from 'string' or not ryagram_private.edit_text_ok(r ->> 'name', 100) or (r ->> 'name') ~ '[:/]' or position(chr(92) in (r ->> 'name')) > 0)) then
-    raise exception 'The summary pictures must be up to 50 names with an id: a NAME, never a place on the computer.' using errcode = '22023';
-  end if;
-  if p_summary ? 'look' and (jsonb_typeof(p_summary -> 'look') <> 'object' or exists (select 1 from jsonb_each(p_summary -> 'look') x
-       where x.key not in ('theme', 'text_color', 'box_color', 'box_opacity', 'letterbox')
-          or (x.key = 'theme' and (jsonb_typeof(x.value) <> 'string' or (x.value #>> '{}') not in ('dark', 'light')))
-          or (x.key in ('text_color', 'box_color', 'letterbox') and (jsonb_typeof(x.value) <> 'string' or (x.value #>> '{}') !~ '^#[0-9A-Fa-f]{6}$'))
-          or (x.key = 'box_opacity' and (jsonb_typeof(x.value) <> 'number' or (x.value #>> '{}')::numeric not between 0 and 1)))) then
-    raise exception 'The summary look must use theme, text_color, box_color, box_opacity and letterbox.' using errcode = '22023';
   end if;
   if p_summary ? 'lanes' and (jsonb_typeof(p_summary -> 'lanes') <> 'array' or jsonb_array_length(p_summary -> 'lanes') > 4
        or exists (select 1 from jsonb_array_elements(p_summary -> 'lanes') l where jsonb_typeof(l) <> 'string' or (l #>> '{}') not in ('video', 'pictures', 'text', 'music'))) then
@@ -534,7 +480,7 @@ begin
     raise exception 'That track summary is too long.' using errcode = '22023';
   end if;
   for c in select * from jsonb_array_elements(coalesce(p_summary -> 'clips', '[]'::jsonb)) loop
-    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size', 'ai_altered', 'ai_altered_by', 'ai_altered_derived', 'slide', 'mode', 'fade_s', 'style', 'level_db', 'fade_in_s', 'fade_out_s', 'snap')) then
+    if jsonb_typeof(c) <> 'object' or exists (select 1 from jsonb_object_keys(c) k where k not in ('id', 'track', 'start', 'len', 'label', 'text', 'picture', 'file', 'source', 'source_start', 'min_len', 'max_len', 'position', 'size', 'ai_altered', 'ai_altered_by', 'ai_altered_derived')) then
       raise exception 'A clip in the summary has a field the editor does not know.' using errcode = '22023';
     end if;
     if jsonb_typeof(c -> 'id') is distinct from 'string' or (c ->> 'id') !~ '^[A-Za-z0-9_-]{1,40}$' then raise exception 'A clip in the summary needs an id.' using errcode = '22023'; end if;
@@ -547,14 +493,6 @@ begin
     if exists (select 1 from unnest(array['source_start', 'min_len', 'max_len']) f where c ? f and (jsonb_typeof(c -> f) <> 'number' or (c ->> f)::numeric not between 0 and 86400)) then raise exception 'A clip time must be a number from 0 to 86400 seconds.' using errcode = '22023'; end if;
     if c ? 'position' and (jsonb_typeof(c -> 'position') <> 'string' or (c ->> 'position') not in ('top', 'centre', 'bottom', 'lower_third')) then raise exception 'A clip position must be top, centre, bottom or lower_third.' using errcode = '22023'; end if;
     if c ? 'size' and (jsonb_typeof(c -> 'size') <> 'string' or (c ->> 'size') not in ('small', 'medium', 'large')) then raise exception 'A clip size must be small, medium or large.' using errcode = '22023'; end if;
-    if c ? 'level_db' and (jsonb_typeof(c -> 'level_db') <> 'number' or (c ->> 'level_db')::numeric not between -30 and 6) then raise exception 'level_db must be a number from -30 to 6.' using errcode = '22023'; end if;
-    if c ? 'fade_in_s' and (jsonb_typeof(c -> 'fade_in_s') <> 'number' or (c ->> 'fade_in_s')::numeric not between 0 and 5) then raise exception 'fade_in_s must be a number from 0 to 5.' using errcode = '22023'; end if;
-    if c ? 'fade_out_s' and (jsonb_typeof(c -> 'fade_out_s') <> 'number' or (c ->> 'fade_out_s')::numeric not between 0 and 5) then raise exception 'fade_out_s must be a number from 0 to 5.' using errcode = '22023'; end if;
-    if c ? 'snap' and jsonb_typeof(c -> 'snap') <> 'boolean' then raise exception 'snap must be true or false.' using errcode = '22023'; end if;
-    if c ? 'style' and (jsonb_typeof(c -> 'style') <> 'string' or (c ->> 'style') not in ('title', 'caption', 'lower_third')) then raise exception 'A text style must be title, caption or lower_third.' using errcode = '22023'; end if;
-    if c ? 'slide' and jsonb_typeof(c -> 'slide') <> 'boolean' then raise exception 'slide must be true or false.' using errcode = '22023'; end if;
-    if c ? 'mode' and (jsonb_typeof(c -> 'mode') <> 'string' or (c ->> 'mode') not in ('full', 'centre', 'corner', 'lower_third')) then raise exception 'A picture mode must be full, centre, corner or lower_third.' using errcode = '22023'; end if;
-    if c ? 'fade_s' and (jsonb_typeof(c -> 'fade_s') <> 'number' or (c ->> 'fade_s')::numeric not between 0 and 1) then raise exception 'A fade must be a number from 0 to 1 second.' using errcode = '22023'; end if;
     if c ? 'ai_altered' and jsonb_typeof(c -> 'ai_altered') <> 'boolean' then raise exception 'ai_altered must be true or false.' using errcode = '22023'; end if;
     if c ? 'ai_altered_derived' and jsonb_typeof(c -> 'ai_altered_derived') <> 'boolean' then raise exception 'ai_altered_derived must be true or false.' using errcode = '22023'; end if;
     if c ? 'ai_altered_by' and (jsonb_typeof(c -> 'ai_altered_by') <> 'string' or not ryagram_private.edit_text_ok(c ->> 'ai_altered_by', 200)) then raise exception 'ai_altered_by must be plain words.' using errcode = '22023'; end if;

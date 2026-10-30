@@ -21,7 +21,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import test_r9_node as r9  # noqa: E402
 from test_r9_node import BOB, SAM, h, tearDownModule  # noqa: E402,F401  (tearDownModule is what unittest calls)
 
-MIGRATIONS = [Path(os.environ.get("LIVE_EDITOR_SQL") or r9.ROOT / "migrations" / "20261027000400_live_editor.sql")]      # LIVE_EDITOR_SQL: a mutant copy, for the must-fail probe
+MIGRATIONS = [Path(os.environ.get("LIVE_EDITOR_SQL") or r9.ROOT / "migrations" / "20261027000400_live_editor.sql"),      # LIVE_EDITOR_SQL: a mutant copy, for the must-fail probe
+              Path(os.environ.get("LIVE_EDITOR_NEW_OPS_SQL") or r9.ROOT / "migrations" / "20261029000100_live_editor_new_ops.sql")]   # 0400 is live, so the new ops ride a new migration
 PEND = "public.node_edit_pending(text)"
 POST = "public.node_edit_post_summary(text,uuid,boolean,boolean,jsonb,jsonb)"
 SUMMARY = {"duration": 12, "clips": [
