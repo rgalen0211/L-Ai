@@ -299,7 +299,9 @@ def plan_changed(plan) -> bool:
         pass
     if old == sha:
         return False
-    for f in (edit_path(), _dm.STATE["work"] / "edit" / "committed-edit.json", _dm.STATE["work"] / "edit-media.json"):
+    gone = [edit_path(), _dm.STATE["work"] / "edit" / "committed-edit.json", _dm.STATE["work"] / "edit-media.json"]
+    had_something = old is not None or any(f.exists() for f in gone)       # a FIRST Plan with nothing before it is not a change: the live draft is not started again (a draft already at revision 1 broke the newer page's write-back)
+    for f in gone:
         try:
             f.unlink(missing_ok=True)
         except OSError:
@@ -307,7 +309,7 @@ def plan_changed(plan) -> bool:
     st["media_items"] = []
     if st["proxy"].get("state") in ("ready", "failed"):
         st["proxy"]["state"] = "none"                                    # the preview was made from the old list
-    return True
+    return had_something
 
 
 def _seed_committed(lst: dict) -> None:
