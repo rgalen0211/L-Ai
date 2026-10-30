@@ -1,0 +1,4 @@
+Vendored from Ryagram docs/dataset-info.json at the engine commit b48b388d (branch dataset-info-1029, NEXT-ENGINE 40; the file is ENGINE's, byte for byte).
+To update: copy the engine's docs/dataset-info.json over dataset-info.json, run node tools/gen_dataset_info_ts.mjs, and change the two lines below.
+engine_commit b48b388d
+sha256 47c8ae06bfe5cfeebd408c5e910296182aefcce03c23fd377dd1fa38d97a6bbd

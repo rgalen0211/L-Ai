@@ -102,7 +102,7 @@ export interface Data extends Omit<UserData, "submitJob"> {
 
 export interface Deps {
   /** Compiles a JSON Schema into a checker that returns plain-words problems ([] = fine). */
-  compile(schema: object): (value: unknown) => string[];
+  compile(schema: object): ((value: unknown) => string[]) & { detailed?: (value: unknown) => { instancePath: string; keyword: string; params: Record<string, unknown>; message?: string; schemaPath?: string }[] };
   now?: () => number;
 }
 
@@ -118,6 +118,8 @@ export interface ToolResult {
   /** Machine-readable twin of the text (MCP structuredContent; REST body). */
   data?: Record<string, unknown>;
   isError?: boolean;
+  /** An expected refusal that is a RESULT, not a fault (a story that failed its checks, a render a connection cannot start): isError stays false so the AI reads it as data; the log still counts it as refused. */
+  refused?: boolean;
   code?: string;                        // for the log
   credits?: number;                     // for the log
   failedChecks?: number;
