@@ -19,7 +19,7 @@ BASE = f'http://127.0.0.1:{aa.PORT}'
 ROUTES = [
     ('projects', '?mock#/', 'Your projects', []), ('projects-empty', '?mock&empty#/', 'Your projects', []), ('account', '?mock#/account', 'Your account', []),
     ('credits', '?mock#/credits', 'Credits', []), ('help', '?mock#/help', 'Get help', []), ('looks', '?mock#/looks', 'Your look', []), ('request', '?mock#/request', 'Request a film', []),
-    ('start-door', '?mock&door#/start', 'Use your AI to make films', []), ('build', '?mock#/build', 'Make a film step by step', []), ('project', '?mock#/', 'Obesity and fast food', ['a[href^="#/p/"]']),
+    ('start-door', '?mock&door#/start', 'Use your AI to make films', []), ('build', '?mock#/build', 'film step by step', []) , ('project', '?mock#/', 'Obesity and fast food', ['a[href^="#/p/"]']),
     ('version', '?mock#/', 'Version 1', ['a[href^="#/p/"]', 'a[href^="#/v/"]']), ('computers', '?mock&tester#/account', 'Your account', []), ('device', '?mock#/device?code=ABCD-2345', 'Approve this computer', []),
     ('admin-ops', '?mock#/admin/ops', 'Operations', []), ('admin-renders', '?mock#/admin/renders', 'Render approvals', []), ('admin-tester', '?mock#/admin/tester', 'Tester computers', []),
     ('admin-funnel', '?mock#/admin/funnel', 'Funnel by day', []), ('admin-visits', '?mock#/admin/visits', 'Visits and signups', []), ('admin-waitlist', '?mock#/admin/waitlist', 'Waitlist by film', []),

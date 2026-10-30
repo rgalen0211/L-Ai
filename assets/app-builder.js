@@ -5,6 +5,10 @@
 // the story against the worker's own schema) and shows every reason it gives, each pointing back at the step it is about. What this file decides is only wording and order.
 // The dataset list is the function's: only entries a person may be shown (listable by RULINGS 2026-10-17, usable on the installed worker), each with its source and licence.
 // Everything from the server goes in as text nodes, never as HTML.
+//
+// A TUTORIAL (NEXT-BUILDER 38; Ryan: the guided builder is for testing and tutorial only): the page says so, each step carries one tip, and "Try a sample" (#/build/sample)
+// walks the same seven steps on the bundled sample (assets/app-builder-sample.js, a recording of the function's answers for one ready-made film). The sample makes nothing:
+// no project, no story, no job; its review shows the recorded check, and only for the sample's own choices.
 (() => {
   const STEPS = [['dataset', 'Dataset'], ['measure', 'Measure'], ['years', 'Years'], ['type', 'Film type'], ['look', 'Look'], ['title', 'Title'], ['review', 'Review']];
   const TYPE_WORDS = {
@@ -23,6 +27,30 @@
   ];
   const readyMade = catalog => READY_MADE.filter(r => (catalog || []).some(d => d.id === r.dataset));
   const FILE_NOTE = 'The contact sheet is a quick still check of the film. It is free; you decide what to do after you have seen it.';
+  // One tip per step, for the tutorial: what the step decides and what it never changes.
+  const TIPS = {
+    dataset: 'Tip: every dataset shows its source and licence before you use it. A ready-made start fills in every step for you.',
+    measure: 'Tip: a measure is the number the film shows. “Let the film choose” uses the dataset’s main one.',
+    years: 'Tip: leave both boxes empty to use the years the dataset is best at. A method change inside your years is listed here.',
+    type: 'Tip: the same data can be a map, a bar race or lines. Only the types this dataset supports are offered.',
+    look: 'Tip: a look changes colours and pacing only, never the numbers.',
+    title: 'Tip: the title follows your choices until you type your own.',
+    review: 'Tip: this is Ryagram’s own check of exactly what you chose. Each problem has a “Fix it” button that takes you to its step.'
+  };
+  const HEADING = 'Tutorial: make a film step by step';
+  const SAMPLE_NOTE = 'This is the sample: it walks every step on bundled sample data and makes nothing. No project, no story and no picture are made.';
+  const SAMPLE_ONLY = 'sample: the sample can only check its own ready-made choices. Use “Start the sample again” to put them back, or try your own data.';
+
+  // The data the sample walk-through reads: the bundled recording instead of the function. It answers only what was recorded, and refuses any other request in words.
+  function sampleData(rec) {
+    const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+    return {
+      builderCatalog: async () => ({ datasets: rec ? [rec.entry] : [] }),
+      builderDescribe: async id => { if (!rec || id !== rec.dataset.id) throw new Error('That dataset is not in the sample.'); return { dataset: JSON.parse(JSON.stringify(rec.dataset)) }; },
+      builderCompile: async request => { if (!rec || !same(request, rec.request)) { const e = new Error(SAMPLE_ONLY); e.errors = [SAMPLE_ONLY]; throw e; } return { story: JSON.parse(JSON.stringify(rec.story)), report: JSON.parse(JSON.stringify(rec.report)) }; },
+      listLooks: async () => []
+    };
+  }
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
   const typeWords = id => TYPE_WORDS[id] || [id, ''];
@@ -75,13 +103,26 @@
   function create(ctx) {
     const { h, data, busy, showError, errorLine } = ctx;
 
-    async function builderView(onStop, preset) {
-      preset = preset || {};                                                   // from the intake (#/build?type=map&q=county): a film type to start from and a search word, both from a closed list
+    // opts.sample: the tutorial's sample walk-through (#/build/sample): every read goes to the bundled recording, and nothing is ever made.
+    // opts.type / opts.q: from the intake (#/build?type=map&q=county): a film type to start from and a search word, both from a closed list (null or nothing for a plain visit).
+    async function builderView(onStop, opts) {
+      opts = opts || {};
+      const preset = opts;
+      const sample = !!opts.sample;
+      const rec = sample ? window.ryagramBuilderSample : null;
+      const src = sample ? sampleData(rec) : data;
       let catalog, myLooks = [];
       const error = errorLine();
-      try { catalog = (await data.builderCatalog()).datasets; } catch (err) { return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, 'Make a film step by step'), h('p', { class: 'app-error', role: 'alert' }, err.message)]; }
-      try { myLooks = await data.listLooks(); } catch { myLooks = []; }                        // the look step offers the person's own looks when they have any
+      try { catalog = (await src.builderCatalog()).datasets; } catch (err) { return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, HEADING), h('p', { class: 'app-error', role: 'alert' }, err.message)]; }
+      try { myLooks = await src.listLooks(); } catch { myLooks = []; }                         // the look step offers the person's own looks when they have any
       const s = { step: 0, dataset: null, d: null, measure: '', start: '', end: '', type: '', look: null, lookName: '', title: '', subtitle: '', titleEdited: false, built: null, problems: {} };
+      // The sample starts with its recorded choices filled in, on the first step, so the person walks every step and sees what each one is.
+      async function sampleChoices() {
+        const r = rec.request;
+        s.dataset = r.dataset; s.d = (await src.builderDescribe(r.dataset)).dataset; s.measure = r.measure || ''; s.type = r.film_type;
+        s.start = (r.years && r.years.start) || ''; s.end = (r.years && r.years.end) || ''; s.title = r.title; s.titleEdited = true; s.subtitle = r.subtitle || ''; s.look = null; s.lookName = '';
+      }
+      if (sample) { try { await sampleChoices(); } catch (err) { return [h('a', { href: '#/build', class: 'back' }, '← The tutorial'), h('h1', { tabindex: '-1' }, HEADING), h('p', { class: 'app-error', role: 'alert' }, err.message)]; } }
       const root = h('div', { class: 'builder' });
       let compiled = null;                           // { story, report } from ENGINE's compileFilm, for the review
 
@@ -110,7 +151,7 @@
       async function useStart(r, button) {
         error.hidden = true; button.disabled = true;
         try {
-          const d = (await data.builderDescribe(r.dataset)).dataset;
+          const d = (await src.builderDescribe(r.dataset)).dataset;
           s.dataset = r.dataset; s.d = d; compiled = null; s.measure = '';
           s.type = d.film_types.includes(r.film_type) ? r.film_type : d.film_types[0];
           s.start = r.start; s.end = r.end; s.title = r.title; s.titleEdited = true; s.subtitle = '';
@@ -133,7 +174,7 @@
           s.dataset = id; s.d = null; compiled = null;
           s.measure = ''; s.start = ''; s.end = ''; s.type = ''; if (!s.titleEdited) s.title = '';
           drawList(); nextBtn.disabled = true;
-          try { s.d = (await data.builderDescribe(id)).dataset; } catch (err) { showError(error, err); return; }
+          try { s.d = (await src.builderDescribe(id)).dataset; } catch (err) { showError(error, err); return; }
           nextBtn.disabled = false;
           sourceHolder.replaceChildren(sourceBox());
         }
@@ -145,7 +186,8 @@
         const ready = starts.length ? h('section', { class: 'builder-ready', 'aria-labelledby': 'bd-ready-title' }, h('h2', { id: 'bd-ready-title', tabindex: '-1' }, 'Start from a ready-made film'),
           h('p', { class: 'form-note' }, 'One click and you are at the last step. You can go back and change anything. The first picture is free.'),
           h('div', { class: 'builder-list' }, starts.map(r => { const b = h('button', { type: 'button', class: 'builder-start', 'data-start': r.id }, h('strong', {}, r.label), h('span', { class: 'meta' }, r.blurb)); b.addEventListener('click', () => useStart(r, b)); return b; }))) : null;
-        return [ready, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
+        const trySample = sample ? null : h('p', { class: 'form-note builder-sample-link' }, h('a', { href: '#/build/sample' }, 'Try a sample first'), ': it walks every step on bundled sample data and makes nothing.');
+        return [trySample, ready, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
           filter, list, sourceHolder, h('div', { class: 'actions-row builder-nav' }, nextBtn)];
       }
 
@@ -217,7 +259,7 @@
         const storyNote = h('p', { class: 'form-note app-error', role: 'alert', hidden: true });
         async function check() {
           try {
-            compiled = await data.builderCompile(requestFrom(s));
+            compiled = await src.builderCompile(requestFrom(s));
             s.problems = {};
             const r = compiled.report;
             out.replaceChildren(
@@ -225,7 +267,7 @@
                 ['Film type', typeWords(r.film_type)[0]], ['Look', r.look.applied ? (s.lookName || 'your look') : 'the film’s own'], ['Title', s.title.trim()]].flatMap(([k, v]) => [h('dt', {}, k), h('dd', {}, v)])),
               ...r.warnings.map(w => h('p', { class: 'form-note builder-warning' }, w)),
               r.method_notes.length ? h('details', {}, h('summary', {}, 'Method notes from the source'), h('ul', {}, r.method_notes.map(n => h('li', {}, n)))) : '',
-              h('p', { class: 'form-note' }, FILE_NOTE));
+              sample ? '' : h('p', { class: 'form-note' }, FILE_NOTE));
             story.value = JSON.stringify(compiled.story, null, 2);
             make.disabled = false;
           } catch (err) {
@@ -236,7 +278,10 @@
               h('ul', { class: 'builder-problems' }, errs.map(e => h('li', {}, e, ' ', h('button', { class: 'link-button', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === stepOf(e))) }, 'Fix it'))))));
           }
         }
-        make.addEventListener('click', async () => {
+        // The sample makes nothing: in place of the Make button, the way back to its own choices and the way to real data.
+        const again = sample ? h('button', { class: 'button secondary', type: 'button', onclick: async () => { await sampleChoices(); compiled = null; s.problems = {}; go(0); } }, 'Start the sample again') : null;
+        if (sample) make.hidden = true;
+        if (!sample) make.addEventListener('click', async () => {
           let finalStory;
           try { finalStory = JSON.parse(story.value); if (!finalStory || typeof finalStory !== 'object' || Array.isArray(finalStory)) throw new Error('not an object'); }
           catch { storyNote.textContent = 'The story is not valid JSON. Put it back or fix it.'; storyNote.hidden = false; return; }
@@ -257,20 +302,21 @@
         check();
         return [h('h2', { tabindex: '-1' }, 'Review'), out, sourceBox(),
           h('details', { class: 'builder-advanced' }, h('summary', {}, 'Advanced: the story'), h('p', { class: 'form-note' }, 'This is the exact story that will be saved. You can edit it; Ryagram’s checks still run on every render.'), story, storyNote),
-          h('div', { class: 'actions-row builder-nav' }, h('button', { class: 'button secondary', type: 'button', onclick: () => go(5) }, 'Back'), make)];
+          sample ? h('p', { class: 'form-note builder-sample-note' }, SAMPLE_NOTE, ' ', h('a', { href: '#/build' }, 'Try it with your own data')) : null,
+          h('div', { class: 'actions-row builder-nav' }, h('button', { class: 'button secondary', type: 'button', onclick: () => go(5) }, 'Back'), sample ? again : make)];
       }
 
       function draw() {
         const body = { dataset: stepDataset, measure: stepMeasure, years: stepYears, type: stepType, look: stepLook, title: stepTitle, review: stepReview }[stepName()]();
-        root.replaceChildren(progress(), ...body.flat().filter(x => x != null && x !== false), error);
+        root.replaceChildren(progress(), h('p', { class: 'form-note builder-tip' }, TIPS[stepName()]), ...body.flat().filter(x => x != null && x !== false), error);
       }
       draw();
-      return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, 'Make a film step by step'),
-        h('p', { class: 'form-intro' }, 'Choose the data, the years and the kind of film. You see where the data comes from before anything is made, and the first picture is free.'), root];
+      return [h('a', { href: sample ? '#/build' : '#/', class: 'back' }, sample ? '← The tutorial' : '← All projects'), h('h1', { tabindex: '-1' }, sample ? `${HEADING}: the sample` : HEADING),
+        h('p', { class: 'form-intro' }, sample ? SAMPLE_NOTE : 'This tutorial is for learning and testing. Choose the data, the years and the kind of film. You see where the data comes from before anything is made, and the first picture is free.'), root];
     }
 
     return { builderView };
   }
 
-  window.ryagramBuilder = { webLink, create, STEPS, READY_MADE, readyMade, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
+  window.ryagramBuilder = { webLink, create, STEPS, TIPS, HEADING, SAMPLE_NOTE, sampleData, READY_MADE, readyMade, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
 })();

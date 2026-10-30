@@ -141,6 +141,7 @@
         else if (builderOn() && /^#\/build(\?.*)?$/.test(hash)) view = await builderUi().builderView(onStop, window.ryagramIntake ? window.ryagramIntake.parseBuildQuery(hash) : null);
         else if (intakeOn() && window.ryagramIntake && hash === '#/new') view = intakeUi().intakeView(onStop);
         else if (myFilmsOn() && window.ryagramFilms && hash === '#/films') view = await filmsUi().filmsView(onStop);
+        else if (builderOn() && hash === '#/build/sample') view = await builderUi().builderView(onStop, { sample: true });   // the tutorial's sample: makes nothing (NEXT-BUILDER 38)
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
         else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
         else if (looksOn() && (m = hash.match(/^#\/looks\/edit\/([A-Za-z0-9-]+)$/))) view = await looksUi().editorView('edit', m[1], onStop);
@@ -292,8 +293,8 @@
       data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
       const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
       // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
-      const buildLink = builderOn() ? (projects.length ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Make a film step by step'))
-        : h('p', { class: 'first-film' }, h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, 'Make your first film'), ' ', h('span', { class: 'meta' }, 'Pick a ready-made film or choose your own data. The first picture is free.'))) : null;
+      const buildLink = builderOn() ? (projects.length ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Tutorial: make a film step by step'))
+        : h('p', { class: 'first-film' }, h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, 'Try the tutorial: your first film'), ' ', h('span', { class: 'meta' }, 'Pick a ready-made film or choose your own data. The first picture is free.'))) : null;
       const intakeLink = intakeOn() && window.ryagramIntake ? h('p', { class: 'meta' }, h('a', { href: '#/new' }, 'What do you want to make?')) : null;
       const filmsLink = myFilmsOn() && window.ryagramFilms ? h('p', { class: 'meta' }, h('a', { href: '#/films' }, 'My films')) : null;
       const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
