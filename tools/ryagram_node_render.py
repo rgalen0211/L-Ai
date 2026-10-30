@@ -91,9 +91,12 @@ class Settings:
     datasets: tuple
     gpu_lock: Path | None
     house_jobs: Path | None
+    gpu_lock_dir: Path | None
+    no_house_worker: bool
     who: str
     memory_bytes: int
     problems: list = field(default_factory=list)
+    allow_c_inside_app: bool = False          # NEXT-CONNECT 171: off unless the settings say so (a tester build made with Ryan's word): the app's OWN folder may then be on C:
 
 
 def read_settings(path) -> Settings:
@@ -111,7 +114,8 @@ def read_settings(path) -> Settings:
             chrome=eng.get("chrome"), path_dirs=tuple(eng.get("path_dirs", ())),
             cache_dir=Path(eng["env"]["RYAGRAM_CACHE_DIR"]) if (eng.get("env") or {}).get("RYAGRAM_CACHE_DIR") else None,
             datasets=tuple(raw["datasets"]["allow"]), gpu_lock=Path(node["gpu_lock"]) if node.get("gpu_lock") else None,
-            house_jobs=Path(node["house_jobs"]) if node.get("house_jobs") else None, who=str(node.get("who") or "MAKER")[:40], memory_bytes=int(raw.get("memory_bytes", 8 << 30)))
+            house_jobs=Path(node["house_jobs"]) if node.get("house_jobs") else None,
+            gpu_lock_dir=Path(node["gpu_lock_dir"]) if node.get("gpu_lock_dir") else None, no_house_worker=node.get("no_house_worker") is True, allow_c_inside_app=(node.get("allow_c_inside_app") is True), who=str(node.get("who") or "MAKER")[:40], memory_bytes=int(raw.get("memory_bytes", 8 << 30)))
     except (KeyError, TypeError, ValueError, IndexError):
         raise ValueError("The settings file for making site films on this computer is incomplete.") from None
 
@@ -131,19 +135,46 @@ def _ram_bytes() -> int | None:
         return None
 
 
+NO_HOUSE_FOLDER = "house-jobs-none"
+
+
+def _inside(path, base) -> bool:
+    try:
+        Path(os.path.abspath(str(path))).relative_to(Path(os.path.abspath(str(base))))
+        return True
+    except ValueError:
+        return False
+
+
+def c_blocked(path, s: Settings) -> bool:
+    """Ryan's rule (nothing heavy or temporary on C:) as it applies to `path`. With allow_c_inside_app (OFF unless the settings say so, which only a tester build made with his word does) a path on C: is
+    allowed when it is inside the app's OWN folder, so a tester who has only C: can run the app they unzipped; anything else on C: is still refused."""
+    return on_c(path) and not (s.allow_c_inside_app and _inside(path, s.engine_dir))
+
+
+def effective_house_jobs(s: Settings, work_root) -> Path | None:
+    """The folder the house-worker busy check reads. A computer that has no house worker (a tester's own PC) says so in its settings (`no_house_worker = true`) and gets an EMPTY folder inside
+    its own work folder, which reads as 'idle'. An explicit `house_jobs` always wins; without either there is NO folder and the renderer stays off (a paid film could be made at the same time)."""
+    if s.house_jobs is not None:
+        return s.house_jobs
+    if s.no_house_worker:
+        return Path(work_root) / NO_HOUSE_FOLDER
+    return None
+
+
 def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> list[str]:
     """Plain-words reasons this computer cannot make site films yet. Empty = ready."""
     out = []
-    if on_c(s.root):
+    if c_blocked(s.root, s):
         out.append("The settings put the worker's folder on C:. Site films are made on another drive.")
-    if on_c(work_root):
+    if c_blocked(work_root, s):
         out.append("The maker's work folder is on C:. Start it with a work folder on another drive.")
     if not (s.engine_dir / "ryagram" / "worker" / "engine.py").is_file():
         out.append("The full Ryagram folder (the one the house renders with) was not found at the place the settings name.")
     if not s.python.is_file():
         out.append("The Python the Ryagram engine uses was not found.")
     if not (s.chrome and Path(s.chrome).is_file()):
-        out.append("Google Chrome or Microsoft Edge was not found where the settings say.")
+        out.append("Google Chrome was not found where the settings say. Site films need Google Chrome installed (Microsoft Edge does not work with the film maker).")
     if not any((Path(d) / "ffmpeg.exe").is_file() for d in s.path_dirs):
         out.append("ffmpeg (the video tool) was not found where the settings say.")
     if s.cache_dir is None or not s.cache_dir.is_dir():
@@ -152,13 +183,18 @@ def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> li
         out.append("The graphics-card lock tool was not found, and a film is never made without it.")
     if not CHILD.is_file():
         out.append("A part of this app (the film-maker step) is missing.")
-    if s.house_jobs is None:
+    hj = effective_house_jobs(s, work_root)
+    if hj is None:
         out.append("The settings do not say where the house worker's films are made, so a paid film could be made at the same moment as this one.")
     else:
         try:
-            list(s.house_jobs.iterdir())
+            if s.house_jobs is None and not c_blocked(work_root, s):
+                hj.mkdir(parents=True, exist_ok=True)             # the empty folder of a computer with no house worker: inside our own work folder only
+            list(hj.iterdir())
         except OSError:
             out.append("The house worker's films folder could not be looked at, so a paid film could be made at the same moment as this one.")
+    if s.gpu_lock_dir is not None and c_blocked(s.gpu_lock_dir, s):
+        out.append("The settings put the graphics-card lock folder on C:. Site films are made on another drive.")
     if not s.datasets:
         out.append("The settings do not list which datasets a film may use.")
     total = ram()
@@ -189,7 +225,8 @@ class NodeRenderer:
         self._commit = None
         self._static_commit = None
         self.cache_changes = {"count": 0, "examples": [], "checked": False}      # what the last film changed in the shared data cache (it should be nothing)
-        self.busy = busy if busy is not None else (lambda: _job_mod().house_busy(self.s.house_jobs))
+        self.house_jobs = effective_house_jobs(settings, work_root)
+        self.busy = busy if busy is not None else (lambda: _job_mod().house_busy(self.house_jobs))
 
     # ------------------------------------------------------------------------------------------------ what the node loop calls
     def validate(self, job):
@@ -216,7 +253,7 @@ class NodeRenderer:
         if self.problems:
             raise RenderFailed("not_ready")
         work = Path(work)
-        if on_c(work):
+        if c_blocked(work, self.s):
             raise RenderFailed("work_on_c")
         work.mkdir(parents=True, exist_ok=True)
         tmp = work / "tmp-node"
@@ -226,10 +263,13 @@ class NodeRenderer:
             f.unlink(missing_ok=True)
         job_file.write_text(json.dumps(job, ensure_ascii=False), encoding="utf-8")
         child = [str(self.s.python), "-I", str(CHILD), "--engine-dir", str(self.s.engine_dir), "--config", str(self.s.path), "--job", str(job_file),
-                 "--jobs-dir", str(work.parent), "--out", str(result), "--started", str(started), "--house-jobs", str(self.s.house_jobs)]
+                 "--jobs-dir", str(work.parent), "--out", str(result), "--started", str(started), "--house-jobs", str(self.house_jobs)]
         env = {"SYSTEMROOT": os.environ.get("SYSTEMROOT", r"C:\Windows"), "PATH": os.environ.get("SYSTEMROOT", r"C:\Windows") + r"\System32",
                "TEMP": str(tmp), "TMP": str(tmp), "TMPDIR": str(tmp), "PYTHONUTF8": "1"}
-        if os.environ.get("RYAGRAM_GPU_LOCK_DIR"):
+        if self.s.gpu_lock_dir is not None:                       # a tester's PC: the lock's state lives in the app's own folder, never the house's D:\Ryagram-scratch\gpu-lock
+            self.s.gpu_lock_dir.mkdir(parents=True, exist_ok=True)
+            env["RYAGRAM_GPU_LOCK_DIR"] = str(self.s.gpu_lock_dir)
+        elif os.environ.get("RYAGRAM_GPU_LOCK_DIR"):
             env["RYAGRAM_GPU_LOCK_DIR"] = os.environ["RYAGRAM_GPU_LOCK_DIR"]
         t_house = self.clock()
         while True:                                               # a paid film made by the house goes first: wait until it is done (a read-only look, nothing written there)

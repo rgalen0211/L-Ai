@@ -1,4 +1,4 @@
-"""Must-fail proof for the tester sign-in start file (NEXT-CONNECT 163): each mutant breaks ONE rule in a scratch copy of tools/ and tools/check-app-bundle.py (section I) must then FAIL; a baseline on the unbroken copy passes first.
+"""Must-fail proof for the tester sign-in start file (NEXT-CONNECT 163) and the node-job closure merge (NEXT-CONNECT 164): each mutant breaks ONE rule in a scratch copy of tools/ and tools/check-app-bundle.py (section I) must then FAIL; a baseline on the unbroken copy passes first.
 
     py -I tools/check-signin-launcher-mutants.py <scratch base folder on D:>
 
@@ -26,6 +26,16 @@ M = [
     ("every build signs in by default", "make_app_bundle.py", 'getattr(a, "signin_approval_host", None) or [])', 'getattr(a, "signin_approval_host", None) or []) or \'--site "https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node" --approval-host uselai.com\''),
     ("the command line option for the approval host is not read", "make_app_bundle.py", 'ap.add_argument("--signin-approval-host", action="append", default=[]', 'ap.add_argument("--signin-approval-hostx", dest="unused", action="append", default=[]'),
     ("the command line option for the site is not read", "make_app_bundle.py", 'ap.add_argument("--signin-site", default=""', 'ap.add_argument("--signin-sitex", dest="unused2", default=""'),
+    # NEXT-CONNECT 164: the node-job closure merged into the bundle (check-app-bundle.py section J)
+    ("a node-job file that is not the one its manifest names is taken", "make_app_bundle.py", "        if sha256_file(node_kit / rel) != want:", "        if False:"),
+    ("extra or missing node-job files are taken", "make_app_bundle.py", "    if on_disk != set(listed):", "    if False:"),
+    ("any house-worker module is taken", "make_app_bundle.py", "            if len(parts) != 3 or parts[2] not in NODE_JOB_WORKER_FILES:", "            if False:"),
+    ("a node-job file that differs from the kit's own is taken", "make_app_bundle.py", "            if sha256_file(twin) != want:", "            if False:"),
+    ("a node-job file outside the ryagram folder is taken", "make_app_bundle.py", 'if parts[0] != "ryagram" or ".." in parts or rel.startswith("/") or ":" in rel:', "if False:"),
+    ("a new file outside ryagram/worker and ryagram/sequence is taken", "make_app_bundle.py", '        elif parts[:2] == ["ryagram", "sequence"] and len(parts) == 3 and NODE_JOB_SEQUENCE_FILE.fullmatch(parts[2]):', "        elif True:"),
+    ("a node-job kit with no config.py is taken", "make_app_bundle.py", '    if not any(r == "ryagram/worker/config.py" for r in listed):', "    if False:"),
+    ("the node-job files are never copied into the bundle", "make_app_bundle.py", "            shutil.copy2(node_kit / rel, out / rel)", "            pass"),
+    ("the build ignores --node-job-kit", "make_app_bundle.py", "node_add = check_node_job_kit(node_kit, kit) if node_kit else []", "node_add = []"),
 ]
 
 
