@@ -7,7 +7,7 @@ What it proves
   A  the card is hidden until a flagged account is signed in, and says plainly what it does; it is OFF and nothing is checked
   B  with a renderer: switch on, a queued film is made and finished, the page says Done, the site shows the job complete
   C  switch off: nothing more is claimed
-  D  with no renderer: the page says this copy cannot make site films yet, and the job stays queued
+  D  with no renderer: the switch is offered DISABLED with the reason (this copy cannot make site films yet), it cannot be turned on, and the job stays queued
   E  an account that is not flagged never sees the card
   F  the accessibility scan on the card (off, on), desktop light, dark and phone: 0 findings
 """
@@ -181,8 +181,10 @@ def main():
             sign_in(page, ALICE)
             page.wait_for_selector('#node:not([hidden])', timeout=10000)
             claims_before = srv.admin("calls").count("node_claim")
-            page.check('#node-on')
             page.wait_for_function("() => document.getElementById('node-state').innerText.includes('cannot make site films yet')", timeout=10000)
+            check(page.is_disabled('#node-on') and not page.is_checked('#node-on'), 'with no renderer the switch is offered DISABLED and off, with the reason')
+            page.evaluate("() => document.getElementById('node-on').click()")             # a click on a disabled box changes nothing
+            check(not page.is_checked('#node-on'), 'and a click cannot turn it on')
             time.sleep(1.2)
             check(job_states()["00000000-0000-4000-8000-000000000502"] == "queued", 'MUST-FAIL: with no renderer the job is left queued, not failed')
             check(srv.admin("calls").count("node_claim") == claims_before, 'and this copy made no claim at all')

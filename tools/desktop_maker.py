@@ -1281,14 +1281,16 @@ JS = r"""(function () {
     const g = n.message || '';
     box.hidden = false;
     $('node-on').checked = !!n.on;
-    $('node-state').textContent = (!n.on ? 'It is off. Nothing is being checked.' : (g || 'Waiting for a film to make.')) + (n.last ? ' ' + n.last : '');
+    const cannot = n.can_render === false && !n.on;              // this copy has no renderer: never offer a switch it cannot keep (WORKER 52)
+    $('node-on').disabled = cannot;
+    $('node-state').textContent = (cannot ? 'This copy of the app cannot make site films yet, so the switch stays off.' : !n.on ? 'It is off. Nothing is being checked.' : (g || 'Waiting for a film to make.')) + (n.last ? ' ' + n.last : '');
     $('node-uploads').replaceChildren(...(n.uploads || []).map(u => el('li', {}, `${u.name} (${Math.max(1, Math.round(u.bytes / 1024))} KB)`)));
     if (n.on) nodeTimer = setTimeout(refreshNode, 5000);
   }
   async function refreshNode() { try { drawNode(await api('/api/node')); } catch (e) { /* the card keeps what it had */ } }
   $('node-on').addEventListener('change', async ev2 => {
     const box = ev2.currentTarget; box.disabled = true;
-    try { drawNode(await api('/api/node-switch', { on: box.checked })); } catch (e) { $('node-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
+    try { drawNode(await api('/api/node-switch', { on: box.checked })); box.disabled = $('node-on').disabled; } catch (e) { $('node-state').textContent = e.message; box.checked = !box.checked; box.disabled = false; }
   });
   let linksTimer = null;
   function drawLinks(r) {
