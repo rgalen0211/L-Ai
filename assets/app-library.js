@@ -1563,6 +1563,7 @@
       const J = window.ryagramJobs;
       let jobs = [];
       let positions = {};
+      let ownCompute = null;                                          // { tester, computers } for a tester account with a film waiting; null = unknown, nothing is claimed
       let engine = null;                           // the worker's current engine version, if known
       let quotes = {};                             // job type -> credit_quote, when credits are on
       let accounting = {};                         // job id -> job_accounting row
@@ -1757,7 +1758,7 @@
       function jobItem(j) {
         const active = J.isActive(j);
         const failed = ['failed', 'editorial_action_required', 'cancelled'].includes(j.state);
-        const note = active ? J.progressNote(j, positions[j.id]) : failed ? J.problem(j) : '';
+        const note = active ? J.progressNote(j, positions[j.id], ownCompute) : failed ? J.problem(j) : '';
         return h('li', { class: `job job-row-${j.state}` },
           h('strong', {}, J.TYPE_LABELS[j.job_type] || j.job_type),
           h('span', { class: `state job-${j.state}` }, J.STATE_LABELS[j.state] || j.state),
@@ -1829,6 +1830,10 @@
               seen = new Map(fresh.map(j => [j.id, j.state]));
               jobs = fresh;
               positions = pos;
+              ownCompute = null;
+              if (fresh.some(j => j.state === 'queued') && data.myLocalCompute) {
+                try { if (await data.myLocalCompute()) ownCompute = { tester: true, computers: (await data.myComputers()).filter(r => !r.revoked_at).length }; } catch { ownCompute = null; }
+              }
               error.hidden = true;
               if (before) {
                 const changed = fresh.filter(j => before.get(j.id) !== j.state);
