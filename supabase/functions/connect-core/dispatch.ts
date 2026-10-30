@@ -45,7 +45,7 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
 
   try {
     const r = await tool.run(args as Record<string, unknown>, { principal, data, policy, deps });
-    return finish(r, r.isError ? "refused" : "ok", r.code ?? "ok");
+    return finish(r, r.isError || r.refused ? "refused" : "ok", r.code ?? "ok");
   } catch (e) {
     return finish({ text: friendlyError(e), isError: true, code: "error" }, "error", "tool_error");
   }

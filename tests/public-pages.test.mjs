@@ -12,7 +12,7 @@ const files = execFileSync('git', ['ls-files', '*.html'], { cwd: root, encoding:
   .filter(f => !/^(supabase|node_modules|tests)\//.test(f));
 const read = f => fs.readFileSync(path.join(root, f), 'utf8').replace(/\r\n/g, '\n');
 
-const SHOULD_BE_NOINDEX = new Set(['connect-ai/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html', 'ai-content/index.html', 'terms/index.html', 'thank-you.html', 'workflow-audit-thanks.html', '404.html', 'app/index.html']);
+const SHOULD_BE_NOINDEX = new Set(['connect-ai/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html', 'ai-content/index.html', 'terms/index.html', 'thank-you.html', 'workflow-audit-thanks.html', '404.html', 'app/index.html', 'get-app/index.html']);
 const SHOULD_BE_INDEXED = new Set(['index.html', 'ryagram/index.html', 'help/index.html', 'privacy-policy.html']);
 const UNLISTED = ['connect-ai/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html'];
 

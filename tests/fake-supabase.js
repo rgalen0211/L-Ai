@@ -485,10 +485,11 @@
       // `invited` follows CONNECT's connect_person_ok: true by default; false with the seed { connectInvited: false } or ?noinvite in the address (an account not enabled for AI connections, or an admin).
       connect_consent_check({ p_request }) {
         const invited = !(seed.connectInvited === false || (typeof location !== 'undefined' && /[?&]noinvite/.test(location.search || '')));
-        const known = { '00000000-0000-4000-8000-0000000000aa': true, '00000000-0000-4000-8000-0000000000bb': false, '00000000-0000-4000-8000-0000000000cc': false };
+        const known = { '00000000-0000-4000-8000-0000000000aa': true, '00000000-0000-4000-8000-0000000000bb': false, '00000000-0000-4000-8000-0000000000cc': false, '00000000-0000-4000-8000-0000000000dd': true };
         if (!invited) return { data: { allowed: false, reason: 'This Ryagram account is not enabled for AI assistants yet (invite-only for now).', invited: false, offered_scopes: [], credit_scopes: [] }, error: null };
         if (!(p_request in known)) return { data: { allowed: false, reason: 'That request was not found. Start again from the AI.', invited, offered_scopes: [], credit_scopes: [] }, error: null };
         if (p_request.endsWith('bb')) return { data: { allowed: false, reason: 'This account can\u2019t connect an AI.' }, error: null };
+        if (p_request.endsWith('dd') && adminMock()) return { data: { allowed: false, reason: 'Administrator accounts cannot be connected to an AI assistant.' }, error: null };
         if (p_request.endsWith('cc')) return { data: { allowed: false, reason: 'That request has expired. Start again from the AI.' }, error: null };
         return { data: { allowed: true, reason: null, client_name: 'Claude', redirect_label: 'Claude', redirect_uri: 'https://claude.ai/api/mcp/auth_callback', redirect_host: 'claude.ai', requested_scopes: ['read', 'write', 'render_free'],
                          offered_scopes: ['read', 'write', 'render_free'], credit_scopes: [], invited: true, expires_at: new Date(Date.now() + 600000).toISOString() }, error: null };

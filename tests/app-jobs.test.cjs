@@ -150,6 +150,17 @@ test('queue positions count everyone ahead; submit refuses a second job of the s
   assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. Retrying .*attempt 2 of 3/);
 });
 
+test('a waiting film says plainly when it waits for a computer, and only when that is known', () => {
+  const q = { state: 'queued', attempt: 1 };
+  assert.match(J.progressNote(q, 1, { tester: true, computers: 0 }), /^Waiting for your computer\. No computer is signed in .*sign in; the film starts once it is signed in\.$/);
+  assert.equal(J.progressNote(q, 2, { tester: true, computers: 1 }), 'Number 2 in line.');       // a computer is signed in: the ordinary line
+  assert.equal(J.progressNote(q, 2, { tester: true, computers: null }), 'Number 2 in line.');    // not readable: no claim
+  assert.equal(J.progressNote(q, 2, { tester: false, computers: 0 }), 'Number 2 in line.');       // not a computer account: the site's own machine, no claim
+  assert.equal(J.progressNote(q, 2), 'Number 2 in line.');
+  assert.equal(J.progressNote({ state: 'running', progress_note: 'x' }, 0, { tester: true, computers: 0 }), 'x');
+  assert.equal(J.progressNote({ state: 'queued', cancel_requested: true }, 0, { tester: true, computers: 0 }), 'Waiting in line.');   // a cancel in flight: never the computer claim
+});
+
 test('Realtime tells the page about changes, and says when it is live', async () => {
   const { data, version } = await setup();
   let calls = 0;
