@@ -1,0 +1,25 @@
+{
+ "_what": "STARTER DATA for a tester's first site film: the data files one film needs, so the engine (which builds offline) finds them. NEXT-RENDERER 44. Names are the data folder's own file names (read from the dataset clients, not traced by a render); sizes are measured from Ryan's PC cache on 2026-10-30. A film outside the window or the dataset waits for a download plan (maker_fetch) the person approves.",
+ "dataset": "bps_county_permits",
+ "film": "Housing: new homes permitted per 1,000 residents, by county",
+ "window": [
+  "2010",
+  "2024"
+ ],
+ "files": [
+  "co{YYYY}a.txt for each year 2010..2024 (county permits)",
+  "ne{YYYY}a.txt, mw{YYYY}a.txt, so{YYYY}a.txt, we{YYYY}a.txt for each year 2010..2024 (place summaries, who reported)",
+  "co-est2024-alldata.csv (county population 2020-2024)",
+  "cc-est2020int-agesex-{SS}.csv for each of the 51 state codes (county population 2010-2019)",
+  "sub-est2024_9.csv, SUB-EST2020_9.csv (town population, for Connecticut's planning regions)",
+  "geo/cb_2024_us_county_500k, geo/cb_2021_us_county_20m, geo/cb_2013_us_county_20m, geo/cb_2024_us_county_20m, geo/cb_2024_us_state_20m (county and state shapes)"
+ ],
+ "measured_mb": {
+  "window_2010_2024_total": 98,
+  "permits_and_place_summaries": 51.5,
+  "population_and_shapes": 46.2,
+  "full_1990_2024_total": 397,
+  "full_1990s_population_files_alone": 239
+ },
+ "note": "The full 1990-2024 Housing start needs about 397 MB, of which 239 MB is the ten 1990s population files; a 2010-2024 window needs about 98 MB. Which window a tester's first film uses is WEB's and Ryan's call (the builder's Housing start says 1990 to 2024 today)."
+}
