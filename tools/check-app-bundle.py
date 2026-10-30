@@ -406,6 +406,91 @@ w = world("h5")
 good, why = refused(w, "yunet", face_model=str(REAL), model_licences=str(w["root"] / "no-licences"), public=True, notices_contact="x@example.test")
 check(good and not w["out"].exists(), "MUST-FAIL: a PUBLIC build whose YuNet licence record is missing is refused: " + why[:140])
 
+print("I. a tester build can sign in: the start file passes --site and --approval-host (NEXT-CONNECT 163, WORKER 45 blocker 1); OFF unless asked for")
+SITE = "https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node"
+w = world("m")
+mab.build(args(w, maker_extra="--song"))
+plain = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
+check("--site" not in plain and "approval-host" not in plain and "RYAGRAM_SITE" not in plain, "without the option the start file has no site and no approval host (the app shows no Sign in card, as before)")
+w = world("n")
+mab.build(args(w, maker_extra="--song", signin_site=SITE, signin_approval_host=["uselai.com"]))
+sbat = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
+sline = next(l for l in sbat.splitlines() if "desktop_maker.py" in l)
+check(sline.endswith(' --out-dir "%~dp0films" --site "' + SITE + '" --approval-host uselai.com %OPEN% %MAKER_EXTRA%'), "the app line carries --site (quoted) and --approval-host, after the folders and before %OPEN% %MAKER_EXTRA% (which still end it)")
+check(sbat.replace(' --site "' + SITE + '" --approval-host uselai.com', "") == plain, "the two start files differ ONLY by that one added text")
+check("RYAGRAM_SITE" not in sbat and "MAKER_EXTRA=" in sbat, "no environment variable is set for the site; the song switch is still set only as a default")
+sums = (w["out"] / "SHA256SUMS.txt").read_text(encoding="utf-8")
+check("Open Ryagram.bat" in sums and vb.check(w["out"]) == [], "the self-check lists the start file and says 'as built' for the sign-in build")
+(w["out"] / "Open Ryagram.bat").write_bytes(sbat.replace(SITE, SITE.replace("jxtkfishqfxuptwjzczz", "aaaaaaaaaaaaaaaaaaaa")).encode("ascii"))
+check(vb.check(w["out"]) == ["Open Ryagram.bat has been changed."], "MUST-FAIL: a start file whose site address was changed is named by the self-check")
+(w["out"] / "Open Ryagram.bat").write_bytes(sbat.encode("ascii"))
+
+# the REAL maker reads these arguments the way the start file writes them, and the REAL sign-in accepts the address
+import shlex                                                      # noqa: E402
+import desktop_maker as dm                                        # noqa: E402
+import ryagram_signin as rsi                                      # noqa: E402
+
+
+class _Parsed(Exception):
+    pass
+
+
+_orig = dm.argparse.ArgumentParser.parse_args
+
+
+def _grab(self, args_=None, ns=None):
+    r = _orig(self, args_, ns)
+    raise _Parsed(r)
+
+
+words = shlex.split(sline.split('desktop_maker.py"', 1)[1].replace("%~dp0", "X:/app/").replace("%OPEN%", "--open").replace("%MAKER_EXTRA%", "--song"), posix=True)
+dm.argparse.ArgumentParser.parse_args = _grab
+try:
+    dm.main(words)
+    got = None
+except _Parsed as e:
+    got = e.args[0]
+finally:
+    dm.argparse.ArgumentParser.parse_args = _orig
+check(got is not None and got.site == SITE and got.approval_host == ["uselai.com"] and got.song and got.open, f"the real desktop_maker reads --site and --approval-host from that line ({getattr(got, 'site', None)}, {getattr(got, 'approval_host', None)})")
+check(rsi.check_site(SITE) == ("https://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", "jxtkfishqfxuptwjzczz.supabase.co"), "the real sign-in module accepts that address")
+
+w = world("o")
+mab.build(args(w, maker_extra="--song", forge_bat=True, signin_site=SITE, signin_approval_host=["uselai.com", "www.uselai.com"]))
+both = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
+frg = (w["out"] / mab.FORGE_BAT).read_text(encoding="ascii")
+check(' --site "' + SITE + '" --approval-host uselai.com --approval-host www.uselai.com %OPEN%' in both and frg.replace("MAKER_EXTRA=--song --song-forge", "MAKER_EXTRA=--song") == both, "two approval hosts are both passed, and the fill-missing-words start file carries the same sign-in")
+
+for label, over in (("a plain http site", dict(signin_site="http://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", signin_approval_host=["uselai.com"])),
+                    ("another host's site (a look-alike)", dict(signin_site="https://jxtkfishqfxuptwjzczz.supabase.co.evil.example/functions/v1/node", signin_approval_host=["uselai.com"])),
+                    ("a site that is not a Ryagram node address", dict(signin_site="https://evil.example/functions/v1/node", signin_approval_host=["uselai.com"])),
+                    ("a site with a query", dict(signin_site=SITE + "?a=b", signin_approval_host=["uselai.com"])),
+                    ("a site with another path", dict(signin_site=SITE.replace("/node", "/other"), signin_approval_host=["uselai.com"])),
+                    ("a site with a quote and a command", dict(signin_site=SITE + '" & calc & "', signin_approval_host=["uselai.com"])),
+                    ("a site with a trailing slash", dict(signin_site=SITE + "/", signin_approval_host=["uselai.com"])),
+                    ("a site in capital letters", dict(signin_site=SITE.upper(), signin_approval_host=["uselai.com"])),
+                    ("a site with a percent sign", dict(signin_site=SITE.replace("jxtk", "%x%k"), signin_approval_host=["uselai.com"]))):
+    w = world("p")
+    good, why = refused(w, "--signin-site must be", **over)
+    check(good and not w["out"].exists(), f"MUST-FAIL: {label} is refused and nothing is built: {why[:90]}")
+for label, over, frag in (("a site with no approval host", dict(signin_site=SITE), "needs at least one"),
+                          ("an approval host with no site", dict(signin_approval_host=["uselai.com"]), "needs --signin-site"),
+                          ("an approval host with a command", dict(signin_site=SITE, signin_approval_host=["uselai.com&calc"]), "plain lower-case host"),
+                          ("an approval host with a space", dict(signin_site=SITE, signin_approval_host=["uselai.com --x"]), "plain lower-case host"),
+                          ("an approval host with a path", dict(signin_site=SITE, signin_approval_host=["uselai.com/x"]), "plain lower-case host"),
+                          ("an approval host in capitals", dict(signin_site=SITE, signin_approval_host=["UseLai.com"]), "plain lower-case host"),
+                          ("an approval host with a percent sign", dict(signin_site=SITE, signin_approval_host=["%PATH%.com"]), "plain lower-case host"),
+                          ("a bare word as approval host", dict(signin_site=SITE, signin_approval_host=["localhost"]), "plain lower-case host")):
+    w = world("q")
+    good, why = refused(w, frag, **over)
+    check(good and not w["out"].exists(), f"MUST-FAIL: {label} is refused and nothing is built: {why[:90]}")
+w = world("r")
+rc = mab.main(["--out", str(w["out"]), "--kit", str(w["kit"]), "--ffmpeg-dir", str(w["ff"]), "--python-home", str(w["py"]), "--app-repo", str(w["repo"]), "--libraries", LIB, "--allow-any-drive", "--signin-site", "http://x"])
+check(rc == 2 and not w["out"].exists(), "from the command line, a bad --signin-site ends with the REFUSED code and builds nothing")
+w = world("s")
+rc = mab.main(["--out", str(w["out"]), "--kit", str(w["kit"]), "--ffmpeg-dir", str(w["ff"]), "--python-home", str(w["py"]), "--app-repo", str(w["repo"]), "--libraries", LIB, "--allow-any-drive", "--signin-site", SITE, "--signin-approval-host", "uselai.com"])
+check(rc == 0 and ' --site "' + SITE + '" --approval-host uselai.com ' in (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii"), "from the command line, --signin-site and --signin-approval-host reach the start file")
+
 print()
 if FAILS:
     print(f"FAILED: {len(FAILS)}")

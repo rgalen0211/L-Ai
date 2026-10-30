@@ -1005,7 +1005,7 @@ ACTIVITY_OFF_NAME = "maker-activity-log.off"
 ACTIVITY_MAX_BYTES = 2_000_000
 MAKER_REVISION = "r8"
 PROBLEM_KINDS = ("model", "addon", "ffmpeg", "disk", "slot_empty", "slot_many", "recipe", "file", "other")
-ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "ai-requests", "links", "links-upload", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
+ENDPOINTS = ("check", "plan", "build", "cancel", "sound", "pick-folder", "open-folder", "answers", "pick", "locate", "paste", "event", "log", "signin", "signin-start", "signin-poll", "signin-cancel", "signin-check", "signin-remove", "ai-requests", "ai-checklist", "links", "links-upload", "rights", "remove", "overlays", "node", "node-switch", "model-download", "model-cancel")
 JOB_STATES = ("cancelled", "stopped", "planned", "gaps", "built")
 
 
@@ -1309,7 +1309,20 @@ JS = r"""(function () {
     box.hidden = !(r && r.on && ((r.requests || []).length || r.message));
     $('airq-list').replaceChildren(...((r && r.requests) || []).map(x => {
       const what = (x.mode === 'song' ? 'A song film' : 'A compilation') + (x.search === 'words' ? ' of the words' : ' of every time') + ': \u201c' + x.phrase + '\u201d';
-      return el('li', {}, what + (x.title ? ' (project: ' + x.title + ')' : '') + (x.note ? ' \u2014 ' + x.note : ''));
+      const kids = [what + (x.title ? ' (project: ' + x.title + ')' : '') + (x.note ? ' \u2014 ' + x.note : '')];
+      if ((x.checklist || []).length) {
+        // guided footage (NEXT-CONNECT 161): footage YOU get yourself, with a tick for each item; Ryagram downloads nothing
+        kids.push(el('p', { class: 'note' }, 'Footage your AI suggests you get yourself. Ryagram downloads nothing: put the files in the folder named on each line, and the line ticks itself.'));
+        kids.push(el('ul', { class: 'ckl' }, ...x.checklist.map(c => {
+          const box = el('input', { type: 'checkbox', id: 'ck-' + c.key, 'aria-label': c.what });
+          box.checked = !!c.done;
+          box.addEventListener('change', async () => { try { await api('/api/ai-checklist', { key: c.key, done: box.checked }); } catch (e) { /* the box shows the truth on the next refresh */ } refreshRequests(); });
+          const parts = [c.what, c.from ? 'Where to look: ' + c.from : '', c.must_contain ? 'It must contain: ' + c.must_contain : '',
+            'Put it in the folder \u201c' + c.folder + '\u201d' + (c.found ? ' (' + c.have + ' of ' + c.count + ' video' + (c.count === 1 ? '' : 's') + ' there)' : ' (that folder is not among the places Ryagram looks yet)')].filter(Boolean);
+          return el('li', {}, box, el('label', { for: 'ck-' + c.key }, ' ' + parts.join(' \u2014 ')));
+        })));
+      }
+      return el('li', {}, ...kids);
     }));
     $('airq-msg').textContent = (r && r.message) || '';
   }
@@ -1978,6 +1991,8 @@ class Handler(BaseHTTPRequestHandler):
             elif path == "/api/log":
                 STATE["activity"].set_enabled(bool(body.get("on")))
                 self._json(200, {"on": STATE["activity"].enabled, "path": str(STATE["activity"].path)})
+            elif path == "/api/ai-checklist":
+                self._json(200, ai_checklist_tick(body))
             elif path == "/api/event":
                 name = CLIENT_EVENTS.get(str(body.get("name")))
                 if not name:
@@ -2261,12 +2276,36 @@ def _requests_mod():
     return ryagram_requests
 
 
+def _checklist_roots() -> list:
+    return [Path(x) for x in list(STATE.get("recent_dirs", [])) + [str(r) for r in STATE.get("search_roots", [])] if x]
+
+
+def _checklist_ticks():
+    _tools_on_path()
+    import maker_checklist  # noqa: PLC0415
+    return maker_checklist.Ticks(Path(STATE["work"]) / "ai-checklist.json")
+
+
 def ai_requests_status() -> dict:
-    """What the person's AI asked for (NEXT-CONNECT 131b): read-only, from the site, only when this computer is signed in. {"on": false} otherwise. It starts nothing and uploads nothing."""
+    """What the person's AI asked for (NEXT-CONNECT 131b): read-only, from the site, only when this computer is signed in. {"on": false} otherwise. It starts nothing and uploads nothing.
+    A request's media checklist (NEXT-CONNECT 161) is counted here, on this computer, in the folders the maker already searches: nothing about it goes anywhere."""
     p = STATE.get("airq")
     if p is None:
         return {"on": False}
-    return p.status()
+    r = p.status()
+    if r.get("on") and any(x.get("checklist") for x in r.get("requests", [])):
+        _tools_on_path()
+        import maker_checklist  # noqa: PLC0415
+        r = {**r, "requests": maker_checklist.decorate(r["requests"], _checklist_roots(), _checklist_ticks().get())}
+    return r
+
+
+def ai_checklist_tick(body: dict) -> dict:
+    """The person ticks (or unticks) a checklist item by hand. Only the item's key and a yes or no are taken; the answer is the new state."""
+    key, done = body.get("key"), body.get("done") is True
+    if not _checklist_ticks().set(key, done):
+        raise Problem("That tick could not be saved.")
+    return {"key": key, "done": done}
 
 
 def downloads_obj():

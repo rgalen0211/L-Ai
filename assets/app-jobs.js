@@ -77,8 +77,13 @@
     }
   }
 
+  // Said plainly, no promise about when: the film is made on the person's own computer, and none is signed in (the site itself shows the same fact on Account > Computers signed in).
+  const WAITING_FOR_COMPUTER = 'Waiting for your computer. No computer is signed in to your account, so this film cannot start. Open the Ryagram app on your computer and sign in; the film starts once it is signed in.';
+
   // What to show while it runs.
-  function progressNote(job, queuePosition) {
+  // own = { tester, computers } for an account whose films are made on its own computer; computers is how many are signed in, or null when that could not be read (then nothing is claimed).
+  function progressNote(job, queuePosition, own) {
+    if (job.state === 'queued' && own && own.tester === true && own.computers === 0 && !job.cancel_requested) return WAITING_FOR_COMPUTER;
     if (job.state === 'queued') {
       const place = queuePosition ? (queuePosition === 1 ? 'Next in line.' : `Number ${queuePosition} in line.`) : 'Waiting in line.';
       return job.attempt > 1 ? `${place} Retrying after a render-machine problem (attempt ${job.attempt} of 3).` : place;
