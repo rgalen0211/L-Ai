@@ -105,7 +105,7 @@ test('THE VENDORED FILES: dataset-info.json is ENGINE\'s file byte for byte (its
   const src = fs.readFileSync(SHARED + 'dataset-info.source.txt', 'utf8');
   const sha = /^sha256 ([0-9a-f]{64})$/m.exec(src)?.[1];
   assert.ok(sha, 'the source note carries a SHA-256');
-  assert.equal(crypto.createHash('sha256').update(fs.readFileSync(SHARED + 'dataset-info.json')).digest('hex'), sha);
+  assert.equal(crypto.createHash('sha256').update(Buffer.from(fs.readFileSync(SHARED + 'dataset-info.json', 'utf8').replaceAll('\r\n', '\n'), 'utf8')).digest('hex'), sha);   // line endings normalised: a Windows checkout may turn LF into CRLF, the engine's file is LF
   assert.match(src, /^engine_commit [0-9a-f]{8,40}$/m);
   assert.deepEqual(datasetInfoModule, JSON.parse(fs.readFileSync(SHARED + 'dataset-info.json', 'utf8')));
   assert.equal(records.length, 106); assert.equal(JSON.parse(fs.readFileSync(SHARED + 'dataset-info.json', 'utf8')).count, records.length);
