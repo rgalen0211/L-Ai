@@ -82,7 +82,8 @@ export function opProblem(mode: Mode, op: unknown): string | null {
   } else if (kind === "trim_clip") {
     if (!(o.edge === "start" || o.edge === "end")) return 'Trim the "start" or the "end".';
     if (!("to" in o)) return 'trim_clip needs "to".';
-    if ((o.to as number) < 0 || (o.to as number) > 86400) return '"to" must be between 0 and 86400 seconds.';
+    const lo = o.edge === "start" ? -3600 : 0;                                  // more lead-in on a video clip is a negative start; the clip's own rules decide where
+    if ((o.to as number) < lo || (o.to as number) > 86400) return `"to" must be between ${lo} and 86400 seconds.`;
   } else if (kind === "reorder_clip") {
     if (!(isNum(o.index) && Number.isInteger(o.index) && o.index >= 0 && o.index <= 199)) return '"index" must be a whole number from 0 to 199.';
   } else if (kind === "set_clip_text") {

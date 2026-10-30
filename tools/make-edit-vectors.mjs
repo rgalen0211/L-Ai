@@ -88,6 +88,12 @@ const CASES = [
   ['comp', { op: 'trim_clip', id: 'v2', edge: 'start', to: 5.5 }],
   ['comp', { op: 'trim_clip', id: 'v2', edge: 'start', to: 3 }],
   ['comp', { op: 'trim_clip', id: 'v2', edge: 'start', to: -0.5 }],
+  // more lead-in on the FIRST video clip (a negative `to` on a video start trim moves the file back): allowed while the file has room; before the file's start, and any other lane, still refused
+  ['comp', { op: 'trim_clip', id: 'v1', edge: 'start', to: -1 }],
+  ['comp', { op: 'trim_clip', id: 'v1', edge: 'start', to: -2 }],
+  ['comp', { op: 'trim_clip', id: 'v1', edge: 'start', to: -2.5 }],
+  ['comp', { op: 'trim_clip', id: 't1', edge: 'start', to: -0.5 }],
+  ['comp', { op: 'trim_clip', id: 'v1', edge: 'end', to: -1 }],
   ['comp', { op: 'trim_clip', id: 'v2', edge: 'start', to: 0 }],
   ['comp', { op: 'trim_clip', id: 'v2', edge: 'end', to: 9.1 }],
   ['comp', { op: 'trim_clip', id: 'v2', edge: 'end', to: 9 }],

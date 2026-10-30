@@ -130,7 +130,8 @@
       if (!Number.isFinite(op.start) || op.start < 0 || (state.duration && op.start + c.len > state.duration + 1e-6)) return 'That is outside the film.';
     } else if (op.op === 'trim_clip') {
       if (op.edge !== 'start' && op.edge !== 'end') return 'Trim the start or the end.';
-      if (!Number.isFinite(op.to) || op.to < 0) return 'That is outside the film.';
+      // A video clip's START trim moves the file (source_start), not the clip on the timeline, so more lead-in on the first video clip is a negative `to`; the file's own start is guarded below. Every other clip stays inside the film.
+      if (!Number.isFinite(op.to) || (op.to < 0 && !(c.track === 'video' && op.edge === 'start'))) return 'That is outside the film.';
       // A video clip keeps its place in the run: trimming its start cuts the file's start (source_start moves), and the run is packed again. Any other clip's start moves.
       const delta = op.edge === 'start' ? op.to - c.start : 0;
       const newLen = op.edge === 'start' ? c.len - delta : op.to - c.start;

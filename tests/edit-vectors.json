@@ -4327,10 +4327,819 @@
     "edge": "start",
     "to": -0.5
    },
-   "refusal": "That is outside the film."
+   "refusal": "That is before the start of the video file."
   },
   {
    "name": "051 comp trim_clip",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "trim_clip",
+    "id": "v1",
+    "edge": "start",
+    "to": -1
+   },
+   "state_after": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 5,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 1,
+      "min_len": 0.3,
+      "max_len": 11
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 5,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 8,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 13,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 1,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   }
+  },
+  {
+   "name": "052 comp trim_clip",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "trim_clip",
+    "id": "v1",
+    "edge": "start",
+    "to": -2
+   },
+   "state_after": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 6,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 0,
+      "min_len": 0.3,
+      "max_len": 12
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 6,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 9,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 14,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 1,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   }
+  },
+  {
+   "name": "053 comp trim_clip",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "trim_clip",
+    "id": "v1",
+    "edge": "start",
+    "to": -2.5
+   },
+   "refusal": "That is before the start of the video file."
+  },
+  {
+   "name": "054 comp trim_clip",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "trim_clip",
+    "id": "t1",
+    "edge": "start",
+    "to": -0.5
+   },
+   "refusal": "That is outside the film."
+  },
+  {
+   "name": "055 comp trim_clip",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "trim_clip",
+    "id": "v1",
+    "edge": "end",
+    "to": -1
+   },
+   "refusal": "That is outside the film."
+  },
+  {
+   "name": "056 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -4449,7 +5258,7 @@
    "refusal": "That is before the start of the video file."
   },
   {
-   "name": "052 comp trim_clip",
+   "name": "057 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -4568,7 +5377,7 @@
    "refusal": "That is past the end of the video file."
   },
   {
-   "name": "053 comp trim_clip",
+   "name": "058 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -4794,7 +5603,7 @@
    }
   },
   {
-   "name": "054 comp trim_clip",
+   "name": "059 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -5020,7 +5829,7 @@
    }
   },
   {
-   "name": "055 comp trim_clip",
+   "name": "060 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -5246,7 +6055,7 @@
    }
   },
   {
-   "name": "056 comp trim_clip",
+   "name": "061 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -5365,7 +6174,7 @@
    "refusal": "That is past the end of the video file."
   },
   {
-   "name": "057 comp trim_clip",
+   "name": "062 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -5484,7 +6293,7 @@
    "refusal": "A clip can not be shorter than 0.5 seconds."
   },
   {
-   "name": "058 comp trim_clip",
+   "name": "063 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -5710,7 +6519,7 @@
    }
   },
   {
-   "name": "059 comp trim_clip",
+   "name": "064 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -5829,7 +6638,7 @@
    "refusal": "A clip can not be shorter than 0.3 seconds."
   },
   {
-   "name": "060 comp trim_clip",
+   "name": "065 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6055,7 +6864,7 @@
    }
   },
   {
-   "name": "061 comp trim_clip",
+   "name": "066 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6174,7 +6983,7 @@
    "refusal": "A clip can not be shorter than 0.3 seconds."
   },
   {
-   "name": "062 comp trim_clip",
+   "name": "067 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6293,7 +7102,7 @@
    "refusal": "That is outside the film."
   },
   {
-   "name": "063 comp trim_clip",
+   "name": "068 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6519,7 +7328,7 @@
    }
   },
   {
-   "name": "064 comp trim_clip",
+   "name": "069 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6638,7 +7447,7 @@
    "refusal": "A clip can not be shorter than 0.5 seconds."
   },
   {
-   "name": "065 comp trim_clip",
+   "name": "070 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6757,7 +7566,7 @@
    "refusal": "A clip can not be longer than 30 seconds."
   },
   {
-   "name": "066 comp trim_clip",
+   "name": "071 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6876,7 +7685,7 @@
    "refusal": "That is outside the film."
   },
   {
-   "name": "067 comp trim_clip",
+   "name": "072 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -6995,7 +7804,7 @@
    "refusal": "Trim the start or the end."
   },
   {
-   "name": "068 comp trim_clip",
+   "name": "073 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -7114,7 +7923,7 @@
    "refusal": "That is outside the film."
   },
   {
-   "name": "069 comp trim_clip",
+   "name": "074 comp trim_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -7233,7 +8042,7 @@
    "refusal": "That is outside the film."
   },
   {
-   "name": "070 comp reorder_clip",
+   "name": "075 comp reorder_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -7458,7 +8267,7 @@
    }
   },
   {
-   "name": "071 comp reorder_clip",
+   "name": "076 comp reorder_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -7683,7 +8492,7 @@
    }
   },
   {
-   "name": "072 comp reorder_clip",
+   "name": "077 comp reorder_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -7908,7 +8717,7 @@
    }
   },
   {
-   "name": "073 comp reorder_clip",
+   "name": "078 comp reorder_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -8133,7 +8942,7 @@
    }
   },
   {
-   "name": "074 comp reorder_clip",
+   "name": "079 comp reorder_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -8251,7 +9060,7 @@
    "refusal": "There is no such place in the list."
   },
   {
-   "name": "075 comp reorder_clip",
+   "name": "080 comp reorder_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -8369,7 +9178,7 @@
    "refusal": "There is no such place in the list."
   },
   {
-   "name": "076 comp reorder_clip",
+   "name": "081 comp reorder_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -8487,7 +9296,7 @@
    "refusal": "Only video clips can be reordered."
   },
   {
-   "name": "077 comp set_clip_text",
+   "name": "082 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -8712,7 +9521,7 @@
    }
   },
   {
-   "name": "078 comp set_clip_text",
+   "name": "083 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -8937,7 +9746,7 @@
    }
   },
   {
-   "name": "079 comp set_clip_text",
+   "name": "084 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -9162,7 +9971,7 @@
    }
   },
   {
-   "name": "080 comp set_clip_text",
+   "name": "085 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -9387,7 +10196,7 @@
    }
   },
   {
-   "name": "081 comp set_clip_text",
+   "name": "086 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -9612,7 +10421,7 @@
    }
   },
   {
-   "name": "082 comp set_clip_text",
+   "name": "087 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -9730,7 +10539,7 @@
    "refusal": "The text must be words."
   },
   {
-   "name": "083 comp set_clip_text",
+   "name": "088 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -9848,7 +10657,7 @@
    "refusal": "Only a text clip has text."
   },
   {
-   "name": "084 comp set_clip_text",
+   "name": "089 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -10073,7 +10882,7 @@
    }
   },
   {
-   "name": "085 comp set_clip_text",
+   "name": "090 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -10298,7 +11107,7 @@
    }
   },
   {
-   "name": "086 comp set_clip_text",
+   "name": "091 comp set_clip_text",
    "state": "comp",
    "state_before": {
     "look": {
@@ -10416,7 +11225,7 @@
    "refusal": "Only a text clip has text."
   },
   {
-   "name": "087 comp delete_clip",
+   "name": "092 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -10629,7 +11438,7 @@
    }
   },
   {
-   "name": "088 comp delete_clip",
+   "name": "093 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -10842,7 +11651,7 @@
    }
   },
   {
-   "name": "089 comp delete_clip",
+   "name": "094 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -11058,7 +11867,7 @@
    }
   },
   {
-   "name": "090 comp delete_clip",
+   "name": "095 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -11272,7 +12081,7 @@
    }
   },
   {
-   "name": "091 comp delete_clip",
+   "name": "096 comp delete_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -11389,7 +12198,7 @@
    "refusal": "That clip is not in this film."
   },
   {
-   "name": "092 comp add_clip",
+   "name": "097 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -11625,7 +12434,7 @@
    }
   },
   {
-   "name": "093 comp add_clip",
+   "name": "098 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -11745,7 +12554,7 @@
    "refusal": "Give it a start and a length that fit the film."
   },
   {
-   "name": "094 comp add_clip",
+   "name": "099 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -11865,7 +12674,7 @@
    "refusal": "That is outside the film."
   },
   {
-   "name": "095 comp add_clip",
+   "name": "100 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -11985,7 +12794,7 @@
    "refusal": "Give it a start and a length that fit the film."
   },
   {
-   "name": "096 comp add_clip",
+   "name": "101 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -12104,7 +12913,7 @@
    "refusal": "A text line needs some words."
   },
   {
-   "name": "097 comp add_clip",
+   "name": "102 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -12224,7 +13033,7 @@
    "refusal": "A text line needs some words."
   },
   {
-   "name": "098 comp add_clip",
+   "name": "103 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -12459,7 +13268,7 @@
    }
   },
   {
-   "name": "099 comp add_clip",
+   "name": "104 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -12578,7 +13387,7 @@
    "refusal": "Pick one of your pictures."
   },
   {
-   "name": "100 comp add_clip",
+   "name": "105 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -12698,7 +13507,7 @@
    "refusal": "Give it a start and a length that fit the film."
   },
   {
-   "name": "101 comp add_clip",
+   "name": "106 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -12817,7 +13626,7 @@
    "refusal": "You can add a text line or a picture here."
   },
   {
-   "name": "102 comp add_clip",
+   "name": "107 comp add_clip",
    "state": "comp",
    "state_before": {
     "look": {
@@ -12936,7 +13745,7 @@
    "refusal": "You can add a text line or a picture here."
   },
   {
-   "name": "103 comp set_clip_style",
+   "name": "108 comp set_clip_style",
    "state": "comp",
    "state_before": {
     "look": {
@@ -13162,7 +13971,7 @@
    }
   },
   {
-   "name": "104 comp set_clip_style",
+   "name": "109 comp set_clip_style",
    "state": "comp",
    "state_before": {
     "look": {
@@ -13388,7 +14197,7 @@
    }
   },
   {
-   "name": "105 comp set_clip_style",
+   "name": "110 comp set_clip_style",
    "state": "comp",
    "state_before": {
     "look": {
@@ -13614,7 +14423,7 @@
    }
   },
   {
-   "name": "106 comp set_clip_style",
+   "name": "111 comp set_clip_style",
    "state": "comp",
    "state_before": {
     "look": {
@@ -13732,7 +14541,7 @@
    "refusal": "A text style must be title, caption or lower_third."
   },
   {
-   "name": "107 comp set_clip_style",
+   "name": "112 comp set_clip_style",
    "state": "comp",
    "state_before": {
     "look": {
@@ -13850,7 +14659,7 @@
    "refusal": "Only a text clip has a style."
   },
   {
-   "name": "108 comp set_clip_style",
+   "name": "113 comp set_clip_style",
    "state": "comp",
    "state_before": {
     "look": {
@@ -13968,7 +14777,7 @@
    "refusal": "Only a text clip has a style."
   },
   {
-   "name": "109 comp set_clip_style",
+   "name": "114 comp set_clip_style",
    "state": "comp",
    "state_before": {
     "look": {
@@ -14086,7 +14895,7 @@
    "refusal": "That clip is not in this film."
   },
   {
-   "name": "110 comp set_music",
+   "name": "115 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -14310,7 +15119,7 @@
    }
   },
   {
-   "name": "111 comp set_music",
+   "name": "116 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -14538,7 +15347,7 @@
    }
   },
   {
-   "name": "112 comp set_music",
+   "name": "117 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -14762,7 +15571,7 @@
    }
   },
   {
-   "name": "113 comp set_music",
+   "name": "118 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -14878,7 +15687,7 @@
    "refusal": "set_music needs at least one setting."
   },
   {
-   "name": "114 comp set_music",
+   "name": "119 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -14995,7 +15804,7 @@
    "refusal": "The level must be a number from -30 to 6."
   },
   {
-   "name": "115 comp set_music",
+   "name": "120 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -15112,7 +15921,7 @@
    "refusal": "The level must be a number from -30 to 6."
   },
   {
-   "name": "116 comp set_music",
+   "name": "121 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -15229,7 +16038,7 @@
    "refusal": "The fade in must be a number from 0 to 5 seconds."
   },
   {
-   "name": "117 comp set_music",
+   "name": "122 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -15346,7 +16155,7 @@
    "refusal": "The fade out must be a number from 0 to 5 seconds."
   },
   {
-   "name": "118 comp set_music",
+   "name": "123 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -15463,7 +16272,7 @@
    "refusal": "Where the music starts must be a number from 0 to 86400 seconds."
   },
   {
-   "name": "119 comp set_music",
+   "name": "124 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -15580,7 +16389,7 @@
    "refusal": "Snap to the beat is on or off."
   },
   {
-   "name": "120 comp set_music",
+   "name": "125 comp set_music",
    "state": "comp",
    "state_before": {
     "look": {
@@ -15697,7 +16506,7 @@
    "refusal": "That change has a field the editor does not know."
   },
   {
-   "name": "121 comp_lanes set_music",
+   "name": "126 comp_lanes set_music",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -15821,7 +16630,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "122 comp set_rule",
+   "name": "127 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -16057,7 +16866,7 @@
    }
   },
   {
-   "name": "123 comp set_rule",
+   "name": "128 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -16284,7 +17093,7 @@
    }
   },
   {
-   "name": "124 comp set_rule",
+   "name": "129 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -16405,7 +17214,7 @@
    "refusal": "That rule is not in this film."
   },
   {
-   "name": "125 comp set_rule",
+   "name": "130 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -16525,7 +17334,7 @@
    "refusal": "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup)."
   },
   {
-   "name": "126 comp set_rule",
+   "name": "131 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -16645,7 +17454,7 @@
    "refusal": "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup)."
   },
   {
-   "name": "127 comp set_rule",
+   "name": "132 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -16765,7 +17574,7 @@
    "refusal": "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup)."
   },
   {
-   "name": "128 comp set_rule",
+   "name": "133 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -16885,7 +17694,7 @@
    "refusal": "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup)."
   },
   {
-   "name": "129 comp set_rule",
+   "name": "134 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17005,7 +17814,7 @@
    "refusal": "That picture is not one of yours."
   },
   {
-   "name": "130 comp set_rule",
+   "name": "135 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17125,7 +17934,7 @@
    "refusal": "The picture stays from 0.5 to 10 seconds."
   },
   {
-   "name": "131 comp set_rule",
+   "name": "136 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17245,7 +18054,7 @@
    "refusal": "The picture stays from 0.5 to 10 seconds."
   },
   {
-   "name": "132 comp set_rule",
+   "name": "137 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17365,7 +18174,7 @@
    "refusal": "A rule mode must be full, centre, corner or lower_third."
   },
   {
-   "name": "133 comp set_rule",
+   "name": "138 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17486,7 +18295,7 @@
    "refusal": "The fade must be a number from 0 to 1 second."
   },
   {
-   "name": "134 comp set_rule",
+   "name": "139 comp set_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17607,7 +18416,7 @@
    "refusal": "That change has a field the editor does not know."
   },
   {
-   "name": "135 comp delete_rule",
+   "name": "140 comp delete_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17822,7 +18631,7 @@
    }
   },
   {
-   "name": "136 comp delete_rule",
+   "name": "141 comp delete_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -17939,7 +18748,7 @@
    "refusal": "That rule is not in this film."
   },
   {
-   "name": "137 comp delete_rule",
+   "name": "142 comp delete_rule",
    "state": "comp",
    "state_before": {
     "look": {
@@ -18055,7 +18864,7 @@
    "refusal": "That rule is not in this film."
   },
   {
-   "name": "138 comp set_film_look",
+   "name": "143 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -18280,7 +19089,7 @@
    }
   },
   {
-   "name": "139 comp set_film_look",
+   "name": "144 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -18398,7 +19207,7 @@
    "refusal": "The theme can only be: dark, light."
   },
   {
-   "name": "140 comp set_film_look",
+   "name": "145 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -18623,7 +19432,7 @@
    }
   },
   {
-   "name": "141 comp set_film_look",
+   "name": "146 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -18741,7 +19550,7 @@
    "refusal": "That needs a colour like #1a73e8."
   },
   {
-   "name": "142 comp set_film_look",
+   "name": "147 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -18966,7 +19775,7 @@
    }
   },
   {
-   "name": "143 comp set_film_look",
+   "name": "148 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19191,7 +20000,7 @@
    }
   },
   {
-   "name": "144 comp set_film_look",
+   "name": "149 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19416,7 +20225,7 @@
    }
   },
   {
-   "name": "145 comp set_film_look",
+   "name": "150 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19534,7 +20343,7 @@
    "refusal": "The box opacity must be a number from 0 to 1."
   },
   {
-   "name": "146 comp set_film_look",
+   "name": "151 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19652,7 +20461,7 @@
    "refusal": "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
   },
   {
-   "name": "147 comp set_film_look",
+   "name": "152 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19769,7 +20578,7 @@
    "refusal": "A film look change needs a value."
   },
   {
-   "name": "148 comp_lanes move_clip",
+   "name": "153 comp_lanes move_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -19894,7 +20703,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "149 comp_lanes delete_clip",
+   "name": "154 comp_lanes delete_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20018,7 +20827,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "150 comp_lanes trim_clip",
+   "name": "155 comp_lanes trim_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20144,7 +20953,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "151 comp_lanes add_clip",
+   "name": "156 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20271,7 +21080,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "152 comp_lanes add_clip",
+   "name": "157 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20521,7 +21330,7 @@
    }
   },
   {
-   "name": "153 comp_lanes add_clip",
+   "name": "158 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20648,7 +21457,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "154 comp_lanes set_clip_text",
+   "name": "159 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20887,7 +21696,7 @@
    }
   },
   {
-   "name": "155 comp_lanes set_clip_text",
+   "name": "160 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21012,7 +21821,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "156 comp_lanes set_clip_text",
+   "name": "161 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21251,7 +22060,7 @@
    }
   },
   {
-   "name": "157 comp_lanes set_clip_text",
+   "name": "162 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21376,7 +22185,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "158 comp_lanes reorder_clip",
+   "name": "163 comp_lanes reorder_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21615,7 +22424,7 @@
    }
   },
   {
-   "name": "159 comp_lanes trim_clip",
+   "name": "164 comp_lanes trim_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {

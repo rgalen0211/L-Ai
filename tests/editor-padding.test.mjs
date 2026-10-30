@@ -85,13 +85,31 @@ test('NO RULES OF ITS OWN, TEXT ONLY, OFF: the file checks nothing itself, build
   if (fs.existsSync(live)) assert.doesNotMatch(fs.readFileSync(live, 'utf8'), /ryagramClipPadding/);
 });
 
-// FOUND (for WEB, the core's owner): the editor core refuses ANY start trim below 0 ('That is outside the film.') before it looks at the track, so the FIRST
-// video clip of a film can never get more lead-in, though a video start trim only moves the file (source_start) and the run is packed again. This test pins
-// today's behaviour so a change to the core shows up here; the control is shown disabled with the core's own sentence.
-test('FIRST CLIP (core limitation, reported to WEB): more lead-in on the clip at 0 s is refused by the core, and the control gives the core reason', () => {
+// FIXED (WEB 180, from BUILDER's patch): the core used to refuse ANY start trim below 0 ('That is outside the film.') before it looked at the track, so the FIRST video clip of a film could never get
+// more lead-in, though a video start trim only moves the file (source_start) and the run is packed again. Now a video START trim may go below 0 (the file's own start is still guarded), every other
+// clip stays inside the film.
+test('FIRST CLIP: more lead-in on the clip at 0 s is allowed while the file has room, moves the file back, keeps the run packed, and is undone exactly', () => {
   const s = E.newState ? E.newState(BASE()) : BASE();
   const a = s.clips.find(x => x.id === 'a');
-  const c = P.controls(E, s, a).find(x => x.edge === 'start' && x.delta === 0.1);
-  assert.equal(c.refused, 'That is outside the film.');
+  const more = P.controls(E, s, a).find(x => x.edge === 'start' && x.delta === 0.1);
+  assert.equal(more.refused, null, 'a first clip with 2 s of file before its cut can take more lead-in');
   assert.equal(P.controls(E, s, a).find(x => x.edge === 'start' && x.delta === -0.1).refused, null, 'less lead-in still works');
+  const r = E.check(s, { op: 'trim_clip', id: 'a', edge: 'start', to: -1 });
+  assert.equal(r, null);
+  const ed = new E.Editor(BASE());
+  assert.equal(ed.do({ op: 'trim_clip', id: 'a', edge: 'start', to: -1 }).ok, true);
+  const a2 = ed.state.clips.find(x => x.id === 'a'), b2 = ed.state.clips.find(x => x.id === 'b');
+  assert.equal(a2.source_start, 1); assert.equal(a2.start, 0); assert.equal(a2.len, 4); assert.equal(b2.start, 4, 'the run is packed again');
+  ed.undo();
+  const a3 = ed.state.clips.find(x => x.id === 'a');
+  assert.equal(a3.source_start, 2); assert.equal(a3.len, 3);
+});
+
+test('FIRST CLIP: more lead-in than the file has is still refused in words, and no other lane may start before the film', () => {
+  const s = E.newState ? E.newState(BASE()) : BASE();
+  assert.equal(E.check(s, { op: 'trim_clip', id: 'a', edge: 'start', to: -2.5 }), 'That is before the start of the video file.');
+  assert.equal(E.check(s, { op: 'trim_clip', id: 'b', edge: 'start', to: -0.1 }), 'That is before the start of the video file.');
+  const withText = { ...BASE(), clips: [...BASE().clips, { id: 't', track: 'text', start: 1, len: 2, label: 'T', text: 'Hi', min_len: 0.5, max_len: 30 }] };
+  assert.equal(E.check(E.newState ? E.newState(withText) : withText, { op: 'trim_clip', id: 't', edge: 'start', to: -0.5 }), 'That is outside the film.');
+  assert.equal(E.check(s, { op: 'trim_clip', id: 'a', edge: 'end', to: -1 }), 'That is outside the film.');
 });
