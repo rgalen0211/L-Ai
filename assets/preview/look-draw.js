@@ -196,8 +196,25 @@
   // look.is_outline: a county outline use (what a draft frame leaves out)
   function isOutline(e) { return e.indexOf('<use href="#a') === 0 && e.indexOf(' fill="none"') >= 0 && e.indexOf(" stroke=") >= 0; }
 
+  // look._role: the tag, and for text its size and font
+  function role(e) {
+    var m = /^<([A-Za-z][\w-]*)/.exec(e), tag = m ? m[1] : "";
+    if (tag === "text") {
+      var fs = / font-size="([^"]*)"/.exec(e), ff = / font-family="([^"]*)"/.exec(e);
+      tag += "." + (fs ? fs[1] : "") + "." + (ff ? ff[1] : "");
+    }
+    return tag;
+  }
+
   function retheme(e, pairs) {
-    e = e.replace(/rgb\(\d+,\d+,\d+\)/g, function (m) { return Object.prototype.hasOwnProperty.call(pairs.colours, m) ? pairs.colours[m] : m; });
+    var ctx = pairs.ctx || {}, tag = role(e);
+    e = e.replace(/([\w-]+)="(rgb\(\d+,\d+,\d+\))"/g, function (m, an, u) {
+      var k = tag + "|" + an + "|" + u, v;
+      if (Object.prototype.hasOwnProperty.call(ctx, k)) { v = ctx[k]; }
+      else if (Object.prototype.hasOwnProperty.call(pairs.colours, u)) { v = pairs.colours[u]; }
+      else { v = u; }
+      return an + '="' + v + '"';
+    });
     return e.replace(/perimeter-glow-[0-9a-f]+/g, function (m) { return Object.prototype.hasOwnProperty.call(pairs.glow, m) ? pairs.glow[m] : m; });
   }
 

@@ -1,3 +1,3 @@
-ryagram/preview/look-draw.js from the engine (Ryagram branch look-banded-key-1030 @ 7865e712, 4 commits off main 4b3f5cd6: a banded map takes the story's own low/high colours and recolours its key, the draft frame look.draft for scrubbing, the sameStops fix; NEXT-ENGINE 46 to 47; replaces main 48e141cb's file 54860ced...). Not on Ryagram main yet: this branch needs that merge first.
-sha256 1bde3221d71c2588a639defb2167987b91d67396f6689cd74ab371392739d06e
-25651 bytes, LF. Drawing only: no network, no DOM, no storage. Replace it by copying the engine's file and changing this pin in the same commit.
+ryagram/preview/look-draw.js from the engine (Ryagram branch look-banded-key-1030 @ 9fcbad04: a banded map takes the story's own low/high colours and recolours its key, the draft frame look.draft for scrubbing, the sameStops fix, the light/dark table read by element role; NEXT-ENGINE 46 to 47; replaces main 48e141cb's file 54860ced...). Not on Ryagram main yet: this branch needs that merge first.
+sha256 76990113f8374e00e1bee403f982eec2093e945db05baee843c28ef1718c1b81
+26247 bytes, LF. Drawing only: no network, no DOM, no storage. Replace it by copying the engine's file and changing this pin in the same commit.
