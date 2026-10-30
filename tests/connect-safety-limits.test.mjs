@@ -121,8 +121,9 @@ test('three failed previews of the same story: the next one is refused, in words
   const r = await call(A, 'make_preview', { project_id: id, start_seconds: 1, end_seconds: 4 });
   assert.equal(r.code, 'repeated_failures'); assert.match(r.text, /The preview of this exact story has already failed 3 times/); assert.match(r.text, /NOTHING was started/);
   assert.equal(r.data.started, false);
+  failJob(w, sheet.data.job_id);                                                    // the sheet itself failed once: that is ONE failed sheet, whatever the previews did
   const sheetAgain = await call(A, 'make_contact_sheet', { project_id: id });
-  assert.notEqual(sheetAgain.code, 'repeated_failures', 'failed previews are a different count from failed sheets');
+  assert.equal(sheetAgain.data?.started, true, 'failed previews are a different count from failed sheets: ' + sheetAgain.text);
   const changed = await call(A, 'set_story', { project_id: id, story: story('Changed for the preview') });
   assert.equal(changed.isError, undefined, changed.text);
 });
