@@ -17,7 +17,9 @@ union all select 'the switch reader exists and nobody but the database owner can
        to_regprocedure('ryagram_private.footage_on()') is not null
        and not has_function_privilege('connect_runner', 'ryagram_private.footage_on()', 'execute') and not has_function_privilege('node_runner', 'ryagram_private.footage_on()', 'execute')
        and not has_function_privilege('authenticated', 'ryagram_private.footage_on()', 'execute') and not has_function_privilege('anon', 'ryagram_private.footage_on()', 'execute')
-union all select 'THE SWITCH IS OFF (footage_enabled is false): the AI cannot write a footage plan',
-       (select count(*) from public.connect_flags where footage_enabled is false) = (select count(*) from public.connect_flags) and not ryagram_private.footage_on()
+union all select 'THE SWITCH IS OFF (footage_enabled is false) and nobody but the database owner can flip it: the AI cannot write a footage plan',
+       (select count(*) from public.footage_flags where footage_enabled is false) = 1 and (select count(*) from public.footage_flags) = 1 and not ryagram_private.footage_on()
+       and not has_table_privilege('authenticated', 'public.footage_flags', 'select,insert,update,delete') and not has_table_privilege('anon', 'public.footage_flags', 'select,insert,update,delete')
+       and not has_table_privilege('connect_runner', 'public.footage_flags', 'select,insert,update,delete') and not has_table_privilege('node_runner', 'public.footage_flags', 'select,insert,update,delete')
 union all select 'no plan exists yet',
        (select count(*) from public.footage_plans) = 0;
