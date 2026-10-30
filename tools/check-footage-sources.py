@@ -93,6 +93,8 @@ for label, rec2 in (("Restricted - Fully", dict(rec, useRestriction={"status": "
                     ("a copyright holder", dict(rec, scopeAndContentNote="Copyright held by the donor"))):
     jr = FS.judge_nara(rec2, "12345678")
     check(not jr["ok"] and jr["reasons"], f"MUST-FAIL: {label} is refused: {jr['reasons'][:1]}")
+nostat = FS.judge_nara({k: v for k, v in rec.items() if k != "useRestriction"}, "12345678")
+check(not nostat["ok"] and any("no Use Restriction Status" in x for x in nostat["reasons"]), "MUST-FAIL: a record with no status says so in words (it is not mistaken for a restricted one)")
 check(FS.judge_nara(dict(rec, useRestriction={"status": "UNRESTRICTED"}), "12345678")["ok"], "the status word is read without regard to capitals")
 
 print("D. choosing one file, only on the source's own file host")
