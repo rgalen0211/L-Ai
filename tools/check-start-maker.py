@@ -81,7 +81,7 @@ def main():
         sam = Path('D:/Ryagram-scratch/ENGINE/Ryagram-ranges/recipes/sam-first.json')
         (folder / 'recipes' / 'sam-first.json').write_bytes(sam.read_bytes() if sam.is_file() else json.dumps({}).encode())
         (folder / 'tools').mkdir()
-        for n in ('desktop_maker.py', 'start-maker.bat', 'get-model.bat'):
+        for n in ('desktop_maker.py', 'ryagram_platform.py', 'start-maker.bat', 'get-model.bat'):
             shutil.copy(ROOT / 'tools' / n, folder / 'tools' / n)
         print('one click')
         p1, log1, f1 = start(folder, args=('--port', '0'))
