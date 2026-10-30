@@ -230,17 +230,18 @@ def check_node_job_kit(node_kit: Path, kit: Path) -> list:
             raise Refused(f"--node-job-kit: {rel} is outside the ryagram folder.")
         if sha256_file(node_kit / rel) != want:
             raise Refused(f"--node-job-kit: {rel} is not the file its MANIFEST.sha256 names.")
-        if parts[:2] == ["ryagram", "worker"]:
-            if len(parts) != 3 or parts[2] not in NODE_JOB_WORKER_FILES:
-                raise Refused(f"--node-job-kit: {rel} is a house-worker module the film job on a person's own PC must not carry (only {', '.join(NODE_JOB_WORKER_FILES)}).")
         twin = kit / rel
-        if twin.is_file():
+        if twin.is_file():                                          # already in the app: it must be the same file
             if sha256_file(twin) != want:
                 raise Refused(f"--node-job-kit: {rel} is also in the kit with other content (the two were cut from different engine heads).")
-        elif not (parts[:2] == ["ryagram", "worker"] or (parts[:2] == ["ryagram", "sequence"] and len(parts) == 3 and NODE_JOB_SEQUENCE_FILE.fullmatch(parts[2]))):
-            raise Refused(f"--node-job-kit: {rel} is not in the kit and is not a node-job module; only ryagram/worker files and the engine's own ryagram/sequence modules may be added.")
-        else:
+        elif parts[:2] == ["ryagram", "worker"]:                    # a NEW house-worker module: only the five the film job reads
+            if len(parts) != 3 or parts[2] not in NODE_JOB_WORKER_FILES:
+                raise Refused(f"--node-job-kit: {rel} is a house-worker module the film job on a person's own PC must not carry (only {', '.join(NODE_JOB_WORKER_FILES)}).")
             add.append(rel)
+        elif parts[:2] == ["ryagram", "sequence"] and len(parts) == 3 and NODE_JOB_SEQUENCE_FILE.fullmatch(parts[2]):
+            add.append(rel)
+        else:
+            raise Refused(f"--node-job-kit: {rel} is not in the kit and is not a node-job module; only ryagram/worker files and the engine's own ryagram/sequence modules may be added.")
     if not any(r == "ryagram/worker/config.py" for r in listed):
         raise Refused("--node-job-kit has no ryagram/worker/config.py (the settings reader the film job needs).")
     return add

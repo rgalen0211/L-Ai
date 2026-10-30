@@ -532,6 +532,13 @@ w = world("t2")
 mab.build(args(w, maker_extra="--song"))
 check(not (w["out"] / "ryagram" / "worker").exists(), "without --node-job-kit the bundle has no ryagram/worker at all (as before)")
 
+w = world("t3")
+kw = w["kit"] / "ryagram" / "worker"
+kw.mkdir(parents=True)
+(kw / "safesheet.py").write_text("# the kit already ships this one" + chr(10), encoding="utf-8", newline="")
+nk3 = nodekit(w, "nk-twin", extra={"ryagram/worker/safesheet.py": "# the kit already ships this one" + chr(10)})
+mab.build(args(w, maker_extra="--song", node_job_kit=str(nk3)))
+check((w["out"] / "ryagram" / "worker" / "safesheet.py").read_text(encoding="utf-8") == "# the kit already ships this one" + chr(10) and (w["out"] / "ryagram" / "worker" / "config.py").is_file(), "a closure file the kit already ships (identical) is accepted whatever its name, and is not copied twice")
 for label, build_kit, frag in (
         ("a folder with no MANIFEST.sha256", dict(skip_manifest=True), "no MANIFEST.sha256"),
         ("a file that is not the one the manifest names", dict(tamper="ryagram/worker/runner.py"), "not the file its manifest"),
