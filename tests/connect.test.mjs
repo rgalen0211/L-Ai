@@ -100,7 +100,7 @@ test('WIRING AND FLAG: the route and the account section exist only behind conne
   const lib = read('assets/app-library.js');
   assert.match(lib, /const connectOn = \(\) => window\.ryagramConfig\?\.connectAi === true \|\| !!window\.ryagramMock;/);
   assert.match(lib, /connectOn\(\) && window\.ryagramConnect\.requestFromHash\(hash\)\) view = \(await connectAllowed\(data\)\) \? await connectUi\(\)\.consentView\(window\.ryagramConnect\.requestFromHash\(hash\)\) : connectUi\(\)\.inviteOnlyView\(\)/);
-  assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\)\);/);
+  assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\{ open: connectApp \}\)\);/);
   assert.match(read('assets/ryagram-config.js'), /connectAi: true,/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-connect.js') > 0 && html.indexOf('app-connect.js') < html.indexOf('app-library.js'));
@@ -181,7 +181,7 @@ test('CONNECT AN AI: the steps for Claude and ChatGPT are the reviewed ones from
 test('CONNECT AN AI: the section is built inside connectedSection (already shown only to connect_access accounts), copies the address, refreshes the list on return, and does not link the unlisted guide', () => {
   const src = read('assets/app-connect.js');
   const lib = read('assets/app-library.js');
-  assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\)\)/);
+  assert.match(lib, /if \(await connectAllowed\(data\)\) sections\.push\(await connectUi\(\)\.connectedSection\(\{ open: connectApp \}\)\)/);
   assert.match(src, /'data-key': 'connect-an-ai'/); assert.match(src, /'data-key': 'copy-address'/); assert.match(src, /navigator\.clipboard\.writeText\(address\)/);
   assert.match(src, /addEventListener\('visibilitychange', again\)/); assert.doesNotMatch(src, /connect-ai/);
   assert.doesNotMatch(src.replace(/\/\/.*$/gm, ''), /innerHTML|insertAdjacentHTML/);

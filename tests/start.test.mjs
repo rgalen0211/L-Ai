@@ -32,7 +32,7 @@ test('WIRING: #/start and the landing redirect and the strip exist only behind s
   assert.match(lib, /const startStrip = startOn\(\) \? await startUi\(\)\.strip\(\) : null;/);
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-start.js') > 0 && html.indexOf('app-start.js') < html.indexOf('app-library.js'));
-  assert.match(html, /app-start\.js\?v=20261026a/);
+  assert.match(html, /app-start\.js\?v=20261029a/);
 });
 
 test('SCREEN: no AI = connect, an AI = start; a failed check, or an account that is not invited, is the library, never a blank door', () => {
