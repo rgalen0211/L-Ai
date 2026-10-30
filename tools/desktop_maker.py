@@ -408,7 +408,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     if kind == "build":
         out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, PYTHONPATH=str(STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
-    proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", **_plat().popen_group_kwargs())
     job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body), "args": list(pc["args"]),
            "of": pc["bind_count"], "done": 0, "current": "", "expect_s": listen_expect_s(pc["listen_seconds"], pc["model"])}
     skipped = body.get("skipped") if isinstance(body.get("skipped"), list) else []
@@ -558,11 +558,7 @@ def cancel_job() -> dict:
     if not job or job["proc"].poll() is not None:
         return {"state": "none"}
     job["cancelled"] = True
-    pid = job["proc"].pid
-    if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)    # my own job, by its PID and its children, never by name
-    else:
-        job["proc"].kill()
+    _plat().kill_tree(job["proc"])                       # my own job, by its PID and its children, never by name (tools/ryagram_platform.py)
     job["proc"].wait(timeout=10)
     return job_status()
 
@@ -848,6 +844,13 @@ SHARE_CARD = (
     '<label class="logswitch" for="blur-on"><input id="blur-on" type="checkbox"> Blur faces I haven' + chr(8217) + 't named</label>'
     '<p id="blur-msg" class="note" role="status"></p></section>')
 EDIT_LINK = '<p><a id="edit-link" class="button secondary" href="/edit">Edit your film (after Plan)</a></p>'
+
+
+def _plat():
+    """tools/ryagram_platform.py: the few things that differ between Windows, macOS and Linux (the start file runs this with python -I, so its folder is put on the path first)."""
+    _tools_on_path()
+    import ryagram_platform
+    return ryagram_platform
 
 
 def _tools_on_path() -> None:
@@ -2034,8 +2037,7 @@ SKIP_DIRS = {"$recycle.bin", "system volume information", "windows", "program fi
 
 
 def _default_search_roots() -> list:
-    home = Path.home()
-    return [home / n for n in ("Videos", "Downloads", "Desktop", "Documents", "Movies") if (home / n).is_dir()]
+    return _plat().search_folders(Path.home())
 
 
 def remember_dirs(paths) -> None:
@@ -2167,13 +2169,7 @@ def last_film():
 
 def open_in_folder(path) -> None:
     """Show the film in the computer's own file window (only ever the last built film; the page sends no path)."""
-    path = str(path)
-    if os.name == "nt":
-        subprocess.Popen(["explorer", "/select," + path])
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", "-R", path])
-    else:
-        subprocess.Popen(["xdg-open", str(Path(path).parent)])
+    _plat().reveal(path)
 
 
 def save_answers(answers) -> str:

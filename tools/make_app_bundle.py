@@ -37,6 +37,7 @@ YUNET_SHA256 = "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4
 FORBIDDEN_MODEL_WORDS = ("sface", "blaze", "landmark", "arcface", "facenet", "recogni")
 RUNTIME_TOOLS = ("desktop_maker.py", "maker_edit.py", "maker_live.py", "maker_live_sync.py", "maker_song.py", "ryagram_signin.py", "ryagram_node.py", "ryagram_links.py", "ryagram_requests.py", "maker_fetch.py", "verify_bundle.py", "model_download.py")
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("maker_checklist.py",)                    # NEXT-CONNECT 171: desktop_maker and ryagram_requests import it (Q331); without it the packaged app stops at start
+RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_platform.py",)                   # NEXT-CONNECT 166: the few Windows / macOS / Linux differences; desktop_maker and the site-film renderer import it
 RUNTIME_PAGE_DIRS = ("maker-edit", "maker-live", "maker-song")          # the edit and song pages (html, js, css); a test fixture beside them is left out
 FORBIDDEN_NAMES ={"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
 FORBIDDEN_DIRS = {".git", "node_modules", "RYAN-ONLY", "faces", "my-answers"}
