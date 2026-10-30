@@ -339,6 +339,8 @@ export function waitAdvice(state: string, rendering: string, local: boolean): Wa
   return { text: SLOW_CHECK + STOP_CHECKING, data: { rendering, do_not_poll: false, poll_after_s: 60 } };
 }
 
+const FAILED_JOB = new Set(["failed", "editorial_action_required"]);
+
 async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnType<Data["getVersion"]>>, jobType: "contact_sheet" | "preview",
                         params: Record<string, unknown>, label: string): Promise<ToolResult> {
   const sha = view.version.story_sha256;
@@ -369,6 +371,12 @@ async function startJob(ctx: ToolCtx, versionId: string, view: Awaited<ReturnTyp
       return refuse("Make the contact sheet of this saved story first (make_contact_sheet). NOTHING was started: the sheet runs Ryagram's correctness checks, and a preview waits until it is finished so a free preview is not used on a story those checks would stop.",
         "sheet_first", { data: { started: false } });
     }
+  }
+  // NEXT-CONNECT 169: the same story that has already failed this many times will fail again; stop asking and say what to do (a changed story has another hash, so it starts fresh)
+  const failedBefore = view.jobs.filter((j) => j.job_type === jobType && j.story_sha256 === sha && FAILED_JOB.has(j.state)).length;
+  if (failedBefore >= LIMITS.failedJobsPerStory) {
+    return refuse(`${label} of this exact story has already failed ${failedBefore} times (the limit is ${LIMITS.failedJobsPerStory}). NOTHING was started. Read why with job_status on the last one, change the story with set_story (a changed story starts fresh), or tell the person to look in the Ryagram app.`,
+      "repeated_failures", { data: { started: false, failed_attempts: failedBefore, limit: LIMITS.failedJobsPerStory } });
   }
   const q = await ctx.data.quote(versionId, jobType);
   if (q.credits > 0) {
@@ -710,6 +718,40 @@ const requestDownload: ToolDef = {
   },
 };
 
+// NEXT-CONNECT 168 (slice P1a): an AI may PROPOSE one public-domain video from NASA or the U.S. National Archives. Like a download plan it is DATA only: a source, an item id and a reason, never an address.
+// The desktop app builds every address itself from fixed templates (tools/footage_sources.py), reads the source's OWN rights record, shows it, and the person presses Approve. The tool is UNLISTED and the real
+// function wires no `footage` dependency, so today it refuses and writes nothing: the switch is OFF and the go/no-go is Ryan's (the attorney's questions come first, proposals/CONNECT-FOOTAGE-PD-DESIGN.md).
+const FOOTAGE_ID = { nasa: /^[A-Za-z0-9][A-Za-z0-9_.~-]{2,99}$/, nara: /^[0-9]{3,12}$/ } as const;
+const requestFootage: ToolDef = {
+  name: "request_footage", title: "Ask for public-domain footage", scope: "fetch_data", readOnly: false, idempotent: false, listed: false,
+  description: "Writes down a plan to fetch ONE public-domain video from NASA or the U.S. National Archives onto the person's OWN computer. It is DATA only: the source, the item's id there, and a short reason; never an address. " +
+    "Nothing is downloaded by Ryagram and you never receive the video: the person opens the Ryagram desktop app, sees the source's own rights wording, the credit line and the size, and presses Approve themselves. They can say no. " +
+    "Ryagram cannot confirm an item's rights; an item whose record does not say it can be reused is refused there.",
+  inputSchema: obj({
+    source: { type: "string", enum: ["nasa", "nara"], description: "nasa = NASA Image and Video Library; nara = U.S. National Archives catalog." },
+    item_id: { type: "string", minLength: 3, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9_.~-]{2,99}$", description: "The item's id at that source (a NASA id, or the Archives' numeric NAID)." },
+    why: { type: "string", minLength: 1, maxLength: 300, description: "One sentence for the person: what this footage is for. Plain words, no addresses." },
+  }, ["source", "item_id", "why"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.footage;
+    if (!sw || !(await sw.enabled())) {
+      return refuse("Fetching public-domain footage is not available yet. Nothing was written down. The person can download a film themselves and point Ryagram at the folder.", "not_available", { data: { ok: false, written: false } });
+    }
+    const source = String(a.source) as "nasa" | "nara";
+    const itemId = String(a.item_id);
+    if (!FOOTAGE_ID[source]?.test(itemId)) return refuse(`That is not a ${source === "nasa" ? "NASA" : "National Archives"} item id. Nothing was written.`, "args");
+    const why = cleanText(a.why, 300);
+    if (!why) return refuse("Give a short reason for the person to read. Nothing was written.", "args");
+    if (/https?:\/\/|www\.|[A-Za-z]:[\\/]/i.test(why)) return refuse("The reason may not hold an address or a folder. Nothing was written.", "args");
+    if (!(await ctx.policy.hit(ctx.principal, "footage", LIMITS.footagePlansPerDayPerUser, 86400))) {
+      return refuse(`The limit of ${LIMITS.footagePlansPerDayPerUser} footage requests a day is reached. Nothing was written.`, "rate", { data: { ok: false, written: false, retry_after_seconds: 86400 } });
+    }
+    const r = await sw.request({ source, item_id: itemId, why });
+    return ok(`Written down. The person will see this request in their Ryagram desktop app, with the source's own rights wording, and decides there. Nothing is downloaded until they press Approve, and you never receive the video.`,
+      { id: r.id, state: r.state, written: true });
+  },
+};
+
 const listDownloads: ToolDef = {
   name: "list_my_downloads", title: "See my download requests", scope: "read", readOnly: true,
   description: "Lists the download plans written for the person (newest first, at most 20): the website, the state (waiting for them, downloading, unpacking, done, refused, declined, cancelled) and, once finished, "
@@ -724,5 +766,45 @@ const listDownloads: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep];
+// NEXT-CONNECT 170: what a step costs and what is left, said BEFORE anyone asks for it. Read-only: it uses the same quote the job tools use and starts nothing, holds nothing, and takes no confirm
+// argument (there is nothing to confirm). A connection can only start the free steps; a step that costs credits, and the final render always, is started by the person in the Ryagram app.
+const COST_STEPS = ["contact_sheet", "preview", "final_render"] as const;
+const COST_STEP_WORDS: Record<string, string> = { contact_sheet: "the contact sheet", preview: "a preview", final_render: "the final film render" };
+const costEstimate: ToolDef = {
+  name: "get_cost_estimate", title: "What a step costs", scope: "read", readOnly: true,
+  description: "Tells what one step would cost the person on one of their projects, in credits, and how many credits they have: the contact sheet, a preview or the final film render. " +
+    "Read-only and free: nothing is started, no credit is held and nothing needs confirming. It also says who can start the step: a connection can start only the free ones; a step that costs credits, and the final render, are started by the person in the Ryagram app.",
+  inputSchema: obj({ project_id: uuid, step: { type: "string", enum: [...COST_STEPS], description: "Which step to price." } }, ["project_id", "step"]),
+  async run(a, ctx) {
+    const step = String(a.step) as (typeof COST_STEPS)[number];
+    if (!COST_STEPS.includes(step)) return refuse("The step must be contact_sheet, preview or final_render.", "args");
+    const pv = await projectVersion(ctx, String(a.project_id));
+    if (!pv) return NOT_YOURS("project");
+    const v = pv.view.version;
+    if (v.state === "queued" || !(v.story_spec && (v.story_spec as { schema?: number }).schema === 1)) {
+      return refuse("This project has no saved story yet, and what a step costs depends on the saved story. Save one with set_story first.", "no_story");
+    }
+    const q = await ctx.data.quote(pv.versionId, step);
+    const enough = q.available >= q.credits;
+    const connectionCanStart = step !== "final_render" && q.credits === 0;
+    const sheetDone = pv.view.jobs.some((j) => j.job_type === "contact_sheet" && j.story_sha256 === v.story_sha256 && j.state === "complete");
+    const words = COST_STEP_WORDS[step];
+    const parts: string[] = [];
+    if (q.credits === 0) parts.push(`${words[0].toUpperCase()}${words.slice(1)} is free for this story${q.free && step === "preview" ? " (one of the project's free previews)" : ""}.`);
+    else parts.push(`${words[0].toUpperCase()}${words.slice(1)} would cost ${q.credits} credits.`);
+    parts.push(`The person has ${q.available} credits${q.credits > 0 ? (enough ? `, so ${q.available - q.credits} would be left` : ", which is not enough") : ""}.`);
+    if (step === "final_render") parts.push("A connection cannot start it: the person presses 'Render final film' in the Ryagram app.");
+    else if (!connectionCanStart) parts.push("A connection cannot spend credits: the person starts it in the Ryagram app.");
+    else parts.push("You can start it with the tool for it.");
+    if (step === "preview" && !sheetDone) parts.push("A preview also waits for the finished contact sheet of this exact story.");
+    parts.push("Nothing was started and no credits were used.");
+    return ok(parts.join(" "), {
+      step, credits: q.credits, free: q.credits === 0, free_preview: step === "preview" ? q.free : undefined, available: q.available, enough,
+      left_after: enough ? q.available - q.credits : null, connection_can_start: connectionCanStart,
+      needs_contact_sheet_first: step === "preview" ? !sheetDone : undefined, started: false, credits_used: 0,
+    });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

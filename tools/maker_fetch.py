@@ -176,6 +176,8 @@ def _resolve_checked(host: str, resolver) -> str:
 # --------------------------------------------------------------------------------------------------------- 3. looking at a file, and keeping it
 def sniff(head: bytes) -> str:
     """What a file's first bytes say it is: zip, gzip, parquet, program, web, text, or other. The name is never trusted."""
+    if (head[4:8] == b"ftyp" and head[:1] == b"\x00") or head[:4] == b"\x1a\x45\xdf\xa3":                        # footage (NEXT-CONNECT 168): a video is reported as video and kept ONLY by a fetch that asked for one
+        return "video"
     if head[:4] == b"PK\x03\x04" or head[:4] == b"PK\x05\x06":
         return "zip"
     if head[:2] == b"\x1f\x8b":
@@ -203,6 +205,7 @@ def sniff(head: bytes) -> str:
     return "text"
 
 
+VIDEO_KEEP_EXTS = ("mp4", "m4v", "mov", "webm", "mkv")
 EXT_FOR = {"zip": "zip", "gzip": "gz", "parquet": "parquet", "text": "csv"}
 
 
@@ -219,6 +222,8 @@ def safe_name(raw: str, kind: str) -> str:
         want = ext
     if kind == "zip" and ext in ("xlsx", "ods"):
         want = ext                                                     # an office sheet is a zip inside; it is kept as what it says it is
+    if kind == "video":
+        want = ext if ext in VIDEO_KEEP_EXTS else "mp4"                # footage: a video keeps a video extension, whatever the address called it
     if want is None:
         raise FetchError("That is not a data file the program keeps.")
     if stem.lower() in RESERVED:
@@ -256,7 +261,7 @@ class Fetcher:
         size = int(h["content-length"]) if str(h.get("content-length", "")).isdigit() else None
         return dict(host_display(host), label=trust_label(host), size=size, name=safe_label(path), claimed=_text(h.get("content-type", ""), 60))
 
-    def download(self, url: str, folder: Path, *, max_bytes: int, folder_cap: int = DEFAULT_FOLDER_CAP, allow_hosts=None, progress=None, cancel: threading.Event | None = None) -> dict:
+    def download(self, url: str, folder: Path, *, max_bytes: int, folder_cap: int = DEFAULT_FOLDER_CAP, allow_hosts=None, progress=None, cancel: threading.Event | None = None, allow_video: bool = False) -> dict:
         """Fetch the file to FOLDER, following redirects only to allow_hosts (the approved host first). Returns {path, name, bytes, sha256, kind, host, final_host, redirects}. A part file is kept under .part and removed on any failure."""
         cancel = cancel or threading.Event()
         host0, _p, path = check_url(url)
@@ -340,6 +345,10 @@ class Fetcher:
                 with open(part, "rb") as f:
                     head = f.read(65536)
             kind = sniff(head)
+            if kind == "video" and not allow_video:
+                raise FetchError("That is a video, not a data file. Nothing was kept.")
+            if allow_video and kind != "video":
+                raise FetchError("That is not a video file. Nothing was kept.")
             if kind == "program":
                 raise FetchError("That file is a program, not data. It was deleted and never opened.")
             if kind == "web":

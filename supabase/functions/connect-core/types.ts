@@ -104,10 +104,18 @@ export interface Data extends Omit<UserData, "submitJob"> {
   editUndoAi(projectId: string, mode: "data" | "compilation"): Promise<EditUndoResult>;
 }
 
+/** NEXT-CONNECT 168: public-domain footage plans. NOT wired in the real function: with no `footage` here the tool refuses and writes nothing (the switch is OFF). The plan table is the next piece. */
+export interface FootageSwitch {
+  enabled(): boolean | Promise<boolean>;
+  /** Writes the plan (a source and an item id and a reason: never an address) and returns it. */
+  request(plan: { source: "nasa" | "nara"; item_id: string; why: string }): Promise<{ id: string; state: string }>;
+}
+
 export interface Deps {
   /** Compiles a JSON Schema into a checker that returns plain-words problems ([] = fine). */
   compile(schema: object): ((value: unknown) => string[]) & { detailed?: (value: unknown) => { instancePath: string; keyword: string; params: Record<string, unknown>; message?: string; schemaPath?: string }[] };
   now?: () => number;
+  footage?: FootageSwitch;
 }
 
 export interface ToolCtx {
@@ -149,10 +157,13 @@ export interface ToolDef {
 
 export const LIMITS = Object.freeze({
   callsPerMinutePerClient: 60,
+  callsPerMinutePerAccount: 120,        // NEXT-CONNECT 169: all of one person's connected AIs together (Claude, ChatGPT, Claude Code ...)
+  failedJobsPerStory: 3,                // NEXT-CONNECT 169: after this many failed contact sheets (or previews) of the SAME story, another is refused until the story changes
   ladderPerHourPerUser: 30,             // the editor's number
   linksPerDayPerUser: 50,
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
+  footagePlansPerDayPerUser: 20,
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
   maxStoryBytes: 256 * 1024,
 });
