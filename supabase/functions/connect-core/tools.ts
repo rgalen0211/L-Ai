@@ -447,18 +447,24 @@ const setLook: ToolDef = {
 };
 
 const OP_PROPS = {
-  op: { type: "string", enum: ["move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "add_clip"] },
-  id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,40}$", description: "A clip id from get_edit_state." },
+  op: { type: "string", enum: ["move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "add_clip", "set_clip_style", "set_music", "set_rule", "delete_rule", "set_film_look"] },
+  id: { type: "string", pattern: "^[A-Za-z0-9_-]{1,40}$", description: "A clip id (or, for delete_rule and set_rule, a rule id) from get_edit_state." },
   start: { type: "number", minimum: 0, maximum: 86400 }, edge: { type: "string", enum: ["start", "end"] }, to: { type: "number", minimum: 0, maximum: 86400 },
   index: { type: "integer", minimum: 0, maximum: 199 }, text: { type: "string", minLength: 1, maxLength: 120 },
   track: { type: "string", enum: ["text", "pictures"] }, len: { type: "number", minimum: 0.3, maximum: 30 },
-  picture: { type: "string", pattern: PICTURE_PATTERN, description: "The NAME of a picture the person has added in the app." },
+  picture: { type: "string", maxLength: 100, description: "For add_clip: the NAME of a picture the person added in the app (png, jpg or webp). For set_rule: the picture's id from get_edit_state." },
+  style: { type: "string", enum: ["title", "caption", "lower_third"] },
+  level_db: { type: "number", minimum: -30, maximum: 6 }, fade_in_s: { type: "number", minimum: 0, maximum: 5 }, fade_out_s: { type: "number", minimum: 0, maximum: 5 },
+  source_start: { type: "number", minimum: 0, maximum: 86400 }, snap: { type: "boolean" },
+  phrase: { type: "string", minLength: 1, maxLength: 60 }, seconds: { type: "number", minimum: 0.5, maximum: 10 }, mode: { type: "string", enum: ["full", "centre", "corner", "lower_third"] },
+  fade_s: { type: "number", minimum: 0, maximum: 1 },
+  key: { type: "string", enum: ["theme", "text_color", "box_color", "box_opacity", "letterbox"], description: "For set_film_look." }, value: { description: "For set_film_look: dark or light for theme, a colour like #1a73e8, or a number 0 to 1 for box_opacity." },
 };
 
 const editTracks: ToolDef = {
   name: "edit_tracks", title: "Change the clip list of a compilation", scope: "edit", readOnly: false,
   description: "Changes the person's compilation clip list in their open editor, as drafts: move_clip {id,start}, trim_clip {id,edge,to}, reorder_clip {id,index}, set_clip_text {id,text}, delete_clip {id}, "
-    + "add_clip {track: text|pictures, start, len, text|picture}. 1 to 20 changes at a time, all or none. Needs the person to have ticked \"Let my AI see my track list\". "
+    + "add_clip {track: text|pictures, start, len, text|picture}, set_clip_style {id, style: title|caption|lower_third}, set_music {level_db, fade_in_s, fade_out_s, source_start, snap} (at least one), set_rule {id?, phrase, picture, seconds, mode, fade_s?} (no id = add a rule), delete_rule {id}, set_film_look {key: theme|text_color|box_color|box_opacity|letterbox, value}. 1 to 20 changes at a time, all or none. Needs the person to have ticked \"Let my AI see my track list\". "
     + "The changes are applied by the person's Ryagram app on their own computer when it is open, and they can undo them; nothing is built or saved for them. You cannot add or remove videos.",
   inputSchema: obj({
     project_id: uuid, base_revision: REVISION,
