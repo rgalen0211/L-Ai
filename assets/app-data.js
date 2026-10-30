@@ -58,6 +58,20 @@
         });
       },
 
+      // My films (NEXT-WEB 174): every live project with its newest version and that version's jobs, in three reads (projects, versions, jobs), never more than 50 films.
+      async listFilms() {
+        const projects = await run(client.from('projects').select('id, title, created_at, updated_at').is('archived_at', null).order('updated_at', { ascending: false }).limit(50), 'Couldn’t load your films.');
+        if (!projects.length) return [];
+        const versions = await run(client.from('versions').select('id, project_id, number, state').in('project_id', projects.map(p => p.id)), 'Couldn’t load your films.');
+        const films = projects.map(p => ({ project: p, version: versions.filter(v => v.project_id === p.id).sort((a, b) => b.number - a.number)[0] || null, jobs: [] }));
+        const ids = films.filter(f => f.version).map(f => f.version.id);
+        if (ids.length) {
+          const jobs = await run(client.from('jobs').select(JOB_COLUMNS).in('version_id', ids).order('created_at', { ascending: false }), 'Couldn’t load your films.');
+          for (const f of films) if (f.version) f.jobs = jobs.filter(j => j.version_id === f.version.id);
+        }
+        return films;
+      },
+
       // A project always starts with r1.
       async createProject(title) {
         const project = await run(
