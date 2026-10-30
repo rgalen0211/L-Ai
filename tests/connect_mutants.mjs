@@ -44,6 +44,9 @@ const mutants = [
   ['set_story is not marked as replacing', D + 'tools.ts', 'title: "Save the story", scope: "write", readOnly: false, destructive: true,', 'title: "Save the story", scope: "write", readOnly: false,'],
   ['the project list shows a timestamp again', D + 'tools.ts', '{ projects: rows.map((p) => ({ id: p.id, title: p.title }))', '{ projects: rows.map((p) => ({ id: p.id, title: p.title, updated_at: p.updated_at }))'],
   ['a description orders the AI again', D + 'tools.ts', 'It needs no arguments and changes nothing.', 'Call it first.'],
+  ['a preview starts with no finished contact sheet (PUNCH P3)', D + 'tools.ts', 'if (jobType === "preview") {\n    const sheets', 'if (false) {\n    const sheets'],
+  ['a preview is not told the sheet is still running', D + 'tools.ts', '      if (live) {\n', '      if (false) {\n'],
+  ['a finished sheet of an EARLIER story counts for a preview', D + 'tools.ts', 'j.job_type === "contact_sheet" && j.story_sha256 === sha', 'j.job_type === "contact_sheet"'],
 ];
 
 let missed = 0;
