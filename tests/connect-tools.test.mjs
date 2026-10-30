@@ -89,7 +89,7 @@ test('set_story: every failed check is listed in plain words and NOTHING is save
   const ren = bad.sequence.clips.find((c) => c.kind === 'render');
   ren.dataset = 'not_a_dataset'; ren.start = '2020'; ren.end = '2010';
   const r = await call(A, 'set_story', { project_id: id, story: bad });
-  assert.equal(r.isError, true); assert.equal(r.code, 'checks_failed');
+  assert.ok(!r.isError); assert.equal(r.refused, true); assert.equal(r.data.ok, false); assert.equal(r.data.saved, false); assert.equal(r.code, 'checks_failed');      // a RESULT, not a tool error (NEXT-CONNECT 157)
   assert.ok(r.failedChecks >= 3, r.text);
   assert.match(r.text, /NOT saved/);
   assert.match(r.text, /share the id/); assert.match(r.text, /not in the Ryagram catalog/); assert.match(r.text, /starts \(2020\) after it ends \(2010\)/);
@@ -101,7 +101,7 @@ test('set_story: schema failures read as sentences, not validator output', async
   const { call } = world();
   const id = await projectOf(call);
   const r = await call(A, 'set_story', { project_id: id, story: { schema: 2, engine: 'sequence', sequence: { clips: [] }, evil: true } });
-  assert.equal(r.isError, true);
+  assert.ok(!r.isError); assert.equal(r.refused, true);
   assert.doesNotMatch(r.text, /instancePath|must match|\/sequence/);
   assert.match(r.text, /1\. /);
 });
@@ -111,7 +111,7 @@ test('set_story: an oversize story is refused before any other check', async () 
   const id = await projectOf(call);
   const big = goodStory(); big.sequence.clips[0].headline = 'x'.repeat(LIMITS.maxStoryBytes);
   const r = await call(A, 'set_story', { project_id: id, story: big });
-  assert.equal(r.isError, true); assert.match(r.text, /limit is 256 KB/);
+  assert.ok(!r.isError); assert.equal(r.refused, true); assert.match(r.text, /limit is 256 KB/);
 });
 
 test('a finished version is never overwritten: the story goes to a new version', async () => {
@@ -234,7 +234,8 @@ test('full render: refused for every AI connection whatever the scope, the switc
   for (const args of [{ project_id: id, preview_job_id: pv, confirm: true }, { project_id: id, preview_job_id: pv }, { project_id: id, preview_job_id: pv, confirm: false },
                       { project_id: id, preview_job_id: id, confirm: true }, { project_id: '00000000-0000-4000-8000-0000000000ff' }]) {
     const r = await call(A, 'request_full_render', args);
-    assert.equal(r.isError, true, JSON.stringify(args)); assert.equal(r.code, 'not_available', JSON.stringify(args));
+    assert.ok(!r.isError, JSON.stringify(args)); assert.equal(r.refused, true, JSON.stringify(args)); assert.equal(r.code, 'not_available', JSON.stringify(args));
+    assert.equal(r.data.ok, false); assert.equal(r.data.allowed, false); assert.equal(r.data.started, false); assert.equal(r.data.credits_used, 0); assert.match(r.data.what_to_do, /Render final film/);
     assert.match(r.text, /Nothing was started and no credits were used/); assert.match(r.text, /Render final film/);
   }
   assert.equal(w.users.get(A.userId).jobs.filter((j) => j.job_type === 'final_render').length, 0);

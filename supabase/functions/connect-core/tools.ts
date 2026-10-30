@@ -4,7 +4,7 @@
 import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
-import { checkStory } from "./story_check.ts";
+import { checkStoryStructured } from "./story_check.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { LIMITS, type CompilationRequest, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
@@ -151,10 +151,17 @@ const setStory: ToolDef = {
   async run(a, ctx) {
     const pv = await projectVersion(ctx, String(a.project_id));
     if (!pv) return NOT_YOURS("project");
-    const problems = checkStory(a.story, ctx.deps.compile(storySchema));
-    if (problems.length) {
-      return refuse(`The story was NOT saved. ${problems.length} check${problems.length === 1 ? "" : "s"} failed:\n` + problems.map((p, i) => `${i + 1}. ${p}`).join("\n"),
-        "checks_failed", { failedChecks: problems.length, data: { saved: false, failed_checks: problems } });
+    const chk = checkStoryStructured(a.story, ctx.deps.compile(storySchema));
+    if (!chk.ok) {
+      // A RESULT, not a tool error (NEXT-CONNECT 157): ok false, saved false, every primary problem with its field path, a code and a suggested fix; follow-on schema noise is counted, never listed.
+      const n = chk.errors.length;
+      const lines = chk.errors.map((e, i) => `${i + 1}. ${e.where} [${e.code}]: ${e.message} Fix: ${e.fix}`);
+      if (chk.more) lines.push(`...and ${chk.more} more. Fix these first and send the story again.`);
+      return {
+        text: `The story was NOT saved. ${n}${chk.more ? "+" : ""} problem${n === 1 ? "" : "s"}${chk.suppressed ? ` (${chk.suppressed} follow-on message${chk.suppressed === 1 ? "" : "s"} left out because they only repeat these)` : ""}:\n` + lines.join("\n"),
+        refused: true, code: "checks_failed", failedChecks: n,
+        data: { ok: false, saved: false, error_count: n, not_listed: chk.more, suppressed: chk.suppressed, errors: chk.errors, failed_checks: chk.plain },
+      };
     }
     let versionId = pv.versionId;
     let number = pv.view.version.number;
@@ -307,7 +314,9 @@ const fullRender: ToolDef = {
   inputSchema: obj({ project_id: uuid, preview_job_id: uuid, confirm: CONFIRM }, ["project_id"]),
   async run() {
     // No lookup, no flag, no ladder: the answer does not depend on anything the caller can influence. (The database refuses it as well.)
-    return refuse("A full render cannot be started from an AI connection. Nothing was started and no credits were used. Tell the person to press 'Render final film' in the Ryagram app.", "not_available");
+    const reason = "A full render cannot be started from an AI connection. Nothing was started and no credits were used.";
+    const what = "Tell the person to press 'Render final film' in the Ryagram app.";
+    return { text: `${reason} ${what}`, refused: true, code: "not_available", data: { ok: false, allowed: false, started: false, credits_used: 0, code: "not_available", reason, what_to_do: what } };
   },
 };
 

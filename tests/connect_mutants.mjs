@@ -15,7 +15,7 @@ const mutants = [
   ['no argument check', D + 'dispatch.ts', 'if (problems.length) return refused(`The call was not understood', 'if (false) return refused(`The call was not understood'],
   ['no per-client rate limit', D + 'dispatch.ts', 'if (!(await policy.hit(principal, "calls"', 'if (false && !(await policy.hit(principal, "calls"'],
   ['no render-ladder rate limit', D + 'dispatch.ts', 'if (tool.ladder && !(await policy.hit', 'if (false && !(await policy.hit'],
-  ['set_story saves despite failed checks', D + 'tools.ts', 'if (problems.length) {\n      return refuse(`The story was NOT saved', 'if (false) {\n      return refuse(`The story was NOT saved'],
+  ['set_story saves despite failed checks', D + 'tools.ts', 'if (!chk.ok) {\n      // A RESULT', 'if (false) {\n      // A RESULT'],
   ['a sheet or preview that costs credits is started', D + 'tools.ts', 'if (q.credits > 0) {\n    return refuse(`${label} would cost', 'if (false) {\n    return refuse(`${label} would cost'],
   ['a full render is started from a connection', D + 'tools.ts', '  async run() {\n    // No lookup, no flag, no ladder', "  async run() { return { text: 'ok' };\n    // No lookup, no flag, no ladder"],
   ['a second identical job is queued', D + 'tools.ts', 'if (running) return ok(`${label} for this story is already', 'if (false) return ok(`${label} for this story is already'],
