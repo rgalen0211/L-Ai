@@ -12,6 +12,7 @@ What it proves (each row has a control that passes and a fault that must be caug
      no story text, title or engine message reaches the result file
   F  the node loop: the reason there is no renderer is shown on the card; the renderer's note is shown while it works
   G  (needs the Ryagram checkout) the REAL worker library in the child with a fake engine command: a preview is made, classified and listed; a bad story is refused; a final render is refused
+  I  (NEXT-RENDERER 44) a tester's own PC: no house worker (an empty folder inside the work folder reads idle, a fresh log still reads busy), the lock folder from the settings, the shipped tools, the starter-data list
   H  (needs the Ryagram checkout) the REAL tools/gpu_lock.py: a higher-priority holder keeps the film waiting (the child's start marker does not appear) and the film runs after it; the lock is free afterwards
 """
 import json
@@ -182,6 +183,85 @@ def run_renderer(spawn, name, j=None, clock=None, **kw):
     except BaseException as e:                                                       # noqa: BLE001
         return n2, None, notes, e, killed, work
 
+
+print("I  a tester's own PC (NEXT-RENDERER 44): no house worker, the lock folder, the starter list, the shipped tools")
+
+
+def tester_env(name, house=False, no_house=True, lock_dir="lock-state"):
+    d, s = make_env(name)
+    t = (d / "node.toml").read_text(encoding="utf-8")
+    if not house:
+        t = t.replace(f"house_jobs = '{s['house']}'\n", "")
+    extra = ("no_house_worker = true\n" if no_house else "") + (f"gpu_lock_dir = '{lock_dir if ':' in str(lock_dir) else d / lock_dir}'\n" if lock_dir else "")
+    (d / "node.toml").write_text(t.replace("who = 'TESTMAKER'\n", "who = 'TESTMAKER'\n" + extra), encoding="utf-8")
+    return d
+
+
+runs_empty = RUN / "runs-empty"
+runs_empty.mkdir(exist_ok=True)
+os.environ["RYAGRAM_RUNS_DIR"] = str(runs_empty)                      # the machine-wide list of running renders: an empty one, so the check never reads ProgramData
+t1 = tester_env("t1")
+st1 = rr.read_settings(t1 / "node.toml")
+w1 = RUN / "t1-work"
+check(st1.house_jobs is None and st1.no_house_worker is True and st1.gpu_lock_dir == t1 / "lock-state", "the tester settings: no house_jobs, no_house_worker true, a lock folder inside the app's folder")
+check(rr.find_problems(st1, w1, ram=GOOD_RAM, free_gb=GOOD_DISK) == [], "a computer with no house worker and an empty folder of its own has no problems")
+none_dir = w1 / rr.NO_HOUSE_FOLDER
+check(none_dir.is_dir() and list(none_dir.iterdir()) == [], "the empty house folder was made INSIDE the work folder and is empty")
+n1 = rr.NodeRenderer(st1, w1, ram=GOOD_RAM, free_gb=GOOD_DISK)
+check(n1.house_jobs == none_dir and n1.busy() is False, "the REAL busy check on that empty folder says idle (not 'cannot tell')")
+(none_dir / "fake-job").mkdir()
+(none_dir / "fake-job" / "engine.stdout.log").write_text("x", encoding="ascii")
+check(n1.busy() is True, "MUST-FAIL guard: a fresh log in that folder DOES make it busy (the check is live, not a constant False)")
+(none_dir / "fake-job" / "engine.stdout.log").unlink()                 # the test's own file, removed by name (no tree delete)
+(none_dir / "fake-job").rmdir()
+t2 = tester_env("t2", no_house=False)
+pr2 = rr.find_problems(rr.read_settings(t2 / "node.toml"), RUN / "t2-work", ram=GOOD_RAM, free_gb=GOOD_DISK)
+check(len(pr2) == 1 and "house worker" in pr2[0], f"MUST-FAIL: neither house_jobs nor no_house_worker stays OFF with one plain sentence ({pr2[:1]})")
+check(not (RUN / "t2-work" / rr.NO_HOUSE_FOLDER).exists(), "MUST-FAIL: without the flag no empty folder is invented")
+t3 = tester_env("t3", house=True)
+check(rr.effective_house_jobs(rr.read_settings(t3 / "node.toml"), RUN / "t3-work") == rr.read_settings(t3 / "node.toml").house_jobs, "an explicit house_jobs wins over no_house_worker (Ryan's PC keeps its real folder)")
+c_ghost = Path("C:/Users/ghost-tester-pc")
+if not c_ghost.exists():
+    t4 = tester_env("t4")
+    pr4 = rr.find_problems(rr.read_settings(t4 / "node.toml"), c_ghost / "work", ram=GOOD_RAM, free_gb=GOOD_DISK)
+    check(any("C:" in p for p in pr4) and not c_ghost.exists(), "MUST-FAIL: a work folder on C: is refused AND no empty house folder is made there")
+t5 = tester_env("t5", lock_dir="C:/ghost-lock")
+check(any("lock folder on C:" in p for p in rr.find_problems(rr.read_settings(t5 / "node.toml"), RUN / "t5-work", ram=GOOD_RAM, free_gb=GOOD_DISK)), "MUST-FAIL: a lock folder on C: is refused like the work folder")
+seen_env = {}
+
+
+def spawn_env(cmd, **kw):
+    seen_env.update(env=dict(kw["env"]), cmd=list(cmd))
+    return FakeProc(0, None, 0)
+
+
+n6 = rr.NodeRenderer(st1, w1, spawn=spawn_env, sleep=lambda s: None, ram=GOOD_RAM, free_gb=GOOD_DISK, busy=lambda: False)
+os.environ["RYAGRAM_GPU_LOCK_DIR"] = "D:/house-lock-should-not-win"
+try:
+    n6.renderer(job(), w1 / "j1", lambda m: None)
+except BaseException:                                                                 # noqa: BLE001 (no result file: the point is the environment)
+    pass
+os.environ.pop("RYAGRAM_GPU_LOCK_DIR", None)
+check(seen_env.get("env", {}).get("RYAGRAM_GPU_LOCK_DIR") == str(t1 / "lock-state") and (t1 / "lock-state").is_dir(), "the lock tool is started with the lock folder from the settings (made inside the app's folder); the maker's own variable does not win")
+check(str(none_dir) in seen_env["cmd"] and "--house-jobs" in seen_env["cmd"], "the child is told to watch the empty folder")
+d_old = make_env("oldstyle")[0]
+n7 = rr.NodeRenderer(rr.read_settings(d_old / "node.toml"), RUN / "old-work", spawn=spawn_env, sleep=lambda s: None, ram=GOOD_RAM, free_gb=GOOD_DISK, busy=lambda: False)
+os.environ["RYAGRAM_GPU_LOCK_DIR"] = "D:/house-lock"
+seen_env.clear()
+try:
+    n7.renderer(job(), RUN / "old-work" / "j1", lambda m: None)
+except BaseException:                                                                 # noqa: BLE001
+    pass
+os.environ.pop("RYAGRAM_GPU_LOCK_DIR", None)
+check(seen_env.get("env", {}).get("RYAGRAM_GPU_LOCK_DIR") == "D:/house-lock", "Ryan's PC unchanged: with no lock folder in the settings the maker's own variable still passes through")
+import make_app_bundle as mab                                                          # noqa: E402
+check({"ryagram_node_render.py", "ryagram_node_job.py", "gpu_lock.py", "ryagram_node.py"} <= set(mab.RUNTIME_TOOLS), "the app bundle ships the node loop, the renderer, the child and the GPU lock tool")
+check(all((HERE / t).is_file() for t in ("gpu_lock.py", "ryagram_node_render.py", "ryagram_node_job.py")), "those three files exist in tools/ of this repo")
+sd = json.loads((HERE / "node-starter-data.json").read_text(encoding="utf-8"))
+ready = (HERE.parent / "assets" / "app-builder.js").read_text(encoding="utf-8")
+check(f"dataset: '{sd['dataset']}'" in ready and sd["window"][0] <= sd["window"][1], "the starter list is for the builder's Housing start dataset, with a window")
+m = sd["measured_mb"]
+check(all(isinstance(v, (int, float)) and v > 0 for v in m.values()) and m["window_2010_2024_total"] < m["full_1990_2024_total"] and bool(sd["files"]), "the starter list has measured sizes (window smaller than the full film) and file entries")
 
 ok_result = {"state": "validating", "error_code": None, "detail": "", "retry": False, "engine_commit": "abc123def",
              "files": {"preview": "preview.mp4", "receipt": "preview.sequence.json"}}
