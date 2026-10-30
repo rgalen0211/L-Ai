@@ -847,6 +847,7 @@
       from: query,
       async rpc(name, args) {
         log.push({ rpc: name, args });
+        if (!rpcs[name] && typeof window !== 'undefined' && window.ryagramMockRpcs && window.ryagramMockRpcs[name]) return window.ryagramMockRpcs[name](args);   // the live editor's draft (tests/fake-editor-rpcs.js)
         return rpcs[name] ? rpcs[name](args) : fail(`no fake for ${name}`);
       },
       channel(name) {

@@ -63,6 +63,8 @@
   const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
   // The AI-first front door (#/start), needs connectAi too (app-start.js). Off by default; in mock mode it follows the flag so the mock walk can show both.
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
+  // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
+  const liveEditorOn = () => window.ryagramConfig?.liveEditor === true;
   // Departments in the top bar and their pages (#/d/<id>): behind `departments`, which needs the door (app-departments.js). Off by default.
   const departmentsOn = () => window.ryagramDepartments?.flagOn() === true;
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
@@ -132,6 +134,7 @@
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
+        else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)$/))) view = editorUi().editorView(m[1], onStop);
         else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
@@ -236,6 +239,8 @@
     // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
     let connectCache = null;
     let startCache = null;
+    let editorCache = null;
+    const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h, data }));
     let deptCache = null;
     const deptUi = () => deptCache || (deptCache = window.ryagramDepartments.create({ h, data, startUi }));
     const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));

@@ -1,0 +1,49 @@
+/* The live editor page (app-editor.js), behind liveEditor. Dark default like the rest of /app/. No inline styles in the markup; clip positions are set from script. */
+.le{max-width:1200px;margin:0 auto}
+.le-top{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:0 0 12px}.le-top h1{flex:1 1 220px;margin:0;font-size:1.35rem}
+.le-top .button{min-height:44px}.le-pill{font-size:.8rem;border:1px solid var(--line,#3a3a44);border-radius:99px;padding:3px 10px;color:var(--muted,#b6b5ae)}
+.le-cols{display:grid;grid-template-columns:minmax(0,1fr) 300px;gap:14px;align-items:start}
+.le-view{background:#0d0d11;border:1px solid var(--line,#3a3a44);border-radius:10px;aspect-ratio:16/9;overflow:hidden}.le-svg{width:100%;height:100%;display:block}
+.le-scrub{display:flex;gap:10px;align-items:center;margin:10px 0}.le-range{flex:1;min-height:44px;accent-color:#6fd1bd}.le-pos{min-width:4.5em;text-align:right}
+.le-ticks{display:flex;justify-content:space-between;font-size:.85rem;color:var(--muted,#b6b5ae);margin:0 4.5em 8px 5.5em}
+.le-panel{background:var(--soft,#23232d);border:1px solid var(--line,#3a3a44);border-radius:10px;padding:12px}.le-panel h2{margin:0 0 8px;font-size:1rem}
+.le-row{display:flex;align-items:center;justify-content:space-between;gap:8px;border-top:1px solid var(--line,#3a3a44);min-height:44px;padding:4px 0}.le-panel h2+.le-row{border-top:0}
+.le-row input[type=color]{width:44px;height:36px;padding:0;border:1px solid var(--line,#3a3a44);border-radius:8px;background:none}
+.le-row input[type=number],.le-row input[type=text]{width:8em;min-height:40px}.le-waiting{color:var(--muted,#b6b5ae)}
+.le-aimark{color:#9fb6ff}.le-free{font-size:.85rem;color:#8fe0cf;margin:10px 0 0}
+.le-banner{display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between;background:#171d33;border:1px solid #3a4a8a;border-radius:10px;padding:9px 12px;margin:8px 0}.le-banner[hidden]{display:none}
+.le-warn{background:#2b2417;border:1px solid #6b5a33;border-radius:10px;padding:9px 12px;margin:8px 0;color:#e8d8b0}
+.le-ai{background:var(--soft,#23232d);border:1px solid #3a4a8a;border-radius:10px;padding:12px;margin:8px 0}.le-ai[hidden]{display:none}.le-ai textarea{width:100%;min-height:80px}.le-ai-links{display:flex;flex-wrap:wrap;gap:8px;margin:8px 0}
+.le-lanes{border:1px solid var(--line,#3a3a44);border-radius:10px;background:#101015;padding:8px;margin-top:10px}
+.le-lane{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;align-items:center;margin:6px 0}.le-lane b{font-size:.85rem;color:var(--muted,#b6b5ae);font-weight:600}
+.le-bar{position:relative;height:44px;background:var(--soft,#23232d);border-radius:8px}
+.le-clip{position:absolute;top:3px;bottom:3px;border-radius:6px;padding:4px 10px 4px 8px;font-size:.85rem;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;text-align:left;color:#0b1210;font-weight:600;border:0;cursor:grab;touch-action:none;min-width:12px}
+.le-c-video.le-clip,.le-c-video .le-dot{background:#6fd1bd}.le-c-pictures.le-clip,.le-c-pictures .le-dot{background:#c9a66b}.le-c-text.le-clip,.le-c-text .le-dot{background:#9fb6ff}.le-c-music.le-clip,.le-c-music .le-dot{background:#b78fd8}
+.le-sel.le-clip{outline:2px solid #f2f2ef}.le-clip:focus-visible{outline:3px solid #fff;outline-offset:1px}
+.le-edge{position:absolute;right:0;top:0;bottom:0;width:10px;cursor:ew-resize;background:rgba(0,0,0,.25)}
+.le-head{position:absolute;top:-4px;bottom:-4px;width:2px;background:#ff8a7a;pointer-events:none}
+.le-list{display:none}
+.le-item{display:flex;flex-wrap:wrap;gap:8px;align-items:center;border-top:1px solid var(--line,#3a3a44);padding:8px 0}.le-item:first-child{border-top:0}
+.le-dot{width:12px;height:12px;border-radius:3px;flex:none}.le-itemtext{flex:1 1 180px;text-align:left;background:none;border:0;color:inherit;font:inherit;min-height:44px;padding:0}.le-sel .le-itemtext{font-weight:700}
+.le-mv{display:flex;flex-wrap:wrap;gap:6px}.le-mv .button{min-width:44px;min-height:44px}
+@media (max-width:760px){.le-cols{grid-template-columns:1fr}.le-lanes{display:none}.le-list{display:block;margin-top:10px}.le-ticks{margin:0 0 8px}}
+
+.le-render{background:var(--soft,#23232d);border:1px solid var(--line,#3a3a44);border-radius:12px;padding:14px;margin:10px 0}.le-render[hidden]{display:none}.le-render h2{margin:0 0 6px;font-size:1.05rem}
+.le-meter{height:14px;border-radius:8px;background:#101015;overflow:hidden;border:1px solid var(--line,#3a3a44);margin:8px 0}.le-meter i{display:block;height:100%;background:#6fd1bd;transition:width .3s}
+.le-prog-head{font-weight:700;margin:0}.le-actions{display:flex;flex-wrap:wrap;gap:8px;margin:10px 0 0}
+
+.le-off{display:grid;place-items:center;opacity:.7}
+
+.le-stills{display:flex;gap:8px;overflow-x:auto;margin:10px 0 0;padding:0}.le-still{flex:none;width:110px;height:62px;border-radius:8px;background:#0d0d11;border:1px solid var(--line,#3a3a44);display:grid;place-items:end start;padding:4px 6px;font-size:.7rem;color:var(--muted,#b6b5ae)}
+
+.le-canvas{width:100%;height:100%;display:block;object-fit:contain;background:#000}
+.le>p>a{display:inline-flex;align-items:center;min-height:44px}
+.le-side{display:grid;gap:14px;align-content:start}.le-rule-list{list-style:none;margin:0 0 10px;padding:0}.le-rule-form{border-top:1px solid var(--line,#3a3a44);margin-top:8px;padding-top:8px}
+.le select,.le input[type=checkbox]{min-height:44px}.le input[type=checkbox]{width:28px}
+.le-side,.le-main,.le-panel{min-width:0}.le-itemtext{overflow-wrap:anywhere}.le-rule-form .le-row input,.le-rule-form .le-row select{max-width:11em}
+.le-ticks{position:relative;height:1.3em}.le-ticks span{position:absolute;transform:translateX(-50%)}
+.le-bundle-note{margin:0;padding:24px 16px;text-align:center;color:var(--muted,#b6b5ae)}
+.le-view img.le-svg{object-fit:contain}
+.le-presets{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:8px}.le-preset{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}.le-preset .button{min-height:44px}.le-preset.le-on .button{outline:2px solid var(--accent,#c9a66b)}
+.le-cau{flex-basis:100%;font-size:.9rem}
+.le-panel h3{margin:8px 0 6px;font-size:1rem}

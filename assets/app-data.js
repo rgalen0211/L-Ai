@@ -528,6 +528,12 @@
       // Can this account use AI connections at all? CONNECT's connect_consent_check returns `invited` (connect_person_ok: invited, enabled, not an admin, not a worker) in EVERY answer, even for a request
       // that does not exist, so the site asks it about the nil request and reads that one field. No new SQL. It FAILS CLOSED: any error or a missing field means "not invited", and the
       // page then shows nothing. The server stays the real gate (connect_consent_check and decide refuse a non-invited account whatever the page does).
+      // The live editor's shared draft (CONNECT 141): only these five functions, answered as { data, error: { code, message } } so the page can read the SQL's codes (PT409 stale, PT403, 22023).
+      async editorRpc(name, args) {
+        if (!['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'].includes(name)) throw new Error('Not an editor call.');
+        const { data, error } = await client.rpc(name, args);
+        return { data: error ? null : data, error: error ? { code: error.code || null, message: String(error.message || '') } : null };
+      },
       async connectAccess() {
         try { const r = await run(client.rpc('connect_consent_check', { p_request: '00000000-0000-0000-0000-000000000000' }), 'Couldn’t check AI access.'); return !!r && r.invited === true; } catch { return false; }
       },

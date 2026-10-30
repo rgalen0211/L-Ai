@@ -22,7 +22,16 @@
     'sequence.theme': v => v === 'light' || v === 'dark'
   });
   // The vocabulary is CONNECT's (tests/edit-op-cases.json is run by both the SQL and TypeScript checks): the data mode's set_look / unset_look and the compilation mode's clip ops plus add_clip.
-  const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip'];
+  const OPS = ['set_look', 'unset_look', 'move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look'];
+  // The five ops of CONNECT 13:12 (shared cases: tests/edit-op-cases.json): a text style, the music's settings, the phrase rules, the film's own look.
+  const STYLES = ['title', 'caption', 'lower_third'];
+  const RULE_MODES = ['full', 'centre', 'corner', 'lower_third'];
+  const FILM_LOOK = ['theme', 'text_color', 'box_color', 'box_opacity', 'letterbox'];
+  const MAX_RULES = 50;
+  const num = v => typeof v === 'number' && Number.isFinite(v);
+  const inRange = (v, lo, hi) => num(v) && v >= lo && v <= hi;
+  const PLAIN = 'The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup).';
+  const plainPhrase = v => typeof v === 'string' && v.trim().length >= 1 && v.length <= 60 && !/[<>\\/]|https?:|www\./i.test(v);
   const DATA_OPS = ['set_look', 'unset_look'];
   // Text from the AI or the person is data: capped, control and bidirectional characters removed, never markup.
   const cleanText = s => String(s).replace(new RegExp('[' + [[0, 31], [127, 127], [0x200e, 0x200f], [0x202a, 0x202e], [0x2066, 0x2069], [60, 60], [62, 62]].map(([a, b]) => String.fromCharCode(a) + '-' + String.fromCharCode(b)).join('') + ']', 'g'), '').slice(0, MAX_TEXT);
@@ -41,6 +50,9 @@
     // The film's own text rules (BUILDER 12:25: textstyle.rules for the canvas the FINAL film has) ride in the summary; kept only when they have the shape the layout needs, never edited by an op.
     const tr = init.text_rules;
     if (tr && typeof tr === 'object' && Array.isArray(tr.canvas) && tr.canvas.length === 2 && tr.canvas.every(n => Number.isFinite(n) && n > 0) && tr.styles && typeof tr.styles === 'object' && Array.isArray(tr.safe) && Array.isArray(tr.keep_out)) s.text_rules = clone(tr);
+    // The phrase rules, the person's pictures (NAMES only) and the music's settings ride in the summary (CONNECT 13:12): read-only for the page except through the ops below.
+    if (Array.isArray(init.rules)) s.rules = clone(init.rules.filter(r => r && typeof r === 'object' && typeof r.id === 'string').slice(0, MAX_RULES));
+    if (Array.isArray(init.pictures)) s.pictures = clone(init.pictures.filter(p => p && typeof p.id === 'string' && typeof p.name === 'string').slice(0, 50).map(p => ({ id: p.id, name: p.name })));
     if (init.limits && typeof init.limits === 'object') s.limits = { text_chars: Number.isInteger(init.limits.text_chars) ? init.limits.text_chars : undefined };
     return s;
   }
@@ -77,6 +89,42 @@
       } else if (typeof op.picture !== 'string' || !op.picture) return 'Pick one of your pictures.';
       return null;
     }
+    if (op.op === 'set_music') {
+      const m = state.clips.find(x => x.id === 'music' && x.track === 'music');
+      if (!m) return 'There is no music on this film.';
+      if (state.lanes && !state.lanes.includes('music')) return 'That part of the film can not be edited here yet.';
+      const known = ['op', 'level_db', 'fade_in_s', 'fade_out_s', 'source_start', 'snap'];
+      if (Object.keys(op).some(k => !known.includes(k))) return 'That change has a field the editor does not know.';
+      if (Object.keys(op).length < 2) return 'set_music needs at least one setting.';
+      if ('level_db' in op && !inRange(op.level_db, -30, 6)) return 'The level must be a number from -30 to 6.';
+      if ('fade_in_s' in op && !inRange(op.fade_in_s, 0, 5)) return 'The fade in must be a number from 0 to 5 seconds.';
+      if ('fade_out_s' in op && !inRange(op.fade_out_s, 0, 5)) return 'The fade out must be a number from 0 to 5 seconds.';
+      if ('source_start' in op && !inRange(op.source_start, 0, 86400)) return 'Where the music starts must be a number from 0 to 86400 seconds.';
+      if ('snap' in op && typeof op.snap !== 'boolean') return 'Snap to the beat is on or off.';
+      return null;
+    }
+    if (op.op === 'set_rule' || op.op === 'delete_rule') {
+      const rules = state.rules || [];
+      if (op.op === 'delete_rule') return typeof op.id === 'string' && rules.some(r => r.id === op.id) ? null : 'That rule is not in this film.';
+      const known = ['op', 'id', 'phrase', 'picture', 'seconds', 'mode', 'fade_s'];
+      if (Object.keys(op).some(k => !known.includes(k))) return 'That change has a field the editor does not know.';
+      if (!plainPhrase(op.phrase)) return PLAIN;
+      if (!inRange(op.seconds, 0.5, 10)) return 'The picture stays from 0.5 to 10 seconds.';
+      if (!RULE_MODES.includes(op.mode)) return 'A rule mode must be full, centre, corner or lower_third.';
+      if ('fade_s' in op && !inRange(op.fade_s, 0, 1)) return 'The fade must be a number from 0 to 1 second.';
+      if (typeof op.picture !== 'string' || (state.pictures && !state.pictures.some(p => p.id === op.picture))) return 'That picture is not one of yours.';
+      if ('id' in op) { if (!rules.some(r => r.id === op.id)) return 'That rule is not in this film.'; }
+      else if (rules.length >= MAX_RULES) return `A film can have at most ${MAX_RULES} rules.`;
+      return null;
+    }
+    if (op.op === 'set_film_look') {
+      if (!FILM_LOOK.includes(op.key)) return 'That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox).';
+      if (!('value' in op)) return 'A film look change needs a value.';
+      if (op.key === 'theme' && !(op.value === 'dark' || op.value === 'light')) return 'The theme can only be: dark, light.';
+      if (['text_color', 'box_color', 'letterbox'].includes(op.key) && !COLOR(op.value)) return 'That needs a colour like #1a73e8.';
+      if (op.key === 'box_opacity' && !inRange(op.value, 0, 1)) return 'The box opacity must be a number from 0 to 1.';
+      return null;
+    }
     const c = clipOf(state, op.id);
     if (!c) return 'That clip is not in this film.';
     if (state.lanes && !state.lanes.includes(c.track)) return 'That part of the film can not be edited here yet.';
@@ -103,6 +151,9 @@
     } else if (op.op === 'reorder_clip') {
       if (c.track !== 'video') return 'Only video clips can be reordered.';
       if (!Number.isInteger(op.index) || op.index < 0 || op.index >= videoOf(state).length) return 'There is no such place in the list.';
+    } else if (op.op === 'set_clip_style') {
+      if (!(c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture))) return 'Only a text clip has a style.';
+      if (!STYLES.includes(op.style)) return 'A text style must be title, caption or lower_third.';
     } else if (op.op === 'set_clip_text') {
       // a text line, or a text SLIDE (a video-lane clip that is a slide with words and no picture; BUILDER 23)
       if (c.track !== 'text' && !(c.track === 'video' && c.slide === true && !c.picture)) return 'Only a text clip has text.';
@@ -117,6 +168,17 @@
   function apply(state, op) {
     const next = clone(state);
     if (op.op === 'set_look') next.look[op.key] = op.value;
+    else if (op.op === 'set_film_look') next.look[op.key] = op.value;
+    else if (op.op === 'set_music') {
+      const m = next.clips.find(x => x.id === 'music' && x.track === 'music');
+      for (const k of ['level_db', 'fade_in_s', 'fade_out_s', 'source_start', 'snap']) if (k in op) m[k] = op[k];
+    } else if (op.op === 'set_rule') {
+      next.rules = next.rules || [];
+      const rule = { id: op.id || `rule${state.revision + 1}`, phrase: cleanText(op.phrase).slice(0, 60), picture: op.picture, seconds: round(op.seconds), mode: op.mode };
+      if ('fade_s' in op) rule.fade_s = round(op.fade_s);
+      const at = next.rules.findIndex(r => r.id === rule.id);
+      if (at >= 0) next.rules[at] = rule; else next.rules.push(rule);
+    } else if (op.op === 'delete_rule') next.rules = (next.rules || []).filter(r => r.id !== op.id);
     else if (op.op === 'unset_look') delete next.look[op.key];
     else if (op.op === 'add_clip') {
       const id = `new${state.revision + 1}`;
@@ -141,6 +203,8 @@
         const others = next.clips.filter(x => x.track !== 'video');
         next.clips = [...vids, ...others];
         repack(next);
+      } else if (op.op === 'set_clip_style') {
+        c.style = op.style;
       } else if (op.op === 'set_clip_text') c.text = cleanText(op.text);
       else if (op.op === 'delete_clip') { next.clips = next.clips.filter(x => x !== c); if (c.track === 'video') repack(next); }
     }
@@ -542,7 +606,9 @@
     { id: 'v5', track: 'video', start: 9.5, len: 2.5, label: 'nobody saw that coming' },
     { id: 'p1', track: 'pictures', start: 1.5, len: 2, label: 'house price' }, { id: 'p2', track: 'pictures', start: 6.2, len: 2.2, label: 'rent chart' },
     { id: 't1', track: 'text', start: 0.2, len: 3.5, label: 'Title', text: 'Housing, 2019 to 2024' }, { id: 't2', track: 'text', start: 9, len: 3, label: 'Thanks', text: 'Thanks for watching' },
-    { id: 'm1', track: 'music', start: 0, len: 12, label: 'your music file (stays on your computer)' }] });
+    { id: 'music', track: 'music', start: 0, len: 12, label: 'your music file (stays on your computer)', source: 'song.wav', source_start: 0, level_db: -12, fade_in_s: 0, fade_out_s: 1, snap: false }],
+    rules: [{ id: 'r1', phrase: 'great news', picture: 'img-1', seconds: 2, mode: 'corner', fade_s: 0.2 }], pictures: [{ id: 'img-1', name: 'house.png' }, { id: 'img-2', name: 'chart.png' }],
+    look: { theme: 'dark', text_color: '#f2f2f2', box_color: '#14141a', box_opacity: 0.75, letterbox: '#000000' } });
   const TRACK_NAMES = { video: 'Video', pictures: 'Pictures', text: 'Text', music: 'Music' };
 
   function create({ h, data = null }) {
@@ -551,7 +617,13 @@
     function editorView(kind, onStop) {
       const isData = kind === 'data';
       const onPc = !!window.ryagramLiveHost;                                   // on the person's own computer: no demo film, no stand-in; only what the maker's draft holds
-      const ed = new E.Editor(onPc ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
+      // Data-film mode with the engine's own drawer (NEXT-WEB 154): when the page can get the film's look bundle (the host's bundle(project) call; in mock mode a synthetic one) and
+      // ENGINE's look-draw.js is loaded, the preview IS the engine's drawing and the look panel offers the keys it honours. Without either, the stand-in drawing below stays.
+      const DD = window.ryagramEditorData, RL = window.RyagramLook;
+      const lookLoader = isData && DD && RL ? (window.ryagramLiveHost && typeof window.ryagramLiveHost.bundle === 'function' ? p => window.ryagramLiveHost.bundle(p) : typeof window.ryagramMockLookBundle === 'function' ? p => window.ryagramMockLookBundle(p) : null) : null;
+      const bundleMode = !!lookLoader;
+      let bundle = null, tl = null, bundleState = bundleMode ? 'opening' : 'none', bundleNote = '';
+      const ed = new E.Editor(onPc || bundleMode ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
       const host = window.ryagramLiveHost || null;
@@ -559,7 +631,7 @@
       const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
       const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
-      let position = isData ? LAST : onPc ? 0 : 4.4;                            // a year, or a time in seconds
+      let position = bundleMode ? 0 : isData ? LAST : onPc ? 0 : 4.4;           // a year (stand-in), or a time in seconds
       let selected = isData ? null : onPc ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
       let saved = true, message = '';
@@ -568,7 +640,21 @@
 
       // ---- the preview: a stand-in drawing (ENGINE 35's drawer replaces it); it redraws from the state at once
       const view = h('div', { class: 'le-view', role: 'img' });
+      const pic = h('img', { class: 'le-svg', alt: '', draggable: 'false' });
+      function drawBundle() {
+        if (bundleState !== 'ready') {
+          view.replaceChildren(h('p', { class: 'le-bundle-note', role: 'status' }, bundleState === 'opening' ? 'Opening the film…' : bundleNote));
+          view.setAttribute('aria-label', bundleState === 'opening' ? 'Opening the film' : 'The film could not be opened');
+          return;
+        }
+        const r = DD.pictureFor(RL, bundle, position, { ...ed.state.look, ...(preview || {}) });
+        if (!r.error) pic.src = r.src;
+        view.replaceChildren(pic);
+        if (r.error) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, r.error));
+        view.setAttribute('aria-label', `Preview of ${tl.label(position)}`);
+      }
       function drawData() {
+        if (bundleMode) { drawBundle(); return; }
         const look = { ...ed.state.look, ...(preview || {}) };
         const reveal = (position - FIRST) / (LAST - FIRST);
         const svg = sv('svg', { viewBox: '0 0 160 90', class: 'le-svg' });
@@ -623,10 +709,11 @@
         for (const p of now.filter(c => c.track === 'pictures')) bmpPics.push([p, await frameOf(p.id, 0)]);
         if (seq !== drawSeq) return;                                              // a newer playhead position took over
         ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.fillStyle = '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
+        const fl = ed.state.look || {}, light = fl.theme === 'light';
+        ctx.fillStyle = /^#[0-9a-fA-F]{6}$/.test(fl.letterbox) ? fl.letterbox : '#000'; ctx.fillRect(0, 0, cv.width, cv.height);
         ctx.setTransform(k, 0, 0, k, 0, 0);
         const slideText = vid && vid.slide === true && !vid.picture;
-        if (slideText) { ctx.fillStyle = '#14141a'; ctx.fillRect(0, 0, W, H); }   // a text slide is the words on a card in the film's theme (dark by default)
+        if (slideText) { ctx.fillStyle = light ? '#f2f2f2' : '#14141a'; ctx.fillRect(0, 0, W, H); }   // a text slide is the words on a card in the film's theme (dark by default)
         else if (bmp) contain(ctx, bmp, 0, 0, W, H);
         else if (vid) { ctx.fillStyle = '#b6b5ae'; ctx.font = `${Math.round(H * 0.05)}px sans-serif`; ctx.textAlign = 'center'; ctx.fillText(`${vid.label} (no picture for this moment)`, W / 2, H / 2); ctx.textAlign = 'start'; }
         for (const [p, b] of bmpPics) { if (!b) continue; const g = GEOM[p.mode] || GEOM.full; contain(ctx, b, g[0] * W, g[1] * H, g[2] * W, g[3] * H); }
@@ -637,8 +724,8 @@
         for (const t of now.filter(c => c.track === 'text' && c.text)) words.push({ text: t.text, style: t.style || null });
         for (const w of words) {
           try {
-            if (w.card) { ctx.fillStyle = '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
-            else if (L && R && w.style) { const lay = L.layout(R, w.text, w.style, ctx); L.draw(ctx, R, lay, w.text, { text: '#f2f2f2', box: '#14141a', alpha: 0.75 }); }
+            if (w.card) { ctx.fillStyle = light ? '#14141a' : '#f2f2f2'; ctx.font = `${Math.round(H * 0.07)}px Arial, sans-serif`; ctx.textAlign = 'center'; ctx.fillText(w.text, W / 2, H / 2); ctx.textAlign = 'start'; }
+            else if (L && R && w.style) { const lay = L.layout(R, w.text, w.style, ctx); L.draw(ctx, R, lay, w.text, { text: /^#[0-9a-fA-F]{6}$/.test(fl.text_color) ? fl.text_color : '#f2f2f2', box: /^#[0-9a-fA-F]{6}$/.test(fl.box_color) ? fl.box_color : '#14141a', alpha: Number.isFinite(fl.box_opacity) ? fl.box_opacity : 0.75 }); }
             else { const sz = Math.round(H * 0.05); ctx.font = `${sz}px Arial, sans-serif`; const tw = ctx.measureText(w.text).width; const x = (W - tw) / 2, y = H * 0.86; ctx.fillStyle = 'rgba(20,20,26,.75)'; ctx.fillRect(x - sz / 3, y - sz, tw + 2 * sz / 3, sz * 1.5); ctx.fillStyle = '#f2f2f2'; ctx.fillText(w.text, x, y); }
           } catch (e) { layoutProblem = String((e && e.message) || 'That text does not fit.').slice(0, 200); }
         }
@@ -651,22 +738,30 @@
       }
 
       // ---- the scrubber: a real range input (keyboard and screen reader for free)
-      const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? 'Year' : 'Time in the film' });
+      const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? (bundleMode ? 'Period of the film' : 'Year') : 'Time in the film' });
       const posText = h('b', { class: 'le-pos' });
-      const setPos = v => { position = v; paintPreview(); posText.textContent = isData ? String(Math.round(position)) : `${mmss(position)} / ${mmss(ed.state.duration)}`;
-        range.setAttribute('aria-valuetext', isData ? `Year ${Math.round(position)}` : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
+      const setPos = v => { position = v; paintPreview();
+        const shown = bundleMode ? (tl ? tl.label(position) : '') : String(Math.round(position));
+        posText.textContent = isData ? shown : `${mmss(position)} / ${mmss(ed.state.duration)}`;
+        range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
       const paintPreview = () => (isData ? drawData() : hostPreview ? drawHost() : drawClips());
-      range.addEventListener('input', () => setPos(isData ? Number(range.value) : Number(range.value) / 10));
+      range.addEventListener('input', () => setPos(bundleMode ? (tl ? tl.seconds(Number(range.value)) : 0) : isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
         if (timer) { stopPlay(); return; }
         playBtn.textContent = 'Pause';
+        if (bundleMode) {                                                       // one frame per tick at the film's own frame rate (capped at 12 a second so a slow phone keeps up)
+          if (!tl) return;
+          const ms = Math.max(1000 / 12, 1000 / tl.fps);
+          timer = setInterval(() => { const f = tl.frame(position) + 1; setPos(tl.seconds(f >= tl.frames ? 0 : f)); range.value = String(tl.frame(position)); }, ms);
+          return;
+        }
         timer = setInterval(() => { const step = isData ? 0.25 : 0.1, max = isData ? LAST : ed.state.duration; if (position + step > max) { setPos(isData ? FIRST : 0); } else setPos(position + step); range.value = String(isData ? position : Math.round(position * 10)); }, isData ? 60 : 100);
       });
       let timer = null;
       const stopPlay = () => { if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; };
       onStop(stopPlay);
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
-      const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, YEARS.map(y => h('span', {}, String(y)))) : null;
+      const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;
 
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });
@@ -679,6 +774,7 @@
       let locked = false;                                                       // locked: a render is using what was committed
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
+        if (bundleMode) { const rows = DD.honoured(RL).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
         if (isData) return ['The look you can see:', ...LOOK_ROWS.map(([k, l]) => `${l} ${ed.state.look[k]}`)];
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
@@ -802,7 +898,41 @@
 
       // ---- the look panel (data films)
       const lookPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-look-h' });
+      // Bundle mode: the rows the engine's drawer honours (it names the ones it does not), the six presets, and the keys still waiting for the worker. A colour dragged in a chooser
+      // is only previewed; releasing it makes the op. Nothing here uses credits: 'Render final film' is the only button that does.
+      function paintBundleLook() {
+        const touched = new Set(ed.aiTouched()), look = ed.state.look, dflt = DD.defaults(bundle, look), cur = DD.presetOf(look);
+        const rows = DD.honoured(RL).map(([key, label, kind]) => {
+          const id = `le-look-${key}`, val = look[key] !== undefined ? look[key] : dflt[key], mark = touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' \u00b7 by your AI') : null;
+          if (kind === 'theme') {
+            const sel = h('select', { id, disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, w]) => h('option', { value: v, selected: val === v }, w)));
+            sel.addEventListener('change', () => apply({ op: 'set_look', key, value: sel.value }));
+            return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), sel);
+          }
+          if (kind === 'number') {
+            const n = h('input', { type: 'number', id, min: '0', max: '4', step: '0.5', value: val, disabled: locked });
+            n.addEventListener('change', () => apply({ op: 'set_look', key, value: Number(n.value) }));
+            return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), n);
+          }
+          const input = h('input', { type: 'color', value: val, id, 'aria-label': label, disabled: locked });
+          input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });
+          input.addEventListener('change', () => { preview = null; apply({ op: 'set_look', key, value: input.value }); });
+          return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), input);
+        });
+        const presetRows = DD.PRESETS.map(p => {
+          const on = cur && cur.id === p.id, notes = DD.cautions(p);
+          return h('li', { class: `le-preset${on ? ' le-on' : ''}` },
+            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look); if (ops.length && await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
+            h('span', { class: 'meta' }, ` ${p.blurb}`), ...notes.map(t => h('span', { class: 'le-warn le-cau' }, t)));
+        });
+        lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
+          h('h3', {}, 'Ready-made looks'), h('ul', { class: 'le-presets' }, presetRows),
+          h('p', { class: 'meta' }, 'A ready-made look sets the colours below; its middle colour waits for the worker and is not shown until it can be saved.'),
+          ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
+          h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
+      }
       function paintLook() {
+        if (bundleMode) { paintBundleLook(); return; }
         const touched = new Set(ed.aiTouched());
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
           ...LOOK_ROWS.map(([key, label]) => {
@@ -818,6 +948,56 @@
       // ---- the tracks (compilation): lanes on a wide screen, a list on a phone; both from the same state, both make the same ops
       const open = track => !ed.state.lanes || ed.state.lanes.includes(track);          // the lanes the maker can build today (the track summary says); the others are shown, not editable
       const lanes = h('div', { class: 'le-lanes', role: 'group', 'aria-label': 'Tracks' });
+
+      // ---- the film's own settings (CONNECT 13:12): the phrase rules ("every time a word is said, show a picture") and the look of the film's text and cards
+      const rulesPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-rules-h', hidden: true });
+      const filmLookPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-flook-h', hidden: true });
+      let editingRule = null;
+      const MODE_WORDS = { full: 'full frame', centre: 'centre', corner: 'corner', lower_third: 'lower third' };
+      const field = (id, label, control) => h('div', { class: 'le-row' }, h('label', { for: id }, label), control);
+      function paintRules() {
+        const rules = ed.state.rules, pics = ed.state.pictures || [];
+        rulesPanel.hidden = !Array.isArray(rules) || isData;
+        if (rulesPanel.hidden) return;
+        const picName = id => (pics.find(p => p.id === id) || {}).name || id;
+        const cur = rules.find(r => r.id === editingRule) || null;
+        const phrase = h('input', { type: 'text', id: 'le-r-phrase', maxlength: 60, value: cur ? cur.phrase : '' });
+        const pic = h('select', { id: 'le-r-pic' }, pics.map(p => h('option', { value: p.id, selected: cur && cur.picture === p.id }, p.name)));
+        const secs = h('input', { type: 'number', id: 'le-r-secs', min: '0.5', max: '10', step: '0.5', value: cur ? cur.seconds : 2 });
+        const mode = h('select', { id: 'le-r-mode' }, Object.entries(MODE_WORDS).map(([v, w]) => h('option', { value: v, selected: cur ? cur.mode === v : v === 'corner' }, w)));
+        const fade = h('input', { type: 'number', id: 'le-r-fade', min: '0', max: '1', step: '0.1', value: cur && cur.fade_s !== undefined ? cur.fade_s : 0.2 });
+        const save = async () => {
+          const op = { op: 'set_rule', phrase: phrase.value, picture: pic.value, seconds: Number(secs.value), mode: mode.value, fade_s: Number(fade.value) };
+          if (cur) op.id = cur.id;
+          if (await apply(op)) editingRule = null;
+          paint();
+        };
+        rulesPanel.replaceChildren(h('h2', { id: 'le-rules-h' }, 'When a word is said'),
+          h('p', { class: 'meta' }, 'Every time the film says the words, the picture shows for a few seconds. Add your pictures in the Ryagram app first.'),
+          h('ul', { class: 'le-rule-list' }, rules.length ? rules.map(r => h('li', { class: 'le-item' },
+            h('span', { class: 'le-itemtext' }, `"${r.phrase}": ${picName(r.picture)}, ${r.seconds} s, ${MODE_WORDS[r.mode] || r.mode}`),
+            h('span', { class: 'le-mv' }, btn('Edit', 'secondary', () => { editingRule = r.id; paint(); }, { 'aria-label': `Edit the rule for ${r.phrase}` }),
+              btn('Remove', 'secondary', async () => { await apply({ op: 'delete_rule', id: r.id }); if (editingRule === r.id) editingRule = null; paint(); }, { 'aria-label': `Remove the rule for ${r.phrase}` })))) : [h('li', { class: 'meta' }, 'No rules yet.')]),
+          pics.length ? h('div', { class: 'le-rule-form', role: 'group', 'aria-label': cur ? 'Change this rule' : 'Add a rule' },
+            field('le-r-phrase', 'When this is said', phrase), field('le-r-pic', 'Show this picture', pic), field('le-r-secs', 'For (seconds)', secs), field('le-r-mode', 'Where', mode), field('le-r-fade', 'Fade (seconds)', fade),
+            h('div', { class: 'le-actions' }, btn(cur ? 'Save this rule' : 'Add this rule', 'primary', save), cur ? btn('Cancel', 'secondary', () => { editingRule = null; paint(); }) : null))
+            : h('p', { class: 'meta' }, 'You have no pictures yet. Add one in the Ryagram app, then it appears here.'));
+      }
+      const FILM_LOOK_ROWS = [['theme', 'Page and text'], ['text_color', 'Text colour'], ['box_color', 'Text box colour'], ['box_opacity', 'Text box strength'], ['letterbox', 'Bars around the picture']];
+      function paintFilmLook() {
+        const lk = ed.state.look || {};
+        filmLookPanel.hidden = isData || !FILM_LOOK_ROWS.some(([k]) => k in lk);
+        if (filmLookPanel.hidden) return;
+        const set = (key, value) => apply({ op: 'set_film_look', key, value });
+        const colour = (key, label) => { const i = h('input', { type: 'color', id: `le-fl-${key}`, value: /^#[0-9a-fA-F]{6}$/.test(lk[key]) ? lk[key] : '#000000', 'aria-label': label, disabled: locked }); i.addEventListener('change', () => set(key, i.value)); return field(i.id, label, i); };
+        const theme = h('select', { id: 'le-fl-theme', disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, w]) => h('option', { value: v, selected: lk.theme === v }, w)));
+        theme.addEventListener('change', () => set('theme', theme.value));
+        const op = h('input', { type: 'number', id: 'le-fl-box_opacity', min: '0', max: '1', step: '0.05', value: Number.isFinite(lk.box_opacity) ? lk.box_opacity : 0.75, disabled: locked });
+        op.addEventListener('change', () => set('box_opacity', Number(op.value)));
+        filmLookPanel.replaceChildren(h('h2', { id: 'le-flook-h' }, 'Look of the film'),
+          field('le-fl-theme', 'Page and text', theme), colour('text_color', 'Text colour'), colour('box_color', 'Text box colour'), field('le-fl-box_opacity', 'Text box strength (0 to 1)', op), colour('letterbox', 'Bars around the picture'),
+          h('p', { class: 'le-free' }, 'These settings change how every text and card in the film looks. Free, like everything here.'));
+      }
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
@@ -831,6 +1011,17 @@
         say(r.ok ? '' : r.reason);
         paint();
         return r.ok;
+      }
+      async function applyMany(ops) {                                           // a preset: several look ops, each checked; with a draft they travel as one batch
+        stopPlay();
+        if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; }
+        let ok = true, why = '';
+        if (draft) { const r = await draft.send(ops); ok = r.ok; why = r.reason; }
+        else for (const op of ops) { const r = ed.do(op); if (!r.ok) { ok = false; why = r.reason; break; } }
+        if (ok) saved = false;
+        say(ok ? '' : why);
+        paint();
+        return ok;
       }
       let refocus = null;                                                       // a keyboard edit rebuilds the lanes: focus goes back to the clip that was edited
       function keyOn(c) {
@@ -913,6 +1104,19 @@
         const rows = [num('le-start', 'Starts (seconds)', c.start, v => apply({ op: 'move_clip', id: c.id, start: v }), c.track === 'video'),
                       num('le-len', 'Length (seconds)', c.len, v => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + v) * 10) / 10 }))];
         if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) { const t = h('input', { type: 'text', id: 'le-text', maxlength: (ed.state.limits && ed.state.limits.text_chars) || 200, value: c.text || '' }); t.addEventListener('change', () => apply({ op: 'set_clip_text', id: c.id, text: t.value })); rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-text' }, 'Text'), t)); }
+
+        if (c.track === 'music') {
+          const mnum = (key, label, lo, hi, step) => { const i = h('input', { type: 'number', id: `le-m-${key}`, min: String(lo), max: String(hi), step: String(step), value: Number.isFinite(c[key]) ? c[key] : 0 }); i.addEventListener('change', () => apply({ op: 'set_music', [key]: Number(i.value) })); return h('div', { class: 'le-row' }, h('label', { for: i.id }, label), i); };
+          const snap = h('input', { type: 'checkbox', id: 'le-m-snap', checked: c.snap === true }); snap.addEventListener('change', () => apply({ op: 'set_music', snap: snap.checked }));
+          rows.push(mnum('level_db', 'Loudness (dB, -30 to 6)', -30, 6, 1), mnum('fade_in_s', 'Fade in (seconds)', 0, 5, 0.5), mnum('fade_out_s', 'Fade out (seconds)', 0, 5, 0.5), mnum('source_start', 'Start this far into the song (seconds)', 0, 86400, 1),
+            h('div', { class: 'le-row' }, h('label', { for: 'le-m-snap' }, 'Cut on the beat'), snap));
+        }
+        if (c.track === 'text' || (c.track === 'video' && c.slide === true && !c.picture)) {
+          const st = h('select', { id: 'le-style', 'aria-label': 'Text style' }, [h('option', { value: '', selected: !c.style, disabled: true }, c.style ? 'Style' : 'Position as before')].concat(
+            [['title', 'Title (top)'], ['caption', 'Caption (bottom)'], ['lower_third', 'Lower third']].map(([v, w]) => h('option', { value: v, selected: c.style === v }, w))));
+          st.addEventListener('change', () => { if (st.value) apply({ op: 'set_clip_style', id: c.id, style: st.value }); });
+          rows.push(h('div', { class: 'le-row' }, h('label', { for: 'le-style' }, 'Text style'), st));
+        }
         clipPanel.replaceChildren(h('h2', { id: 'le-clip-h' }, `${TRACK_NAMES[c.track]}: ${c.label}`), ...rows,
           btn('Remove this clip', 'secondary', () => { selected = null; apply({ op: 'delete_clip', id: c.id }); }),
           h('p', { class: 'le-free' }, 'Your videos never leave your computer. This page edits the list; your computer draws it.'));
@@ -926,7 +1130,8 @@
       function paintWarns() {
         const out = [];
         if (layoutProblem) out.push(layoutProblem);
-        if (isData) {
+        if (bundleMode) { if (bundleState === 'ready') out.push(...DD.warnings(bundle, ed.state.look)); }
+        else if (isData) {
           const lk = ed.state.look;
           if (lk['network.color'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The lines are the same colour as the page, so you cannot see them. You can still render; the final checks decide if it is publishable.');
           if (lk['state.fill'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The land is the same colour as the page.');
@@ -943,8 +1148,9 @@
         emptyNote.hidden = !empty;
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
         undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
-        if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
-        else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); }
+        if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
+        else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
+        else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
         paintBanner(); paintWarns(); paintAiLinks(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
       }
@@ -957,10 +1163,21 @@
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
-          isData ? lookPanel : clipPanel),
+          isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
-        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
+        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
+      if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
+        const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
+        Promise.resolve().then(() => lookLoader(project)).then(b => {
+          const why = DD.bundleProblem(b);
+          if (why) { problem(why); return; }
+          bundle = b; tl = DD.timeline(RL, b); bundleState = 'ready';
+          position = tl.seconds(tl.frames - 1);                                 // open on the last period: the film's finished picture
+          ticks.replaceChildren(...tl.ticks.map(m => { const t = h('span', {}, String(m.period)); t.style.left = `${m.at * 100}%`; return t; }));
+          paint();
+        }).catch(() => problem('The film\u2019s drawing data could not be opened. Try again in a minute.'));
+      }
       if (draft) {                                                              // read the draft, then look for the AI's changes every two seconds while this page is open and visible
         draft.open().then(r => { if (!r.ok) say(r.reason); paint(); });
         const pollTimer = setInterval(async () => { if (document.hidden || locked) return; const r = await draft.poll(); if (r.ok && (r.applied.length || r.skipped.length)) { saved = false; paint(); } }, 2000);
