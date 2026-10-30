@@ -146,5 +146,23 @@
     if (!Array.isArray(h.period_list) || !h.period_list.length || !Array.isArray(h.canvas) || h.canvas.length !== 2 || !Array.isArray(h.table) || !h.defs || !Number.isFinite(h.fps) || h.fps <= 0 || !Number.isFinite(h.frames_per_period) || h.frames_per_period < 1) return 'The film’s drawing data is incomplete.';
     return null;
   }
-  window.ryagramEditorData = { barsPartial, isBars, noRamp, streamProblem, ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, rowsFor, bandColours, isBanded, hasLight, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
+  // What the person's AI changed, in words for a list: only values of a known SHAPE are shown (a colour, a theme name, a small number); anything else is said without being repeated, because the AI's text is data, not words to display.
+  const VALUE = /^(#[0-9a-fA-F]{6}|dark|light|\d{1,3}(\.\d{1,2})?)$/;
+  function describeOps(ops) {
+    return (Array.isArray(ops) ? ops : []).slice(0, 12).map(o => {
+      const row = o && ROWS.find(r => r[0] === o.key), label = row ? row[1] : null;
+      if (o && o.op === 'set_look') return label ? `${label}: ${VALUE.test(String(o.value)) ? (o.value === 'dark' ? 'Dark' : o.value === 'light' ? 'Light' : o.value) : 'a new value'}` : 'A setting this editor does not show';
+      if (o && o.op === 'unset_look') return label ? `${label}: back to the film’s own` : 'A setting this editor does not show';
+      return 'A change to the film';
+    });
+  }
+  // Things worth asking for, in the person's words, only for what THIS film can really change (a banded map or a bar race has no low and high colours; no light theme means no light-theme ask).
+  function suggestions(RL, bundle) {
+    const keys = rowsFor(RL, bundle).map(r => r[0]), out = [];
+    if (keys.includes('page.background')) out.push('Make the page white', 'Make the page black');
+    if (keys.includes('sequence.theme')) out.push('Switch to the light theme');
+    if (keys.includes('choropleth.low') && keys.includes('choropleth.high')) out.push('Use colours that are easy to tell apart if you are colour-blind');
+    return out.slice(0, 4);
+  }
+  window.ryagramEditorData = { describeOps, suggestions, barsPartial, isBars, noRamp, streamProblem, ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, rowsFor, bandColours, isBanded, hasLight, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
 })();

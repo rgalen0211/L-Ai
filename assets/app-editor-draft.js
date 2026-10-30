@@ -50,7 +50,7 @@
     async function poll(since = state.revision) {
       const r = await rpc('my_edit_ops_since', { p_project: project, p_mode: mode, p_revision: since });
       if (r.error) return { ok: false, code: r.error.code };
-      const d = r.data, applied = [], skipped = [];
+      const d = r.data, applied = [], skipped = [], appliedOps = [];
       state.mirrored = !!d.mirrored; state.aiVisible = !!d.ai_visible;
       for (const o of d.ops || []) {
         if (o.actor === 'ai') {
@@ -59,6 +59,7 @@
           if (o.status === 'rejected' || o.status === 'undone') continue;
           const res = editor.applyRemote(o.op, 'ai', o.id);
           (res.ok ? applied : skipped).push(o.id);
+          if (res.ok) appliedOps.push(o.op);
         } else {
           const list = state.ids.get(o.revision) || []; if (!list.includes(o.id)) list.push(o.id); state.ids.set(o.revision, list);
           const e = [...editor.log].reverse().find(x => x.by === 'you' && !x.serverId && JSON.stringify(x.op) === JSON.stringify(o.op));
@@ -67,8 +68,8 @@
       }
       if (d.revision !== state.revision && mode === 'compilation' && d.state && Array.isArray(d.state.clips) && !(d.ops || []).length) { editor.reload(d.state); onSummary(d.state); }
       state.revision = Math.max(state.revision, d.revision);
-      if (applied.length || skipped.length) onChange({ applied, skipped });
-      return { ok: true, applied, skipped, revision: state.revision };
+      if (applied.length || skipped.length) onChange({ applied, skipped, ops: appliedOps });
+      return { ok: true, applied, skipped, ops: appliedOps, revision: state.revision };
     }
 
     // Undo the person's last op on screen and in the draft (the log entry's server id), so the AI knows the person undid it.

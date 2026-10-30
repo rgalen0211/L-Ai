@@ -451,7 +451,7 @@
     async function poll(since = state.revision) {
       const r = await rpc('my_edit_ops_since', { p_project: project, p_mode: mode, p_revision: since });
       if (r.error) return { ok: false, code: r.error.code };
-      const d = r.data, applied = [], skipped = [];
+      const d = r.data, applied = [], skipped = [], appliedOps = [];
       state.mirrored = !!d.mirrored; state.aiVisible = !!d.ai_visible;
       for (const o of d.ops || []) {
         if (o.actor === 'ai') {
@@ -460,6 +460,7 @@
           if (o.status === 'rejected' || o.status === 'undone') continue;
           const res = editor.applyRemote(o.op, 'ai', o.id);
           (res.ok ? applied : skipped).push(o.id);
+          if (res.ok) appliedOps.push(o.op);
         } else {
           const list = state.ids.get(o.revision) || []; if (!list.includes(o.id)) list.push(o.id); state.ids.set(o.revision, list);
           const e = [...editor.log].reverse().find(x => x.by === 'you' && !x.serverId && JSON.stringify(x.op) === JSON.stringify(o.op));
@@ -468,8 +469,8 @@
       }
       if (d.revision !== state.revision && mode === 'compilation' && d.state && Array.isArray(d.state.clips) && !(d.ops || []).length) { editor.reload(d.state); onSummary(d.state); }
       state.revision = Math.max(state.revision, d.revision);
-      if (applied.length || skipped.length) onChange({ applied, skipped });
-      return { ok: true, applied, skipped, revision: state.revision };
+      if (applied.length || skipped.length) onChange({ applied, skipped, ops: appliedOps });
+      return { ok: true, applied, skipped, ops: appliedOps, revision: state.revision };
     }
 
     // Undo the person's last op on screen and in the draft (the log entry's server id), so the AI knows the person undid it.
@@ -631,7 +632,8 @@
       const project = host ? host.project : window.RYAGRAM_MOCK_EDITOR_PROJECT;
       const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
-      const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
+      let aiSaid = [], askedAt = 0, askTimer = 0;                               // what the person's AI changed (for the list), and when the person last sent it a note (0 = not waiting)
+      const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; if (x && x.ops && x.ops.length) { aiSaid.push(...x.ops); aiSaid = aiSaid.slice(-12); askedAt = 0; clearTimeout(askTimer); paintAiWait(false); } if (x && x.skipped && x.skipped.length) say(`${x.skipped.length} change${x.skipped.length === 1 ? '' : 's'} from your AI could not be applied here, so ${x.skipped.length === 1 ? 'it was' : 'they were'} left out.`); paint(); } }) : null;
       let position = bundleMode ? 0 : isData ? LAST : onPc ? 0 : 4.4;           // a year (stand-in), or a time in seconds
       let selected = isData ? null : onPc ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
@@ -772,7 +774,7 @@
       const undoBtn = btn('Undo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); });
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say('Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
-      const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) note.focus(); }, { class: 'button secondary le-ai-btn' });
+      const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
       const finalBtn = btn(isData ? 'Render final film' : 'Build final film', 'primary', () => { stopPlay(); showCommit(); });
       const renderBox = h('div', { class: 'le-render', hidden: true });
       let locked = false;                                                       // locked: a render is using what was committed
@@ -881,14 +883,19 @@
       // names the film (the project id, when it is a plain id, and the title) so the AI does not have to guess which project's editor is open (CONNECT 12:44)
       const aiFilm = () => (typeof project === 'string' && /^[0-9A-Za-z-]{8,64}$/.test(project) ? ` The film is project ${project}${host && host.title ? ` ("${E.cleanText(String(host.title)).slice(0, 60)}")` : ''}.` : '');
       const aiLine = () => `I am editing my Ryagram film and want you to change it.${aiFilm()} My note: ${E.cleanText(note.value) || 'make it clearer'}. Use the Ryagram connector. Read my open editor draft first and change only the draft. Do not render, save or spend credits.`;
-      const aiBox = h('div', { class: 'le-ai', hidden: true }, h('label', { for: 'le-note' }, 'What should your AI change?'), note, aiLinks,
+      const aiChips = h('div', { class: 'le-ai-chips', 'aria-label': 'Things you can ask for' });
+      const aiWait = h('p', { class: 'meta le-ai-wait', role: 'status', 'aria-live': 'polite', hidden: true });
+      const paintAiWait = (late) => { aiWait.hidden = !askedAt; aiWait.textContent = !askedAt ? '' : late ? 'Nothing has changed yet. Your AI may still be reading the draft, or it may have asked you something in its own chat.' : 'Sent. Waiting for your AI. When it changes the draft, the changes appear here within a few seconds and you can undo them.'; };
+      const markAsked = () => { askedAt = Date.now(); clearTimeout(askTimer); paintAiWait(false); askTimer = setTimeout(() => { if (askedAt) paintAiWait(true); }, 90000); };
+      const aiBox = h('div', { class: 'le-ai', hidden: true }, h('label', { for: 'le-note' }, 'What should your AI change?'), note, aiChips, aiLinks, aiWait,
         h('p', { class: 'meta' }, 'It opens a new chat in your own Claude or ChatGPT with this ready. Your AI can change the draft you see here; it cannot render, save, publish or spend credits.'));
       const paintAiLinks = () => {
         const S = window.ryagramStart, line = aiLine();
-        aiLinks.replaceChildren(...['claude', 'chatgpt'].filter(() => S && S.chatUrl && S.APPS).map(app => { const u = S && S.chatUrl ? S.chatUrl(app, line) : null; return u ? h('a', { class: 'button secondary', href: u, target: '_blank', rel: 'noopener noreferrer' }, S.APPS[app].label) : null; }),
-          btn('Copy', 'secondary', async () => { try { await navigator.clipboard.writeText(line); say('Copied. Paste it into your AI.'); } catch { say('Could not copy. Select the note and copy it by hand.'); } }));
+        aiLinks.replaceChildren(...['claude', 'chatgpt'].filter(() => S && S.chatUrl && S.APPS).map(app => { const u = S && S.chatUrl ? S.chatUrl(app, line) : null; return u ? h('a', { class: 'button secondary', href: u, target: '_blank', rel: 'noopener noreferrer', onclick: markAsked }, S.APPS[app].label) : null; }),
+          btn('Copy', 'secondary', async () => { try { await navigator.clipboard.writeText(line); markAsked(); say('Copied. Paste it into your AI.'); } catch { say('Could not copy. Select the note and copy it by hand.'); } }));
       };
       note.addEventListener('input', paintAiLinks);
+      const paintChips = () => { const s = bundleMode && bundle && DD.suggestions ? DD.suggestions(RL, bundle) : []; aiChips.replaceChildren(...s.map(t => btn(t, 'secondary', () => { note.value = t; paintAiLinks(); note.focus(); }, { class: 'button secondary small le-chip' }))); };
       const mockAi = window.ryagramMock ? btn('(mock) my AI changes the line colour', 'secondary', async () => {
         if (draft && window.ryagramMockEditor) {                                  // the person's AI, through the connector: onto the shared draft; this page sees it on its next look
           const aiOp = isData ? { op: 'set_look', key: 'network.color', value: '#ff9f6b' } : { op: 'set_clip_text', id: 't1', text: 'Changed by my AI' };
@@ -1133,7 +1140,7 @@
       function paintBanner() {
         const n = ed.log.filter(e => e.by === 'ai').length;
         banner.hidden = n === 0;
-        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below.'), btn('Undo my AI’s changes', 'secondary', async () => { if (draft) await draft.undoAi(); else ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
+        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below.'), ...(isData && DD.describeOps && aiSaid.length ? [h('ul', { class: 'le-ai-list' }, DD.describeOps(aiSaid).map(t => h('li', {}, t)))] : []), btn('Undo my AI’s changes', 'secondary', async () => { if (draft) await draft.undoAi(); else ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
       }
       function paintWarns() {
         const out = [];
