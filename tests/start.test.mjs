@@ -121,7 +121,7 @@ test('SAFE TEXT: the page puts server text in as text nodes only, builds no HTML
 
 test('NOTHING ELSE MOVES: the builder link, the library heading and the connect pages keep their words; the connect guide has anchors for the two buttons', () => {
   const lib = read('assets/app-library.js');
-  assert.match(lib, /'Make a film step by step'/);
+  assert.match(lib, /'Tutorial: make a film step by step'/);                         // relabelled as the tutorial (NEXT-BUILDER 38)
   assert.match(lib, /h\('h1', \{ tabindex: '-1' \}, 'Your projects'\)/);
   const guide = read('connect-ai/index.html');
   assert.ok(guide.includes('<a id="claude"></a><h2>Claude (claude.ai'));

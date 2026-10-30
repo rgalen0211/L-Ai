@@ -87,7 +87,8 @@ test('GUARDS: the page has no catalog, licence rule or story rule of its own, no
   for (const f of fs.readdirSync(new URL('../assets/', import.meta.url)).filter(f => f.endsWith('.js'))) {
     assert.doesNotMatch(read(`assets/${f}`).replace(/\/\/.*$/gm, ''), /catalog_data\.ts|_shared\/film\.ts|catalog_rules/, f);
   }
-  assert.match(code, /data\.builderCompile\(requestFrom\(s\)\)/);
+  assert.match(code, /src\.builderCompile\(requestFrom\(s\)\)/);
+  assert.match(code, /const src = sample \? sampleData\(rec\) : data;/, 'the function is asked, except in the sample walk-through');
   assert.match(code, /data\.createProject\(s\.title\.trim\(\)\)[\s\S]*data\.saveStory\([\s\S]*data\.submitJob\(made\.version\.id, 'contact_sheet', \{\}, null\)/);       // the order: project, story, a CONTACT SHEET only
   assert.doesNotMatch(code, /final_render|preview'/);                                                                                  // never a paid render from this page
   assert.doesNotMatch(code, /per credit|\$\d|price/i);                                                                                  // no price per credit anywhere
@@ -165,8 +166,8 @@ test('READY-MADE STARTS (NEXT-WEB 132): housing, health and work, each a view re
 
 test('FIRST FILM (NEXT-WEB 132): with no projects the guided builder is the main button; with projects it is the quiet link', () => {
   const lib = read('assets/app-library.js');
-  assert.match(lib, /projects\.length \? h\('p', \{ class: 'meta' \}, h\('a', \{ href: '#\/build' \}, 'Make a film step by step'\)\)/);
-  assert.match(lib, /id: 'first-film', href: '#\/build' \}, 'Make your first film'/);
+  assert.match(lib, /projects\.length \? h\('p', \{ class: 'meta' \}, h\('a', \{ href: '#\/build' \}, 'Tutorial: make a film step by step'\)\)/);
+  assert.match(lib, /id: 'first-film', href: '#\/build' \}, 'Try the tutorial: your first film'/);
   assert.match(lib, /builderOn\(\) \? 'No projects yet\. The quickest way to start is above/);
 });
 
@@ -177,4 +178,61 @@ test('BUY STRIP (NEXT-WEB 132 G5): after the free first picture the Render panel
   assert.match(lib, /!jobs\.some\(j => j\.job_type === 'final_render'\)/, 'gone once a final film is ordered');
   const strip = lib.slice(lib.indexOf("nextStrip.replaceChildren"), lib.indexOf("} else nextStrip.hidden = true;"));
   assert.ok(!/priceLabel|money\(|cents|\$\{?\s*price/i.test(strip), 'no money in the strip');
+});
+
+// NEXT-BUILDER 38 (Ryan: the guided builder is for testing and tutorial only): the page says it is a tutorial, each step has one tip, and "Try a sample" walks the
+// steps on a bundled recording that makes nothing.
+test('TUTORIAL: the page is labelled a tutorial for learning and testing, and every step has one tip', () => {
+  assert.equal(B.HEADING, 'Tutorial: make a film step by step');
+  assert.deepEqual(plain(Object.keys(B.TIPS)), plain(B.STEPS.map(([id]) => id)), 'one tip per step, no more');
+  assert.ok(Object.values(B.TIPS).every(t => /^Tip: /.test(t) && t.length < 200));
+  const src = read('assets/app-builder.js');
+  assert.match(src, /'This tutorial is for learning and testing\./);
+  assert.match(src, /h\('p', \{ class: 'form-note builder-tip' \}, TIPS\[stepName\(\)\]\)/, 'the tip of the current step is drawn on every step');
+  assert.match(src, /h\('a', \{ href: '#\/build\/sample' \}, 'Try a sample first'\)/);
+});
+
+test('SAMPLE RECORDING: assets/app-builder-sample.js is exactly what the function\'s test double answers for the Health start (re-record with tools/build-builder-sample.mjs)', async () => {
+  const { recordSample, sampleSource } = await import('../tools/build-builder-sample.mjs');
+  assert.equal(read('assets/app-builder-sample.js').replace(/\r\n/g, '\n'), sampleSource(await recordSample()));
+  const S = {}; vm.runInNewContext(read('assets/app-builder-sample.js'), { window: S });
+  const rec = S.ryagramBuilderSample;
+  assert.equal(rec.start, 'health');
+  assert.equal(rec.dataset.id, rec.entry.id);
+  assert.ok(rec.dataset.publisher && rec.dataset.licence_short && rec.dataset.licence, 'the sample shows a source and a licence like any dataset');
+  assert.doesNotMatch(read('assets/app-builder-sample.js'), /createProject|saveStory|submitJob|supabase|https?:\/\/(?!data\.cdc\.gov)/, 'no call and no address but the dataset\'s own page');
+});
+
+test('SAMPLE DATA: answers only what was recorded; any other request is refused in words, at the review', async () => {
+  const S = {}; vm.runInNewContext(read('assets/app-builder-sample.js'), { window: S });
+  const rec = S.ryagramBuilderSample;
+  const d = B.sampleData(rec);
+  assert.deepEqual(plain((await d.builderCatalog()).datasets.map(x => x.id)), [rec.entry.id], 'ONE dataset');
+  assert.deepEqual(plain((await d.builderDescribe(rec.entry.id)).dataset), plain(rec.dataset));
+  await assert.rejects(d.builderDescribe('bps_county_permits'), /not in the sample/);
+  const ok = await d.builderCompile(plain(rec.request));
+  assert.deepEqual(plain(ok), plain({ story: rec.story, report: rec.report }));
+  let err; try { await d.builderCompile({ ...plain(rec.request), film_type: 'bars' }); } catch (e) { err = e; }
+  assert.ok(err && err.errors && err.errors.length === 1 && /only check its own ready-made choices/.test(err.errors[0]));
+  assert.equal(B.stepOf(err.errors[0]), 'review', 'the refusal belongs to the review, not to a step');
+  assert.deepEqual(plain(await d.listLooks()), []);
+  ok.story.name = 'changed';
+  assert.notEqual((await d.builderCompile(plain(rec.request))).story.name, 'changed', 'each answer is a fresh copy of the recording');
+  assert.deepEqual(plain((await B.sampleData(null).builderCatalog()).datasets), [], 'no sample loaded: nothing offered');
+});
+
+test('SAMPLE MAKES NOTHING: in the sample the Make button is hidden and never wired; project, story and job are made only outside it; the route and script exist', () => {
+  const src = read('assets/app-builder.js');
+  const review = src.slice(src.indexOf('function stepReview'), src.indexOf('function draw()'));
+  assert.match(review, /if \(sample\) make\.hidden = true;\r?\n\s+if \(!sample\) make\.addEventListener\('click'/);
+  const wired = review.slice(review.indexOf("if (!sample) make.addEventListener('click'"));
+  for (const call of ['data.createProject(', 'data.saveStory(', 'data.submitJob(']) {
+    assert.equal(src.split(call).length - 1, 1, `${call} appears once`);
+    assert.ok(wired.includes(call), `${call} is only inside the non-sample Make handler`);
+  }
+  assert.match(review, /sample \? again : make\)\]/, 'the sample offers "Start the sample again" in the Make button\'s place');
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /builderOn\(\) && hash === '#\/build\/sample'\) view = await builderUi\(\)\.builderView\(onStop, \{ sample: true \}\)/);
+  const html = read('app/index.html');
+  assert.ok(html.indexOf('app-builder-sample.js') > 0 && html.indexOf('app-builder-sample.js') < html.indexOf('app-builder.js?'), 'the sample loads before the builder');
 });
