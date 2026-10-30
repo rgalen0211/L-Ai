@@ -133,7 +133,7 @@ def main():
         ok = ok and bool(cond)
     try:
         eng = tmp / 'engine'
-        shutil.copytree(ENGINE / 'ryagram', eng / 'ryagram', ignore=shutil.ignore_patterns('__pycache__', 'globe3d', 'maprace', 'trends'))
+        shutil.copytree(ENGINE / 'ryagram', eng / 'ryagram', ignore=shutil.ignore_patterns('__pycache__', 'globe3d', 'trends'))
         (eng / 'ryagram' / 'local' / '__main__.py').write_text(STUB_MAIN, encoding='utf8')
         recipes = tmp / 'recipes'
         recipes.mkdir()
@@ -420,10 +420,11 @@ def main():
             check(page.locator('.slot').count() == 2 and 'One or more video files.' in page.inner_text('#slots'), 'the recipe\u2019s two slots are shown, one taking many files')
             check(page.locator('#build').is_disabled(), 'Build is off until a Plan is ready')
             words = page.get_by_label('The words to find in your videos')
-            check(words.input_value() == '' and words.get_attribute('placeholder') == 'well that is great news' and words.is_enabled() and 'the recipe file stays as it is' in page.inner_text('#words-note'), 'r8: a labelled box starts EMPTY with the recipe\u2019s words as grey placeholder text, and says the recipe file stays as it is')
+            check(words.input_value() == 'well that is great news' and words.get_attribute('placeholder') == 'well that is great news' and words.is_enabled() and 'the recipe file stays as it is' in page.inner_text('#words-note'), 'r8: a labelled box starts EMPTY with the recipe\u2019s words as grey placeholder text, and says the recipe file stays as it is')
+            words.fill('')
             page.click('#plan')
             page.wait_for_selector('#plan-out .problems')
-            check('Type a short phrase one of your videos really says.' in page.inner_text('#plan-out') and page.locator('#build').is_disabled(), 'r8: Plan with the words box empty asks for a phrase instead of searching for the example')
+            check('Type a short phrase one of your videos really says.' in page.inner_text('#plan-out') and page.locator('#build').is_disabled(), 'r8: Plan with the words box emptied by the person asks for a phrase instead of searching for the example')
             words.fill('well that is great news')
             page.evaluate("document.getElementById('plan-out').replaceChildren()")
             check(not page.locator('details.paste').is_hidden(), 'r8: with advanced=1 the paste box is shown')
