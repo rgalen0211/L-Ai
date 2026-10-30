@@ -1,4 +1,4 @@
--- AFTER 20261030000200_live_editor_leadin.sql (more lead-in on the first video clip): one SELECT, read-only. Every ok must be true.
+-- AFTER 20261030000300_live_editor_leadin.sql (more lead-in on the first video clip): one SELECT, read-only. Every ok must be true.
 select 'a start trim with a negative `to` (more lead-in) is accepted' as check_name,
        ryagram_private.edit_op_problem('compilation', '{"op": "trim_clip", "id": "v1", "edge": "start", "to": -1}'::jsonb) is null as ok
 union all select 'but not below -3600, and the words say the range',

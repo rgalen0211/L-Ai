@@ -1,5 +1,8 @@
--- MORE LEAD-IN ON THE FIRST VIDEO CLIP: the exact undo of migrations/20261030000200_live_editor_leadin.sql (NEXT-WEB 180). NOT a migration: nothing applies it by itself; Ryan runs it only to go back.
--- Puts ryagram_private.edit_op_problem back exactly as 20261029000100_live_editor_new_ops.sql made it (a negative `to` is refused again).
+-- MORE LEAD-IN ON THE FIRST VIDEO CLIP (NEXT-WEB 180, from BUILDER's tested patch proposals/BUILDER-FIRST-CLIP-LEADIN-PATCH.md). NOT APPLIED: a migration for CC1's review; applying it is a live step Ryan takes,
+-- AFTER 20261029000100_live_editor_new_ops.sql (Q319). Only ONE function body changes (ryagram_private.edit_op_problem): for a trim_clip on the START edge, `to` may now be as low as -3600 seconds, because a video
+-- clip's start trim moves the FILE (source_start), so more lead-in on the first video clip is a negative `to`; the END edge and every other value keep 0 to 86400. The rules about the file's own start and which clip
+-- may go below 0 are the page's and the computer's (the same core line, tests/edit-vectors.json and tests/edit-op-cases.json carry the cases). Same name, same arguments, same owners and grants (create or replace keeps them).
+-- Undo: supabase/rollbacks/20261030000300_live_editor_leadin_rollback.sql. After-check: supabase/live-steps/16_live_editor_leadin_after_check.sql.
 
 begin;
 
@@ -68,7 +71,8 @@ begin
   elsif kind = 'trim_clip' then
     if jsonb_typeof(p_op -> 'edge') is distinct from 'string' or (p_op ->> 'edge') not in ('start', 'end') then return 'Trim the "start" or the "end".'; end if;
     if not (p_op ? 'to') then return 'trim_clip needs "to".'; end if;
-    if (p_op ->> 'to')::numeric < 0 or (p_op ->> 'to')::numeric > 86400 then return '"to" must be between 0 and 86400 seconds.'; end if;
+    if (p_op ->> 'to')::numeric < (case when p_op ->> 'edge' = 'start' then -3600 else 0 end) or (p_op ->> 'to')::numeric > 86400 then
+      return format('"to" must be between %s and 86400 seconds.', case when p_op ->> 'edge' = 'start' then -3600 else 0 end); end if;
   elsif kind = 'reorder_clip' then
     if jsonb_typeof(p_op -> 'index') is distinct from 'number' or (p_op ->> 'index') !~ '^[0-9]{1,3}$' then return '"index" must be a whole number from 0 to 199.'; end if;
     if (p_op ->> 'index')::int > 199 then return '"index" must be a whole number from 0 to 199.'; end if;
