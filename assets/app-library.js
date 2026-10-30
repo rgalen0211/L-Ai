@@ -134,7 +134,7 @@
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
-        else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)$/))) view = editorUi().editorView(m[1], onStop);
+        else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)(?:\/([0-9a-fA-F-]{36}))?$/))) view = editorUi().editorView(m[1], onStop, m[2] || null);
         else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
         else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
@@ -1091,6 +1091,7 @@
         h('p', { class: 'meta' }, parent ? `Made from version ${parent.number} · ` : '', `created ${date(v.created_at)}`),
         h('div', { class: 'actions-row' },
           h('button', { class: 'button secondary', type: 'button', onclick: newVersion }, `Start a new version from version ${v.number}`),
+          liveEditorOn() ? h('a', { class: 'button secondary', href: `#/editor/data/${project.id}` }, 'Edit the look live') : null,
           v.state === 'complete'
             ? h('button', { class: 'button secondary', type: 'button', onclick: async event => {
                 await busy(event.currentTarget, 'Archiving…', async () => {

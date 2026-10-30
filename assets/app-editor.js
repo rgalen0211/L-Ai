@@ -28,7 +28,7 @@
   function create({ h, data = null }) {
     const btn = (label, cls, onclick, attrs = {}) => h('button', { type: 'button', class: `button ${cls || 'secondary'}`.trim(), onclick, ...attrs }, label);
 
-    function editorView(kind, onStop) {
+    function editorView(kind, onStop, routeProject) {
       const isData = kind === 'data';
       const onPc = !!window.ryagramLiveHost;                                   // on the person's own computer: no demo film, no stand-in; only what the maker's draft holds
       // Data-film mode with the engine's own drawer (NEXT-WEB 154): when the page can get the film's look bundle (the host's bundle(project) call; in mock mode a synthetic one) and
@@ -42,8 +42,10 @@
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
       const host = window.ryagramLiveHost || null;
-      const project = host ? host.project : window.RYAGRAM_MOCK_EDITOR_PROJECT;
-      const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
+      // On the website a project in the address (#/editor/data/<project>) is the person's own film: the shared draft is the real one (CONNECT's editor_* functions, Q319). With no project in the address the page keeps the
+      // test mock's project and only runs in mock mode, as before. The drawing data of a person's own film has no route yet, so the preview stays the stand-in (the page says so) until it does.
+      const project = host ? host.project : (routeProject || window.RYAGRAM_MOCK_EDITOR_PROJECT);
+      const hostRpc = host ? host.rpc : (data && data.editorRpc && (routeProject || window.ryagramMock) ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
       let aiSaid = [], askedAt = 0, askTimer = 0;                               // what the person's AI changed (for the list), and when the person last sent it a note (0 = not waiting)
       const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; if (x && x.ops && x.ops.length) { aiSaid.push(...x.ops); aiSaid = aiSaid.slice(-12); askedAt = 0; clearTimeout(askTimer); paintAiWait(false); } if (x && x.skipped && x.skipped.length) say(`${x.skipped.length} change${x.skipped.length === 1 ? '' : 's'} from your AI could not be applied here, so ${x.skipped.length === 1 ? 'it was' : 'they were'} left out.`); paint(); } }) : null;
@@ -599,7 +601,7 @@
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
-        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
+        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
       if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
         const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
