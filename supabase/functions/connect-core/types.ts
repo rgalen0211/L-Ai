@@ -46,7 +46,11 @@ export interface CompilationRequest {
   rules: { phrase: string; picture: string; seconds: number; mode: "full" | "centre" | "corner" | "lower_third" }[];
   texts: { text: string; start_s: number; length_s: number; position: "top" | "centre" | "bottom" | "lower_third"; size: "small" | "medium" | "large" }[];
   note: string;
+  /** Guided footage (NEXT-CONNECT 161): what footage to get and where to put it, written by the AI as a checklist. TEXT ONLY: Ryagram downloads nothing; the person gets the footage themselves. Optional: older requests have none. */
+  checklist?: ChecklistItem[];
 }
+/** One thing for the person to get: what it is, where they might find it (a site's NAME, never an address), what it must contain, the NAME of the folder it goes in (one of the request's folders) and how many files to expect. */
+export interface ChecklistItem { id: string; what: string; from: string; must_contain: string; folder: string; count: number }
 
 export interface ProjectRow { id: string; title: string; created_at: string; updated_at: string }
 export interface Quote { credits: number; free: boolean; available: number }
