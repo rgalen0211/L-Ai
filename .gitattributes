@@ -20,3 +20,6 @@ tests/edit-vectors.json text eol=lf
 assets/preview/look-draw.js text eol=lf
 assets/preview/text-layout.js text eol=lf
 tests/fixtures/look-bundle-synthetic.* text eol=lf
+assets/preview/scene-draw-rules.min.js text eol=lf
+tests/fixtures/look-bars-scene.* text eol=lf
+tests/fixtures/look-bundle-synthetic-stream.* text eol=lf

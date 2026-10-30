@@ -4,6 +4,12 @@
 // (middle colour, metal finish, glow) are named in WAITING and are neither offered nor saved until the worker's schema takes them.
 (() => {
   const isBanded = b => !!b && b.mode === 'banded';
+  // THE BAR RACE (ENGINE's bars-rules scene, drawn by the rules drawer assets/preview/scene-draw-rules.min.js after look-draw's barsApply): the bars have ONE colour, which the worker cannot take yet, so only the page colour and
+  // (where the scene carries the other theme's colour table) the theme are offered; no ramp, so no low or high colour.
+  const isBars = b => !!b && b.format === 'ryagram-scene' && b.kind === 'bars-rules';
+  const noRamp = b => isBanded(b) || isBars(b);
+  // A bar-race scene may hold only a slice of the film (the first seconds): true when its clock names more periods than the frames it carries ever reach.
+  const barsPartial = b => isBars(b) && new Set(b.clock.ticks.slice(0, b.frames).map(t => t[0])).size < b.clock.periods.length;
   const hex2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
   const rgbHex = c => `#${hex2(c[0])}${hex2(c[1])}${hex2(c[2])}`;
   const hexRgb = h => { const m = /^#([0-9a-fA-F]{6})$/.exec(String(h)); return m ? [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)] : null; };
@@ -51,12 +57,12 @@
   // A BANDED bundle (the engine's mode 'banded': solid colours with breaks, no ramp) ignores the low and high colours, so offering them would be a dishonest control; the rows are the page colour and the
   // theme only, and band colours are shown, not edited, because the story's look block has no key for them yet (lookFromStory does not read one).
   // The light theme exists only when the bundle carries one (the engine's banded map has none: one colour would map to two), so then neither the Theme row nor a preset's theme is offered.
-  const hasLight = b => { const t = b && b.templates && b.periods && b.templates[b.periods[0]]; return !!(t && t.themes && t.themes.light); };
-  function rowsFor(RL, bundle) { return honoured(RL).filter(([k]) => !(isBanded(bundle) && (k === 'choropleth.low' || k === 'choropleth.high')) && !(k === 'sequence.theme' && bundle && !hasLight(bundle))); }
+  const hasLight = b => { if (isBars(b)) return !!(b.look_themes && b.look_themes.light); const t = b && b.templates && b.periods && b.templates[b.periods[0]]; return !!(t && t.themes && t.themes.light); };
+  function rowsFor(RL, bundle) { return honoured(RL).filter(([k]) => !(noRamp(bundle) && (k === 'choropleth.low' || k === 'choropleth.high')) && !(k === 'sequence.theme' && bundle && !hasLight(bundle)) && !(isBars(bundle) && (k === 'choropleth.low' || k === 'choropleth.high' || k === 'state.outline_width'))); }
   function bandColours(bundle) { return isBanded(bundle) && Array.isArray(bundle.stops) ? bundle.stops.map(rgbHex) : []; }
   // The preset as ops against the look as it stands: every key the preset owns is set, and a key it does not set is removed, so a preset is a complete look and not a patch.
   function presetOps(preset, current, bundle) {
-    const l = preset.look, banded = isBanded(bundle), want = { 'choropleth.low': l.low && !banded ? rgbHex(l.low) : null, 'choropleth.high': l.high && !banded ? rgbHex(l.high) : null, 'page.background': l.page ? rgbHex(l.page) : null, 'sequence.theme': l.theme && (!bundle || hasLight(bundle)) ? l.theme : null };
+    const l = preset.look, banded = noRamp(bundle), want = { 'choropleth.low': l.low && !banded ? rgbHex(l.low) : null, 'choropleth.high': l.high && !banded ? rgbHex(l.high) : null, 'page.background': l.page ? rgbHex(l.page) : null, 'sequence.theme': l.theme && (!bundle || hasLight(bundle)) ? l.theme : null };
     const ops = [];
     for (const [key, value] of Object.entries(want)) {
       if (value !== null) { if (current[key] !== value) ops.push({ op: 'set_look', key, value }); }
@@ -68,12 +74,13 @@
   // What the colour inputs show before the person has set anything: the bundle's own ramp ends (stops are [r,g,b]; the drawer's low is stop 0, its high stop 2).
   function defaults(bundle, look) {
     const s = (bundle && bundle.stops) || [], light = look && look['sequence.theme'] === 'light';
+    if (isBars(bundle)) { const pg = bundle.rules.page, lt = bundle.look_themes && bundle.look_themes.light && bundle.look_themes.light[`rgb(${pg[0]},${pg[1]},${pg[2]})`]; const lc = light && lt && /\d+/.test(lt) ? lt.match(/\d+/g).map(Number) : pg; return { 'page.background': rgbHex(lc), 'sequence.theme': 'dark' }; }
     return { 'choropleth.low': s[0] ? rgbHex(s[0]) : '#a8562a', 'choropleth.high': s[2] ? rgbHex(s[2]) : '#f0c23a', 'page.background': light ? '#ffffff' : DARK_PAGE, 'sequence.theme': 'dark', 'state.outline_width': 1 };
   }
   // Under about 40 apart in RGB the two read as the same colour to most eyes; the page says so and still lets the person render.
   const near = (a, b) => { const x = hexRgb(a), y = hexRgb(b); return !!x && !!y && Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 40; };
   function warnings(bundle, look) {
-    if (isBanded(bundle)) return [];                                            // the low and high colours do not apply to a banded film
+    if (noRamp(bundle)) return [];                                              // the low and high colours do not apply to a banded film or a bar race
     const d = defaults(bundle, look), v = k => (look && look[k] !== undefined ? look[k] : d[k]), out = [];
     if (near(v('choropleth.low'), v('page.background'))) out.push('The lowest colour is nearly the page colour, so low areas will look empty.');
     if (near(v('choropleth.high'), v('page.background'))) out.push('The highest colour is nearly the page colour, so high areas will look empty.');
@@ -82,6 +89,19 @@
   }
   // The scrubber: one step per frame of the bundle, 0 .. frames - 1, label = the period on screen, ticks = each period's start as a fraction of the way along.
   function timeline(RL, bundle) {
+    const per = n => Math.max(1, Math.ceil(n / 8));
+    if (isBars(bundle)) {                                                      // a bar race: one step per frame of the scene; the scene may hold only a slice of the film (the first seconds), and the page says so
+      const SC = window.RyagramScene, fps = bundle.fps, frames = bundle.frames, last = Math.max(1, frames - 1), seen = [];
+      bundle.clock.ticks.forEach((t, f) => { if (t[0] !== (seen.length ? seen[seen.length - 1].i : -1)) seen.push({ i: t[0], period: bundle.clock.periods[t[0]], at: Math.min(1, f / last) }); });
+      const e = per(seen.length);
+      return { fps, frames, seconds: f => Math.min(f, frames - 1) / fps, frame: s => Math.max(0, Math.min(frames - 1, Math.round(s * fps))), ticks: seen.filter((m, i) => i % e === 0 || i === seen.length - 1).map(m => ({ period: m.period, at: m.at })),
+        label: s => String(SC.describe(bundle, Math.max(0, Math.min(frames - 1, Math.round(s * fps)))).period) };
+    }
+    if (bundle.loaded) {                                                       // a streamed bundle: the periods are known from the head, so the scrubber is whole before the chunks have arrived
+      const ps = bundle.periods, fps = bundle.fps, fpp = bundle.frames_per_period, frames = (ps.length - 1) * fpp + 1, last = Math.max(1, frames - 1), e = per(ps.length);
+      return { fps, frames, seconds: f => Math.min(f, frames - 1) / fps, frame: s => Math.max(0, Math.min(frames - 1, Math.round(s * fps))), ticks: ps.map((p, i) => ({ period: p, at: Math.min(1, i * fpp / last) })).filter((m, i) => i % e === 0 || i === ps.length - 1),
+        label: s => String(ps[Math.min(ps.length - 1, Math.floor(Math.max(0, Math.round(s * fps)) / fpp))]) };
+    }
     const d = RL.describe(bundle, 0), fps = bundle.fps, frames = Math.round(d.duration * fps), last = Math.max(1, frames - 1);
     const mk = RL.marks(bundle).map(m => ({ period: m.period, at: Math.min(1, Math.round(m.seconds * fps) / last) }));
     const every = Math.max(1, Math.ceil(mk.length / 8));                       // never more than about eight labels: fifty years would not fit on a phone
@@ -92,7 +112,15 @@
   function pictureFor(RL, bundle, seconds, look) {
     try {
       const lf = RL.lookFromStory(story(look));
+      if (isBars(bundle)) {                                                    // the bar race: the look's page colour and theme onto the scene, then the rules drawer; the bar colour waits for the worker
+        const SC = window.RyagramScene;
+        if (!SC || typeof SC.draw !== 'function') return { error: 'The bar-race drawer is not loaded on this page.' };
+        const applied = RL.barsApply(bundle, { page: lf.look.page, theme: lf.look.theme });
+        const frame = Math.max(0, Math.min(bundle.frames - 1, Math.round(seconds * bundle.fps)));
+        return { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(SC.draw(applied, frame))}`, ignored: lf.ignored };
+      }
       const frame = RL.drawFrame(bundle, seconds, lf.look);
+      if (frame && frame.loading) return { loading: true };                  // a streamed period whose chunk has not arrived yet: say so, never a half picture
       if (!frame || !frame.elements) return { error: (frame && frame.unsupported) || 'The engine could not draw that.' };
       return { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(RL.document(bundle, frame))}`, ignored: lf.ignored };
     } catch (e) {                                                              // drawing data that the drawer cannot read is said in words; the page keeps working
@@ -102,10 +130,21 @@
   // A bundle from anywhere is checked before it is trusted: the format name, a version this drawer knows, and the pieces the drawer reads.
   function bundleProblem(b) {
     if (!b || typeof b !== 'object') return 'The film’s drawing data did not arrive.';
+    if (isBars(b)) {                                                           // the engine's bar-race scene (rules drawer, version 5)
+      if (b.version !== 5) return 'That drawing data is from a different version of Ryagram.';
+      if (!Array.isArray(b.canvas) || b.canvas.length !== 2 || !Number.isFinite(b.fps) || b.fps <= 0 || !Number.isInteger(b.frames) || b.frames < 1 || !b.clock || !Array.isArray(b.clock.ticks) || b.clock.ticks.length < b.frames || !Array.isArray(b.clock.periods) || !b.rules || !Array.isArray(b.rules.page) || !b.static || !b.years) return 'The film’s drawing data is incomplete.';
+      return null;
+    }
     if (b.format !== 'ryagram-look') return 'That is not drawing data this editor knows.';
     if (b.version !== 1) return 'That drawing data is from a different version of Ryagram.';
     if (!Array.isArray(b.periods) || !b.periods.length || !Array.isArray(b.canvas) || b.canvas.length !== 2 || !b.templates || !b.defs || !Number.isFinite(b.fps) || b.fps <= 0 || !Number.isFinite(b.frames_per_period) || b.frames_per_period < 1) return 'The film’s drawing data is incomplete.';
     return null;
   }
-  window.ryagramEditorData = { ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, rowsFor, bandColours, isBanded, hasLight, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
+  // A streamed bundle's HEAD (look.pack_progressive): checked before the chunks are asked for.
+  function streamProblem(h) {
+    if (!h || typeof h !== 'object' || h.format !== 'ryagram-look' || h.version !== 1) return 'That is not drawing data this editor knows.';
+    if (!Array.isArray(h.period_list) || !h.period_list.length || !Array.isArray(h.canvas) || h.canvas.length !== 2 || !Array.isArray(h.table) || !h.defs || !Number.isFinite(h.fps) || h.fps <= 0 || !Number.isFinite(h.frames_per_period) || h.frames_per_period < 1) return 'The film’s drawing data is incomplete.';
+    return null;
+  }
+  window.ryagramEditorData = { barsPartial, isBars, noRamp, streamProblem, ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, rowsFor, bandColours, isBanded, hasLight, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
 })();

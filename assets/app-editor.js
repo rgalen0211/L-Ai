@@ -37,6 +37,7 @@
       const lookLoader = isData && DD && RL ? (window.ryagramLiveHost && typeof window.ryagramLiveHost.bundle === 'function' ? p => window.ryagramLiveHost.bundle(p) : typeof window.ryagramMockLookBundle === 'function' ? p => window.ryagramMockLookBundle(p) : null) : null;
       const bundleMode = !!lookLoader;
       let bundle = null, tl = null, bundleState = bundleMode ? 'opening' : 'none', bundleNote = '';
+      let streamLeft = 0, streamNote = '';                                   // a streamed film: how many chunks are still on their way, and why it stopped if it did
       const ed = new E.Editor(onPc || bundleMode ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
@@ -62,9 +63,12 @@
           return;
         }
         const r = DD.pictureFor(RL, bundle, position, { ...ed.state.look, ...(preview || {}) });
-        if (!r.error) pic.src = r.src;
+        if (!r.error && !r.loading) pic.src = r.src;
         view.replaceChildren(pic);
         if (r.error) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, r.error));
+        if (r.loading) view.append(h('p', { class: 'le-bundle-note le-loading', role: 'status' }, streamNote || 'This part of the film is still loading. The picture below is the last one that was ready.'));
+        else if (streamLeft > 0) view.append(h('p', { class: 'le-bundle-note le-loading', role: 'status' }, `Still loading the film: ${streamLeft} part${streamLeft === 1 ? '' : 's'} to come.`));
+        else if (streamNote) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, streamNote));
         view.setAttribute('aria-label', `Preview of ${tl.label(position)}`);
       }
       function drawData() {
@@ -336,12 +340,14 @@
         const presetRows = DD.PRESETS.map(p => {
           const on = cur && cur.id === p.id, notes = DD.cautions(p, bundle);
           return h('li', { class: `le-preset${on ? ' le-on' : ''}` },
-            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.isBanded(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
+            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.noRamp(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
             h('span', { class: 'meta' }, ` ${p.blurb}`), ...notes.map(t => h('span', { class: 'le-warn le-cau' }, t)));
         });
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
           h('h3', {}, 'Ready-made looks'), h('ul', { class: 'le-presets' }, presetRows),
           h('p', { class: 'meta' }, 'A ready-made look sets the colours below; its middle colour waits for the worker and is not shown until it can be saved.'),
+          ...(DD.isBars(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bars' }, h('p', { class: 'meta' }, `This film is a bar race. Its bars have one colour, so there are no low and high colours; the page colour${DD.hasLight(bundle) ? ' and the theme' : ''} work. Changing the bar colour waits for the worker.`),
+            DD.barsPartial(bundle) ? h('p', { class: 'meta' }, `This preview holds only the first ${Math.round(bundle.frames / bundle.fps * 10) / 10} seconds of the film.`) : null)] : []),
           ...(DD.isBanded(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bands' }, h('p', { class: 'meta' }, 'This film colours its areas in solid bands, so the low and high colours do not apply. The bands are shown here; changing them waits for the worker, and the moving dots keep their colour.'),
             h('div', { class: 'le-band-row' }, DD.bandColours(bundle).map((c, i) => { const sw = h('span', { class: 'le-swatch', role: 'img', 'aria-label': `Band ${i + 1}: ${c}` }); sw.style.background = c; return sw; })))] : []),
           ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
@@ -586,6 +592,19 @@
       if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
         const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
         Promise.resolve().then(() => lookLoader(project)).then(b => {
+          if (b && b.stream && typeof b.stream.next === 'function') {            // a STREAMED film: the head opens the page at once, the chunks fill the periods in as they arrive
+            const bad = DD.streamProblem(b.stream.head);
+            if (bad) { problem(bad); return; }
+            bundle = RL.progressive(b.stream.head); tl = DD.timeline(RL, bundle); bundleState = 'ready'; streamLeft = bundle.periods.length; position = 0;
+            ticks.replaceChildren(...tl.ticks.map(m => { const t = h('span', {}, String(m.period)); t.style.left = `${m.at * 100}%`; return t; }));
+            paint();
+            (async () => {
+              try { for (;;) { const n = await b.stream.next(); if (!n) break; RL.addPeriod(bundle, n.period, n.chunk); streamLeft = Math.max(0, streamLeft - 1); paint(); } streamLeft = 0; }
+              catch { streamLeft = 0; streamNote = 'Some of the film could not be loaded, so parts of the preview stay blank. Try again in a minute.'; }
+              paint();
+            })();
+            return;
+          }
           const why = DD.bundleProblem(b);
           if (why) { problem(why); return; }
           bundle = b; tl = DD.timeline(RL, b); bundleState = 'ready';

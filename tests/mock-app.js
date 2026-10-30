@@ -35,12 +35,28 @@
     // The film's drawing data for the data-film editor (NEXT-WEB 154): the mock serves a SYNTHETIC bundle (3 made-up areas, 4 periods; see tests/fixtures/look-bundle-synthetic.PROVENANCE.txt).
     // The real one comes from the host's bundle(project) call once a route for it exists; `?nobundle` shows the editor with no drawing data, to see the failure state.
     // (A script, not a fetch: the app's policy lets the page connect only to Supabase.)
+    // ?bars serves a REAL engine bar-race scene (first 2 seconds); ?stream serves the synthetic map as a STREAM (a head, then one chunk per period): every 150 ms, or by hand with ?streamstep
+    // (window.ryagramMockStreamStep() lets the next chunk through; ?streamfail breaks the stream after the first chunk).
     if (!/[?&]standin/.test(location.search || '')) window.ryagramMockLookBundle = () => (/[?&]nobundle/.test(location.search || '') ? Promise.reject(new Error('no bundle')) : new Promise((resolve, reject) => {
-      const banded = /[?&]banded/.test(location.search || ''), key = banded ? 'RYAGRAM_MOCK_LOOK_BUNDLE_BANDED' : 'RYAGRAM_MOCK_LOOK_BUNDLE';           // ?banded serves the solid-band fixture
-      if (window[key]) { resolve(window[key]); return; }
+      const q = location.search || '', banded = /[?&]banded/.test(q), bars = /[?&]bars/.test(q), streamed = /[?&]stream(?![a-z])/.test(q);
+      const file = bars ? 'look-bars-scene' : streamed ? 'look-bundle-synthetic-stream' : `look-bundle-synthetic${banded ? '-banded' : ''}`;
+      const key = bars ? 'RYAGRAM_MOCK_LOOK_BARS' : streamed ? 'RYAGRAM_MOCK_LOOK_STREAM' : banded ? 'RYAGRAM_MOCK_LOOK_BUNDLE_BANDED' : 'RYAGRAM_MOCK_LOOK_BUNDLE';           // ?banded serves the solid-band fixture
+      const done = () => {
+        if (!streamed) { resolve(window[key]); return; }
+        const s = window[key], order = s.head.period_list.slice(); let i = 0, gate = Promise.resolve();
+        const waiting = [];
+        window.ryagramMockStreamStep = () => { const w = waiting.shift(); if (w) w(); };
+        resolve({ stream: { head: s.head, next: async () => {
+          if (i >= order.length) return null;
+          if (/[?&]streamfail/.test(q) && i >= 1) throw new Error('stream broke');
+          if (/[?&]streamstep/.test(q)) await new Promise(r => waiting.push(r)); else await new Promise(r => setTimeout(r, 150));
+          const p = order[i++]; return { period: p, chunk: s.periods[p] };
+        } } });
+      };
+      if (window[key]) { done(); return; }
       const sc = document.createElement('script');
-      sc.src = `/tests/fixtures/look-bundle-synthetic${banded ? '-banded' : ''}.js?t=${Date.now()}`;
-      sc.onload = () => resolve(window[key]);
+      sc.src = `/tests/fixtures/${file}.js?t=${Date.now()}`;
+      sc.onload = done;
       sc.onerror = () => reject(new Error('no bundle'));
       document.body.append(sc);
     }));
