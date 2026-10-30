@@ -7,7 +7,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
-import { toolList } from '../supabase/functions/connect-core/mcp.ts';
+import { INSTRUCTIONS, toolList } from '../supabase/functions/connect-core/mcp.ts';
 import { build, TEMPLATES } from '../supabase/functions/_shared/templates.ts';
 
 const compile = makeCompile(Ajv2020);
@@ -107,4 +107,8 @@ test('the answer holds no internal ids or timestamps beyond what the next call n
   const r = await call(A, 'get_cost_estimate', { project_id: id, step: 'preview' });
   assert.deepEqual(Object.keys(r.data).sort(), ['available', 'connection_can_start', 'credits', 'credits_used', 'enough', 'free', 'free_preview', 'left_after', 'needs_contact_sheet_first', 'started', 'step']);
   assert.ok(!JSON.stringify(r).includes(id));
+});
+
+test('the server instructions tell an AI to ask for the cost before suggesting a preview or the final render', () => {
+  assert.match(INSTRUCTIONS, /get_cost_estimate\(project_id, step\)/); assert.match(INSTRUCTIONS, /only start free steps/);
 });
