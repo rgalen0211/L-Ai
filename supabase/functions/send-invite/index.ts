@@ -39,4 +39,13 @@ serve((req) => handle(req, {
     if (error) throw new Error(error.message);
   },
   async send(m) { await sender.send(m); return { mode: sender.mode }; },
+  // NEXT-CONNECT 162: OFF until INVITE_APP_LINK=1 (and the migration 20261030000100_invite_app_links.sql is applied, and the app-link function is deployed with APP_LINK_ON=1)
+  appLink: {
+    enabled: () => Deno.env.get("INVITE_APP_LINK") === "1",
+    async make(jwt, code) {
+      const { data, error } = await asCaller(jwt).rpc("admin_invite_app_link_make", { p_code: code });
+      if (error) throw new Error(error.message);
+      return data as { token: string; expires_at: string };
+    },
+  },
 }));
