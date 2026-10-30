@@ -96,6 +96,7 @@ class Settings:
     who: str
     memory_bytes: int
     problems: list = field(default_factory=list)
+    allow_c_inside_app: bool = False          # NEXT-CONNECT 171: off unless the settings say so (a tester build made with Ryan's word): the app's OWN folder may then be on C:
 
 
 def read_settings(path) -> Settings:
@@ -114,7 +115,7 @@ def read_settings(path) -> Settings:
             cache_dir=Path(eng["env"]["RYAGRAM_CACHE_DIR"]) if (eng.get("env") or {}).get("RYAGRAM_CACHE_DIR") else None,
             datasets=tuple(raw["datasets"]["allow"]), gpu_lock=Path(node["gpu_lock"]) if node.get("gpu_lock") else None,
             house_jobs=Path(node["house_jobs"]) if node.get("house_jobs") else None,
-            gpu_lock_dir=Path(node["gpu_lock_dir"]) if node.get("gpu_lock_dir") else None, no_house_worker=node.get("no_house_worker") is True, who=str(node.get("who") or "MAKER")[:40], memory_bytes=int(raw.get("memory_bytes", 8 << 30)))
+            gpu_lock_dir=Path(node["gpu_lock_dir"]) if node.get("gpu_lock_dir") else None, no_house_worker=node.get("no_house_worker") is True, allow_c_inside_app=(node.get("allow_c_inside_app") is True), who=str(node.get("who") or "MAKER")[:40], memory_bytes=int(raw.get("memory_bytes", 8 << 30)))
     except (KeyError, TypeError, ValueError, IndexError):
         raise ValueError("The settings file for making site films on this computer is incomplete.") from None
 
@@ -137,6 +138,20 @@ def _ram_bytes() -> int | None:
 NO_HOUSE_FOLDER = "house-jobs-none"
 
 
+def _inside(path, base) -> bool:
+    try:
+        Path(os.path.abspath(str(path))).relative_to(Path(os.path.abspath(str(base))))
+        return True
+    except ValueError:
+        return False
+
+
+def c_blocked(path, s: Settings) -> bool:
+    """Ryan's rule (nothing heavy or temporary on C:) as it applies to `path`. With allow_c_inside_app (OFF unless the settings say so, which only a tester build made with his word does) a path on C: is
+    allowed when it is inside the app's OWN folder, so a tester who has only C: can run the app they unzipped; anything else on C: is still refused."""
+    return on_c(path) and not (s.allow_c_inside_app and _inside(path, s.engine_dir))
+
+
 def effective_house_jobs(s: Settings, work_root) -> Path | None:
     """The folder the house-worker busy check reads. A computer that has no house worker (a tester's own PC) says so in its settings (`no_house_worker = true`) and gets an EMPTY folder inside
     its own work folder, which reads as 'idle'. An explicit `house_jobs` always wins; without either there is NO folder and the renderer stays off (a paid film could be made at the same time)."""
@@ -150,9 +165,9 @@ def effective_house_jobs(s: Settings, work_root) -> Path | None:
 def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> list[str]:
     """Plain-words reasons this computer cannot make site films yet. Empty = ready."""
     out = []
-    if on_c(s.root):
+    if c_blocked(s.root, s):
         out.append("The settings put the worker's folder on C:. Site films are made on another drive.")
-    if on_c(work_root):
+    if c_blocked(work_root, s):
         out.append("The maker's work folder is on C:. Start it with a work folder on another drive.")
     if not (s.engine_dir / "ryagram" / "worker" / "engine.py").is_file():
         out.append("The full Ryagram folder (the one the house renders with) was not found at the place the settings name.")
@@ -173,12 +188,12 @@ def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> li
         out.append("The settings do not say where the house worker's films are made, so a paid film could be made at the same moment as this one.")
     else:
         try:
-            if s.house_jobs is None and not on_c(work_root):
+            if s.house_jobs is None and not c_blocked(work_root, s):
                 hj.mkdir(parents=True, exist_ok=True)             # the empty folder of a computer with no house worker: inside our own work folder only
             list(hj.iterdir())
         except OSError:
             out.append("The house worker's films folder could not be looked at, so a paid film could be made at the same moment as this one.")
-    if s.gpu_lock_dir is not None and on_c(s.gpu_lock_dir):
+    if s.gpu_lock_dir is not None and c_blocked(s.gpu_lock_dir, s):
         out.append("The settings put the graphics-card lock folder on C:. Site films are made on another drive.")
     if not s.datasets:
         out.append("The settings do not list which datasets a film may use.")
@@ -238,7 +253,7 @@ class NodeRenderer:
         if self.problems:
             raise RenderFailed("not_ready")
         work = Path(work)
-        if on_c(work):
+        if c_blocked(work, self.s):
             raise RenderFailed("work_on_c")
         work.mkdir(parents=True, exist_ok=True)
         tmp = work / "tmp-node"

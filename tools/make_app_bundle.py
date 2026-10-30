@@ -182,12 +182,14 @@ SIGNIN_SITE_SHAPE = re.compile(r"^https://[a-z0-9]{20}[.]supabase[.]co/functions
 SIGNIN_HOST_SHAPE = re.compile(r"^(?=.{4,100}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?([.][a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 
 
-def check_signin(site: str, approval_hosts, node_auto: bool = False) -> str:
+def check_signin(site: str, approval_hosts, node_auto: bool = False, node_allow_c: bool = False) -> str:
     """The text the start file adds to the app line, or "" when no sign-in is asked for."""
     site = (site or "").strip()
     hosts = [h.strip() for h in (approval_hosts or []) if h and h.strip()]
     if node_auto and not site:
         raise Refused("--node-auto needs --signin-site (a computer makes its own site films only for a signed-in person).")
+    if node_allow_c and not node_auto:
+        raise Refused("--node-allow-c needs --node-auto (and Ryan's word: it lets the app's own folder be on C:).")
     if not site and not hosts:
         return ""
     if not site:
@@ -199,7 +201,7 @@ def check_signin(site: str, approval_hosts, node_auto: bool = False) -> str:
     for h in hosts:
         if not SIGNIN_HOST_SHAPE.fullmatch(h):
             raise Refused(f"--signin-approval-host must be a plain lower-case host name like uselai.com; got {h!r}.")
-    return f'--site "{site}" ' + " ".join(f"--approval-host {h}" for h in hosts) + (" --node-auto" if node_auto else "")
+    return f'--site "{site}" ' + " ".join(f"--approval-host {h}" for h in hosts) + (" --node-auto" if node_auto else "") + (" --node-allow-c" if node_allow_c else "")
 
 
 # NEXT-CONNECT 164 (tester candidate): the engine's NODE-JOB closure (ENGINE 44: tools/export_render_kit.py --node-job) is the few house-worker modules the render job on a person's own PC imports (config, contract, engine,
@@ -371,7 +373,7 @@ def build(a) -> dict:
     if face_model:
         check_face_model(face_model)
     maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
-    signin = check_signin(getattr(a, "signin_site", "") or "", getattr(a, "signin_approval_host", None) or [], bool(getattr(a, "node_auto", False)))
+    signin = check_signin(getattr(a, "signin_site", "") or "", getattr(a, "signin_approval_host", None) or [], bool(getattr(a, "node_auto", False)), bool(getattr(a, "node_allow_c", False)))
     node_kit = Path(a.node_job_kit) if getattr(a, "node_job_kit", "") else None
     node_add = check_node_job_kit(node_kit, kit) if node_kit else []
     if not a.allow_any_drive and not re.match(r"^[dD]:", str(out.resolve())):
@@ -502,6 +504,7 @@ def main(argv=None) -> int:
     ap.add_argument("--signin-site", default="", help="tester builds: the Ryagram node address (https://<project>.supabase.co/functions/v1/node) the start file passes as --site, so the app shows its Sign in card; off unless given")
     ap.add_argument("--signin-approval-host", action="append", default=[], help="with --signin-site: the host the site sends the person to for approving this computer (repeat for more), for example uselai.com")
     ap.add_argument("--node-auto", action="store_true", help="tester builds, needs --signin-site: the start file passes --node-auto, so the app writes its own site-film settings at first start (tools/node_settings.py) and a signed-in PC that is ready can make its own films; off unless given")
+    ap.add_argument("--node-allow-c", action="store_true", help="with --node-auto, ONLY with Ryan's word: a tester who has just a C: drive may run the app from there (the app's own folder only; everything else on C: stays refused); off unless given")
     ap.add_argument("--node-job-kit", default="", help="the engine's node-job closure folder (python tools/export_render_kit.py --node-job --out <folder>): its ryagram/worker modules are merged into the bundle; anything else in it is refused")
     ap.add_argument("--allow-any-drive", action="store_true", help="tests only")
     a = ap.parse_args(argv)
