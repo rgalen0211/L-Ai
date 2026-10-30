@@ -147,9 +147,9 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261028a/);
-  assert.match(html, /app-data\.js\?v=20261027d/);
-  assert.match(html, /app-library\.js\?v=20261030a/);
+  assert.match(html, /app-departments\.js\?v=20261030a/);
+  assert.match(html, /app-data\.js\?v=20261030b/);
+  assert.match(html, /app-library\.js\?v=20261030d/);
 });
 
 test('THE MOCK MIRRORS THE PROPOSED SERVER: five departments (one works), interest once per person per department, an unannounced id refused, withdraw removes it', async () => {

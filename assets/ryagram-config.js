@@ -61,6 +61,8 @@ window.ryagramConfig = Object.freeze({
   // The guided builder (#/build): pick data, measure, years, film type, look and title, read the source and licence, get a free contact sheet. Turn on only once the guided-builder
   // function is deployed (supabase/README.md, "Guided builder"). Datasets are listed to signed-in, invited people only (RULINGS 2026-10-17); catalog and catalogComingSoon below stay off.
   guidedBuilder: true,
+  // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
+  myFilms: false,
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
   lookEditor: true,
   // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once
