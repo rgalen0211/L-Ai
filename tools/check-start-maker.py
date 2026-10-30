@@ -76,7 +76,7 @@ def main():
         print(('  ok   ' if cond else '  FAIL ') + what)
         ok = ok and bool(cond)
     try:
-        shutil.copytree(ENGINE / 'ryagram', folder / 'ryagram', ignore=shutil.ignore_patterns('__pycache__', 'globe3d', 'maprace', 'trends'))
+        shutil.copytree(ENGINE / 'ryagram', folder / 'ryagram', ignore=shutil.ignore_patterns('__pycache__', 'globe3d', 'trends'))
         (folder / 'recipes').mkdir()
         sam = Path('D:/Ryagram-scratch/ENGINE/Ryagram-ranges/recipes/sam-first.json')
         (folder / 'recipes' / 'sam-first.json').write_bytes(sam.read_bytes() if sam.is_file() else json.dumps({}).encode())
