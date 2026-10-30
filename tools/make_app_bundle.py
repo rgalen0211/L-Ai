@@ -38,6 +38,8 @@ FORBIDDEN_MODEL_WORDS = ("sface", "blaze", "landmark", "arcface", "facenet", "re
 RUNTIME_TOOLS = ("desktop_maker.py", "maker_edit.py", "maker_live.py", "maker_live_sync.py", "maker_song.py", "ryagram_signin.py", "ryagram_node.py", "ryagram_links.py", "ryagram_requests.py", "maker_fetch.py", "verify_bundle.py", "model_download.py")
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("maker_checklist.py",)                    # NEXT-CONNECT 171: desktop_maker and ryagram_requests import it (Q331); without it the packaged app stops at start
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_platform.py",)                   # NEXT-CONNECT 166: the few Windows / macOS / Linux differences; desktop_maker and the site-film renderer import it
+RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_node_render.py", "ryagram_node_job.py", "gpu_lock.py")      # NEXT-RENDERER 44: the site-film renderer, its child step and the GPU lock tool a tester PC needs
+RUNTIME_TOOLS = RUNTIME_TOOLS + ("node_settings.py",)                         # NEXT-CONNECT 171: the app writes its own site-film settings at first start
 RUNTIME_PAGE_DIRS = ("maker-edit", "maker-live", "maker-song")          # the edit and song pages (html, js, css); a test fixture beside them is left out
 FORBIDDEN_NAMES ={"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}
 FORBIDDEN_DIRS = {".git", "node_modules", "RYAN-ONLY", "faces", "my-answers"}
@@ -181,10 +183,14 @@ SIGNIN_SITE_SHAPE = re.compile(r"^https://[a-z0-9]{20}[.]supabase[.]co/functions
 SIGNIN_HOST_SHAPE = re.compile(r"^(?=.{4,100}$)[a-z0-9]([a-z0-9-]*[a-z0-9])?([.][a-z0-9]([a-z0-9-]*[a-z0-9])?)+$")
 
 
-def check_signin(site: str, approval_hosts) -> str:
+def check_signin(site: str, approval_hosts, node_auto: bool = False, node_allow_c: bool = False) -> str:
     """The text the start file adds to the app line, or "" when no sign-in is asked for."""
     site = (site or "").strip()
     hosts = [h.strip() for h in (approval_hosts or []) if h and h.strip()]
+    if node_auto and not site:
+        raise Refused("--node-auto needs --signin-site (a computer makes its own site films only for a signed-in person).")
+    if node_allow_c and not node_auto:
+        raise Refused("--node-allow-c needs --node-auto (and Ryan's word: it lets the app's own folder be on C:).")
     if not site and not hosts:
         return ""
     if not site:
@@ -196,7 +202,55 @@ def check_signin(site: str, approval_hosts) -> str:
     for h in hosts:
         if not SIGNIN_HOST_SHAPE.fullmatch(h):
             raise Refused(f"--signin-approval-host must be a plain lower-case host name like uselai.com; got {h!r}.")
-    return f'--site "{site}" ' + " ".join(f"--approval-host {h}" for h in hosts)
+    return f'--site "{site}" ' + " ".join(f"--approval-host {h}" for h in hosts) + (" --node-auto" if node_auto else "") + (" --node-allow-c" if node_allow_c else "")
+
+
+# NEXT-CONNECT 164 (tester candidate): the engine's NODE-JOB closure (ENGINE 44: tools/export_render_kit.py --node-job) is the few house-worker modules the render job on a person's own PC imports (config, contract, engine,
+# runner, schema, and restricted, which runner reads lazily). The normal kit carries none of ryagram/worker. --node-job-kit merges that closure into the bundle, and ONLY that: every file is checked against the
+# closure's own MANIFEST.sha256, nothing outside ryagram/ may ride along, a file also in the kit must be identical, and a house-worker module that is not on the list (queue, uploads, safesheet, liveness,
+# progress, worker) is refused by name.
+NODE_JOB_SEQUENCE_FILE = re.compile(r"[A-Za-z0-9_]+[.]py")                       # the render driver the node job starts (python -m ryagram.sequence): the kit has its core, the closure adds the few modules the job runner reaches
+NODE_JOB_WORKER_FILES = ("__init__.py", "config.py", "contract.py", "engine.py", "runner.py", "schema.py", "restricted.py")
+
+
+def check_node_job_kit(node_kit: Path, kit: Path) -> list:
+    """The files (relative paths under the kit folder) to add to the bundle's ryagram folder, or a Refused."""
+    mf = node_kit / "MANIFEST.sha256"
+    if not mf.is_file():
+        raise Refused(f"--node-job-kit {node_kit} has no MANIFEST.sha256 (it should be made by tools/export_render_kit.py --node-job).")
+    listed = {}
+    for line in mf.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        m = re.fullmatch(r"([0-9a-f]{64})  (.+)", line)
+        if not m:
+            raise Refused(f"--node-job-kit: a line of MANIFEST.sha256 is not 'sha256  path': {line[:80]!r}")
+        listed[m.group(2)] = m.group(1)
+    on_disk = {p.relative_to(node_kit).as_posix() for p in node_kit.rglob("*") if p.is_file() and "__pycache__" not in p.parts and p.name != "MANIFEST.sha256"}
+    if on_disk != set(listed):
+        raise Refused("--node-job-kit: the files in the folder are not the files in its MANIFEST.sha256 (extra: " + ", ".join(sorted(on_disk - set(listed))[:5]) + "; missing: " + ", ".join(sorted(set(listed) - on_disk)[:5]) + ").")
+    add = []
+    for rel, want in sorted(listed.items()):
+        parts = rel.split("/")
+        if parts[0] != "ryagram" or ".." in parts or rel.startswith("/") or ":" in rel:
+            raise Refused(f"--node-job-kit: {rel} is outside the ryagram folder.")
+        if sha256_file(node_kit / rel) != want:
+            raise Refused(f"--node-job-kit: {rel} is not the file its MANIFEST.sha256 names.")
+        twin = kit / rel
+        if twin.is_file():                                          # already in the app: it must be the same file
+            if sha256_file(twin) != want:
+                raise Refused(f"--node-job-kit: {rel} is also in the kit with other content (the two were cut from different engine heads).")
+        elif parts[:2] == ["ryagram", "worker"]:                    # a NEW house-worker module: only the five the film job reads
+            if len(parts) != 3 or parts[2] not in NODE_JOB_WORKER_FILES:
+                raise Refused(f"--node-job-kit: {rel} is a house-worker module the film job on a person's own PC must not carry (only {', '.join(NODE_JOB_WORKER_FILES)}).")
+            add.append(rel)
+        elif parts[:2] == ["ryagram", "sequence"] and len(parts) == 3 and NODE_JOB_SEQUENCE_FILE.fullmatch(parts[2]):
+            add.append(rel)
+        else:
+            raise Refused(f"--node-job-kit: {rel} is not in the kit and is not a node-job module; only ryagram/worker files and the engine's own ryagram/sequence modules may be added.")
+    if not any(r == "ryagram/worker/config.py" for r in listed):
+        raise Refused("--node-job-kit has no ryagram/worker/config.py (the settings reader the film job needs).")
+    return add
 
 
 WORD_BUILDER_BAT = "Get word builder.bat"            # --word-builder (NEXT-CONNECT 136, one zip): the add-on's start file at the root; its script travels inside tools\
@@ -320,7 +374,9 @@ def build(a) -> dict:
     if face_model:
         check_face_model(face_model)
     maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
-    signin = check_signin(getattr(a, "signin_site", "") or "", getattr(a, "signin_approval_host", None) or [])
+    signin = check_signin(getattr(a, "signin_site", "") or "", getattr(a, "signin_approval_host", None) or [], bool(getattr(a, "node_auto", False)), bool(getattr(a, "node_allow_c", False)))
+    node_kit = Path(a.node_job_kit) if getattr(a, "node_job_kit", "") else None
+    node_add = check_node_job_kit(node_kit, kit) if node_kit else []
     if not a.allow_any_drive and not re.match(r"^[dD]:", str(out.resolve())):
         raise Refused(f"--out must be on D: (the storage rule), not {out}.")
     if out.exists() and any(out.iterdir()):
@@ -361,6 +417,9 @@ def build(a) -> dict:
         for e in ("ffmpeg.exe", "ffprobe.exe"):
             shutil.copy2(ffd / e, out / "ffmpeg" / e)
         shutil.copytree(kit / "ryagram", out / "ryagram", ignore=shutil.ignore_patterns("__pycache__", "*.pyc"))
+        for rel in node_add:
+            (out / rel).parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(node_kit / rel, out / rel)
         shutil.copytree(kit / "recipes", out / "recipes", ignore=shutil.ignore_patterns("__pycache__"))
         if (kit / "docs").is_dir():
             shutil.copytree(kit / "docs", out / "docs")
@@ -445,6 +504,9 @@ def main(argv=None) -> int:
     ap.add_argument("--maker-extra", default="", help="page switches the start file turns on unless the tester sets MAKER_EXTRA himself; only --song --song-forge --edit are allowed (for example \"--song --song-forge\")")
     ap.add_argument("--signin-site", default="", help="tester builds: the Ryagram node address (https://<project>.supabase.co/functions/v1/node) the start file passes as --site, so the app shows its Sign in card; off unless given")
     ap.add_argument("--signin-approval-host", action="append", default=[], help="with --signin-site: the host the site sends the person to for approving this computer (repeat for more), for example uselai.com")
+    ap.add_argument("--node-auto", action="store_true", help="tester builds, needs --signin-site: the start file passes --node-auto, so the app writes its own site-film settings at first start (tools/node_settings.py) and a signed-in PC that is ready can make its own films; off unless given")
+    ap.add_argument("--node-allow-c", action="store_true", help="with --node-auto, ONLY with Ryan's word: a tester who has just a C: drive may run the app from there (the app's own folder only; everything else on C: stays refused); off unless given")
+    ap.add_argument("--node-job-kit", default="", help="the engine's node-job closure folder (python tools/export_render_kit.py --node-job --out <folder>): its ryagram/worker modules are merged into the bundle; anything else in it is refused")
     ap.add_argument("--allow-any-drive", action="store_true", help="tests only")
     a = ap.parse_args(argv)
     try:
