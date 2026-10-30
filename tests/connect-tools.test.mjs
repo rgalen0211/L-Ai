@@ -312,7 +312,7 @@ test('MCP: initialize, notifications, ping, tools/list, tools/call', async () =>
   assert.equal((await post({ jsonrpc: '2.0', method: 'notifications/initialized' })).status, 202);
   assert.deepEqual((await (await post({ jsonrpc: '2.0', id: 2, method: 'ping' })).json()).result, {});
   const list = await (await post({ jsonrpc: '2.0', id: 3, method: 'tools/list' })).json();
-  assert.equal(list.result.tools.length, TOOLS.length - 1);                                  // request_full_render is not listed: it can only refuse
+  assert.equal(list.result.tools.length, TOOLS.filter((t) => t.listed !== false).length);           // request_full_render and request_footage are not listed: one can only refuse, the other is switched off
   assert.ok(!list.result.tools.some((x) => x.name === 'request_full_render'));
   const t = list.result.tools.find((x) => x.name === 'list_projects');
   assert.equal(t.annotations.readOnlyHint, true); assert.ok(t.inputSchema);

@@ -710,6 +710,40 @@ const requestDownload: ToolDef = {
   },
 };
 
+// NEXT-CONNECT 168 (slice P1a): an AI may PROPOSE one public-domain video from NASA or the U.S. National Archives. Like a download plan it is DATA only: a source, an item id and a reason, never an address.
+// The desktop app builds every address itself from fixed templates (tools/footage_sources.py), reads the source's OWN rights record, shows it, and the person presses Approve. The tool is UNLISTED and the real
+// function wires no `footage` dependency, so today it refuses and writes nothing: the switch is OFF and the go/no-go is Ryan's (the attorney's questions come first, proposals/CONNECT-FOOTAGE-PD-DESIGN.md).
+const FOOTAGE_ID = { nasa: /^[A-Za-z0-9][A-Za-z0-9_.~-]{2,99}$/, nara: /^[0-9]{3,12}$/ } as const;
+const requestFootage: ToolDef = {
+  name: "request_footage", title: "Ask for public-domain footage", scope: "fetch_data", readOnly: false, idempotent: false, listed: false,
+  description: "Writes down a plan to fetch ONE public-domain video from NASA or the U.S. National Archives onto the person's OWN computer. It is DATA only: the source, the item's id there, and a short reason; never an address. " +
+    "Nothing is downloaded by Ryagram and you never receive the video: the person opens the Ryagram desktop app, sees the source's own rights wording, the credit line and the size, and presses Approve themselves. They can say no. " +
+    "Ryagram cannot confirm an item's rights; an item whose record does not say it can be reused is refused there.",
+  inputSchema: obj({
+    source: { type: "string", enum: ["nasa", "nara"], description: "nasa = NASA Image and Video Library; nara = U.S. National Archives catalog." },
+    item_id: { type: "string", minLength: 3, maxLength: 100, pattern: "^[A-Za-z0-9][A-Za-z0-9_.~-]{2,99}$", description: "The item's id at that source (a NASA id, or the Archives' numeric NAID)." },
+    why: { type: "string", minLength: 1, maxLength: 300, description: "One sentence for the person: what this footage is for. Plain words, no addresses." },
+  }, ["source", "item_id", "why"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.footage;
+    if (!sw || !(await sw.enabled())) {
+      return refuse("Fetching public-domain footage is not available yet. Nothing was written down. The person can download a film themselves and point Ryagram at the folder.", "not_available", { data: { ok: false, written: false } });
+    }
+    const source = String(a.source) as "nasa" | "nara";
+    const itemId = String(a.item_id);
+    if (!FOOTAGE_ID[source]?.test(itemId)) return refuse(`That is not a ${source === "nasa" ? "NASA" : "National Archives"} item id. Nothing was written.`, "args");
+    const why = cleanText(a.why, 300);
+    if (!why) return refuse("Give a short reason for the person to read. Nothing was written.", "args");
+    if (/https?:\/\/|www\.|[A-Za-z]:[\\/]/i.test(why)) return refuse("The reason may not hold an address or a folder. Nothing was written.", "args");
+    if (!(await ctx.policy.hit(ctx.principal, "footage", LIMITS.footagePlansPerDayPerUser, 86400))) {
+      return refuse(`The limit of ${LIMITS.footagePlansPerDayPerUser} footage requests a day is reached. Nothing was written.`, "rate", { data: { ok: false, written: false, retry_after_seconds: 86400 } });
+    }
+    const r = await sw.request({ source, item_id: itemId, why });
+    return ok(`Written down. The person will see this request in their Ryagram desktop app, with the source's own rights wording, and decides there. Nothing is downloaded until they press Approve, and you never receive the video.`,
+      { id: r.id, state: r.state, written: true });
+  },
+};
+
 const listDownloads: ToolDef = {
   name: "list_my_downloads", title: "See my download requests", scope: "read", readOnly: true,
   description: "Lists the download plans written for the person (newest first, at most 20): the website, the state (waiting for them, downloading, unpacking, done, refused, declined, cancelled) and, once finished, "
@@ -724,5 +758,5 @@ const listDownloads: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep];
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, requestFootage];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
