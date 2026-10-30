@@ -2,7 +2,7 @@
 
 Draft, 2026-10-30. **Submitting is Ryan's: nothing here is sent anywhere.** The words in the two listing files are drafts for Ryan (and the attorney for privacy and terms). The reasoning behind every item is in `proposals/CONNECT-DIRECTORY-LISTINGS.md` (the gap numbers G1 to G14 below are from it).
 
-Files in this folder: `tools.json` (the 19 tools with their hints and a written justification; generated from the live tool list), `anthropic-listing.json`, `openai-listing.json`.
+Files in this folder: `tools.json` (the 20 tools with their hints and a written justification; generated from the live tool list), `anthropic-listing.json`, `openai-listing.json`.
 Keep them honest: `node tools/connect-directory.mjs --check` (also run by `tests/directory-manifests.test.mjs`) fails when a tool is added, renamed, hidden or given another hint, or when a listing leaves the vendors' limits. After a connector change: `node tools/connect-directory.mjs --write`, then write the justification of any new tool.
 
 ## A. Before either portal (Ryan, in this order)
