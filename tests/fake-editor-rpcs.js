@@ -5,7 +5,7 @@
 //   ai.apply(project, mode, base, ops)  = what the person's connected AI does (connect_edit_ops);  app.post(project, { mirror, aiVisible, summary, applied }) = the desktop app (node_edit_post_summary)
 // Errors are { data: null, error: { code, message } } with the SQL's codes: PT409 stale, PT403 not shared / not mirrored, PT404 not found, 22023 refused, PT429 too fast.
 (function () {
-  const NAMES = { data: ['set_look', 'unset_look'], compilation: ['move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip'] };
+  const NAMES = { data: ['set_look', 'unset_look'], compilation: ['move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip', 'set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look'] };
   const defaultCheck = (mode, op) => (op && NAMES[mode] && NAMES[mode].includes(op.op) ? null : '"' + String(op && op.op).slice(0, 40) + '" is not a change this editor knows.');
   const fail = (code, message) => ({ data: null, error: { code, message } });
   const ok = data => ({ data, error: null });

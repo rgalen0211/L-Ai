@@ -87,7 +87,7 @@ try:
     out.mkdir()
     dm = maker(work, out)
 
-    check(plan(dm, "A") is True and texts(ME.load()["edit"]) == ["A"], "the first plan: the editor opens on its rough cut")
+    check(plan(dm, "A") is False and texts(ME.load()["edit"]) == ["A"], "MUST-FAIL (BUILDER 09:23): the first plan (nothing before it) is NOT a change, so the live draft is not started again before any edit; the editor still opens on its rough cut")
     committed = work / "edit" / "committed-edit.json"
     check(committed.is_file() and texts(json.loads(committed.read_text(encoding="utf-8"))) == ["A"], "the list the final film is checked against is seeded from it")
     d = ML.draft()

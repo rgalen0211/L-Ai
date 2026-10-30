@@ -32,6 +32,8 @@ const goodStory = () => { const t = TEMPLATES[0]; return build(t.id, t.datasets[
 const projectOf = async (call, p = A, title = 'Film') => (await call(p, 'create_project', { title })).data.project_id;
 const savedProject = async (call, p = A) => { const id = await projectOf(call, p); const r = await call(p, 'set_story', { project_id: id, story: goodStory() }); assert.equal(r.isError, undefined, r.text); return id; };
 const settle = async (call, p, jobId) => { for (let i = 0; i < 4; i++) await call(p, 'job_status', { job_id: jobId }); };
+/** A finished contact sheet of the saved story: a preview waits for one (PUNCH P3). */
+const sheetDone = async (call, id, p = A) => { const s = await call(p, 'make_contact_sheet', { project_id: id }); await settle(call, p, s.data.job_id); return s; };
 
 test('the template story passes the vendored worker schema and the extra checks', () => {
   assert.deepEqual(checkStory(goodStory(), compile(storySchema)), []);
@@ -63,9 +65,10 @@ test('happy path: project, story, sheet, preview, status, link', async () => {
   const id = await savedProject(call);
   const sheet = await call(A, 'make_contact_sheet', { project_id: id });
   assert.equal(sheet.data.started, true); assert.match(sheet.text, /free/i);
+  await settle(call, A, sheet.data.job_id);                                   // a preview waits for the finished sheet (PUNCH P3)
   const pv = await call(A, 'make_preview', { project_id: id });
   assert.equal(pv.data.started, true);
-  await settle(call, A, sheet.data.job_id); await settle(call, A, pv.data.job_id);
+  await settle(call, A, pv.data.job_id);
   const st = await call(A, 'job_status', { job_id: pv.data.job_id });
   assert.equal(st.data.state, 'complete');
   const links = await call(A, 'get_film_link', { project_id: id });
@@ -89,7 +92,7 @@ test('set_story: every failed check is listed in plain words and NOTHING is save
   const ren = bad.sequence.clips.find((c) => c.kind === 'render');
   ren.dataset = 'not_a_dataset'; ren.start = '2020'; ren.end = '2010';
   const r = await call(A, 'set_story', { project_id: id, story: bad });
-  assert.equal(r.isError, true); assert.equal(r.code, 'checks_failed');
+  assert.ok(!r.isError); assert.equal(r.refused, true); assert.equal(r.data.ok, false); assert.equal(r.data.saved, false); assert.equal(r.code, 'checks_failed');      // a RESULT, not a tool error (NEXT-CONNECT 157)
   assert.ok(r.failedChecks >= 3, r.text);
   assert.match(r.text, /NOT saved/);
   assert.match(r.text, /share the id/); assert.match(r.text, /not in the Ryagram catalog/); assert.match(r.text, /starts \(2020\) after it ends \(2010\)/);
@@ -101,7 +104,7 @@ test('set_story: schema failures read as sentences, not validator output', async
   const { call } = world();
   const id = await projectOf(call);
   const r = await call(A, 'set_story', { project_id: id, story: { schema: 2, engine: 'sequence', sequence: { clips: [] }, evil: true } });
-  assert.equal(r.isError, true);
+  assert.ok(!r.isError); assert.equal(r.refused, true);
   assert.doesNotMatch(r.text, /instancePath|must match|\/sequence/);
   assert.match(r.text, /1\. /);
 });
@@ -111,7 +114,7 @@ test('set_story: an oversize story is refused before any other check', async () 
   const id = await projectOf(call);
   const big = goodStory(); big.sequence.clips[0].headline = 'x'.repeat(LIMITS.maxStoryBytes);
   const r = await call(A, 'set_story', { project_id: id, story: big });
-  assert.equal(r.isError, true); assert.match(r.text, /limit is 256 KB/);
+  assert.ok(!r.isError); assert.equal(r.refused, true); assert.match(r.text, /limit is 256 KB/);
 });
 
 test('a finished version is never overwritten: the story goes to a new version', async () => {
@@ -178,15 +181,17 @@ test('rate limits: per client per minute, per user per hour for the render tools
 test('credits: "free" means free - a connection cannot spend, the cost is stated, nothing starts, and there is no confirm to send', async () => {
   const { call, w } = world();
   const id = await savedProject(call);
+  await sheetDone(call, id);                                   // the sheet is free; the question here is the preview's cost
   const u = w.users.get(A.userId);
+  const previews = () => u.jobs.filter((j) => j.job_type === 'preview').length;
   u.previewsUsed.set(u.projects[0].id, 3);                    // the free previews are used up: the next one would cost 5
   const ask = await call(A, 'make_preview', { project_id: id });
   assert.equal(ask.code, 'costs_credits'); assert.match(ask.text, /cost 5 credits/); assert.match(ask.text, /NOTHING was started/); assert.match(ask.text, /cannot spend credits/);
-  assert.equal(u.jobs.length, 0);
+  assert.equal(previews(), 0);
   for (const tool of ['make_preview', 'make_contact_sheet']) {                               // confirm=true is not an argument at all, so it cannot be used to push a cost through
     assert.equal((await call(A, tool, { project_id: id, confirm: true })).code, 'args', tool);
   }
-  assert.equal(u.jobs.length, 0); assert.equal(u.held, 0);
+  assert.equal(previews(), 0); assert.equal(u.jobs.length, 1); assert.equal(u.held, 0);   // only the finished sheet
   assert.equal(TOOLS.find((t) => t.name === 'make_preview').inputSchema.properties.confirm, undefined);
 });
 
@@ -205,6 +210,7 @@ test('a sheet or preview is never queued twice for the same story', async () => 
 test('preview windows: at most 10 seconds, start before end', async () => {
   const { call } = world();
   const id = await savedProject(call);
+  await sheetDone(call, id);
   assert.equal((await call(A, 'make_preview', { project_id: id, start_seconds: 0, end_seconds: 11 })).code, 'args');
   assert.equal((await call(A, 'make_preview', { project_id: id, start_seconds: 5, end_seconds: 5 })).isError, true);
   assert.equal((await call(A, 'make_preview', { project_id: id, start_seconds: 3, end_seconds: 12 })).isError, undefined);
@@ -234,7 +240,8 @@ test('full render: refused for every AI connection whatever the scope, the switc
   for (const args of [{ project_id: id, preview_job_id: pv, confirm: true }, { project_id: id, preview_job_id: pv }, { project_id: id, preview_job_id: pv, confirm: false },
                       { project_id: id, preview_job_id: id, confirm: true }, { project_id: '00000000-0000-4000-8000-0000000000ff' }]) {
     const r = await call(A, 'request_full_render', args);
-    assert.equal(r.isError, true, JSON.stringify(args)); assert.equal(r.code, 'not_available', JSON.stringify(args));
+    assert.ok(!r.isError, JSON.stringify(args)); assert.equal(r.refused, true, JSON.stringify(args)); assert.equal(r.code, 'not_available', JSON.stringify(args));
+    assert.equal(r.data.ok, false); assert.equal(r.data.allowed, false); assert.equal(r.data.started, false); assert.equal(r.data.credits_used, 0); assert.match(r.data.what_to_do, /Render final film/);
     assert.match(r.text, /Nothing was started and no credits were used/); assert.match(r.text, /Render final film/);
   }
   assert.equal(w.users.get(A.userId).jobs.filter((j) => j.job_type === 'final_render').length, 0);
@@ -411,4 +418,54 @@ test('the app opens no private realtime channel (a private channel is authorised
   }
   const channels = files.flatMap((f) => [...fs.readFileSync(f, 'utf8').matchAll(/\.channel\(([^)]*)\)/g)].map((m) => m[1]));
   assert.ok(channels.length >= 1 && channels.every((c) => /^`jobs:/.test(c.trim())), `the only channel is the per-film jobs channel (found ${channels.join(' | ')})`);
+});
+
+// PUNCH P3 (BUILDER 32): a preview waits for a FINISHED contact sheet of this exact saved story. The sheet runs the same
+// correctness checks, and a preview those checks stop still uses one of the free previews, so the AI must not skip it.
+test('MUST-FAIL: a preview with no contact sheet is refused in words, starts nothing and uses no free preview', async () => {
+  const { call, w } = world();
+  const id = await savedProject(call);
+  const u = w.users.get(A.userId);
+  const r = await call(A, 'make_preview', { project_id: id });
+  assert.equal(r.code, 'sheet_first'); assert.equal(r.isError, true); assert.equal(r.data.started, false);
+  assert.match(r.text, /make_contact_sheet/); assert.match(r.text, /NOTHING was started/);
+  assert.equal(u.jobs.length, 0); assert.equal(u.previewsUsed.get(u.projects[0].id) ?? 0, 0);
+});
+
+test('MUST-FAIL: a preview while the sheet is still running is refused and names the sheet job', async () => {
+  const { call, w } = world();
+  const id = await savedProject(call);
+  const sheet = await call(A, 'make_contact_sheet', { project_id: id });
+  const r = await call(A, 'make_preview', { project_id: id });                 // this look moves the sheet to running, not finished
+  assert.equal(r.code, 'sheet_running'); assert.equal(r.data.sheet_job_id, sheet.data.job_id); assert.equal(r.data.started, false);
+  assert.match(r.text, /job_status/);
+  assert.equal(w.users.get(A.userId).jobs.filter((j) => j.job_type === 'preview').length, 0);
+});
+
+test('MUST-FAIL: a preview after the sheet FAILED is refused: change the story and make a new sheet first', async () => {
+  const { call, w } = world();
+  const id = await savedProject(call);
+  const sheet = await call(A, 'make_contact_sheet', { project_id: id });
+  w.users.get(A.userId).jobs.find((j) => j.id === sheet.data.job_id).state = 'failed';
+  const r = await call(A, 'make_preview', { project_id: id });
+  assert.equal(r.code, 'sheet_failed'); assert.equal(r.data.started, false); assert.match(r.text, /set_story/);
+  assert.equal(w.users.get(A.userId).jobs.filter((j) => j.job_type === 'preview').length, 0);
+});
+
+test('MUST-FAIL: a finished sheet of an EARLIER story does not count once the story changed', async () => {
+  const { call } = world();
+  const id = await savedProject(call);
+  await sheetDone(call, id);
+  const t = TEMPLATES[0];
+  assert.equal((await call(A, 'set_story', { project_id: id, story: build(t.id, t.datasets[0], 'A different headline') })).isError, undefined);
+  assert.equal((await call(A, 'make_preview', { project_id: id })).code, 'sheet_first');
+});
+
+test('control: with a finished sheet of this story the preview starts', async () => {
+  const { call } = world();
+  const id = await savedProject(call);
+  await sheetDone(call, id);
+  const r = await call(A, 'make_preview', { project_id: id });
+  assert.equal(r.isError, undefined, r.text); assert.equal(r.data.started, true);
+  assert.match(TOOLS.find((x) => x.name === 'make_preview').description, /contact sheet of that same story is finished/);
 });

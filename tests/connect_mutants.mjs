@@ -15,7 +15,7 @@ const mutants = [
   ['no argument check', D + 'dispatch.ts', 'if (problems.length) return refused(`The call was not understood', 'if (false) return refused(`The call was not understood'],
   ['no per-client rate limit', D + 'dispatch.ts', 'if (!(await policy.hit(principal, "calls"', 'if (false && !(await policy.hit(principal, "calls"'],
   ['no render-ladder rate limit', D + 'dispatch.ts', 'if (tool.ladder && !(await policy.hit', 'if (false && !(await policy.hit'],
-  ['set_story saves despite failed checks', D + 'tools.ts', 'if (problems.length) {\n      return refuse(`The story was NOT saved', 'if (false) {\n      return refuse(`The story was NOT saved'],
+  ['set_story saves despite failed checks', D + 'tools.ts', 'if (!chk.ok) {\n      // A RESULT', 'if (false) {\n      // A RESULT'],
   ['a sheet or preview that costs credits is started', D + 'tools.ts', 'if (q.credits > 0) {\n    return refuse(`${label} would cost', 'if (false) {\n    return refuse(`${label} would cost'],
   ['a full render is started from a connection', D + 'tools.ts', '  async run() {\n    // No lookup, no flag, no ladder', "  async run() { return { text: 'ok' };\n    // No lookup, no flag, no ladder"],
   ['a second identical job is queued', D + 'tools.ts', 'if (running) return ok(`${label} for this story is already', 'if (false) return ok(`${label} for this story is already'],
@@ -44,6 +44,9 @@ const mutants = [
   ['set_story is not marked as replacing', D + 'tools.ts', 'title: "Save the story", scope: "write", readOnly: false, destructive: true,', 'title: "Save the story", scope: "write", readOnly: false,'],
   ['the project list shows a timestamp again', D + 'tools.ts', '{ projects: rows.map((p) => ({ id: p.id, title: p.title }))', '{ projects: rows.map((p) => ({ id: p.id, title: p.title, updated_at: p.updated_at }))'],
   ['a description orders the AI again', D + 'tools.ts', 'It needs no arguments and changes nothing.', 'Call it first.'],
+  ['a preview starts with no finished contact sheet (PUNCH P3)', D + 'tools.ts', 'if (jobType === "preview") {\n    const sheets', 'if (false) {\n    const sheets'],
+  ['a preview is not told the sheet is still running', D + 'tools.ts', '      if (live) {\n', '      if (false) {\n'],
+  ['a finished sheet of an EARLIER story counts for a preview', D + 'tools.ts', 'j.job_type === "contact_sheet" && j.story_sha256 === sha', 'j.job_type === "contact_sheet"'],
 ];
 
 let missed = 0;

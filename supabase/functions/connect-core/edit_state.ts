@@ -22,6 +22,8 @@ export const LOOK_KEYS: LookKey[] = [
 export const LIMITS_EDIT = Object.freeze({ opsPerCall: 20, opsPerMinute: 60, opsPerDay: 600, undoneWindowMs: 10 * 60 * 1000, maxDraftBytes: 256 * 1024 });
 
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
+const STYLES = ["title", "caption", "lower_third"];
+const FILM_LOOK = ["theme", "text_color", "box_color", "box_opacity", "letterbox"];
 const CTRL = /[\u0000-\u001f\u007f-\u009f]/;
 const BIDI = /[\u202a-\u202e\u2066-\u2069\u200e\u200f]/;
 const PLACE = /([A-Za-z]:[\\/]|\\\\|(^|\s)\/[A-Za-z]|\.\.[\\/]|[A-Za-z][A-Za-z0-9+.-]*:\/\/)/;
@@ -65,10 +67,12 @@ export function opProblem(mode: Mode, op: unknown): string | null {
   const ALLOWED: Record<string, string[]> = {
     move_clip: ["op", "id", "start"], trim_clip: ["op", "id", "edge", "to"], reorder_clip: ["op", "id", "index"], set_clip_text: ["op", "id", "text"], delete_clip: ["op", "id"],
     add_clip: ["op", "track", "start", "len", "text", "picture"],
+    set_clip_style: ["op", "id", "style"], set_music: ["op", "level_db", "fade_in_s", "fade_out_s", "source_start", "snap"],
+    set_rule: ["op", "id", "phrase", "picture", "seconds", "mode", "fade_s"], delete_rule: ["op", "id"], set_film_look: ["op", "key", "value"],
   };
   if (!ALLOWED[kind]) return `"${kind.slice(0, 40)}" is not a change this editor knows for a compilation.`;
   if (!known(ALLOWED[kind])) return "That change has a field the editor does not know.";
-  if (kind !== "add_clip" && !(typeof o.id === "string" && ID.test(o.id))) return 'This change needs a clip "id" from get_edit_state.';
+  if (["move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "set_clip_style"].includes(kind) && !(typeof o.id === "string" && ID.test(o.id))) return 'This change needs a clip "id" from get_edit_state.';
   for (const name of ["start", "to", "len"]) {
     if (name in o && !isNum(o[name])) return `"${name}" must be a number.`;
   }
@@ -95,6 +99,30 @@ export function opProblem(mode: Mode, op: unknown): string | null {
       if ("text" in o || !("picture" in o)) return 'A picture clip needs a "picture" name and no "text".';
       if (!(typeof o.picture === "string" && PICTURE.test(o.picture))) return "A picture is the NAME of one the person added in the app (png, jpg or webp), never a place.";
     }
+  } else if (kind === "set_clip_style") {
+    if (!(typeof o.style === "string" && STYLES.includes(o.style))) return "A text style must be title, caption or lower_third.";
+  } else if (kind === "set_music") {
+    if (Object.keys(o).length < 2) return "set_music needs at least one setting.";
+    const rng = (name: string, lo: number, hi: number, msg: string) => (name in o && !(isNum(o[name]) && (o[name] as number) >= lo && (o[name] as number) <= hi) ? msg : null);
+    const bad = rng("level_db", -30, 6, '"level_db" must be a number from -30 to 6.') ?? rng("fade_in_s", 0, 5, '"fade_in_s" must be a number from 0 to 5 seconds.') ?? rng("fade_out_s", 0, 5, '"fade_out_s" must be a number from 0 to 5 seconds.')
+      ?? rng("source_start", 0, 86400, '"source_start" must be a number from 0 to 86400 seconds.');
+    if (bad) return bad;
+    if ("snap" in o && typeof o.snap !== "boolean") return '"snap" must be true or false.';
+  } else if (kind === "set_rule") {
+    if ("id" in o && !(typeof o.id === "string" && ID.test(o.id))) return 'A rule "id" is letters, digits, - and _ (leave it out to add a new rule).';
+    if (!textOk(o.phrase, 60)) return "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup).";
+    if (!(typeof o.picture === "string" && /^[A-Za-z0-9_.-]{1,100}$/.test(o.picture))) return 'A rule needs the "picture" id from the editor state.';
+    if (!(isNum(o.seconds) && o.seconds >= 0.5 && o.seconds <= 10)) return '"seconds" must be a number from 0.5 to 10.';
+    if (!(typeof o.mode === "string" && ["full", "centre", "corner", "lower_third"].includes(o.mode))) return "A rule mode must be full, centre, corner or lower_third.";
+    if ("fade_s" in o && !(isNum(o.fade_s) && o.fade_s >= 0 && o.fade_s <= 1)) return '"fade_s" must be a number from 0 to 1 second.';
+  } else if (kind === "delete_rule") {
+    if (!(typeof o.id === "string" && ID.test(o.id))) return 'This change needs a rule "id" from get_edit_state.';
+  } else if (kind === "set_film_look") {
+    if (!(typeof o.key === "string" && FILM_LOOK.includes(o.key))) return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox).";
+    if (!("value" in o)) return 'A film look change needs a "value".';
+    if (o.key === "theme" && !(o.value === "dark" || o.value === "light")) return '"theme" can only be: dark, light.';
+    if (["text_color", "box_color", "letterbox"].includes(o.key) && !(typeof o.value === "string" && /^#[0-9A-Fa-f]{6}$/.test(o.value))) return `"${o.key}" needs a colour like #1a73e8.`;
+    if (o.key === "box_opacity" && !(isNum(o.value) && o.value >= 0 && o.value <= 1)) return '"box_opacity" must be a number from 0 to 1.';
   }
   return null;
 }

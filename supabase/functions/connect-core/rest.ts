@@ -22,7 +22,7 @@ export function openApi(baseUrl: string): Record<string, unknown> {
       security: [{ ryagramOAuth: [] }],
       requestBody: { required: true, content: { "application/json": { schema: t.inputSchema } } },
       responses: {
-        "200": { description: "The result. isError is true when Ryagram refused or could not do it; text says why.",
+        "200": { description: "The result. isError is true when Ryagram refused or could not do it; text says why. A story that failed its checks and a full render a connection cannot start are RESULTS instead (isError false, data.ok false) with structured data.errors / data.reason.",
                  content: { "application/json": { schema: { $ref: "#/components/schemas/ToolResult" } } } },
         "401": { description: "Sign in to Ryagram." }, "413": { description: "Too large." },
       } } };
