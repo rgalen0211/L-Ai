@@ -3,6 +3,7 @@
 // Only the keys the live worker accepts TODAY are ever saved (choropleth.low, choropleth.high, page.background, sequence.theme, state.outline_width); the drawer's other keys
 // (middle colour, metal finish, glow) are named in WAITING and are neither offered nor saved until the worker's schema takes them.
 (() => {
+  const isBanded = b => !!b && b.mode === 'banded';
   const hex2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
   const rgbHex = c => `#${hex2(c[0])}${hex2(c[1])}${hex2(c[2])}`;
   const hexRgb = h => { const m = /^#([0-9a-fA-F]{6})$/.exec(String(h)); return m ? [parseInt(m[1].slice(0, 2), 16), parseInt(m[1].slice(2, 4), 16), parseInt(m[1].slice(4, 6), 16)] : null; };
@@ -24,8 +25,10 @@
   ];
   // Plain-words cautions from RENDERER's legibility numbers (colour distance dE; under about 30 for the lowest colour against the page, or under about 20 between two
   // neighbouring steps of the ramp, is hard to tell apart on screen). Nothing here blocks a preset; the person sees the note and decides.
-  function cautions(p) {
+  function cautions(p, bundle) {
     const out = [];
+    // RENDERER's measurement on the engine's state map with solid bands (look-presets-new-types, 10-29): on a white page the bands are only about 11 colour steps apart.
+    if (isBanded(bundle) && p.id === 'white-background') out.push('On a white page the colour bands sit close together (about 11 colour steps apart), so differences are hard to see.');
     if (p.dE.lowVsPage < 30) out.push('The lowest colour is close to the page colour, so low areas can sink into the background.');
     if (p.dE.closestStep < 20) out.push('Neighbouring steps of the colour ramp are close, so small differences are hard to see.');
     return out;
@@ -45,9 +48,15 @@
     const probe = RL.lookFromStory(story({ 'choropleth.low': '#000001', 'choropleth.high': '#000002', 'page.background': '#000003', 'sequence.theme': 'light', 'state.outline_width': 1 }));
     return ROWS.filter(([k]) => !probe.ignored.includes(k));
   }
+  // A BANDED bundle (the engine's mode 'banded': solid colours with breaks, no ramp) ignores the low and high colours, so offering them would be a dishonest control; the rows are the page colour and the
+  // theme only, and band colours are shown, not edited, because the story's look block has no key for them yet (lookFromStory does not read one).
+  // The light theme exists only when the bundle carries one (the engine's banded map has none: one colour would map to two), so then neither the Theme row nor a preset's theme is offered.
+  const hasLight = b => { const t = b && b.templates && b.periods && b.templates[b.periods[0]]; return !!(t && t.themes && t.themes.light); };
+  function rowsFor(RL, bundle) { return honoured(RL).filter(([k]) => !(isBanded(bundle) && (k === 'choropleth.low' || k === 'choropleth.high')) && !(k === 'sequence.theme' && bundle && !hasLight(bundle))); }
+  function bandColours(bundle) { return isBanded(bundle) && Array.isArray(bundle.stops) ? bundle.stops.map(rgbHex) : []; }
   // The preset as ops against the look as it stands: every key the preset owns is set, and a key it does not set is removed, so a preset is a complete look and not a patch.
-  function presetOps(preset, current) {
-    const l = preset.look, want = { 'choropleth.low': l.low ? rgbHex(l.low) : null, 'choropleth.high': l.high ? rgbHex(l.high) : null, 'page.background': l.page ? rgbHex(l.page) : null, 'sequence.theme': l.theme || null };
+  function presetOps(preset, current, bundle) {
+    const l = preset.look, banded = isBanded(bundle), want = { 'choropleth.low': l.low && !banded ? rgbHex(l.low) : null, 'choropleth.high': l.high && !banded ? rgbHex(l.high) : null, 'page.background': l.page ? rgbHex(l.page) : null, 'sequence.theme': l.theme && (!bundle || hasLight(bundle)) ? l.theme : null };
     const ops = [];
     for (const [key, value] of Object.entries(want)) {
       if (value !== null) { if (current[key] !== value) ops.push({ op: 'set_look', key, value }); }
@@ -55,7 +64,7 @@
     }
     return ops;
   }
-  const presetOf = look => PRESETS.find(p => presetOps(p, look || {}).length === 0) || null;
+  const presetOf = (look, bundle) => PRESETS.find(p => presetOps(p, look || {}, bundle).length === 0) || null;
   // What the colour inputs show before the person has set anything: the bundle's own ramp ends (stops are [r,g,b]; the drawer's low is stop 0, its high stop 2).
   function defaults(bundle, look) {
     const s = (bundle && bundle.stops) || [], light = look && look['sequence.theme'] === 'light';
@@ -64,6 +73,7 @@
   // Under about 40 apart in RGB the two read as the same colour to most eyes; the page says so and still lets the person render.
   const near = (a, b) => { const x = hexRgb(a), y = hexRgb(b); return !!x && !!y && Math.hypot(x[0] - y[0], x[1] - y[1], x[2] - y[2]) < 40; };
   function warnings(bundle, look) {
+    if (isBanded(bundle)) return [];                                            // the low and high colours do not apply to a banded film
     const d = defaults(bundle, look), v = k => (look && look[k] !== undefined ? look[k] : d[k]), out = [];
     if (near(v('choropleth.low'), v('page.background'))) out.push('The lowest colour is nearly the page colour, so low areas will look empty.');
     if (near(v('choropleth.high'), v('page.background'))) out.push('The highest colour is nearly the page colour, so high areas will look empty.');
@@ -97,5 +107,5 @@
     if (!Array.isArray(b.periods) || !b.periods.length || !Array.isArray(b.canvas) || b.canvas.length !== 2 || !b.templates || !b.defs || !Number.isFinite(b.fps) || b.fps <= 0 || !Number.isFinite(b.frames_per_period) || b.frames_per_period < 1) return 'The film’s drawing data is incomplete.';
     return null;
   }
-  window.ryagramEditorData = { ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
+  window.ryagramEditorData = { ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, rowsFor, bandColours, isBanded, hasLight, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
 })();

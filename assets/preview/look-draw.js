@@ -89,6 +89,28 @@
     var u = (i + Math.min(Math.max(frac, 0.0), 1.0)) / count;
     return divergingColour(u, stops[0], stops[1], stops[2]);
   }
+  function fadeWindow(tCross, fadeSeconds, hold) {
+    var width = Math.min(1.0, Math.max(1e-6, fadeSeconds / Math.max(1e-6, hold)));
+    var lo = tCross - width / 2, hi = tCross + width / 2;
+    if (lo < 0.0) { lo = 0.0; hi = width; }
+    if (hi > 1.0) { lo = 1.0 - width; hi = 1.0; }
+    return [lo, hi];
+  }
+  // transitions.colour_plan: flat inside a band, a Lab blend across a break centred on the real crossing.
+  function bandedColour(a, b, t, edges, colours, abrupt, fadeSeconds, hold) {
+    var ba = indexFor(edges, a);
+    if (b === null || b === undefined || a === b) { return colours[ba].slice(); }
+    var bb = indexFor(edges, b);
+    if (ba === bb) { return colours[ba].slice(); }
+    var threshold = bb > ba ? edges[ba + 1] : edges[ba];
+    var denom = b - a;
+    var tc = denom ? (threshold - a) / denom : 0.5;
+    tc = Math.min(1.0, Math.max(0.0, tc));
+    var mix;
+    if (abrupt) { mix = t >= tc ? 1.0 : 0.0; }
+    else { var w = fadeWindow(tc, fadeSeconds, hold); mix = t <= w[0] ? 0.0 : (t >= w[1] ? 1.0 : (t - w[0]) / (w[1] - w[0])); }
+    return lerp(colours[ba], colours[bb], mix);
+  }
   function keyColour(k, edges, stops) {
     var count = edges.length - 1;
     var idx = (1 - (k + 0.5) / KEY_STEPS) * count;
@@ -177,6 +199,11 @@
   }
 
   function applyLook(bundle, look) {
+    if (bundle.mode === "banded") {
+      var bs = bundle.stops.map(function (c) { return [c[0], c[1], c[2]]; });
+      ((look && look.bands) || []).forEach(function (c, i) { bs[i] = [Math.trunc(c[0]), Math.trunc(c[1]), Math.trunc(c[2])]; });
+      return {stops: bs, anchors: [], metal: 0.0};
+    }
     var pal = (look && look.palette) || {};
     var stops = bundle.stops.map(function (s) { return [s[0], s[1], s[2]]; });
     ["low", "mid", "high"].forEach(function (k, i) {
@@ -195,6 +222,9 @@
     look = look || {};
     sub = sub || 0;
     var periods = bundle.periods, p = String(period), i = periods.indexOf(p);
+    if (bundle.loaded && i >= 0 && (!bundle.loaded[p] || (i + 1 < periods.length && !bundle.loaded[periods[i + 1]]))) {
+      return {elements: null, extra: {}, unsupported: "loading", loading: true};
+    }
     if (i < 0) { return {elements: null, extra: {}, unsupported: "period " + p + " is not in this bundle"}; }
     var nxt = i + 1 < periods.length ? periods[i + 1] : null;
     var t = bundle.t[sub];
@@ -220,7 +250,8 @@
         }
         var vb = b ? b[fips] : undefined;
         var v = (vb === undefined || vb === null) ? va : va + (vb - va) * t;
-        done[fips] = fillColour(v, edges, stops);
+        if (bundle.mode === "banded") { var tw = bundle.tween; done[fips] = bandedColour(va, vb === undefined ? null : vb, t, edges, stops, tw.abrupt, tw.fade_seconds, tw.hold); }
+        else { done[fips] = fillColour(v, edges, stops); }
         fillsKey.push([fips, done[fips]]);
       }
       var c = done[fips];
@@ -336,7 +367,50 @@
     return {look: look, ignored: ignored};
   }
 
-  var api = {draw: draw, drawAt: drawAt, drawFrame: drawAt, marks: marks, describe: describe, lookFromStory: lookFromStory, frameAt: frameAt, locate: locate, unpack: unpack, document: document_, fillColour: fillColour, keyColour: keyColour, metalGroups: metalGroups, nn: nn};
+  // STREAMING (look.pack_progressive): start from the head, add each period's chunk as it arrives; draw() says "loading" for a period whose chunk
+  // (or whose next period's values) is not here yet. fonts arrive last and are optional for a first frame.
+  function progressive(head) {
+    var b = {};
+    Object.keys(head).forEach(function (k) { b[k] = head[k]; });
+    b.periods = head.period_list; b.templates = {}; b.values = {}; b.loaded = {};
+    b.defs = {atlas: head.defs.atlas, extra: head.defs.extra, fonts_css: ""};
+    return b;
+  }
+  function addPeriod(b, p, chunk) {
+    var tb = b.table, t = chunk.template, pick = function (ids) { return ids.map(function (i) { return tb[i]; }); };
+    b.templates[p] = {head: pick(t.head), tail: pick(t.tail), fills: pick(t.fills), key: t.key ? [t.key[0], tb[t.key[1]]] : null, themes: t.themes};
+    b.values[p] = chunk.values; b.loaded[p] = true;
+  }
+
+  // THE BAR RACE (look.bars_apply): a copy of a bars-rules bundle with the look applied; look = {bar: [r,g,b], page: [r,g,b], theme: name}.
+  // scene.look_themes (look.bars_with_themes) holds the other themes' colour tables. Feed the result to scene-draw.js as before.
+  function rgbStr(c) { return "rgb(" + Math.trunc(c[0]) + "," + Math.trunc(c[1]) + "," + Math.trunc(c[2]) + ")"; }
+  function subStrings(o, fn) {
+    if (typeof o === "string") { return fn(o); }
+    if (Array.isArray(o)) { return o.map(function (x) { return subStrings(x, fn); }); }
+    if (o && typeof o === "object") { var r = {}; Object.keys(o).forEach(function (k) { r[k] = subStrings(o[k], fn); }); return r; }
+    return o;
+  }
+  function barsApply(scene, look) {
+    look = look || {};
+    var out = JSON.parse(JSON.stringify(scene)), sub = {}, themes = scene.look_themes || {};
+    if (look.theme !== undefined && look.theme !== null) {
+      if (!Object.prototype.hasOwnProperty.call(themes, look.theme)) { throw new Error("theme " + JSON.stringify(look.theme) + " is not in this bundle (have " + JSON.stringify(Object.keys(themes).sort()) + ")"); }
+      Object.keys(themes[look.theme]).forEach(function (k) { sub[k] = themes[look.theme][k]; });
+    }
+    if (look.page !== undefined && look.page !== null) { sub[rgbStr(scene.rules.page)] = rgbStr(look.page); }
+    var fn = function (t) { return t.replace(/rgb\(\d+,\d+,\d+\)/g, function (m) { return Object.prototype.hasOwnProperty.call(sub, m) ? sub[m] : m; }); };
+    out.static.chrome = fn(out.static.chrome); out.static.head = fn(out.static.head);
+    out.years = subStrings(out.years, fn);
+    ["ink", "ink2", "outline", "fill", "page"].forEach(function (k) {
+      var key = rgbStr(scene.rules[k]);
+      if (Object.prototype.hasOwnProperty.call(sub, key)) { out.rules[k] = (sub[key].match(/\d+/g) || []).map(Number).concat([255]); }
+    });
+    if (look.bar !== undefined && look.bar !== null) { out.rules.fill = [Math.trunc(look.bar[0]), Math.trunc(look.bar[1]), Math.trunc(look.bar[2]), 255]; }
+    return out;
+  }
+
+  var api = {draw: draw, barsApply: barsApply, progressive: progressive, addPeriod: addPeriod, drawAt: drawAt, drawFrame: drawAt, marks: marks, describe: describe, lookFromStory: lookFromStory, frameAt: frameAt, locate: locate, unpack: unpack, document: document_, fillColour: fillColour, keyColour: keyColour, metalGroups: metalGroups, nn: nn};
   if (typeof module !== "undefined" && module.exports) { module.exports = api; }
   root.RyagramLook = api;
 })(typeof window !== "undefined" ? window : globalThis);

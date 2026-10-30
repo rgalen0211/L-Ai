@@ -1,3 +1,3 @@
-ryagram/preview/look-draw.js from the engine (Ryagram branch live-look-engine-2 @ 6abc9f9 (same bytes as live-look-engine ba528c8, re-made under the house identity), NEXT-ENGINE 35; merged to Ryagram main since, same bytes (sha256 identical): re-pin only if the engine changes the file)
-sha256 a0449691a9d8fba80dbdd971489981d53769b3fdd45e9e58cef77db370470d8c
-19007 bytes, LF. Drawing only: no network, no DOM, no storage. Replace it by copying the engine's file and changing this pin in the same commit.
+ryagram/preview/look-draw.js from the engine (Ryagram main 48e141cb 'Live look for the bar race', which also holds the banded solid fill 1fc7a3c2 and the streamed bundle e7e5e8db; NEXT-ENGINE 35 to 37; replaces the 6abc9f9-era file a0449691...)
+sha256 54860ced8d41e4b94d4ccab44d173317ca9c4bc10fe771727533479cf9d0ddb4
+23845 bytes, LF. Drawing only: no network, no DOM, no storage. Replace it by copying the engine's file and changing this pin in the same commit.

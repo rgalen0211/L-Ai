@@ -67,3 +67,4 @@ input[type=text],input[type=number],textarea{background:#101015;color:var(--ink)
 .le-presets{list-style:none;margin:0 0 8px;padding:0;display:grid;gap:8px}.le-preset{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px}.le-preset .button{min-height:44px}.le-preset.le-on .button{outline:2px solid var(--accent,#c9a66b)}
 .le-cau{flex-basis:100%;font-size:.9rem}
 .le-panel h3{margin:8px 0 6px;font-size:1rem}
+.le-bands{margin:8px 0}.le-band-row{display:flex;gap:6px}.le-swatch{display:inline-block;width:44px;height:28px;border:1px solid var(--line,#3a3a44);border-radius:6px}

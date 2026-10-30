@@ -36,10 +36,11 @@
     // The real one comes from the host's bundle(project) call once a route for it exists; `?nobundle` shows the editor with no drawing data, to see the failure state.
     // (A script, not a fetch: the app's policy lets the page connect only to Supabase.)
     if (!/[?&]standin/.test(location.search || '')) window.ryagramMockLookBundle = () => (/[?&]nobundle/.test(location.search || '') ? Promise.reject(new Error('no bundle')) : new Promise((resolve, reject) => {
-      if (window.RYAGRAM_MOCK_LOOK_BUNDLE) { resolve(window.RYAGRAM_MOCK_LOOK_BUNDLE); return; }
+      const banded = /[?&]banded/.test(location.search || ''), key = banded ? 'RYAGRAM_MOCK_LOOK_BUNDLE_BANDED' : 'RYAGRAM_MOCK_LOOK_BUNDLE';           // ?banded serves the solid-band fixture
+      if (window[key]) { resolve(window[key]); return; }
       const sc = document.createElement('script');
-      sc.src = `/tests/fixtures/look-bundle-synthetic.js?t=${Date.now()}`;
-      sc.onload = () => resolve(window.RYAGRAM_MOCK_LOOK_BUNDLE);
+      sc.src = `/tests/fixtures/look-bundle-synthetic${banded ? '-banded' : ''}.js?t=${Date.now()}`;
+      sc.onload = () => resolve(window[key]);
       sc.onerror = () => reject(new Error('no bundle'));
       document.body.append(sc);
     }));

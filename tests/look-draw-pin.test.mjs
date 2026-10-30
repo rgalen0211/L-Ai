@@ -13,7 +13,7 @@ const bytes = fs.readFileSync(path.join(here, '..', 'assets/preview/look-draw.js
 const pin = fs.readFileSync(path.join(here, '..', 'assets/preview/look-draw.PIN'), 'utf8');
 
 test('the pin file names the engine commit and the hash of the file as vendored, and the bytes are LF', () => {
-  assert.match(pin, /Ryagram branch live-look-engine(-2)? @ [0-9a-f]{7,}/);
+  assert.match(pin, /Ryagram (branch live-look-engine(-2)? @|main) [0-9a-f]{7,}/);
   assert.equal(crypto.createHash('sha256').update(bytes).digest('hex'), pin.match(/sha256 ([0-9a-f]{64})/)[1]);
   assert.equal(String(bytes.length), pin.match(/\n(\d+) bytes, LF/)[1]);
   assert.ok(!bytes.includes(13), 'LF only');
@@ -31,5 +31,5 @@ test('it loads on its own and offers the API the editor uses', () => {
   ctx.globalThis = ctx;
   vm.runInNewContext(bytes.toString('utf8'), ctx);
   const L = ctx.RyagramLook;
-  for (const name of ['draw', 'drawFrame', 'marks', 'describe', 'lookFromStory', 'frameAt']) assert.equal(typeof L[name], 'function', name);
+  for (const name of ['draw', 'drawFrame', 'marks', 'describe', 'lookFromStory', 'frameAt', 'barsApply', 'progressive', 'addPeriod']) assert.equal(typeof L[name], 'function', name);
 });

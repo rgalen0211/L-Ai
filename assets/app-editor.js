@@ -188,7 +188,7 @@
       let locked = false;                                                       // locked: a render is using what was committed
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
-        if (bundleMode) { const rows = DD.honoured(RL).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
+        if (bundleMode) { const rows = DD.rowsFor(RL, bundle).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
         if (isData) return ['The look you can see:', ...LOOK_ROWS.map(([k, l]) => `${l} ${ed.state.look[k]}`)];
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
@@ -315,8 +315,8 @@
       // Bundle mode: the rows the engine's drawer honours (it names the ones it does not), the six presets, and the keys still waiting for the worker. A colour dragged in a chooser
       // is only previewed; releasing it makes the op. Nothing here uses credits: 'Render final film' is the only button that does.
       function paintBundleLook() {
-        const touched = new Set(ed.aiTouched()), look = ed.state.look, dflt = DD.defaults(bundle, look), cur = DD.presetOf(look);
-        const rows = DD.honoured(RL).map(([key, label, kind]) => {
+        const touched = new Set(ed.aiTouched()), look = ed.state.look, dflt = DD.defaults(bundle, look), cur = DD.presetOf(look, bundle);
+        const rows = DD.rowsFor(RL, bundle).map(([key, label, kind]) => {
           const id = `le-look-${key}`, val = look[key] !== undefined ? look[key] : dflt[key], mark = touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' \u00b7 by your AI') : null;
           if (kind === 'theme') {
             const sel = h('select', { id, disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, w]) => h('option', { value: v, selected: val === v }, w)));
@@ -334,14 +334,16 @@
           return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), input);
         });
         const presetRows = DD.PRESETS.map(p => {
-          const on = cur && cur.id === p.id, notes = DD.cautions(p);
+          const on = cur && cur.id === p.id, notes = DD.cautions(p, bundle);
           return h('li', { class: `le-preset${on ? ' le-on' : ''}` },
-            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look); if (ops.length && await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
+            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.isBanded(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
             h('span', { class: 'meta' }, ` ${p.blurb}`), ...notes.map(t => h('span', { class: 'le-warn le-cau' }, t)));
         });
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
           h('h3', {}, 'Ready-made looks'), h('ul', { class: 'le-presets' }, presetRows),
           h('p', { class: 'meta' }, 'A ready-made look sets the colours below; its middle colour waits for the worker and is not shown until it can be saved.'),
+          ...(DD.isBanded(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bands' }, h('p', { class: 'meta' }, 'This film colours its areas in solid bands, so the low and high colours do not apply. The bands are shown here; changing them waits for the worker, and the moving dots keep their colour.'),
+            h('div', { class: 'le-band-row' }, DD.bandColours(bundle).map((c, i) => { const sw = h('span', { class: 'le-swatch', role: 'img', 'aria-label': `Band ${i + 1}: ${c}` }); sw.style.background = c; return sw; })))] : []),
           ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }
