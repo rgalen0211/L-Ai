@@ -10,7 +10,7 @@ async function go({ tamper = null, other = true } = {}) {
   const rig = await localRig({ tamper });
   const q = quiet();
   try {
-    const out = await run({ url: rig.url, token: rig.tokenA, tokenOther: other ? rig.tokenB : null, expectedTools: rig.expectedTools, goodStory: rig.goodStory, local: true, log: q.log });
+    const out = await run({ url: rig.url, token: rig.tokenA, tokenOther: other ? rig.tokenB : null, expectedTools: rig.expectedTools, goodStory: rig.goodStory, datasetId: rig.datasetId, local: true, log: q.log });
     assert.deepEqual(rig.serverErrors, [], 'the stand-in server itself failed (a fault was made wrongly, so a FAIL below would prove nothing)');
     return { ...out, lines: q.lines, rig };
   } finally { await rig.close(); }
@@ -19,12 +19,13 @@ const failed = (out) => out.results.filter((r) => r.status === 'FAIL').map((r) =
 const json = (o, status = 200, headers = { 'content-type': 'application/json' }) => ({ status, headers, body: JSON.stringify(o) });
 const rewrite = (out, fn) => { const j = JSON.parse(out.body); if (!j.result) return out; fn(j); return { ...out, body: JSON.stringify(j) }; };      // only a real result is rewritten (a 401 or an error is left alone)
 
-test('on the real code every step passes (20 steps, none skipped, none failed)', async () => {
+test('on the real code every step passes (none skipped, none failed)', async () => {
   const out = await go();
   assert.deepEqual(failed(out), []);
-  assert.equal(out.results.length, steps({}).length);
+  assert.equal(out.results.length, steps({ expectedTools: out.rig.expectedTools }).length);
+  assert.ok(out.results.length >= 20, 'the first 20 steps are always there');
   assert.ok(out.results.every((r) => r.status === 'PASS'), out.lines.join('\n'));
-  assert.match(out.lines.at(-1), /20 passed, 0 failed, 0 skipped/);
+  assert.match(out.lines.at(-1), new RegExp(`${out.results.length} passed, 0 failed, 0 skipped`));
 });
 
 test('without a second account the step that needs one is SKIPPED, not passed', async () => {
@@ -123,7 +124,7 @@ test('the live way of running: a token from the environment, a loopback http add
   try {
     const a = parseArgs(['--url', rig.url, '--token-env', 'E2E_TEST_TOKEN', '--wait', '5'], { E2E_TEST_TOKEN: rig.tokenA });
     assert.equal(a.token, rig.tokenA);
-    const out = await run({ url: a.url, token: a.token, expectedTools: rig.expectedTools, goodStory: rig.goodStory, local: false, waitMs: a.wait * 1000, log: q.log });
+    const out = await run({ url: a.url, token: a.token, expectedTools: rig.expectedTools, goodStory: rig.goodStory, datasetId: rig.datasetId, local: false, waitMs: a.wait * 1000, log: q.log });
     assert.deepEqual(failed(out), []);
     assert.equal(out.results.filter((r) => r.status === 'SKIP').length, 1);
     assert.ok(!q.lines.join('\n').includes(rig.tokenA), 'the token appears in the output');

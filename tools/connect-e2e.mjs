@@ -52,6 +52,51 @@ async function untilDone(c, jobId, ctx) {
   }
 }
 
+// Tools newer than the first punch list. A step exists only for a tool THIS checkout lists (ctx.expectedTools), so the same command works on an older tree and on the combined one; a deployed connector that
+// lacks one of them already FAILS the tools/list step above, and these steps then say what that tool answers. Run against a live connector they are the post-deploy checks of NEXT-CONNECT 155.
+function optionalSteps(ctx) {
+  const has = (n) => (ctx.expectedTools ?? []).includes(n);
+  const scopeWords = /not allowed to do that|can change what this connection may do/i;
+  const out = [];
+  if (has('get_story')) out.push(['get_story: the saved story and its list of versions come back', async (c) => {
+    need(ctx.project, 'no project (an earlier step failed)');
+    const r = await c.tool('get_story', { project_id: ctx.project });
+    need(!r.isError, `refused: ${r.text.slice(0, 200)}`);
+    need(r.data && (r.data.story || r.data.version_number != null || Array.isArray(r.data.versions)), 'the answer holds no story and no version list');
+  }]);
+  if (has('dataset_info')) out.push(['dataset_info: what a catalogue dataset is, from the engine record', async (c) => {
+    need(ctx.datasetId, 'no dataset id to ask about');
+    const r = await c.tool('dataset_info', { dataset_id: ctx.datasetId });
+    need(!r.isError && r.text.length > 100, `refused or empty: ${r.text.slice(0, 200)}`);
+    const bad = await c.tool('dataset_info', { dataset_id: 'no_such_dataset_zz' });
+    need(bad.isError || /not|unknown|no dataset/i.test(bad.text), 'an unknown dataset was described');
+  }]);
+  if (has('suggest_next_step')) out.push(['suggest_next_step: the one next question, from what the person already said', async (c) => {
+    const r = await c.tool('suggest_next_step', { kind: 'data_film', scale: 'county' });
+    need(!r.isError && r.text.length > 20, `refused or empty: ${r.text.slice(0, 200)}`);
+  }]);
+  if (has('get_cost_estimate')) out.push(['get_cost_estimate: what a step costs and what is left, and nothing is started', async (c) => {
+    need(ctx.project, 'no project (an earlier step failed)');
+    const before = await c.tool('whoami_and_credits');
+    const r = await c.tool('get_cost_estimate', { project_id: ctx.project, step: 'final_render' });
+    need(!r.isError && r.data?.started === false && r.data?.connection_can_start === false && typeof r.data?.credits === 'number', `unexpected answer: ${r.text.slice(0, 200)}`);
+    const sheet = await c.tool('get_cost_estimate', { project_id: ctx.project, step: 'contact_sheet' });
+    need(!sheet.isError && sheet.data?.credits === 0, 'the contact sheet is not priced as free');
+    const after = await c.tool('whoami_and_credits');
+    need(before.text === after.text, 'asking for an estimate changed the account');
+  }]);
+  if (has('get_edit_state')) out.push(['get_edit_state: the open editor, or a refusal in words when the connection may not edit', async (c) => {
+    need(ctx.project, 'no project (an earlier step failed)');
+    const r = await c.tool('get_edit_state', { project_id: ctx.project });
+    need(!r.isError || scopeWords.test(r.text) || /editor|open|draft/i.test(r.text), `an unclear answer: ${r.text.slice(0, 200)}`);
+  }]);
+  if (has('list_my_downloads')) out.push(['list_my_downloads: the download plans, or a refusal in words when the connection may not fetch', async (c) => {
+    const r = await c.tool('list_my_downloads');
+    need(!r.isError || scopeWords.test(r.text), `an unclear answer: ${r.text.slice(0, 200)}`);
+  }]);
+  return out;
+}
+
 export function steps(ctx) {
   return [
     ['no token: the connector answers 401 and says where to sign in', async (c) => {
@@ -171,6 +216,7 @@ export function steps(ctx) {
       const p = await c.post('{ this is not json');
       need(p.json?.error && p.status < 500, `bad JSON did not come back as a JSON-RPC error (status ${p.status})`);
     }],
+    ...optionalSteps(ctx),
     ['read-only tools change nothing: asking twice gives the same project list', async (c) => {
       const a = await c.tool('list_projects'), b = await c.tool('list_projects');
       need(JSON.stringify(a.data) === JSON.stringify(b.data), 'two reads of the project list differ');
@@ -204,11 +250,11 @@ export async function localRig({ tamper = null } = {}) {                  // tam
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
   const url = `http://127.0.0.1:${server.address().port}/mcp`;
   const t = TEMPLATES[0];
-  return { url, serverErrors, tokenA: 'E2E-TOKEN-ALICE', tokenB: 'E2E-TOKEN-BOB', expectedTools: toolList().map((x) => x.name).sort(), goodStory: () => build(t.id, t.datasets[0], 'E2E headline'), close: () => new Promise((ok) => server.close(ok)) };
+  return { url, serverErrors, datasetId: t.datasets[0], tokenA: 'E2E-TOKEN-ALICE', tokenB: 'E2E-TOKEN-BOB', expectedTools: toolList().map((x) => x.name).sort(), goodStory: () => build(t.id, t.datasets[0], 'E2E headline'), close: () => new Promise((ok) => server.close(ok)) };
 }
 
-export async function run({ url, token, tokenOther = null, expectedTools, goodStory, local, waitMs = 120000, title = `E2E check ${new Date().toISOString().slice(0, 10)}`, log = console.log }) {
-  const ctx = { url, local, waitMs, title, expectedTools, goodStory };
+export async function run({ url, token, tokenOther = null, expectedTools, goodStory, datasetId, local, waitMs = 120000, title = `E2E check ${new Date().toISOString().slice(0, 10)}`, log = console.log }) {
+  const ctx = { url, local, waitMs, title, expectedTools, goodStory, datasetId };
   const c = client(url, token);
   if (tokenOther) ctx.other = client(url, tokenOther);
   const results = [];
@@ -250,16 +296,16 @@ export function parseArgs(argv, env = process.env) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   let args;
   try { args = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); process.exit(2); }
-  if (args.list) { for (const [n] of steps({})) console.log(n); process.exit(0); }
+  if (args.list) { const l = await localRig(); await l.close(); for (const [n] of steps({ expectedTools: l.expectedTools })) console.log(n); process.exit(0); }
   let rig = null, out;
   try {
     if (args.url) {
       const rigLive = await localRig();                                   // only to read this checkout's tool list and a good story; its server is closed at once
       await rigLive.close();
-      out = await run({ url: args.url, token: args.token, expectedTools: rigLive.expectedTools, goodStory: rigLive.goodStory, local: false, waitMs: args.wait * 1000 });
+      out = await run({ url: args.url, token: args.token, expectedTools: rigLive.expectedTools, goodStory: rigLive.goodStory, datasetId: rigLive.datasetId, local: false, waitMs: args.wait * 1000 });
     } else {
       rig = await localRig();
-      out = await run({ url: rig.url, token: rig.tokenA, tokenOther: rig.tokenB, expectedTools: rig.expectedTools, goodStory: rig.goodStory, local: true });
+      out = await run({ url: rig.url, token: rig.tokenA, tokenOther: rig.tokenB, expectedTools: rig.expectedTools, goodStory: rig.goodStory, datasetId: rig.datasetId, local: true });
     }
   } finally { if (rig) await rig.close(); }
   process.exit(out.failed ? 1 : 0);
