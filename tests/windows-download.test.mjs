@@ -142,5 +142,5 @@ test('SOURCE: the page posts to no address it was handed (a fixed function name)
 test('WIRING: the stamps moved so a returning visitor gets the button', () => {
   const html = read('app/index.html');
   assert.match(html, /app-device\.js\?v=20261027a/);
-  assert.match(html, /app-data\.js\?v=20261030a/);
+  assert.match(html, /app-data\.js\?v=20261030c/);
 });
