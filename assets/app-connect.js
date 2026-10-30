@@ -79,12 +79,30 @@
     const { h, data, busy, showError, errorLine, date, navigate = url => location.assign(url) } = ctx;
 
     // ---- the consent page
+    // WHICH Ryagram account this would connect (NEXT-WEB 162, PUNCH P1), in words, with a way out: 'Not you? Switch account' signs out and leaves the address alone, so signing in as the other account
+    // lands on the SAME consent request (the request id is in the address; switching approves and denies nothing). The email goes in as text.
+    async function signedInEmail() {
+      try { const s = window.ryagramApp && window.ryagramApp.client ? (await window.ryagramApp.client.auth.getSession()).data.session : null; return s && s.user && typeof s.user.email === 'string' ? s.user.email.slice(0, 200) : ''; } catch { return ''; }
+    }
+    async function accountStrip() {
+      const email = await signedInEmail();
+      if (!email) return null;
+      const out = h('button', { class: 'button secondary', type: 'button', 'data-key': 'consent-switch' }, 'Not you? Switch account');
+      out.addEventListener('click', async () => {
+        out.disabled = true;
+        try { await window.ryagramApp.client.auth.signOut(); } catch { out.disabled = false; }                 // the address is left as it is; the sign-in screen comes back to this same request
+      });
+      return h('section', { class: 'consent-account', 'data-key': 'consent-account' },
+        h('p', {}, 'You are signed in as ', h('strong', { 'data-key': 'consent-email' }, email), '. Approving connects THIS Ryagram account.'),
+        h('p', { class: 'form-note' }, 'Administrator accounts cannot be connected to an AI. If this is not the account you meant, switch.'), out);
+    }
     async function consentView(requestId) {
       const back = h('a', { href: '#/', class: 'back' }, '← All projects');
+      const strip = await accountStrip();
       let c;
-      try { c = await data.connectConsentCheck(requestId); } catch (err) { return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), h('p', { class: 'app-error', role: 'alert' }, err.message)]; }
+      try { c = await data.connectConsentCheck(requestId); } catch (err) { return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, err.message)]; }
       if (!c || c.allowed !== true) {
-        return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), h('p', { class: 'app-error', role: 'alert' }, c && c.reason ? c.reason : NOT_ALLOWED),
+        return [back, h('h1', { tabindex: '-1' }, 'Connect an AI'), strip, h('p', { class: 'app-error', role: 'alert' }, c && c.reason ? c.reason : NOT_ALLOWED),
                 h('p', { class: 'form-note' }, 'Nothing was connected. You can close this page.')];
       }
       const error = errorLine();
@@ -123,7 +141,7 @@
         const timer = setInterval(() => { if (!expiryLine.isConnected || tick() === 'expired') clearInterval(timer); }, 15000);
       }
       return [back, h('h1', { tabindex: '-1', class: 'consent-who' }, `Connect ${who} to Ryagram?`),
-        h('p', { class: 'form-intro' }, `${who} is asking to work with your Ryagram account.`),
+        h('p', { class: 'form-intro' }, `${who} is asking to work with your Ryagram account.`), strip,
         c.client_name ? h('p', { class: 'form-note consent-calls-itself' }, 'It calls itself: ', c.client_name) : '',
         h('section', { class: 'consent-where' }, h('h2', {}, 'Where you will be sent'), h('p', {}, 'After you choose, you go back to:'),
           h('p', { class: 'consent-uri' }, h('strong', {}, c.redirect_host || hostOf(c.redirect_uri)), h('br'), h('code', {}, c.redirect_uri)),

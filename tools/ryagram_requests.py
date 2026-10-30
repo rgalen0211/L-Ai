@@ -12,6 +12,8 @@ import re
 import threading
 import time
 
+import maker_checklist as _mc          # the guided-footage checklist (NEXT-CONNECT 161): the item key and the folder-name rule live there
+
 ROUTE = "/node/compilation-requests"
 MIN_GAP_SECONDS = 30            # the page may ask as often as it likes; the site is asked at most this often
 MAX_ITEMS = 20
@@ -19,6 +21,8 @@ MODES = ("phrase", "song")
 SEARCHES = ("every", "words")
 _TAGS = re.compile(r"[<>]")
 _UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.IGNORECASE)
+_LINKISH = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://|\bwww\.|\b[A-Za-z0-9-]+\.(com|org|net|gov|edu|io|co|us|uk)\b", re.IGNORECASE)
+MAX_CHECKLIST = 12
 _PATHISH = re.compile(r"([A-Za-z]:[\\/])|(^|\s)/(Users|home|mnt|var|etc)/|\\\\|https?://|file://", re.IGNORECASE)
 
 
@@ -27,6 +31,31 @@ def _text(v, limit: int) -> str:
         return ""
     s = _TAGS.sub("", re.sub(r"[\x00-\x1f\x7f]+", " ", v)).strip()
     return s[:limit]
+
+
+def _item(it, pid: str, index: int) -> dict | None:
+    """One checklist item as the page shows it: plain, cut-down text only. An item with no words, with a link or a place in its words, or with a folder that is not a plain NAME is dropped; in the optional texts a link or place is blanked."""
+    if not isinstance(it, dict):
+        return None
+    what = _text(it.get("what"), 200)
+    if not what or _PATHISH.search(what) or _LINKISH.search(what):
+        return None
+    where = _text(it.get("from"), 200)
+    must = _text(it.get("must_contain"), 200)
+    if _PATHISH.search(where) or _LINKISH.search(where):
+        where = ""
+    if _PATHISH.search(must) or _LINKISH.search(must):
+        must = ""
+    folder = it.get("folder")
+    folder = folder.strip() if isinstance(folder, str) else ""
+    if not _mc.NAME.match(folder) or folder in (".", ".."):
+        return None
+    count = it.get("count")
+    count = count if isinstance(count, int) and not isinstance(count, bool) and 1 <= count <= 20 else 1
+    iid = it.get("id") if isinstance(it.get("id"), str) and re.match(r"^c[0-9]{1,2}$", it.get("id")) else f"c{index + 1}"
+    d = {"id": iid, "what": what, "from": where, "must_contain": must, "folder": folder, "count": count}
+    d["key"] = _mc.item_key(pid, d)
+    return d
 
 
 def _clean(row) -> dict | None:
@@ -43,8 +72,14 @@ def _clean(row) -> dict | None:
     mode = req.get("mode") if req.get("mode") in MODES else "phrase"
     search = req.get("search") if req.get("search") in SEARCHES else "every"
     pid = row.get("project_id")
-    return {"title": _text(row.get("title"), 200), "phrase": phrase, "mode": mode, "search": search, "note": "" if _PATHISH.search(note) else note,
-            "updated_at": _text(row.get("updated_at"), 40), "project_id": pid if isinstance(pid, str) and _UUID.match(pid) else ""}
+    pid = pid if isinstance(pid, str) and _UUID.match(pid) else ""
+    raw_list = req.get("checklist") if isinstance(req.get("checklist"), list) else []
+    checklist = [c for c in (_item(x, pid, i) for i, x in enumerate(raw_list[:MAX_CHECKLIST])) if c]
+    out = {"title": _text(row.get("title"), 200), "phrase": phrase, "mode": mode, "search": search, "note": "" if _PATHISH.search(note) else note,
+           "updated_at": _text(row.get("updated_at"), 40), "project_id": pid}
+    if checklist:
+        out["checklist"] = checklist
+    return out
 
 
 class AiRequests:

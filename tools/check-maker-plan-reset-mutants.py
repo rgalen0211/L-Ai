@@ -11,8 +11,9 @@ HERE = Path(__file__).resolve().parent
 ENGINE, BASE = sys.argv[1], Path(sys.argv[2])
 MUTANTS = [
     ("the same plan resets the person's edits", "maker_edit.py", "    if old == sha:\n        return False\n", ""),
-    ("the saved edit list is kept on a new plan", "maker_edit.py", "for f in (edit_path(), _dm.STATE", "for f in (_dm.STATE"),
-    ("the committed list of the old plan is kept", "maker_edit.py", '_dm.STATE["work"] / "edit" / "committed-edit.json", _dm.STATE["work"] / "edit-media.json"):', '_dm.STATE["work"] / "edit-media.json"):'),
+    ("the saved edit list is kept on a new plan", "maker_edit.py", "gone = [edit_path(), _dm.STATE", "gone = [_dm.STATE"),
+    ("the committed list of the old plan is kept", "maker_edit.py", '_dm.STATE["work"] / "edit" / "committed-edit.json", _dm.STATE["work"] / "edit-media.json"]', '_dm.STATE["work"] / "edit-media.json"]'),
+    ("a FIRST plan counts as a change (the live draft starts again before any change)", "maker_edit.py", "    return had_something", "    return True"),
     ("the plan's fingerprint is not written to disk", "maker_edit.py", '        mark.write_text(sha, encoding="utf-8")', "        pass"),
     ("the live draft is not started again", "maker_live.py", '        s["draft"].set_base("compilation", _tracks().tracks_from_edit(lst, _media_seconds()))', "        pass"),
     ("an old draft file is not removed", "maker_live.py", '(_dm.STATE["work"] / "live" / "live-draft.json").unlink(missing_ok=True)', "pass"),
