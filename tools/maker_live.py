@@ -33,6 +33,11 @@ TRACKS = ("video", "pictures", "text", "music")
 OPS_PER_CALL, OPS_PER_MINUTE, OPS_PER_DAY, UNDONE_WINDOW_S = 20, 60, 600, 600
 COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
 ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
+STYLES = ("title", "caption", "lower_third")
+FILM_LOOK = ("theme", "text_color", "box_color", "box_opacity", "letterbox")
+RULE_MODES = ("full", "centre", "corner", "lower_third")
+MAX_RULES = 50
+RULE_PICTURE = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
 PICTURE = re.compile(r'^[^\\/:*?"<>|\x00-\x1f\x7f-\x9f]{1,100}\.(png|jpg|jpeg|webp)$', re.IGNORECASE)
 _BAD = [(0, 31), (127, 127), (0x200E, 0x200F), (0x202A, 0x202E), (0x2066, 0x2069), (60, 60), (62, 62)]
 _CLEAN = re.compile("[" + "".join(chr(a) + "-" + chr(b) for a, b in _BAD) + "]")
@@ -139,12 +144,14 @@ def op_problem(mode: str, op, look_keys=None):
             return f'"{op["key"]}" must be true or false.'
         return None
     allowed_by = {"move_clip": ["op", "id", "start"], "trim_clip": ["op", "id", "edge", "to"], "reorder_clip": ["op", "id", "index"], "set_clip_text": ["op", "id", "text"],
-                  "delete_clip": ["op", "id"], "add_clip": ["op", "track", "start", "len", "text", "picture"]}
+                  "delete_clip": ["op", "id"], "add_clip": ["op", "track", "start", "len", "text", "picture"], "set_clip_style": ["op", "id", "style"],
+                  "set_music": ["op", "level_db", "fade_in_s", "fade_out_s", "source_start", "snap"], "set_rule": ["op", "id", "phrase", "picture", "seconds", "mode", "fade_s"],
+                  "delete_rule": ["op", "id"], "set_film_look": ["op", "key", "value"]}
     if kind not in allowed_by:
         return f'"{kind[:40]}" is not a change this editor knows for a compilation.'
     if not known(allowed_by[kind]):
         return "That change has a field the editor does not know."
-    if kind != "add_clip" and not (isinstance(op.get("id"), str) and ID.match(op["id"])):
+    if kind in ("move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "set_clip_style") and not (isinstance(op.get("id"), str) and ID.match(op["id"])):
         return 'This change needs a clip "id" from get_edit_state.'
     for name in ("start", "to", "len"):
         if name in op and not _is_num(op[name]):
@@ -187,6 +194,46 @@ def op_problem(mode: str, op, look_keys=None):
                 return 'A picture clip needs a "picture" name and no "text".'
             if not (isinstance(op["picture"], str) and PICTURE.match(op["picture"])):
                 return "A picture is the NAME of one the person added in the app (png, jpg or webp), never a place."
+    elif kind == "set_clip_style":
+        if not (isinstance(op.get("style"), str) and op["style"] in STYLES):
+            return "A text style must be title, caption or lower_third."
+    elif kind == "set_music":
+        if len(op) < 2:
+            return "set_music needs at least one setting."
+        for name, lo, hi, msg in (("level_db", -30, 6, '"level_db" must be a number from -30 to 6.'), ("fade_in_s", 0, 5, '"fade_in_s" must be a number from 0 to 5 seconds.'),
+                                  ("fade_out_s", 0, 5, '"fade_out_s" must be a number from 0 to 5 seconds.'), ("source_start", 0, 86400, '"source_start" must be a number from 0 to 86400 seconds.')):
+            if name in op and not (_is_num(op[name]) and lo <= op[name] <= hi):
+                return msg
+        if "snap" in op and not isinstance(op["snap"], bool):
+            return '"snap" must be true or false.'
+    elif kind == "set_rule":
+        if "id" in op and not (isinstance(op["id"], str) and ID.match(op["id"])):
+            return 'A rule "id" is letters, digits, - and _ (leave it out to add a new rule).'
+        if not text_ok(op.get("phrase"), 60):
+            return "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup)."
+        if not (isinstance(op.get("picture"), str) and RULE_PICTURE.match(op["picture"])):
+            return 'A rule needs the "picture" id from the editor state.'
+        if not (_is_num(op.get("seconds")) and 0.5 <= op["seconds"] <= 10):
+            return '"seconds" must be a number from 0.5 to 10.'
+        if not (isinstance(op.get("mode"), str) and op["mode"] in RULE_MODES):
+            return "A rule mode must be full, centre, corner or lower_third."
+        if "fade_s" in op and not (_is_num(op["fade_s"]) and 0 <= op["fade_s"] <= 1):
+            return '"fade_s" must be a number from 0 to 1 second.'
+    elif kind == "delete_rule":
+        if not (isinstance(op.get("id"), str) and ID.match(op["id"])):
+            return 'This change needs a rule "id" from get_edit_state.'
+    elif kind == "set_film_look":
+        if not (isinstance(op.get("key"), str) and op["key"] in FILM_LOOK):
+            return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
+        if "value" not in op:
+            return 'A film look change needs a "value".'
+        v = op["value"]
+        if op["key"] == "theme" and v not in ("dark", "light"):
+            return '"theme" can only be: dark, light.'
+        if op["key"] in ("text_color", "box_color", "letterbox") and not (isinstance(v, str) and COLOUR.match(v)):
+            return f'"{op["key"]}" needs a colour like #1a73e8.'
+        if op["key"] == "box_opacity" and not (_is_num(v) and 0 <= v <= 1):
+            return '"box_opacity" must be a number from 0 to 1.'
     return None
 
 
@@ -203,6 +250,8 @@ def new_state(init: dict | None = None) -> dict:
         s["lanes"] = [x for x in init["lanes"] if x in TRACKS]
     if isinstance(init.get("text_rules"), dict):                    # the film's text layout rules (BUILDER: textstyle.rules): the page draws texts with them; they stay on this computer and never go in the summary
         s["text_rules"] = json.loads(json.dumps(init["text_rules"]))
+    s["rules"] = json.loads(json.dumps(init.get("rules") or []))
+    s["pictures"] = json.loads(json.dumps(init.get("pictures") or []))
     lim = init.get("limits")
     if isinstance(lim, dict):
         s["limits"] = {"text_chars": lim["text_chars"] if _is_int(lim.get("text_chars")) else None}
@@ -241,12 +290,78 @@ def _cap(state):
     return lim.get("text_chars") if isinstance(lim, dict) else None
 
 
+def _page_values(op):
+    """The value sentences of the page's own core (app-editor-core.js check) for the five newer ops: WEB's words, which differ from the vocabulary's (op_problem) where the page speaks to a person at the keyboard."""
+    kind = op["op"]
+    def unknown(allowed):
+        return "That change has a field the editor does not know." if any(k not in allowed for k in op) else None
+    def num(name, lo, hi, msg):
+        return msg if name in op and not (_is_num(op[name]) and lo <= op[name] <= hi) else None
+    if kind == "set_clip_style":
+        return None if op.get("style") in STYLES else "A text style must be title, caption or lower_third."
+    if kind == "set_music":
+        fields = ("level_db", "fade_in_s", "fade_out_s", "source_start", "snap")
+        if unknown(("op",) + fields):
+            return unknown(("op",) + fields)
+        if not any(k in op for k in fields):
+            return "set_music needs at least one setting."
+        if "snap" in op and not isinstance(op["snap"], bool):
+            return "Snap to the beat is on or off."
+        return (num("level_db", -30, 6, "The level must be a number from -30 to 6.") or num("fade_in_s", 0, 5, "The fade in must be a number from 0 to 5 seconds.")
+                or num("fade_out_s", 0, 5, "The fade out must be a number from 0 to 5 seconds.") or num("source_start", 0, 86400, "Where the music starts must be a number from 0 to 86400 seconds."))
+    if kind == "set_rule":
+        if unknown(("op", "id", "phrase", "picture", "seconds", "mode", "fade_s")):
+            return unknown(("op", "id", "phrase", "picture", "seconds", "mode", "fade_s"))
+        if not text_ok(op.get("phrase"), 60):
+            return "The phrase must be 1 to 60 characters of plain words (no places on a computer, no web addresses, no markup)."
+        if not _is_num(op.get("seconds")) or not 0.5 <= op["seconds"] <= 10:
+            return "The picture stays from 0.5 to 10 seconds."
+        if op.get("mode") not in RULE_MODES:
+            return "A rule mode must be full, centre, corner or lower_third."
+        return num("fade_s", 0, 1, "The fade must be a number from 0 to 1 second.")
+    if kind == "set_film_look":
+        key, v = op.get("key"), op.get("value")
+        if key not in FILM_LOOK:
+            return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
+        if "value" not in op:
+            return "A film look change needs a value."
+        if key == "theme" and v not in ("dark", "light"):
+            return "The theme can only be: dark, light."
+        if key in ("text_color", "box_color", "letterbox") and not (isinstance(v, str) and COLOUR.match(v)):
+            return "That needs a colour like #1a73e8."
+        if key == "box_opacity" and not (_is_num(v) and 0 <= v <= 1):
+            return "The box opacity must be a number from 0 to 1."
+    return None
+
+
 def check(state: dict, op, look_keys=None):
     """None when the op may be applied to this state, else the sentence the page shows (app-editor-core.js check(), sentence for sentence)."""
     keys = look_keys or LOOK_KEYS
-    ops = ("set_look", "unset_look", "move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "add_clip")
+    ops = ("set_look", "unset_look", "move_clip", "trim_clip", "reorder_clip", "set_clip_text", "delete_clip", "add_clip", "set_clip_style", "set_music", "set_rule", "delete_rule", "set_film_look")
     if not isinstance(op, dict) or op.get("op") not in ops:
         return "That change is not one the editor can make."
+    bad = _page_values(op)
+    if bad:
+        return bad
+    if op["op"] == "set_film_look":
+        return None
+    if op["op"] == "set_rule":
+        if op.get("id") is not None and not any(r.get("id") == op["id"] for r in state.get("rules") or []):
+            return "That rule is not in this film."
+        if op.get("id") is None and len(state.get("rules") or []) >= MAX_RULES:
+            return f"A film can have at most {MAX_RULES} rules."
+        if not any(p.get("id") == op.get("picture") for p in state.get("pictures") or []):
+            return "That picture is not one of yours."
+        return None
+    if op["op"] == "delete_rule":
+        return None if any(r.get("id") == op.get("id") for r in state.get("rules") or []) else "That rule is not in this film."
+    if op["op"] == "set_music":
+        m = _clip(state, "music")
+        if m is None or m.get("track") != "music":
+            return "There is no music on this film."
+        if state.get("lanes") is not None and "music" not in state["lanes"]:
+            return "That part of the film can not be edited here yet."
+        return None
     if op["op"] in ("set_look", "unset_look"):
         if not isinstance(op.get("key"), str) or op["key"] not in keys:
             return "That setting is not available yet."
@@ -311,6 +426,9 @@ def check(state: dict, op, look_keys=None):
             return "Only video clips can be reordered."
         if not _is_int(op.get("index")) or op["index"] < 0 or op["index"] >= len(_videos(state)):
             return "There is no such place in the list."
+    elif op["op"] == "set_clip_style":
+        if c["track"] != "text" and not (c["track"] == "video" and c.get("slide") is True and not c.get("picture")):
+            return "Only a text clip has a style."
     elif op["op"] == "set_clip_text":
         if c["track"] != "text" and not (c["track"] == "video" and c.get("slide") is True and not c.get("picture")):         # a text line, or a text SLIDE (a video-lane slide with words and no picture)
             return "Only a text clip has text."
@@ -329,6 +447,22 @@ def apply(state: dict, op: dict) -> dict:
         nxt["look"][op["key"]] = op["value"]
     elif op["op"] == "unset_look":
         nxt["look"].pop(op["key"], None)
+    elif op["op"] == "set_film_look":
+        nxt.setdefault("look", {})[op["key"]] = op["value"]
+    elif op["op"] == "set_music":
+        m = _clip(nxt, "music")
+        for k in ("level_db", "fade_in_s", "fade_out_s", "source_start", "snap"):
+            if k in op:
+                m[k] = op[k]
+    elif op["op"] == "delete_rule":
+        nxt["rules"] = [r for r in nxt.get("rules") or [] if r.get("id") != op["id"]]
+    elif op["op"] == "set_rule":
+        rule = {k: op[k] for k in ("phrase", "picture", "seconds", "mode", "fade_s") if k in op}
+        rules = nxt.setdefault("rules", [])
+        if op.get("id") is None:
+            rules.append({"id": f'rule{state["revision"] + 1}', **rule})
+        else:
+            rules[:] = [{"id": op["id"], **rule} if r.get("id") == op["id"] else r for r in rules]
     elif op["op"] == "add_clip":
         cid = f'new{state["revision"] + 1}'
         if op["track"] == "text":
@@ -364,6 +498,8 @@ def apply(state: dict, op: dict) -> dict:
             repack(nxt)
         elif op["op"] == "set_clip_text":
             c["text"] = clean_text(op["text"])
+        elif op["op"] == "set_clip_style":
+            c["style"] = op["style"]
         elif op["op"] == "delete_clip":
             nxt["clips"] = [x for x in nxt["clips"] if x is not c]
             if c["track"] == "video":
@@ -446,10 +582,13 @@ class LiveDraft:
         """What the sync may post to the site: names and times only (the shape node_edit_post_summary accepts). Local-only fields never leave."""
         with self.lock:
             s = self._mode("compilation")["state"]
-            keep = ("id", "track", "start", "len", "label", "text", "picture", "file", "source", "source_start", "min_len", "max_len", "position", "size", "ai_altered", "ai_altered_by", "ai_altered_derived", "slide", "mode", "fade_s", "style")
+            keep = ("id", "track", "start", "len", "label", "text", "picture", "file", "source", "source_start", "min_len", "max_len", "position", "size", "ai_altered", "ai_altered_by", "ai_altered_derived", "slide", "mode", "fade_s", "style", "level_db", "fade_in_s", "fade_out_s", "snap")
             out = {"schema": "ryagram.edit-tracks/0", "duration": s.get("duration", 0), "clips": [{k: c[k] for k in keep if k in c} for c in s["clips"]]}
             if "lanes" in s:
                 out["lanes"] = list(s["lanes"])
+            out["rules"] = [{k: r[k] for k in ("id", "phrase", "picture", "seconds", "mode", "fade_s") if k in r} for r in s.get("rules") or []]
+            out["pictures"] = [{"id": p["id"], "name": p["name"]} for p in s.get("pictures") or [] if "id" in p and "name" in p]   # NAMES only, never a place on this computer
+            out["look"] = {k: v for k, v in (s.get("look") or {}).items() if k in FILM_LOOK}
             if s.get("limits"):
                 out["limits"] = {k: v for k, v in s["limits"].items() if v is not None}
             return out
