@@ -228,7 +228,12 @@ def _load_lib(engine_dir: Path):
     sys.path.insert(0, str(engine_dir))
     from ryagram.worker import contract as C, engine as E, runner as R             # noqa: PLC0415
     from ryagram.worker.schema import Rejected, validate_job                       # noqa: PLC0415
-    from ryagram.worker.worker import Config                                       # noqa: PLC0415
+    try:
+        from ryagram.worker.config import Config                                   # noqa: PLC0415  the node-job closure (ENGINE 44): only the settings reader, not the whole house worker
+    except ModuleNotFoundError as e:
+        if e.name != "ryagram.worker.config":
+            raise
+        from ryagram.worker.worker import Config                                   # noqa: PLC0415  an engine cut before that split
 
     class Lib:
         pass
