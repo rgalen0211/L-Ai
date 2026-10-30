@@ -4,7 +4,7 @@ Same setup as test_download_plans.py (test_connect's helpers, the OAuth dance in
     pgvenv/Scripts/python -m unittest supabase/tests/test_footage_plans.py -v
 
 Rules proved (each with a control that passes and a fault that must be refused)
-  * THE SWITCH IS OFF: public.connect_flags.footage_enabled is false by default; while it is false the AI's request is refused in words (PT400) and nothing is written; turning it on is a deliberate update
+  * THE SWITCH IS OFF: public.footage_flags.footage_enabled is false by default; while it is false the AI's request is refused in words (PT400) and nothing is written; turning it on is a deliberate update
   * a token without 'fetch_data' cannot write a plan (PT403) but can still LIST with 'read'; a revoked grant ends the AI's access
   * a plan is a SOURCE (nasa or nara), that source's ITEM ID and a plain reason: an address, a path, a bad id for that source, a bad reason or another source is refused in words and nothing is written
   * asking again for the item already waiting returns the same plan; at most 5 wait at once and 20 a day per person (PT429); another person's plans are never listed
@@ -48,7 +48,7 @@ class FootagePlans(core.Base):
 
     def switch(self, on=True):
         self.db.c.execute("reset role")
-        self.db.c.execute("update public.connect_flags set footage_enabled = %s", (on,))
+        self.db.c.execute("update public.footage_flags set footage_enabled = %s", (on,))
 
     def alice(self, scopes=SCOPES):
         _, a, _ = self.connect(ALICE, scopes=scopes)
@@ -68,7 +68,7 @@ class FootagePlans(core.Base):
 
     # ---------------------------------------------------------------------------------------------- the switch
     def test_the_switch_is_off_by_default_and_nothing_is_written_until_it_is_turned_on(self):
-        self.assertFalse(self.admin("select footage_enabled from public.connect_flags"))
+        self.assertFalse(self.admin("select footage_enabled from public.footage_flags"))
         self.assertFalse(self.admin("select ryagram_private.footage_on()"))
         a = self.alice()
         msg = self.refused(a, *NASA, code="PT400")
@@ -174,10 +174,10 @@ class FootagePlans(core.Base):
         self.db.c.execute((core.ROOT / "rollbacks" / "20261030000200_footage_plans_rollback.sql").read_text(encoding="utf-8"))
         self.assertIsNone(self.admin("select to_regclass('public.footage_plans')"))
         self.assertIsNone(self.admin("select to_regprocedure('public.connect_request_footage(text,text,text,text)')"))
-        self.assertEqual(self.admin("select count(*) from information_schema.columns where table_name = 'connect_flags' and column_name = 'footage_enabled'"), 0)
+        self.assertEqual(self.admin("select count(*) from pg_class where relname = 'footage_flags' and relnamespace = 'public'::regnamespace"), 0)
         self.assertIn("fetch_data", self.admin("select ryagram_private.connect_offered_scopes()"), "the download plans' scope is untouched")
         self.db.c.execute((core.ROOT / "migrations" / "20261030000200_footage_plans.sql").read_text(encoding="utf-8"))
-        self.assertFalse(self.admin("select footage_enabled from public.connect_flags"), "applied again, the switch is OFF")
+        self.assertFalse(self.admin("select footage_enabled from public.footage_flags"), "applied again, the switch is OFF")
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ class NodeFootage(r9.R9):
         return str(cm.exception)
 
     def test_a_computer_reads_its_persons_open_plans_newest_first_and_nobody_elses_and_the_switch_does_not_matter(self):
-        self.assertFalse(self.admin("select footage_enabled from public.connect_flags"))                       # the AI-side switch is OFF here, as shipped
+        self.assertFalse(self.admin("select footage_enabled from public.footage_flags"))                       # the AI-side switch is OFF here, as shipped
         sam, bob = self.signed(SAM), self.signed(BOB, "Bob-PC")
         old = self.plan(SAM, "NHQ_OLD_0001", at="2026-10-01 10:00+00")
         new = self.plan(SAM, "NHQ_NEW_0002", at="2026-10-02 10:00+00")

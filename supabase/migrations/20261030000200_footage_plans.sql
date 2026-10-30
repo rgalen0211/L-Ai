@@ -3,19 +3,24 @@
 -- starts nothing on the site, fetches nothing (the site never contacts anyone), touches no credit and holds no file. The person's own Ryagram desktop app reads its plans through the signed-in computer's node
 -- route, builds every address itself from fixed templates (tools/footage_sources.py), reads the source's OWN rights record and shows it, and only after the person presses Approve downloads straight from the
 -- publisher to their computer. The app tells the site the STATE and a small receipt (host, size, SHA-256, the date, the source's rights wording as shown); never a file name, a folder, a title or a path.
--- THE SWITCH: public.connect_flags gets footage_enabled, default FALSE. While it is false connect_request_footage refuses in words and writes nothing; listing and the node routes still answer (so a switched-off
+-- THE SWITCH: its own one-row table public.footage_flags (footage_enabled, default FALSE; no login can touch it, only the database owner). While it is false connect_request_footage refuses in words and writes nothing; listing and the node routes still answer (so a switched-off
 -- site shows the person what they already have). Ryan turns it on, after the attorney's questions (design paper section 6); nothing in this file turns it on.
--- Needs 20261018000100_connect_ai.sql (tokens, scopes, connect_flags), 20261021000100_r9_render_node.sql (the signed-in computer's token), 20261027000400_live_editor.sql (ryagram_private.edit_text_ok) and
+-- Needs 20261018000100_connect_ai.sql (tokens, scopes), 20261021000100_r9_render_node.sql (the signed-in computer's token), 20261027000400_live_editor.sql (ryagram_private.edit_text_ok) and
 -- 20261027000500_download_plans.sql (the scope 'fetch_data', which this reuses: no new scope). Same shape as the download plans: the token hash is the only identity, EXECUTE only to connect_runner /
 -- node_runner, a plan that is not the person's looks absent. Limits: at most 5 plans waiting at once and 20 a day per person (PT429); asking again for the item that is already waiting returns that plan.
 -- Undo: supabase/rollbacks/20261030000200_footage_plans_rollback.sql.
 
 begin;
 
-alter table public.connect_flags add column footage_enabled boolean not null default false;
+create table public.footage_flags (
+  id boolean primary key default true check (id),
+  footage_enabled boolean not null default false);          -- THE SWITCH: false = connect_request_footage refuses and writes nothing. Ryan turns it on, after the attorney's questions.
+insert into public.footage_flags (id) values (true);
+alter table public.footage_flags enable row level security;
+revoke all on public.footage_flags from public, anon, authenticated, connect_runner, node_runner;
 
 create function ryagram_private.footage_on() returns boolean
-language sql stable security definer set search_path = '' as $$ select coalesce((select footage_enabled from public.connect_flags where id), false) $$;
+language sql stable security definer set search_path = '' as $$ select coalesce((select footage_enabled from public.footage_flags where id), false) $$;
 
 create table public.footage_plans (
   id uuid primary key default gen_random_uuid(),
