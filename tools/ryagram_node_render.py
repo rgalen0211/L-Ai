@@ -73,12 +73,8 @@ def _node_mod():
 
 
 def on_c(path) -> bool:
-    """True when `path` is on the C: drive (Ryan's rule: nothing heavy or temporary on C:)."""
-    try:
-        drive = os.path.splitdrive(os.path.abspath(str(path)))[0]
-    except (OSError, ValueError):
-        return True
-    return drive.upper() in ("C:", "")
+    """True when `path` is on the C: drive (Ryan's rule: nothing heavy or temporary on C:). Never true on macOS or Linux, which have no drive letters (tools/ryagram_platform.py)."""
+    return plat.on_system_drive(path)
 
 
 @dataclass

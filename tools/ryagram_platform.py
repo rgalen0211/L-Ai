@@ -8,6 +8,7 @@ Standard library only, no network. Every function takes the platform and the sys
     reveal_argv(path) / reveal()  show a file in the computer's own file window (explorer /select, | open -R | xdg-open on the folder)
     search_folders(home)          where "find my file" looks (Videos on Windows, Movies on macOS, plus Downloads, Desktop and Documents)
     total_memory_bytes()          physical memory, or None when it cannot be read
+    on_system_drive(path)         Ryan's storage rule 'nothing heavy on C:' as a function: Windows C: (or no drive at all); macOS and Linux have no drive letters, so it is never true there (Mac step 2)
 
 What is NOT here yet, and needs a real Mac to be written and proved: the Keychain store for the sign-in token, the macOS Python / ffmpeg / wheels of the bundle, signing and notarization.
 """
@@ -115,6 +116,19 @@ def total_memory_bytes(system: str | None = None, *, sysconf=None, windows_total
     except (ValueError, OSError, TypeError):
         return None
     return pages * size if pages > 0 and size > 0 else None
+
+
+def on_system_drive(path, system: str | None = None, *, splitdrive=os.path.splitdrive, abspath=os.path.abspath) -> bool:
+    """True when `path` is on the Windows C: drive (Ryan's rule: nothing heavy or temporary on C:), or its drive cannot be told (treated as C:, the safe answer).
+    macOS and Linux have no drive letters: os.path.splitdrive answers an empty drive for every path there, which the Windows rule reads as "unknown, so C:", and would refuse EVERY
+    path on a Mac. There the rule does not apply (False); the free-space floor of the callers still does."""
+    if current(system) != WINDOWS:
+        return False
+    try:
+        drive = splitdrive(abspath(str(path)))[0]
+    except (OSError, ValueError):
+        return True
+    return drive.upper() in ("C:", "")
 
 
 def free_bytes(path, usage=shutil.disk_usage) -> int | None:

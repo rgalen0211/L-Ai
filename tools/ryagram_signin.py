@@ -26,6 +26,7 @@ from __future__ import annotations
 import ctypes
 import json
 import re
+import subprocess
 import sys
 import threading
 import time
@@ -127,9 +128,83 @@ class WindowsCredentialStore:
             raise SignInError("The Windows Credential Manager would not remove the saved sign-in. Remove it in Windows: Control Panel, Credential Manager, Windows Credentials.", "store")
 
 
+class MacKeychainStore:
+    """The macOS Keychain through the system `security` command in its interactive mode (-i): the commands, and so the token, go through STDIN, never on a command line, so the token
+    never appears in a process list. No new dependency. Written and tested here with a stand-in for `security` (the real one needs a Mac; see proposals/CONNECT-MAC-READY-STEP2.md).
+    The token and the target must be plain characters (no space, quote, semicolon or newline), so a value can never become a second command; anything else is refused and nothing is run."""
+    ACCOUNT = "Ryagram"
+    SECRET_OK = re.compile(r"^[A-Za-z0-9._~+/=-]{1,%d}$" % MAX_BLOB)
+    TARGET_OK = re.compile(r"^[A-Za-z0-9._:-]{1,120}$")
+
+    def __init__(self, run=None):
+        self._run = run or subprocess.run
+
+    def _security(self, command: str):
+        try:
+            r = self._run(["security", "-i"], input=command + "\n", capture_output=True, text=True, timeout=30)
+        except (OSError, subprocess.SubprocessError):
+            raise SignInError("The Mac Keychain could not be reached, so nothing was stored or read.", "store")
+        return r
+
+    def _target(self, target):
+        if not isinstance(target, str) or not self.TARGET_OK.match(target):
+            raise SignInError("The sign-in's name for the Keychain is not a plain name, so nothing was done.", "store")
+        return target
+
+    @staticmethod
+    def _lines(text) -> list:
+        out = []
+        for ln in (text or "").splitlines():
+            ln = ln.strip()
+            if ln.startswith("security>"):
+                ln = ln[len("security>"):].strip()
+            if ln:
+                out.append(ln)
+        return out
+
+    @staticmethod
+    def _missing(r) -> bool:
+        return "could not be found" in ((r.stderr or "") + (r.stdout or "")).lower()
+
+    def read(self, target):
+        r = self._security(f"find-generic-password -a {self.ACCOUNT} -s {self._target(target)} -w")
+        if self._missing(r):
+            return None
+        lines = self._lines(r.stdout)
+        if r.returncode or len(lines) != 1 or not self.SECRET_OK.match(lines[0]):
+            raise SignInError("The Mac Keychain would not read the saved sign-in.", "store")
+        return lines[0]
+
+    def write(self, target, secret):
+        target = self._target(target)
+        if not isinstance(secret, str) or not self.SECRET_OK.match(secret):
+            raise SignInError("The sign-in token is not in a form that can be stored safely, so nothing was stored.", "store")
+        r = self._security(f"add-generic-password -a {self.ACCOUNT} -s {target} -w {secret} -U")
+        if r.returncode or "error" in (r.stderr or "").lower():
+            raise SignInError("The Mac Keychain would not save the sign-in. Nothing was stored.", "store")
+
+    def delete(self, target):
+        r = self._security(f"delete-generic-password -a {self.ACCOUNT} -s {self._target(target)}")
+        if r.returncode and not self._missing(r):
+            raise SignInError("The Mac Keychain would not remove the saved sign-in. Remove it in Keychain Access: search for Ryagram.", "store")
+
+
+def store_class_for(system: str | None = None):
+    """Which store this system uses: the Windows Credential Manager or the Mac Keychain. Linux has none (there is no file fallback)."""
+    name = (system if system is not None else sys.platform).lower()
+    if name.startswith("win") or name == "cygwin":
+        return WindowsCredentialStore
+    if name == "darwin" or name.startswith("mac"):
+        return MacKeychainStore
+    return None
+
+
 def default_store():
     """The real store, or a refusal. There is NO file fallback: a token that cannot be stored safely is not stored."""
-    return WindowsCredentialStore()
+    cls = store_class_for()
+    if cls is None:
+        raise SignInError("Signing in needs a safe place to keep the sign-in (the Windows Credential Manager or the Mac Keychain), which this computer does not have. Nothing was stored.", "store")
+    return cls()
 
 
 # ------------------------------------------------------------------------------------------------------------------ the network
