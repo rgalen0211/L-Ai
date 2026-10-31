@@ -65,7 +65,7 @@ def main():
     findings = []
     try:
         eng = tmp / 'engine'
-        shutil.copytree(engine / 'ryagram', eng / 'ryagram', ignore=shutil.ignore_patterns('__pycache__', 'globe3d', 'maprace', 'trends'))
+        shutil.copytree(engine / 'ryagram', eng / 'ryagram', ignore=shutil.ignore_patterns('__pycache__', 'globe3d', 'trends'))
         (eng / 'ryagram' / 'local' / '__main__.py').write_text(cm.STUB_MAIN, encoding='utf8')
         recipes = tmp / 'recipes'
         recipes.mkdir()

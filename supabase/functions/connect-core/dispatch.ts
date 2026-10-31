@@ -19,6 +19,9 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
     return r;
   };
   const refused = (text: string, code: string) => finish({ text, isError: true, code }, "refused", code);
+  // a limit says how long to wait and which limit it was, as data as well as words (NEXT-CONNECT 169)
+  const limited = (text: string, which: string, limit: number, windowSeconds: number) =>
+    finish({ text, isError: true, code: "rate", data: { ok: false, code: "rate", limit: which, max: limit, window_seconds: windowSeconds, retry_after_seconds: windowSeconds, started: false } }, "refused", "rate");
 
   if (!tool) return refused(`There is no tool called "${String(name).slice(0, 60)}".`, "unknown_tool");
 
@@ -31,10 +34,13 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
 
   try {
     if (!(await policy.hit(principal, "calls", LIMITS.callsPerMinutePerClient, 60))) {
-      return refused("Too many calls in the last minute. Wait a minute and continue.", "rate");
+      return limited(`Too many calls from this connection in the last minute (the limit is ${LIMITS.callsPerMinutePerClient}). Wait a minute and continue.`, "connection_calls", LIMITS.callsPerMinutePerClient, 60);
+    }
+    if (!(await policy.hit(principal, "calls_acct", LIMITS.callsPerMinutePerAccount, 60))) {
+      return limited(`Too many calls on this Ryagram account in the last minute, counting every connected AI together (the limit is ${LIMITS.callsPerMinutePerAccount}). Wait a minute and continue.`, "account_calls", LIMITS.callsPerMinutePerAccount, 60);
     }
     if (tool.ladder && !(await policy.hit(principal, "ladder", LIMITS.ladderPerHourPerUser, 3600))) {
-      return refused("The hourly limit for starting sheets, previews and renders from a connection is reached. The person can still start them in the Ryagram app.", "rate");
+      return limited(`The hourly limit for starting sheets and previews from a connection is reached (${LIMITS.ladderPerHourPerUser} an hour). The person can still start them in the Ryagram app.`, "hourly_jobs", LIMITS.ladderPerHourPerUser, 3600);
     }
   } catch { return finish({ text: friendlyError(null), isError: true, code: "error" }, "error", "limit_lookup"); }
 

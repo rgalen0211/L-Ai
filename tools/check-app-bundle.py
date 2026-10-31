@@ -461,6 +461,15 @@ both = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
 frg = (w["out"] / mab.FORGE_BAT).read_text(encoding="ascii")
 check(' --site "' + SITE + '" --approval-host uselai.com --approval-host www.uselai.com %OPEN%' in both and frg.replace("MAKER_EXTRA=--song --song-forge", "MAKER_EXTRA=--song") == both, "two approval hosts are both passed, and the fill-missing-words start file carries the same sign-in")
 
+w = world("na")
+mab.build(args(w, maker_extra="--song", signin_site=SITE, signin_approval_host=["uselai.com"], node_auto=True))
+nabat = (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii")
+naline = next(l for l in nabat.splitlines() if "desktop_maker.py" in l)
+check(naline.endswith(' --site "' + SITE + '" --approval-host uselai.com --node-auto %OPEN% %MAKER_EXTRA%') and (w["out"] / "tools" / "node_settings.py").is_file(), "NEXT-CONNECT 171: with --node-auto the app line also passes --node-auto, and the settings module travels")
+check(sbat.replace(" --node-auto", "") == sbat and nabat.replace(" --node-auto", "") == sbat, "without --node-auto the start file is the sign-in one, unchanged; with it, it differs only by that switch")
+w = world("nb")
+good, why = refused(w, "needs --signin-site", node_auto=True)
+check(good and not w["out"].exists(), "MUST-FAIL: --node-auto without a sign-in site is refused and nothing is built: " + why[:90])
 for label, over in (("a plain http site", dict(signin_site="http://jxtkfishqfxuptwjzczz.supabase.co/functions/v1/node", signin_approval_host=["uselai.com"])),
                     ("another host's site (a look-alike)", dict(signin_site="https://jxtkfishqfxuptwjzczz.supabase.co.evil.example/functions/v1/node", signin_approval_host=["uselai.com"])),
                     ("a site that is not a Ryagram node address", dict(signin_site="https://evil.example/functions/v1/node", signin_approval_host=["uselai.com"])),
@@ -490,6 +499,86 @@ check(rc == 2 and not w["out"].exists(), "from the command line, a bad --signin-
 w = world("s")
 rc = mab.main(["--out", str(w["out"]), "--kit", str(w["kit"]), "--ffmpeg-dir", str(w["ff"]), "--python-home", str(w["py"]), "--app-repo", str(w["repo"]), "--libraries", LIB, "--allow-any-drive", "--signin-site", SITE, "--signin-approval-host", "uselai.com"])
 check(rc == 0 and ' --site "' + SITE + '" --approval-host uselai.com ' in (w["out"] / "Open Ryagram.bat").read_text(encoding="ascii"), "from the command line, --signin-site and --signin-approval-host reach the start file")
+
+print("J. the engine's node-job closure merged into the bundle (NEXT-CONNECT 164, ENGINE 44): only the settings reader and its fellows, checked against the closure's own manifest")
+WORKER_FILES = ("__init__.py", "config.py", "contract.py", "engine.py", "runner.py", "schema.py", "restricted.py")
+
+
+def nodekit(w, name, extra=None, drop=(), tamper=None, same_engine=True, manifest_extra=(), skip_manifest=False, skip_listing=()):
+    nk = w["root"] / name
+    files = {f"ryagram/worker/{f}": f"# node-job stand-in {f}\n" for f in WORKER_FILES if f not in drop}
+    files["ryagram/local/engine.py"] = (w["kit"] / "ryagram" / "local" / "engine.py").read_bytes().decode("utf-8") if same_engine else "print('another engine head')" + chr(10)
+    files["ryagram/sequence/RENDER.py"] = "# render driver stand-in" + chr(10)                    # the node job starts the render driver: the closure carries the modules the kit lacks
+    files.update(extra or {})
+    lines = []
+    for rel, text in files.items():
+        dest = nk / rel
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        dest.write_text(text, encoding="utf-8", newline="")
+        if rel not in skip_listing:
+            lines.append(f"{hashlib.sha256(text.encode('utf-8')).hexdigest()}  {rel}")
+    if tamper:
+        (nk / tamper).write_text("# changed after the manifest\n", encoding="utf-8", newline="")
+    lines += list(manifest_extra)
+    if not skip_manifest:
+        (nk / "MANIFEST.sha256").write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return nk
+
+
+w = world("t")
+nk = nodekit(w, "nk-good")
+before = tree_hash(w["kit"])
+mab.build(args(w, maker_extra="--song", node_job_kit=str(nk)))
+o = w["out"]
+check((o / "ryagram" / "sequence" / "RENDER.py").is_file(), "a render-driver module the kit does not have (ryagram/sequence) is carried too")
+check(all((o / "ryagram" / "worker" / f).is_file() for f in WORKER_FILES) and (o / "ryagram" / "local" / "engine.py").read_text(encoding="utf-8") == "print('engine')" + chr(10), "the closure's seven worker files are in the bundle's ryagram/worker, and the kit's own engine file is untouched")
+sums = (o / "SHA256SUMS.txt").read_text(encoding="utf-8")
+check("ryagram/worker/config.py" in sums and vb.check(o) == [], "they are in the self-check's list, and it says 'as built'")
+check(tree_hash(w["kit"]) == before, "the kit folder is unchanged")
+(o / "ryagram" / "worker" / "config.py").write_text("# swapped", encoding="utf-8")
+check(vb.check(o) == ["ryagram/worker/config.py has been changed."], "MUST-FAIL: a changed worker/config.py is named by the self-check")
+w = world("t2")
+mab.build(args(w, maker_extra="--song"))
+check(not (w["out"] / "ryagram" / "worker").exists(), "without --node-job-kit the bundle has no ryagram/worker at all (as before)")
+
+w = world("t3")
+kw = w["kit"] / "ryagram" / "worker"
+kw.mkdir(parents=True)
+(kw / "safesheet.py").write_text("# the kit already ships this one" + chr(10), encoding="utf-8", newline="")
+nk3 = nodekit(w, "nk-twin", extra={"ryagram/worker/safesheet.py": "# the kit already ships this one" + chr(10)})
+mab.build(args(w, maker_extra="--song", node_job_kit=str(nk3)))
+check((w["out"] / "ryagram" / "worker" / "safesheet.py").read_text(encoding="utf-8") == "# the kit already ships this one" + chr(10) and (w["out"] / "ryagram" / "worker" / "config.py").is_file(), "a closure file the kit already ships (identical) is accepted whatever its name, and is not copied twice")
+for label, build_kit, frag in (
+        ("a folder with no MANIFEST.sha256", dict(skip_manifest=True), "no MANIFEST.sha256"),
+        ("a file that is not the one the manifest names", dict(tamper="ryagram/worker/runner.py"), "not the file its manifest"),
+        ("an extra file the manifest does not list", dict(extra={"ryagram/worker/notes.py": "x = 1" + chr(10)}, skip_listing=("ryagram/worker/notes.py",)), "not the files in its manifest"),
+        ("a listed file that is missing", dict(manifest_extra=("a" * 64 + "  ryagram/worker/ghost.py",)), "not the files in its manifest"),
+        ("a malformed manifest line", dict(manifest_extra=("not a hash line",)), "not 'sha256  path'"),
+        ("the house worker's queue", dict(extra={"ryagram/worker/queue.py": "x = 1" + chr(10)}), "house-worker module"),
+        ("the house worker's uploads and safesheet", dict(extra={"ryagram/worker/uploads.py": "x = 1" + chr(10), "ryagram/worker/safesheet.py": "x = 1" + chr(10)}), "house-worker module"),
+        ("the house worker itself", dict(extra={"ryagram/worker/worker.py": "x = 1" + chr(10)}), "house-worker module"),
+        ("a worker sub-folder", dict(extra={"ryagram/worker/sub/config.py": "x = 1" + chr(10)}), "house-worker module"),
+        ("a file outside the ryagram folder", dict(extra={"tools/evil.py": "x = 1" + chr(10)}), "outside the ryagram folder"),
+        ("a manifest line whose path climbs out (the folder cannot hold such a file, so the lists differ)", dict(extra={"ryagram/../evil.py": "x = 1" + chr(10)}), "not the files in its manifest"),
+        ("a new file outside ryagram/worker and ryagram/sequence", dict(extra={"ryagram/extra.py": "x = 1" + chr(10)}), "may be added"),
+        ("a new module in another package", dict(extra={"ryagram/maprace/newthing.py": "x = 1" + chr(10)}), "may be added"),
+        ("a sub-folder inside ryagram/sequence", dict(extra={"ryagram/sequence/sub/x.py": "x = 1" + chr(10)}), "may be added"),
+        ("a file the kit has with other content", dict(same_engine=False), "different engine heads"),
+        ("no config.py", dict(drop=("config.py",)), "no ryagram/worker/config.py")):
+    w = world("u")
+    try:
+        nk2 = nodekit(w, "nk-bad", **build_kit)
+    except OSError:
+        continue
+    good, why = refused(w, frag, node_job_kit=str(nk2))
+    check(good and not w["out"].exists(), f"MUST-FAIL: {label} is refused and nothing is built: {why[:110]}")
+w = world("v")
+good, why = refused(w, "no MANIFEST.sha256", node_job_kit=str(w["root"] / "nowhere"))
+check(good and not w["out"].exists(), "MUST-FAIL: a --node-job-kit folder that does not exist is refused: " + why[:100])
+w = world("x")
+nk3 = nodekit(w, "nk-cli")
+rc = mab.main(["--out", str(w["out"]), "--kit", str(w["kit"]), "--ffmpeg-dir", str(w["ff"]), "--python-home", str(w["py"]), "--app-repo", str(w["repo"]), "--libraries", LIB, "--allow-any-drive", "--node-job-kit", str(nk3)])
+check(rc == 0 and (w["out"] / "ryagram" / "worker" / "config.py").is_file(), "from the command line, --node-job-kit reaches the builder")
 
 print()
 if FAILS:

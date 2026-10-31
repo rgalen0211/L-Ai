@@ -218,7 +218,7 @@ export function checkStoryStructured(story: unknown, schemaCheck: ((v: unknown) 
   if (!isObj(story)) return one("The story must be a JSON object.", "story_shape");
   let size = 0;
   try { size = new TextEncoder().encode(JSON.stringify(story)).length; } catch { return one("The story could not be read as JSON.", "story_shape"); }
-  if (size > LIMITS.maxStoryBytes) return one(`The story is ${Math.round(size / 1024)} KB; the limit is 256 KB.`, "story_size");
+  if (size > LIMITS.maxStoryBytes) return one(`The story is ${Math.round(size / 1024)} KB; the limit is ${Math.round(LIMITS.maxStoryBytes / 1024)} KB. Nothing was saved.`, "story_size", "Make the story smaller than 256 KB: shorten long texts, leave out clips you do not need, or split the film into two projects, then send the whole story again.");
   const extra = [...extraProblems(story), ...titleProblems(story)];
   let structured: { errors: StructuredProblem[]; suppressed: number };
   if (schemaCheck.detailed) structured = structureSchemaErrors(story, schemaCheck.detailed(story), extra);
@@ -235,6 +235,6 @@ export function checkStoryStructured(story: unknown, schemaCheck: ((v: unknown) 
   return { ok: errors.length === 0, errors, plain, suppressed: structured.suppressed, more };
 }
 
-function one(message: string, code: string): StructuredCheck {
-  return { ok: false, errors: [{ path: "/", where: "the story", code, message, fix: "Send the whole story as one JSON object under 256 KB." }], plain: [message], suppressed: 0, more: 0 };
+function one(message: string, code: string, fix = "Send the whole story as one JSON object under 256 KB."): StructuredCheck {
+  return { ok: false, errors: [{ path: "/", where: "the story", code, message, fix }], plain: [message], suppressed: 0, more: 0 };
 }

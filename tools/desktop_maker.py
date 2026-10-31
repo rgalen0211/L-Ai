@@ -408,7 +408,7 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     if kind == "build":
         out_dir.mkdir(parents=True, exist_ok=True)
     env = dict(os.environ, PYTHONPATH=str(STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
-    proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
+    proc = subprocess.Popen(cmd, cwd=str(STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", **_plat().popen_group_kwargs())
     job = {"proc": proc, "kind": kind, "out": out, "lines": [], "stdout": [], "started": time.time(), "cancelled": False, "id": stamp, "key": _plan_key(body), "args": list(pc["args"]),
            "of": pc["bind_count"], "done": 0, "current": "", "expect_s": listen_expect_s(pc["listen_seconds"], pc["model"])}
     skipped = body.get("skipped") if isinstance(body.get("skipped"), list) else []
@@ -558,11 +558,7 @@ def cancel_job() -> dict:
     if not job or job["proc"].poll() is not None:
         return {"state": "none"}
     job["cancelled"] = True
-    pid = job["proc"].pid
-    if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)    # my own job, by its PID and its children, never by name
-    else:
-        job["proc"].kill()
+    _plat().kill_tree(job["proc"])                       # my own job, by its PID and its children, never by name (tools/ryagram_platform.py)
     job["proc"].wait(timeout=10)
     return job_status()
 
@@ -848,6 +844,13 @@ SHARE_CARD = (
     '<label class="logswitch" for="blur-on"><input id="blur-on" type="checkbox"> Blur faces I haven' + chr(8217) + 't named</label>'
     '<p id="blur-msg" class="note" role="status"></p></section>')
 EDIT_LINK = '<p><a id="edit-link" class="button secondary" href="/edit">Edit your film (after Plan)</a></p>'
+
+
+def _plat():
+    """tools/ryagram_platform.py: the few things that differ between Windows, macOS and Linux (the start file runs this with python -I, so its folder is put on the path first)."""
+    _tools_on_path()
+    import ryagram_platform
+    return ryagram_platform
 
 
 def _tools_on_path() -> None:
@@ -1281,14 +1284,16 @@ JS = r"""(function () {
     const g = n.message || '';
     box.hidden = false;
     $('node-on').checked = !!n.on;
-    $('node-state').textContent = (!n.on ? 'It is off. Nothing is being checked.' : (g || 'Waiting for a film to make.')) + (n.last ? ' ' + n.last : '');
+    const cannot = n.can_render === false && !n.on;              // this copy has no renderer: never offer a switch it cannot keep (WORKER 52)
+    $('node-on').disabled = cannot;
+    $('node-state').textContent = (cannot ? 'This copy of the app cannot make site films yet, so the switch stays off.' : !n.on ? 'It is off. Nothing is being checked.' : (g || 'Waiting for a film to make.')) + (n.last ? ' ' + n.last : '');
     $('node-uploads').replaceChildren(...(n.uploads || []).map(u => el('li', {}, `${u.name} (${Math.max(1, Math.round(u.bytes / 1024))} KB)`)));
     if (n.on) nodeTimer = setTimeout(refreshNode, 5000);
   }
   async function refreshNode() { try { drawNode(await api('/api/node')); } catch (e) { /* the card keeps what it had */ } }
   $('node-on').addEventListener('change', async ev2 => {
     const box = ev2.currentTarget; box.disabled = true;
-    try { drawNode(await api('/api/node-switch', { on: box.checked })); } catch (e) { $('node-state').textContent = e.message; box.checked = !box.checked; } finally { box.disabled = false; }
+    try { drawNode(await api('/api/node-switch', { on: box.checked })); box.disabled = $('node-on').disabled; } catch (e) { $('node-state').textContent = e.message; box.checked = !box.checked; box.disabled = false; }
   });
   let linksTimer = null;
   function drawLinks(r) {
@@ -2034,8 +2039,7 @@ SKIP_DIRS = {"$recycle.bin", "system volume information", "windows", "program fi
 
 
 def _default_search_roots() -> list:
-    home = Path.home()
-    return [home / n for n in ("Videos", "Downloads", "Desktop", "Documents", "Movies") if (home / n).is_dir()]
+    return _plat().search_folders(Path.home())
 
 
 def remember_dirs(paths) -> None:
@@ -2167,13 +2171,7 @@ def last_film():
 
 def open_in_folder(path) -> None:
     """Show the film in the computer's own file window (only ever the last built film; the page sends no path)."""
-    path = str(path)
-    if os.name == "nt":
-        subprocess.Popen(["explorer", "/select," + path])
-    elif sys.platform == "darwin":
-        subprocess.Popen(["open", "-R", path])
-    else:
-        subprocess.Popen(["xdg-open", str(Path(path).parent)])
+    _plat().reveal(path)
 
 
 def save_answers(answers) -> str:
@@ -2469,6 +2467,16 @@ def find_engine() -> Path | None:
     return None
 
 
+def _node_auto_settings(allow_c: bool = False) -> str:
+    """--node-auto: the settings file this app writes for itself, inside its own folder (tools/node_settings.py). Never raises: no file means the old answer, 'cannot make site films yet'."""
+    try:
+        _tools_on_path()
+        import node_settings
+        return str(node_settings.ensure(HERE.parent, python=sys.executable, allow_c_inside_app=allow_c))
+    except Exception:                                  # noqa: BLE001
+        return ""
+
+
 def node_render_kwargs(settings_path, work: Path) -> dict:
     """The keyword arguments that give the node loop a real renderer, or ONLY the reason it has none (tools/ryagram_node_render.py). Never raises."""
     try:
@@ -2513,6 +2521,8 @@ def main(argv=None) -> int:
     ap.add_argument("--open", action="store_true", help="open the page in this computer's browser once the server is ready")
     ap.add_argument("--site", default=os.environ.get("RYAGRAM_SITE", ""), help="r9, off unless given: the Ryagram site's node address (https://...), to show the Sign in card")
     ap.add_argument("--node-config", default=os.environ.get("RYAGRAM_NODE_CONFIG", ""), help="r9, off unless given, needs --site: a worker-shaped settings file (see tools/ryagram_node_render.py) that lets THIS computer make the signed-in person's own site films; every film goes through the GPU lock; with anything missing the maker says what and takes no jobs")
+    ap.add_argument("--node-auto", action="store_true", help="tester builds, needs --site: write the settings for making this person's own site films into the app's own folder at start (tools/node_settings.py) and use them as --node-config would; make() still decides, in words, whether this computer is ready")
+    ap.add_argument("--node-allow-c", action="store_true", help="with --node-auto: let the app's OWN folder be on C: (a tester who has only C:); OFF unless a build made with Ryan's word passes it. Anything else on C: is still refused")
     ap.add_argument("--approval-host", action="append", default=[], help="a host the site may send you to, to approve this computer (repeat for more), for example uselai.com")
     a = ap.parse_args(argv)
     engine = Path(a.engine) if a.engine else find_engine()
@@ -2522,6 +2532,8 @@ def main(argv=None) -> int:
     if not recipes.is_dir() or not list(recipes.glob("*.json")):
         raise SystemExit(f"There are no recipe files (.json) in {recipes}. Put a recipe there, or start with --recipes <a folder that has one>.")
     try:
+        if a.node_auto and a.site and not a.node_config:
+            a.node_config = _node_auto_settings(a.node_allow_c)
         node_kw = node_render_kwargs(a.node_config, Path(a.work_dir)) if (a.node_config and a.site) else {}
         srv = bind_free_port(engine, recipes, Path(a.work_dir), Path(a.out_dir), a.port, Path(a.questions) if a.questions else None, a.search or None, activity=not a.no_activity_log, site=a.site or None, approval_hosts=a.approval_host, **node_kw, v2=a.v2 or os.environ.get("RYAGRAM_MAKER_V2") == "1")
     except ModuleNotFoundError as e:

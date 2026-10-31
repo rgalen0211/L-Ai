@@ -106,7 +106,7 @@ test('ORDER OF WHAT THE PERSON SEES: the source and licence box is shown from th
 test('WIRING AND FLAG: #/build and its link exist only behind guidedBuilder (now on), the scripts load in order, and the old dataset flags stay off (guidedBuilder ON since Ryan 2026-10-25 22:06)', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /const builderOn = \(\) => window\.ryagramConfig\?\.guidedBuilder === true \|\| !!window\.ryagramMock;/);
-  assert.match(lib, /builderOn\(\) && hash === '#\/build'\) view = await builderUi\(\)\.builderView\(onStop\)/);
+  assert.ok(lib.includes('builderOn() && /^#\\/build(\\?.*)?$/.test(hash)) view = await builderUi().builderView(onStop, '), 'the address may now carry the intake closed type and search word');
   assert.match(lib, /const buildLink = builderOn\(\)/);
   const cfg = read('assets/ryagram-config.js');
   assert.match(cfg, /guidedBuilder: true,/);
