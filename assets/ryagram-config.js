@@ -61,6 +61,8 @@ window.ryagramConfig = Object.freeze({
   // The guided builder (#/build): pick data, measure, years, film type, look and title, read the source and licence, get a free contact sheet. Turn on only once the guided-builder
   // function is deployed (supabase/README.md, "Guided builder"). Datasets are listed to signed-in, invited people only (RULINGS 2026-10-17); catalog and catalogComingSoon below stay off.
   guidedBuilder: true,
+  // The pace choice in the live editor's compilation mode (NEXT-WEB 182; BUILDER 45's named paces): Standard changes nothing, Unhurried adds a little quiet round each word. OFF until Ryan has seen it.
+  clipPace: false,
   // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
   intake: false,
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.

@@ -1039,6 +1039,15 @@
         paint();
         return ok;
       }
+      // The pace choice (compilation mode, its own switch clipPace, off): the panel is rebuilt with the clips as they are; applying sends the preset as ordinary trim ops, batch by batch (the server takes 20 at a time).
+      const PACE = window.ryagramClipPace, paceOn = !!PACE && window.ryagramConfig && window.ryagramConfig.clipPace === true && !isData;
+      let paceChoice = 'standard';
+      const paceHolder = h('div', { class: 'le-pace-holder' });
+      function paintPace() {
+        if (!paceOn) return;
+        paceHolder.replaceChildren(PACE.view(h, E, ed.state, { current: paceChoice, locked, onChoose: id => { paceChoice = id; paintPace(); },
+          onApply: async groups => { let ok = true; for (const g of groups) { if (!(await applyMany(g))) { ok = false; break; } } if (ok) say(`The pace is ${PACE.find(paceChoice).label.toLowerCase()}. Undo takes it back, one step at a time.`); paceChoice = 'standard'; paintPace(); } }));
+      }
       let refocus = null;                                                       // a keyboard edit rebuilds the lanes: focus goes back to the clip that was edited
       function keyOn(c) {
         return ev => {
@@ -1167,7 +1176,7 @@
         if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
         else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
-        paintBanner(); paintWarns(); paintAiLinks(); setPos(position);
+        paintBanner(); paintWarns(); paintAiLinks(); paintPace(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
       }
 
@@ -1178,7 +1187,7 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
+          h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
