@@ -564,6 +564,16 @@
         db.testerAudit.unshift({ user_email: p_email, was_on: was, turned_on: p_on === true, set_by_email: 'ryan@example.com', reason: p_reason.trim(), at: new Date().toISOString() });
         return { data: p_on === true, error: null };
       },
+      // each tester's computers (NEXT-WEB 187): one awake, one not seen for two days, one with no computer
+      admin_tester_devices() {
+        if (!adminMock()) return fail('Admins only.');
+        const now = Date.now(), iso = ms => new Date(now - ms).toISOString(), exp = new Date(now + 20 * 86400000).toISOString();
+        return { data: [
+          { user_email: 'sam@example.com', computer_name: 'DESKTOP-SAM-PC', created_at: iso(5 * 86400000), expires_at: exp, last_used_at: iso(20000), waiting_films: 1, running_films: 1 },
+          { user_email: 'sam@example.com', computer_name: 'ALIENWARE', created_at: iso(9 * 86400000), expires_at: exp, last_used_at: iso(2 * 86400000), waiting_films: 1, running_films: 0 },
+          { user_email: 'pat@example.com', computer_name: 'PAT-LAPTOP', created_at: iso(3 * 86400000), expires_at: exp, last_used_at: iso(50 * 3600000), waiting_films: 0, running_films: 0 },
+          { user_email: 'lee@example.com', computer_name: null, created_at: null, expires_at: null, last_used_at: null, waiting_films: 2, running_films: 0 }], error: null };
+      },
       admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
       // Mock of the Connect-an-AI switch (NEXT-WEB 157, SQL 20261027000900): admin only, a reason, refuses an administrator and a worker, every change in a history. maya@example.com and
       // sam@example.com start ON (as after tonight's by-hand SQL); ryan@example.com is an administrator.
