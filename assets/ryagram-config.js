@@ -85,6 +85,9 @@ window.ryagramConfig = Object.freeze({
   departments: true,
   // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in (testers only), the admin Tester computers page, and the Windows download card (testers only). ON (Ryan's typed yes) once the r9 migration is applied and the `node` function is deployed (RYAN-GO-LIVE-SESSION.md part C); only an account with the tester flag, or one that already has a computer, sees anything on Account.
   desktopApp: true,
+  // Worker health on #/admin/ops (NEXT-WORKER 72): per render worker, whether it checks in, its engine commit, what it is making or when it last took a
+  // film, its free disk and why it may be paused (worked out from what it last reported). Turn on only once SQL 20261031000400 is applied. OFF.
+  workerHealth: false,
   // PERMANENTLY OFF (Ryan, 2026-10-04): there is no dataset picker or browse list for users, ever. The
   // catalog (assets/app-catalog-data.js) is the internal list Ryagram's AI chooses from, server side;
   // nothing in the app reads these two flags. tests/app-catalog.test.cjs fails if either turns true.
