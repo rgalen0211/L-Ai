@@ -51,6 +51,7 @@ HOUSE_POLL_S = 10.0
 HOUSE_WAIT_MAX_S = 6 * 3600           # a tester film that waited this long behind paid films is given back to the site (retried)
 LOCK_WAIT_MAX_S = 12 * 3600              # a render that waited this long for the GPU is given up (reported, retried by the site)
 MIN_FREE_GB = 10.0
+STARTER_MANIFEST = "STARTER-DATA.sha256"         # written by tools/make_starter_data.py at the top of the starter data zip: "<sha256>  <bytes>  <relative path>"
 MIN_RAM_BYTES = 8 << 30
 ALLOWED_TYPES = ("contact_sheet", "preview")
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
@@ -154,6 +155,46 @@ def effective_house_jobs(s: Settings, work_root) -> Path | None:
     return None
 
 
+def starter_data_problem(data_dir: Path) -> str | None:
+    """The starter data a tester extracts into the data folder (NEXT-WORKER 70/71: Windows' Extract All adds a folder named after the zip,
+    and a wrong 'program folder' leaves it empty; both used to pass this check and fail the film late). Plain words, or None when fine.
+      * the manifest at the top: every file it lists must be there at its listed size (sizes, not hashes: this runs at every start)
+      * the manifest one folder down: the data is one folder too deep, and the sentence names that folder
+      * an empty folder: the data is not in place yet
+      * files but no manifest anywhere (a house cache, a folder made by hand): accepted, as before"""
+    d = Path(data_dir)
+    top = d / STARTER_MANIFEST
+    if top.is_file():
+        missing, listed = [], 0
+        for line in top.read_text(encoding="utf-8", errors="replace").splitlines():
+            parts = line.split(None, 2)
+            if len(parts) != 3 or not parts[1].isdigit():
+                continue
+            listed += 1
+            f = d / parts[2].strip()
+            try:
+                if f.stat().st_size != int(parts[1]):
+                    missing.append(parts[2].strip())
+            except OSError:
+                missing.append(parts[2].strip())
+        if missing:
+            return (f"The film data in {d} is not complete: {len(missing)} of {listed} files are missing or cut short (for example "
+                    f"{missing[0]}). Extract the starter data zip into that folder again.")
+        return None
+    try:
+        entries = list(d.iterdir())
+    except OSError:
+        return None                                    # the folder itself is checked by the caller
+    for sub_dir in entries:
+        if sub_dir.is_dir() and not sub_dir.is_symlink() and (sub_dir / STARTER_MANIFEST).is_file():
+            return (f"The film data is one folder too deep: it is in {sub_dir}. Move everything in that folder up into {d} "
+                    "(files such as co2010a.txt must sit directly in it), then start the program again.")
+    if not entries:
+        return (f"The film data is not in place yet: {d} is empty. Extract the starter data zip into it (files such as co2010a.txt "
+                "directly inside), then start the program again.")
+    return None
+
+
 def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> list[str]:
     """Plain-words reasons this computer cannot make site films yet. Empty = ready."""
     out = []
@@ -171,6 +212,10 @@ def find_problems(s: Settings, work_root, *, ram=_ram_bytes, free_gb=None) -> li
         out.append("ffmpeg (the video tool) was not found where the settings say.")
     if s.cache_dir is None or not s.cache_dir.is_dir():
         out.append("The data folder the films read was not found on this computer.")
+    else:
+        starter = starter_data_problem(s.cache_dir)
+        if starter:
+            out.append(starter)
     if s.gpu_lock is None or not s.gpu_lock.is_file():
         out.append("The graphics-card lock tool was not found, and a film is never made without it.")
     if not CHILD.is_file():
