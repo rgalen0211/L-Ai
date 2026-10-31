@@ -78,6 +78,8 @@ window.ryagramConfig = Object.freeze({
   // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
   intake: false,
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
+  // The song film entries on the Help page (NEXT-WEB 194): what a song film is, stand-ins, the speed limit, lyric cards, what internal only means. Draft words for Ryan. OFF until he has read them; entries about a site screen also need that screen's own switch.
+  songHelp: false,
   myFilms: false,
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
   lookEditor: true,

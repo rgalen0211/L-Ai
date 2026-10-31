@@ -34,7 +34,9 @@ with sync_playwright() as pw:
         on_cfg = re.sub(r'liveEditor:\s*false', 'liveEditor: true', on_cfg)
     else:
         on_cfg = on_cfg.replace('window.ryagramConfig = Object.freeze({', 'window.ryagramConfig = Object.freeze({ liveEditor: true,', 1)
-    for label, cfg, shown in (('as shipped', base, ['How do I connect Claude']), ('all switches on', on_cfg, ['How do I connect Claude', 'change my film', 'get my data'])):
+    SONG = ['What is a song film', 'stand-in', 'sped up', 'lyric cards', 'internal only']
+    song_cfg = re.sub(r'songHelp:\s*false', 'songHelp: true', base).replace('window.ryagramConfig = Object.freeze({', 'window.ryagramConfig = Object.freeze({ whyClip: true, lyricCards: true,', 1)
+    for label, cfg, shown in (('as shipped', base, ['How do I connect Claude']), ('all switches on', on_cfg, ['How do I connect Claude', 'change my film', 'get my data']), ('song film entries on', song_cfg, ['How do I connect Claude'] + SONG)):
         print(label)
         ctx = b.new_context(viewport={'width': 375, 'height': 800})
         ctx.route(re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*'), lambda r: r.abort())                  # no outside request: the page's web font is not needed here
@@ -43,8 +45,8 @@ with sync_playwright() as pw:
         p.on('pageerror', lambda e: errs.append(str(e))); p.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
         p.goto(f'http://127.0.0.1:{PORT}/help/', wait_until='commit'); p.wait_for_timeout(1500)
         vis = [s for s in p.locator('.faq details:visible > summary').all_inner_texts()]
-        check(len(vis) >= 7, f'the seven answers are shown ({len(vis)} visible)')
-        for key in ('How do I connect Claude', 'change my film', 'get my data'):
+        check(len(vis) >= 7, f'the answers are shown ({len(vis)} visible)')
+        for key in ('How do I connect Claude', 'change my film', 'get my data') + tuple(SONG):
             on = any(key in s for s in vis)
             check(on is (key in shown), f'"{key}" is {"shown" if on else "hidden"} as expected')
         check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll at 375 px')
