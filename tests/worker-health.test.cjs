@@ -87,7 +87,8 @@ test('the section loads only with the switch on, and the switch is OFF', () => {
 test('the SQL function is admin only, reads house jobs only, and has a rollback', () => {
   const sql = read('supabase/migrations/20261031000400_admin_worker_health.sql');
   assert.match(sql, /perform ryagram_private\.require_admin\(\);/);
-  assert.match(sql, /revoke all on function public\.admin_worker_health\(\) from public, anon;/);
+  assert.match(sql, /revoke all on function public\.admin_worker_health\(\) from public, anon, node_runner;/);
+  assert.match(read('supabase/tests/test_ops_readiness.py'), /"admin_worker_health\(\)",/, 'named in the signed-in list, the admin_* rule');
   assert.equal((sql.match(/j\.run_on = 'house'/g) || []).length, 3, 'every job read is a house job');
   const body = sql.slice(sql.indexOf('$$'), sql.lastIndexOf('$$'));
   assert.ok(body.length > 500, 'the function body is read');
