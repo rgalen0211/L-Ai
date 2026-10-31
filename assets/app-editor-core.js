@@ -23,7 +23,8 @@
   // The five ops of CONNECT 13:12 (shared cases: tests/edit-op-cases.json): a text style, the music's settings, the phrase rules, the film's own look.
   const STYLES = ['title', 'caption', 'lower_third'];
   const RULE_MODES = ['full', 'centre', 'corner', 'lower_third'];
-  const FILM_LOOK = ['theme', 'text_color', 'box_color', 'box_opacity', 'letterbox'];
+  const FILM_LOOK = ['theme', 'text_color', 'box_color', 'box_opacity', 'letterbox', 'lyric_card'];
+  const LYRIC_CARDS = ['plate', 'bar', 'sing_along'];                           // RENDERER 60's three lyric card designs (Ryagram tools/song_cards.py)
   const MAX_RULES = 50;
   const num = v => typeof v === 'number' && Number.isFinite(v);
   const inRange = (v, lo, hi) => num(v) && v >= lo && v <= hi;
@@ -115,9 +116,10 @@
       return null;
     }
     if (op.op === 'set_film_look') {
-      if (!FILM_LOOK.includes(op.key)) return 'That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox).';
+      if (!FILM_LOOK.includes(op.key)) return 'That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox, lyric_card).';
       if (!('value' in op)) return 'A film look change needs a value.';
       if (op.key === 'theme' && !(op.value === 'dark' || op.value === 'light')) return 'The theme can only be: dark, light.';
+      if (op.key === 'lyric_card' && !LYRIC_CARDS.includes(op.value)) return 'The lyric card can only be: plate, bar, sing_along.';
       if (['text_color', 'box_color', 'letterbox'].includes(op.key) && !COLOR(op.value)) return 'That needs a colour like #1a73e8.';
       if (op.key === 'box_opacity' && !inRange(op.value, 0, 1)) return 'The box opacity must be a number from 0 to 1.';
       return null;

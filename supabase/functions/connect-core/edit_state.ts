@@ -23,7 +23,8 @@ export const LIMITS_EDIT = Object.freeze({ opsPerCall: 20, opsPerMinute: 60, ops
 
 const ID = /^[A-Za-z0-9_-]{1,40}$/;
 const STYLES = ["title", "caption", "lower_third"];
-const FILM_LOOK = ["theme", "text_color", "box_color", "box_opacity", "letterbox"];
+const FILM_LOOK = ["theme", "text_color", "box_color", "box_opacity", "letterbox", "lyric_card"];
+const LYRIC_CARDS = ["plate", "bar", "sing_along"];
 const CTRL = /[\u0000-\u001f\u007f-\u009f]/;
 const BIDI = /[\u202a-\u202e\u2066-\u2069\u200e\u200f]/;
 const PLACE = /([A-Za-z]:[\\/]|\\\\|(^|\s)\/[A-Za-z]|\.\.[\\/]|[A-Za-z][A-Za-z0-9+.-]*:\/\/)/;
@@ -119,9 +120,10 @@ export function opProblem(mode: Mode, op: unknown): string | null {
   } else if (kind === "delete_rule") {
     if (!(typeof o.id === "string" && ID.test(o.id))) return 'This change needs a rule "id" from get_edit_state.';
   } else if (kind === "set_film_look") {
-    if (!(typeof o.key === "string" && FILM_LOOK.includes(o.key))) return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox).";
+    if (!(typeof o.key === "string" && FILM_LOOK.includes(o.key))) return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox, lyric_card).";
     if (!("value" in o)) return 'A film look change needs a "value".';
     if (o.key === "theme" && !(o.value === "dark" || o.value === "light")) return '"theme" can only be: dark, light.';
+    if (o.key === "lyric_card" && !(typeof o.value === "string" && LYRIC_CARDS.includes(o.value))) return '"lyric_card" can only be: plate, bar, sing_along.';
     if (["text_color", "box_color", "letterbox"].includes(o.key) && !(typeof o.value === "string" && /^#[0-9A-Fa-f]{6}$/.test(o.value))) return `"${o.key}" needs a colour like #1a73e8.`;
     if (o.key === "box_opacity" && !(isNum(o.value) && o.value >= 0 && o.value <= 1)) return '"box_opacity" must be a number from 0 to 1.';
   }

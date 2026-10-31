@@ -34,7 +34,8 @@ OPS_PER_CALL, OPS_PER_MINUTE, OPS_PER_DAY, UNDONE_WINDOW_S = 20, 60, 600, 600
 COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
 ID = re.compile(r"^[A-Za-z0-9_-]{1,40}$")
 STYLES = ("title", "caption", "lower_third")
-FILM_LOOK = ("theme", "text_color", "box_color", "box_opacity", "letterbox")
+FILM_LOOK = ("theme", "text_color", "box_color", "box_opacity", "letterbox", "lyric_card")
+LYRIC_CARDS = ("plate", "bar", "sing_along")
 RULE_MODES = ("full", "centre", "corner", "lower_third")
 MAX_RULES = 50
 RULE_PICTURE = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
@@ -225,12 +226,14 @@ def op_problem(mode: str, op, look_keys=None):
             return 'This change needs a rule "id" from get_edit_state.'
     elif kind == "set_film_look":
         if not (isinstance(op.get("key"), str) and op["key"] in FILM_LOOK):
-            return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
+            return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox, lyric_card)."
         if "value" not in op:
             return 'A film look change needs a "value".'
         v = op["value"]
         if op["key"] == "theme" and v not in ("dark", "light"):
             return '"theme" can only be: dark, light.'
+        if op["key"] == "lyric_card" and v not in LYRIC_CARDS:
+            return '"lyric_card" can only be: plate, bar, sing_along.'
         if op["key"] in ("text_color", "box_color", "letterbox") and not (isinstance(v, str) and COLOUR.match(v)):
             return f'"{op["key"]}" needs a colour like #1a73e8.'
         if op["key"] == "box_opacity" and not (_is_num(v) and 0 <= v <= 1):
@@ -323,11 +326,13 @@ def _page_values(op):
     if kind == "set_film_look":
         key, v = op.get("key"), op.get("value")
         if key not in FILM_LOOK:
-            return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
+            return "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox, lyric_card)."
         if "value" not in op:
             return "A film look change needs a value."
         if key == "theme" and v not in ("dark", "light"):
             return "The theme can only be: dark, light."
+        if key == "lyric_card" and v not in LYRIC_CARDS:
+            return "The lyric card can only be: plate, bar, sing_along."
         if key in ("text_color", "box_color", "letterbox") and not (isinstance(v, str) and COLOUR.match(v)):
             return "That needs a colour like #1a73e8."
         if key == "box_opacity" and not (_is_num(v) and 0 <= v <= 1):

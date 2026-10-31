@@ -415,7 +415,8 @@
       const FILM_LOOK_ROWS = [['theme', 'Page and text'], ['text_color', 'Text colour'], ['box_color', 'Text box colour'], ['box_opacity', 'Text box strength'], ['letterbox', 'Bars around the picture']];
       function paintFilmLook() {
         const lk = ed.state.look || {};
-        filmLookPanel.hidden = isData || !FILM_LOOK_ROWS.some(([k]) => k in lk);
+        const LC = window.ryagramLyricCards, lcOn = !!(LC && LC.enabled());
+        filmLookPanel.hidden = isData || !(lcOn || FILM_LOOK_ROWS.some(([k]) => k in lk));
         if (filmLookPanel.hidden) return;
         const set = (key, value) => apply({ op: 'set_film_look', key, value });
         const colour = (key, label) => { const i = h('input', { type: 'color', id: `le-fl-${key}`, value: /^#[0-9a-fA-F]{6}$/.test(lk[key]) ? lk[key] : '#000000', 'aria-label': label, disabled: locked }); i.addEventListener('change', () => set(key, i.value)); return field(i.id, label, i); };
@@ -425,6 +426,7 @@
         op.addEventListener('change', () => set('box_opacity', Number(op.value)));
         filmLookPanel.replaceChildren(h('h2', { id: 'le-flook-h' }, 'Look of the film'),
           field('le-fl-theme', 'Page and text', theme), colour('text_color', 'Text colour'), colour('box_color', 'Text box colour'), field('le-fl-box_opacity', 'Text box strength (0 to 1)', op), colour('letterbox', 'Bars around the picture'),
+          ...(lcOn ? [LC.panel(h, lk, v => set('lyric_card', v), locked)] : []),
           h('p', { class: 'le-free' }, 'These settings change how every text and card in the film looks. Free, like everything here.'));
       }
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
