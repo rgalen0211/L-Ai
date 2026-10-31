@@ -15,6 +15,9 @@
 
   if (typeof document === 'undefined' || !document.getElementById('ga-msg')) return;
   var msg = document.getElementById('ga-msg'), detail = document.getElementById('ga-detail'), go = document.getElementById('ga-go'), after = document.getElementById('ga-after');
+  // The plain Mac sentence (assets/mac-note.js), only when its switch is on.
+  var mac = document.getElementById('ga-mac'), N = window.ryagramMacNote;
+  if (mac && N && N.on(window.ryagramConfig)) { mac.textContent = N.LINES.join(' '); mac.hidden = false; }
   var token = tokenFrom(location.hash);
   try { history.replaceState(null, '', location.pathname); } catch (e) { /* the address bar keeps it: harmless, the fragment is never sent */ }
 
