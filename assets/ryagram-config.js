@@ -83,6 +83,8 @@ window.ryagramConfig = Object.freeze({
   // The two DRAFT landing pages for song films and for compilations (/landing-drafts/song-films/ and /compilations/; NEXT-WEB 193): noindex, linked from nowhere, every sentence marked for Ryan's wording, text shown only when this is true. OFF until Ryan has read them.
   landingDrafts: false,
   myFilms: false,
+  // The tester first-run wizard (#/tester-start; NEXT-WEB 192): signed in, your computer, room on your drive, your first film, in plain words. Needs the tester flag on the account. OFF until Ryan has seen it and set its words.
+  testerWizard: false,
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
   lookEditor: true,
   // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once

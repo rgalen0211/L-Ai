@@ -12,7 +12,7 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/app-375-shots')
 PORT = 8375
 WIDTH = int(sys.argv[2]) if len(sys.argv) > 2 else 375
-ROUTES = [('projects', '?mock#/'), ('projects-empty', '?mock&empty#/'), ('account', '?mock#/account'), ('credits', '?mock#/credits'), ('help', '?mock#/help'), ('looks', '?mock#/looks'),
+ROUTES = [('projects', '?mock#/'), ('projects-empty', '?mock&empty#/'), ('account', '?mock#/account'), ('credits', '?mock#/credits'), ('tester-wizard', '?mock&tester&wzquiet#/tester-start'), ('help', '?mock#/help'), ('looks', '?mock#/looks'),
           ('request', '?mock#/request'), ('start-door', '?mock&door#/start'), ('build', '?mock#/build'), ('editor-data', '?mock#/editor/data'), ('editor-data-banded', '?mock&banded#/editor/data'),
           ('editor-compilation', '?mock#/editor/compilation'), ('computers', '?mock&tester#/account'), ('device', '?mock#/device?code=ABCD-2345'), ('connect-consent', '?mock#/connect/consent?request=mock'),
           ('project', '?mock#/', ['a[href^="#/p/"]']), ('version', '?mock#/', ['a[href^="#/p/"]', 'a[href^="#/v/"]']),
@@ -49,7 +49,7 @@ socketserver.TCPServer.allow_reuse_address = True
 srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 cfg = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-for _k in ('liveEditor', 'whyClip', 'songIntake', 'adminTesterDevices', 'testerFilmProgress', 'myFilms', 'intake'):
+for _k in ('liveEditor', 'whyClip', 'songIntake', 'adminTesterDevices', 'testerFilmProgress', 'myFilms', 'intake', 'testerWizard'):
     cfg = re.sub(rf'\b{_k}:\s*false', f'{_k}: true', cfg)
 OUT.mkdir(parents=True, exist_ok=True)
 bad = 0
