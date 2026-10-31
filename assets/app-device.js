@@ -245,6 +245,7 @@
       } }, 'Download Ryagram for Windows') : null;
       return h('section', { class: 'account-section windows-card', 'aria-labelledby': 'acct-windows' }, h('h2', { id: 'acct-windows' }, 'Ryagram for Windows'),
         h('p', { class: 'form-note' }, 'The Ryagram app for your Windows computer. Your films are made on it.'),
+        ...(window.ryagramMacNote && window.ryagramMacNote.on(window.ryagramConfig) ? [h('p', { class: 'form-note windows-mac-note', role: 'note' }, window.ryagramMacNote.LINES.join(' '))] : []),
         h('dl', { class: 'windows-facts' },
           h('dt', {}, 'File'), h('dd', {}, ready ? h('code', {}, rel.fileName) : 'shown here when the file is ready'),
           h('dt', {}, 'Size'), h('dd', {}, ready && rel.sizeMb ? `about ${rel.sizeMb} MB. The listening model is downloaded separately, the first time you run it.` : 'shown here when the file is ready'),

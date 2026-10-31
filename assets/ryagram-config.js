@@ -62,12 +62,17 @@ window.ryagramConfig = Object.freeze({
   // function is deployed (supabase/README.md, "Guided builder"). Datasets are listed to signed-in, invited people only (RULINGS 2026-10-17); catalog and catalogComingSoon below stay off.
   guidedBuilder: true,
 <<<<<<< HEAD
+<<<<<<< HEAD
   // The pace choice in the live editor's compilation mode (NEXT-WEB 182; BUILDER 45's named paces): Standard changes nothing, Unhurried adds a little quiet round each word. OFF until Ryan has seen it.
   clipPace: false,
 =======
   // The two DRAFT pages for the Claude and ChatGPT connector directory listings (/directory-drafts/privacy/ and /terms/; NEXT-WEB 183): noindex, linked from nowhere, and their text shows only when this is true. The wording is Ryan's and the lawyer's.
   directoryDrafts: false,
 >>>>>>> origin/directory-drafts
+=======
+  // One plain sentence on the download pages: the Ryagram app is Windows today, a Mac version is planned, not built, no date (NEXT-WEB 184; proposals/CONNECT-MAC-READY-PLAN.md). OFF until Ryan has chosen the words.
+  macNote: false,
+>>>>>>> origin/mac-note
   // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
   intake: false,
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
