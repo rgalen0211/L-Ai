@@ -73,6 +73,8 @@ window.ryagramConfig = Object.freeze({
   adminTesterDevices: false,
   // On My films, a tester account's films say where they are on THEIR computer: waiting for it, picked up by it, being made on it, done, or failed and why (NEXT-WEB 186). Needs myFilms. OFF until Ryan has seen it.
   testerFilmProgress: false,
+  // 'A song film with real voices' in the intake (#/new; NEXT-WEB 188): a real choice when true, shown as Coming soon when false. Needs the intake. OFF until Ryan has seen it.
+  songIntake: false,
   // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
   intake: false,
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
