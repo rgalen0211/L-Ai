@@ -68,3 +68,15 @@ test('wiring: behind testerWizard (off), its own route, loaded before the librar
   assert.match(read('tests/fake-supabase.js'), /wz\(awake\|quiet\)/);
   assert.equal(W.flagOn(), false);
 });
+
+test('NEXT-WEB 195: on a Mac with no computer signed in, the page says the app is Windows only, plainly, with no button to a download that does not exist; a Mac with a Windows computer awake is fine', () => {
+  const mac = run({ platform: 'mac' });
+  assert.match(mac.steps[1].words, /The Ryagram app is for Windows today\. A Mac version is planned\. It is not built yet, and there is no date\./); assert.match(mac.steps[1].words, /Your films wait until a Windows computer is signed in/);
+  assert.equal(mac.steps[1].action, null); assert.equal(mac.steps[1].state, 'now');
+  assert.deepEqual(J(W.MAC_LINES), ['The Ryagram app is for Windows today. A Mac version is planned. It is not built yet, and there is no date.', 'On a Mac you can sign in to Ryagram in your browser, but making a film on your own computer needs the Windows app.']);
+  assert.equal(run({ platform: 'mac', computers: [comp('WIN-PC', 10)] }).steps[1].state, 'done');
+  assert.equal(run({ platform: 'mac', computers: [comp('WIN-PC', 2 * 86400)] }).steps[1].action.href, '#/account');
+  assert.doesNotMatch(run({ platform: 'other' }).steps[1].words, /Mac/);
+  assert.equal(W.isMac({ platform: 'MacIntel', userAgent: 'x' }), true); assert.equal(W.isMac({ userAgentData: { platform: 'macOS' }, userAgent: 'x' }), true);
+  assert.equal(W.isMac({ platform: 'MacIntel', userAgent: 'iPad' }), false); assert.equal(W.isMac({ platform: 'Win32', userAgent: 'x' }), false); assert.equal(W.isMac(null), false);
+});

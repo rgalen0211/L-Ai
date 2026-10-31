@@ -78,6 +78,31 @@ with sync_playwright() as pw:
         check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
         check(not errs, 'no console errors' + (f': {errs[:2]}' if errs else ''))
         p.context.close()
+    print('Windows and Mac (browser only, emulated)')
+    MAC_UA = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+    WIN_UA = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36'
+    for osname, ua, plat in (('Windows', WIN_UA, 'Win32'), ('Mac', MAC_UA, 'MacIntel')):
+        errs = []
+        ctx = b.new_context(viewport={'width': 1200, 'height': 900}, user_agent=ua)
+        ctx.add_init_script("Object.defineProperty(navigator, 'platform', { get: () => '%s' });" % plat)
+        ctx.route(re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*'), lambda r, _q: r.abort())
+        ctx.route('**/assets/ryagram-config.js*', lambda r, _q: r.fulfill(status=200, content_type='text/javascript', body=on_cfg))
+        p = ctx.new_page(); p.on('pageerror', lambda e: errs.append(str(e)))
+        p.goto(f'http://127.0.0.1:{PORT}/app/?mock&tester&empty#/tester-start', wait_until='load'); p.wait_for_selector('.wiz-body *', timeout=20000); p.wait_for_timeout(300)
+        body = txt(p)
+        if osname == 'Mac':
+            check('The Ryagram app is for Windows today' in body and p.locator('.wiz-now a').count() == 0, 'Mac, no computer: the app is Windows only, said plainly, no download button')
+        else:
+            check('The Ryagram app is for Windows' not in body and 'Mac' not in body and p.locator('.wiz-now a').count() == 1, 'Windows, no computer: told to get the app, one button, no word about Mac')
+        check(not errs, f'{osname}: no page errors')
+        p.screenshot(path=str(Path('D:/Ryagram-scratch/WEB/temp') / f'wizard-{osname}.png'), full_page=True)
+        ctx.close()
+    # a Mac user whose Windows computer is awake is simply done with that step
+    ctx = b.new_context(viewport={'width': 1200, 'height': 900}, user_agent=MAC_UA); ctx.add_init_script("Object.defineProperty(navigator, 'platform', { get: () => 'MacIntel' });")
+    ctx.route(re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*'), lambda r, _q: r.abort()); ctx.route('**/assets/ryagram-config.js*', lambda r, _q: r.fulfill(status=200, content_type='text/javascript', body=on_cfg))
+    p = ctx.new_page(); p.goto(f'http://127.0.0.1:{PORT}/app/?mock&tester&wzawake&empty#/tester-start', wait_until='load'); p.wait_for_selector('.wiz-body *'); p.wait_for_timeout(300)
+    check('DESKTOP-WIZ is awake' in txt(p) and 'for Windows today' not in txt(p), 'a Mac whose Windows computer is awake is done with that step and sees no Mac sentence')
+    ctx.close()
     print('plain account and switch off')
     errs = []
     p = page(b, on_cfg, dict(viewport={'width': 1200, 'height': 900}), errs)

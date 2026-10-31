@@ -14,6 +14,9 @@
     diskDone: 'You said the drive has room. Say so again any time if that changes.',
   };
   const ago = ms => { const m = Math.max(0, Math.round(ms / 60000)); if (m < 2) return 'a minute ago'; if (m < 120) return `${m} minutes ago`; const hr = Math.round(m / 60); if (hr < 48) return `${hr} hours ago`; return `${Math.round(hr / 24)} days ago`; };
+  // The app is Windows only today (proposals/CONNECT-MAC-READY-PLAN.md). The same two draft sentences as the download pages (NEXT-WEB 184); the words are Ryan's to decide.
+  const MAC_LINES = ['The Ryagram app is for Windows today. A Mac version is planned. It is not built yet, and there is no date.', 'On a Mac you can sign in to Ryagram in your browser, but making a film on your own computer needs the Windows app.'];
+  const isMac = nav => { const s = String((nav && ((nav.userAgentData && nav.userAgentData.platform) || nav.platform)) || ''), ua = String((nav && nav.userAgent) || ''); return /^mac/i.test(s) && !/iphone|ipad|ipod/i.test(ua); };
   const clean = s => String(s == null ? '' : s).replace(/[\u0000-\u001f\u007f]/g, ' ').trim().slice(0, 60);
 
   // The computers the person has signed in (revoked ones never count; an expired sign-in is not a working computer), and whether one is awake.
@@ -38,6 +41,7 @@
     let computerWords, computerAction = null;
     if (c.awake) computerWords = `${c.name} is awake: the Ryagram app on it was seen in the last 3 minutes.`;
     else if (c.count > 0) { computerWords = `${c.name} is signed in, but it was ${c.lastSeenMs === null ? 'not seen yet' : `last seen ${ago(c.lastSeenMs)}`}. Open the Ryagram app on it and leave it open.`; computerAction = { label: 'See my computers', href: '#/account' }; }
+    else if (i.platform === 'mac') { computerWords = `${MAC_LINES.join(' ')} Your films wait until a Windows computer is signed in with this account.`; computerAction = null; }
     else { computerWords = 'No computer is signed in yet. Get the Ryagram app on the computer you will make films on, and sign in to it with this account. Your films wait until you do.'; computerAction = { label: 'Get the app and sign in', href: '#/account' }; }
     list.push({ id: 'computer', title: 'Your computer', done: c.awake, words: computerWords, action: computerAction });
     list.push({ id: 'disk', title: 'Room on your drive', done: i.diskChecked === true,
@@ -77,7 +81,7 @@
           try { computers = await data.myComputers(); } catch (e) { computers = []; }
           try { films = await data.listFilms(); } catch (e) { films = []; }
         }
-        draw(steps({ tester, computers, films, diskChecked, now: Date.now(), startHref: startHref ? startHref() : '#/' }));
+        draw(steps({ tester, computers, films, diskChecked, now: Date.now(), startHref: startHref ? startHref() : '#/', platform: isMac(typeof navigator !== 'undefined' ? navigator : null) ? 'mac' : 'other' }));
       }
       const timer = setInterval(() => { if (!document.hidden) load(); }, 15000);      // a computer that wakes shows as awake without a reload
       if (onStop) onStop(() => clearInterval(timer));
@@ -87,5 +91,5 @@
     return { wizardView };
   }
   const flagOn = () => !!(window.ryagramConfig && window.ryagramConfig.testerWizard === true);
-  window.ryagramTesterWizard = { WORDS, SEEN_MS, DISK_KEY, computerFacts, steps, create, flagOn };
+  window.ryagramTesterWizard = { WORDS, SEEN_MS, DISK_KEY, computerFacts, steps, create, flagOn, isMac, MAC_LINES };
 })();
