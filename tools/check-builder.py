@@ -93,7 +93,7 @@ def main():
                 p.click('button:has-text("Next")')
                 p.wait_for_selector('h2:has-text("Review")')
                 p.wait_for_selector('.builder-problems', timeout=10000)
-                check('years.start: 1990 is outside this dataset' in p.inner_text('.builder-review'), 'the engine\u2019s own sentence is shown (1990 is outside the coverage)')
+                check('From year: 1990 is outside this dataset' in p.inner_text('.builder-review'), 'the engine\u2019s own sentence is shown, its field in words (From year: 1990 is outside the coverage; NEXT-BUILDER 47)')
                 check(p.locator('button:has-text("Make the film and a free contact sheet")').is_disabled(), 'nothing can be made while it is refused')
                 p.screenshot(path=str(OUT / f'refused-{name}.png'), full_page=True)
                 p.click('.builder-review button:has-text("Fix it")')
