@@ -806,5 +806,81 @@ const costEstimate: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage];
+// NEXT-CONNECT 182: make_song_film. A request, as DATA, for a SONG FILM built on the person's own computer from their own videos (ENGINE's song recipe, ryagram.recipe.song_recipe: lyrics + a cast list + footage folders).
+// Same shape as set_compilation_request and request_footage: the AI cannot see or send a video or a path, nothing is built here, no credit is used, and the person opens the Ryagram app, reads the request and decides.
+// UNLISTED, and the real function wires no `songFilm` dependency, so today it refuses and writes nothing (the switch is OFF). The request table and the app's card are the next pieces (proposals/CONNECT-SONG-FILM-TOOL.md).
+//
+// COPYRIGHT (P11): Ryagram cannot check lyrics against any catalogue, so it NEVER claims to have verified them. Instead the tool refuses to take lyrics it cannot place: the caller must say where the lyrics come from
+// (written for this film, the person's own or licensed song, or public domain) and name that source in words; a published song with no such claim is refused with the way out (write original lyrics, or use a song the
+// person made or licensed, such as one from a song maker); a copyright line or credit inside the lyrics is refused; the declaration travels with the request and the person sees it, marked "not verified by Ryagram".
+const LYRIC_ORIGINS = ["written_for_this_film", "own_or_licensed", "public_domain"] as const;
+const LYRIC_ORIGIN_WORDS: Record<string, string> = { written_for_this_film: "written for this film", own_or_licensed: "the person's own or a licensed song", public_domain: "public domain" };
+const MAX_SONG_LINES = 60;
+const MAX_CAST_ROWS = 80;
+/** Lines that mark a PUBLISHED song: a copyright sign or notice, a credit line. Plain text checks, no pattern language. */
+function copyrightMark(line: string): string | null {
+  const t = line.toLowerCase().trim();
+  for (const m of ["©", "(c)", "copyright", "all rights reserved", "words and music by", "music and lyrics by", "lyrics by", "written by", "performed by"]) {
+    if (t.includes(m)) return m;
+  }
+  return null;
+}
+const COPYRIGHT_WAY_OUT = " Ryagram cannot check lyrics against a catalogue and never claims to. Write original lyrics for this film, or use a song the person made or licensed (for example one from a song maker), and say which.";
+
+const makeSongFilm: ToolDef = {
+  name: "make_song_film", title: "Ask for a song film", scope: "write", readOnly: false, destructive: true, idempotent: true, listed: false,
+  description: "Writes down a request for a SONG FILM on one of the person's projects: the lyrics (one line each), who sings which line (a cast list of NAMES), and the NAMES of the folders of the person's own videos. It is DATA only: the AI cannot see or send "
+    + "videos or file paths, nothing is built from here and no credit is used: the person opens the Ryagram app on their own computer, reads the request and builds the film there, with every word taken from their own recordings. "
+    + "LYRICS: you must say where they come from (written for this film, the person's own or licensed song, or public domain) and name the source in words. Do NOT send the lyrics of a published song: Ryagram cannot check lyrics and will not take ones it cannot place; "
+    + "write original lyrics instead. The person sees your declaration, marked as not verified by Ryagram. Saving again replaces the earlier request.",
+  inputSchema: obj({
+    project_id: uuid,
+    name: { type: "string", minLength: 1, maxLength: 60, description: "The film's name, in words." },
+    lyrics: { type: "array", minItems: 1, maxItems: MAX_SONG_LINES, items: { type: "string", minLength: 1, maxLength: 120 }, description: "The lyrics, one array item per sung line." },
+    lyrics_origin: { type: "string", enum: [...LYRIC_ORIGINS], description: "Where the lyrics come from: written_for_this_film, own_or_licensed, or public_domain. There is no option for a published song." },
+    lyrics_source: { type: "string", minLength: 1, maxLength: 200, description: "The source in words (for example: 'original lyrics written for this film', 'the person's own song from their song maker', 'a folk song first printed in 1850'). Never an address." },
+    cast: { type: "array", maxItems: MAX_CAST_ROWS, items: obj({ line: { type: "integer", minimum: 1, maximum: MAX_SONG_LINES }, who: { type: "string", minLength: 1, maxLength: 40, description: "A NAME as the person's own library knows it, or ALL for everyone." } }, ["line", "who"]),
+      description: "Who sings each line. A line with no row is left uncast." },
+    folders: { type: "array", minItems: 1, maxItems: 10, items: { type: "string", pattern: NAME_PATTERN, not: { enum: [".", ".."] } }, description: "The NAMES of the person's folders, as the desktop app shows them. Never paths." },
+    speed_cap: { type: "number", minimum: 1, maximum: 2, description: "The fastest a take may play compared with how it was said (default 1.5)." },
+    note: { type: "string", maxLength: 500, description: "A sentence for the person to read when they open the request." },
+  }, ["project_id", "name", "lyrics", "lyrics_origin", "lyrics_source", "folders"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.songFilm;
+    if (!sw || !(await sw.enabled())) {
+      return refuse("Song films cannot be asked for through a connection yet. Nothing was written down. The person can make a song film in the Ryagram app themselves.", "not_available", { data: { ok: false, written: false } });
+    }
+    const origin = String(a.lyrics_origin);
+    if (!(LYRIC_ORIGINS as readonly string[]).includes(origin)) return refuse("lyrics_origin must be written_for_this_film, own_or_licensed or public_domain." + COPYRIGHT_WAY_OUT + " Nothing was written down.", "lyrics_origin");
+    const source = cleanText(a.lyrics_source, 200);
+    if (!source) return refuse("Say where the lyrics come from, in words. Nothing was written down.", "lyrics_origin");
+    const lyrics = (a.lyrics as unknown[]).map((l) => cleanText(l, 120));
+    if (lyrics.some((l) => !l)) return refuse("Every lyric line needs its words (no empty lines). Nothing was written down.", "args");
+    const name = cleanText(a.name, 60);
+    const note = cleanText(a.note ?? "", 500);
+    if (!name) return refuse("Give the film a name. Nothing was written down.", "args");
+    for (const l of lyrics) {
+      const mark = copyrightMark(l);
+      if (mark) return refuse(`A lyric line carries a copyright mark or a credit ("${mark}"), which a published song has and an original does not.${COPYRIGHT_WAY_OUT} Nothing was written down.`, "lyrics_copyright");
+    }
+    if (looksLikeLink(source) || [name, note, ...lyrics].some((w) => w && (looksLikePlace(w) || looksLikeLink(w)))) return refuse("Write words, not an address or a place on the computer. Nothing was written down.", "args");
+    const cast = ((a.cast as Record<string, unknown>[] | undefined) ?? []).map((c) => ({ line: Number(c.line), who: cleanText(c.who, 40) }));
+    if (cast.some((c) => !c.who || looksLikePlace(c.who) || looksLikeLink(c.who))) return refuse("A cast row needs a singer's name in words. Nothing was written down.", "args");
+    if (cast.some((c) => c.line > lyrics.length)) return refuse(`The cast names a line that is not there: the lyrics have ${lyrics.length} line${lyrics.length === 1 ? "" : "s"}. Nothing was written down.`, "args");
+    if (new Set(cast.map((c) => c.line + "|" + c.who.toLowerCase())).size !== cast.length) return refuse("The cast names the same singer twice for one line. Nothing was written down.", "args");
+    const folders = [...new Set((a.folders as string[]).map((f) => f.trim()).filter(Boolean))];
+    if (!folders.length) return refuse("Name at least one of the person's folders. Nothing was written down.", "args");
+    if (!(await ctx.data.editState(String(a.project_id)))) return NOT_YOURS("project");
+    if (!(await ctx.policy.hit(ctx.principal, "songfilm", LIMITS.songFilmRequestsPerDayPerUser, 86400))) {
+      return refuse(`The limit of ${LIMITS.songFilmRequestsPerDayPerUser} song film requests a day is reached. Nothing was written down.`, "rate", { data: { ok: false, written: false, retry_after_seconds: 86400 } });
+    }
+    const speed = a.speed_cap === undefined ? 1.5 : Number(a.speed_cap);
+    const r = await sw.request({ project_id: String(a.project_id), name, lyrics: lyrics as string[], lyrics_origin: origin as (typeof LYRIC_ORIGINS)[number], lyrics_source: source, verified: false, cast, folders, speed_cap: speed, note });
+    return ok(`Written down. The person will see this song film request in their Ryagram desktop app, with the lyrics and your declaration that they are ${LYRIC_ORIGIN_WORDS[origin]} (${untrusted("lyrics-source", source)}), marked as NOT verified by Ryagram. `
+      + `Nothing is built from here and no credit is used: they check it and build the film on their own computer from their own recordings, and can say no. You never receive a video.`,
+      { id: r.id, state: r.state, written: true, lyric_lines: lyrics.length, cast_rows: cast.length, lyrics_origin: origin, verified: false });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, makeSongFilm];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
