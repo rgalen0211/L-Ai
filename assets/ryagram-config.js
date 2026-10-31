@@ -80,6 +80,8 @@ window.ryagramConfig = Object.freeze({
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
   // The song film entries on the Help page (NEXT-WEB 194): what a song film is, stand-ins, the speed limit, lyric cards, what internal only means. Draft words for Ryan. OFF until he has read them; entries about a site screen also need that screen's own switch.
   songHelp: false,
+  // The two DRAFT landing pages for song films and for compilations (/landing-drafts/song-films/ and /compilations/; NEXT-WEB 193): noindex, linked from nowhere, every sentence marked for Ryan's wording, text shown only when this is true. OFF until Ryan has read them.
+  landingDrafts: false,
   myFilms: false,
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
   lookEditor: true,
