@@ -67,6 +67,7 @@ export interface EditState {
   compilation: { revision: number; shared: boolean; tracks: { duration?: number; clips?: Record<string, unknown>[] } | null; pending: number; editor_open: boolean };
   recently_undone: { mode: string; op: Record<string, unknown>; at: string }[];
 }
+export interface ClipReports { why_clip: unknown | null; draft_messages: unknown | null }
 export interface EditResult { revision: number; changes: number; state: unknown; pending: boolean }
 export interface EditUndoResult { undone: number; skipped: number; revision: number; state: unknown }
 
@@ -99,6 +100,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   links(versionId: string, jobId: string | null): Promise<Link[]>;
   /** The live editor (scope read for the state, scope edit for the rest). null = the project is not the person's. Changes are DRAFTS the person sees and saves; the AI never saves, renders or spends from here. */
   editState(projectId: string): Promise<EditState | null>;
+  /** The two reports the person's Ryagram app shared for a song film (NEXT-CONNECT 179): the why-clip report and the draft messages, exactly as the app wrote them (untrusted data, checked by the tools that show them). null = not the person's project. Optional: a database without the table says so. */
+  clipReports?(projectId: string): Promise<ClipReports | null>;
   editOps(projectId: string, mode: "data" | "compilation", baseRevision: number, ops: Record<string, unknown>[]): Promise<EditResult>;
   /** Takes back the AI's own most recent batch (never the person's changes). */
   editUndoAi(projectId: string, mode: "data" | "compilation"): Promise<EditUndoResult>;
