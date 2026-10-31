@@ -161,6 +161,34 @@
                       "maximum": 1000000000.0
                     }
                   ]
+                },
+                "diverging": {
+                  "anyOf": [
+                    {
+                      "enum": [
+                        false
+                      ]
+                    },
+                    {
+                      "type": "object",
+                      "additionalProperties": false,
+                      "properties": {
+                        "midpoint": {
+                          "type": "number",
+                          "minimum": -1000000000.0,
+                          "maximum": 1000000000.0
+                        },
+                        "mid": {
+                          "type": "string",
+                          "maxLength": 7,
+                          "pattern": "^#[0-9a-fA-F]{6}$"
+                        }
+                      },
+                      "required": [
+                        "midpoint"
+                      ]
+                    }
+                  ]
                 }
               },
               "required": []
@@ -222,6 +250,31 @@
                   "maximum": 4.0
                 },
                 "fill": {
+                  "type": "string",
+                  "maxLength": 7,
+                  "pattern": "^#[0-9a-fA-F]{6}$"
+                },
+                "metal_finish": {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 1.0
+                },
+                "metal_finish_style": {
+                  "enum": [
+                    "county"
+                  ]
+                },
+                "perimeter_glow": {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 1.0
+                },
+                "perimeter_glow_radius": {
+                  "type": "number",
+                  "minimum": 0.0,
+                  "maximum": 40.0
+                },
+                "perimeter_glow_colour": {
                   "type": "string",
                   "maxLength": 7,
                   "pattern": "^#[0-9a-fA-F]{6}$"
@@ -1036,6 +1089,7 @@
     "what depends on the dataset or the run: a callout's period, entity, reading time and overlap; network_context.at; shares_order naming every band; the shares view only on a dataset with a composition",
     "free text: the worker tests Unicode categories (Cc, Cf, Cs, Co, Cn); the schema's pattern blocks the common ones only",
     "the story at most 256 KB, no duplicate keys, no NaN or Infinity",
-    "brand and outro text: no link in any letter case (the pattern is case-sensitive), and brand.channel, brand.handle and brand.credit_line may not name the product (the 'Ryagram' rule, ryagram.profile.brand)"
+    "brand and outro text: no link in any letter case (the pattern is case-sensitive), and brand.channel, brand.handle and brand.credit_line may not name the product (the 'Ryagram' rule, ryagram.profile.brand)",
+    "the live look (the ENGINE checks these at render time, not the worker): choropleth.diverging needs choropleth.mode 'solid'; state.metal_finish_style 'county' needs choropleth low, high and diverging.mid"
   ]
 }
