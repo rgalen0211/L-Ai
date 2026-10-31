@@ -61,6 +61,8 @@ window.ryagramConfig = Object.freeze({
   // The guided builder (#/build): pick data, measure, years, film type, look and title, read the source and licence, get a free contact sheet. Turn on only once the guided-builder
   // function is deployed (supabase/README.md, "Guided builder"). Datasets are listed to signed-in, invited people only (RULINGS 2026-10-17); catalog and catalogComingSoon below stay off.
   guidedBuilder: true,
+  // The two DRAFT pages for the Claude and ChatGPT connector directory listings (/directory-drafts/privacy/ and /terms/; NEXT-WEB 183): noindex, linked from nowhere, and their text shows only when this is true. The wording is Ryan's and the lawyer's.
+  directoryDrafts: false,
   // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
   intake: false,
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
