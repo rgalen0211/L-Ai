@@ -56,7 +56,7 @@ STYLE_PINS = {'bps_county_permits': {'choropleth': {'mode': 'solid', 'continuous
 #: The film types the guided builder offers: the app's tested templates that need no per-story measurement. `paired` is NOT here:
 #: a paired story must carry keyframes_per_year measured for that story (Ryan, 2026-09-28), which takes minutes of rendering.
 FILM_TYPES = ('map', 'bars', 'line')
-LEVELS = {'us_states': 'U.S. states', 'us_counties': 'U.S. counties', 'tx_counties': 'Texas counties'}
+LEVELS = {'us_states': 'U.S. states', 'us_counties': 'U.S. counties', 'us_counties_tv': 'U.S. counties', 'tx_counties': 'Texas counties'}
 
 
 def group_of(d):

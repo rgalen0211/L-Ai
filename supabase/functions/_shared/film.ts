@@ -352,7 +352,7 @@ export function compileFilm(req: Json, opts: { catalog?: Json[]; storySchema?: J
     // Found by the render proof (2026-10-18): only bps_county_permits was pinned, so a hatching look on any other county dataset
     // compiled and then failed texture_carrying_capacity (12% of counties cannot carry a pattern). Any county-level geography
     // is refused for hatching, pinned or not. Only a MAP film draws the choropleth; a bar or line film ignores the ramp.
-    const countyLevel = ["us_counties", "tx_counties"].includes(entry.geography?.id);
+    const countyLevel = ["us_counties", "us_counties_tv", "tx_counties"].includes(entry.geography?.id);
     const mapFilm = req.film_type === "map";
     const ramp = lookObj?.look?.ramp;
     if (mapFilm && (entry.style?.choropleth?.continuous || countyLevel) && ramp?.mode === "hatch") {
