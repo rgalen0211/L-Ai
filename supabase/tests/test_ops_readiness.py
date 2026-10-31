@@ -359,6 +359,8 @@ class Ops(core.Base):
                            "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)",
                            # creator beta: Ryan's list and decisions (each refuses everyone but is_app_admin() inside)
                            "admin_creator_beta()", "admin_decide_creator(bigint,text)",
+                           # tester computers: the admin list (NEXT-WEB 187; starts with require_admin(), revokes public, anon and node_runner)
+                           "admin_tester_devices()",
                            # cost ledger: Ryan's screen and settings (same rule)
                            "admin_cost_rollup(integer)", "admin_cost_set_threshold(text,text,numeric,integer)", "admin_cost_delete_threshold(bigint)",
                            "admin_cost_set_plan(text,text,numeric,date,jsonb)", "admin_cost_set_rate(text,text,numeric,text)", "admin_cost_record(text,numeric,date,text)",

@@ -19649,7 +19649,7 @@
     "key": "font",
     "value": "Arial"
    },
-   "refusal": "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
+   "refusal": "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox, lyric_card)."
   },
   {
    "name": "147 comp set_film_look",
