@@ -30,12 +30,18 @@ class WorkerHealth(core.Base):
     project_with_version = core.Core.project_with_version
     claim = core.Core.claim
     admin = ops.Ops.admin
-    make_ryan_admin = ops.Ops.make_ryan_admin
     ping = ops.Ops.ping
     lost_job = ops.Ops.lost_job
 
+    def ryan_admin(self):
+        """make_ryan_admin, but safe to call again: the base fixture may already hold Ryan in app_admins (CC1 12:30: UniqueViolation)."""
+        c = self.db.as_(None).c
+        c.execute("update auth.users set email = 'ryan.galen@uselai.com' where id = %s", (RYAN,))
+        c.execute("insert into public.app_admins (user_id, note) select id, 'test' from auth.users where lower(email) = 'ryan.galen@uselai.com' "
+                  "on conflict do nothing")
+
     def health(self):
-        self.make_ryan_admin()
+        self.ryan_admin()
         return self.db.as_(RYAN).one("select admin_worker_health()")
 
     def worker(self, d, user=WORKER):
@@ -43,7 +49,7 @@ class WorkerHealth(core.Base):
         return next(w for w in d["workers"] if w["name"] == name)
 
     def test_admin_only(self):
-        self.make_ryan_admin()
+        self.ryan_admin()
         for who in (OTHER, WORKER, "anon"):
             with self.subTest(who=who):
                 self.denied(who, "select admin_worker_health()")

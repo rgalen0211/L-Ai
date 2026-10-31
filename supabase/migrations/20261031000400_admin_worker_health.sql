@@ -53,7 +53,9 @@ begin
       from public.workers w), '[]'::jsonb));
 end $$;
 
-revoke all on function public.admin_worker_health() from public, anon;
-grant execute on function public.admin_worker_health() to authenticated;      -- require_admin() refuses anyone but an admin
+-- The admin_* rule (test_ops_readiness's signed-in list): Ryan calls it from the app as `authenticated`, and require_admin() refuses
+-- everyone but an admin inside. Closed to anon and to the tester apps' node_runner role (Supabase's default grants included).
+revoke all on function public.admin_worker_health() from public, anon, node_runner;
+grant execute on function public.admin_worker_health() to authenticated;
 
 commit;
