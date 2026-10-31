@@ -198,6 +198,11 @@ def main():
                 p.wait_for_selector('text=my-song.mp3')
                 p.get_by_role('button', name='Add a track of just the singing (optional)').click()
                 p.wait_for_selector('text=my-guide-vocal.wav')
+                # NEXT-WEB 181: the optional 'most a word may be sped up' (ENGINE 52's speed_cap): one named control; a value outside 1 to 6 is refused in words before anything is built; a good one builds
+                check(p.locator('#speed-cap').count() == 1 and 'Most a word may be sped up' in p.locator('label[for="speed-cap"]').inner_text(), 'there is one plain, named control for the most a word may be sped up')
+                p.fill('#speed-cap', '7'); p.get_by_role('button', name='Build my song').click()
+                check('number from 1 to 6' in p.locator('#msg').inner_text() and p.locator('#s-board:not([hidden])').count() == 0, 'a cap of 7 is refused in plain words and nothing is built')
+                p.fill('#speed-cap', '1.5')
                 p.get_by_role('button', name='Build my song').click()
                 p.wait_for_selector('#s-board:not([hidden])', timeout=10000)
                 no_null(p, 'the word-by-word board after a build')

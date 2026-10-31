@@ -394,6 +394,15 @@ def main():
             argv_forge[label] = json.loads((tmp / 'films' / (r['film'].rsplit('.', 1)[0] + '.receipt.json')).read_text(encoding='utf-8'))['argv_has_forge']
         dm.STATE['song_forge'] = False
         check(argv_forge == {'off at the server, asked': False, 'on at the server, not asked': False, 'on at the server, asked': True}, f'MUST-FAIL: the engine gets --forge only when the maker was started with it AND the page asked ({argv_forge})')
+        # NEXT-WEB 181: the optional speed_cap (ENGINE 52): a closed number from 1 to 6, nothing else is passed on
+        for bad in (0.5, 7, '1.5', True):
+            st, r = jpost(base, '/api/song/build', {**good, 'speed_cap': bad}, tok)
+            check(st == 400 and 'number from 1 to 6' in r['error'], f'MUST-FAIL: a speed cap of {bad!r} is refused in plain words')
+        st, r = jpost(base, '/api/song/build', {**good, 'speed_cap': 1.5}, tok)
+        wrote = json.loads(ms.S()['recipe'].read_text(encoding='utf-8')) if st == 200 else None
+        check((st == 200 and wrote['song'].get('speed_cap') == 1.5) or (st == 400 and 'does not know the speed limit yet' in r['error']), 'a cap of 1.5 is written into the recipe, or an engine that does not know the key says so in words (never a crash)')
+        st, r = jpost(base, '/api/song/build', good, tok)
+        check(st == 200 and 'speed_cap' not in json.loads(ms.S()['recipe'].read_text(encoding='utf-8'))['song'], 'with no cap asked the recipe is exactly as before')
         st, r = jpost(base, '/api/song/build', good, tok)
         plan = r['plan']
         # the engine refusing a changed plan (files changed after looking)

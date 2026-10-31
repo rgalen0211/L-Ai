@@ -48,7 +48,9 @@ class H(http.server.SimpleHTTPRequestHandler):
 socketserver.TCPServer.allow_reuse_address = True
 srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
-cfg = re.sub(r'liveEditor:\s*false', 'liveEditor: true', (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8'))
+cfg = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
+for _k in ('liveEditor', 'whyClip', 'songIntake', 'adminTesterDevices', 'testerFilmProgress', 'myFilms', 'intake'):
+    cfg = re.sub(rf'\b{_k}:\s*false', f'{_k}: true', cfg)
 OUT.mkdir(parents=True, exist_ok=True)
 bad = 0
 with sync_playwright() as pw:
