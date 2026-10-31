@@ -60,6 +60,12 @@
       sc.onerror = () => reject(new Error('no bundle'));
       document.body.append(sc);
     }));
+    // The Why this clip report (NEXT-WEB 185): the mock serves the real tool's output on a synthetic edit list (tests/fixtures/why-clip.PROVENANCE.txt); ?nowhy leaves the page with no source at all (the website), ?whyfail makes it fail.
+    if (!/[?&]nowhy/.test(location.search || '')) window.ryagramMockWhyClip = () => (/[?&]whyfail/.test(location.search || '') ? Promise.reject(new Error('fail')) : new Promise((resolve, reject) => {
+      if (window.RYAGRAM_MOCK_WHY_CLIP) { resolve(window.RYAGRAM_MOCK_WHY_CLIP); return; }
+      const sc = document.createElement('script'); sc.src = `/tests/fixtures/why-clip-report.js?t=${Date.now()}`;
+      sc.onload = () => resolve(window.RYAGRAM_MOCK_WHY_CLIP); sc.onerror = () => reject(new Error('none')); document.body.append(sc);
+    }));
     if (window.createEditorRpcs) {
       const FIVE = ['set_clip_style', 'set_music', 'set_rule', 'delete_rule', 'set_film_look'], OLD = ['move_clip', 'trim_clip', 'reorder_clip', 'set_clip_text', 'delete_clip', 'add_clip'], DATA = ['set_look', 'unset_look'];
       const m = window.createEditorRpcs({ check: (mode, op) => (op && (mode === 'data' ? DATA : OLD.concat(FIVE)).includes(op.op) ? null : `"${String(op && op.op).slice(0, 40)}" is not a change this editor knows.`) });

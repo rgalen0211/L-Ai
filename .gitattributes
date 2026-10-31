@@ -23,3 +23,4 @@ tests/fixtures/look-bundle-synthetic.* text eol=lf
 assets/preview/scene-draw-rules.min.js text eol=lf
 tests/fixtures/look-bars-scene.* text eol=lf
 tests/fixtures/look-bundle-synthetic-stream.* text eol=lf
+tests/fixtures/why-clip-report.* text eol=lf
