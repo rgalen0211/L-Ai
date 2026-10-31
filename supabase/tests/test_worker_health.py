@@ -84,8 +84,15 @@ class WorkerHealth(core.Base):
         self.assertIsNotNone(w["last_engine_commit"]["ended_at"])
 
     def test_tester_jobs_are_not_counted(self):
-        job = self.lost_job(1)
-        self.admin("update public.jobs set run_on = 'owner_local', lease_expires_at = now() + interval '5 minutes' where id = %s returning 1", job)
+        # A tester's job is ORDERED owner_local (jobs_place() at insert, from account_settings.local_compute; the place is fixed after,
+        # jobs_place_fixed(), as test_r9_node proves). Even with the worker's id on it, the house worker's view does not count it.
+        self.admin("insert into public.account_settings (owner_id, local_compute) values (%s, true) "
+                   "on conflict (owner_id) do update set local_compute = true returning 1", RYAN)
+        _, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'preview', '{\"window_s\": [0, 10]}')", vid)
+        self.assertEqual(self.admin("select run_on::text from public.jobs where id = %s", job), "owner_local")
+        self.admin("update public.jobs set state = 'claimed', claimed_at = now(), worker_user_id = %s, "
+                   "lease_expires_at = now() + interval '5 minutes' where id = %s returning 1", WORKER, job)
         w = self.worker(self.health())
         self.assertEqual((w["running"], w["last_claim_at"]), (None, None))
 
