@@ -69,6 +69,47 @@
     return { summary, lines };
   }
 
+  // Worker health for #/admin/ops (NEXT-WORKER 72): admin_worker_health() -> { summary, lines, warn }. One plain sentence per worker: whether it
+  //   checks in, the engine commit it last rendered with, what it is making now or when it last took a film, its free disk, and why it may be
+  //   paused. The pause reason is WORKED OUT from what the worker last reported (the live ping does not carry the worker's own pause yet), and
+  //   the sentence says so. Names, codes and commits are cut to their own characters; nothing else from the rows is shown.
+  const WORKER_FLOOR_GB = 10;                                      // the worker's min_free_gb (Ryagram worker config), the same 10 GB as the tester app
+  function workerHealthLines(d, now = Date.now()) {
+    const ws = (d && Array.isArray(d.workers) ? d.workers : []).filter(w => w && typeof w === 'object').slice(0, 10);
+    const name = s => String(s ?? '').replace(/[^A-Za-z0-9._-]/g, '').slice(0, 64) || 'a worker';
+    const kind = s => String(s ?? '').replace(/[^a-z_]/g, '').slice(0, 40) || 'film';
+    const commit = c => (/^[0-9a-f]{7,40}$/.test(String(c || '')) ? String(c).slice(0, 12) : null);
+    const gb = v => (v != null && Number.isFinite(Number(v)) && Number(v) >= 0 ? Number(v) : null);
+    const types = (d && Array.isArray(d.disabled_job_types) ? d.disabled_job_types : []).map(kind).filter(Boolean);
+    const claimsOff = !!d && d.claims_enabled === false;
+    let warn = claimsOff || types.length > 0;
+    const lines = ws.map(w => {
+      const parts = [];
+      const st = String(w.state || '');
+      if (st === 'ok') parts.push(`${name(w.name)} is running (checked in ${ago(w.last_seen_at, now)}).`);
+      else if (st === 'delayed') parts.push(`${name(w.name)} is NOT CHECKING IN (last check-in ${ago(w.last_seen_at, now)}).`);
+      else if (st === 'off') parts.push(`${name(w.name)} is switched off (enabled is false in workers).`);
+      else parts.push(`${name(w.name)} has never checked in.`);
+      const ec = w.last_engine_commit && commit(w.last_engine_commit.commit);
+      parts.push(ec ? `Engine ${ec} (its last film with a recorded commit ${w.last_engine_commit.ended_at ? `ended ${ago(w.last_engine_commit.ended_at, now)}` : 'has not ended'}).` : 'Engine: no film has recorded one yet.');
+      if (w.running && typeof w.running === 'object') parts.push(`Making a ${kind(w.running.job_type)} now (taken ${ago(w.running.claimed_at, now)}).`);
+      else parts.push(w.last_claim_at ? `Last film taken ${ago(w.last_claim_at, now)}.` : 'It has not taken a film yet.');
+      const free = gb(w.free_gb);
+      if (free != null) parts.push(`${free.toFixed(0)} GB free on its disk.`);
+      const why = [];
+      if (w.enabled === false) why.push('it is switched off');
+      if (claimsOff) why.push('claims are switched off for every worker');
+      if (free != null && free < WORKER_FLOOR_GB) why.push(`it has less than the ${WORKER_FLOOR_GB} GB floor free, as last reported`);
+      if (why.length) parts.push(`Paused, worked out from what it last reported: ${why.join('; ')}.`);
+      if (why.length) warn = true;                                // not checking in is warned below (ok < workers)
+      return parts.join(' ');
+    });
+    const ok = ws.filter(w => w.state === 'ok').length;
+    const summary = !ws.length ? 'No render worker is set up.'
+      : `${ok} of ${plural(ws.length, 'worker')} running.${claimsOff ? ' Claims are switched off for every worker (control).' : ''}${types.length ? ` Not taking: ${types.join(', ')}.` : ''}`;
+    return { summary, lines, warn: warn || !ws.length || ok < ws.length };
+  }
+
   function queueLine(d) {
     const old = d.oldest_queued_min > 0 ? ` The oldest has waited ${d.oldest_queued_min >= 60 ? plural(Math.floor(d.oldest_queued_min / 60), 'hour') : plural(d.oldest_queued_min, 'minute')}.` : '';
     return `${d.queued} queued, ${d.running} running.${d.queued ? old : ''}`;
@@ -274,5 +315,5 @@
   const ENDED_WORDS = { failed: 'Failed', cancelled: 'Cancelled', editorial_action_required: 'Stopped by a check' };
   const REASON_WORDS = { child_safety: 'Child safety', private_information: 'Private information', harassment: 'Harassment', copyright: 'Copyright', other: 'Other' };
 
-  window.ryagramOps = { workerStatsLines, autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteSendLine, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
+  window.ryagramOps = { workerHealthLines, WORKER_FLOOR_GB, workerStatsLines, autoRenderLine, checkCap, capLine, RENDER_SOURCE_WORDS, renderQueueLine, renderWhen, TOPICS, bannerText, jobFromHash, checkSupport, ago, renderingLine, queueLine, spendLines, backupLine, childSafetyLine, stripeLine, creatorLine, CREATOR_KIND_WORDS, REQUEST_STATUS_WORDS, checkRequest, requestCostLine, checkDelivery, inviteSendLine, usd, ENDED_WORDS, REASON_WORDS, COST_VENDORS, vendorWord, usd2, costLine, usageLine, thresholdLine, checkThreshold, checkPlan, checkManualCost, DAY_STEPS, DAY_LABELS, easternDay, funnelDaily, funnelDailyLine, FUNNEL_LABELS, FUNNEL_CHAIN, FUNNEL_KEY, funnelRows, funnelBySource, funnelByWeek, funnelLine };
 })();

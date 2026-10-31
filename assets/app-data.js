@@ -418,6 +418,7 @@
       adminRenderQueue() { return run(client.rpc('admin_render_queue'), 'Couldn\u2019t load the render requests.'); },
       adminRenderDecide(stage, approve, note) { return run(client.rpc('admin_render_decide', { p_stage: stage, p_approve: approve === true, p_note: note ? String(note).slice(0, 500) : null }), 'Couldn\u2019t record that decision.'); },
       adminOps() { return run(client.rpc('admin_ops'), 'Couldn\u2019t load operations.'); },
+      adminWorkerHealth() { return run(client.rpc('admin_worker_health'), 'Couldn\u2019t load the worker\u2019s health.'); },
       // Auto-render switch and per-person daily caps (PIPE-1, SQL 20261017000600). Admin only; the database refuses everyone else.
       async adminAutoRender() { const ops = await run(client.rpc('admin_ops'), 'Couldn\u2019t load the auto-render setting.'); return { on: ops?.orders?.auto_render === true, defaultCap: ops?.orders?.default_credits_per_day ?? null }; },
       adminSetAutoRender(on) { return run(client.rpc('admin_set_auto_render', { p_on: on === true }), 'Couldn\u2019t change auto-render.'); },
