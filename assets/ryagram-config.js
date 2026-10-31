@@ -80,6 +80,8 @@ window.ryagramConfig = Object.freeze({
   aiFirst: true,
   // The live editor (#/editor/data and #/editor/compilation): scrub, change the look, edit tracks, ask your AI; NEXT-WEB 152, proposals/WEB-LIVE-EDITOR.md. Off until Ryan has seen it; this first version runs on a stand-in drawing and clip list.
   liveEditor: false,
+  // The lyric card choice (three designs) in the live editor's Look panel (NEXT-WEB 189). Needs liveEditor and SQL 20261031000200_lyric_card_look.sql. OFF until Ryan has seen it; the song film does not draw the cards yet.
+  lyricCards: false,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.
   // ON (Ryan's typed yes 2026-10-28 10:59, Q303), with the words as drafted (Q244 answered): shown to invited accounts only, the server's my_departments() says which.
   departments: true,

@@ -26,7 +26,8 @@
   // The five ops of CONNECT 13:12 (shared cases: tests/edit-op-cases.json): a text style, the music's settings, the phrase rules, the film's own look.
   const STYLES = ['title', 'caption', 'lower_third'];
   const RULE_MODES = ['full', 'centre', 'corner', 'lower_third'];
-  const FILM_LOOK = ['theme', 'text_color', 'box_color', 'box_opacity', 'letterbox'];
+  const FILM_LOOK = ['theme', 'text_color', 'box_color', 'box_opacity', 'letterbox', 'lyric_card'];
+  const LYRIC_CARDS = ['plate', 'bar', 'sing_along'];                           // RENDERER 60's three lyric card designs (Ryagram tools/song_cards.py)
   const MAX_RULES = 50;
   const num = v => typeof v === 'number' && Number.isFinite(v);
   const inRange = (v, lo, hi) => num(v) && v >= lo && v <= hi;
@@ -118,9 +119,10 @@
       return null;
     }
     if (op.op === 'set_film_look') {
-      if (!FILM_LOOK.includes(op.key)) return 'That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox).';
+      if (!FILM_LOOK.includes(op.key)) return 'That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox, lyric_card).';
       if (!('value' in op)) return 'A film look change needs a value.';
       if (op.key === 'theme' && !(op.value === 'dark' || op.value === 'light')) return 'The theme can only be: dark, light.';
+      if (op.key === 'lyric_card' && !LYRIC_CARDS.includes(op.value)) return 'The lyric card can only be: plate, bar, sing_along.';
       if (['text_color', 'box_color', 'letterbox'].includes(op.key) && !COLOR(op.value)) return 'That needs a colour like #1a73e8.';
       if (op.key === 'box_opacity' && !inRange(op.value, 0, 1)) return 'The box opacity must be a number from 0 to 1.';
       return null;
@@ -1002,7 +1004,8 @@
       const FILM_LOOK_ROWS = [['theme', 'Page and text'], ['text_color', 'Text colour'], ['box_color', 'Text box colour'], ['box_opacity', 'Text box strength'], ['letterbox', 'Bars around the picture']];
       function paintFilmLook() {
         const lk = ed.state.look || {};
-        filmLookPanel.hidden = isData || !FILM_LOOK_ROWS.some(([k]) => k in lk);
+        const LC = window.ryagramLyricCards, lcOn = !!(LC && LC.enabled());
+        filmLookPanel.hidden = isData || !(lcOn || FILM_LOOK_ROWS.some(([k]) => k in lk));
         if (filmLookPanel.hidden) return;
         const set = (key, value) => apply({ op: 'set_film_look', key, value });
         const colour = (key, label) => { const i = h('input', { type: 'color', id: `le-fl-${key}`, value: /^#[0-9a-fA-F]{6}$/.test(lk[key]) ? lk[key] : '#000000', 'aria-label': label, disabled: locked }); i.addEventListener('change', () => set(key, i.value)); return field(i.id, label, i); };
@@ -1012,6 +1015,7 @@
         op.addEventListener('change', () => set('box_opacity', Number(op.value)));
         filmLookPanel.replaceChildren(h('h2', { id: 'le-flook-h' }, 'Look of the film'),
           field('le-fl-theme', 'Page and text', theme), colour('text_color', 'Text colour'), colour('box_color', 'Text box colour'), field('le-fl-box_opacity', 'Text box strength (0 to 1)', op), colour('letterbox', 'Bars around the picture'),
+          ...(lcOn ? [LC.panel(h, lk, v => set('lyric_card', v), locked)] : []),
           h('p', { class: 'le-free' }, 'These settings change how every text and card in the film looks. Free, like everything here.'));
       }
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
