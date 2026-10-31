@@ -133,7 +133,8 @@
       if (!Number.isFinite(op.start) || op.start < 0 || (state.duration && op.start + c.len > state.duration + 1e-6)) return 'That is outside the film.';
     } else if (op.op === 'trim_clip') {
       if (op.edge !== 'start' && op.edge !== 'end') return 'Trim the start or the end.';
-      if (!Number.isFinite(op.to) || op.to < 0) return 'That is outside the film.';
+      // A video clip's START trim moves the file (source_start), not the clip on the timeline, so more lead-in on the first video clip is a negative `to`; the file's own start is guarded below. Every other clip stays inside the film.
+      if (!Number.isFinite(op.to) || (op.to < 0 && !(c.track === 'video' && op.edge === 'start'))) return 'That is outside the film.';
       // A video clip keeps its place in the run: trimming its start cuts the file's start (source_start moves), and the run is packed again. Any other clip's start moves.
       const delta = op.edge === 'start' ? op.to - c.start : 0;
       const newLen = op.edge === 'start' ? c.len - delta : op.to - c.start;
@@ -451,7 +452,7 @@
     async function poll(since = state.revision) {
       const r = await rpc('my_edit_ops_since', { p_project: project, p_mode: mode, p_revision: since });
       if (r.error) return { ok: false, code: r.error.code };
-      const d = r.data, applied = [], skipped = [];
+      const d = r.data, applied = [], skipped = [], appliedOps = [];
       state.mirrored = !!d.mirrored; state.aiVisible = !!d.ai_visible;
       for (const o of d.ops || []) {
         if (o.actor === 'ai') {
@@ -460,6 +461,7 @@
           if (o.status === 'rejected' || o.status === 'undone') continue;
           const res = editor.applyRemote(o.op, 'ai', o.id);
           (res.ok ? applied : skipped).push(o.id);
+          if (res.ok) appliedOps.push(o.op);
         } else {
           const list = state.ids.get(o.revision) || []; if (!list.includes(o.id)) list.push(o.id); state.ids.set(o.revision, list);
           const e = [...editor.log].reverse().find(x => x.by === 'you' && !x.serverId && JSON.stringify(x.op) === JSON.stringify(o.op));
@@ -468,8 +470,8 @@
       }
       if (d.revision !== state.revision && mode === 'compilation' && d.state && Array.isArray(d.state.clips) && !(d.ops || []).length) { editor.reload(d.state); onSummary(d.state); }
       state.revision = Math.max(state.revision, d.revision);
-      if (applied.length || skipped.length) onChange({ applied, skipped });
-      return { ok: true, applied, skipped, revision: state.revision };
+      if (applied.length || skipped.length) onChange({ applied, skipped, ops: appliedOps });
+      return { ok: true, applied, skipped, ops: appliedOps, revision: state.revision };
     }
 
     // Undo the person's last op on screen and in the draft (the log entry's server id), so the AI knows the person undid it.
@@ -617,15 +619,23 @@
     function editorView(kind, onStop) {
       const isData = kind === 'data';
       const onPc = !!window.ryagramLiveHost;                                   // on the person's own computer: no demo film, no stand-in; only what the maker's draft holds
-      const ed = new E.Editor(onPc ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
+      // Data-film mode with the engine's own drawer (NEXT-WEB 154): when the page can get the film's look bundle (the host's bundle(project) call; in mock mode a synthetic one) and
+      // ENGINE's look-draw.js is loaded, the preview IS the engine's drawing and the look panel offers the keys it honours. Without either, the stand-in drawing below stays.
+      const DD = window.ryagramEditorData, RL = window.RyagramLook;
+      const lookLoader = isData && DD && RL ? (window.ryagramLiveHost && typeof window.ryagramLiveHost.bundle === 'function' ? p => window.ryagramLiveHost.bundle(p) : typeof window.ryagramMockLookBundle === 'function' ? p => window.ryagramMockLookBundle(p) : null) : null;
+      const bundleMode = !!lookLoader;
+      let bundle = null, tl = null, bundleState = bundleMode ? 'opening' : 'none', bundleNote = '';
+      let streamLeft = 0, streamNote = '';                                   // a streamed film: how many chunks are still on their way, and why it stopped if it did
+      const ed = new E.Editor(onPc || bundleMode ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
       const host = window.ryagramLiveHost || null;
       const project = host ? host.project : window.RYAGRAM_MOCK_EDITOR_PROJECT;
       const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
-      const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; paint(); } }) : null;
-      let position = isData ? LAST : onPc ? 0 : 4.4;                            // a year, or a time in seconds
+      let aiSaid = [], askedAt = 0, askTimer = 0;                               // what the person's AI changed (for the list), and when the person last sent it a note (0 = not waiting)
+      const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; if (x && x.ops && x.ops.length) { aiSaid.push(...x.ops); aiSaid = aiSaid.slice(-12); askedAt = 0; clearTimeout(askTimer); paintAiWait(false); } if (x && x.skipped && x.skipped.length) say(`${x.skipped.length} change${x.skipped.length === 1 ? '' : 's'} from your AI could not be applied here, so ${x.skipped.length === 1 ? 'it was' : 'they were'} left out.`); paint(); } }) : null;
+      let position = bundleMode ? 0 : isData ? LAST : onPc ? 0 : 4.4;           // a year (stand-in), or a time in seconds
       let selected = isData ? null : onPc ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
       let saved = true, message = '';
@@ -634,7 +644,24 @@
 
       // ---- the preview: a stand-in drawing (ENGINE 35's drawer replaces it); it redraws from the state at once
       const view = h('div', { class: 'le-view', role: 'img' });
+      const pic = h('img', { class: 'le-svg', alt: '', draggable: 'false' });
+      function drawBundle() {
+        if (bundleState !== 'ready') {
+          view.replaceChildren(h('p', { class: 'le-bundle-note', role: 'status' }, bundleState === 'opening' ? 'Opening the film…' : bundleNote));
+          view.setAttribute('aria-label', bundleState === 'opening' ? 'Opening the film' : 'The film could not be opened');
+          return;
+        }
+        const r = DD.pictureFor(RL, bundle, position, { ...ed.state.look, ...(preview || {}) });
+        if (!r.error && !r.loading) pic.src = r.src;
+        view.replaceChildren(pic);
+        if (r.error) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, r.error));
+        if (r.loading) view.append(h('p', { class: 'le-bundle-note le-loading', role: 'status' }, streamNote || 'This part of the film is still loading. The picture below is the last one that was ready.'));
+        else if (streamLeft > 0) view.append(h('p', { class: 'le-bundle-note le-loading', role: 'status' }, `Still loading the film: ${streamLeft} part${streamLeft === 1 ? '' : 's'} to come.`));
+        else if (streamNote) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, streamNote));
+        view.setAttribute('aria-label', `Preview of ${tl.label(position)}`);
+      }
       function drawData() {
+        if (bundleMode) { drawBundle(); return; }
         const look = { ...ed.state.look, ...(preview || {}) };
         const reveal = (position - FIRST) / (LAST - FIRST);
         const svg = sv('svg', { viewBox: '0 0 160 90', class: 'le-svg' });
@@ -718,34 +745,43 @@
       }
 
       // ---- the scrubber: a real range input (keyboard and screen reader for free)
-      const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? 'Year' : 'Time in the film' });
+      const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? (bundleMode ? 'Period of the film' : 'Year') : 'Time in the film' });
       const posText = h('b', { class: 'le-pos' });
-      const setPos = v => { position = v; paintPreview(); posText.textContent = isData ? String(Math.round(position)) : `${mmss(position)} / ${mmss(ed.state.duration)}`;
-        range.setAttribute('aria-valuetext', isData ? `Year ${Math.round(position)}` : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
+      const setPos = v => { position = v; paintPreview();
+        const shown = bundleMode ? (tl ? tl.label(position) : '') : String(Math.round(position));
+        posText.textContent = isData ? shown : `${mmss(position)} / ${mmss(ed.state.duration)}`;
+        range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
       const paintPreview = () => (isData ? drawData() : hostPreview ? drawHost() : drawClips());
-      range.addEventListener('input', () => setPos(isData ? Number(range.value) : Number(range.value) / 10));
+      range.addEventListener('input', () => setPos(bundleMode ? (tl ? tl.seconds(Number(range.value)) : 0) : isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
         if (timer) { stopPlay(); return; }
         playBtn.textContent = 'Pause';
+        if (bundleMode) {                                                       // one frame per tick at the film's own frame rate (capped at 12 a second so a slow phone keeps up)
+          if (!tl) return;
+          const ms = Math.max(1000 / 12, 1000 / tl.fps);
+          timer = setInterval(() => { const f = tl.frame(position) + 1; setPos(tl.seconds(f >= tl.frames ? 0 : f)); range.value = String(tl.frame(position)); }, ms);
+          return;
+        }
         timer = setInterval(() => { const step = isData ? 0.25 : 0.1, max = isData ? LAST : ed.state.duration; if (position + step > max) { setPos(isData ? FIRST : 0); } else setPos(position + step); range.value = String(isData ? position : Math.round(position * 10)); }, isData ? 60 : 100);
       });
       let timer = null;
       const stopPlay = () => { if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; };
       onStop(stopPlay);
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
-      const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, YEARS.map(y => h('span', {}, String(y)))) : null;
+      const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;
 
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });
       const undoBtn = btn('Undo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); });
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
       const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say('Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
-      const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) note.focus(); }, { class: 'button secondary le-ai-btn' });
+      const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
       const finalBtn = btn(isData ? 'Render final film' : 'Build final film', 'primary', () => { stopPlay(); showCommit(); });
       const renderBox = h('div', { class: 'le-render', hidden: true });
       let locked = false;                                                       // locked: a render is using what was committed
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
+        if (bundleMode) { const rows = DD.rowsFor(RL, bundle).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
         if (isData) return ['The look you can see:', ...LOOK_ROWS.map(([k, l]) => `${l} ${ed.state.look[k]}`)];
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
@@ -848,14 +884,19 @@
       // names the film (the project id, when it is a plain id, and the title) so the AI does not have to guess which project's editor is open (CONNECT 12:44)
       const aiFilm = () => (typeof project === 'string' && /^[0-9A-Za-z-]{8,64}$/.test(project) ? ` The film is project ${project}${host && host.title ? ` ("${E.cleanText(String(host.title)).slice(0, 60)}")` : ''}.` : '');
       const aiLine = () => `I am editing my Ryagram film and want you to change it.${aiFilm()} My note: ${E.cleanText(note.value) || 'make it clearer'}. Use the Ryagram connector. Read my open editor draft first and change only the draft. Do not render, save or spend credits.`;
-      const aiBox = h('div', { class: 'le-ai', hidden: true }, h('label', { for: 'le-note' }, 'What should your AI change?'), note, aiLinks,
+      const aiChips = h('div', { class: 'le-ai-chips', 'aria-label': 'Things you can ask for' });
+      const aiWait = h('p', { class: 'meta le-ai-wait', role: 'status', 'aria-live': 'polite', hidden: true });
+      const paintAiWait = (late) => { aiWait.hidden = !askedAt; aiWait.textContent = !askedAt ? '' : late ? 'Nothing has changed yet. Your AI may still be reading the draft, or it may have asked you something in its own chat.' : 'Sent. Waiting for your AI. When it changes the draft, the changes appear here within a few seconds and you can undo them.'; };
+      const markAsked = () => { askedAt = Date.now(); clearTimeout(askTimer); paintAiWait(false); askTimer = setTimeout(() => { if (askedAt) paintAiWait(true); }, 90000); };
+      const aiBox = h('div', { class: 'le-ai', hidden: true }, h('label', { for: 'le-note' }, 'What should your AI change?'), note, aiChips, aiLinks, aiWait,
         h('p', { class: 'meta' }, 'It opens a new chat in your own Claude or ChatGPT with this ready. Your AI can change the draft you see here; it cannot render, save, publish or spend credits.'));
       const paintAiLinks = () => {
         const S = window.ryagramStart, line = aiLine();
-        aiLinks.replaceChildren(...['claude', 'chatgpt'].filter(() => S && S.chatUrl && S.APPS).map(app => { const u = S && S.chatUrl ? S.chatUrl(app, line) : null; return u ? h('a', { class: 'button secondary', href: u, target: '_blank', rel: 'noopener noreferrer' }, S.APPS[app].label) : null; }),
-          btn('Copy', 'secondary', async () => { try { await navigator.clipboard.writeText(line); say('Copied. Paste it into your AI.'); } catch { say('Could not copy. Select the note and copy it by hand.'); } }));
+        aiLinks.replaceChildren(...['claude', 'chatgpt'].filter(() => S && S.chatUrl && S.APPS).map(app => { const u = S && S.chatUrl ? S.chatUrl(app, line) : null; return u ? h('a', { class: 'button secondary', href: u, target: '_blank', rel: 'noopener noreferrer', onclick: markAsked }, S.APPS[app].label) : null; }),
+          btn('Copy', 'secondary', async () => { try { await navigator.clipboard.writeText(line); markAsked(); say('Copied. Paste it into your AI.'); } catch { say('Could not copy. Select the note and copy it by hand.'); } }));
       };
       note.addEventListener('input', paintAiLinks);
+      const paintChips = () => { const s = bundleMode && bundle && DD.suggestions ? DD.suggestions(RL, bundle) : []; aiChips.replaceChildren(...s.map(t => btn(t, 'secondary', () => { note.value = t; paintAiLinks(); note.focus(); }, { class: 'button secondary small le-chip' }))); };
       const mockAi = window.ryagramMock ? btn('(mock) my AI changes the line colour', 'secondary', async () => {
         if (draft && window.ryagramMockEditor) {                                  // the person's AI, through the connector: onto the shared draft; this page sees it on its next look
           const aiOp = isData ? { op: 'set_look', key: 'network.color', value: '#ff9f6b' } : { op: 'set_clip_text', id: 't1', text: 'Changed by my AI' };
@@ -869,7 +910,45 @@
 
       // ---- the look panel (data films)
       const lookPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-look-h' });
+      // Bundle mode: the rows the engine's drawer honours (it names the ones it does not), the six presets, and the keys still waiting for the worker. A colour dragged in a chooser
+      // is only previewed; releasing it makes the op. Nothing here uses credits: 'Render final film' is the only button that does.
+      function paintBundleLook() {
+        const touched = new Set(ed.aiTouched()), look = ed.state.look, dflt = DD.defaults(bundle, look), cur = DD.presetOf(look, bundle);
+        const rows = DD.rowsFor(RL, bundle).map(([key, label, kind]) => {
+          const id = `le-look-${key}`, val = look[key] !== undefined ? look[key] : dflt[key], mark = touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' \u00b7 by your AI') : null;
+          if (kind === 'theme') {
+            const sel = h('select', { id, disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, w]) => h('option', { value: v, selected: val === v }, w)));
+            sel.addEventListener('change', () => apply({ op: 'set_look', key, value: sel.value }));
+            return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), sel);
+          }
+          if (kind === 'number') {
+            const n = h('input', { type: 'number', id, min: '0', max: '4', step: '0.5', value: val, disabled: locked });
+            n.addEventListener('change', () => apply({ op: 'set_look', key, value: Number(n.value) }));
+            return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), n);
+          }
+          const input = h('input', { type: 'color', value: val, id, 'aria-label': label, disabled: locked });
+          input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });
+          input.addEventListener('change', () => { preview = null; apply({ op: 'set_look', key, value: input.value }); });
+          return h('div', { class: 'le-row' }, h('label', { for: id }, label, mark), input);
+        });
+        const presetRows = DD.PRESETS.map(p => {
+          const on = cur && cur.id === p.id, notes = DD.cautions(p, bundle);
+          return h('li', { class: `le-preset${on ? ' le-on' : ''}` },
+            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.noRamp(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
+            h('span', { class: 'meta' }, ` ${p.blurb}`), ...notes.map(t => h('span', { class: 'le-warn le-cau' }, t)));
+        });
+        lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
+          h('h3', {}, 'Ready-made looks'), h('ul', { class: 'le-presets' }, presetRows),
+          h('p', { class: 'meta' }, 'A ready-made look sets the colours below; its middle colour waits for the worker and is not shown until it can be saved.'),
+          ...(DD.isBars(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bars' }, h('p', { class: 'meta' }, `This film is a bar race. Its bars have one colour, so there are no low and high colours; the page colour${DD.hasLight(bundle) ? ' and the theme' : ''} work. Changing the bar colour waits for the worker.`),
+            DD.barsPartial(bundle) ? h('p', { class: 'meta' }, `This preview holds only the first ${Math.round(bundle.frames / bundle.fps * 10) / 10} seconds of the film.`) : null)] : []),
+          ...(DD.isBanded(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bands' }, h('p', { class: 'meta' }, 'This film colours its areas in solid bands, so the low and high colours do not apply. The bands are shown here; changing them waits for the worker, and the moving dots keep their colour.'),
+            h('div', { class: 'le-band-row' }, DD.bandColours(bundle).map((c, i) => { const sw = h('span', { class: 'le-swatch', role: 'img', 'aria-label': `Band ${i + 1}: ${c}` }); sw.style.background = c; return sw; })))] : []),
+          ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
+          h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
+      }
       function paintLook() {
+        if (bundleMode) { paintBundleLook(); return; }
         const touched = new Set(ed.aiTouched());
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
           ...LOOK_ROWS.map(([key, label]) => {
@@ -948,6 +1027,17 @@
         say(r.ok ? '' : r.reason);
         paint();
         return r.ok;
+      }
+      async function applyMany(ops) {                                           // a preset: several look ops, each checked; with a draft they travel as one batch
+        stopPlay();
+        if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; }
+        let ok = true, why = '';
+        if (draft) { const r = await draft.send(ops); ok = r.ok; why = r.reason; }
+        else for (const op of ops) { const r = ed.do(op); if (!r.ok) { ok = false; why = r.reason; break; } }
+        if (ok) saved = false;
+        say(ok ? '' : why);
+        paint();
+        return ok;
       }
       let refocus = null;                                                       // a keyboard edit rebuilds the lanes: focus goes back to the clip that was edited
       function keyOn(c) {
@@ -1051,12 +1141,13 @@
       function paintBanner() {
         const n = ed.log.filter(e => e.by === 'ai').length;
         banner.hidden = n === 0;
-        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below.'), btn('Undo my AI’s changes', 'secondary', async () => { if (draft) await draft.undoAi(); else ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
+        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below.'), ...(isData && DD.describeOps && aiSaid.length ? [h('ul', { class: 'le-ai-list' }, DD.describeOps(aiSaid).map(t => h('li', {}, t)))] : []), btn('Undo my AI’s changes', 'secondary', async () => { if (draft) await draft.undoAi(); else ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
       }
       function paintWarns() {
         const out = [];
         if (layoutProblem) out.push(layoutProblem);
-        if (isData) {
+        if (bundleMode) { if (bundleState === 'ready') out.push(...DD.warnings(bundle, ed.state.look)); }
+        else if (isData) {
           const lk = ed.state.look;
           if (lk['network.color'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The lines are the same colour as the page, so you cannot see them. You can still render; the final checks decide if it is publishable.');
           if (lk['state.fill'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The land is the same colour as the page.');
@@ -1073,7 +1164,8 @@
         emptyNote.hidden = !empty;
         if (!isData && position > ed.state.duration) position = Math.max(0, ed.state.duration);   // never 0:04.4 of 0:01.1
         undoBtn.disabled = locked || ed.log.length === 0; revertBtn.disabled = locked || (ed.log.length === 0 && saved); finalBtn.disabled = locked; saveBtn.disabled = locked;
-        if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
+        if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
+        else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
         paintBanner(); paintWarns(); paintAiLinks(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
@@ -1089,8 +1181,32 @@
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
-        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
+        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
+      if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
+        const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
+        Promise.resolve().then(() => lookLoader(project)).then(b => {
+          if (b && b.stream && typeof b.stream.next === 'function') {            // a STREAMED film: the head opens the page at once, the chunks fill the periods in as they arrive
+            const bad = DD.streamProblem(b.stream.head);
+            if (bad) { problem(bad); return; }
+            bundle = RL.progressive(b.stream.head); tl = DD.timeline(RL, bundle); bundleState = 'ready'; streamLeft = bundle.periods.length; position = 0;
+            ticks.replaceChildren(...tl.ticks.map(m => { const t = h('span', {}, String(m.period)); t.style.left = `${m.at * 100}%`; return t; }));
+            paint();
+            (async () => {
+              try { for (;;) { const n = await b.stream.next(); if (!n) break; RL.addPeriod(bundle, n.period, n.chunk); streamLeft = Math.max(0, streamLeft - 1); paint(); } streamLeft = 0; }
+              catch { streamLeft = 0; streamNote = 'Some of the film could not be loaded, so parts of the preview stay blank. Try again in a minute.'; }
+              paint();
+            })();
+            return;
+          }
+          const why = DD.bundleProblem(b);
+          if (why) { problem(why); return; }
+          bundle = b; tl = DD.timeline(RL, b); bundleState = 'ready';
+          position = tl.seconds(tl.frames - 1);                                 // open on the last period: the film's finished picture
+          ticks.replaceChildren(...tl.ticks.map(m => { const t = h('span', {}, String(m.period)); t.style.left = `${m.at * 100}%`; return t; }));
+          paint();
+        }).catch(() => problem('The film\u2019s drawing data could not be opened. Try again in a minute.'));
+      }
       if (draft) {                                                              // read the draft, then look for the AI's changes every two seconds while this page is open and visible
         draft.open().then(r => { if (!r.ok) say(r.reason); paint(); });
         const pollTimer = setInterval(async () => { if (document.hidden || locked) return; const r = await draft.poll(); if (r.ok && (r.applied.length || r.skipped.length)) { saved = false; paint(); } }, 2000);

@@ -52,6 +52,8 @@
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
   // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
+  const intakeOn = () => window.ryagramConfig?.intake === true;
+  const myFilmsOn = () => window.ryagramConfig?.myFilms === true;
   const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
   // "Your look" (the profile editor) shows once SQL 20261017000300 is applied (lookEditor: true), or in mock mode.
   const looksOn = () => window.ryagramConfig?.lookEditor === true || !!window.ryagramMock;
@@ -63,6 +65,8 @@
   const connectOn = () => window.ryagramConfig?.connectAi === true || !!window.ryagramMock;
   // The AI-first front door (#/start), needs connectAi too (app-start.js). Off by default; in mock mode it follows the flag so the mock walk can show both.
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
+  // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
+  const liveEditorOn = () => window.ryagramConfig?.liveEditor === true;
   // Departments in the top bar and their pages (#/d/<id>): behind `departments`, which needs the door (app-departments.js). Off by default.
   const departmentsOn = () => window.ryagramDepartments?.flagOn() === true;
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
@@ -132,8 +136,11 @@
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
+        else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)$/))) view = editorUi().editorView(m[1], onStop);
         else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
-        else if (builderOn() && hash === '#/build') view = await builderUi().builderView(onStop);
+        else if (builderOn() && /^#\/build(\?.*)?$/.test(hash)) view = await builderUi().builderView(onStop, window.ryagramIntake ? window.ryagramIntake.parseBuildQuery(hash) : null);
+        else if (intakeOn() && window.ryagramIntake && hash === '#/new') view = intakeUi().intakeView(onStop);
+        else if (myFilmsOn() && window.ryagramFilms && hash === '#/films') view = await filmsUi().filmsView(onStop);
         else if (builderOn() && hash === '#/build/sample') view = await builderUi().builderView(onStop, { sample: true });   // the tutorial's sample: makes nothing (NEXT-BUILDER 38)
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
         else if (looksOn() && (m = hash.match(/^#\/looks\/new(?:\?preset=([a-z0-9-]+))?$/))) view = await looksUi().editorView('new', m[1] || 'wtds-classic', onStop);
@@ -229,6 +236,10 @@
     }
 
     // The guided builder (assets/app-builder.js): built once, with this page's helpers.
+    let intakeCache = null;
+    const intakeUi = () => intakeCache || (intakeCache = window.ryagramIntake.create({ h }));
+    let filmsCache = null;
+    const filmsUi = () => filmsCache || (filmsCache = window.ryagramFilms.create({ h, data, J: window.ryagramJobs, busy, showError, errorLine, date }));
     let builderCache = null;
     const builderUi = () => builderCache || (builderCache = window.ryagramBuilder.create({ h, data, busy, showError, errorLine, date }));
     // "Your look" (assets/app-looks.js): built once, with this page's helpers.
@@ -237,6 +248,8 @@
     // Connecting an AI (assets/app-connect.js): built once, with this page's helpers.
     let connectCache = null;
     let startCache = null;
+    let editorCache = null;
+    const editorUi = () => editorCache || (editorCache = window.ryagramEditorPage.create({ h, data }));
     let deptCache = null;
     const deptUi = () => deptCache || (deptCache = window.ryagramDepartments.create({ h, data, startUi }));
     const startUi = () => startCache || (startCache = window.ryagramStart.create({ h, data, refresh: () => route() }));
@@ -282,12 +295,14 @@
       // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
       const buildLink = builderOn() ? (projects.length ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Tutorial: make a film step by step'))
         : h('p', { class: 'first-film' }, h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, 'Try the tutorial: your first film'), ' ', h('span', { class: 'meta' }, 'Pick a ready-made film or choose your own data. The first picture is free.'))) : null;
+      const intakeLink = intakeOn() && window.ryagramIntake ? h('p', { class: 'meta' }, h('a', { href: '#/new' }, 'What do you want to make?')) : null;
+      const filmsLink = myFilmsOn() && window.ryagramFilms ? h('p', { class: 'meta' }, h('a', { href: '#/films' }, 'My films')) : null;
       const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
       return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
-              startStrip, credits, creditsNote, buildLink, looksLink, requestLink, adminLinks, form, list, help];
+              startStrip, credits, creditsNote, buildLink, intakeLink, filmsLink, looksLink, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.

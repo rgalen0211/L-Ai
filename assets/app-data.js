@@ -58,6 +58,20 @@
         });
       },
 
+      // My films (NEXT-WEB 174): every live project with its newest version and that version's jobs, in three reads (projects, versions, jobs), never more than 50 films.
+      async listFilms() {
+        const projects = await run(client.from('projects').select('id, title, created_at, updated_at').is('archived_at', null).order('updated_at', { ascending: false }).limit(50), 'Couldn’t load your films.');
+        if (!projects.length) return [];
+        const versions = await run(client.from('versions').select('id, project_id, number, state').in('project_id', projects.map(p => p.id)), 'Couldn’t load your films.');
+        const films = projects.map(p => ({ project: p, version: versions.filter(v => v.project_id === p.id).sort((a, b) => b.number - a.number)[0] || null, jobs: [] }));
+        const ids = films.filter(f => f.version).map(f => f.version.id);
+        if (ids.length) {
+          const jobs = await run(client.from('jobs').select(JOB_COLUMNS).in('version_id', ids).order('created_at', { ascending: false }), 'Couldn’t load your films.');
+          for (const f of films) if (f.version) f.jobs = jobs.filter(j => j.version_id === f.version.id);
+        }
+        return films;
+      },
+
       // A project always starts with r1.
       async createProject(title) {
         const project = await run(
@@ -528,6 +542,12 @@
       // Can this account use AI connections at all? CONNECT's connect_consent_check returns `invited` (connect_person_ok: invited, enabled, not an admin, not a worker) in EVERY answer, even for a request
       // that does not exist, so the site asks it about the nil request and reads that one field. No new SQL. It FAILS CLOSED: any error or a missing field means "not invited", and the
       // page then shows nothing. The server stays the real gate (connect_consent_check and decide refuse a non-invited account whatever the page does).
+      // The live editor's shared draft (CONNECT 141): only these five functions, answered as { data, error: { code, message } } so the page can read the SQL's codes (PT409 stale, PT403, 22023).
+      async editorRpc(name, args) {
+        if (!['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'].includes(name)) throw new Error('Not an editor call.');
+        const { data, error } = await client.rpc(name, args);
+        return { data: error ? null : data, error: error ? { code: error.code || null, message: String(error.message || '') } : null };
+      },
       async connectAccess() {
         try { const r = await run(client.rpc('connect_consent_check', { p_request: '00000000-0000-0000-0000-000000000000' }), 'Couldn’t check AI access.'); return !!r && r.invited === true; } catch { return false; }
       },

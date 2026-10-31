@@ -1,0 +1,3 @@
+ryagram/preview/scene-draw.min.js from the engine (Ryagram main 4b3f5cd6; the rules drawer: scene bundle v3 network, v4 frames, v5 map/bars/split/living rules). A SECOND copy beside scene-draw.min.js (the v2-only network drawer the preview pages use); both set the global RyagramScene, so a page loads only ONE of them. The live editor loads this one.
+sha256 27127423541735b32ba4f4db1759dcb37232d4e56eebf48aab7263d27a970bc7
+39952 bytes, LF. Drawing only. Replace it by copying the engine's file and changing this pin in the same commit.

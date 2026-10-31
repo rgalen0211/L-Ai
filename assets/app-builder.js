@@ -104,7 +104,10 @@
     const { h, data, busy, showError, errorLine } = ctx;
 
     // opts.sample: the tutorial's sample walk-through (#/build/sample): every read goes to the bundled recording, and nothing is ever made.
-    async function builderView(onStop, opts = {}) {
+    // opts.type / opts.q: from the intake (#/build?type=map&q=county): a film type to start from and a search word, both from a closed list (null or nothing for a plain visit).
+    async function builderView(onStop, opts) {
+      opts = opts || {};
+      const preset = opts;
       const sample = !!opts.sample;
       const rec = sample ? window.ryagramBuilderSample : null;
       const src = sample ? sampleData(rec) : data;
@@ -157,7 +160,7 @@
       }
 
       function stepDataset() {
-        const filter = h('input', { id: 'bd-filter', type: 'search', autocomplete: 'off', placeholder: 'Search by topic or name', 'aria-label': 'Search datasets' });
+        const filter = h('input', { id: 'bd-filter', type: 'search', autocomplete: 'off', placeholder: 'Search by topic or name', 'aria-label': 'Search datasets', value: preset.q || '' });
         const list = h('div', { class: 'builder-list', role: 'radiogroup', 'aria-label': 'Datasets' });
         function drawList() {
           const shown = filterDatasets(catalog, filter.value);
@@ -216,6 +219,7 @@
         const d = s.d;
         const types = d.film_types;
         if (!types.includes(s.type)) s.type = '';
+        if (!s.type && preset.type && types.includes(preset.type)) s.type = preset.type;
         return [h('h2', { tabindex: '-1' }, 'What kind of film?'), h('div', { class: 'builder-list', role: 'radiogroup', 'aria-label': 'Film type' }, types.map(id => {
           const [label, note] = typeWords(id);
           return h('label', { class: `builder-card${s.type === id ? ' is-chosen' : ''}` }, h('input', { type: 'radio', name: 'bd-type', value: id, ...(s.type === id ? { checked: true } : {}),
