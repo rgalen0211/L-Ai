@@ -836,6 +836,8 @@
       }
     };
 
+    // ?wzawake / ?wzquiet: a tester with one computer seen just now / seen two days ago (the first-run wizard, NEXT-WEB 192)
+    if (typeof location !== 'undefined' && /[?&]wz(awake|quiet)/.test(location.search || '')) db.computers = [{ id: 'wz-1', computer_name: 'DESKTOP-WIZ', created_at: new Date(Date.now() - 5 * 86400000).toISOString(), expires_at: new Date(Date.now() + 20 * 86400000).toISOString(), revoked_at: null, last_used_at: new Date(Date.now() - (/[?&]wzawake/.test(location.search) ? 20000 : 2 * 86400000)).toISOString() }];
     if (typeof location !== 'undefined' && /[?&]tester/.test(location.search || '') && !db.account_settings.length) db.account_settings.push({ owner_id: 'u-ryan', upload_retention: 'keep', local_compute: true });      // ?tester: a tester account in mock mode
     // (the account the mock switches to by signing in as 'other...' is a plain account, so a tab that goes admin -> sign out -> other account can be walked)
     const adminMock = () => !(seed.admin === false || (typeof location !== 'undefined' && /[?&]nonadmin/.test(location.search || '')) || (session && session.user && session.user.id === 'u-other'));
