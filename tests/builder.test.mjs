@@ -236,3 +236,45 @@ test('SAMPLE MAKES NOTHING: in the sample the Make button is hidden and never wi
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-builder-sample.js') > 0 && html.indexOf('app-builder-sample.js') < html.indexOf('app-builder.js?'), 'the sample loads before the builder');
 });
+
+test('TUTORIAL POLISH (NEXT-BUILDER 47): a changed choice in the sample is said calmly, naming what changed, with no "Fix it" and no alert', async () => {
+  const S = {}; vm.runInNewContext(read('assets/app-builder-sample.js'), { window: S });
+  const rec = S.ryagramBuilderSample;
+  const d = B.sampleData(rec);
+  let err; try { await d.builderCompile({ ...plain(rec.request), film_type: 'bars' }); } catch (e) { err = e; }
+  assert.deepEqual(plain(err.sampleChanges), ['the film type (Bar race; the sample’s is Map)'], 'MUST-FAIL: the refusal says what changed, in the steps\' words');
+  assert.doesNotMatch(err.errors[0], /^sample:/, 'no raw field name in front of the sentence');
+  assert.deepEqual(plain(B.sampleChanges({ ...plain(rec.request), title: 'Mine', years: undefined }, rec.request)),
+    ['the years (the data’s own years; the sample’s are 2011 to 2023)', 'the title (the sample’s is “Adult obesity by state”)'], 'several changes, in step order');
+  assert.deepEqual(plain(B.sampleChanges(plain(rec.request), rec.request)), [], 'the recorded choices change nothing');
+  assert.equal(B.listWords(['a', 'b', 'c']), 'a, b and c');
+  const src = read('assets/app-builder.js');
+  const review = src.slice(src.indexOf('function stepReview'), src.indexOf('function draw()'));
+  const calm = review.slice(review.indexOf('if (sample && Array.isArray(err.sampleChanges))'), review.indexOf('s.problems = groupErrors(errs);'));
+  assert.ok(calm.length > 0 && calm.includes("role: 'status'") && !calm.includes("role: 'alert'") && !calm.includes('Fix it') && !calm.includes('can’t be made yet'),
+    'MUST-FAIL: the sample\'s note is a status, not an alert, and offers no Fix it');
+  assert.ok(review.indexOf('if (sample && Array.isArray(err.sampleChanges))') < review.indexOf("'This film can’t be made yet:'"), 'the calm note comes before the error path');
+});
+
+test('TUTORIAL POLISH: "Fix it" only where it goes somewhere; engine sentences lose their raw field name', () => {
+  assert.equal(B.fixStep('years.start: 2005 is outside this dataset\'s coverage'), B.STEPS.findIndex(([id]) => id === 'years'));
+  assert.equal(B.fixStep('film_type: bars is not offered'), B.STEPS.findIndex(([id]) => id === 'type'));
+  assert.equal(B.fixStep('The story is too big'), -1, 'MUST-FAIL: a problem that is the review\'s own gets no button (it would only reload the review)');
+  const src = read('assets/app-builder.js');
+  assert.match(src, /errs\.map\(e => h\('li', \{\}, plainError\(e\), fixStep\(e\) < 0 \? null : \[' ', h\('button'/, 'the button is left out for fixStep -1');
+  assert.equal(B.plainError('years.start: 2005 is outside this dataset\'s coverage, 2011 to 2023'), 'From year: 2005 is outside this dataset\'s coverage, 2011 to 2023', 'MUST-FAIL');
+  assert.equal(B.plainError('film_type: bars is not offered'), 'Film type: bars is not offered');
+  assert.equal(B.plainError('places.count: 3 is too few'), 'Places: 3 is too few', 'a sub-field falls back to its field\'s words');
+  assert.equal(B.plainError('weird.key: x'), 'weird.key: x', 'an unknown field is left exactly as the engine said it');
+  assert.equal(B.plainError('Nothing to do with a field'), 'Nothing to do with a field');
+  assert.match(src, /list\.map\(p => h\('li', \{\}, plainError\(p\)\)\)/, 'a step\'s own problem list reads the same way');
+  assert.match(B.TIPS.review, /A problem that belongs to an earlier step has a “Fix it” button/, 'the review tip promises only what the page does');
+});
+
+test('TUTORIAL POLISH: the sample\'s first step promises nothing it cannot keep (it makes nothing and has one dataset)', () => {
+  const src = read('assets/app-builder.js');
+  const step = src.slice(src.indexOf('function stepDataset'), src.indexOf('function stepMeasure'));
+  assert.match(step, /sample \? 'One click puts the sample’s own choices back and takes you to the last step\.'/, 'MUST-FAIL: no "first picture is free" in the sample');
+  assert.match(step, /sample\r?\n\s+\? 'The sample has one dataset\. With your own data you choose from the whole list/, 'no "choose your own" in a one-dataset sample');
+  assert.ok(step.includes("The first picture is free.'") && step.includes("'Or choose your own. '"), 'the real builder keeps its own words');
+});
