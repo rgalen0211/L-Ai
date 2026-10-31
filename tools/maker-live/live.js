@@ -1052,6 +1052,7 @@
         if (!paceOn) return;
         paceHolder.replaceChildren(PACE.view(h, E, ed.state, { current: paceChoice, locked, onChoose: id => { paceChoice = id; paintPace(); },
           onApply: async groups => { let ok = true; for (const g of groups) { if (!(await applyMany(g))) { ok = false; break; } } if (ok) say(`The pace is ${PACE.find(paceChoice).label.toLowerCase()}. Undo takes it back, one step at a time.`); paceChoice = 'standard'; paintPace(); } }));
+      }
       // Why this clip (compilation mode, its own switch whyClip, off): the maker's report of why each clip is what it is, drawn as it is given. The report comes from host.whyClip() (the maker) or, in the test mock,
       // window.ryagramMockWhyClip(); the website itself has none and the panel says so. The clip at the playhead is marked.
       const WHY = window.ryagramWhyClip, whyOn = !!WHY && WHY.enabled() && !isData;
