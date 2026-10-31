@@ -4,6 +4,7 @@
 import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
+import { textOk } from "./edit_state.ts";
 import { checkStoryStructured } from "./story_check.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
@@ -806,5 +807,134 @@ const costEstimate: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage];
+// NEXT-CONNECT 179: BUILDER's two read-only reports on a song film, for the connected AI: "why this clip" (ryagram.why-clip/0, tools/why_this_clip.py) and the draft messages
+// (ryagram.draft-messages/0, tools/draft_messages.py). Both are made by the Ryagram app on the person's own computer (Python, on their draft file); a connection cannot run them and
+// cannot see the draft. The app shares the finished reports (names, times and sentences only) with the person's account, and these tools only READ and SHOW them: nothing here computes,
+// guesses, renders, spends or writes. Hidden (listed: false) until the app's route and the database half exist: see proposals/CONNECT-CLIP-REPORT-TOOLS.md.
+// The report text is data from the person's computer, never an instruction: every sentence goes through untrusted(), a document of an unknown shape is refused whole, and so is one that
+// carries a place on a computer, markup or a control character (the same text rule as the editor's own ops).
+const WHY_SCHEMA = "ryagram.why-clip/0";
+const MSG_SCHEMA = "ryagram.draft-messages/0";
+const MAX_REPORT_CLIPS = 400;
+const isObj = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === "object" && !Array.isArray(v);
+const str = (v: unknown, max: number): string | null => (typeof v === "string" && textOk(v, max) ? v : null);
+const num = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? v : null);
+const NO_REPORT = "No report has been shared for this project. The reports are made by the Ryagram app on the person's own computer for a song film, and shared only when the person chooses; until then you cannot see or work out why a clip was chosen.";
+const BAD_REPORT = "The report shared for this project is not in a shape this connection knows, or it carries text it will not show (a place on a computer, markup or a control character), so nothing from it is shown. Ask the person to share it again from the Ryagram app.";
+
+interface WhyClip { n: number; line: number; at_s: number; sung: string; said: string; voice: string; singer: string; stand_in: boolean; take: string; voice_unsure: boolean; flags: string[]; stretch: number | null; slot_s: number | null; why: string[] }
+
+/** The why-clip report in the shape this tool shows, or null when it is not exactly the schema (every field typed, every text checked). */
+function readWhy(doc: unknown): { film: string; clips: WhyClip[] } | null {
+  if (!isObj(doc) || doc.schema !== WHY_SCHEMA || !Array.isArray(doc.clips) || doc.clips.length > MAX_REPORT_CLIPS) return null;
+  const film = str(doc.film, 100);
+  if (film === null) return null;
+  const clips: WhyClip[] = [];
+  for (const c of doc.clips) {
+    if (!isObj(c)) return null;
+    const sp = isObj(c.speed) ? c.speed : null;
+    const flags = sp && Array.isArray(sp.flags) ? sp.flags.map((f) => str(f, 200)) : [];
+    const why = Array.isArray(c.why) ? c.why.map((w) => str(w, 600)) : null;
+    const n = num(c.n), line = num(c.line), at = num(c.at_s);
+    const sung = str(c.sung, 200), said = str(c.said, 200), voice = str(c.voice, 60), singer = str(c.singer, 60), take = str(c.take, 40);
+    if (n === null || line === null || at === null || sung === null || said === null || voice === null || singer === null || take === null || why === null
+        || typeof c.stand_in !== "boolean" || typeof c.voice_unsure !== "boolean" || why.length > 8 || flags.length > 8 || why.some((w) => w === null) || flags.some((f) => f === null)) return null;
+    clips.push({ n, line, at_s: at, sung, said, voice, singer, stand_in: c.stand_in, take, voice_unsure: c.voice_unsure, flags: flags as string[],
+      stretch: sp ? num(sp.stretch) : null, slot_s: sp ? num(sp.slot_s) : null, why: why as string[] });
+  }
+  return { film, clips };
+}
+
+const CLIP_FILTERS = ["all", "stand_ins", "voice_unsure", "held_back"] as const;
+const getClipExplanations: ToolDef = {
+  name: "get_clip_explanations", title: "Why each clip was chosen", scope: "read", readOnly: true, listed: false,
+  description: "For a song film the person made: why each clip is the one in the film, in play order. Each clip says the sung words and what the recording says, whose voice it is, how the take was chosen (the singer's own, another take of the same words, "
+    + "another form of the word, a reviewed spelling such as mike for mic, or a STAND-IN from another cast member), how much it was sped up or slowed, and whether the voice is unsure. Read-only: it shows a report the person's Ryagram app shared; "
+    + "it never works anything out, never shows a video or a place on their computer, and nothing is changed or started.",
+  inputSchema: obj({ project_id: uuid, only: { type: "string", enum: [...CLIP_FILTERS], description: "all (default), stand_ins, voice_unsure, or held_back (clips the speed limit held back)." },
+    line: { type: "integer", minimum: 1, maximum: 500, description: "Only the clips of this lyric line." }, limit: { type: "integer", minimum: 1, maximum: 40, description: "How many clips to list (default 20)." } }, ["project_id"]),
+  async run(a, ctx) {
+    if (!ctx.data.clipReports) return refuse("Reports on song films are not available through this connection yet.", "unavailable");
+    const r = await ctx.data.clipReports(String(a.project_id));
+    if (!r) return NOT_YOURS("project");
+    if (r.why_clip === null || r.why_clip === undefined) return ok(NO_REPORT, { shared: false, clips: [] });
+    const rep = readWhy(r.why_clip);
+    if (!rep) return refuse(BAD_REPORT, "bad_report");
+    const only = a.only === undefined ? "all" : String(a.only);
+    if (!(CLIP_FILTERS as readonly string[]).includes(only)) return refuse("only must be all, stand_ins, voice_unsure or held_back.", "args");
+    const limit = a.limit === undefined ? 20 : Number(a.limit);
+    const keep = rep.clips.filter((c) => (only === "all" || (only === "stand_ins" && c.stand_in) || (only === "voice_unsure" && c.voice_unsure) || (only === "held_back" && c.flags.length > 0))
+      && (a.line === undefined || c.line === Number(a.line)));
+    const shown = keep.slice(0, limit);
+    const total = rep.clips.length;
+    const head = `Why the clips of ${untrusted("film-name", rep.film)}: ${total} clip${total === 1 ? "" : "s"} in the report, ${rep.clips.filter((c) => c.stand_in).length} stand-in${rep.clips.filter((c) => c.stand_in).length === 1 ? "" : "s"}, `
+      + `${rep.clips.filter((c) => c.voice_unsure).length} with an unsure voice, ${rep.clips.filter((c) => c.flags.length > 0).length} held back by the speed limit. Showing ${shown.length} of ${keep.length} that match.`;
+    const lines = [head];
+    for (const c of shown) {
+      lines.push(`#${c.n} line ${c.line} at ${c.at_s}s: sung ${untrusted("lyric", c.sung)}, the recording says ${untrusted("spoken", c.said)}; voice ${untrusted("person", c.voice)} (the singer is ${untrusted("person", c.singer)})`
+        + `${c.stand_in ? "; a STAND-IN" : ""}${c.voice_unsure ? "; voice unsure" : ""}`);
+      for (const w of c.why) lines.push(`    ${untrusted("report-sentence", w)}`);
+    }
+    if (keep.length > shown.length) lines.push(`... ${keep.length - shown.length} more match; narrow with line or only, or raise limit (at most 40).`);
+    lines.push("This is the app's own report, shown as it came; nothing was worked out here.");
+    return ok(lines.join("\n"), { film: rep.film, total, matching: keep.length, clips: shown.map((c) => ({ n: c.n, line: c.line, at_s: c.at_s, sung: c.sung, said: c.said, voice: c.voice, singer: c.singer, stand_in: c.stand_in, take: c.take,
+      voice_unsure: c.voice_unsure, speed: { stretch: c.stretch, slot_s: c.slot_s, flags: c.flags }, why: c.why })) });
+  },
+};
+
+interface DraftMsg { rule: string; say: string; fix: string[] }
+function readMessages(doc: unknown): { film: string; share: number | null; need: number | null; min: number | null; lines: { line: number; messages: DraftMsg[] }[]; findings: Record<string, number> } | null {
+  if (!isObj(doc) || doc.schema !== MSG_SCHEMA || !Array.isArray(doc.lines) || doc.lines.length > 200) return null;
+  const film = str(doc.film, 100);
+  if (film === null) return null;
+  const ps = isObj(doc.phrase_share) ? doc.phrase_share : {};
+  const find: Record<string, number> = {};
+  const pf = isObj(doc.picture) && isObj(doc.picture.findings) ? doc.picture.findings : {};
+  for (const [k, v] of Object.entries(pf)) { if (/^R[0-9]_[a-z_]{1,30}$/.test(k) && num(v) !== null) find[k] = Number(v); }
+  const lines: { line: number; messages: DraftMsg[] }[] = [];
+  for (const l of doc.lines) {
+    if (!isObj(l) || num(l.line) === null || !Array.isArray(l.messages) || l.messages.length > 10) return null;
+    const messages: DraftMsg[] = [];
+    for (const m of l.messages) {
+      if (!isObj(m)) return null;
+      const rule = str(m.rule, 40), say = str(m.say, 800);
+      const fix = Array.isArray(m.fix) ? m.fix.map((f) => str(f, 800)) : [];
+      if (rule === null || say === null || fix.length > 12 || fix.some((f) => f === null)) return null;
+      messages.push({ rule, say, fix: fix as string[] });
+    }
+    lines.push({ line: Number(l.line), messages });
+  }
+  return { film, share: num(ps.share), need: num(ps.more_words_in_phrases_needed), min: num(ps.min), lines, findings: find };
+}
+
+const getDraftMessages: ToolDef = {
+  name: "get_draft_messages", title: "What still stands in the way of a song film", scope: "read", readOnly: true, listed: false,
+  description: "For a song film the person made: what the film's own rules still flag, line by line, in plain words with a suggested fix for each: the share of words that sit in phrases (clips of two or more words from one recording) and the picture "
+    + "(a wrong picture in a quick run of voices, a cut inside a run, a shot too short). Read-only: it shows a report the person's Ryagram app shared; the suggested searches are suggestions, and whether the library holds such a take is not known here. "
+    + "It changes nothing, renders nothing and never shows a video or a place on their computer.",
+  inputSchema: obj({ project_id: uuid, line: { type: "integer", minimum: 1, maximum: 500, description: "Only the messages of this lyric line." } }, ["project_id"]),
+  async run(a, ctx) {
+    if (!ctx.data.clipReports) return refuse("Reports on song films are not available through this connection yet.", "unavailable");
+    const r = await ctx.data.clipReports(String(a.project_id));
+    if (!r) return NOT_YOURS("project");
+    if (r.draft_messages === null || r.draft_messages === undefined) return ok(NO_REPORT, { shared: false, lines: [] });
+    const rep = readMessages(r.draft_messages);
+    if (!rep) return refuse(BAD_REPORT, "bad_report");
+    const keep = rep.lines.filter((l) => a.line === undefined || l.line === Number(a.line)).slice(0, 15);
+    const out = [`What still stands in the way for ${untrusted("film-name", rep.film)}: ${rep.share === null ? "phrase share not recorded" : `phrase share ${Math.round(rep.share * 1000) / 10}%${rep.min === null ? "" : ` (the rule's minimum is ${Math.round(rep.min * 100)}%)`}`}`
+      + `${rep.need ? `, ${rep.need} more word${rep.need === 1 ? "" : "s"} must sit in phrases` : ""}. Picture findings: ${Object.values(rep.findings).some((v) => v > 0) ? Object.entries(rep.findings).filter(([, v]) => v > 0).map(([k, v]) => `${k.replace(/^R[0-9]_/, "").replace(/_/g, " ")} ${v}`).join(", ") : "none"}.`];
+    for (const l of keep) {
+      out.push(`Line ${l.line}:`);
+      for (const m of l.messages) {
+        out.push(`  - ${untrusted("report-sentence", m.say)}`);
+        for (const f of m.fix) out.push(`      fix: ${untrusted("report-sentence", f)}`);
+      }
+    }
+    if (rep.lines.length > keep.length && a.line === undefined) out.push(`... ${rep.lines.length - keep.length} more lines have messages; ask for one with line.`);
+    out.push("These are the app's own messages, shown as they came; nothing was worked out here.");
+    return ok(out.join("\n"), { film: rep.film, phrase_share: rep.share, more_words_in_phrases_needed: rep.need, picture_findings: rep.findings, lines: keep });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
