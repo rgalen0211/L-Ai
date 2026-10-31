@@ -111,11 +111,19 @@ export interface FootageSwitch {
   request(plan: { source: "nasa" | "nara"; item_id: string; why: string }): Promise<{ id: string; state: string }>;
 }
 
+/** NEXT-CONNECT 182: song film requests. NOT wired in the real function: with no `songFilm` here the tool refuses and writes nothing (the switch is OFF). The request table and the app's card are the next pieces. */
+export interface SongFilmSwitch {
+  enabled(): boolean | Promise<boolean>;
+  /** Writes the request (lyrics, who sings what, folder NAMES, the lyrics declaration with verified false) and returns it. */
+  request(req: { project_id: string; name: string; lyrics: string[]; lyrics_origin: "written_for_this_film" | "own_or_licensed" | "public_domain"; lyrics_source: string; verified: false; cast: { line: number; who: string }[]; folders: string[]; speed_cap: number; note: string }): Promise<{ id: string; state: string }>;
+}
+
 export interface Deps {
   /** Compiles a JSON Schema into a checker that returns plain-words problems ([] = fine). */
   compile(schema: object): ((value: unknown) => string[]) & { detailed?: (value: unknown) => { instancePath: string; keyword: string; params: Record<string, unknown>; message?: string; schemaPath?: string }[] };
   now?: () => number;
   footage?: FootageSwitch;
+  songFilm?: SongFilmSwitch;
 }
 
 export interface ToolCtx {
@@ -164,6 +172,7 @@ export const LIMITS = Object.freeze({
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
   footagePlansPerDayPerUser: 20,
+  songFilmRequestsPerDayPerUser: 10,
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
   maxStoryBytes: 256 * 1024,
 });
