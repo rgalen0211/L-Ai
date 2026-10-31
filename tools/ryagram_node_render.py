@@ -44,6 +44,7 @@ HERE = Path(__file__).resolve().parent
 if str(HERE) not in sys.path:
     sys.path.insert(0, str(HERE))
 import ryagram_platform as plat                  # noqa: E402  the few Windows / macOS / Linux differences (NEXT-CONNECT 166)
+import gpu_room                                  # noqa: E402  room on the graphics card for a site film and a clip film at once (NEXT-WORKER 76)
 CHILD = HERE / "ryagram_node_job.py"
 GPU_PRIORITY = "e"                       # RULINGS 2026-10-20: film renders are the LAST thing on the GPU. Not a setting.
 POLL_S = 2.0
@@ -209,7 +210,8 @@ def lock_command(s: Settings, child_argv: list[str]) -> list[str]:
 class NodeRenderer:
     """Everything the maker needs from this module: the renderer, the validator, the dataset allowlist and the engine commit."""
 
-    def __init__(self, settings: Settings, work_root, *, spawn=subprocess.Popen, sleep=time.sleep, clock=time.monotonic, ram=_ram_bytes, free_gb=None, busy=None):
+    def __init__(self, settings: Settings, work_root, *, spawn=subprocess.Popen, sleep=time.sleep, clock=time.monotonic, ram=_ram_bytes, free_gb=None, busy=None,
+                 other_busy=None, gpu_free=None):
         self.s, self.work_root = settings, Path(work_root)
         self.spawn, self.sleep, self.clock = spawn, sleep, clock
         self.problems = find_problems(settings, work_root, ram=ram, free_gb=free_gb)
@@ -219,6 +221,8 @@ class NodeRenderer:
         self.cache_changes = {"count": 0, "examples": [], "checked": False}      # what the last film changed in the shared data cache (it should be nothing)
         self.house_jobs = effective_house_jobs(settings, work_root)
         self.busy = busy if busy is not None else (lambda: _job_mod().house_busy(self.house_jobs))
+        self.other_busy = other_busy            # is one of the person's own clip films running in this app? (the maker passes it; None = never asked)
+        self.gpu_free = gpu_free if gpu_free is not None else gpu_room.free_mb
 
     # ------------------------------------------------------------------------------------------------ what the node loop calls
     def validate(self, job):
@@ -275,6 +279,10 @@ class NodeRenderer:
             if self.clock() - t_house > HOUSE_WAIT_MAX_S:
                 raise RenderFailed("house_busy", retry=True)
             self.sleep(HOUSE_POLL_S)
+        # NEXT-WORKER 76: the person's own clip film may be running too. Only when it is AND the graphics card has too little free memory for both
+        # does the site film wait (a plain sentence on the card); a card that cannot be read does not hold it. Waited too long: the site gets it back.
+        if self.other_busy is not None and not gpu_room.wait_for_room(self.other_busy, free=self.gpu_free, progress=progress, sleep=self.sleep, clock=self.clock):
+            raise RenderFailed("gpu_room", retry=True)
         proc = self.spawn(lock_command(self.s, child), cwd=str(work), env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                           **plat.popen_group_kwargs(hide_window=True))
         t0 = self.clock()
