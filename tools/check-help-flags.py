@@ -35,7 +35,10 @@ with sync_playwright() as pw:
     else:
         on_cfg = on_cfg.replace('window.ryagramConfig = Object.freeze({', 'window.ryagramConfig = Object.freeze({ liveEditor: true,', 1)
     SONG = ['What is a song film', 'stand-in', 'sped up', 'lyric cards', 'internal only']
-    song_cfg = re.sub(r'songHelp:\s*false', 'songHelp: true', base).replace('window.ryagramConfig = Object.freeze({', 'window.ryagramConfig = Object.freeze({ whyClip: true, lyricCards: true,', 1)
+    song_cfg = re.sub(r'songHelp:\s*false', 'songHelp: true', base)
+    for _k in ('whyClip', 'lyricCards'):                                           # the switches the screens' entries need: flipped where the config has them, added where a branch does not yet
+        if re.search(rf'\b{_k}:\s*false', song_cfg): song_cfg = re.sub(rf'\b{_k}:\s*false', f'{_k}: true', song_cfg)
+        else: song_cfg = song_cfg.replace('window.ryagramConfig = Object.freeze({', f'window.ryagramConfig = Object.freeze({{ {_k}: true,', 1)
     for label, cfg, shown in (('as shipped', base, ['How do I connect Claude']), ('all switches on', on_cfg, ['How do I connect Claude', 'change my film', 'get my data']), ('song film entries on', song_cfg, ['How do I connect Claude'] + SONG)):
         print(label)
         ctx = b.new_context(viewport={'width': 375, 'height': 800})
