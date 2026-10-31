@@ -750,7 +750,8 @@
       const setPos = v => { position = v; paintPreview();
         const shown = bundleMode ? (tl ? tl.label(position) : '') : String(Math.round(position));
         posText.textContent = isData ? shown : `${mmss(position)} / ${mmss(ed.state.duration)}`;
-        range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead(); };
+        range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead();
+        if (whyOn && whyState === 'ready') { const c = WHY.clipAt(whyReport, position), n = c ? c.n : null; if (n !== whyNowN) paintWhy(); } };      // the panel is redrawn only when the clip at the playhead changes
       const paintPreview = () => (isData ? drawData() : hostPreview ? drawHost() : drawClips());
       range.addEventListener('input', () => setPos(bundleMode ? (tl ? tl.seconds(Number(range.value)) : 0) : isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
@@ -1047,6 +1048,19 @@
         if (!paceOn) return;
         paceHolder.replaceChildren(PACE.view(h, E, ed.state, { current: paceChoice, locked, onChoose: id => { paceChoice = id; paintPace(); },
           onApply: async groups => { let ok = true; for (const g of groups) { if (!(await applyMany(g))) { ok = false; break; } } if (ok) say(`The pace is ${PACE.find(paceChoice).label.toLowerCase()}. Undo takes it back, one step at a time.`); paceChoice = 'standard'; paintPace(); } }));
+      // Why this clip (compilation mode, its own switch whyClip, off): the maker's report of why each clip is what it is, drawn as it is given. The report comes from host.whyClip() (the maker) or, in the test mock,
+      // window.ryagramMockWhyClip(); the website itself has none and the panel says so. The clip at the playhead is marked.
+      const WHY = window.ryagramWhyClip, whyOn = !!WHY && window.ryagramConfig && window.ryagramConfig.whyClip === true && !isData;
+      let whyReport = null, whyState = 'idle', whyFilter = 'all', whyNowN = null;
+      const whyHolder = h('div', { class: 'le-why-holder' });
+      const whySource = () => (host && typeof host.whyClip === 'function' ? () => host.whyClip() : typeof window.ryagramMockWhyClip === 'function' ? () => window.ryagramMockWhyClip() : null);
+      function paintWhy() {
+        if (!whyOn) return;
+        if (whyState === 'idle') { const src = whySource(); if (!src) { whyState = 'none'; } else { whyState = 'loading'; Promise.resolve().then(src).then(r => { whyReport = r; whyState = 'ready'; paintWhy(); }, () => { whyState = 'failed'; paintWhy(); }); } }
+        if (whyState === 'ready') { const c = WHY.clipAt(whyReport, position); whyNowN = c ? c.n : null; }
+        if (whyState === 'ready') whyHolder.replaceChildren(WHY.view(h, whyReport, { at: position, filter: whyFilter, onFilter: id => { whyFilter = id; paintWhy(); } }));
+        else whyHolder.replaceChildren(h('section', { class: 'le-why' }, h('h2', {}, 'Why this clip'), h('p', { class: 'form-note', role: 'status' },
+          whyState === 'loading' ? 'Asking the maker why each clip is what it is…' : whyState === 'failed' ? 'The explanation could not be read just now.' : 'This page has no explanation of the cut. It comes from the Ryagram app on your computer.')));
       }
       let refocus = null;                                                       // a keyboard edit rebuilds the lanes: focus goes back to the clip that was edited
       function keyOn(c) {
@@ -1176,7 +1190,7 @@
         if (bundleMode) { range.min = '0'; range.max = String(tl ? tl.frames - 1 : 0); range.step = '1'; range.value = String(tl ? tl.frame(position) : 0); range.disabled = !tl; playBtn.disabled = !tl; if (bundleState === 'ready') paintLook(); }
         else if (isData) { range.min = String(FIRST); range.max = String(LAST); range.step = '1'; range.value = String(Math.round(position)); paintLook(); }
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
-        paintBanner(); paintWarns(); paintAiLinks(); paintPace(); setPos(position);
+        paintBanner(); paintWarns(); paintAiLinks(); paintPace(); paintWhy(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
       }
 
@@ -1187,7 +1201,7 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : [])]),
+          h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
