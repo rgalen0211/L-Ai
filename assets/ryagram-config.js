@@ -69,6 +69,10 @@ window.ryagramConfig = Object.freeze({
   macNote: false,
   // The Why this clip panel in the live editor's compilation mode (NEXT-WEB 185; BUILDER 48's report): draws the cut's own explanation of each clip. Needs a maker that can give the report. OFF until Ryan has seen it.
   whyClip: false,
+  // On #/admin/tester, each tester's computers (signed in, last seen, films waiting and held), read with admin_tester_devices() (NEXT-WEB 187). Needs SQL 20261031000100 applied. OFF until then.
+  adminTesterDevices: false,
+  // On My films, a tester account's films say where they are on THEIR computer: waiting for it, picked up by it, being made on it, done, or failed and why (NEXT-WEB 186). Needs myFilms. OFF until Ryan has seen it.
+  testerFilmProgress: false,
   // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
   intake: false,
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
