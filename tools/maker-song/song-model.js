@@ -196,9 +196,19 @@
     quiet(plan, n, i, on) { const p = clone(plan), w = at(p, n, i); if (w.status !== 'gap') fail('Only a gap can be left quiet.'); w.quiet = on !== false; return normalize(p); },
   };
 
+  // The optional 'most a word may be sped up' (ENGINE 52's song key speed_cap): '' or blank means no limit and sends nothing; otherwise a number from 1 to 6, said in words when it is not.
+  // The maker checks it again; the engine's own closed schema checks it a third time.
+  const speedCapField = raw => {
+    const s = String(raw === undefined || raw === null ? '' : raw).trim();
+    if (!s) return {};
+    const v = Number(s);
+    if (!/^[0-9]+(\.[0-9]+)?$/.test(s) || !Number.isFinite(v) || v < 1 || v > 6) fail('The most a word may be sped up must be a number from 1 to 6, or blank for no limit.');
+    return { speed_cap: v };
+  };
+
   // ---- one plan to a stable text, for saving ----
   const stringify = plan => JSON.stringify(normalize(plan), null, 2) + '\n';
   const parse = text => { let v; try { v = JSON.parse(text); } catch (e) { fail('That file is not a song plan.'); } return normalize(v); };
 
-  return { SCHEMA, STATUSES, OFF_BEAT_MS, STRETCH_HIGH, STRETCH_LOW, SongError, parseLyrics, wordsOf, normalizeVideos, normalizeFolder, folderNote, normalize, speakerLabel, statusText, flags, summarize, ops, stringify, parse, mmss };
+  return { speedCapField, SCHEMA, STATUSES, OFF_BEAT_MS, STRETCH_HIGH, STRETCH_LOW, SongError, parseLyrics, wordsOf, normalizeVideos, normalizeFolder, folderNote, normalize, speakerLabel, statusText, flags, summarize, ops, stringify, parse, mmss };
 }));

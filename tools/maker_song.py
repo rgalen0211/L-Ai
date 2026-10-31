@@ -317,11 +317,23 @@ def save(body: dict) -> dict:
 
 
 # ----------------------------------------------------------------------------------------------------- the engine
-def _recipe(lines: list[str], has_guide: bool) -> dict:
+def _speed_cap(req: dict | None):
+    """The page's optional 'max speed-up' (ENGINE 52's song key speed_cap): None when it was not asked for, else a number from 1 to 6. Anything else is refused in the person's words, never passed on."""
+    if req is None or req.get("speed_cap") is None:
+        return None
+    v = req["speed_cap"]
+    if isinstance(v, bool) or not isinstance(v, (int, float)) or not (1 <= v <= 6):
+        raise Problem("The most a word may be sped up must be a number from 1 to 6.")
+    return float(v)
+
+
+def _recipe(lines: list[str], has_guide: bool, speed_cap: float | None = None) -> dict:
     """The song recipe for these words: one slot of videos, the song, and the singing on its own when there is one. The settings are the engine's plain defaults (a clip at least 0.3 s, the
     picture holds 0.5 s, the music 6 dB under the voices, a word stretched at most 3x or squeezed to 0.5x). The engine checks it again with its own closed schema."""
     slots = [{"id": "footage-1", "label": "Your videos", "accepts": "video", "multiple": True}, {"id": "music", "label": "Your song", "accepts": "audio", "multiple": False}]
     song = {"lines": list(lines), "music_slot": "music", "min_clip_s": 0.3, "burst_s": 0.5, "music_db": -6, "min_stretch": 0.5, "max_stretch": 3.0}
+    if speed_cap is not None:
+        song["speed_cap"] = speed_cap                      # ENGINE 52: prefer a take that needs no more than this speed-up; unset leaves the recipe exactly as it was
     if has_guide:
         slots.append({"id": "guide", "label": "The singing on its own", "accepts": "audio", "multiple": False})
         song["guide_slot"] = "guide"
@@ -331,6 +343,8 @@ def _recipe(lines: list[str], has_guide: bool) -> dict:
     try:
         _dm.STATE["R"].validate_recipe(rec)
     except Exception:  # noqa: BLE001
+        if speed_cap is not None:
+            raise Problem("This copy of Ryagram does not know the speed limit yet. Leave it blank, or update Ryagram.") from None
         raise Problem("This copy of Ryagram cannot make song films yet.") from None
     return rec
 
@@ -437,16 +451,17 @@ def build(req: dict) -> dict:
     if want_id is not None and not (isinstance(want_id, str) and re.fullmatch(r"[0-9a-f]{16}", want_id)):
         raise Problem("The plan on the screen is not valid. Press Build again.")
     forge = _forge(req)
+    cap = _speed_cap(req)
     problems = _door_problems()
     if problems:
         raise Problem("Fix this first: " + " ".join(problems[:2]))
     _claim()
     try:
-        key = hashlib.sha1(json.dumps([lines, [str(p) for p in vids], str(track), str(guide) if guide else None, forge]).encode("utf-8")).hexdigest()[:10]
+        key = hashlib.sha1(json.dumps([lines, [str(p) for p in vids], str(track), str(guide) if guide else None, forge] + ([cap] if cap is not None else [])).encode("utf-8")).hexdigest()[:10]
         work = _dm.STATE["work"] / "song" / key
         work.mkdir(parents=True, exist_ok=True)
         rf = work / "song-recipe.json"
-        rf.write_text(json.dumps(_recipe(lines, guide is not None), indent=1), encoding="utf-8")
+        rf.write_text(json.dumps(_recipe(lines, guide is not None, cap), indent=1), encoding="utf-8")
         args = ["plan", str(rf), "--work-dir", str(work / "w"), "--model", _dm.default_model(), "--json"] + sum([["--bind", f"footage-1={p}"] for p in vids], [])
         args += ["--bind", f"music={track}"] + (["--bind", f"guide={guide}"] if guide else []) + (["--forge"] if forge else [])
         rc, out, err = _run(args, "plan")

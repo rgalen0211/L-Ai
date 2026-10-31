@@ -273,3 +273,18 @@ test('JOINED WORDS: swapping another take in clears the flag; the page says it o
   assert.ok(page.includes("w.offset_joined ? 'Runs on from the word before, so it was not measured: its sound starts before its own beat' : 'Not measured yet: the render reports how close each word lands'"));
   assert.match(read('docs/maker-song-host-contract.md'), /`offset_joined: true`/);
 });
+
+// ---- NEXT-WEB 181: the optional "most a word may be sped up" (ENGINE 52's song key speed_cap) ----
+test('SPEED CAP: blank sends nothing; 1 to 6 is sent as a number; anything else is refused in words before anything is sent', () => {
+  assert.deepEqual(clone(M.speedCapField('')), {}); assert.deepEqual(clone(M.speedCapField('   ')), {}); assert.deepEqual(clone(M.speedCapField(null)), {}); assert.deepEqual(clone(M.speedCapField(undefined)), {});
+  assert.deepEqual(clone(M.speedCapField('1.5')), { speed_cap: 1.5 }); assert.deepEqual(clone(M.speedCapField('1')), { speed_cap: 1 }); assert.deepEqual(clone(M.speedCapField(' 6 ')), { speed_cap: 6 });
+  for (const bad of ['0.9', '6.01', '7', '-1', 'fast', '1,5', '1e1', '0x2', 'NaN', 'Infinity', '1.5.2', '--1']) assert.throws(() => M.speedCapField(bad), /number from 1 to 6/, bad);
+});
+
+test('SPEED CAP: the page has one plain control, sends the field only through the model, and the build is refused before sending when it is not valid', () => {
+  const js = read('tools/maker-song/song.js');
+  assert.match(js, /id: 'speed-cap'/); assert.match(js, /Most a word may be sped up \(1 to 6, blank for no limit\)/);
+  assert.match(js, /M\.speedCapField\(S\.speedCap\)\)\);/, 'the request takes the field from the model');
+  assert.match(js, /try \{ M\.speedCapField\(S\.speedCap\); \} catch \(e\) \{ err\(e\.message\); return; \}/, 'checked before anything is sent');
+  assert.doesNotMatch(js, /speed_cap\s*:\s*S\./, 'the page never builds the field by hand');
+});
