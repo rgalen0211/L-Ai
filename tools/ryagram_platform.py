@@ -9,6 +9,9 @@ Standard library only, no network. Every function takes the platform and the sys
     search_folders(home)          where "find my file" looks (Videos on Windows, Movies on macOS, plus Downloads, Desktop and Documents)
     total_memory_bytes()          physical memory, or None when it cannot be read
     on_system_drive(path)         Ryan's storage rule 'nothing heavy on C:' as a function: Windows C: (or no drive at all); macOS and Linux have no drive letters, so it is never true there (Mac step 2)
+    exe_name(base)                a program's file name on this system (ffmpeg.exe on Windows, ffmpeg elsewhere)
+    child_env(tmp)                the short, fixed environment a site-film child runs in (Windows: SYSTEMROOT and System32 only; elsewhere: a plain PATH and the job's own folder as HOME)
+    runs_dir_default()            where the machine-wide list of running renders lives by default (ProgramData on Windows; the user's Library or data folder elsewhere)
 
 What is NOT here yet, and needs a real Mac to be written and proved: the Keychain store for the sign-in token, the macOS Python / ffmpeg / wheels of the bundle, signing and notarization.
 """
@@ -129,6 +132,35 @@ def on_system_drive(path, system: str | None = None, *, splitdrive=os.path.split
     except (OSError, ValueError):
         return True
     return drive.upper() in ("C:", "")
+
+
+def exe_name(base: str, system: str | None = None) -> str:
+    """A program's file name here: `ffmpeg` is ffmpeg.exe on Windows and ffmpeg on macOS and Linux."""
+    return base + ".exe" if current(system) == WINDOWS else base
+
+
+def child_env(tmp, environ=None, system: str | None = None) -> dict:
+    """The environment a site-film child process runs in: a SHORT fixed list, nothing inherited (no tokens, no PATH of the person). Windows keeps exactly what it always had (SYSTEMROOT, System32 on PATH,
+    the temp folders, UTF-8). macOS and Linux get a plain system PATH, the job's own folder as HOME (nothing is written in the person's real home), the temp folders and UTF-8."""
+    environ = os.environ if environ is None else environ
+    t = str(tmp)
+    if current(system) == WINDOWS:
+        root = environ.get("SYSTEMROOT", "C:" + chr(92) + "Windows")
+        return {"SYSTEMROOT": root, "PATH": root + chr(92) + "System32", "TEMP": t, "TMP": t, "TMPDIR": t, "PYTHONUTF8": "1"}
+    return {"PATH": "/usr/bin:/bin", "HOME": t, "TEMP": t, "TMP": t, "TMPDIR": t, "LANG": "en_US.UTF-8", "PYTHONUTF8": "1"}
+
+
+def runs_dir_default(environ=None, system: str | None = None, home=None) -> Path:
+    """Where the machine-wide list of running renders lives when nothing says otherwise: the ProgramData folder under Ryagram/runs on Windows (as before), ~/Library/Application Support/Ryagram/runs on a Mac, the user's data folder on Linux."""
+    environ = os.environ if environ is None else environ
+    sysname = current(system)
+    if sysname == WINDOWS:
+        pd = environ.get("ProgramData") or (environ.get("SystemDrive", "C:") + chr(92) + "ProgramData")
+        return Path(pd) / "Ryagram" / "runs"
+    h = Path(home) if home is not None else Path(environ.get("HOME") or Path.home())
+    if sysname == MAC:
+        return h / "Library" / "Application Support" / "Ryagram" / "runs"
+    return Path(environ.get("XDG_DATA_HOME") or (h / ".local" / "share")) / "Ryagram" / "runs"
 
 
 def free_bytes(path, usage=shutil.disk_usage) -> int | None:

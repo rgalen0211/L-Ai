@@ -70,12 +70,20 @@ def _pid_alive(pid: int) -> bool:
         k32.CloseHandle(ctypes.c_void_p(h))
 
 
+def _platform():
+    """tools/ryagram_platform.py, found next to this file (the app runs these tools with python -I)."""
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import ryagram_platform
+    return ryagram_platform
+
+
 def runs_dir() -> Path:
     env = os.environ.get("RYAGRAM_RUNS_DIR")
     if env:
         return Path(env)
-    base = os.environ.get("ProgramData") or (os.environ.get("SystemDrive", "C:") + "\\ProgramData")
-    return Path(base) / "Ryagram" / "runs"
+    return _platform().runs_dir_default()
 
 
 def house_busy(jobs_root, registry_dir=None, *, now=None, window_s: float = HOUSE_QUIET_S, pid_alive=_pid_alive) -> bool:

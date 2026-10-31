@@ -43,9 +43,24 @@ def _list(vs) -> str:
     return "[" + ", ".join(_q(v) for v in vs) + "]"
 
 
-def find_browser(env=None, exists=lambda p: Path(p).is_file()) -> str | None:
+def _platform():
+    """tools/ryagram_platform.py, found next to this file."""
+    here = str(Path(__file__).resolve().parent)
+    if here not in sys.path:
+        sys.path.insert(0, here)
+    import ryagram_platform
+    return ryagram_platform
+
+
+def find_browser(env=None, exists=lambda p: Path(p).is_file(), system: str | None = None) -> str | None:
     """Google Chrome (chrome.exe) in its usual places for the machine and for this user. None when it is not there. Edge is NOT used: the film job refuses it (ryagram/worker/config.py _chrome)."""
     env = os.environ if env is None else env
+    if _platform().current(system) == "mac":                  # Google Chrome as the Mac installs it: the bundle's own binary, for the machine and for this user (Chrome only, never Safari)
+        home = env.get("HOME") or ""
+        for p in ["/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"] + ([home + "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"] if home else []):
+            if exists(p):
+                return p
+        return None
     roots = [env.get("PROGRAMFILES(X86)"), env.get("PROGRAMFILES"), env.get("LOCALAPPDATA")]
     rels = [("Google", "Chrome", "Application", "chrome.exe")]
     for rel in rels:
