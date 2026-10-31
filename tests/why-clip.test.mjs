@@ -66,7 +66,8 @@ test('words: each take is named plainly; a take the panel does not know says so;
 test('wiring: behind its own switch (off), compilation mode only, loaded before the editor page, from the maker\'s host or the test mock; text only', () => {
   const cfg = read('assets/ryagram-config.js'), page = read('assets/app-editor.js'), html = read('app/index.html'), src = read('assets/app-why-clip.js');
   assert.match(cfg, /\n  whyClip: false,/);
-  assert.match(page, /whyOn = !!WHY && window\.ryagramConfig && window\.ryagramConfig\.whyClip === true && !isData/);
+  assert.match(page, /whyOn = !!WHY && WHY\.enabled\(\) && !isData/);
+  assert.match(read('assets/app-why-clip.js'), /ryagramConfig\.whyClip === true/);
   assert.match(page, /host && typeof host\.whyClip === 'function'/);
   assert.ok(html.indexOf('app-why-clip.js') > 0 && html.indexOf('app-why-clip.js') < html.indexOf('app-editor.js?'));
   assert.ok(!/innerHTML|insertAdjacentHTML|eval\(|fetch\(|localStorage/.test(src));

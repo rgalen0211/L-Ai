@@ -90,7 +90,8 @@ test('the view: a named choice with Standard chosen, the plan in words, the skip
 test('wiring: behind its own switch (off), compilation mode only, loaded before the editor page, no rules of its own', () => {
   const cfg = read('assets/ryagram-config.js'), page = read('assets/app-editor.js'), html = read('app/index.html'), src = read('assets/app-editor-pace.js');
   assert.match(cfg, /\n  clipPace: false,/);
-  assert.match(page, /paceOn = !!PACE && window\.ryagramConfig && window\.ryagramConfig\.clipPace === true && !isData/);
+  assert.match(page, /paceOn = !!PACE && PACE\.enabled\(\) && !isData/);
+  assert.match(read('assets/app-editor-pace.js'), /ryagramConfig\.clipPace === true/);
   assert.ok(html.indexOf('app-editor-pace.js') > 0 && html.indexOf('app-editor-pace.js') < html.indexOf('app-editor.js?'));
   assert.ok(!/innerHTML|insertAdjacentHTML|eval\(|fetch\(|localStorage/.test(src));
   assert.ok(src.includes('copy.do(op)') && !/E\.check/.test(src.replace(/\/\/.*$/gm, '')), 'every op is the core\'s own do(), which checks it');

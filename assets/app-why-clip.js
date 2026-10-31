@@ -62,5 +62,6 @@
         r.said && r.said !== r.sung ? h('p', { class: 'meta' }, `The recording says “${str(r.said, 120)}”.`) : h('span', {}),
         h('ul', { class: 'le-why-reasons' }, r.why.map(x => h('li', {}, str(x, 600))))))) : h('p', { class: 'form-note' }, 'No clip matches that.'));
   }
-  window.ryagramWhyClip = Object.freeze({ SCHEMA, FILTERS: FILTERS.map(f => [f[0], f[1]]), problem, filtered, clipAt, summaryLine, takeWords, headline, mmss, view });
+  const enabled = () => !!(window.ryagramConfig && window.ryagramConfig.whyClip === true);   // read here, not in the editor: the computer's copy of the editor carries no site config
+  window.ryagramWhyClip = Object.freeze({ enabled, SCHEMA, FILTERS: FILTERS.map(f => [f[0], f[1]]), problem, filtered, clipAt, summaryLine, takeWords, headline, mmss, view });
 })();

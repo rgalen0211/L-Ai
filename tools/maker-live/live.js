@@ -1045,7 +1045,7 @@
         return ok;
       }
       // The pace choice (compilation mode, its own switch clipPace, off): the panel is rebuilt with the clips as they are; applying sends the preset as ordinary trim ops, batch by batch (the server takes 20 at a time).
-      const PACE = window.ryagramClipPace, paceOn = !!PACE && window.ryagramConfig && window.ryagramConfig.clipPace === true && !isData;
+      const PACE = window.ryagramClipPace, paceOn = !!PACE && PACE.enabled() && !isData;
       let paceChoice = 'standard';
       const paceHolder = h('div', { class: 'le-pace-holder' });
       function paintPace() {
@@ -1054,7 +1054,7 @@
           onApply: async groups => { let ok = true; for (const g of groups) { if (!(await applyMany(g))) { ok = false; break; } } if (ok) say(`The pace is ${PACE.find(paceChoice).label.toLowerCase()}. Undo takes it back, one step at a time.`); paceChoice = 'standard'; paintPace(); } }));
       // Why this clip (compilation mode, its own switch whyClip, off): the maker's report of why each clip is what it is, drawn as it is given. The report comes from host.whyClip() (the maker) or, in the test mock,
       // window.ryagramMockWhyClip(); the website itself has none and the panel says so. The clip at the playhead is marked.
-      const WHY = window.ryagramWhyClip, whyOn = !!WHY && window.ryagramConfig && window.ryagramConfig.whyClip === true && !isData;
+      const WHY = window.ryagramWhyClip, whyOn = !!WHY && WHY.enabled() && !isData;
       let whyReport = null, whyState = 'idle', whyFilter = 'all', whyNowN = null;
       const whyHolder = h('div', { class: 'le-why-holder' });
       const whySource = () => (host && typeof host.whyClip === 'function' ? () => host.whyClip() : typeof window.ryagramMockWhyClip === 'function' ? () => window.ryagramMockWhyClip() : null);

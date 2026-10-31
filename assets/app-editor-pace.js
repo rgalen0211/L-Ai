@@ -71,5 +71,7 @@
       h('p', { class: 'meta' }, 'This assumes the cut was planned at the standard pace (120 ms before, 160 ms after). The numbers are proposals, not measured on viewers.'),
       go);
   }
-  window.ryagramClipPace = { PACES, find, plan, summary, batches, view };
+  // The switch is read here, not in the editor: the computer's copy of the editor carries no site config (its test forbids the word).
+  const enabled = () => !!(window.ryagramConfig && window.ryagramConfig.clipPace === true);
+  window.ryagramClipPace = { PACES, find, plan, summary, batches, view, enabled };
 })();
