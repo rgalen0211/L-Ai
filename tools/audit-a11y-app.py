@@ -26,7 +26,7 @@ ROUTES = [
     ('films', '?mock#/films', 'My films', []), ('intake', '?mock#/new', 'Make a film', []), ('editor-data', '?mock#/editor/data', 'Edit your film', []), ('editor-compilation', '?mock#/editor/compilation', 'Edit your film', []),
     ('signed-out', '?signedout#/', 'Sign in', []),
 ]
-SWITCHES = ('liveEditor', 'myFilms', 'intake', 'departments', 'aiFirst', 'connectAi', 'desktopApp', 'lookEditor', 'guidedBuilder')
+SWITCHES = ('liveEditor', 'clipPace', 'myFilms', 'intake', 'departments', 'aiFirst', 'connectAi', 'desktopApp', 'lookEditor', 'guidedBuilder')
 
 
 def main(only):

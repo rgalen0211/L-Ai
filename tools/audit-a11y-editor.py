@@ -20,7 +20,7 @@ AI = "window.ryagramMockEditor.ai.apply(window.RYAGRAM_MOCK_EDITOR_PROJECT, 'dat
 
 def main():
     srv = aa.serve()
-    cfg = re.sub(r'liveEditor:\s*false', 'liveEditor: true', (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8'))
+    cfg = re.sub(r'clipPace:\s*false', 'clipPace: true', re.sub(r'liveEditor:\s*false', 'liveEditor: true', (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8')))
     findings = []
 
     def scan(p, where):
