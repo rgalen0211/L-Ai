@@ -359,6 +359,8 @@ class Ops(core.Base):
                            "admin_answer_support(bigint)", "admin_ack_stripe(text)", "record_backup(text,boolean,bigint,text)",
                            # creator beta: Ryan's list and decisions (each refuses everyone but is_app_admin() inside)
                            "admin_creator_beta()", "admin_decide_creator(bigint,text)",
+                           # tester computers: the admin list (NEXT-WEB 187; starts with require_admin(), revokes public, anon and node_runner)
+                           "admin_tester_devices()",
                            # cost ledger: Ryan's screen and settings (same rule)
                            "admin_cost_rollup(integer)", "admin_cost_set_threshold(text,text,numeric,integer)", "admin_cost_delete_threshold(bigint)",
                            "admin_cost_set_plan(text,text,numeric,date,jsonb)", "admin_cost_set_rate(text,text,numeric,text)", "admin_cost_record(text,numeric,date,text)",
@@ -386,6 +388,8 @@ class Ops(core.Base):
                            "device_request_check(text)", "device_decide(text,boolean)", "my_computers()", "remove_computer(uuid)",
                            "admin_set_local_compute(uuid,boolean,text)", "admin_set_local_compute_by_email(text,boolean,text)",
                            "admin_local_compute_audit()", "admin_storage_usage()",
+                           # worker health (20261031000400, NEXT-WORKER 72): Ryan's view of the render workers; refuses everyone but an admin inside
+                           "admin_worker_health()",
                            # trust label on uploads (find-data S0, 20261026000200): the person's own upload, signed in, checked inside (owner and source);
                            # the third argument is the tick of "use it anyway" and the function refuses unless it is true
                            "confirm_dataset_mapping(uuid,jsonb,boolean)",

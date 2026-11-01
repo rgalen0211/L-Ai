@@ -39,6 +39,7 @@ RUNTIME_TOOLS = ("desktop_maker.py", "maker_edit.py", "maker_live.py", "maker_li
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("maker_checklist.py",)                    # NEXT-CONNECT 171: desktop_maker and ryagram_requests import it (Q331); without it the packaged app stops at start
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_platform.py",)                   # NEXT-CONNECT 166: the few Windows / macOS / Linux differences; desktop_maker and the site-film renderer import it
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("ryagram_node_render.py", "ryagram_node_job.py", "gpu_lock.py")      # NEXT-RENDERER 44: the site-film renderer, its child step and the GPU lock tool a tester PC needs
+RUNTIME_TOOLS = RUNTIME_TOOLS + ("gpu_room.py",)                            # NEXT-WORKER 76: the renderer and the maker import it (room on the graphics card for both films)
 RUNTIME_TOOLS = RUNTIME_TOOLS + ("node_settings.py",)                         # NEXT-CONNECT 171: the app writes its own site-film settings at first start
 RUNTIME_PAGE_DIRS = ("maker-edit", "maker-live", "maker-song")          # the edit and song pages (html, js, css); a test fixture beside them is left out
 FORBIDDEN_NAMES ={"ryagram-account.json", "ryagram-node.json", "maker-activity-log.jsonl", "maker-activity-log.off", "library.db", "words-cache"}

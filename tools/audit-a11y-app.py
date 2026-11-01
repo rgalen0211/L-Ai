@@ -23,10 +23,10 @@ ROUTES = [
     ('version', '?mock#/', 'Version 1', ['a[href^="#/p/"]', 'a[href^="#/v/"]']), ('computers', '?mock&tester#/account', 'Your account', []), ('device', '?mock#/device?code=ABCD-2345', 'Approve this computer', []),
     ('admin-ops', '?mock#/admin/ops', 'Operations', []), ('admin-renders', '?mock#/admin/renders', 'Render approvals', []), ('admin-tester', '?mock#/admin/tester', 'Tester computers', []),
     ('admin-funnel', '?mock#/admin/funnel', 'Funnel by day', []), ('admin-visits', '?mock#/admin/visits', 'Visits and signups', []), ('admin-waitlist', '?mock#/admin/waitlist', 'Waitlist by film', []),
-    ('films', '?mock#/films', 'My films', []), ('intake', '?mock#/new', 'Make a film', []), ('editor-data', '?mock#/editor/data', 'Edit your film', []), ('editor-compilation', '?mock#/editor/compilation', 'Edit your film', []),
+    ('films', '?mock#/films', 'My films', []), ('tester-wizard', '?mock&tester&wzquiet#/tester-start', 'Get started as a tester', []), ('intake', '?mock#/new', 'Make a film', []), ('editor-data', '?mock#/editor/data', 'Edit your film', []), ('editor-compilation', '?mock#/editor/compilation', 'Edit your film', []),
     ('signed-out', '?signedout#/', 'Sign in', []),
 ]
-SWITCHES = ('liveEditor', 'myFilms', 'intake', 'departments', 'aiFirst', 'connectAi', 'desktopApp', 'lookEditor', 'guidedBuilder')
+SWITCHES = ('liveEditor', 'adminTesterDevices', 'testerFilmProgress', 'myFilms', 'intake', 'departments', 'aiFirst', 'connectAi', 'desktopApp', 'lookEditor', 'guidedBuilder', 'whyClip', 'songIntake', 'clipPace', 'testerWizard')
 
 
 def main(only):

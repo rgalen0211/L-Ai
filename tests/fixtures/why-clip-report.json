@@ -1,0 +1,150 @@
+{
+ "schema": "ryagram.why-clip/0",
+ "film": "sample.mp4",
+ "pace": "unhurried",
+ "summary": {
+  "clips": 5,
+  "takes": {
+   "own": 1,
+   "fit": 1,
+   "forms": 1,
+   "alias": 1,
+   "cast-fallback": 1
+  },
+  "stand_ins": 1,
+  "voice_unsure": 1,
+  "speed_limited": 1,
+  "faster_than_cap": 0
+ },
+ "clips": [
+  {
+   "n": 1,
+   "line": 1,
+   "at_s": 0.0,
+   "sung": "take me out",
+   "said": "take me out",
+   "voice": "Ann",
+   "singer": "Ann",
+   "stand_in": false,
+   "file": "ann-1.mp4",
+   "take": "own",
+   "speed": {
+    "stretch": 1.0,
+    "asked": 1.0,
+    "slot_s": 1.2,
+    "flags": []
+   },
+   "voice_unsure": false,
+   "picture": "the edit list has no picture shot at this time",
+   "why": [
+    "Take: the singer's own take, as the plan first found it (the longest run of the line's words said in one place).",
+    "Speed: plays at its natural speed, to fill 1.20 s of the song.",
+    "Picture: the edit list has no picture shot at this time."
+   ]
+  },
+  {
+   "n": 2,
+   "line": 1,
+   "at_s": 1.2,
+   "sung": "to the ball game",
+   "said": "to the ball game",
+   "voice": "Bob",
+   "singer": "Bob",
+   "stand_in": false,
+   "file": "bob-3.mp4",
+   "take": "fit",
+   "speed": {
+    "stretch": 0.8,
+    "asked": 0.8,
+    "slot_s": 1.6,
+    "flags": []
+   },
+   "voice_unsure": false,
+   "picture": "the edit list has no picture shot at this time",
+   "why": [
+    "Take: another take of the same words by the same person: the first one would have had to play faster than the 1.5x speed cap, and this one is the closest in length to the sung slot.",
+    "Speed: sped up: plays 1.25x as fast as it was said, to fill 1.60 s of the song.",
+    "Picture: the edit list has no picture shot at this time."
+   ]
+  },
+  {
+   "n": 3,
+   "line": 2,
+   "at_s": 2.8,
+   "sung": "boys",
+   "said": "boy",
+   "voice": "Cy",
+   "singer": "Cy",
+   "stand_in": false,
+   "file": "cy-2.mp4",
+   "take": "forms",
+   "speed": {
+    "stretch": 1.4,
+    "asked": 1.4,
+    "slot_s": 0.5,
+    "flags": []
+   },
+   "voice_unsure": false,
+   "picture": "the edit list has no picture shot at this time",
+   "why": [
+    "Take: the word said in another form: the recording says 'boy'.",
+    "Speed: slowed down: plays 1.40x as long as it was said, to fill 0.50 s of the song.",
+    "Picture: the edit list has no picture shot at this time."
+   ]
+  },
+  {
+   "n": 4,
+   "line": 2,
+   "at_s": 3.3,
+   "sung": "mic",
+   "said": "mike",
+   "voice": "Ann",
+   "singer": "Ann",
+   "stand_in": false,
+   "file": "ann-7.mp4",
+   "take": "alias",
+   "speed": {
+    "stretch": 1.0,
+    "asked": 1.0,
+    "slot_s": 0.4,
+    "flags": []
+   },
+   "voice_unsure": false,
+   "picture": "the edit list has no picture shot at this time",
+   "why": [
+    "Take: a reviewed other spelling of the word: the recording says 'mike'.",
+    "Speed: plays at its natural speed, to fill 0.40 s of the song.",
+    "Picture: the edit list has no picture shot at this time."
+   ]
+  },
+  {
+   "n": 5,
+   "line": 3,
+   "at_s": 3.7,
+   "sung": "root root root",
+   "said": "root root root",
+   "voice": "Dee",
+   "singer": "",
+   "stand_in": true,
+   "file": "dee-1.mp4",
+   "take": "cast-fallback",
+   "speed": {
+    "stretch": 0.7,
+    "asked": 0.55,
+    "slot_s": 1.4,
+    "flags": [
+     "limited"
+    ]
+   },
+   "voice_unsure": true,
+   "picture": "the edit list has no picture shot at this time",
+   "why": [
+    "Take: a stand-in: the line's singer (who sings this line) never says 'root root root', so this is Dee's take, the first other cast member who does.",
+    "Speed: sped up: plays 1.43x as fast as it was said, to fill 1.40 s of the song; it would have needed 1.82x as fast to match the sung length exactly, which is past the draft's limit, so it does not match the sung length exactly.",
+    "The edit list does not name the singer this stand-in replaces.",
+    "Voice unsure: this clip may be someone else speaking in Dee's file; check it by ear first.",
+    "Picture: the edit list has no picture shot at this time."
+   ]
+  }
+ ]
+}

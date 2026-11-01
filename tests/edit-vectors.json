@@ -19201,13 +19201,701 @@
    },
    "op": {
     "op": "set_film_look",
+    "key": "lyric_card",
+    "value": "plate"
+   },
+   "state_after": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000",
+     "lyric_card": "plate"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 1,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   }
+  },
+  {
+   "name": "145 comp set_film_look",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "set_film_look",
+    "key": "lyric_card",
+    "value": "sing_along"
+   },
+   "state_after": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000",
+     "lyric_card": "sing_along"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 1,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   }
+  },
+  {
+   "name": "146 comp set_film_look",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "set_film_look",
+    "key": "lyric_card",
+    "value": "neon"
+   },
+   "refusal": "The lyric card can only be: plate, bar, sing_along."
+  },
+  {
+   "name": "147 comp set_film_look",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "set_film_look",
+    "key": "lyric_card",
+    "value": 3
+   },
+   "refusal": "The lyric card can only be: plate, bar, sing_along."
+  },
+  {
+   "name": "148 comp set_film_look",
+   "state": "comp",
+   "state_before": {
+    "look": {
+     "theme": "dark",
+     "text_color": "#f2f2f2",
+     "box_color": "#14141a",
+     "box_opacity": 0.75,
+     "letterbox": "#000000"
+    },
+    "clips": [
+     {
+      "id": "v1",
+      "track": "video",
+      "start": 0,
+      "len": 4,
+      "label": "one",
+      "source": "a.mp4",
+      "source_start": 2,
+      "min_len": 0.3,
+      "max_len": 10
+     },
+     {
+      "id": "v2",
+      "track": "video",
+      "start": 4,
+      "len": 3,
+      "label": "two",
+      "source": "a.mp4",
+      "source_start": 3,
+      "min_len": 0.3,
+      "max_len": 5
+     },
+     {
+      "id": "v3",
+      "track": "video",
+      "start": 7,
+      "len": 5,
+      "label": "slide",
+      "slide": true,
+      "picture": "img-1",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "s1",
+      "track": "video",
+      "start": 12,
+      "len": 3,
+      "label": "words",
+      "slide": true,
+      "text": "Hello",
+      "min_len": 0.5,
+      "max_len": 10
+     },
+     {
+      "id": "p1",
+      "track": "pictures",
+      "start": 5,
+      "len": 2,
+      "label": "chart",
+      "picture": "img-2"
+     },
+     {
+      "id": "t1",
+      "track": "text",
+      "start": 1,
+      "len": 3,
+      "label": "Title",
+      "text": "Housing",
+      "min_len": 0.5,
+      "max_len": 30
+     },
+     {
+      "id": "music",
+      "track": "music",
+      "start": 0,
+      "len": 30,
+      "label": "music",
+      "source": "song.wav",
+      "source_start": 0,
+      "level_db": -12,
+      "fade_in_s": 0,
+      "fade_out_s": 1,
+      "snap": false
+     }
+    ],
+    "duration": 30,
+    "revision": 0,
+    "rules": [
+     {
+      "id": "r1",
+      "phrase": "great news",
+      "picture": "img-1",
+      "seconds": 2,
+      "mode": "corner",
+      "fade_s": 0.2
+     }
+    ],
+    "pictures": [
+     {
+      "id": "img-1",
+      "name": "house.png"
+     },
+     {
+      "id": "img-2",
+      "name": "chart.png"
+     }
+    ]
+   },
+   "op": {
+    "op": "set_film_look",
     "key": "theme",
     "value": "blue"
    },
    "refusal": "The theme can only be: dark, light."
   },
   {
-   "name": "145 comp set_film_look",
+   "name": "149 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19432,7 +20120,7 @@
    }
   },
   {
-   "name": "146 comp set_film_look",
+   "name": "150 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19550,7 +20238,7 @@
    "refusal": "That needs a colour like #1a73e8."
   },
   {
-   "name": "147 comp set_film_look",
+   "name": "151 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -19775,7 +20463,7 @@
    }
   },
   {
-   "name": "148 comp set_film_look",
+   "name": "152 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -20000,7 +20688,7 @@
    }
   },
   {
-   "name": "149 comp set_film_look",
+   "name": "153 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -20225,7 +20913,7 @@
    }
   },
   {
-   "name": "150 comp set_film_look",
+   "name": "154 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -20343,7 +21031,7 @@
    "refusal": "The box opacity must be a number from 0 to 1."
   },
   {
-   "name": "151 comp set_film_look",
+   "name": "155 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -20458,10 +21146,10 @@
     "key": "font",
     "value": "Arial"
    },
-   "refusal": "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox)."
+   "refusal": "That is not a film look setting (theme, text_color, box_color, box_opacity, letterbox, lyric_card)."
   },
   {
-   "name": "152 comp set_film_look",
+   "name": "156 comp set_film_look",
    "state": "comp",
    "state_before": {
     "look": {
@@ -20578,7 +21266,7 @@
    "refusal": "A film look change needs a value."
   },
   {
-   "name": "153 comp_lanes move_clip",
+   "name": "157 comp_lanes move_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20703,7 +21391,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "154 comp_lanes delete_clip",
+   "name": "158 comp_lanes delete_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20827,7 +21515,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "155 comp_lanes trim_clip",
+   "name": "159 comp_lanes trim_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -20953,7 +21641,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "156 comp_lanes add_clip",
+   "name": "160 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21080,7 +21768,7 @@
    "refusal": "That part of the film can not be edited here yet."
   },
   {
-   "name": "157 comp_lanes add_clip",
+   "name": "161 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21330,7 +22018,7 @@
    }
   },
   {
-   "name": "158 comp_lanes add_clip",
+   "name": "162 comp_lanes add_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21457,7 +22145,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "159 comp_lanes set_clip_text",
+   "name": "163 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21696,7 +22384,7 @@
    }
   },
   {
-   "name": "160 comp_lanes set_clip_text",
+   "name": "164 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -21821,7 +22509,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "161 comp_lanes set_clip_text",
+   "name": "165 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -22060,7 +22748,7 @@
    }
   },
   {
-   "name": "162 comp_lanes set_clip_text",
+   "name": "166 comp_lanes set_clip_text",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -22185,7 +22873,7 @@
    "refusal": "Text can be at most 20 letters here."
   },
   {
-   "name": "163 comp_lanes reorder_clip",
+   "name": "167 comp_lanes reorder_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {
@@ -22424,7 +23112,7 @@
    }
   },
   {
-   "name": "164 comp_lanes trim_clip",
+   "name": "168 comp_lanes trim_clip",
    "state": "comp_lanes",
    "state_before": {
     "look": {

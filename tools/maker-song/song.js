@@ -41,7 +41,7 @@
   let host = null;
   const loadScript = src => new Promise((ok, no) => { const el = document.createElement('script'); el.src = src; el.onload = ok; el.onerror = () => no(new Error('The practice build could not be loaded.')); document.head.append(el); });
 
-  const S = { lyrics: '', forge: true, withoutId: null, videos: [], folders: [], track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
+  const S = { lyrics: '', speedCap: '', forge: true, withoutId: null, videos: [], folders: [], track: null, guide: null, plan: null, sel: null, msg: '', building: false, rendering: false, dirty: false, heard: [], audio: null };
   const $ = id => document.getElementById(id);
   const mm = M.mmss;
 
@@ -127,6 +127,10 @@
       h('div', { class: 'row' },
         h('button', { type: 'button', id: 'pick-guide', 'data-key': 'pick-guide', onclick: async () => { try { const r = await host.pickGuide(); if (r && r.guide) { S.guide = r.guide; err(''); drawMusic(); say(`${r.guide.file_name} chosen as the singing.`); } } catch (e) { err(e.message); } } }, S.guide ? 'Choose a different singing track' : 'Add a track of just the singing (optional)'),
         S.guide ? h('span', {}, S.guide.file_name) : null),
+      h('div', { class: 'row' }, h('label', { for: 'speed-cap' }, 'Most a word may be sped up (1 to 6, blank for no limit) '),
+        h('input', { type: 'number', id: 'speed-cap', 'data-key': 'speed-cap', min: '1', max: '6', step: '0.05', inputmode: 'decimal', value: S.speedCap, 'aria-describedby': 'speed-cap-note',
+          oninput: e => { S.speedCap = e.target.value; } }),
+        h('span', { class: 'note', id: 'speed-cap-note' }, 'A word said slowly in your videos is sped up to land on its beat. A limit makes the maker pick another take of that word when one needs less speeding up.')),
       h('p', {}, h('button', { type: 'button', id: 'build', class: 'primary', 'data-key': 'build', disabled: S.building, onclick: () => { S.forge = true; S.withoutId = null; build(); } }, S.building ? 'Building...' : (S.plan ? 'Build again' : 'Build my song'))));
   }
   async function build() {
@@ -134,9 +138,10 @@
     try { lines = M.parseLyrics(S.lyrics); } catch (e) { err(e.message); return; }
     try { M.normalizeVideos(S.videos); } catch (e) { err(e.message); return; }
     if (!S.track) { err('Choose your music first.'); return; }
+    try { M.speedCapField(S.speedCap); } catch (e) { err(e.message); return; }
     err(''); S.building = true; drawMusic(); say('Building. This can take a few minutes for a long song.');
     try {
-      const r = await host.build(Object.assign({ lines, videos: S.videos.map(v => ({ file_name: v.file_name })), folders: S.folders.map(f => ({ name: f.name })), track: S.track, guide: S.guide, forge: S.forge }, S.forge === false && S.withoutId ? { plan_id: S.withoutId } : {}));
+      const r = await host.build(Object.assign({ lines, videos: S.videos.map(v => ({ file_name: v.file_name })), folders: S.folders.map(f => ({ name: f.name })), track: S.track, guide: S.guide, forge: S.forge }, S.forge === false && S.withoutId ? { plan_id: S.withoutId } : {}, M.speedCapField(S.speedCap)));
       S.plan = M.normalize(r.plan); S.sel = null; S.dirty = true; say('Your song is built. Look at each line, then press Make the film.');
     } catch (e) { err(e instanceof M.SongError ? e.message : (e.message || 'The build did not finish.')); }
     S.building = false; draw();

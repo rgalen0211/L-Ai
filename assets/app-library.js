@@ -54,6 +54,7 @@
   // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
   const intakeOn = () => window.ryagramConfig?.intake === true;
   const myFilmsOn = () => window.ryagramConfig?.myFilms === true;
+  const wizardOn = () => window.ryagramTesterWizard?.flagOn() === true;
   const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
   // "Your look" (the profile editor) shows once SQL 20261017000300 is applied (lookEditor: true), or in mock mode.
   const looksOn = () => window.ryagramConfig?.lookEditor === true || !!window.ryagramMock;
@@ -140,6 +141,7 @@
         else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
         else if (builderOn() && /^#\/build(\?.*)?$/.test(hash)) view = await builderUi().builderView(onStop, window.ryagramIntake ? window.ryagramIntake.parseBuildQuery(hash) : null);
         else if (intakeOn() && window.ryagramIntake && hash === '#/new') view = intakeUi().intakeView(onStop);
+        else if (wizardOn() && hash === '#/tester-start') view = await wizardUi().wizardView(onStop);
         else if (myFilmsOn() && window.ryagramFilms && hash === '#/films') view = await filmsUi().filmsView(onStop);
         else if (builderOn() && hash === '#/build/sample') view = await builderUi().builderView(onStop, { sample: true });   // the tutorial's sample: makes nothing (NEXT-BUILDER 38)
         else if (looksOn() && hash === '#/looks') view = await looksUi().listView();
@@ -238,6 +240,8 @@
     // The guided builder (assets/app-builder.js): built once, with this page's helpers.
     let intakeCache = null;
     const intakeUi = () => intakeCache || (intakeCache = window.ryagramIntake.create({ h }));
+    let wizardCache = null;
+    const wizardUi = () => wizardCache || (wizardCache = window.ryagramTesterWizard.create({ h, data, errorLine, startHref: () => (startOn() ? '#/start' : '#/') }));
     let filmsCache = null;
     const filmsUi = () => filmsCache || (filmsCache = window.ryagramFilms.create({ h, data, J: window.ryagramJobs, busy, showError, errorLine, date }));
     let builderCache = null;
@@ -688,9 +692,12 @@
         try { cost = await data.adminCostRollup(14); } catch { cost = null; }
         let funnel = null; // the funnel; null until SQL 20261017000900 is applied
         try { funnel = await data.adminFunnel(funnelWeeks); } catch { funnel = null; }
+        let health = null; // worker health (NEXT-WORKER 72): only with the workerHealth switch on, and null until SQL 20261031000400 is applied
+        if (window.ryagramConfig?.workerHealth === true) { try { health = await data.adminWorkerHealth(); } catch { health = null; } }
         const now = Date.now();
         body.replaceChildren(
           section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
+          ...(health ? (wh => [section('Worker health', h('p', { class: wh.warn ? 'app-error' : '' }, wh.summary), ...wh.lines.map(t => h('p', {}, t)))])(O.workerHealthLines(health, now)) : []),
           section('Child safety', h('p', { class: d.child_safety && d.child_safety.open_not_hidden ? 'app-error' : '' }, O.childSafetyLine(d.child_safety))),
           section('Needs you', d.open_alerts.length ? h('ul', { class: 'ops-list' }, d.open_alerts.map(a => h('li', {}, a.detail, h('span', { class: 'meta' }, ` since ${O.ago(a.since, now)}`)))) : none('Nothing needs you.')),
           section('Stuck jobs', d.stuck.length ? h('ul', { class: 'ops-list' }, d.stuck.map(j => h('li', {}, `${j.job_type} ${j.state}, attempt ${j.attempt}`, h('span', { class: 'meta' }, ` ${j.id}, lease expired ${O.ago(j.lease_expired_at, now)}`)))) : none('None.')),

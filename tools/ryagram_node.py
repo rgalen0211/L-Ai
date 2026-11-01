@@ -35,6 +35,12 @@ MAX_UPLOAD_BYTES = 200_000_000                # the app's own cap; the site enfo
 OUTPUT_KINDS = {"contact_sheet": ".png", "preview": ".mp4", "final_video": ".mp4", "thumbnail": ".jpg", "receipt": ".json", "receipt_text": ".txt", "metering": ".json"}
 SWITCH_NAME = "ryagram-node.json"
 KEEP_SET_ASIDE_SECONDS = 7 * 24 * 3600         # a dead attempt's folder (set aside, below) is kept this long as evidence, then swept at start
+KEEP_FAILED_SECONDS = 7 * 24 * 3600            # a failed job's folder (its logs and the film as far as it got) is kept this long, then swept at start
+# A job folder's THROWAWAY parts (NEXT-WORKER 66/68, as the house worker): deleted when the job ends, whatever the outcome. tmp-node/ is this loop's
+# TEMP for the render child; tmp/ the engine's TEMP (Chrome's profile, Playwright's files); output/ the engine's work folder (frames, intermediates).
+# A sent film's whole folder goes (the site has the film); a failed one keeps out/, the engine's logs and node-job.json / node-result.json as evidence.
+SCRATCH = ("tmp-node", "tmp", "output")
+MIN_FREE_GB = 10.0                            # no claim while the work folder's drive has less free (the same floor as ryagram_node_render.MIN_FREE_GB)
 UUID = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", re.I)
 
 
@@ -69,6 +75,20 @@ class _NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
+def _remove(path: Path) -> bool:
+    """Delete a folder without ever following a link or junction out of it (a link given as `path` itself is removed as a link)."""
+    if not os.path.lexists(path):
+        return True
+    if os.path.islink(path) or os.path.isjunction(path):
+        try:
+            os.unlink(path) if os.path.islink(path) else os.rmdir(path)
+        except OSError:
+            return False
+    else:
+        shutil.rmtree(path, ignore_errors=True)
+    return not os.path.lexists(path)
+
+
 def put_file(url: str, path: Path, content_type: str, allowed_hosts, timeout: float = 600.0) -> None:
     """PUT one file to a signed address. The host must be one we were told about; nothing else is added to the request (no account header, no token)."""
     u = urllib.parse.urlparse(url)
@@ -92,7 +112,8 @@ def put_file(url: str, path: Path, content_type: str, allowed_hosts, timeout: fl
 
 
 class NodeLoop:
-    def __init__(self, signin, folder, *, renderer=None, validate=None, datasets=None, uploader=put_file, clock=time.time, log=None, work_root=None, engine_commit=None, cannot_render_reason=""):
+    def __init__(self, signin, folder, *, renderer=None, validate=None, datasets=None, uploader=put_file, clock=time.time, log=None, work_root=None, engine_commit=None, cannot_render_reason="",
+                 free_gb=None, min_free_gb=MIN_FREE_GB):
         self.signin = signin
         self.folder = Path(folder)
         self.renderer = renderer
@@ -103,6 +124,8 @@ class NodeLoop:
         self.work_root = Path(work_root) if work_root else self.folder / "node-jobs"
         self.cannot_render_reason = str(cannot_render_reason or "")[:300]   # plain words for why there is no renderer (tools/ryagram_node_render.py), shown on the card
         self.engine_commit = engine_commit          # the commit of the engine that renders (a string or a callable): the site refuses 'complete' without it (found by the local end-to-end harness)
+        self.free_gb = free_gb                      # GB free on the work folder's drive (a callable; tests inject one); default: the drive itself
+        self.min_free_gb = float(min_free_gb)
         self.empty_polls = 0
         self.next_at = 0.0
         self.state = {"phase": "off", "message": "", "job": None, "uploads": []}
@@ -167,6 +190,10 @@ class NodeLoop:
                 self._set("cannot_render", ("This computer cannot make site films yet, so it is not taking any jobs: " + self.cannot_render_reason) if self.cannot_render_reason
                           else "This copy of the app cannot make site films yet, so it is not taking any jobs.")
                 return "cannot_render"
+            low = self.disk_low()
+            if low:                                                     # checked before EVERY claim, not only at start: a film fills the drive as it goes
+                self._set("disk_low", low)
+                return "disk_low"
         try:
             status, r = self.signin.api("POST", "/node/claim", {})
         except Exception as e:                                          # offline, removed, anything: say it plainly and stay quiet
@@ -190,6 +217,29 @@ class NodeLoop:
         with self._lock:
             self.empty_polls = 0
         return self._work(job)
+
+    def disk_low(self) -> str:
+        """Why no film may be claimed now (the work folder's drive under the floor, or unreadable), else ''."""
+        try:
+            if callable(self.free_gb):
+                free = float(self.free_gb())
+            else:
+                probe = self.work_root if self.work_root.exists() else Path(self.work_root.anchor or ".")
+                free = shutil.disk_usage(probe).free / 1e9
+        except (OSError, ValueError, TypeError):
+            return "This computer could not read how much space is free, so it is not taking films for now."
+        if free < self.min_free_gb:
+            return (f"There is less than {self.min_free_gb:g} GB free on the drive this app makes films on, so it is not taking films "
+                    "until space is freed.")
+        return ""
+
+    def _tidy(self, work: Path, sent: bool):
+        """When a job ends, whatever the outcome: a sent film's whole folder goes; otherwise only its SCRATCH, keeping the evidence."""
+        if sent:
+            _remove(work)
+        else:
+            for d in SCRATCH:
+                _remove(work / d)
 
     def _report(self, job_id, state, code=None, detail=None):
         body = {"job_id": job_id, "state": state}
@@ -231,8 +281,11 @@ class NodeLoop:
                     self._set("idle", "An earlier attempt's files are in the way, so that film was not made.")
                 self._log("node_job_failed")
                 return "failed"
+            for d in SCRATCH:                                              # its temp and frames are not evidence
+                _remove(aside / d)
             self._log("node_attempt_set_aside")
         work.mkdir(parents=True, exist_ok=True)
+        sent = False
         last_beat = [self.clock()]
 
         def progress(note: str = ""):
@@ -259,6 +312,7 @@ class NodeLoop:
             status, r = self._report(jid, "complete")
             if status != 200:                                              # the site checks every file is there at the announced size before it says complete
                 raise NodeError("The site did not accept the finished film as complete, so it was not marked done.", "not_complete")
+            sent = True
             with self._lock:
                 self.last = "The last film was made and sent."
                 self._set("idle", "Done. Waiting for the next film.")
@@ -291,6 +345,8 @@ class NodeLoop:
             self.last = "The last film could not be made on this computer."
             self._log("node_job_failed")
             return "failed"
+        finally:
+            self._tidy(work, sent)
 
     def _collect(self, outputs, work: Path):
         """Only what the renderer produced INSIDE the job's own folder, of a known kind and extension, under the cap. Never a source video."""
@@ -324,7 +380,8 @@ class NodeLoop:
         self.uploader(r["upload_url"], path, ctype, {self.signin.host})
 
     def sweep_set_aside(self, now: float | None = None) -> int:
-        """At start: delete dead attempts' folders (`<job id>.attempt-before-<time>`, set aside by _work) older than KEEP_SET_ASIDE_SECONDS.
+        """At start: delete dead attempts' folders (`<job id>.attempt-before-<time>`, set aside by _work) older than KEEP_SET_ASIDE_SECONDS,
+        and failed jobs' folders (`<job id>`) older than KEEP_FAILED_SECONDS; from younger ones of either, only their SCRATCH (left by a crash).
         Only folders named so, directly in the job folder; never a link or junction, never followed."""
         now = self.clock() if now is None else now
         n = 0
@@ -333,16 +390,19 @@ class NodeLoop:
         except OSError:
             return 0
         for p in entries:
-            head, _, tail = p.name.partition(".attempt-before-")
-            if not (UUID.match(head) and tail.isdigit()) or os.path.islink(p) or os.path.isjunction(p) or not p.is_dir():
+            head, sep, tail = p.name.partition(".attempt-before-")
+            named = UUID.match(head) and (tail.isdigit() if sep else not tail)
+            if not named or os.path.islink(p) or os.path.isjunction(p) or not p.is_dir():
                 continue
             try:
-                old = now - p.stat().st_mtime > KEEP_SET_ASIDE_SECONDS
+                old = now - p.stat().st_mtime > (KEEP_SET_ASIDE_SECONDS if sep else KEEP_FAILED_SECONDS)
             except OSError:
                 continue
             if old:
-                shutil.rmtree(p, ignore_errors=True)
-                n += not p.exists()
+                n += _remove(p)
+            else:
+                for d in SCRATCH:
+                    _remove(p / d)
         return n
 
     # ---- the background thread (the page switch starts and stops it)

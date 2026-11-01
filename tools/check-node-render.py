@@ -665,6 +665,40 @@ else:
         check(holder.wait(timeout=30) == 0 and not (lock_dir / "held.json").exists(), "the lock is free afterwards")
         os.environ.pop("RYAGRAM_GPU_LOCK_DIR", None)
 
+print("J  room on the graphics card for the person's own clip film (NEXT-WORKER 76)")
+import gpu_room as gr  # noqa: E402
+
+
+def room_run(name, clip_polls, free_mb, clock=None):
+    left = [clip_polls]
+
+    def clip_running():
+        left[0] -= 1
+        return left[0] >= 0
+    w = RUN / "work" / name
+    spawn, seen = stand_in({"out/preview.mp4": b"mp4", "out/preview.sequence.json": b"{}"}, result=abs_result(w))
+    n = rr.NodeRenderer(settings, RUN / "work", spawn=spawn, sleep=lambda s: None, ram=GOOD_RAM, free_gb=GOOD_DISK, busy=lambda: False,
+                        other_busy=clip_running, gpu_free=lambda: free_mb, **({"clock": clock} if clock else {}))
+    notes = []
+    try:
+        return n.renderer(job(), w, notes.append), None, notes, seen
+    except BaseException as e:                                                       # noqa: BLE001
+        return None, e, notes, seen
+
+
+low = gr.NEED_MB["site_film"] - 1
+out, err, notes, seen = room_run("room-wait", 3, low)
+check(err is None and out and notes.count(gr.SITE_WAITING) == 3 and "cmd" in seen,
+      "a clip film running and too little graphics memory: the site film WAITS (the plain sentence, three turns), then runs when the clip film ends")
+out, err, notes, seen = room_run("room-plenty", 10 ** 6, gr.NEED_MB["site_film"])
+check(err is None and out and gr.SITE_WAITING not in notes, "a clip film running but room for both: no wait")
+out, err, notes, seen = room_run("room-unread", 10 ** 6, None)
+check(err is None and out and gr.SITE_WAITING not in notes, "the graphics card cannot be read (no NVIDIA card): no wait (can't tell does not hold the site film)")
+ticks = iter(range(0, 10 ** 9, 3600))
+out, err, notes, seen = room_run("room-forever", 10 ** 6, low, clock=lambda: next(ticks))
+check(err is not None and getattr(err, "code", "") == "gpu_room" and getattr(err, "retry", False) is True and "cmd" not in seen,
+      "MUST-FAIL: waited longer than gpu_room.WAIT_MAX_S: given back to the site (gpu_room, retry), and nothing was started")
+
 shutil.rmtree(RUN, ignore_errors=True)
 print("\nFAILED: " + "; ".join(FAILS) if FAILS else "\nALL PASS")
 sys.exit(1 if FAILS else 0)

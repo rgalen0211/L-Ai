@@ -71,3 +71,46 @@ test('wiring: behind a switch that is OFF; three reads; the page builds nothing 
   const lf = data.slice(data.indexOf('async listFilms()'), data.indexOf('// A project always starts with r1.'));
   assert.equal((lf.match(/client\.from\(/g) || []).length, 3); assert.match(lf, /\.limit\(50\)/);
 });
+
+// ---- NEXT-WEB 186: a tester account's films say where they are on THEIR computer (behind testerFilmProgress, off) ----
+const NOW = Date.parse('2026-10-31T12:00:00Z');
+const comp = (secsAgo, extra = {}) => ({ id: 'c1', computer_name: 'DESKTOP-SAM-PC', last_used_at: secsAgo === null ? null : new Date(NOW - secsAgo * 1000).toISOString(), ...extra });
+const own = (computers) => ({ tester: true, computers, now: NOW });
+const film = (state, type = 'contact_sheet') => ({ project: P('p', 'T'), version: V('v', 1, 'sampling'), jobs: [job(state, type)] });
+
+test('TESTER: a queued film says what the computer is doing: none signed in, signed in and seen, or signed in and not seen', () => {
+  const none = W(F.rowFor(film('queued'), J, own([])));
+  assert.equal(none.status, 'waiting'); assert.match(none.why, /No computer is signed in to your account\. Open the Ryagram app on your computer and sign in\./);
+  const seen = W(F.rowFor(film('queued'), J, own([comp(30)])));
+  assert.match(seen.why, /Waiting for your computer to pick it up\. It is signed in and was seen a moment ago\./);
+  const stale = W(F.rowFor(film('queued'), J, own([comp(2 * 86400)])));
+  assert.match(stale.why, /DESKTOP-SAM-PC was last seen 2 days ago\. Open the Ryagram app on it/);
+  const never = W(F.rowFor(film('queued'), J, own([comp(null)])));
+  assert.match(never.why, /last seen not yet/);
+});
+
+test('TESTER: a film being made says it is on the computer and to keep the app open; done and failed are unchanged', () => {
+  const making = W(F.rowFor(film('running', 'preview'), J, own([comp(10)])));
+  assert.equal(making.status, 'making'); assert.equal(making.word, 'Being made on your computer'); assert.match(making.why, /Preview: Rendering\. Keep the Ryagram app open until it finishes\./);
+  const ready = W(F.rowFor(film('complete'), J, own([comp(10)]))), plainReady = W(F.rowFor(film('complete'), J));
+  assert.deepEqual(ready, plainReady);
+  const failed = W(F.rowFor(film('failed'), J, own([comp(10)]))), plainFailed = W(F.rowFor(film('failed'), J));
+  assert.deepEqual(failed, plainFailed);
+});
+
+test('TESTER: no claim without a tester account or a readable computer list; a revoked computer does not count; the 3 minute edge', () => {
+  const q = film('queued');
+  for (const o of [undefined, null, { tester: false, computers: [] }, { tester: true }, { tester: true, computers: 'x' }]) assert.equal(W(F.rowFor(q, J, o)).why, 'Contact sheet: Queued.', JSON.stringify(o));
+  assert.equal(W(F.computerState(own([comp(10, { revoked_at: '2026-10-30T00:00:00Z' })]))).state, 'none');
+  assert.equal(F.computerState(own([comp(179)])).state, 'seen'); assert.equal(F.computerState(own([comp(181)])).state, 'stale');
+  assert.equal(F.computerState(own([comp(400), comp(5)])).state, 'seen', 'the freshest computer counts');
+  assert.equal(F.agoWords(new Date(NOW - 90000).toISOString(), NOW), '2 minutes ago'); assert.equal(F.agoWords(new Date(NOW - 3 * 3600000).toISOString(), NOW), '3 hours ago'); assert.equal(F.agoWords('nonsense', NOW), 'a while ago');
+});
+
+test('TESTER wiring: behind its own switch (off), read only when the account is a tester, failing reads make no claim', () => {
+  const cfg = read('assets/ryagram-config.js'), src = read('assets/app-films.js');
+  assert.match(cfg, /\n  testerFilmProgress: false,/);
+  assert.match(src, /window\.ryagramConfig\.testerFilmProgress === true && data\.myLocalCompute/);
+  assert.match(src, /catch \{ own = null; \}/);
+  assert.ok(!/innerHTML|insertAdjacentHTML|eval\(|fetch\(|localStorage/.test(src));
+});

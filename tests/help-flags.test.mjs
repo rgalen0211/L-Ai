@@ -19,18 +19,18 @@ function run(cfg) {                                                             
 }
 
 test('the page holds the new-in-the-app entries, every one hidden in the markup', () => {
-  assert.ok(entries.length >= 3);
+  assert.ok(entries.length >= 8);
   for (const e of entries) assert.match(e.attrs, /\bhidden\b/, e.title);
-  assert.deepEqual(entries.map(e => e.flags[0]).sort(), ['connectAi', 'liveEditor', 'uploads']);
+  assert.deepEqual(entries.map(e => e.flags[0]).sort(), ['connectAi', 'liveEditor', 'songHelp', 'songHelp', 'songHelp', 'songHelp', 'songHelp', 'uploads']);
 });
 
 test('an entry shows only when ALL its switches are on', () => {
   assert.ok(run({}).every(Boolean), 'no switch on: all hidden');
   assert.ok(run(undefined).every(Boolean), 'no config at all: all hidden');
-  const on = run({ connectAi: true, liveEditor: false, uploads: false });
+  const on = run({ connectAi: true, liveEditor: false, uploads: false, songHelp: false });
   assert.deepEqual(entries.map((e, i) => [e.flags[0], on[i]]).filter(x => !x[1]).map(x => x[0]), ['connectAi']);
   assert.ok(run({ connectAi: 'yes', liveEditor: 1, uploads: 'true' }).every(Boolean), 'only the value true counts as on');
-  assert.ok(run({ connectAi: true, liveEditor: true, uploads: true }).every(h => h === false), 'all on: all shown');
+  assert.ok(run({ connectAi: true, liveEditor: true, uploads: true, songHelp: true, whyClip: true, lyricCards: true }).every(h => h === false), 'all on: all shown');
 });
 
 test('config loads before the script, both are same-origin files, the policy still allows only own scripts, and the page promises nothing the entries do not', () => {
@@ -47,4 +47,18 @@ test('the switches named in the entries are real names, or a switch that is not 
   for (const n of ['connectAi', 'uploads']) assert.match(cfg, new RegExp(`\\b${n}:`));
   const known = /\bliveEditor:/.test(cfg);
   assert.ok(known || run(Object.fromEntries(Object.keys({}).map(k => [k, true]))).every(Boolean));
+});
+
+test('NEXT-WEB 194: the song film entries need songHelp, and the ones about a site screen also need that screen\'s switch; nothing promises more than the code does', () => {
+  const song = entries.filter(e => e.flags.includes('songHelp'));
+  assert.equal(song.length, 5);
+  const only = on => run(on).map((h, i) => (h ? null : entries[i].title)).filter(Boolean);
+  assert.deepEqual(only({ songHelp: true }), ['What is a song film?', 'Why are some words sped up, and can I limit it?', 'What does "internal only" mean for song films?']);
+  assert.equal(only({ whyClip: true, lyricCards: true }).length, 0, 'the screen switches alone show nothing');
+  assert.equal(only({ songHelp: true, whyClip: true, lyricCards: true }).length, 5);
+  const text = song.length ? html.slice(html.indexOf('SONG FILM HELP'), html.indexOf('</section>', html.indexOf('SONG FILM HELP'))) : '';
+  assert.match(text, /Song films do not draw these cards yet/); assert.match(text, /A film made today is a first cut/);
+  assert.match(text, /does not publish anything|do not publish anything/);
+  assert.ok(!/(guarantee|always|never|perfect|best)/i.test(text.replace(/<!--[\s\S]*?-->/g, '')), 'no absolute or boasting word');
+  assert.match(read('assets/ryagram-config.js'), /\n  songHelp: false,/);
 });
