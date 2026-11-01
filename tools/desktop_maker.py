@@ -388,6 +388,9 @@ def _start_job_locked(kind: str, body: dict) -> dict:
     job = STATE["job"]
     if job and job["proc"].poll() is None:
         raise Problem("Something is already running here. Cancel it or wait for it to finish.")
+    room = clip_room_problem()                      # NEXT-WORKER 76: a site film on the graphics card and too little room for both
+    if room:
+        raise Problem(room)
     if kind == "build" and blur_refusal():
         raise Problem(blur_refusal())
     pc = precheck(body)
@@ -2477,13 +2480,45 @@ def _node_auto_settings(allow_c: bool = False) -> str:
         return ""
 
 
+def _gpu_room():
+    if str(HERE) not in sys.path:
+        sys.path.insert(0, str(HERE))
+    import gpu_room  # noqa: PLC0415
+    return gpu_room
+
+
+def clip_film_running() -> bool:
+    """One of the person's own clip films is being planned or built here: the maker's job, or the song maker's run (NEXT-WORKER 76)."""
+    job = STATE.get("job")
+    if job and job["proc"].poll() is None:
+        return True
+    try:
+        ms = _song_mod()
+        proc = ms.S().get("proc") if ms is not None else None
+    except Exception:                                   # noqa: BLE001  no song maker here, or its state not set up yet
+        proc = None
+    return proc is not None and proc.poll() is None
+
+
+def clip_room_problem() -> str | None:
+    """The plain sentence when a clip film may not start now: a site film is being made AND the graphics card has too little free memory
+    for both (tools/gpu_room.py; a card that cannot be read does not block). None = it may start."""
+    node = STATE.get("node")
+    try:
+        rendering = node is not None and node.status().get("phase") == "rendering"
+    except Exception:                                   # noqa: BLE001  cannot tell: do not block the person's own film
+        rendering = False
+    gr = _gpu_room()
+    return gr.room_problem("clip_film", rendering, gr.free_mb() if rendering else None)
+
+
 def node_render_kwargs(settings_path, work: Path) -> dict:
     """The keyword arguments that give the node loop a real renderer, or ONLY the reason it has none (tools/ryagram_node_render.py). Never raises."""
     try:
         if str(HERE) not in sys.path:
             sys.path.insert(0, str(HERE))
         import ryagram_node_render as rr
-        nr, problems = rr.make(settings_path, work)
+        nr, problems = rr.make(settings_path, work, other_busy=clip_film_running)
     except Exception as e:                              # noqa: BLE001  the type only
         return {"node_cannot_render": "the film-making part could not start (" + type(e).__name__ + ")."}
     if nr is None:

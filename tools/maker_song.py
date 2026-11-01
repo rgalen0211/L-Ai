@@ -417,6 +417,9 @@ def _check_request(req: dict):
 
 
 def _run(args: list[str], what: str) -> tuple[int, str, str]:
+    room = _dm.clip_room_problem()                  # NEXT-WORKER 76: a site film on the graphics card and too little room for both
+    if room:
+        raise Problem(room)
     env = dict(os.environ, PYTHONPATH=str(_dm.STATE["engine"]), PYTHONIOENCODING="utf-8", NO_PROXY="127.0.0.1,localhost")
     proc = subprocess.Popen([sys.executable, "-m", "ryagram.local"] + args, cwd=str(_dm.STATE["engine"]), env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace", **_dm._plat().popen_group_kwargs())
     S()["proc"] = proc

@@ -388,6 +388,8 @@ class Ops(core.Base):
                            "device_request_check(text)", "device_decide(text,boolean)", "my_computers()", "remove_computer(uuid)",
                            "admin_set_local_compute(uuid,boolean,text)", "admin_set_local_compute_by_email(text,boolean,text)",
                            "admin_local_compute_audit()", "admin_storage_usage()",
+                           # worker health (20261031000400, NEXT-WORKER 72): Ryan's view of the render workers; refuses everyone but an admin inside
+                           "admin_worker_health()",
                            # trust label on uploads (find-data S0, 20261026000200): the person's own upload, signed in, checked inside (owner and source);
                            # the third argument is the tick of "use it anyway" and the function refuses unless it is true
                            "confirm_dataset_mapping(uuid,jsonb,boolean)",

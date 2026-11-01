@@ -692,9 +692,12 @@
         try { cost = await data.adminCostRollup(14); } catch { cost = null; }
         let funnel = null; // the funnel; null until SQL 20261017000900 is applied
         try { funnel = await data.adminFunnel(funnelWeeks); } catch { funnel = null; }
+        let health = null; // worker health (NEXT-WORKER 72): only with the workerHealth switch on, and null until SQL 20261031000400 is applied
+        if (window.ryagramConfig?.workerHealth === true) { try { health = await data.adminWorkerHealth(); } catch { health = null; } }
         const now = Date.now();
         body.replaceChildren(
           section('Rendering', h('p', { class: d.rendering === 'delayed' ? 'app-error' : '' }, O.renderingLine(d, now)), h('p', {}, O.queueLine(d))),
+          ...(health ? (wh => [section('Worker health', h('p', { class: wh.warn ? 'app-error' : '' }, wh.summary), ...wh.lines.map(t => h('p', {}, t)))])(O.workerHealthLines(health, now)) : []),
           section('Child safety', h('p', { class: d.child_safety && d.child_safety.open_not_hidden ? 'app-error' : '' }, O.childSafetyLine(d.child_safety))),
           section('Needs you', d.open_alerts.length ? h('ul', { class: 'ops-list' }, d.open_alerts.map(a => h('li', {}, a.detail, h('span', { class: 'meta' }, ` since ${O.ago(a.since, now)}`)))) : none('Nothing needs you.')),
           section('Stuck jobs', d.stuck.length ? h('ul', { class: 'ops-list' }, d.stuck.map(j => h('li', {}, `${j.job_type} ${j.state}, attempt ${j.attempt}`, h('span', { class: 'meta' }, ` ${j.id}, lease expired ${O.ago(j.lease_expired_at, now)}`)))) : none('None.')),

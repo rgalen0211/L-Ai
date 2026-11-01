@@ -132,8 +132,11 @@ def sign_in(srv, app, clock, who=ALICE):
     return st
 
 
+GOOD_FILM = b"\x00\x00\x00\x18ftypmp42" + bytes(range(256)) * 8
+
+
 def good_render(job, work, progress):
-    (work / "film.mp4").write_bytes(b"\x00\x00\x00\x18ftypmp42" + bytes(range(256)) * 8)
+    (work / "film.mp4").write_bytes(GOOD_FILM)
     (work / "receipt.json").write_text(json.dumps({"job": job["id"]}))
     return {"preview": work / "film.mp4", "receipt": work / "receipt.json"}
 
@@ -229,7 +232,8 @@ try:
     check(sorted(u["path"] for u in up) == sorted([f"{ALICE}/{base}/00000000-0000-4000-8000-0000000000b1/{JID(10)}/preview.mp4", f"{ALICE}/{base}/00000000-0000-4000-8000-0000000000b1/{JID(10)}/receipt.sequence.json"]),
           "the files went to the paths the SITE derived from the job")
     check(all(u["auth"] is None for u in up), "MUST-FAIL: the upload request carries no account header (the signed address is the only authority)")
-    film = (d / "jobs" / JID(10) / "film.mp4").read_bytes()
+    film = GOOD_FILM                                                   # the job's folder is gone once the film is sent (NEXT-WORKER 68): compare with what the renderer wrote
+    check(not (d / "jobs" / JID(10)).exists(), "a sent film's folder is deleted (the site has the film)")
     import hashlib
     check(any(u["sha256"] == hashlib.sha256(film).hexdigest() and u["bytes"] == len(film) for u in up), "and the bytes are the ones the renderer made")
     check(loop.status()["phase"] == "idle" and "Done" in loop.status()["message"] and loop.status()["last"] == "The last film was made and sent.", "the page says 'Done. Waiting for the next film.' and keeps 'The last film was made and sent.'")
