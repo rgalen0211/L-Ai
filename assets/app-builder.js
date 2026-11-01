@@ -35,22 +35,43 @@
     type: 'Tip: the same data can be a map, a bar race or lines. Only the types this dataset supports are offered.',
     look: 'Tip: a look changes colours and pacing only, never the numbers.',
     title: 'Tip: the title follows your choices until you type your own.',
-    review: 'Tip: this is Ryagram’s own check of exactly what you chose. Each problem has a “Fix it” button that takes you to its step.'
+    review: 'Tip: this is Ryagram’s own check of exactly what you chose. A problem that belongs to an earlier step has a “Fix it” button that takes you there.'
   };
   const HEADING = 'Tutorial: make a film step by step';
   const SAMPLE_NOTE = 'This is the sample: it walks every step on bundled sample data and makes nothing. No project, no story and no picture are made.';
-  const SAMPLE_ONLY = 'sample: the sample can only check its own ready-made choices. Use “Start the sample again” to put them back, or try your own data.';
+  const SAMPLE_ONLY = 'The sample can only check its own ready-made choices. Use “Start the sample again” to put them back, or try your own data.';
 
   // The data the sample walk-through reads: the bundled recording instead of the function. It answers only what was recorded, and refuses any other request in words.
+  // A refusal carries `sampleChanges` (what differs from the recording, in words), so the review can say so calmly instead of reporting a problem (NEXT-BUILDER 47).
   function sampleData(rec) {
     const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
     return {
       builderCatalog: async () => ({ datasets: rec ? [rec.entry] : [] }),
       builderDescribe: async id => { if (!rec || id !== rec.dataset.id) throw new Error('That dataset is not in the sample.'); return { dataset: JSON.parse(JSON.stringify(rec.dataset)) }; },
-      builderCompile: async request => { if (!rec || !same(request, rec.request)) { const e = new Error(SAMPLE_ONLY); e.errors = [SAMPLE_ONLY]; throw e; } return { story: JSON.parse(JSON.stringify(rec.story)), report: JSON.parse(JSON.stringify(rec.report)) }; },
+      builderCompile: async request => { if (!rec || !same(request, rec.request)) { const e = new Error(SAMPLE_ONLY); e.errors = [SAMPLE_ONLY]; e.sampleChanges = rec ? sampleChanges(request, rec.request) : []; throw e; } return { story: JSON.parse(JSON.stringify(rec.story)), report: JSON.parse(JSON.stringify(rec.report)) }; },
       listLooks: async () => []
     };
   }
+  // What a request changed from the sample's recorded one, in the words the steps use ("the film type (Bar race; the sample’s is Map)"), in step order.
+  function sampleChanges(req, recorded) {
+    const a = req || {}, b = recorded || {};
+    const yrs = r => (r.years ? `${r.years.start || '…'} to ${r.years.end || '…'}` : 'the data’s own years');
+    const out = [];
+    if (a.dataset !== b.dataset) out.push('the dataset');
+    if ((a.measure || '') !== (b.measure || '')) out.push('the measure');
+    if (JSON.stringify(a.years || null) !== JSON.stringify(b.years || null)) out.push(`the years (${yrs(a)}; the sample’s are ${yrs(b)})`);
+    if (a.film_type !== b.film_type) out.push(`the film type (${a.film_type ? typeWords(a.film_type)[0] : 'none chosen'}; the sample’s is ${typeWords(b.film_type)[0]})`);
+    if (JSON.stringify(a.look || null) !== JSON.stringify(b.look || null)) out.push('the look');
+    if ((a.title || '') !== (b.title || '')) out.push(`the title (the sample’s is “${b.title || ''}”)`);
+    if ((a.subtitle || '') !== (b.subtitle || '')) out.push('the subtitle');
+    return out;
+  }
+  // An engine sentence as a person reads it: its leading field name ("years.start: ...") in the step's own words ("From year: ..."). stepOf still reads the raw sentence.
+  const FIELD_WORDS = { dataset: 'Dataset', measure: 'Measure', years: 'Years', 'years.start': 'From year', 'years.end': 'To year', film_type: 'Film type', places: 'Places', look: 'Look', title: 'Title', subtitle: 'Subtitle' };
+  const plainError = e => String(e).replace(/^([a-z_]+(?:\.[a-z_]+)?):\s*/, (all, key) => (FIELD_WORDS[key] ? `${FIELD_WORDS[key]}: ` : FIELD_WORDS[key.split('.')[0]] ? `${FIELD_WORDS[key.split('.')[0]]}: ` : all));
+  const listWords = xs => (xs.length < 2 ? xs.join('') : `${xs.slice(0, -1).join(', ')} and ${xs[xs.length - 1]}`);
+  // The step a "Fix it" button goes to, or -1 when the problem is the review's own (a button that would only reload this page is not offered).
+  const fixStep = error => (stepOf(error) === 'review' ? -1 : STEPS.findIndex(([id]) => id === stepOf(error)));
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
   const typeWords = id => TYPE_WORDS[id] || [id, ''];
@@ -137,7 +158,7 @@
       function go(i) { s.step = Math.max(0, Math.min(STEPS.length - 1, i)); error.hidden = true; draw(); root.querySelector('h2')?.focus(); }
       function problems(step) {
         const list = (s.problems[step] || []);
-        return list.length ? h('ul', { class: 'builder-problems', role: 'alert' }, list.map(p => h('li', {}, p))) : null;
+        return list.length ? h('ul', { class: 'builder-problems', role: 'alert' }, list.map(p => h('li', {}, plainError(p)))) : null;
       }
       // The source and licence, shown as soon as there is a dataset and before anything is made.
       function sourceBox() {
@@ -184,10 +205,13 @@
         drawList();
         const starts = readyMade(catalog);
         const ready = starts.length ? h('section', { class: 'builder-ready', 'aria-labelledby': 'bd-ready-title' }, h('h2', { id: 'bd-ready-title', tabindex: '-1' }, 'Start from a ready-made film'),
-          h('p', { class: 'form-note' }, 'One click and you are at the last step. You can go back and change anything. The first picture is free.'),
+          h('p', { class: 'form-note' }, sample ? 'One click puts the sample’s own choices back and takes you to the last step.'
+            : 'One click and you are at the last step. You can go back and change anything. The first picture is free.'),
           h('div', { class: 'builder-list' }, starts.map(r => { const b = h('button', { type: 'button', class: 'builder-start', 'data-start': r.id }, h('strong', {}, r.label), h('span', { class: 'meta' }, r.blurb)); b.addEventListener('click', () => useStart(r, b)); return b; }))) : null;
         const trySample = sample ? null : h('p', { class: 'form-note builder-sample-link' }, h('a', { href: '#/build/sample' }, 'Try a sample first'), ': it walks every step on bundled sample data and makes nothing.');
-        return [trySample, ready, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
+        return [trySample, ready, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, sample
+          ? 'The sample has one dataset. With your own data you choose from the whole list; every dataset shows where it comes from and what its licence allows.'
+          : (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
           filter, list, sourceHolder, h('div', { class: 'actions-row builder-nav' }, nextBtn)];
       }
 
@@ -273,9 +297,18 @@
           } catch (err) {
             compiled = null;
             const errs = err.errors || [err.message];
+            // The sample refuses anything but its recorded choices. That is not a problem with the person's film, so it is said calmly, with what they changed and no "Fix it".
+            if (sample && Array.isArray(err.sampleChanges)) {
+              s.problems = {};
+              out.replaceChildren(h('div', { class: 'builder-sample-changed', role: 'status' },
+                h('p', { class: 'form-note' }, `The sample has a recorded check only for its own choices, and you changed ${listWords(err.sampleChanges) || 'a choice'}. `,
+                  'Nothing is wrong with your choice: with your own data, Ryagram checks whatever you pick.'),
+                h('p', { class: 'form-note' }, 'Use “Start the sample again” below to put the sample’s choices back.')));
+              return;
+            }
             s.problems = groupErrors(errs);
             out.replaceChildren(h('div', { role: 'alert' }, h('p', { class: 'app-error' }, 'This film can’t be made yet:'),
-              h('ul', { class: 'builder-problems' }, errs.map(e => h('li', {}, e, ' ', h('button', { class: 'link-button', type: 'button', onclick: () => go(STEPS.findIndex(([id]) => id === stepOf(e))) }, 'Fix it'))))));
+              h('ul', { class: 'builder-problems' }, errs.map(e => h('li', {}, plainError(e), fixStep(e) < 0 ? null : [' ', h('button', { class: 'link-button', type: 'button', onclick: () => go(fixStep(e)) }, 'Fix it')])))));
           }
         }
         // The sample makes nothing: in place of the Make button, the way back to its own choices and the way to real data.
@@ -318,5 +351,5 @@
     return { builderView };
   }
 
-  window.ryagramBuilder = { webLink, create, STEPS, TIPS, HEADING, SAMPLE_NOTE, sampleData, READY_MADE, readyMade, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
+  window.ryagramBuilder = { webLink, create, STEPS, TIPS, HEADING, SAMPLE_NOTE, sampleData, sampleChanges, listWords, fixStep, plainError, READY_MADE, readyMade, TYPE_WORDS, typeWords, periodWord, sourceLine, stepOf, groupErrors, requestFrom, yearsShape, suggestTitle, filterDatasets };
 })();
