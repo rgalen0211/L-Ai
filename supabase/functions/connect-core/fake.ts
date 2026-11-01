@@ -47,6 +47,9 @@ export class FakeWorld {
     if (!u.drafts.has(k)) u.drafts.set(k, newDraft(mode));
     return u.drafts.get(k)!;
   }
+  /** The reports the person's app shared for a song film (NEXT-CONNECT 179), keyed userId/projectId; the tests set them. */
+  reports = new Map<string, { why_clip: unknown; draft_messages: unknown }>();
+  shareReports(userId: string, projectId: string, r: { why_clip?: unknown; draft_messages?: unknown }) { this.reports.set(userId + "/" + projectId, { why_clip: r.why_clip ?? null, draft_messages: r.draft_messages ?? null }); }
   private opId = 0;
   /** The person's desktop app mirrors a track summary (this is what the real node function does); aiVisible = the person ticked "Let my AI see my track list". */
   mirror(userId: string, projectId: string, summary: unknown, aiVisible: boolean) {
@@ -187,6 +190,7 @@ export class FakeWorld {
         const last = mine.length ? Math.max(...mine.map((o) => o.revision)) : -1;
         return undoOps(d, mine.filter((o) => o.revision === last).map((o) => o.id), Date.now(), "ai");
       },
+      clipReports: async (pid) => (u().projects.some((p) => p.id === pid) ? JSON.parse(JSON.stringify(this.reports.get(userId + "/" + pid) ?? { why_clip: null, draft_messages: null })) : null),
       currentEngine: async () => this.engine,
       readReceipt: async () => null,
       quote: async (vid, t) => quote(vid, t),
