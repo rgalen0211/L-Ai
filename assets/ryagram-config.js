@@ -61,10 +61,30 @@ window.ryagramConfig = Object.freeze({
   // The guided builder (#/build): pick data, measure, years, film type, look and title, read the source and licence, get a free contact sheet. Turn on only once the guided-builder
   // function is deployed (supabase/README.md, "Guided builder"). Datasets are listed to signed-in, invited people only (RULINGS 2026-10-17); catalog and catalogComingSoon below stay off.
   guidedBuilder: true,
+  // The pace choice in the live editor's compilation mode (NEXT-WEB 182; BUILDER 45's named paces): Standard changes nothing, Unhurried adds a little quiet round each word. OFF until Ryan has seen it.
+  clipPace: false,
+  // The two DRAFT pages for the Claude and ChatGPT connector directory listings (/directory-drafts/privacy/ and /terms/; NEXT-WEB 183): noindex, linked from nowhere, and their text shows only when this is true. The wording is Ryan's and the lawyer's.
+  directoryDrafts: false,
+  // One plain sentence on the download pages: the Ryagram app is Windows today, a Mac version is planned, not built, no date (NEXT-WEB 184; proposals/CONNECT-MAC-READY-PLAN.md). OFF until Ryan has chosen the words.
+  macNote: false,
+  // The Why this clip panel in the live editor's compilation mode (NEXT-WEB 185; BUILDER 48's report): draws the cut's own explanation of each clip. Needs a maker that can give the report. OFF until Ryan has seen it.
+  whyClip: false,
+  // On #/admin/tester, each tester's computers (signed in, last seen, films waiting and held), read with admin_tester_devices() (NEXT-WEB 187). Needs SQL 20261031000100 applied. OFF until then.
+  adminTesterDevices: false,
+  // On My films, a tester account's films say where they are on THEIR computer: waiting for it, picked up by it, being made on it, done, or failed and why (NEXT-WEB 186). Needs myFilms. OFF until Ryan has seen it.
+  testerFilmProgress: false,
+  // 'A song film with real voices' in the intake (#/new; NEXT-WEB 188): a real choice when true, shown as Coming soon when false. Needs the intake. OFF until Ryan has seen it.
+  songIntake: false,
   // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
   intake: false,
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
+  // The song film entries on the Help page (NEXT-WEB 194): what a song film is, stand-ins, the speed limit, lyric cards, what internal only means. Draft words for Ryan. OFF until he has read them; entries about a site screen also need that screen's own switch.
+  songHelp: false,
+  // The two DRAFT landing pages for song films and for compilations (/landing-drafts/song-films/ and /compilations/; NEXT-WEB 193): noindex, linked from nowhere, every sentence marked for Ryan's wording, text shown only when this is true. OFF until Ryan has read them.
+  landingDrafts: false,
   myFilms: false,
+  // The tester first-run wizard (#/tester-start; NEXT-WEB 192): signed in, your computer, room on your drive, your first film, in plain words. Needs the tester flag on the account. OFF until Ryan has seen it and set its words.
+  testerWizard: false,
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
   lookEditor: true,
   // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once
@@ -80,6 +100,8 @@ window.ryagramConfig = Object.freeze({
   aiFirst: true,
   // The live editor (#/editor/data and #/editor/compilation): scrub, change the look, edit tracks, ask your AI; NEXT-WEB 152, proposals/WEB-LIVE-EDITOR.md. Off until Ryan has seen it; this first version runs on a stand-in drawing and clip list.
   liveEditor: false,
+  // The lyric card choice (three designs) in the live editor's Look panel (NEXT-WEB 189). Needs liveEditor and SQL 20261031000200_lyric_card_look.sql. OFF until Ryan has seen it; the song film does not draw the cards yet.
+  lyricCards: false,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.
   // ON (Ryan's typed yes 2026-10-28 10:59, Q303), with the words as drafted (Q244 answered): shown to invited accounts only, the server's my_departments() says which.
   departments: true,

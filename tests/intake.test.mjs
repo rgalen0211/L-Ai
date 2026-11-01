@@ -53,3 +53,25 @@ test('wiring: behind a switch that is OFF, the route and the link exist only whe
   assert.ok(html.indexOf('/assets/app-intake.js') > html.indexOf('/assets/app-builder.js') && html.indexOf('/assets/app-intake.js') < html.indexOf('/assets/app-library.js'));
   assert.ok(!/innerHTML|insertAdjacentHTML|eval\(|fetch\(|localStorage/.test(src));
 });
+
+// ---- NEXT-WEB 188: 'A song film with real voices' in the intake, a real choice behind songIntake (off), Coming soon when off ----
+test('SONG FILM: with its switch off the choice leads to a Coming soon screen that names it, never a dead end; with it on it leads to the song screen; neither has a second question', () => {
+  const song = I.Q1.find(q => q.id === 'song');
+  assert.ok(song && song.label === 'A song film with real voices' && song.flag === 'songIntake');
+  const off = I.next({ kind: 'song' }), offExplicit = I.next({ kind: 'song' }, { songOn: false });
+  assert.deepEqual(J(off), { screen: 'soon', ids: ['song_film'], why: 'A song film with real voices' }); assert.deepEqual(J(offExplicit), J(off));
+  assert.deepEqual(J(I.next({ kind: 'song' }, { songOn: true })), { screen: 'song' });
+  for (const bad of ['true', 1, undefined, null]) assert.equal(I.next({ kind: 'song' }, { songOn: bad }).screen, 'soon', String(bad));
+  assert.deepEqual(J(I.next({ kind: 'song', about: 'map' }, { songOn: true })), { screen: 'song' });
+  assert.ok(I.SOON_EXTRA.song_film.line.includes('Not open on the site yet'));
+});
+
+test('SONG FILM: the other choices still land where they did, and the song words promise only what the maker does (made on your computer, nothing uploaded)', () => {
+  assert.deepEqual(J(I.next({ kind: 'compilation' }, { songOn: true })), { screen: 'compilation' });
+  assert.equal(I.next({ kind: 'data', about: 'map' }, { songOn: true }).href, '#/build?type=map&q=county');
+  assert.deepEqual(J(I.Q1.map(q => q.id)), ['data', 'compilation', 'song', 'soon']);
+  const src = read('assets/app-intake.js');
+  assert.match(src, /is made on your own computer/); assert.match(src, /Nothing is uploaded: the words and the music stay on your computer, and only the render makes anything\./);
+  assert.match(read('assets/ryagram-config.js'), /\n  songIntake: false,/);
+  assert.match(src, /window\.ryagramConfig\.songIntake === true/);
+});

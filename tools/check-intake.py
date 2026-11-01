@@ -21,6 +21,7 @@ srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
 on_cfg = re.sub(r'intake:\s*false', 'intake: true', base)
+song_cfg = re.sub(r'songIntake:\s*false', 'songIntake: true', on_cfg)
 ok = True
 
 
@@ -47,10 +48,15 @@ with sync_playwright() as pw:
         p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/', wait_until='load'); p.wait_for_selector('h1:has-text("Your projects")')
         check(p.locator('a:has-text("What do you want to make?")').count() == 1, 'the projects page has the link (switch on)')
         p.click('a:has-text("What do you want to make?")'); p.wait_for_selector('h2:has-text("What do you want to make?")')
-        check(p.locator('.intake-choice').count() == 3, 'one basic question first: three answers')
+        check(p.locator('.intake-choice').count() == 4, 'one basic question first: four answers')
         # compilation: no second question
         p.click('[data-choice="compilation"]'); p.wait_for_selector('h2:has-text("on your own computer")')
         check(p.locator('a[href="#/start"]').count() >= 1 and p.locator('.intake-choice').count() == 0, 'a compilation has no second question and says where it is made')
+        p.click('.intake >> button:has-text("Back")'); p.wait_for_selector('h2:has-text("What do you want to make?")')
+        # NEXT-WEB 188: the song film is marked Coming soon while its switch is off, and leads to a Coming soon screen (never a dead end); with it on it is a real choice
+        check('Coming soon' in p.inner_text('[data-choice="song"]'), 'the song film choice is marked Coming soon (switch off)')
+        p.click('[data-choice="song"]'); p.wait_for_selector('.intake-soon-list')
+        check('A song film with real voices' in p.inner_text('.intake-soon-list') and 'Not open on the site yet' in p.inner_text('.intake-soon-list') and p.locator('.intake a.button.primary').count() == 0, 'and it leads to a Coming soon screen with no dead link')
         p.click('.intake >> button:has-text("Back")'); p.wait_for_selector('h2:has-text("What do you want to make?")')
         # something else: coming soon list
         p.click('[data-choice="soon"]'); p.wait_for_selector('.intake-soon-list')
@@ -80,6 +86,16 @@ with sync_playwright() as pw:
         check(p.input_value('#bd-filter') == '', 'a search word that is not plain letters is ignored')
         check(not errs, 'no console errors' + (f': {errs[:2]}' if errs else ''))
         p.context.close()
+    print('song film open (songIntake on)')
+    errs = []
+    p = open_page(b, song_cfg, dict(viewport={'width': 375, 'height': 812}, is_mobile=True, has_touch=True), errs)
+    p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/new', wait_until='load'); p.wait_for_selector('h2:has-text("What do you want to make?")')
+    check('Coming soon' not in p.inner_text('[data-choice="song"]'), 'the song film is a real choice (no Coming soon mark)')
+    p.click('[data-choice="song"]'); p.wait_for_selector('h2:has-text("made on your own computer")')
+    check('Nothing is uploaded' in p.inner_text('.intake') and p.locator('.intake a[href="#/start"]').count() == 1 and p.locator('.intake a[href="#/account"]').count() == 1 and p.locator('.intake-choice').count() == 0, 'it says where it is made, that nothing is uploaded, and links to the AI door and the account page; no second question')
+    check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
+    check(not errs, 'no console errors' + (f': {errs[:2]}' if errs else ''))
+    p.context.close()
     print('switch off')
     errs = []
     p = open_page(b, base, dict(viewport={'width': 1200, 'height': 900}), errs)

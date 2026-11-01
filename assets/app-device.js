@@ -245,6 +245,7 @@
       } }, 'Download Ryagram for Windows') : null;
       return h('section', { class: 'account-section windows-card', 'aria-labelledby': 'acct-windows' }, h('h2', { id: 'acct-windows' }, 'Ryagram for Windows'),
         h('p', { class: 'form-note' }, 'The Ryagram app for your Windows computer. Your films are made on it.'),
+        ...(window.ryagramMacNote && window.ryagramMacNote.on(window.ryagramConfig) ? [h('p', { class: 'form-note windows-mac-note', role: 'note' }, window.ryagramMacNote.LINES.join(' '))] : []),
         h('dl', { class: 'windows-facts' },
           h('dt', {}, 'File'), h('dd', {}, ready ? h('code', {}, rel.fileName) : 'shown here when the file is ready'),
           h('dt', {}, 'Size'), h('dd', {}, ready && rel.sizeMb ? `about ${rel.sizeMb} MB. The listening model is downloaded separately, the first time you run it.` : 'shown here when the file is ready'),
@@ -298,7 +299,21 @@
       const offBtn = h('button', { class: 'button secondary', type: 'button' }, 'Turn off');
       onBtn.addEventListener('click', () => change(onBtn, true));
       offBtn.addEventListener('click', () => change(offBtn, false));
+      // ---- each tester's computers (NEXT-WEB 187; behind adminTesterDevices, off; needs SQL 20261031000100)
+      const devicesBox = h('div', { class: 'tester-devices' });
+      async function drawDevices() {
+        if (!(window.ryagramConfig && window.ryagramConfig.adminTesterDevices === true)) { devicesBox.hidden = true; return; }
+        let rows;
+        try { rows = window.ryagramDevice.deviceRows(await data.adminTesterDevices()); } catch (err) { devicesBox.replaceChildren(h('h2', {}, 'Their computers'), h('p', { class: 'form-note', role: 'alert' }, err.message)); return; }
+        devicesBox.replaceChildren(h('h2', {}, 'Their computers'),
+          rows.length ? h('ul', { class: 'project-list tester-device-list' }, rows.map(t => h('li', { class: `tester-device tester-${t.status}` },
+            h('strong', {}, t.email), ' ', h('span', { class: 'meta' }, t.status === 'none' ? 'no computer signed in' : t.status === 'seen' ? 'a computer is awake' : 'no computer seen lately'),
+            t.waiting ? h('p', { class: 'form-note' }, `${t.waiting} film${t.waiting === 1 ? '' : 's'} waiting for a computer.`) : h('span', {}),
+            t.computers.length ? h('ul', {}, t.computers.map(c => h('li', {}, window.ryagramDevice.deviceLine(c)))) : h('span', {})))) : h('p', { class: 'form-note' }, 'No tester accounts yet.'),
+          h('p', { class: 'meta' }, window.ryagramDevice.deviceNote));
+      }
       await drawHistory();
+      await drawDevices();
       // ---- Connect an AI (NEXT-WEB 157): the per-account right to connect an AI, beside tester mode. Same shape: an email, a reason, On or Off, the history; plus who has it now.
       const cEmail = h('input', { id: 'connect-email', type: 'email', autocomplete: 'off', maxlength: '200', spellcheck: 'false' });
       const cReason = h('input', { id: 'connect-reason', type: 'text', autocomplete: 'off', maxlength: String(REASON_MAX), 'aria-describedby': 'connect-reason-note' });
@@ -344,12 +359,34 @@
         h('label', { for: 'tester-email' }, 'Account email'), email,
         h('label', { for: 'tester-reason' }, 'Why (a few words, saved in the history)'), reason,
         h('p', { id: 'tester-reason-note', class: 'form-note' }, `${REASON_MIN} to ${REASON_MAX} characters.`),
-        h('div', { class: 'actions-row' }, onBtn, offBtn), status, error,
+        h('div', { class: 'actions-row' }, onBtn, offBtn), status, error, devicesBox,
         h('h2', {}, 'History'), history, connectSection];
     }
 
     return { deviceView, computersSection, windowsAppSection, testerAdminView };
   }
 
-  window.ryagramDevice = { windowsReady, viaDownloadFunction, parseDownloadAnswer, downloadErrorWords, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  // ---- the admin's list of each tester's computers (NEXT-WEB 187). Pure: rows from admin_tester_devices() -> one entry per tester with its computers in words. "Ready" means the sign-in was used in the last 3
+  // minutes (the app's ping); anything else is "not seen" with how long ago. Whether a computer can render, and whether it paused under its disk floor, are NOT in the database, and the page says so.
+  const SEEN_MS = 3 * 60 * 1000;
+  function deviceRows(rows, now = Date.now()) {
+    const by = new Map();
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (!r || typeof r.user_email !== 'string') continue;
+      const email = r.user_email.slice(0, 120), t = by.get(email) || { email, waiting: 0, computers: [] };
+      t.waiting = Number.isFinite(r.waiting_films) ? r.waiting_films : t.waiting;
+      if (r.computer_name) {
+        const seen = Date.parse(r.last_used_at), ended = Date.parse(r.expires_at);
+        const fresh = Number.isFinite(seen) && now - seen <= SEEN_MS;
+        t.computers.push({ name: String(r.computer_name).slice(0, 60), state: fresh ? 'seen' : 'quiet', last: Number.isFinite(seen) ? ago(r.last_used_at, now) : 'not seen yet',
+          holds: Number.isFinite(r.running_films) ? r.running_films : 0, signedInUntil: Number.isFinite(ended) ? new Date(ended).toLocaleDateString() : '' });
+      }
+      by.set(email, t);
+    }
+    return [...by.values()].map(t => ({ ...t, status: !t.computers.length ? 'none' : t.computers.some(c => c.state === 'seen') ? 'seen' : 'quiet' }));
+  }
+  const deviceLine = c => `${c.name}: ${c.state === 'seen' ? 'seen in the last 3 minutes' : `not seen for a while (last ${c.last})`}${c.holds ? `; holding ${c.holds} film${c.holds === 1 ? '' : 's'} now` : ''}${c.signedInUntil ? `; its sign-in ends ${c.signedInUntil}` : ''}`;
+  const deviceNote = 'Whether a computer can render, and whether it paused under its disk floor, are not reported to the site by the app yet. This list shows only what the sign-in shows.';
+
+  window.ryagramDevice = { deviceRows, deviceLine, deviceNote, SEEN_MS, windowsReady, viaDownloadFunction, parseDownloadAnswer, downloadErrorWords, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();

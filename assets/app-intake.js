@@ -1,5 +1,5 @@
 // The website intake (#/new): ONE basic question first, then only the questions that fit (NEXT-WEB 173; Ryan: "basic question first, then read the room"). Behind `intake` (off).
-//   1. What do you want to make?  A data film / A compilation of your own footage / Something else (coming soon)
+//   1. What do you want to make?  A data film / A compilation of your own footage / A song film with real voices (a real choice behind songIntake, else Coming soon) / Something else (coming soon)
 //   2. (data film)  What is it about?  Places on a map (county or state) / The whole globe (coming soon) / Places ranked over time (a bar race) / Change over time (lines)
 // It never asks for anything the builder already asks; its job is to land a person on the RIGHT first screen: the guided builder with the film type chosen and, for a county map, the dataset list already
 // narrowed to counties (#/build?type=map&q=county), a compilation on the way that exists today (the AI door, the computer the app runs on), and a coming-soon idea on its own page.
@@ -8,6 +8,7 @@
   const Q1 = [
     { id: 'data', label: 'A data film', blurb: 'A question answered with public data, drawn as a short animated film, with every source shown.' },
     { id: 'compilation', label: 'A compilation of my own footage', blurb: 'Say a phrase, and Ryagram strings together every time it is said in your own videos.' },
+    { id: 'song', label: 'A song film with real voices', blurb: 'Write the words of a song and pick the music; each word is built from a real take in your own videos.', flag: 'songIntake' },
     { id: 'soon', label: 'Something else', blurb: 'Maps you can question, games, cartoons. Not built yet: see what is coming.' }
   ];
   const Q2 = [
@@ -18,13 +19,17 @@
   ];
   const TYPES = ['map', 'bars', 'line', 'paired'];
   const SOON_IDS = ['geo_intelligence', 'games', 'animation_studio'];
+  // Ideas this file names itself (the departments file does not know them): shown on the Coming soon screen with their own words.
+  const SOON_EXTRA = { song_film: { label: 'A song film with real voices', line: 'Write the words of a song, pick the music, and each word is built from a real take in your own videos. Not open on the site yet.' } };
 
   // ---------------------------------------------------------------- pure helpers (tested in node)
   // The answers so far -> what to show next. Never a question whose answer would change nothing: a compilation or a coming-soon idea has no second question.
-  function next(a) {
+  // opts.songOn: the song film is open (the switch songIntake); otherwise choosing it leads to its Coming soon screen, never a dead end.
+  function next(a, opts) {
     a = a || {};
     if (!Q1.some(q => q.id === a.kind)) return { screen: 'kind' };
     if (a.kind === 'compilation') return { screen: 'compilation' };
+    if (a.kind === 'song') return opts && opts.songOn === true ? { screen: 'song' } : { screen: 'soon', ids: ['song_film'], why: 'A song film with real voices' };
     if (a.kind === 'soon') return { screen: 'soon', ids: SOON_IDS.slice() };
     if (!Q2.some(q => q.id === a.about)) return { screen: 'about' };
     const q = Q2.find(x => x.id === a.about);
@@ -51,7 +56,8 @@
 
   function create({ h }) {
     const D = () => window.ryagramDepartments;
-    const soonLine = id => { const k = D() && D().KNOWN && D().KNOWN[id]; return k ? { label: k.label, line: k.line || k.sentence || '' } : { label: id, line: '' }; };
+    const soonLine = id => { if (SOON_EXTRA[id]) return SOON_EXTRA[id]; const k = D() && D().KNOWN && D().KNOWN[id]; return k ? { label: k.label, line: k.line || k.sentence || '' } : { label: id, line: '' }; };
+    const songOn = () => !!(window.ryagramConfig && window.ryagramConfig.songIntake === true);
     const soonLink = id => (D() && D().flagOn && D().flagOn() ? `#/d/${id}` : null);
 
     function intakeView(onStop) {
@@ -60,16 +66,19 @@
       const choice = (q, pick, mark) => h('button', { type: 'button', class: 'builder-card intake-choice', 'data-choice': q.id, onclick: () => pick(q.id) },
         h('strong', {}, q.label), h('span', { class: 'meta' }, q.blurb), mark ? h('span', { class: 'meta intake-soon' }, mark) : null);
       function draw() {
-        const n = next(a);
+        const n = next(a, { songOn: songOn() });
         const back = n.screen === 'kind' ? null : h('button', { type: 'button', class: 'button secondary', onclick: () => { if (a.about) delete a.about; else delete a.kind; draw(); } }, 'Back');
         let body;
         if (n.screen === 'kind') {
-          body = [h('h2', { tabindex: '-1' }, 'What do you want to make?'), h('div', { class: 'builder-list', role: 'group', 'aria-label': 'What to make' }, Q1.map(q => choice(q, id => { a.kind = id; draw(); })))];
+          body = [h('h2', { tabindex: '-1' }, 'What do you want to make?'), h('div', { class: 'builder-list', role: 'group', 'aria-label': 'What to make' }, Q1.map(q => choice(q, id => { a.kind = id; draw(); }, q.flag && !songOn() ? 'Coming soon' : null)))];
         } else if (n.screen === 'about') {
           body = [h('h2', { tabindex: '-1' }, 'What is your film about?'), h('div', { class: 'builder-list', role: 'group', 'aria-label': 'What it is about' }, Q2.map(q => choice(q, id => { a.about = id; draw(); }, q.soon ? 'Coming soon' : null)))];
         } else if (n.screen === 'build') {
           body = [h('h2', { tabindex: '-1' }, 'Good: the step-by-step builder'), h('p', {}, 'It shows every dataset with its source and licence, and the first picture is free. You can change anything on the way.'),
             h('a', { class: 'button primary', href: n.href }, 'Open the builder'), ' ', h('a', { class: 'button secondary', href: '#/start' }, 'Or start it in your AI')];
+        } else if (n.screen === 'song') {
+          body = [h('h2', { tabindex: '-1' }, 'A song film is made on your own computer'), h('p', {}, 'You give the Ryagram app the words, your videos and your music. It builds each word from a real take in your videos and puts it on the beat. Nothing is uploaded: the words and the music stay on your computer, and only the render makes anything.'),
+            h('a', { class: 'button primary', href: '#/start' }, 'Start it in your AI'), ' ', h('a', { class: 'button secondary', href: '#/account' }, 'Your account and computers')];
         } else if (n.screen === 'compilation') {
           body = [h('h2', { tabindex: '-1' }, 'A compilation is made on your own computer'), h('p', {}, 'Your videos stay on your computer. Ryagram’s app finds the words in your footage and builds the film there. Start it from your AI, or sign your computer in.'),
             h('a', { class: 'button primary', href: '#/start' }, 'Start it in your AI'), ' ', h('a', { class: 'button secondary', href: '#/account' }, 'Your account and computers')];
@@ -85,5 +94,5 @@
     }
     return { intakeView };
   }
-  window.ryagramIntake = { Q1, Q2, TYPES, next, buildHref, parseBuildQuery, create };
+  window.ryagramIntake = { Q1, Q2, TYPES, SOON_EXTRA, next, buildHref, parseBuildQuery, create };
 })();
