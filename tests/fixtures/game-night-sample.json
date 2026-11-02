@@ -16,62 +16,46 @@
       "marks": [
        {
         "mark": "exact",
-        "word": "goat"
+        "word": "harbour"
        },
        {
         "mark": "exact",
-        "word": "in"
+        "word": "at"
        },
        {
         "mark": "exact",
-        "word": "the"
-       },
-       {
-        "mark": "exact",
-        "word": "garden"
-       },
-       {
-        "mark": "exact",
-        "word": "shed."
+        "word": "midnight."
        }
       ],
       "points": 86,
       "truncated": false,
       "verdict": "exact"
      },
-     "text": "goat in the garden shed"
+     "text": "harbour at midnight"
     },
     {
      "player": "Ben",
      "result": {
-      "accuracy": 0.8406,
+      "accuracy": 0.7511,
       "marks": [
        {
         "mark": "near",
-        "word": "goat"
+        "word": "harbour"
        },
        {
         "mark": "exact",
-        "word": "in"
+        "word": "at"
        },
        {
         "mark": "exact",
-        "word": "the"
-       },
-       {
-        "mark": "exact",
-        "word": "garden"
-       },
-       {
-        "mark": "exact",
-        "word": "shed."
+        "word": "midnight."
        }
       ],
-      "points": 72,
+      "points": 65,
       "truncated": false,
-      "verdict": "close"
+      "verdict": "partial"
      },
-     "text": "goats in the garden shed"
+     "text": "harbours at midnight"
     },
     {
      "player": "Cy",
@@ -80,23 +64,15 @@
       "marks": [
        {
         "mark": "missed",
-        "word": "goat"
+        "word": "harbour"
        },
        {
         "mark": "missed",
-        "word": "in"
+        "word": "at"
        },
        {
         "mark": "missed",
-        "word": "the"
-       },
-       {
-        "mark": "missed",
-        "word": "garden"
-       },
-       {
-        "mark": "missed",
-        "word": "shed."
+        "word": "midnight."
        }
       ],
       "points": 0,
@@ -107,21 +83,21 @@
     }
    ],
    "public": {
-    "clip_start_ms": 9560,
+    "clip_start_ms": 12980,
     "difficulty": "one of a kind",
-    "file": "made-up-show-1.mp4",
-    "heard_text": "My neighbour keeps a very polite",
-    "id": "51babcbfa04a",
-    "stop_ms": 12510,
-    "words_left": 5
+    "file": "made-up-show-2.mp4",
+    "heard_text": "A cheerful tune drifted over the sleepy",
+    "id": "b1beec28056a",
+    "stop_ms": 16290,
+    "words_left": 3
    },
    "reveal": {
-    "answer_text": "goat in the garden shed.",
-    "base_points": 85.6224,
-    "id": "51babcbfa04a",
+    "answer_text": "harbour at midnight.",
+    "base_points": 86.0,
+    "id": "b1beec28056a",
     "phrase_count": 1,
-    "rarity": 0.891,
-    "words_left": 5
+    "rarity": 1.0,
+    "words_left": 3
    }
   },
   {
@@ -133,18 +109,18 @@
       "marks": [
        {
         "mark": "missed",
-        "word": "at"
+        "word": "of"
        },
        {
         "mark": "exact",
-        "word": "midnight."
+        "word": "sourdough."
        }
       ],
       "points": 21,
       "truncated": false,
       "verdict": "a few words"
      },
-     "text": "ats midnight"
+     "text": "ofs sourdough"
     },
     {
      "player": "Ben",
@@ -153,18 +129,18 @@
       "marks": [
        {
         "mark": "exact",
-        "word": "at"
+        "word": "of"
        },
        {
         "mark": "missed",
-        "word": "midnight."
+        "word": "sourdough."
        }
       ],
       "points": 8,
       "truncated": false,
       "verdict": "a few words"
      },
-     "text": "at and some other things"
+     "text": "of and some other things"
     },
     {
      "player": "Cy",
@@ -173,11 +149,11 @@
       "marks": [
        {
         "mark": "missed",
-        "word": "at"
+        "word": "of"
        },
        {
         "mark": "missed",
-        "word": "midnight."
+        "word": "sourdough."
        }
       ],
       "points": 0,
@@ -188,18 +164,18 @@
     }
    ],
    "public": {
-    "clip_start_ms": 12980,
+    "clip_start_ms": 4700,
     "difficulty": "one of a kind",
-    "file": "made-up-show-2.mp4",
-    "heard_text": "A cheerful tune drifted over the sleepy harbour",
-    "id": "5dec65bca7f8",
-    "stop_ms": 16650,
+    "file": "made-up-show-1.mp4",
+    "heard_text": "Nobody told the baker that the moon was made",
+    "id": "40af1dcf1dd5",
+    "stop_ms": 8730,
     "words_left": 2
    },
    "reveal": {
-    "answer_text": "at midnight.",
+    "answer_text": "of sourdough.",
     "base_points": 84.0,
-    "id": "5dec65bca7f8",
+    "id": "40af1dcf1dd5",
     "phrase_count": 1,
     "rarity": 1.0,
     "words_left": 2
@@ -210,38 +186,38 @@
     {
      "player": "Ana",
      "result": {
-      "accuracy": 0.2004,
+      "accuracy": 0.2143,
       "marks": [
        {
         "mark": "exact",
-        "word": "the"
+        "word": "tower"
        },
        {
         "mark": "exact",
-        "word": "moon"
+        "word": "hums"
        },
        {
         "mark": "exact",
-        "word": "was"
+        "word": "a"
        },
        {
         "mark": "missed",
-        "word": "made"
+        "word": "different"
        },
        {
         "mark": "missed",
-        "word": "of"
+        "word": "cheerful"
        },
        {
         "mark": "missed",
-        "word": "sourdough."
+        "word": "tune."
        }
       ],
-      "points": 18,
+      "points": 19,
       "truncated": false,
       "verdict": "a few words"
      },
-     "text": "the moon was and some other things"
+     "text": "tower hums a and some other things"
     },
     {
      "player": "Ben",
@@ -250,87 +226,87 @@
       "marks": [
        {
         "mark": "exact",
-        "word": "the"
+        "word": "tower"
        },
        {
         "mark": "exact",
-        "word": "moon"
+        "word": "hums"
        },
        {
         "mark": "exact",
-        "word": "was"
+        "word": "a"
        },
        {
         "mark": "exact",
-        "word": "made"
+        "word": "different"
        },
        {
         "mark": "exact",
-        "word": "of"
+        "word": "cheerful"
        },
        {
         "mark": "exact",
-        "word": "sourdough."
+        "word": "tune."
        }
       ],
       "points": 88,
       "truncated": false,
       "verdict": "exact"
      },
-     "text": "the moon was made of sourdough"
+     "text": "tower hums a different cheerful tune"
     },
     {
      "player": "Cy",
      "result": {
-      "accuracy": 0.8913,
+      "accuracy": 0.8664,
       "marks": [
        {
         "mark": "near",
-        "word": "the"
+        "word": "tower"
        },
        {
         "mark": "exact",
-        "word": "moon"
+        "word": "hums"
        },
        {
         "mark": "exact",
-        "word": "was"
+        "word": "a"
        },
        {
         "mark": "exact",
-        "word": "made"
+        "word": "different"
        },
        {
         "mark": "exact",
-        "word": "of"
+        "word": "cheerful"
        },
        {
         "mark": "exact",
-        "word": "sourdough."
+        "word": "tune."
        }
       ],
-      "points": 79,
+      "points": 76,
       "truncated": false,
       "verdict": "close"
      },
-     "text": "thes moon was made of sourdough"
+     "text": "towers hums a different cheerful tune"
     }
    ],
    "public": {
-    "clip_start_ms": 4700,
+    "clip_start_ms": 8480,
     "difficulty": "one of a kind",
-    "file": "made-up-show-1.mp4",
-    "heard_text": "Nobody told the baker that",
-    "id": "1c2055ed82fb",
-    "stop_ms": 7290,
+    "file": "made-up-show-2.mp4",
+    "heard_text": "Every evening the clock",
+    "id": "c99d3515e5e2",
+    "stop_ms": 10710,
     "words_left": 6
    },
    "reveal": {
-    "answer_text": "the moon was made of sourdough.",
-    "base_points": 88.352,
-    "id": "1c2055ed82fb",
+    "answer_text": "tower hums a different cheerful tune.",
+    "base_points": 87.78133333333334,
+    "id": "c99d3515e5e2",
     "phrase_count": 1,
-    "rarity": 0.909,
+    "rarity": 0.895,
     "words_left": 6
    }
   }
@@ -339,8 +315,8 @@
  "seed": "tv-sample-1",
  "timer_s": 30,
  "totals": {
-  "Ana": 125,
-  "Ben": 168,
-  "Cy": 79
+  "Ana": 126,
+  "Ben": 161,
+  "Cy": 76
  }
 }
