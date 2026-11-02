@@ -114,11 +114,19 @@ export interface FootageSwitch {
   request(plan: { source: "nasa" | "nara"; item_id: string; why: string }): Promise<{ id: string; state: string }>;
 }
 
+/** NEXT-CONNECT 193: "what is within N minutes of this place" (Geographic Intelligence). NOT wired in the real function: with no `geo` here the tool refuses and looks nothing up (the switch is OFF).
+ *  `within` returns the engine's drive-estimate answer (schema ryagram.drive-estimate/0, ryagram/geo/drivetime.py) for ONE place; the tool checks its shape and that every number is labelled Estimated before it shows a word of it. */
+export interface GeoSwitch {
+  enabled(): boolean | Promise<boolean>;
+  within(q: { lat: number; lon: number; minutes: number; categories: string[] }): Promise<unknown>;
+}
+
 export interface Deps {
   /** Compiles a JSON Schema into a checker that returns plain-words problems ([] = fine). */
   compile(schema: object): ((value: unknown) => string[]) & { detailed?: (value: unknown) => { instancePath: string; keyword: string; params: Record<string, unknown>; message?: string; schemaPath?: string }[] };
   now?: () => number;
   footage?: FootageSwitch;
+  geo?: GeoSwitch;
 }
 
 export interface ToolCtx {
@@ -167,6 +175,7 @@ export const LIMITS = Object.freeze({
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
   footagePlansPerDayPerUser: 20,
+  geoQuestionsPerHourPerUser: 30,
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
   maxStoryBytes: 256 * 1024,
 });
