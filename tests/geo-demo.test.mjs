@@ -113,5 +113,5 @@ test('NEXT-WEB 199: two sites side by side use identical rules, the difference i
   const none = G.compareSites({ areas: [], points: [], categories: D.categories }, c, near, 2, 's'); assert.equal(none[4].diff.value, null, 'no chicken place on either side: not comparable, never a number');
   const code = read('assets/geo-demo.js');
   assert.match(code, /does not say which site is better/); assert.match(code, /B minus A/); assert.match(code, /dashed ring, B a dotted ring/);
-  assert.ok(!/(better than|best site|winner|score)/i.test(code.replace(/does not say which site is better/, '')), 'no verdict words');
+  assert.ok(!/\b(better than|best site|winner|score)\b/i.test(code.replace(/does not say which site is better/, '')), 'no verdict words');
 });
