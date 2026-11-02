@@ -76,3 +76,31 @@ test('NEXT-WEB 202: RENDERER\'s map look is applied: near-black page, one blue r
   assert.match(css, /--gp:#111218/); assert.match(css, /@media \(max-width:820px\)\{\.geo-grid\{grid-template-columns:minmax\(0,1fr\)\}/);
   assert.equal(D.places.length, 3); for (const pl of D.places) { assert.match(pl.name, /^MADE-UP /); assert.ok(pl.lon > D.bbox.lon0 && pl.lon < D.bbox.lon1 && pl.lat > D.bbox.lat0 && pl.lat < D.bbox.lat1); }
 });
+
+test('NEXT-WEB 204: the real-data mode is OFF, loads only a file the person picks, refuses anything that is not the converter\'s file, and keeps the OpenStreetMap credit and the sources on screen', () => {
+  assert.match(read('assets/ryagram-config.js'), /\n  geoRealData: false,/);
+  const code = read('assets/geo-demo.js');
+  assert.match(code, /window\.ryagramConfig\.geoRealData === true/); assert.match(code, /f\.text\(\)/); assert.match(code, /MAX_REAL_BYTES = 25 \* 1024 \* 1024/);
+  assert.ok(!/fetch\(|XMLHttpRequest|localStorage|sessionStorage|indexedDB|WebSocket|sendBeacon/.test(code), 'it reads a local file and keeps nothing');
+  assert.match(code, /PRIVATE REAL DATA/); assert.match(code, /nothing was uploaded, stored or sent anywhere/); assert.match(code, /until the attorney questions about OpenStreetMap are answered/); assert.match(code, /Where this data comes from/); assert.match(code, /D\.credit/);
+  const dwin2 = { ryagramGeo: G, ryagramGeoDemoData: D }; vm.runInNewContext(code, { window: dwin2, document: { getElementById: () => null }, Math, Number, String, Object, Array });
+  const V = dwin2.ryagramGeoDemo.validateRealInputs;
+  const good = { schema: 'ryagram.geo-real-inputs/0', real: true, bbox: { lon0: 0, lat0: 0, lon1: 1, lat1: 1 }, areas: [{ id: 'a', ring: [[0, 0], [1, 0], [1, 1]], population: 5, income: null }, { id: 'b', ring: [[0, 0], [1, 0], [1, 1]], population: null, income: 3 }],
+    points: [{ id: 'p', lon: 0.5, lat: 0.5, category: 'chicken' }], categories: { chicken: 'Chicken places', burger: 'Burger places' }, sites: [{ name: 'x', lon: 0.2, lat: 0.2 }], credit: 'Map data \u00a9 OpenStreetMap contributors (ODbL 1.0).', sources: [{ file: 'f' }], stats: { areas: 2 } };
+  assert.deepEqual(J(V(good)), []);
+  const bad = fn => { const o = J(good); fn(o); return J(V(o)); };
+  assert.ok(bad(o => { o.schema = 'x'; })[0].match(/wrong schema/)); assert.ok(bad(o => { o.real = false; }).some(m => /not marked as real/.test(m)));
+  assert.ok(bad(o => { o.bbox = { lon0: 1, lat0: 0, lon1: 0, lat1: 1 }; }).some(m => /bounding box/.test(m))); assert.ok(bad(o => { o.areas = []; }).some(m => /no areas/.test(m)));
+  assert.ok(bad(o => { o.areas[0].ring = [[0, 0]]; }).some(m => /no usable outline/.test(m))); assert.ok(bad(o => { o.areas[0].population = -5; }).some(m => /negative/.test(m)));
+  assert.ok(bad(o => { o.points[0].lon = null; }).some(m => /no position/.test(m))); assert.ok(bad(o => { o.credit = 'no credit'; }).some(m => /OpenStreetMap credit is missing/.test(m)));
+  assert.ok(bad(o => { o.sources = []; }).some(m => /no sources/.test(m))); assert.ok(bad(o => { delete o.categories; }).some(m => /no categories/.test(m)));
+  assert.deepEqual(J(V(null)), ['not an object']); assert.ok(V('x').length > 0);
+});
+
+test('the converter refuses to write the private file inside any repository or the website folder, never fetches, and the repo ignores the private names', () => {
+  const py = read('tools/make-geo-real-inputs.py');
+  assert.match(py, /REFUSED: .* is inside a git repository/); assert.match(py, /the output may not be inside the website folder/); assert.match(py, /Nothing is fetched by this tool/);
+  assert.ok(!/urllib|requests|http\.client|socket|urlopen/.test(py), 'no network code'); assert.match(py, /ODbL/); assert.match(py, /PRIVATE/);
+  const ign = read('.gitignore'); assert.match(ign, /^private\/$/m); assert.match(ign, /geo-dayton-real/);
+  assert.ok(!fs.readdirSync(new URL('..', import.meta.url), { recursive: true }).some(f => /geo-dayton-real|geo-real\.json/.test(String(f))), 'no real-data file anywhere in the repo folder');
+});

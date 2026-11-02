@@ -1,2 +1,5 @@
 __pycache__/
 supabase/.temp/
+private/
+*.geo-real.json
+geo-dayton-real*.json

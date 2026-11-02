@@ -21,6 +21,17 @@ with sync_playwright() as pw:
         r = p.evaluate(aa.SCAN)
         for k in ('noname', 'headings', 'contrast', 'small', 'noalt'):
             for v in r[k]: found.append((name, k, v))
+        REAL = Path('D:/Ryagram-scratch/WEB/private/geo-dayton-real.json')
+        if REAL.exists():                                           # the private real-data mode, when the file is on this computer
+            real_cfg = re.sub(r'geoRealData:\s*false', 'geoRealData: true', cfg)
+            ctx.unroute('**/assets/ryagram-config.js*'); ctx.route('**/assets/ryagram-config.js*', lambda r, _q: r.fulfill(status=200, content_type='text/javascript', body=real_cfg))
+            p.goto(f'http://127.0.0.1:{port}/geo-demo/', wait_until='load'); p.wait_for_selector('#geo-real-file'); p.set_input_files('#geo-real-file', str(REAL)); p.wait_for_selector('.geo-sources', timeout=30000)
+            p.locator('.geo-sources summary').click()
+            p.get_by_role('button', name='Most crowded area (an example site)').click(); p.get_by_role('button', name='Highest median income area (an example site)').click(); p.wait_for_timeout(600)
+            seen += p.locator('.geo-results tbody tr').count() * 0
+            r = p.evaluate(aa.SCAN)
+            for k in ('noname', 'headings', 'contrast', 'small', 'noalt'):
+                for v in r[k]: found.append((name + '-real', k, v))
         ctx.close()
     b.close()
 for f in found: print('FINDING', f)

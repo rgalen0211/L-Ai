@@ -3,7 +3,7 @@
 // Since 201 every number comes from assets/geo-catchment.js, a port of ENGINE's geo module, in the JSON contract ryagram.site-comparison/0 (tests/geo-contract.test.mjs); the page draws only what validates.
 // Shown only when the site switch geoDemo is ON (OFF). Words are drafts for Ryan.
 (function () {
-  const G = window.ryagramGeo, D = window.ryagramGeoDemoData;
+  const G = window.ryagramGeo; let D = window.ryagramGeoDemoData;               // D can be swapped for the PRIVATE real-data file the person loads (NEXT-WEB 204)
   const NS = 'http://www.w3.org/2000/svg';
   const W = 640, H = 560, PAD = 12;                          // close to the map's own shape, so a phone does not draw it as a thin strip
   const on = cfg => !!cfg && cfg.geoDemo === true;
@@ -28,15 +28,17 @@
   };
 
   // Equirectangular within the small box: the box is a few tens of km wide, so a straight scale is fine for a picture (the distances come from the great-circle maths, not from the picture).
-  const b = D.bbox, midLat = (b.lat0 + b.lat1) / 2, kx = Math.cos(midLat * Math.PI / 180);
-  const spanX = (b.lon1 - b.lon0) * kx, spanY = b.lat1 - b.lat0;
-  const scale = Math.min((W - 2 * PAD) / spanX, (H - 2 * PAD) / spanY);
-  const offX = (W - spanX * scale) / 2, offY = (H - spanY * scale) / 2;
+  let b, midLat, kx, spanX, spanY, scale, offX, offY, pMin, pMax;
   const px = lon => offX + (lon - b.lon0) * kx * scale, py = lat => H - (offY + (lat - b.lat0) * scale);
   const unx = x => b.lon0 + (x - offX) / (kx * scale), uny = y => b.lat0 + (H - y - offY) / scale;
-
-  const pops = D.areas.map(a => a.population), pMin = Math.min(...pops), pMax = Math.max(...pops);
-  const shade = p => RAMP[Math.min(RAMP.length - 1, Math.floor(((p - pMin) / Math.max(1, pMax - pMin)) * RAMP.length))];
+  function setData(d) {
+    D = d; b = D.bbox; midLat = (b.lat0 + b.lat1) / 2; kx = Math.cos(midLat * Math.PI / 180);
+    spanX = (b.lon1 - b.lon0) * kx; spanY = b.lat1 - b.lat0; scale = Math.min((W - 2 * PAD) / spanX, (H - 2 * PAD) / spanY);
+    offX = (W - spanX * scale) / 2; offY = (H - spanY * scale) / 2;
+    const pops = D.areas.map(a => a.population).filter(v => v != null); pMin = Math.min(...pops); pMax = Math.max(...pops);
+  }
+  setData(D);
+  const shade = p => (p == null ? '#2a2f3c' : RAMP[Math.min(RAMP.length - 1, Math.floor(((p - pMin) / Math.max(1, pMax - pMin)) * RAMP.length))]);
   const fmt = n => Math.round(n).toLocaleString('en-US');
   const metres = m => (m >= 1000 ? `${(m / 1000).toFixed(2)} km` : `${fmt(m)} m`);
   const show = (v, unit) => (Array.isArray(v) ? `$${fmt(v[0])} to $${fmt(v[1])}` : v == null ? 'none on the map' : unit === ' m' ? metres(v) : `${fmt(v)}${unit || ''}`);
@@ -55,10 +57,10 @@
     const state = { A: null, B: null, active: 'A', m: 2000 };
     const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'geo-svg', role: 'img', 'aria-label': 'A made-up map: shaded areas by population, with chicken, burger and shop markers. Choose a site with the buttons or by clicking the map.' });
     const layer = s('g', {}), ringG = s('g', {}), siteG = s('g', {});
-    for (const a of D.areas) layer.append(s('polygon', { points: a.ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: shade(a.population), stroke: PAGE, 'stroke-width': 1.5 }, s('title', {}, `${a.name}: ${fmt(a.population)} people (${D.LABEL})`)));
+    for (const a of D.areas) if (a.ring.length >= 3) layer.append(s('polygon', { points: a.ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: shade(a.population), stroke: PAGE, 'stroke-width': 1.5 }, s('title', {}, a.population == null ? `${a.name || a.id}: no population figure` : `${a.name || a.id}: ${fmt(a.population)} people (${D.LABEL})`)));
     const plates = s('g', {});
-    for (const pl of D.places) { const x = px(pl.lon), y = py(pl.lat), w = pl.name.length * 8.6 + 14; plates.append(s('rect', { class: 'geo-plate', x: x - w / 2, y: y - 12, width: w, height: 22, rx: 3, fill: PAGE, opacity: 0.88 }), s('text', { class: 'geo-plate', x, y: y + 4, 'text-anchor': 'middle', fill: '#e8eaf0', 'font-size': 12, 'font-weight': 700, 'letter-spacing': 0.8 }, pl.name)); }
-    for (const p of D.points) layer.append(marker(p));
+    for (const pl of D.places || []) { const x = px(pl.lon), y = py(pl.lat), w = pl.name.length * 8.6 + 14; plates.append(s('rect', { class: 'geo-plate', x: x - w / 2, y: y - 12, width: w, height: 22, rx: 3, fill: PAGE, opacity: 0.88 }), s('text', { class: 'geo-plate', x, y: y + 4, 'text-anchor': 'middle', fill: '#e8eaf0', 'font-size': 12, 'font-weight': 700, 'letter-spacing': 0.8 }, pl.name)); }
+    for (const p of D.points) if (D.categories[p.category]) layer.append(marker(p));
     svg.append(layer, plates, ringG, siteG);
     const results = h('table', { class: 'geo-results' });
     const summary = h('p', { class: 'geo-summary' });
@@ -107,7 +109,8 @@
       for (const k of ['A', 'B']) if (state[k]) drawSite(k, state[k]);
       clearB.hidden = !state.B;
       if (!state.A && !state.B) { results.replaceChildren(h('caption', {}, 'Pick a site to see the numbers.')); return; }
-      const key = String(state.m), opts = { areaSource: src, pointSource: src, snapshot: 'synthetic' };
+      const when = ((D.sources || []).find(sr => /openstreetmap|osm/i.test(`${sr.file} ${sr.label}`)) || {}).retrieved;
+      const key = String(state.m), opts = D.real ? { areaSource: 'U.S. Census Bureau (2020 population, ACS 2019-2023 income)', pointSource: 'OpenStreetMap contributors (ODbL)', snapshot: when ? `retrieved ${when}` : '' } : { areaSource: src, pointSource: src, snapshot: 'synthetic' };
       const km = `${state.m / 1000} km`;
       if (state.A && state.B) {
         const cmp = G.compareSites([siteOf('A'), siteOf('B')], [state.m], D.areas, D.points, NAMES, opts);
@@ -136,12 +139,34 @@
 
     const presets = h('div', { class: 'geo-presets', role: 'group', 'aria-label': 'Try a site' }, D.sites.map(si => h('button', { class: 'button secondary', type: 'button', onclick: () => setSite(si) }, si.name)));
     const legend = h('div', { class: 'geo-legend' },
-      h('p', { class: 'meta' }, h('b', {}, 'Shading: '), `people per made-up area, from ${fmt(pMin)} (dark) to ${fmt(pMax)} (light).`),
-      h('p', { class: 'meta' }, h('b', {}, 'Markers: '), 'circle = chicken place, square = burger place, triangle = shop, pin with a letter = a site (its ring is the solid circle round it).'));
+      h('p', { class: 'meta' }, h('b', {}, 'Shading: '), `people per ${D.real ? 'block group (2020 census)' : 'made-up area'}, from ${fmt(pMin)} (dark) to ${fmt(pMax)} (light).${D.real ? ' Grey = no figure.' : ''}`),
+      h('p', { class: 'meta' }, h('b', {}, 'Markers: '), `circle = chicken place, square = burger place${D.categories.retail ? ', triangle = shop' : ''}, pin with a letter = a site (its ring is the solid circle round it).`));
+    const bannerEls = () => (D.real ? [
+      h('p', { class: 'shell-banner', role: 'note' }, h('strong', {}, 'PRIVATE REAL DATA. '), 'Loaded from a file on this computer; nothing was uploaded, stored or sent anywhere. Do not share a screenshot or publish this page until the attorney questions about OpenStreetMap are answered. Draft words for Ryan.'),
+      h('p', { class: 'meta' }, D.credit),
+      h('details', { class: 'geo-sources' }, h('summary', {}, 'Where this data comes from'),
+        h('ul', {}, (D.sources || []).map(sr => h('li', {}, `${sr.label || sr.file}: ${sr.licence || 'licence not recorded'}; retrieved ${sr.retrieved || 'unknown'}; fingerprint ${String(sr.sha256 || '').slice(0, 12)}`))),
+        h('p', { class: 'meta' }, D.sorting_rule),
+        h('p', { class: 'meta' }, `${D.stats.areas} block groups (${D.stats.areas_without_income} without an income estimate, left out of income ranges, never counted as zero); ${D.stats.chicken} chicken and ${D.stats.burger} burger places inside the county's box.`))] : [
+      h('p', { class: 'shell-banner', role: 'note' }, h('strong', {}, 'SYNTHETIC DEMO DATA. '), 'The areas, people and shops on this map are made up to test the page. They are not Dayton, not the Census and not OpenStreetMap. Draft words for Ryan.')]);
+    const realControls = () => {
+      if (!(window.ryagramConfig && window.ryagramConfig.geoRealData === true)) return null;
+      const msg = h('p', { class: 'meta', role: 'status' });
+      const input = h('input', { type: 'file', id: 'geo-real-file', accept: '.json,application/json' });
+      input.addEventListener('change', async () => {
+        const f = input.files && input.files[0]; if (!f) return;
+        if (f.size > MAX_REAL_BYTES) { msg.textContent = 'That file is too big to be the demo file.'; return; }
+        try { const obj = JSON.parse(await f.text()), bad = validateRealInputs(obj); if (bad.length) { msg.textContent = `That file is not the real-data file (${bad[0]}).`; return; } setData(obj); mount(root); }
+        catch (e) { msg.textContent = 'That file could not be read as the real-data file.'; }
+      });
+      return h('div', { class: 'geo-real' }, D.real ? h('button', { class: 'button secondary', type: 'button', onclick: () => { setData(window.ryagramGeoDemoData); mount(root); } }, 'Back to the made-up demo')
+        : [h('label', { for: 'geo-real-file' }, 'Load the private real-data file from this computer: '), input, h('p', { class: 'meta' }, 'The file is read here in your browser. Nothing is uploaded, stored or sent.')], msg);
+    };
     const film = h('button', { class: 'button secondary', type: 'button', 'aria-disabled': 'true', onclick: ev => { ev.preventDefault(); say('Making a film from a map is not built yet.'); } }, 'Make this a film (not built yet)');
     root.replaceChildren(h('div', { class: 'geo-stage' },
-      h('p', { class: 'shell-banner', role: 'note' }, h('strong', {}, 'SYNTHETIC DEMO DATA. '), 'The areas, people and shops on this map are made up to test the page. They are not Dayton, not the Census and not OpenStreetMap. Draft words for Ryan.'),
-      h('h1', { tabindex: '-1' }, 'Where should a chicken place open? (demo)'),
+      ...bannerEls(),
+      h('h1', { tabindex: '-1' }, D.real ? 'Where should a chicken place open? (real data, private)' : 'Where should a chicken place open? (demo)'),
+      realControls(),
       h('p', { class: 'help-intro' }, 'Click the map, or use the buttons, to drop a candidate site. A ring is drawn around it and the numbers inside it are counted. Place a second site to compare the two side by side. Every number says whether it was observed, calculated, estimated or simulated.'),
       h('div', { class: 'geo-grid' },
         h('div', { class: 'geo-mapcol' }, svg, legend),
@@ -153,7 +178,28 @@
     draw();
   }
 
-  window.ryagramGeoDemo = Object.freeze({ on, mount, px, py, unx, uny });
+  const MAX_REAL_BYTES = 25 * 1024 * 1024;
+  // Is this the real-data file the converter writes (ryagram.geo-real-inputs/0)? Plain-words problems; empty = fine. The page refuses anything else.
+  function validateRealInputs(o) {
+    const bad = [], num = v => typeof v === 'number' && Number.isFinite(v);
+    if (!o || typeof o !== 'object') return ['not an object'];
+    if (o.schema !== 'ryagram.geo-real-inputs/0') bad.push('wrong schema');
+    if (o.real !== true) bad.push('not marked as real data');
+    if (!o.bbox || !['lon0', 'lat0', 'lon1', 'lat1'].every(k => num(o.bbox[k])) || !(o.bbox.lon1 > o.bbox.lon0) || !(o.bbox.lat1 > o.bbox.lat0)) bad.push('no usable bounding box');
+    if (!Array.isArray(o.areas) || o.areas.length < 1) bad.push('no areas');
+    else for (const a of o.areas.slice(0, 5000)) {
+      if (typeof a.id !== 'string' || !Array.isArray(a.ring) || a.ring.length < 3 || !a.ring.every(q => Array.isArray(q) && num(q[0]) && num(q[1]))) { bad.push('an area has no usable outline'); break; }
+      if (a.population != null && (!num(a.population) || a.population < 0)) { bad.push('an area has a negative or unreadable population'); break; }
+    }
+    if (!Array.isArray(o.points)) bad.push('no points'); else if (o.points.some(q => !num(q.lon) || !num(q.lat) || typeof q.category !== 'string')) bad.push('a point has no position');
+    if (!o.categories || typeof o.categories !== 'object' || !o.categories.chicken) bad.push('no categories');
+    if (!Array.isArray(o.sites) || !o.sites.every(q => num(q.lon) && num(q.lat) && typeof q.name === 'string')) bad.push('no example sites');
+    if (typeof o.credit !== 'string' || !/OpenStreetMap/.test(o.credit)) bad.push('the OpenStreetMap credit is missing');
+    if (!Array.isArray(o.sources) || !o.sources.length) bad.push('no sources listed');
+    if (!o.stats || !num(o.stats.areas)) bad.push('no stats');
+    return bad;
+  }
+  window.ryagramGeoDemo = Object.freeze({ on, mount, px, py, unx, uny, validateRealInputs, setData, MAX_REAL_BYTES });
   const root = document.getElementById('geo-demo'), off = document.getElementById('not-available');
   if (root && G && D) { const enabled = on(window.ryagramConfig); root.hidden = !enabled; if (off) off.hidden = enabled; if (enabled) mount(root); }
 })();
