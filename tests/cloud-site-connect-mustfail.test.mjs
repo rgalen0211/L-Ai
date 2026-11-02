@@ -8,6 +8,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { handleRest } from '../supabase/functions/connect-core/rest.ts';
+import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
 import { build, TEMPLATES } from '../supabase/functions/_shared/templates.ts';
 
@@ -101,7 +102,7 @@ test('MUST FAIL: an existing title does not use up the daily allowance', async (
 
 test('MUST FAIL: a title that is only spaces or control characters is refused, and nothing is created', async () => {
   const { w, call } = world();
-  for (const title of ['   ', '\u0000\u0001', '​​']) {
+  for (const title of ['   ', '\u0000\u0001', '\u200b\u200b']) {
     const r = await call(A, 'create_project', { title });
     assert.equal(r.isError, true, JSON.stringify(title)); assert.equal(r.code, 'args', JSON.stringify(title));
   }
@@ -167,6 +168,10 @@ test('MUST FAIL (bug): a folder name that is "." or ".." once its spaces are tri
   const c = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: ['My Videos', ' ..'], checklist: [{ what: 'the launch', folder: ' ..' }] });
   assert.equal(c.isError, true); assert.equal(c.code, 'args');
   assert.equal(w.users.get(A.userId).requests.get(id), undefined, 'nothing was saved');
+  // the advertised schema still tells the AI the rule (an AI reads it before it calls)
+  const t = TOOLS.find((x) => x.name === 'set_compilation_request');
+  assert.deepEqual(t.inputSchema.properties.folders.items.not, { enum: ['.', '..'] });
+  assert.deepEqual(t.inputSchema.properties.checklist.items.properties.folder.not, { enum: ['.', '..'] });
   // control: a real name with spaces around it is still accepted and saved trimmed
   const ok = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: ['  My Videos  ', '...'] });
   assert.equal(ok.isError, undefined, ok.text); assert.deepEqual(w.users.get(A.userId).requests.get(id).request.folders, ['My Videos', '...']);
