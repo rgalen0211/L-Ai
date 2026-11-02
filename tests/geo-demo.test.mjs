@@ -66,3 +66,13 @@ test('NEXT-WEB 201: every number on the page comes from the contract: the page b
   assert.match(code, /does not say which site is better/); assert.match(code, /an estimated/);
   assert.match(code, /Median household income across the areas touched/);
 });
+
+test('NEXT-WEB 202: RENDERER\'s map look is applied: near-black page, one blue ramp, page-coloured halo on markers, shape differs as well as colour, a pin with its letter, a solid ring with a red wash, place labels on plates', () => {
+  const code = read('assets/geo-demo.js'), css = read('assets/geo-demo.css');
+  assert.match(code, /const PAGE = '#111218'/); assert.match(code, /const RAMP = \['#243a63', '#2c4f85', '#3b6aa8', '#5588c6', '#7fb0ea'\]/);
+  assert.match(code, /chicken: '#f5a623', burger: '#c9ced6'/); assert.match(code, /'stroke-width': 3, 'paint-order': 'stroke'/);
+  assert.match(code, /if \(p\.category === 'chicken'\) return s\('circle'/); assert.match(code, /if \(p\.category === 'burger'\) return s\('rect'/);
+  assert.match(code, /pin with a letter = a site/); assert.match(code, /rgba\(229,72,77,0\.16\)/); assert.match(code, /D\.places/);
+  assert.match(css, /--gp:#111218/); assert.match(css, /@media \(max-width:820px\)\{\.geo-grid\{grid-template-columns:minmax\(0,1fr\)\}/);
+  assert.equal(D.places.length, 3); for (const pl of D.places) { assert.match(pl.name, /^MADE-UP /); assert.ok(pl.lon > D.bbox.lon0 && pl.lon < D.bbox.lon1 && pl.lat > D.bbox.lat0 && pl.lat < D.bbox.lat1); }
+});

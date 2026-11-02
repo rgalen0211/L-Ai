@@ -5,11 +5,14 @@
 (function () {
   const G = window.ryagramGeo, D = window.ryagramGeoDemoData;
   const NS = 'http://www.w3.org/2000/svg';
-  const W = 800, H = 520, PAD = 12;
+  const W = 640, H = 560, PAD = 12;                          // close to the map's own shape, so a phone does not draw it as a thin strip
   const on = cfg => !!cfg && cfg.geoDemo === true;
-  const COLOURS = { chicken: '#f2b134', burger: '#ef7a74', retail: '#a9b4ff' };
-  const RAMP = ['#1d3442', '#24505c', '#2f6f73', '#43908a', '#6fd1bd'];
-  const SITE_STYLE = { A: { stroke: '#ffffff', dash: '7 5' }, B: { stroke: '#ffd37a', dash: '2 5' } };    // shape and letter as well as colour: nobody has to tell the two apart by colour alone
+  // RENDERER's map look (proposals/RENDERER-GEO-MAP-LOOK.md, NEXT-RENDERER 71), applied: the films' near-black page, one blue ramp (fewer residents = darker), thin page-coloured seams, amber circles for chicken,
+  // grey squares for burgers (shape AND colour differ), a page-coloured halo round every marker, a red pin with its letter for a site, a solid ring with a light red wash, place labels on page-coloured plates.
+  const PAGE = '#111218';
+  const COLOURS = { chicken: '#f5a623', burger: '#c9ced6', retail: '#b9a7ff' };
+  const RAMP = ['#243a63', '#2c4f85', '#3b6aa8', '#5588c6', '#7fb0ea'];
+  const PIN = '#e5484d';                                                   // a site is a pin with its LETTER, so A and B never depend on colour
 
   const h = (tag, attrs, ...kids) => {
     const el = document.createElement(tag);
@@ -41,7 +44,7 @@
   const weaker = (...ls) => ls.reduce((m, l) => (G.LABELS.indexOf(l) > G.LABELS.indexOf(m) ? l : m));
 
   function marker(p) {
-    const x = px(p.lon), y = py(p.lat), c = COLOURS[p.category], common = { fill: c, stroke: '#101419', 'stroke-width': 1.5 };
+    const x = px(p.lon), y = py(p.lat), c = COLOURS[p.category], common = { fill: c, stroke: PAGE, 'stroke-width': 3, 'paint-order': 'stroke' };
     const title = s('title', {}, `${p.name} (${D.LABEL})`);
     if (p.category === 'chicken') return s('circle', { cx: x, cy: y, r: 5.5, ...common }, title);
     if (p.category === 'burger') return s('rect', { x: x - 5, y: y - 5, width: 10, height: 10, ...common }, title);
@@ -52,9 +55,11 @@
     const state = { A: null, B: null, active: 'A', m: 2000 };
     const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'geo-svg', role: 'img', 'aria-label': 'A made-up map: shaded areas by population, with chicken, burger and shop markers. Choose a site with the buttons or by clicking the map.' });
     const layer = s('g', {}), ringG = s('g', {}), siteG = s('g', {});
-    for (const a of D.areas) layer.append(s('polygon', { points: a.ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: shade(a.population), stroke: '#0e1318', 'stroke-width': 1 }, s('title', {}, `${a.name}: ${fmt(a.population)} people (${D.LABEL})`)));
+    for (const a of D.areas) layer.append(s('polygon', { points: a.ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: shade(a.population), stroke: PAGE, 'stroke-width': 1.5 }, s('title', {}, `${a.name}: ${fmt(a.population)} people (${D.LABEL})`)));
+    const plates = s('g', {});
+    for (const pl of D.places) { const x = px(pl.lon), y = py(pl.lat), w = pl.name.length * 8.6 + 14; plates.append(s('rect', { class: 'geo-plate', x: x - w / 2, y: y - 12, width: w, height: 22, rx: 3, fill: PAGE, opacity: 0.88 }), s('text', { class: 'geo-plate', x, y: y + 4, 'text-anchor': 'middle', fill: '#e8eaf0', 'font-size': 12, 'font-weight': 700, 'letter-spacing': 0.8 }, pl.name)); }
     for (const p of D.points) layer.append(marker(p));
-    svg.append(layer, ringG, siteG);
+    svg.append(layer, plates, ringG, siteG);
     const results = h('table', { class: 'geo-results' });
     const summary = h('p', { class: 'geo-summary' });
     const status = h('p', { class: 'meta', role: 'status' });
@@ -84,10 +89,10 @@
     const chip = r => h('span', { class: `geo-chip geo-${r.label.toLowerCase()}` }, r.label);
     const src = `${D.SOURCE}, labelled ${D.LABEL}`;
     function drawSite(k, c) {
-      const st = SITE_STYLE[k], ring = G.circle({ lon: c.lon, lat: c.lat }, state.m), x = px(c.lon), y = py(c.lat);
-      ringG.append(s('polygon', { points: ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: 'rgba(255,255,255,0.08)', stroke: st.stroke, 'stroke-width': 2, 'stroke-dasharray': st.dash }));
-      siteG.append(s('path', { d: `M${x},${y - 11} L${x + 8},${y} L${x},${y + 11} L${x - 8},${y} Z`, fill: st.stroke, stroke: '#101419', 'stroke-width': 2 }, s('title', {}, `Site ${k}`)),
-        s('text', { x: x + 11, y: y - 8, fill: st.stroke, 'font-size': 16, 'font-weight': 700, stroke: '#101419', 'stroke-width': 3, 'paint-order': 'stroke' }, k));
+      const ring = G.circle({ lon: c.lon, lat: c.lat }, state.m), x = px(c.lon), y = py(c.lat);
+      ringG.append(s('polygon', { points: ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: 'rgba(229,72,77,0.16)', stroke: '#ffe3e4', 'stroke-width': 2.5, 'data-ring': k }));
+      siteG.append(s('path', { d: `M${x},${y + 14} L${x - 9},${y - 5} A11 11 0 1 1 ${x + 9},${y - 5} Z`, fill: PIN, stroke: PAGE, 'stroke-width': 2.5, 'paint-order': 'stroke' }, s('title', {}, `Site ${k}`)),
+        s('text', { class: 'geo-pinletter', x, y: y - 3, 'text-anchor': 'middle', fill: '#ffffff', 'font-size': 13, 'font-weight': 800 }, k));
     }
     const NAMES = Object.keys(D.categories);
     const siteOf = k => ({ id: k, lon: state[k].lon, lat: state[k].lat });
@@ -132,15 +137,19 @@
     const presets = h('div', { class: 'geo-presets', role: 'group', 'aria-label': 'Try a site' }, D.sites.map(si => h('button', { class: 'button secondary', type: 'button', onclick: () => setSite(si) }, si.name)));
     const legend = h('div', { class: 'geo-legend' },
       h('p', { class: 'meta' }, h('b', {}, 'Shading: '), `people per made-up area, from ${fmt(pMin)} (dark) to ${fmt(pMax)} (light).`),
-      h('p', { class: 'meta' }, h('b', {}, 'Markers: '), 'circle = chicken place, square = burger place, triangle = shop, diamond with a letter = a site (A has a dashed ring, B a dotted ring).'));
+      h('p', { class: 'meta' }, h('b', {}, 'Markers: '), 'circle = chicken place, square = burger place, triangle = shop, pin with a letter = a site (its ring is the solid circle round it).'));
     const film = h('button', { class: 'button secondary', type: 'button', 'aria-disabled': 'true', onclick: ev => { ev.preventDefault(); say('Making a film from a map is not built yet.'); } }, 'Make this a film (not built yet)');
-    root.replaceChildren(
+    root.replaceChildren(h('div', { class: 'geo-stage' },
       h('p', { class: 'shell-banner', role: 'note' }, h('strong', {}, 'SYNTHETIC DEMO DATA. '), 'The areas, people and shops on this map are made up to test the page. They are not Dayton, not the Census and not OpenStreetMap. Draft words for Ryan.'),
       h('h1', { tabindex: '-1' }, 'Where should a chicken place open? (demo)'),
       h('p', { class: 'help-intro' }, 'Click the map, or use the buttons, to drop a candidate site. A ring is drawn around it and the numbers inside it are counted. Place a second site to compare the two side by side. Every number says whether it was observed, calculated, estimated or simulated.'),
-      h('div', { class: 'geo-controls' }, pick, presets, h('label', { for: 'geo-km' }, 'Ring radius '), radius, clearB),
-      h('p', { class: 'meta' }, 'The ring is a straight-line circle, not a drive time. A real drive area needs a routing engine we do not have yet.'),
-      svg, legend, status, results, summary, film);
+      h('div', { class: 'geo-grid' },
+        h('div', { class: 'geo-mapcol' }, svg, legend),
+        h('div', { class: 'geo-panel' },
+  h('div', { class: 'geo-controls' }, pick, presets, h('label', { for: 'geo-km' }, 'Ring radius '), radius, clearB),
+  h('p', { class: 'meta' }, 'The ring is a straight-line circle, not a drive time. A real drive area needs a routing engine we do not have yet.'),
+          status, summary, film)),
+      results));
     draw();
   }
 

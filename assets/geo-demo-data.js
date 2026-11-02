@@ -27,6 +27,7 @@
     SOURCE: 'Synthetic fixture (made up for testing)', LABEL: 'Simulated',
     bbox: { lon0: ORIGIN.lon, lat0: ORIGIN.lat, lon1: ORIGIN.lon + COLS * DLON, lat1: ORIGIN.lat + ROWS * DLAT },
     areas, points, sites,
+    places: [{ name: 'MADE-UP WEST', lon: ORIGIN.lon + COLS * DLON * 0.12, lat: ORIGIN.lat + ROWS * DLAT * 0.56 }, { name: 'MADE-UP NORTH-EAST', lon: ORIGIN.lon + COLS * DLON * 0.80, lat: ORIGIN.lat + ROWS * DLAT * 0.95 }, { name: 'MADE-UP SOUTH-WEST', lon: ORIGIN.lon + COLS * DLON * 0.20, lat: ORIGIN.lat + ROWS * DLAT * 0.05 }],
     categories: { chicken: 'Chicken places', burger: 'Burger places', retail: 'Shops' },
   });
 })();

@@ -60,7 +60,7 @@ with sync_playwright() as pw:
         check(rows.count() == 6, 'a preset site fills six rows')
         labels = [t.strip() for t in p.locator('.geo-results tbody .geo-chip').all_inner_texts()]
         check(len(labels) == 6 and all(x in ('Observed', 'Calculated', 'Estimated', 'Simulated') for x in labels), f'every row carries a label: {labels}')
-        check(p.locator('.geo-svg polygon[stroke-dasharray]').count() == 1, 'a ring is drawn')
+        check(p.locator('.geo-svg polygon[data-ring]').count() == 1, 'a ring is drawn')
         r2 = num(p, 'Residents inside the ring'); p.select_option('#geo-km', '4000'); p.wait_for_timeout(200); r4 = num(p, 'Residents inside the ring')
         check(r4 >= r2 > 0, f'a bigger ring never holds fewer residents ({r2} then {r4})')
         p.select_option('#geo-km', '1000'); p.wait_for_timeout(200); r1 = num(p, 'Residents inside the ring')
@@ -68,7 +68,7 @@ with sync_playwright() as pw:
         bb = p.locator('.geo-svg').bounding_box()
         p.locator('.geo-svg').click(position={'x': bb['width'] * 0.15, 'y': bb['height'] * 0.2}); p.wait_for_timeout(250)
         check('Site A and site B' in p.inner_text('.geo-results caption') and p.locator('.geo-results tbody tr').count() == 6, 'the next click places site B and the two sites are compared in six rows')
-        check(p.locator('.geo-svg polygon[stroke-dasharray="7 5"]').count() == 1 and p.locator('.geo-svg polygon[stroke-dasharray="2 5"]').count() == 1, 'two rings with different dash patterns, not colour alone')
+        check(p.locator('.geo-svg polygon[data-ring]').count() == 2 and p.locator('.geo-svg text:text-is("A")').count() == 1 and p.locator('.geo-svg text:text-is("B")').count() == 1, 'two rings and two pins carrying their letters (A and B never depend on colour)')
         check('does not say which site is better' in p.inner_text('.geo-summary'), 'the summary counts and says it is not a verdict')
         diffs = [t.strip() for t in p.locator('.geo-results tbody td[data-col="B minus A"]').all_inner_texts()]
         check(len(diffs) == 6 and all(re.match(r'^([+−]?[0-9,.]+( people| m)?|not compared)$', d) for d in diffs), f'every difference reads as a signed number: {diffs}')
