@@ -154,3 +154,20 @@ test('MUST FAIL: a cost estimate, a story read and the editor state for another 
     assert.ok(!r.text.includes('Test headline') && !JSON.stringify(r.data ?? {}).includes('Test headline'), `${tool} leaks no story text`);
   }
 });
+
+// ------------------------------------------------------------------------------------------------ BUG (CLOUD-SITE 11-02): folder names trimmed AFTER the "." / ".." rule
+
+test('MUST FAIL (bug): a folder name that is "." or ".." once its spaces are trimmed is refused, in folders and in the checklist, and nothing is saved', async () => {
+  const { w, call } = world();
+  const id = (await call(A, 'create_project', { title: 'Compilation' })).data.project_id;
+  for (const f of [' ..', '.. ', ' . ', '  ..  ']) {
+    const r = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: [f] });
+    assert.equal(r.isError, true, JSON.stringify(f)); assert.equal(r.code, 'args', JSON.stringify(f));
+  }
+  const c = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: ['My Videos', ' ..'], checklist: [{ what: 'the launch', folder: ' ..' }] });
+  assert.equal(c.isError, true); assert.equal(c.code, 'args');
+  assert.equal(w.users.get(A.userId).requests.get(id), undefined, 'nothing was saved');
+  // control: a real name with spaces around it is still accepted and saved trimmed
+  const ok = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: ['  My Videos  ', '...'] });
+  assert.equal(ok.isError, undefined, ok.text); assert.deepEqual(w.users.get(A.userId).requests.get(id).request.folders, ['My Videos', '...']);
+});
