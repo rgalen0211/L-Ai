@@ -1,0 +1,3209 @@
+{
+ "miles": [
+  0.5,
+  1,
+  2
+ ],
+ "note": "ENGINE anatomy.access_share over the SYNTHETIC inputs; miles are keys",
+ "results": {
+  "burger": {
+   "0.5": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-11",
+      "nearest_m": 266.0,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-12",
+      "nearest_m": 677.9,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-13",
+      "nearest_m": 1464.1,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-14",
+      "nearest_m": 1009.0,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-15",
+      "nearest_m": 1203.4,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-16",
+      "nearest_m": 2881.6,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-21",
+      "nearest_m": 821.3,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 517.8,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-23",
+      "nearest_m": 448.6,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-24",
+      "nearest_m": 1664.2,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-25",
+      "nearest_m": 1926.8,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-26",
+      "nearest_m": 715.5,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-31",
+      "nearest_m": 1380.1,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-32",
+      "nearest_m": 759.3,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-33",
+      "nearest_m": 1736.7,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-34",
+      "nearest_m": 688.5,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-35",
+      "nearest_m": 1478.4,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-36",
+      "nearest_m": 676.1,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-41",
+      "nearest_m": 558.8,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-42",
+      "nearest_m": 2230.8,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 516.8,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-44",
+      "nearest_m": 1162.5,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-45",
+      "nearest_m": 1268.5,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-46",
+      "nearest_m": 1109.5,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-51",
+      "nearest_m": 2782.3,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-52",
+      "nearest_m": 1855.7,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 753.4,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-54",
+      "nearest_m": 632.6,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-55",
+      "nearest_m": 2768.2,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-56",
+      "nearest_m": 2914.0,
+      "population": 1034
+     }
+    ],
+    "category": "burger",
+    "miles": 0.5,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 18,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 0.5 mile(s), in a straight line, of a listed burger point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 40.9
+    }
+   },
+   "1": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-11",
+      "nearest_m": 266.0,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-12",
+      "nearest_m": 677.9,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-13",
+      "nearest_m": 1464.1,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-14",
+      "nearest_m": 1009.0,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-15",
+      "nearest_m": 1203.4,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-16",
+      "nearest_m": 2881.6,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-21",
+      "nearest_m": 821.3,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 517.8,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-23",
+      "nearest_m": 448.6,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-24",
+      "nearest_m": 1664.2,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-25",
+      "nearest_m": 1926.8,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-26",
+      "nearest_m": 715.5,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-31",
+      "nearest_m": 1380.1,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-32",
+      "nearest_m": 759.3,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-33",
+      "nearest_m": 1736.7,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-34",
+      "nearest_m": 688.5,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-35",
+      "nearest_m": 1478.4,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-36",
+      "nearest_m": 676.1,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-41",
+      "nearest_m": 558.8,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-42",
+      "nearest_m": 2230.8,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 516.8,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-44",
+      "nearest_m": 1162.5,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-45",
+      "nearest_m": 1268.5,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-46",
+      "nearest_m": 1109.5,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-51",
+      "nearest_m": 2782.3,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-52",
+      "nearest_m": 1855.7,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 753.4,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-54",
+      "nearest_m": 632.6,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-55",
+      "nearest_m": 2768.2,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-56",
+      "nearest_m": 2914.0,
+      "population": 1034
+     }
+    ],
+    "category": "burger",
+    "miles": 1,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 18,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 1 mile(s), in a straight line, of a listed burger point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 70.2
+    }
+   },
+   "2": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-11",
+      "nearest_m": 266.0,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-12",
+      "nearest_m": 677.9,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-13",
+      "nearest_m": 1464.1,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-14",
+      "nearest_m": 1009.0,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-15",
+      "nearest_m": 1203.4,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-16",
+      "nearest_m": 2881.6,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-21",
+      "nearest_m": 821.3,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 517.8,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-23",
+      "nearest_m": 448.6,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-24",
+      "nearest_m": 1664.2,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-25",
+      "nearest_m": 1926.8,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-26",
+      "nearest_m": 715.5,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-31",
+      "nearest_m": 1380.1,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-32",
+      "nearest_m": 759.3,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-33",
+      "nearest_m": 1736.7,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-34",
+      "nearest_m": 688.5,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-35",
+      "nearest_m": 1478.4,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-36",
+      "nearest_m": 676.1,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-41",
+      "nearest_m": 558.8,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-42",
+      "nearest_m": 2230.8,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 516.8,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-44",
+      "nearest_m": 1162.5,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-45",
+      "nearest_m": 1268.5,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-46",
+      "nearest_m": 1109.5,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-51",
+      "nearest_m": 2782.3,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-52",
+      "nearest_m": 1855.7,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 753.4,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-54",
+      "nearest_m": 632.6,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-55",
+      "nearest_m": 2768.2,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-56",
+      "nearest_m": 2914.0,
+      "population": 1034
+     }
+    ],
+    "category": "burger",
+    "miles": 2,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 18,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 2 mile(s), in a straight line, of a listed burger point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 100.0
+    }
+   }
+  },
+  "chicken": {
+   "0.5": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-11",
+      "nearest_m": 3135.7,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-12",
+      "nearest_m": 1352.6,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-13",
+      "nearest_m": 1723.7,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-14",
+      "nearest_m": 2278.8,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-15",
+      "nearest_m": 2696.2,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-16",
+      "nearest_m": 3206.5,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-21",
+      "nearest_m": 1537.8,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 526.8,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-23",
+      "nearest_m": 1378.0,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-24",
+      "nearest_m": 301.9,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-25",
+      "nearest_m": 577.3,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-26",
+      "nearest_m": 1828.8,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-31",
+      "nearest_m": 1226.1,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-32",
+      "nearest_m": 1612.1,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-33",
+      "nearest_m": 1340.2,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-34",
+      "nearest_m": 1322.4,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-35",
+      "nearest_m": 775.2,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-36",
+      "nearest_m": 1831.0,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-41",
+      "nearest_m": 1894.9,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-42",
+      "nearest_m": 289.4,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 785.2,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-44",
+      "nearest_m": 913.8,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-45",
+      "nearest_m": 1261.1,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-46",
+      "nearest_m": 1664.1,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-51",
+      "nearest_m": 3033.3,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-52",
+      "nearest_m": 1952.2,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-53",
+      "nearest_m": 1303.3,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-54",
+      "nearest_m": 1435.3,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-55",
+      "nearest_m": 2862.8,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-56",
+      "nearest_m": 3475.2,
+      "population": 1034
+     }
+    ],
+    "category": "chicken",
+    "miles": 0.5,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 14,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 0.5 mile(s), in a straight line, of a listed chicken point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 24.8
+    }
+   },
+   "1": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-11",
+      "nearest_m": 3135.7,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-12",
+      "nearest_m": 1352.6,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-13",
+      "nearest_m": 1723.7,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-14",
+      "nearest_m": 2278.8,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-15",
+      "nearest_m": 2696.2,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-16",
+      "nearest_m": 3206.5,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-21",
+      "nearest_m": 1537.8,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 526.8,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-23",
+      "nearest_m": 1378.0,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-24",
+      "nearest_m": 301.9,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-25",
+      "nearest_m": 577.3,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-26",
+      "nearest_m": 1828.8,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-31",
+      "nearest_m": 1226.1,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-32",
+      "nearest_m": 1612.1,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-33",
+      "nearest_m": 1340.2,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-34",
+      "nearest_m": 1322.4,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-35",
+      "nearest_m": 775.2,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-36",
+      "nearest_m": 1831.0,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-41",
+      "nearest_m": 1894.9,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-42",
+      "nearest_m": 289.4,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 785.2,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-44",
+      "nearest_m": 913.8,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-45",
+      "nearest_m": 1261.1,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-46",
+      "nearest_m": 1664.1,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-51",
+      "nearest_m": 3033.3,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-52",
+      "nearest_m": 1952.2,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 1303.3,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-54",
+      "nearest_m": 1435.3,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-55",
+      "nearest_m": 2862.8,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-56",
+      "nearest_m": 3475.2,
+      "population": 1034
+     }
+    ],
+    "category": "chicken",
+    "miles": 1,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 14,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 1 mile(s), in a straight line, of a listed chicken point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 61.0
+    }
+   },
+   "2": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-11",
+      "nearest_m": 3135.7,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-12",
+      "nearest_m": 1352.6,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-13",
+      "nearest_m": 1723.7,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-14",
+      "nearest_m": 2278.8,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-15",
+      "nearest_m": 2696.2,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-16",
+      "nearest_m": 3206.5,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-21",
+      "nearest_m": 1537.8,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 526.8,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-23",
+      "nearest_m": 1378.0,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-24",
+      "nearest_m": 301.9,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-25",
+      "nearest_m": 577.3,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-26",
+      "nearest_m": 1828.8,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-31",
+      "nearest_m": 1226.1,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-32",
+      "nearest_m": 1612.1,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-33",
+      "nearest_m": 1340.2,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-34",
+      "nearest_m": 1322.4,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-35",
+      "nearest_m": 775.2,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-36",
+      "nearest_m": 1831.0,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-41",
+      "nearest_m": 1894.9,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-42",
+      "nearest_m": 289.4,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 785.2,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-44",
+      "nearest_m": 913.8,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-45",
+      "nearest_m": 1261.1,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-46",
+      "nearest_m": 1664.1,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-51",
+      "nearest_m": 3033.3,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-52",
+      "nearest_m": 1952.2,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 1303.3,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-54",
+      "nearest_m": 1435.3,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-55",
+      "nearest_m": 2862.8,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-56",
+      "nearest_m": 3475.2,
+      "population": 1034
+     }
+    ],
+    "category": "chicken",
+    "miles": 2,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 14,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 2 mile(s), in a straight line, of a listed chicken point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 97.6
+    }
+   }
+  },
+  "nothing_listed": {
+   "1": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": null,
+      "id": "BG-11",
+      "nearest_m": null,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": null,
+      "id": "BG-12",
+      "nearest_m": null,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": null,
+      "id": "BG-13",
+      "nearest_m": null,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": null,
+      "id": "BG-14",
+      "nearest_m": null,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": null,
+      "id": "BG-15",
+      "nearest_m": null,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": null,
+      "id": "BG-16",
+      "nearest_m": null,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": null,
+      "id": "BG-21",
+      "nearest_m": null,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": null,
+      "id": "BG-22",
+      "nearest_m": null,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": null,
+      "id": "BG-23",
+      "nearest_m": null,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": null,
+      "id": "BG-24",
+      "nearest_m": null,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": null,
+      "id": "BG-25",
+      "nearest_m": null,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": null,
+      "id": "BG-26",
+      "nearest_m": null,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": null,
+      "id": "BG-31",
+      "nearest_m": null,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": null,
+      "id": "BG-32",
+      "nearest_m": null,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": null,
+      "id": "BG-33",
+      "nearest_m": null,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": null,
+      "id": "BG-34",
+      "nearest_m": null,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": null,
+      "id": "BG-35",
+      "nearest_m": null,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": null,
+      "id": "BG-36",
+      "nearest_m": null,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": null,
+      "id": "BG-41",
+      "nearest_m": null,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": null,
+      "id": "BG-42",
+      "nearest_m": null,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": null,
+      "id": "BG-43",
+      "nearest_m": null,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": null,
+      "id": "BG-44",
+      "nearest_m": null,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": null,
+      "id": "BG-45",
+      "nearest_m": null,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": null,
+      "id": "BG-46",
+      "nearest_m": null,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": null,
+      "id": "BG-51",
+      "nearest_m": null,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": null,
+      "id": "BG-52",
+      "nearest_m": null,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": null,
+      "id": "BG-53",
+      "nearest_m": null,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": null,
+      "id": "BG-54",
+      "nearest_m": null,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": null,
+      "id": "BG-55",
+      "nearest_m": null,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": null,
+      "id": "BG-56",
+      "nearest_m": null,
+      "population": 1034
+     }
+    ],
+    "category": "nothing_listed",
+    "miles": 1,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 0,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "no nothing_listed point is listed in Synthetic fixture (made up for testing); that is not the same as none existing, so there is no percentage",
+     "source": "Synthetic fixture (made up for testing)",
+     "value": null
+    }
+   }
+  },
+  "retail": {
+   "0.5": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-11",
+      "nearest_m": 4600.1,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-12",
+      "nearest_m": 3683.1,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-13",
+      "nearest_m": 3887.3,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-14",
+      "nearest_m": 3386.3,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-15",
+      "nearest_m": 2161.3,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-16",
+      "nearest_m": 2649.3,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-21",
+      "nearest_m": 3166.7,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-22",
+      "nearest_m": 1560.2,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-23",
+      "nearest_m": 1995.0,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-24",
+      "nearest_m": 1513.0,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-25",
+      "nearest_m": 535.1,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-26",
+      "nearest_m": 1622.8,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-31",
+      "nearest_m": 2964.2,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-32",
+      "nearest_m": 1092.9,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-33",
+      "nearest_m": 1655.2,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-34",
+      "nearest_m": 1284.9,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-35",
+      "nearest_m": 964.3,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-36",
+      "nearest_m": 1741.5,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-41",
+      "nearest_m": 1576.1,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-42",
+      "nearest_m": 428.5,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 590.8,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-44",
+      "nearest_m": 904.4,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-45",
+      "nearest_m": 1332.8,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-46",
+      "nearest_m": 2397.8,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-51",
+      "nearest_m": 1301.5,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-52",
+      "nearest_m": 1544.7,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 673.0,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-54",
+      "nearest_m": 860.9,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-55",
+      "nearest_m": 908.9,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-56",
+      "nearest_m": 2190.4,
+      "population": 1034
+     }
+    ],
+    "category": "retail",
+    "miles": 0.5,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 12,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 0.5 mile(s), in a straight line, of a listed retail point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 16.5
+    }
+   },
+   "1": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-11",
+      "nearest_m": 4600.1,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-12",
+      "nearest_m": 3683.1,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-13",
+      "nearest_m": 3887.3,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-14",
+      "nearest_m": 3386.3,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-15",
+      "nearest_m": 2161.3,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-16",
+      "nearest_m": 2649.3,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-21",
+      "nearest_m": 3166.7,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 1560.2,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-23",
+      "nearest_m": 1995.0,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-24",
+      "nearest_m": 1513.0,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-25",
+      "nearest_m": 535.1,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": false,
+      "id": "BG-26",
+      "nearest_m": 1622.8,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-31",
+      "nearest_m": 2964.2,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-32",
+      "nearest_m": 1092.9,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-33",
+      "nearest_m": 1655.2,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-34",
+      "nearest_m": 1284.9,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-35",
+      "nearest_m": 964.3,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": false,
+      "id": "BG-36",
+      "nearest_m": 1741.5,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-41",
+      "nearest_m": 1576.1,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-42",
+      "nearest_m": 428.5,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 590.8,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-44",
+      "nearest_m": 904.4,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-45",
+      "nearest_m": 1332.8,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": false,
+      "id": "BG-46",
+      "nearest_m": 2397.8,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-51",
+      "nearest_m": 1301.5,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-52",
+      "nearest_m": 1544.7,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 673.0,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-54",
+      "nearest_m": 860.9,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-55",
+      "nearest_m": 908.9,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": false,
+      "id": "BG-56",
+      "nearest_m": 2190.4,
+      "population": 1034
+     }
+    ],
+    "category": "retail",
+    "miles": 1,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 12,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 1 mile(s), in a straight line, of a listed retail point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 58.1
+    }
+   },
+   "2": {
+    "by_area": [
+     {
+      "centre": [
+       -84.2475,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-11",
+      "nearest_m": 4600.1,
+      "population": 883
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-12",
+      "nearest_m": 3683.1,
+      "population": 1188
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-13",
+      "nearest_m": 3887.3,
+      "population": 1373
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.71
+      ],
+      "has_access": false,
+      "id": "BG-14",
+      "nearest_m": 3386.3,
+      "population": 1395
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-15",
+      "nearest_m": 2161.3,
+      "population": 1199
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.71
+      ],
+      "has_access": true,
+      "id": "BG-16",
+      "nearest_m": 2649.3,
+      "population": 892
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-21",
+      "nearest_m": 3166.7,
+      "population": 1101
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-22",
+      "nearest_m": 1560.2,
+      "population": 1476
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-23",
+      "nearest_m": 1995.0,
+      "population": 1888
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-24",
+      "nearest_m": 1513.0,
+      "population": 1617
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-25",
+      "nearest_m": 535.1,
+      "population": 1953
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.73
+      ],
+      "has_access": true,
+      "id": "BG-26",
+      "nearest_m": 1622.8,
+      "population": 1304
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-31",
+      "nearest_m": 2964.2,
+      "population": 1271
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-32",
+      "nearest_m": 1092.9,
+      "population": 1506
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-33",
+      "nearest_m": 1655.2,
+      "population": 2159
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-34",
+      "nearest_m": 1284.9,
+      "population": 1809
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-35",
+      "nearest_m": 964.3,
+      "population": 2083
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.75
+      ],
+      "has_access": true,
+      "id": "BG-36",
+      "nearest_m": 1741.5,
+      "population": 1370
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-41",
+      "nearest_m": 1576.1,
+      "population": 1236
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-42",
+      "nearest_m": 428.5,
+      "population": 1592
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-43",
+      "nearest_m": 590.8,
+      "population": 2022
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-44",
+      "nearest_m": 904.4,
+      "population": 1833
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-45",
+      "nearest_m": 1332.8,
+      "population": 1371
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.77
+      ],
+      "has_access": true,
+      "id": "BG-46",
+      "nearest_m": 2397.8,
+      "population": 1070
+     },
+     {
+      "centre": [
+       -84.2475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-51",
+      "nearest_m": 1301.5,
+      "population": 969
+     },
+     {
+      "centre": [
+       -84.2225,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-52",
+      "nearest_m": 1544.7,
+      "population": 1256
+     },
+     {
+      "centre": [
+       -84.1975,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-53",
+      "nearest_m": 673.0,
+      "population": 1576
+     },
+     {
+      "centre": [
+       -84.1725,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-54",
+      "nearest_m": 860.9,
+      "population": 1450
+     },
+     {
+      "centre": [
+       -84.1475,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-55",
+      "nearest_m": 908.9,
+      "population": 1408
+     },
+     {
+      "centre": [
+       -84.1225,
+       39.79
+      ],
+      "has_access": true,
+      "id": "BG-56",
+      "nearest_m": 2190.4,
+      "population": 1034
+     }
+    ],
+    "category": "retail",
+    "miles": 2,
+    "missing": [],
+    "notes": [
+     "Straight-line distance from each block group's centre; not a measure of walking or driving access.",
+     "A percentage is given only when at least one point of the category is listed."
+    ],
+    "points_listed": 12,
+    "schema": "ryagram.city-anatomy/0",
+    "share": {
+     "label": "Calculated",
+     "note": "share of residents of block groups whose centre is within 2 mile(s), in a straight line, of a listed retail point; a block group counts wholly or not at all, by its centre; not a walking or driving distance; counts what is listed in Synthetic fixture (made up for testing) (synthetic), which may not be everything that exists",
+     "source": "Synthetic fixture (made up for testing); Synthetic fixture (made up for testing)",
+     "value": 88.8
+    }
+   }
+  }
+ },
+ "schema": "ryagram.city-anatomy-set/0"
+}

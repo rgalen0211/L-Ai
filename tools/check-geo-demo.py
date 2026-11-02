@@ -1,7 +1,7 @@
 """The Geographic Intelligence demo page (/geo-demo/, NEXT-WEB 198) in real Chrome, LOCAL server only, `geoDemo` ON in a local config copy, desktop and phone (375 and 320 px): switch off shows only the plain line;
 on shows the synthetic banner, the map with its three marker kinds, a preset site draws a ring and fills the five labelled rows, a click on the map moves the site, the ring radius changes the numbers, a bigger ring never
 holds fewer residents, every number has a label, the page makes no outside request, no sideways scroll, no console errors. Needs Chrome.   python tools/check-geo-demo.py"""
-import http.server, re, socketserver, sys, threading
+import http.server, json, re, socketserver, sys, threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
@@ -76,6 +76,23 @@ with sync_playwright() as pw:
         check(len(chips) == 6 and set(chips) <= {'Calculated', 'Estimated'} and 'Estimated' in chips, f'every row is labelled, and residents are Estimated: {sorted(set(chips))}')
         p.get_by_role('button', name='Remove site B').click(); p.wait_for_timeout(250)
         check('around site A' in p.inner_text('.geo-results caption') and p.get_by_role('button', name='Remove site B').count() == 0 or not p.get_by_role('button', name='Remove site B').is_visible(), 'removing site B goes back to one site')
+        A = json.loads((ROOT / 'tests/fixtures/geo-city-anatomy-demo.json').read_text(encoding='utf-8'))['results']
+        p.get_by_label('City anatomy').check(); p.wait_for_timeout(300)
+        want = A['chicken']['1']['share']['value']
+        check(f'{want:g}% of the people counted' in p.inner_text('.geo-summary'), f'City anatomy: the headline is ENGINEs chicken share at 1 mile ({want:g}%)')
+        yes_n = p.locator('.geo-svg polygon[data-access="True"], .geo-svg polygon[data-access="true"]').count(); no_n = p.locator('.geo-svg polygon[data-access="false"]').count()
+        w_yes = sum(1 for r in A['chicken']['1']['by_area'] if r['has_access'] is True)
+        check(yes_n == w_yes and yes_n + no_n == len(A['chicken']['1']['by_area']), f'City anatomy: {yes_n} teal and {no_n} hatched block groups match ENGINEs flags')
+        check(p.locator('.geo-svg polygon[fill="url(#geo-hatch)"]').count() == no_n, 'City anatomy: the farther ones are hatched, not only a different colour')
+        p.select_option('#geo-cat', 'burger'); p.select_option('#geo-miles', '2'); p.wait_for_timeout(300)
+        check(f"{A['burger']['2']['share']['value']:g}% of the people counted" in p.inner_text('.geo-summary'), 'City anatomy: another kind of place and distance gives ENGINEs number')
+        chips = [x.strip() for x in p.locator('.geo-results tbody .geo-chip').all_inner_texts()]
+        check(len(chips) == 4 and set(chips) == {'Calculated'}, 'City anatomy: four rows, each labelled Calculated')
+        p.locator('.geo-svg').click(position={'x': 40, 'y': 40}); p.wait_for_timeout(150)
+        check('Switch to Compare sites' in p.inner_text('[role=status]'), 'City anatomy: a click on the map does not drop a site and says how to')
+        check(p.locator('.geo-svg circle[opacity="0.22"], .geo-svg rect[opacity="0.22"], .geo-svg polygon[opacity="0.22"]').count() > 0, 'City anatomy: the other kinds of place are faint')
+        p.get_by_label('Compare sites').check(); p.wait_for_timeout(200)
+        check(p.locator('.geo-svg polygon[data-access]').count() == 0, 'back to Compare sites: the access shading is gone')
         check(p.locator('button[aria-disabled="true"]').count() == 1 and 'not built yet' in p.inner_text('#geo-demo'), 'the film button says it is not built yet')
         check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
         check(hosts <= {f'http://127.0.0.1:{PORT}', 'https://fonts.googleapis.com'}, f'no outside request: {sorted(hosts)}')

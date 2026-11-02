@@ -1,4 +1,4 @@
-// NEXT-WEB 198, 199 and 201: the Dayton-style demo page for Geographic Intelligence, on SYNTHETIC data only (assets/geo-demo-data.js). No map library and no outside request: the "map" is drawn as SVG from the
+// NEXT-WEB 198, 199, 201 and 205: the Dayton-style demo page for Geographic Intelligence, on SYNTHETIC data only (assets/geo-demo-data.js). No map library and no outside request: the "map" is drawn as SVG from the
 // made-up shapes, so this page proves the idea (shaded areas, markers, click to drop a site, a ring, counts with their labels, two sites side by side) before any real data or tile file exists.
 // Since 201 every number comes from assets/geo-catchment.js, a port of ENGINE's geo module, in the JSON contract ryagram.site-comparison/0 (tests/geo-contract.test.mjs); the page draws only what validates.
 // Shown only when the site switch geoDemo is ON (OFF). Words are drafts for Ryan.
@@ -54,14 +54,27 @@
   }
 
   function mount(root) {
-    const state = { A: null, B: null, active: 'A', m: 2000 };
+    const state = { A: null, B: null, active: 'A', m: 2000, mode: 'sites', cat: Object.keys(D.categories)[0], miles: 1 };
     const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'geo-svg', role: 'img', 'aria-label': 'A made-up map: shaded areas by population, with chicken, burger and shop markers. Choose a site with the buttons or by clicking the map.' });
-    const layer = s('g', {}), ringG = s('g', {}), siteG = s('g', {});
-    for (const a of D.areas) if (a.ring.length >= 3) layer.append(s('polygon', { points: a.ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: shade(a.population), stroke: PAGE, 'stroke-width': 1.5 }, s('title', {}, a.population == null ? `${a.name || a.id}: no population figure` : `${a.name || a.id}: ${fmt(a.population)} people (${D.LABEL})`)));
+    const defs = s('defs', {}, s('pattern', { id: 'geo-hatch', width: 7, height: 7, patternUnits: 'userSpaceOnUse', patternTransform: 'rotate(45)' }, s('rect', { width: 7, height: 7, fill: '#20242f' }), s('line', { x1: 0, y1: 0, x2: 0, y2: 7, stroke: '#6b7390', 'stroke-width': 2 })));
+    const areasG = s('g', {}), markersG = s('g', {}), ringG = s('g', {}), siteG = s('g', {});
+    const layer = s('g', {}, areasG, markersG);
     const plates = s('g', {});
     for (const pl of D.places || []) { const x = px(pl.lon), y = py(pl.lat), w = pl.name.length * 8.6 + 14; plates.append(s('rect', { class: 'geo-plate', x: x - w / 2, y: y - 12, width: w, height: 22, rx: 3, fill: PAGE, opacity: 0.88 }), s('text', { class: 'geo-plate', x, y: y + 4, 'text-anchor': 'middle', fill: '#e8eaf0', 'font-size': 12, 'font-weight': 700, 'letter-spacing': 0.8 }, pl.name)); }
-    for (const p of D.points) if (D.categories[p.category]) layer.append(marker(p));
-    svg.append(layer, plates, ringG, siteG);
+    svg.append(defs, layer, plates, ringG, siteG);
+    let access = null;                                                       // ENGINE 75's answer for the chosen category and distance, while City Anatomy is showing
+    function paintMap() {
+      const rows = access ? new Map(access.by_area.map(r => [r.id, r])) : null;
+      areasG.replaceChildren(); markersG.replaceChildren();
+      for (const a of D.areas) {
+        if (a.ring.length < 3) continue;
+        const r = rows && rows.get(a.id), pts = a.ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' ');
+        if (!rows) { areasG.append(s('polygon', { points: pts, fill: shade(a.population), stroke: PAGE, 'stroke-width': 1.5 }, s('title', {}, a.population == null ? `${a.name || a.id}: no population figure` : `${a.name || a.id}: ${fmt(a.population)} people (${D.LABEL})`))); continue; }
+        const word = a.population == null ? 'no population figure, left out' : r && r.has_access === true ? `within ${access.miles} mile(s) of a listed ${access.category} place` : r && r.has_access === false ? `farther than ${access.miles} mile(s) from any listed ${access.category} place` : 'no place of this kind is listed';
+        areasG.append(s('polygon', { points: pts, fill: a.population == null ? '#2a2f3c' : r && r.has_access === true ? '#2f8f83' : 'url(#geo-hatch)', stroke: PAGE, 'stroke-width': 1.5, 'data-access': a.population == null ? 'none' : String(r ? r.has_access : null) }, s('title', {}, `${a.name || a.id}: ${word}`)));
+      }
+      for (const p of D.points) if (D.categories[p.category]) { const m = marker(p); if (rows && p.category !== access.category) m.setAttribute('opacity', '0.22'); markersG.append(m); }
+    }
     const results = h('table', { class: 'geo-results' });
     const summary = h('p', { class: 'geo-summary' });
     const status = h('p', { class: 'meta', role: 'status' });
@@ -84,6 +97,7 @@
       const r = svg.getBoundingClientRect();
       const x = ((ev.clientX - r.left) / r.width) * W, y = ((ev.clientY - r.top) / r.height) * H;
       const lon = unx(x), lat = uny(y);
+      if (state.mode === 'anatomy') { say('Switch to Compare sites to drop a site.'); return; }
       if (lon < b.lon0 || lon > b.lon1 || lat < b.lat0 || lat > b.lat1) { say('That is outside the made-up map. Click inside it.'); return; }
       setSite({ lon, lat });
     });
@@ -104,13 +118,38 @@
       ...NAMES.map(c => ({ what: `${D.categories[c]} inside`, r: ring.counts[c] })),
       { what: 'Nearest chicken place', r: block.nearest.chicken, unit: ' m' },
     ];
+    const srcOpts = () => {
+      const when = ((D.sources || []).find(sr => /openstreetmap|osm/i.test(`${sr.file} ${sr.label}`)) || {}).retrieved;
+      return D.real ? { areaSource: 'U.S. Census Bureau (2020 population, ACS 2019-2023 income)', pointSource: 'OpenStreetMap contributors (ODbL)', snapshot: when ? `retrieved ${when}` : '' } : { areaSource: src, pointSource: src, snapshot: 'synthetic' };
+    };
+    function drawAnatomy() {
+      ringG.replaceChildren(); siteG.replaceChildren(); summary.textContent = '';
+      const res = G.accessShare(D.areas, D.points, state.cat, state.miles, srcOpts()), bad = G.validateAnatomy(res);
+      if (bad.length) { access = null; paintMap(); results.replaceChildren(h('caption', {}, 'These numbers could not be shown.')); say(`The numbers did not pass the check (${bad[0]}), so nothing is shown.`); return; }
+      access = res; paintMap();
+      const yes = res.by_area.filter(r => r.has_access === true && r.population != null), counted = res.by_area.filter(r => r.population != null), name = D.categories[state.cat].toLowerCase();
+      const sh = res.share, head = sh.value === null ? `No percentage: ${sh.note}` : `${sh.value}% of the people counted live in a block group whose centre is within ${state.miles} mile${state.miles === 1 ? '' : 's'} of a listed ${name.replace(/ places$/, ' place')}.`;
+      summary.textContent = head;
+      const rows = [
+        { what: 'Share of residents with access', val: sh.value === null ? 'no value' : `${sh.value}%`, r: sh },
+        { what: 'Block groups with access', val: sh.value === null ? 'no value' : `${yes.length} of ${counted.length}`, r: { label: 'Calculated', source: sh.source, note: 'counted from the same flags as the share' } },
+        { what: 'Listed places of this kind', val: fmt(res.points_listed), r: { label: 'Calculated', source: srcOpts().pointSource, note: 'a count of what is listed, which may not be everything that exists' } },
+        { what: 'Block groups left out (no figure)', val: fmt(res.missing.length), r: { label: 'Calculated', source: srcOpts().areaSource, note: 'named and left out of both sides, never counted as zero' } },
+      ];
+      results.replaceChildren(h('caption', {}, `City Anatomy: access to ${name} within ${state.miles} mile${state.miles === 1 ? '' : 's'} (a straight line from each block group's centre, not a walking or driving distance)`),
+        h('thead', {}, h('tr', {}, ['What', 'Number', 'Label', 'Where it comes from'].map(x => h('th', { scope: 'col' }, x)))),
+        h('tbody', {}, rows.map(x => h('tr', {}, h('th', { scope: 'row' }, x.what), h('td', { 'data-col': 'Number' }, x.val), h('td', {}, chip(x.r)), h('td', { class: 'meta' }, `${x.r.source}. ${x.r.note}`)))));
+      say(sh.value === null ? 'There is no percentage for this category.' : `${sh.value} percent of residents have access within ${state.miles} mile${state.miles === 1 ? '' : 's'}.`);
+    }
     function draw() {
+      legendUpdate();
+      if (state.mode === 'anatomy') return drawAnatomy();
+      access = null; paintMap();
       ringG.replaceChildren(); siteG.replaceChildren(); summary.textContent = '';
       for (const k of ['A', 'B']) if (state[k]) drawSite(k, state[k]);
       clearB.hidden = !state.B;
       if (!state.A && !state.B) { results.replaceChildren(h('caption', {}, 'Pick a site to see the numbers.')); return; }
-      const when = ((D.sources || []).find(sr => /openstreetmap|osm/i.test(`${sr.file} ${sr.label}`)) || {}).retrieved;
-      const key = String(state.m), opts = D.real ? { areaSource: 'U.S. Census Bureau (2020 population, ACS 2019-2023 income)', pointSource: 'OpenStreetMap contributors (ODbL)', snapshot: when ? `retrieved ${when}` : '' } : { areaSource: src, pointSource: src, snapshot: 'synthetic' };
+      const key = String(state.m), opts = srcOpts();
       const km = `${state.m / 1000} km`;
       if (state.A && state.B) {
         const cmp = G.compareSites([siteOf('A'), siteOf('B')], [state.m], D.areas, D.points, NAMES, opts);
@@ -138,9 +177,18 @@
     }
 
     const presets = h('div', { class: 'geo-presets', role: 'group', 'aria-label': 'Try a site' }, D.sites.map(si => h('button', { class: 'button secondary', type: 'button', onclick: () => setSite(si) }, si.name)));
-    const legend = h('div', { class: 'geo-legend' },
-      h('p', { class: 'meta' }, h('b', {}, 'Shading: '), `people per ${D.real ? 'block group (2020 census)' : 'made-up area'}, from ${fmt(pMin)} (dark) to ${fmt(pMax)} (light).${D.real ? ' Grey = no figure.' : ''}`),
+    const legendP = h('p', { class: 'meta' });
+    const legendUpdate = () => { legendP.replaceChildren(h('b', {}, state.mode === 'anatomy' ? 'Shading: ' : 'Shading: '), state.mode === 'anatomy'
+      ? `teal = a block group whose centre is within ${state.miles} mile${state.miles === 1 ? '' : 's'} of a listed place of this kind; hatched = farther; plain grey = no population figure. The places of the chosen kind are bright, the others faint.`
+      : `people per ${D.real ? 'block group (2020 census)' : 'made-up area'}, from ${fmt(pMin)} (dark) to ${fmt(pMax)} (light).${D.real ? ' Grey = no figure.' : ''}`); };
+    const legend = h('div', { class: 'geo-legend' }, legendP,
       h('p', { class: 'meta' }, h('b', {}, 'Markers: '), `circle = chicken place, square = burger place${D.categories.retail ? ', triangle = shop' : ''}, pin with a letter = a site (its ring is the solid circle round it).`));
+    const modePick = h('fieldset', { class: 'geo-pick geo-mode' }, h('legend', {}, 'What do you want to see?'),
+      [['sites', 'Compare sites'], ['anatomy', 'City anatomy']].map(([k, w]) => h('label', { class: 'geo-pick-opt' }, h('input', { type: 'radio', name: 'geo-mode', value: k, checked: k === state.mode, onchange: () => { state.mode = k; siteControls.hidden = k === 'anatomy'; anatControls.hidden = k !== 'anatomy'; say(k === 'anatomy' ? 'City anatomy: pick a kind of place and a distance.' : 'Compare sites: click the map or use a button.'); draw(); } }), w)));
+    const catSel = h('select', { id: 'geo-cat', 'aria-label': 'Kind of place' }, Object.entries(D.categories).map(([k, w]) => h('option', { value: k, selected: k === state.cat }, w)));
+    catSel.addEventListener('change', () => { state.cat = catSel.value; draw(); });
+    const milesSel = h('select', { id: 'geo-miles', 'aria-label': 'Distance in miles' }, [0.5, 1, 2].map(k => h('option', { value: String(k), selected: k === state.miles }, `${k} mile${k === 1 ? '' : 's'}`)));
+    milesSel.addEventListener('change', () => { state.miles = Number(milesSel.value); draw(); });
     const bannerEls = () => (D.real ? [
       h('p', { class: 'shell-banner', role: 'note' }, h('strong', {}, 'PRIVATE REAL DATA. '), 'Loaded from a file on this computer; nothing was uploaded, stored or sent anywhere. Do not share a screenshot or publish this page until the attorney questions about OpenStreetMap are answered. Draft words for Ryan.'),
       h('p', { class: 'meta' }, D.credit),
@@ -162,6 +210,10 @@
       return h('div', { class: 'geo-real' }, D.real ? h('button', { class: 'button secondary', type: 'button', onclick: () => { setData(window.ryagramGeoDemoData); mount(root); } }, 'Back to the made-up demo')
         : [h('label', { for: 'geo-real-file' }, 'Load the private real-data file from this computer: '), input, h('p', { class: 'meta' }, 'The file is read here in your browser. Nothing is uploaded, stored or sent.')], msg);
     };
+    const siteControls = h('div', { class: 'geo-site-controls' }, h('div', { class: 'geo-controls' }, pick, presets, h('label', { for: 'geo-km' }, 'Ring radius '), radius, clearB),
+      h('p', { class: 'meta' }, 'The ring is a straight-line circle, not a drive time. A real drive area needs a routing engine we do not have yet.'));
+    const anatControls = h('div', { class: 'geo-anat-controls', hidden: true }, h('div', { class: 'geo-controls' }, h('label', { for: 'geo-cat' }, 'Kind of place '), catSel, h('label', { for: 'geo-miles' }, 'Within '), milesSel),
+      h('p', { class: 'meta' }, 'City Anatomy: the share of residents whose block group is within this distance of a listed place of this kind. A straight line from the block group\u2019s centre, not a walking or driving distance.'));
     const film = h('button', { class: 'button secondary', type: 'button', 'aria-disabled': 'true', onclick: ev => { ev.preventDefault(); say('Making a film from a map is not built yet.'); } }, 'Make this a film (not built yet)');
     root.replaceChildren(h('div', { class: 'geo-stage' },
       ...bannerEls(),
@@ -171,8 +223,8 @@
       h('div', { class: 'geo-grid' },
         h('div', { class: 'geo-mapcol' }, svg, legend),
         h('div', { class: 'geo-panel' },
-  h('div', { class: 'geo-controls' }, pick, presets, h('label', { for: 'geo-km' }, 'Ring radius '), radius, clearB),
-  h('p', { class: 'meta' }, 'The ring is a straight-line circle, not a drive time. A real drive area needs a routing engine we do not have yet.'),
+          modePick,
+          siteControls, anatControls,
           status, summary, film)),
       results));
     draw();

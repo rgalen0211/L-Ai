@@ -206,5 +206,61 @@
     return bad;
   }
 
-  window.ryagramGeo = Object.freeze({ LABELS, SCHEMA, EARTH_R, haversineM, circle, pointInPolygon, clipArea, pointsInside, nearest, residentsInside, incomeRangeInside, siteBlock, compareSites, validateComparison, result, pyRound });
+  // ------------------------------------------------------------------ City Anatomy, first metric (ENGINE ryagram/geo/anatomy.py, NEXT-ENGINE 75): the SHARE OF RESIDENTS WITHIN N MILES OF A CHOSEN CATEGORY.
+  // A block group's distance is the straight-line distance from its CENTRE to the nearest LISTED point of the category; it has access when that is at most N miles; a block group counts wholly or not at all.
+  // Not a walking or driving distance. A category with no listed point gives NO value (null), never 0 percent. A block group with no figure is named and left out of both sides, never counted as zero.
+  const MILE_M = 1609.344, ANATOMY_SCHEMA = 'ryagram.city-anatomy/0';
+  function centroid(ring) {
+    const [lon0, lat0] = ring[0];
+    const xy = ring.map(([x, y]) => project(x, y, lon0, lat0));
+    let a = 0, cx = 0, cy = 0;
+    for (let i = 0; i < xy.length; i++) {
+      const [x1, y1] = xy[i], [x2, y2] = xy[(i + 1) % xy.length], cr = x1 * y2 - x2 * y1;
+      a += cr; cx += (x1 + x2) * cr; cy += (y1 + y2) * cr;
+    }
+    if (Math.abs(a) < 1e-9) return [ring.reduce((s, q) => s + q[0], 0) / ring.length, ring.reduce((s, q) => s + q[1], 0) / ring.length];
+    a *= 0.5; cx /= 6 * a; cy /= 6 * a;
+    return [lon0 + deg(cx / (EARTH_R * Math.cos(rad(lat0)))), lat0 + deg(cy / EARTH_R)];
+  }
+  function accessShare(areas, points, category, miles, o = {}) {
+    if (!(miles > 0)) throw new Error('the distance is above zero miles');
+    const listed = points.filter(p => p.category === category && p.lon != null && p.lat != null), limitM = miles * MILE_M;
+    const rows = [], missing = []; let withAccess = 0, total = 0;
+    for (const a of areas) {
+      if ((a.ring || []).length < 3) continue;
+      const [lon, lat] = centroid(a.ring);
+      let nearestM = null;
+      for (const q of listed) { const d = haversineM(lon, lat, q.lon, q.lat); if (nearestM === null || d < nearestM) nearestM = d; }
+      const has = nearestM === null ? null : nearestM <= limitM, pop = a.population == null ? null : a.population;
+      rows.push({ id: a.id, centre: [pyRound(lon, 6), pyRound(lat, 6)], nearest_m: nearestM === null ? null : pyRound(nearestM, 1), has_access: has, population: pop });
+      if (pop === null) { missing.push(a.id); continue; }
+      total += pop; if (has) withAccess += pop;
+    }
+    const src = o.pointSource || 'the supplied points';
+    const define = `share of residents of block groups whose centre is within ${g(miles)} mile(s), in a straight line, of a listed ${category} point; a block group counts wholly or not at all, by its centre; ` +
+      `not a walking or driving distance; counts what is listed in ${src}` + (o.snapshot ? ` (${o.snapshot})` : '') + ', which may not be everything that exists';
+    let share;
+    if (!listed.length) share = { value: null, label: 'Calculated', source: src, note: `no ${category} point is listed in ${src}; that is not the same as none existing, so there is no percentage` };
+    else if (total <= 0) share = { value: null, label: 'Calculated', source: o.areaSource || 'the supplied areas', note: 'no block group has a published population figure' };
+    else share = { value: pyRound(100 * withAccess / total, 1), label: 'Calculated', source: `${o.areaSource || 'the supplied areas'}; ${src}`, note: define };
+    if (missing.length && share.value !== null) share.note += `; ${missing.length} block group(s) with no published figure are left out of both sides, not counted as zero`;
+    return { schema: ANATOMY_SCHEMA, category, miles, share, by_area: rows, missing, points_listed: listed.length,
+      notes: ["Straight-line distance from each block group's centre; not a measure of walking or driving access.", 'A percentage is given only when at least one point of the category is listed.'] };
+  }
+  function validateAnatomy(r) {
+    const bad = [];
+    if (!r || typeof r !== 'object') return ['not an object'];
+    if (r.schema !== ANATOMY_SCHEMA) bad.push(`schema is not ${ANATOMY_SCHEMA}`);
+    if (!r.share || !LABELS.includes(r.share.label) || typeof r.share.note !== 'string') bad.push('the share is not a labelled result');
+    else if (r.share.value !== null && !(isNum(r.share.value) && r.share.value >= 0 && r.share.value <= 100)) bad.push('the share is not a percentage');
+    if (r.share && r.share.value === null && !/no .* (is|has) /.test(r.share.note) && !/no block group has/.test(r.share.note)) bad.push('a missing share must say why');
+    if (!(isNum(r.miles) && r.miles > 0)) bad.push('miles is not above zero');
+    if (!Array.isArray(r.by_area) || !r.by_area.length) bad.push('no areas');
+    else if (r.by_area.some(a => typeof a.id !== 'string' || !(a.has_access === null || typeof a.has_access === 'boolean'))) bad.push('an area has no access flag');
+    if (!Array.isArray(r.missing) || !Array.isArray(r.notes) || !r.notes.length) bad.push('no list of missing areas or no notes');
+    if (r.share && r.share.value === 0 && r.points_listed === 0) bad.push('zero percent with nothing listed: that must be no value');
+    return bad;
+  }
+
+  window.ryagramGeo = Object.freeze({ centroid, accessShare, validateAnatomy, ANATOMY_SCHEMA, MILE_M, LABELS, SCHEMA, EARTH_R, haversineM, circle, pointInPolygon, clipArea, pointsInside, nearest, residentsInside, incomeRangeInside, siteBlock, compareSites, validateComparison, result, pyRound });
 })();

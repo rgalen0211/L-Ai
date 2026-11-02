@@ -19,3 +19,4 @@
 @media (max-width:600px){.geo-results td[data-col]{white-space:normal}}
 @media (max-width:600px){.geo-plate{display:none}.geo-pinletter{font-size:17px}.geo-svg{max-height:none}}
 .geo-real{margin:6px 0 10px}.geo-real input[type=file]{color:var(--gtext);max-width:100%}.geo-sources{margin:6px 0;color:var(--gmute)}.geo-sources summary{cursor:pointer;color:var(--gtext);min-height:44px;display:flex;align-items:center}.geo-sources ul{margin:6px 0 6px 18px}.geo-sources li{margin:3px 0;color:var(--gmute);overflow-wrap:anywhere}
+.geo-results th[scope=col]{white-space:nowrap}

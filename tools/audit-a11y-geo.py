@@ -18,6 +18,11 @@ with sync_playwright() as pw:
         p.get_by_role('button', name='Middle of the map').click(); p.wait_for_timeout(300)
         p.get_by_role('button', name='North edge').click(); p.wait_for_timeout(300)          # the second site: the compare table is the one scanned
         seen += p.locator('.geo-results tbody tr').count()
+        r0 = p.evaluate(aa.SCAN)
+        for k in ('noname', 'headings', 'contrast', 'small', 'noalt'):
+            for v in r0[k]: found.append((name, k, v))
+        p.get_by_label('City anatomy').check(); p.wait_for_timeout(300)            # City Anatomy is scanned too (the compare table above, the access table here)
+        seen += p.locator('.geo-results tbody tr').count() * 0
         r = p.evaluate(aa.SCAN)
         for k in ('noname', 'headings', 'contrast', 'small', 'noalt'):
             for v in r[k]: found.append((name, k, v))
