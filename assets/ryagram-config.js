@@ -105,6 +105,8 @@ window.ryagramConfig = Object.freeze({
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.
   // ON (Ryan's typed yes 2026-10-28 10:59, Q303), with the words as drafted (Q244 answered): shown to invited accounts only, the server's my_departments() says which.
   departments: true,
+  // The TV screen page for Guess the next line (/game-tv/; NEXT-WEB 203): replays a RECORDED sample game made by FACES' engine over a made-up transcript. Draft words for Ryan. OFF until he has seen it.
+  gameTv: false,
   // The Geographic Intelligence demo page (/geo-demo/; NEXT-WEB 198): shaded areas, markers, a clicked site, a ring and labelled counts, on SYNTHETIC data only. Draft words for Ryan. OFF until he has seen it.
   geoDemo: false,
   // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in (testers only), the admin Tester computers page, and the Windows download card (testers only). ON (Ryan's typed yes) once the r9 migration is applied and the `node` function is deployed (RYAN-GO-LIVE-SESSION.md part C); only an account with the tester flag, or one that already has a computer, sees anything on Account.
