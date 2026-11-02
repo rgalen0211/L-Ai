@@ -1,0 +1,381 @@
+{
+ "categories": [
+  "chicken",
+  "burger",
+  "retail"
+ ],
+ "difference_between": [
+  "A",
+  "B"
+ ],
+ "differences": {
+  "1000": {
+   "counts": {
+    "burger": {
+     "label": "Calculated",
+     "note": "burger points inside: second site minus first; carries the weaker of the two labels",
+     "value": 1
+    },
+    "chicken": {
+     "label": "Calculated",
+     "note": "chicken points inside: second site minus first; carries the weaker of the two labels",
+     "value": 1
+    },
+    "retail": {
+     "label": "Calculated",
+     "note": "retail points inside: second site minus first; carries the weaker of the two labels",
+     "value": 0
+    }
+   },
+   "residents": {
+    "label": "Estimated",
+    "note": "residents inside: second site minus first; carries the weaker of the two labels",
+    "value": -340
+   }
+  },
+  "2000": {
+   "counts": {
+    "burger": {
+     "label": "Calculated",
+     "note": "burger points inside: second site minus first; carries the weaker of the two labels",
+     "value": -1
+    },
+    "chicken": {
+     "label": "Calculated",
+     "note": "chicken points inside: second site minus first; carries the weaker of the two labels",
+     "value": 1
+    },
+    "retail": {
+     "label": "Calculated",
+     "note": "retail points inside: second site minus first; carries the weaker of the two labels",
+     "value": 2
+    }
+   },
+   "residents": {
+    "label": "Estimated",
+    "note": "residents inside: second site minus first; carries the weaker of the two labels",
+    "value": -1496
+   }
+  },
+  "4000": {
+   "counts": {
+    "burger": {
+     "label": "Calculated",
+     "note": "burger points inside: second site minus first; carries the weaker of the two labels",
+     "value": -2
+    },
+    "chicken": {
+     "label": "Calculated",
+     "note": "chicken points inside: second site minus first; carries the weaker of the two labels",
+     "value": -5
+    },
+    "retail": {
+     "label": "Calculated",
+     "note": "retail points inside: second site minus first; carries the weaker of the two labels",
+     "value": -1
+    }
+   },
+   "residents": {
+    "label": "Estimated",
+    "note": "residents inside: second site minus first; carries the weaker of the two labels",
+    "value": -7267
+   }
+  }
+ },
+ "legend": {
+  "Calculated": "arithmetic on observed things, no assumption",
+  "Estimated": "needs an assumption, stated beside the number",
+  "Observed": "straight from a source",
+  "Simulated": "a model was run"
+ },
+ "notes": [
+  "There is no score and no 'better' site: ranking sites would need real sales data, and none is used. Read the counts and distances.",
+  "Rings are straight-line circles, not drive times.",
+  "Residents are estimates that assume people are spread evenly inside each area; counts are of the points LISTED in the data, which may not be everything that exists."
+ ],
+ "radii_m": [
+  1000.0,
+  2000.0,
+  4000.0
+ ],
+ "ranking": null,
+ "schema": "ryagram.site-comparison/0",
+ "sites": [
+  {
+   "id": "A",
+   "lat": 39.75,
+   "lon": -84.185,
+   "nearest": {
+    "burger": {
+     "label": "Calculated",
+     "note": "straight-line distance in metres to burger-15 (synthetic); not a drive time",
+     "source": "Synthetic fixture (made up for testing)",
+     "value": 1362.4
+    },
+    "chicken": {
+     "label": "Calculated",
+     "note": "straight-line distance in metres to chicken-13 (synthetic); not a drive time",
+     "source": "Synthetic fixture (made up for testing)",
+     "value": 1766.9
+    },
+    "retail": {
+     "label": "Calculated",
+     "note": "straight-line distance in metres to retail-8 (synthetic); not a drive time",
+     "source": "Synthetic fixture (made up for testing)",
+     "value": 2144.3
+    }
+   },
+   "rings": {
+    "1000": {
+     "counts": {
+      "burger": {
+       "label": "Calculated",
+       "note": "burger points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 1000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 0
+      },
+      "chicken": {
+       "label": "Calculated",
+       "note": "chicken points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 1000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 0
+      },
+      "retail": {
+       "label": "Calculated",
+       "note": "retail points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 1000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 0
+      }
+     },
+     "income_range": {
+      "label": "Estimated",
+      "note": "lowest and highest published median household income among the areas the ring touches; survey estimates with margins of error",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": [
+       46844,
+       59881
+      ]
+     },
+     "residents": {
+      "label": "Estimated",
+      "note": "each area's published count shared by the part of its area inside a straight-line ring of 1000 m; assumes people are spread evenly inside each area; not a drive time",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": 1310
+     }
+    },
+    "2000": {
+     "counts": {
+      "burger": {
+       "label": "Calculated",
+       "note": "burger points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 2000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 2
+      },
+      "chicken": {
+       "label": "Calculated",
+       "note": "chicken points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 2000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 1
+      },
+      "retail": {
+       "label": "Calculated",
+       "note": "retail points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 2000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 0
+      }
+     },
+     "income_range": {
+      "label": "Estimated",
+      "note": "lowest and highest published median household income among the areas the ring touches; survey estimates with margins of error",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": [
+       33001,
+       63375
+      ]
+     },
+     "residents": {
+      "label": "Estimated",
+      "note": "each area's published count shared by the part of its area inside a straight-line ring of 2000 m; assumes people are spread evenly inside each area; not a drive time",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": 5116
+     }
+    },
+    "4000": {
+     "counts": {
+      "burger": {
+       "label": "Calculated",
+       "note": "burger points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 4000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 6
+      },
+      "chicken": {
+       "label": "Calculated",
+       "note": "chicken points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 4000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 9
+      },
+      "retail": {
+       "label": "Calculated",
+       "note": "retail points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 4000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 7
+      }
+     },
+     "income_range": {
+      "label": "Estimated",
+      "note": "lowest and highest published median household income among the areas the ring touches; survey estimates with margins of error",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": [
+       33001,
+       63375
+      ]
+     },
+     "residents": {
+      "label": "Estimated",
+      "note": "each area's published count shared by the part of its area inside a straight-line ring of 4000 m; assumes people are spread evenly inside each area; not a drive time",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": 18835
+     }
+    }
+   }
+  },
+  {
+   "id": "B",
+   "lat": 39.788000000000004,
+   "lon": -84.20750000000001,
+   "nearest": {
+    "burger": {
+     "label": "Calculated",
+     "note": "straight-line distance in metres to burger-13 (synthetic); not a drive time",
+     "source": "Synthetic fixture (made up for testing)",
+     "value": 622.1
+    },
+    "chicken": {
+     "label": "Calculated",
+     "note": "straight-line distance in metres to chicken-6 (synthetic); not a drive time",
+     "source": "Synthetic fixture (made up for testing)",
+     "value": 988.6
+    },
+    "retail": {
+     "label": "Calculated",
+     "note": "straight-line distance in metres to retail-11 (synthetic); not a drive time",
+     "source": "Synthetic fixture (made up for testing)",
+     "value": 1551.9
+    }
+   },
+   "rings": {
+    "1000": {
+     "counts": {
+      "burger": {
+       "label": "Calculated",
+       "note": "burger points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 1000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 1
+      },
+      "chicken": {
+       "label": "Calculated",
+       "note": "chicken points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 1000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 1
+      },
+      "retail": {
+       "label": "Calculated",
+       "note": "retail points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 1000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 0
+      }
+     },
+     "income_range": {
+      "label": "Estimated",
+      "note": "lowest and highest published median household income among the areas the ring touches; survey estimates with margins of error",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": [
+       33411,
+       60221
+      ]
+     },
+     "residents": {
+      "label": "Estimated",
+      "note": "each area's published count shared by the part of its area inside a straight-line ring of 1000 m; assumes people are spread evenly inside each area; not a drive time",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": 970
+     }
+    },
+    "2000": {
+     "counts": {
+      "burger": {
+       "label": "Calculated",
+       "note": "burger points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 2000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 1
+      },
+      "chicken": {
+       "label": "Calculated",
+       "note": "chicken points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 2000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 2
+      },
+      "retail": {
+       "label": "Calculated",
+       "note": "retail points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 2000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 2
+      }
+     },
+     "income_range": {
+      "label": "Estimated",
+      "note": "lowest and highest published median household income among the areas the ring touches; survey estimates with margins of error",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": [
+       33411,
+       60221
+      ]
+     },
+     "residents": {
+      "label": "Estimated",
+      "note": "each area's published count shared by the part of its area inside a straight-line ring of 2000 m; assumes people are spread evenly inside each area; not a drive time",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": 3620
+     }
+    },
+    "4000": {
+     "counts": {
+      "burger": {
+       "label": "Calculated",
+       "note": "burger points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 4000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 4
+      },
+      "chicken": {
+       "label": "Calculated",
+       "note": "chicken points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 4000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 4
+      },
+      "retail": {
+       "label": "Calculated",
+       "note": "retail points listed in Synthetic fixture (made up for testing) (synthetic) within a straight-line ring of 4000 m; not a drive time",
+       "source": "Synthetic fixture (made up for testing)",
+       "value": 6
+      }
+     },
+     "income_range": {
+      "label": "Estimated",
+      "note": "lowest and highest published median household income among the areas the ring touches; survey estimates with margins of error",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": [
+       32892,
+       60221
+      ]
+     },
+     "residents": {
+      "label": "Estimated",
+      "note": "each area's published count shared by the part of its area inside a straight-line ring of 4000 m; assumes people are spread evenly inside each area; not a drive time",
+      "source": "Synthetic fixture (made up for testing)",
+      "value": 11568
+     }
+    }
+   }
+  }
+ ]
+}

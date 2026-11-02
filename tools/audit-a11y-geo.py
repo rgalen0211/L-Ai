@@ -24,4 +24,4 @@ with sync_playwright() as pw:
         ctx.close()
     b.close()
 for f in found: print('FINDING', f)
-print(f'rows scanned: {seen}; FINDINGS: {len(found)}'); sys.exit(1 if found or seen != 10 else 0)
+print(f'rows scanned: {seen}; FINDINGS: {len(found)}'); sys.exit(1 if found or seen != 12 else 0)
