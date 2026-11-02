@@ -111,6 +111,8 @@ window.ryagramConfig = Object.freeze({
   geoDemo: false,
   // On the geo demo page, a file chooser that loads the PRIVATE real-data file from the person's own computer (NEXT-WEB 204; OpenStreetMap data, attorney rows open). Needs geoDemo. Nothing is uploaded or stored. OFF.
   geoRealData: false,
+  // More honest words on the Geographic Intelligence and Games Coming soon pages (NEXT-WEB 200, from the departments brief): what is coming, how numbers and people are treated, what is not built yet. Draft words for Ryan. OFF until he has read them.
+  departmentDetails: false,
   // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in (testers only), the admin Tester computers page, and the Windows download card (testers only). ON (Ryan's typed yes) once the r9 migration is applied and the `node` function is deployed (RYAN-GO-LIVE-SESSION.md part C); only an account with the tester flag, or one that already has a computer, sees anything on Account.
   desktopApp: true,
   // Worker health on #/admin/ops (NEXT-WORKER 72): per render worker, whether it checks in, its engine commit, what it is making or when it last took a

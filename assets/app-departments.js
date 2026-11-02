@@ -13,6 +13,25 @@
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' }
   };
   const ORDER = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio'];
+  // More words on two Coming soon pages (NEXT-WEB 200, from proposals/DEPARTMENTS-BRIEF-1102.md), shown only when the site switch departmentDetails is exactly true (OFF). DRAFT WORDS FOR RYAN: what is coming,
+  // how numbers and people will be treated, and what is not built yet, said without a price or a date. Nothing here promises a feature the brief does not list.
+  const DETAILS = {
+    geo_intelligence: {
+      building: ['We are building a map you can ask questions of. The first demo asks where a new chicken restaurant might do well in one Ohio county, using free public data.',
+        'You drop a candidate site on the map and see who lives around it, which competitors are near it and what sits next door. You can place a second site and compare the two.'],
+      rules: ['Every number is labelled observed, calculated, estimated or simulated.', 'No made-up points on a map.', 'No success score unless real data stands behind it. Where a stand-in has to be used, it is labelled as one.', 'No conclusions about people from their background.'],
+      notYet: ['The real map and the real data are not built. A demo on made-up data exists for testing only.', 'Drive times need a routing service we do not have yet, so the first version draws straight-line rings and says so.', 'There is no price and no date.']
+    },
+    games: {
+      building: ['Point Ryagram at footage you own or have the right to use, pick a game, and play with friends. Phones are the controllers and a laptop or TV is the shared screen.',
+        'The first idea is Guess the next line: a clip plays and stops, and players guess what is said next. Others we are considering: guessing who someone is from yes or no questions, a voice-only Old Maid, matching a line to a face, trivia with exact counts, bluffing with fake lines, and a speed buzzer.'],
+      rules: ['Only your own clips, or clips you have the right to use. No TV shows or films come with Ryagram.', 'A face is swapped only with that person’s consent, and the result is labelled as AI-altered.', 'Answers are checked against the transcripts, not guessed.', 'The games borrow how classic games work, but not anyone’s names, art or characters.'],
+      notYet: ['No game can be played yet.', 'There is no price and no date.']
+    }
+  };
+  const SECTIONS = [['building', 'What we are building'], ['rules', 'How it will treat your data and other people'], ['notYet', 'What is not built yet']];
+  const detailsOn = cfg => !!cfg && cfg.departmentDetails === true;
+  const detailsFor = (id, cfg) => (detailsOn(cfg) && Object.prototype.hasOwnProperty.call(DETAILS, id) ? DETAILS[id] : null);
   const WORDS = {
     soonGroup: 'Coming soon', soonMark: 'soon', tag: 'Coming soon', button: 'Tell me when it’s ready', noted: 'Noted. We’ll let you know here when it is ready.', takeBack: 'Take it back',
     saveError: 'Couldn’t save that just now. Try again in a minute.', fewLines: 'Start one in your AI', yourFilms: 'Your data films', noAi: 'No AI? Build it step by step',
@@ -147,8 +166,10 @@
         }
       };
       draw();
+      const more = detailsFor(id, window.ryagramConfig);
+      const moreEls = more ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), ...SECTIONS.flatMap(([key, title]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, more[key].map(t => h('li', {}, t)))])] : [];
       return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
-              k.picture === 'phrase' ? phrasePicture() : null, area, msg];
+              k.picture === 'phrase' ? phrasePicture() : null, ...moreEls, area, msg];
     }
 
     // #/d/<id>. An id this account's list does not include, or any failure, is the plain "not available" page with a way home: never a blank page.
@@ -163,5 +184,5 @@
     return { mountBar, unmountBar, pageView, load };
   }
 
-  window.ryagramDepartments = { KNOWN, ORDER, WORDS, normalize, hasAny, pathOf, idFromHash, flagOn, create };
+  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
 })();
