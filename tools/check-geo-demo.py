@@ -66,8 +66,16 @@ with sync_playwright() as pw:
         p.select_option('#geo-km', '1'); p.wait_for_timeout(200); r1 = num(p, 'Residents inside the ring')
         check(r1 <= r2, f'a smaller ring holds no more ({r1})')
         bb = p.locator('.geo-svg').bounding_box()
-        p.locator('.geo-svg').click(position={'x': bb['width'] * 0.15, 'y': bb['height'] * 0.2}); p.wait_for_timeout(200)
-        check('Your site' in p.inner_text('.geo-results caption'), 'a click on the map drops a site')
+        p.locator('.geo-svg').click(position={'x': bb['width'] * 0.15, 'y': bb['height'] * 0.2}); p.wait_for_timeout(250)
+        check('Site A and site B' in p.inner_text('.geo-results caption') and p.locator('.geo-results tbody tr').count() == 5, 'the next click places site B and the two sites are compared in five rows')
+        check(p.locator('.geo-svg polygon[stroke-dasharray="7 5"]').count() == 1 and p.locator('.geo-svg polygon[stroke-dasharray="2 5"]').count() == 1, 'two rings with different dash patterns, not colour alone')
+        check('does not say which site is better' in p.inner_text('.geo-summary'), 'the summary counts and says it is not a verdict')
+        diffs = [t.strip() for t in p.locator('.geo-results tbody td[data-col="B minus A"]').all_inner_texts()]
+        check(len(diffs) == 5 and all(re.match(r'^([+−]?[0-9,.]+( people| km)?|not comparable)$', d) for d in diffs), f'every difference reads as a signed number: {diffs}')
+        chips = [t.strip() for t in p.locator('.geo-results tbody .geo-chip').all_inner_texts()]
+        check(len(chips) == 5 and set(chips) == {'Calculated'}, 'every difference is labelled Calculated')
+        p.get_by_role('button', name='Remove site B').click(); p.wait_for_timeout(250)
+        check('around site A' in p.inner_text('.geo-results caption') and p.get_by_role('button', name='Remove site B').count() == 0 or not p.get_by_role('button', name='Remove site B').is_visible(), 'removing site B goes back to one site')
         check(p.locator('button[aria-disabled="true"]').count() == 1 and 'not built yet' in p.inner_text('#geo-demo'), 'the film button says it is not built yet')
         check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
         check(hosts <= {f'http://127.0.0.1:{PORT}', 'https://fonts.googleapis.com'}, f'no outside request: {sorted(hosts)}')

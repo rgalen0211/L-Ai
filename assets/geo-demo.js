@@ -1,5 +1,5 @@
-// NEXT-WEB 198: the Dayton-style demo page for Geographic Intelligence, on SYNTHETIC data only (assets/geo-demo-data.js). No map library and no outside request: the "map" is drawn as SVG from the
-// made-up shapes, so this page proves the idea (shaded areas, markers, click to drop a site, a ring, counts with their labels) before any real data or tile file exists.
+// NEXT-WEB 198 and 199: the Dayton-style demo page for Geographic Intelligence, on SYNTHETIC data only (assets/geo-demo-data.js). No map library and no outside request: the "map" is drawn as SVG from the
+// made-up shapes, so this page proves the idea (shaded areas, markers, click to drop a site, a ring, counts with their labels, two sites side by side) before any real data or tile file exists.
 // Shown only when the site switch geoDemo is ON (OFF). Words are drafts for Ryan.
 (function () {
   const G = window.ryagramGeo, D = window.ryagramGeoDemoData;
@@ -8,6 +8,7 @@
   const on = cfg => !!cfg && cfg.geoDemo === true;
   const COLOURS = { chicken: '#f2b134', burger: '#ef7a74', retail: '#a9b4ff' };
   const RAMP = ['#1d3442', '#24505c', '#2f6f73', '#43908a', '#6fd1bd'];
+  const SITE_STYLE = { A: { stroke: '#ffffff', dash: '7 5' }, B: { stroke: '#ffd37a', dash: '2 5' } };    // shape and letter as well as colour: nobody has to tell the two apart by colour alone
 
   const h = (tag, attrs, ...kids) => {
     const el = document.createElement(tag);
@@ -33,74 +34,92 @@
   const pops = D.areas.map(a => a.population), pMin = Math.min(...pops), pMax = Math.max(...pops);
   const shade = p => RAMP[Math.min(RAMP.length - 1, Math.floor(((p - pMin) / Math.max(1, pMax - pMin)) * RAMP.length))];
   const fmt = n => Math.round(n).toLocaleString('en-US');
+  const show = (v, unit) => (v && typeof v === 'object' ? `${v.name}, ${v.km} km` : v == null ? 'none on the map' : `${fmt(v)}${unit || ''}`);
+  const signed = (d, unit) => (d == null ? 'not comparable' : `${d > 0 ? '+' : d < 0 ? '−' : ''}${Number.isInteger(d) ? fmt(Math.abs(d)) : Math.abs(d)}${unit || ''}`);
 
   function marker(p) {
     const x = px(p.lon), y = py(p.lat), c = COLOURS[p.category], common = { fill: c, stroke: '#101419', 'stroke-width': 1.5 };
-    const title = s('title', {}, `${p.name} (${G.LABELS.includes(D.LABEL) ? D.LABEL : ''})`);
+    const title = s('title', {}, `${p.name} (${D.LABEL})`);
     if (p.category === 'chicken') return s('circle', { cx: x, cy: y, r: 5.5, ...common }, title);
     if (p.category === 'burger') return s('rect', { x: x - 5, y: y - 5, width: 10, height: 10, ...common }, title);
     return s('polygon', { points: `${x},${y - 6.5} ${x + 6},${y + 4.5} ${x - 6},${y + 4.5}`, ...common }, title);
   }
 
   function mount(root) {
-    const state = { site: null, km: 2 };
+    const state = { A: null, B: null, active: 'A', km: 2 };
     const svg = s('svg', { viewBox: `0 0 ${W} ${H}`, class: 'geo-svg', role: 'img', 'aria-label': 'A made-up map: shaded areas by population, with chicken, burger and shop markers. Choose a site with the buttons or by clicking the map.' });
     const layer = s('g', {}), ringG = s('g', {}), siteG = s('g', {});
     for (const a of D.areas) layer.append(s('polygon', { points: a.ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: shade(a.population), stroke: '#0e1318', 'stroke-width': 1 }, s('title', {}, `${a.name}: ${fmt(a.population)} people (${D.LABEL})`)));
     for (const p of D.points) layer.append(marker(p));
     svg.append(layer, ringG, siteG);
     const results = h('table', { class: 'geo-results' });
+    const summary = h('p', { class: 'geo-summary' });
     const status = h('p', { class: 'meta', role: 'status' });
+    const say = t => { status.textContent = t; };
     const radius = h('select', { id: 'geo-km', 'aria-label': 'Ring radius' }, [1, 2, 4].map(k => h('option', { value: String(k), selected: k === state.km }, `${k} km`)));
     radius.addEventListener('change', () => { state.km = Number(radius.value); draw(); });
 
-    function setSite(site) { state.site = { lon: site.lon, lat: site.lat, name: site.name || 'Your site' }; draw(); }
+    const pick = h('fieldset', { class: 'geo-pick' }, h('legend', {}, 'Which site are you placing?'),
+      ['A', 'B'].map(k => h('label', { class: 'geo-pick-opt' }, h('input', { type: 'radio', name: 'geo-site', value: k, checked: k === 'A', onchange: () => { state.active = k; say(`Placing site ${k}. Click the map or use a button.`); } }), `Site ${k}`)));
+    const clearB = h('button', { class: 'button secondary', type: 'button', onclick: () => { state.B = null; state.active = 'A'; pick.querySelector('input[value="A"]').checked = true; draw(); say('Site B removed.'); } }, 'Remove site B');
+
+    function setSite(site) {
+      const k = state.active;
+      state[k] = { lon: site.lon, lat: site.lat, name: `Site ${k}` };
+      if (k === 'A' && !state.B) { state.active = 'B'; pick.querySelector('input[value="B"]').checked = true; }
+      draw();
+      say(state.A && state.B ? `Site ${k} set. Both sites are compared below.` : `Site ${k} set. Now place site B to compare, or change A.`);
+    }
     svg.addEventListener('click', ev => {
       const r = svg.getBoundingClientRect();
       const x = ((ev.clientX - r.left) / r.width) * W, y = ((ev.clientY - r.top) / r.height) * H;
       const lon = unx(x), lat = uny(y);
-      if (lon < b.lon0 || lon > b.lon1 || lat < b.lat0 || lat > b.lat1) { status.textContent = 'That is outside the made-up map. Click inside it.'; return; }
-      setSite({ lon, lat, name: 'Your site' });
+      if (lon < b.lon0 || lon > b.lon1 || lat < b.lat0 || lat > b.lat1) { say('That is outside the made-up map. Click inside it.'); return; }
+      setSite({ lon, lat });
     });
 
-    function row(label, r, unit) {
-      const v = r.value;
-      const shown = v && typeof v === 'object' ? `${v.name}, ${v.km} km` : v == null ? 'none on the map' : `${fmt(v)}${unit || ''}`;
-      return h('tr', {}, h('th', { scope: 'row' }, label), h('td', {}, shown), h('td', {}, h('span', { class: `geo-chip geo-${r.label.toLowerCase()}` }, r.label)), h('td', { class: 'meta' }, `${r.source}. ${r.note}`));
+    const chip = r => h('span', { class: `geo-chip geo-${r.label.toLowerCase()}` }, r.label);
+    const src = `${D.SOURCE}, labelled ${D.LABEL}`;
+    function drawSite(k, c) {
+      const st = SITE_STYLE[k], ring = G.ringPolygon(c, state.km), x = px(c.lon), y = py(c.lat);
+      ringG.append(s('polygon', { points: ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: 'rgba(255,255,255,0.08)', stroke: st.stroke, 'stroke-width': 2, 'stroke-dasharray': st.dash }));
+      siteG.append(s('path', { d: `M${x},${y - 11} L${x + 8},${y} L${x},${y + 11} L${x - 8},${y} Z`, fill: st.stroke, stroke: '#101419', 'stroke-width': 2 }, s('title', {}, `Site ${k}`)),
+        s('text', { x: x + 11, y: y - 8, fill: st.stroke, 'font-size': 16, 'font-weight': 700, stroke: '#101419', 'stroke-width': 3, 'paint-order': 'stroke' }, k));
     }
     function draw() {
-      ringG.replaceChildren(); siteG.replaceChildren();
-      if (!state.site) { results.replaceChildren(h('caption', {}, 'Pick a site to see the numbers.')); status.textContent = 'No site yet.'; return; }
-      const c = state.site, ring = G.ringPolygon(c, state.km);
-      ringG.append(s('polygon', { points: ring.map(([lo, la]) => `${px(lo)},${py(la)}`).join(' '), fill: 'rgba(255,255,255,0.10)', stroke: '#ffffff', 'stroke-width': 2, 'stroke-dasharray': '7 5' }));
-      const x = px(c.lon), y = py(c.lat);
-      siteG.append(s('path', { d: `M${x},${y - 11} L${x + 8},${y} L${x},${y + 11} L${x - 8},${y} Z`, fill: '#ffffff', stroke: '#101419', 'stroke-width': 2 }, s('title', {}, 'Your site')));
-      const src = `${D.SOURCE}, labelled ${D.LABEL}`;
-      const rows = [
-        ['Residents inside the ring', G.residentsInside(D.areas, c, state.km, src), ' people'],
-        [D.categories.chicken + ' inside', G.countInside(D.points, c, state.km, 'chicken', src)],
-        [D.categories.burger + ' inside', G.countInside(D.points, c, state.km, 'burger', src)],
-        [D.categories.retail + ' inside', G.countInside(D.points, c, state.km, 'retail', src)],
-        ['Nearest chicken place', G.nearestOf(D.points, c, 'chicken', src)],
-      ];
-      results.replaceChildren(h('caption', {}, `Inside a ${state.km} km straight-line ring around ${c.name}`),
-        h('thead', {}, h('tr', {}, h('th', { scope: 'col' }, 'What'), h('th', { scope: 'col' }, 'Number'), h('th', { scope: 'col' }, 'Label'), h('th', { scope: 'col' }, 'Where it comes from'))),
-        h('tbody', {}, rows.map(r => row(r[0], r[1], r[2]))));
-      status.textContent = `Site set. Ring of ${state.km} km drawn. The numbers below have changed.`;
+      ringG.replaceChildren(); siteG.replaceChildren(); summary.textContent = '';
+      for (const k of ['A', 'B']) if (state[k]) drawSite(k, state[k]);
+      clearB.hidden = !state.B;
+      if (!state.A && !state.B) { results.replaceChildren(h('caption', {}, 'Pick a site to see the numbers.')); return; }
+      if (state.A && state.B) {
+        const rows = G.compareSites(D, state.A, state.B, state.km, src);
+        results.replaceChildren(h('caption', {}, `Site A and site B, each inside a ${state.km} km straight-line ring`),
+          h('thead', {}, h('tr', {}, ['What', 'Site A', 'Site B', 'B minus A', 'Label', 'Where it comes from'].map(t => h('th', { scope: 'col' }, t)))),
+          h('tbody', {}, rows.map(r => h('tr', {}, h('th', { scope: 'row' }, r.what), h('td', { 'data-col': 'Site A' }, show(r.a.value, r.unit)), h('td', { 'data-col': 'Site B' }, show(r.b.value, r.unit)),
+            h('td', { 'data-col': 'B minus A' }, signed(r.diff.value, r.key === 'nearest' ? ' km' : r.unit)), h('td', {}, chip(r.diff)), h('td', { class: 'meta' }, `${r.a.source}. ${r.a.note}`)))));
+        const res = rows.find(r => r.key === 'residents').diff.value, ch = rows.find(r => r.key === 'chicken').diff.value;
+        const more = (n, what) => (n === 0 ? `the same number of ${what}` : `${fmt(Math.abs(n))} ${n > 0 ? 'more' : 'fewer'} ${what}`);
+        summary.textContent = `Compared with site A, site B has ${more(res, 'residents')} inside its ring and ${more(ch, 'chicken places')}. This only counts what is inside each ring: it does not say which site is better, because there is no real sales or cost data here.`;
+        return;
+      }
+      const k = state.A ? 'A' : 'B', c = state[k], rows = G.measures(D, c, state.km, src);
+      results.replaceChildren(h('caption', {}, `Inside a ${state.km} km straight-line ring around site ${k}`),
+        h('thead', {}, h('tr', {}, ['What', 'Number', 'Label', 'Where it comes from'].map(t => h('th', { scope: 'col' }, t)))),
+        h('tbody', {}, rows.map(r => h('tr', {}, h('th', { scope: 'row' }, r.what), h('td', { 'data-col': 'Number' }, show(r.r.value, r.unit)), h('td', {}, chip(r.r)), h('td', { class: 'meta' }, `${r.r.source}. ${r.r.note}`)))));
     }
 
     const presets = h('div', { class: 'geo-presets', role: 'group', 'aria-label': 'Try a site' }, D.sites.map(si => h('button', { class: 'button secondary', type: 'button', onclick: () => setSite(si) }, si.name)));
     const legend = h('div', { class: 'geo-legend' },
       h('p', { class: 'meta' }, h('b', {}, 'Shading: '), `people per made-up area, from ${fmt(pMin)} (dark) to ${fmt(pMax)} (light).`),
-      h('p', { class: 'meta' }, h('b', {}, 'Markers: '), 'circle = chicken place, square = burger place, triangle = shop, diamond = your site.'));
-    const film = h('button', { class: 'button secondary', type: 'button', 'aria-disabled': 'true', onclick: ev => { ev.preventDefault(); status.textContent = 'Making a film from a map is not built yet.'; } }, 'Make this a film (not built yet)');
+      h('p', { class: 'meta' }, h('b', {}, 'Markers: '), 'circle = chicken place, square = burger place, triangle = shop, diamond with a letter = a site (A has a dashed ring, B a dotted ring).'));
+    const film = h('button', { class: 'button secondary', type: 'button', 'aria-disabled': 'true', onclick: ev => { ev.preventDefault(); say('Making a film from a map is not built yet.'); } }, 'Make this a film (not built yet)');
     root.replaceChildren(
       h('p', { class: 'shell-banner', role: 'note' }, h('strong', {}, 'SYNTHETIC DEMO DATA. '), 'The areas, people and shops on this map are made up to test the page. They are not Dayton, not the Census and not OpenStreetMap. Draft words for Ryan.'),
       h('h1', { tabindex: '-1' }, 'Where should a chicken place open? (demo)'),
-      h('p', { class: 'help-intro' }, 'Click the map, or use the buttons, to drop a candidate site. A ring is drawn around it and the numbers inside it are counted. Every number says whether it was observed, calculated, estimated or simulated.'),
-      h('div', { class: 'geo-controls' }, presets, h('label', { for: 'geo-km' }, 'Ring radius '), radius),
+      h('p', { class: 'help-intro' }, 'Click the map, or use the buttons, to drop a candidate site. A ring is drawn around it and the numbers inside it are counted. Place a second site to compare the two side by side. Every number says whether it was observed, calculated, estimated or simulated.'),
+      h('div', { class: 'geo-controls' }, pick, presets, h('label', { for: 'geo-km' }, 'Ring radius '), radius, clearB),
       h('p', { class: 'meta' }, 'The ring is a straight-line circle, not a drive time. A real drive area needs a routing engine we do not have yet.'),
-      svg, legend, status, results, film);
+      svg, legend, status, results, summary, film);
     draw();
   }
 

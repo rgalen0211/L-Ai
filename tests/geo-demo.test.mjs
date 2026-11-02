@@ -1,4 +1,4 @@
-// NEXT-WEB 198: the Geographic Intelligence demo page (/geo-demo/, behind geoDemo, OFF) on SYNTHETIC data: the catchment maths, the labels on every number, and the page wiring.
+// NEXT-WEB 198 and 199: the Geographic Intelligence demo page (/geo-demo/, behind geoDemo, OFF) on SYNTHETIC data: the catchment maths, the labels on every number, and the page wiring.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -98,4 +98,20 @@ test('the page: noindex, hidden unless geoDemo is exactly true, no outside reque
 test('it is linked from nowhere else', () => {
   const all = fs.readdirSync(new URL('..', import.meta.url)).filter(f => f.endsWith('.html')).map(f => read(f)).join('\n') + read('help/index.html') + read('ryagram/index.html');
   assert.ok(!/geo-demo/.test(all)); assert.ok(!/geo-demo/.test(read('assets/app-library.js') + read('assets/app-departments.js')));
+});
+
+test('NEXT-WEB 199: two sites side by side use identical rules, the difference is B minus A and labelled, and the page never says which site is better', () => {
+  const c = { lat: 39.76, lon: -84.19 }, near = { lat: 39.76 + 0.005, lon: -84.19 };
+  const rows = G.compareSites(D, c, near, 2, 'src');
+  assert.deepEqual(J(rows.map(r => r.key)), ['residents', 'chicken', 'burger', 'retail', 'nearest']);
+  for (const r of rows) { assert.ok(G.LABELS.includes(r.a.label) && G.LABELS.includes(r.b.label) && r.diff.label === 'Calculated'); assert.match(r.diff.note, /site B minus site A/); }
+  const m = G.measures(D, c, 2, 'src');
+  assert.deepEqual(J(m.map(x => x.r.value)), J(rows.map(r => r.a.value)), 'site A in the comparison is exactly what one site alone shows');
+  const res = rows[0]; assert.equal(res.diff.value, res.b.value - res.a.value);
+  const same = G.compareSites(D, c, c, 2, 'src'); for (const r of same) assert.equal(r.diff.value, 0, 'the same site twice differs by nothing');
+  const swapped = G.compareSites(D, near, c, 2, 'src'); assert.equal(swapped[0].diff.value + 0, -res.diff.value + 0, 'swapping the sites flips the sign');
+  const none = G.compareSites({ areas: [], points: [], categories: D.categories }, c, near, 2, 's'); assert.equal(none[4].diff.value, null, 'no chicken place on either side: not comparable, never a number');
+  const code = read('assets/geo-demo.js');
+  assert.match(code, /does not say which site is better/); assert.match(code, /B minus A/); assert.match(code, /dashed ring, B a dotted ring/);
+  assert.ok(!/(better than|best site|winner|score)/i.test(code.replace(/does not say which site is better/, '')), 'no verdict words');
 });

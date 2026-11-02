@@ -83,5 +83,28 @@
     return result(Math.round(total), 'Calculated', source || 'area populations given', 'assumes people are spread evenly inside each area');
   }
 
-  window.ryagramGeo = Object.freeze({ LABELS, haversineKm, pointInPolygon, ringPolygon, countInside, nearestOf, residentsInside, result });
+  // The five measures for one site, the same for every site, so two sites are always compared on identical rules.
+  function measures(data, site, km, source) {
+    return [
+      { key: 'residents', what: 'Residents inside the ring', unit: ' people', r: residentsInside(data.areas, site, km, source) },
+      { key: 'chicken', what: `${data.categories.chicken} inside`, r: countInside(data.points, site, km, 'chicken', source) },
+      { key: 'burger', what: `${data.categories.burger} inside`, r: countInside(data.points, site, km, 'burger', source) },
+      { key: 'retail', what: `${data.categories.retail} inside`, r: countInside(data.points, site, km, 'retail', source) },
+      { key: 'nearest', what: 'Nearest chicken place', r: nearestOf(data.points, site, 'chicken', source) },
+    ];
+  }
+
+  // Two sites side by side: for each measure both results and the difference (B minus A; for the nearest chicken place, the difference in km). The difference is itself Calculated.
+  // It never says which site is better: no success score exists without real data, so this only counts.
+  function compareSites(data, a, b, km, source) {
+    const ma = measures(data, a, km, source), mb = measures(data, b, km, source);
+    return ma.map((row, i) => {
+      const x = row.r.value, y = mb[i].r.value;
+      const nx = x && typeof x === 'object' ? x.km : x, ny = y && typeof y === 'object' ? y.km : y;
+      const diff = num(nx) && num(ny) ? Math.round((ny - nx) * 100) / 100 : null;
+      return { key: row.key, what: row.what, unit: row.unit || '', a: row.r, b: mb[i].r, diff: result(diff, 'Calculated', source || 'from the two results', 'site B minus site A') };
+    });
+  }
+
+  window.ryagramGeo = Object.freeze({ LABELS, haversineKm, pointInPolygon, ringPolygon, countInside, nearestOf, residentsInside, result, measures, compareSites });
 })();

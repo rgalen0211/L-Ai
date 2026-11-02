@@ -16,6 +16,7 @@ with sync_playwright() as pw:
         ctx.route('**/assets/ryagram-config.js*', lambda r, _q: r.fulfill(status=200, content_type='text/javascript', body=cfg))
         p = ctx.new_page(); p.goto(f'http://127.0.0.1:{port}/geo-demo/', wait_until='load'); p.wait_for_selector('.geo-svg', timeout=20000)
         p.get_by_role('button', name='Middle of the map').click(); p.wait_for_timeout(300)
+        p.get_by_role('button', name='North edge').click(); p.wait_for_timeout(300)          # the second site: the compare table is the one scanned
         seen += p.locator('.geo-results tbody tr').count()
         r = p.evaluate(aa.SCAN)
         for k in ('noname', 'headings', 'contrast', 'small', 'noalt'):
