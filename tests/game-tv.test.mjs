@@ -67,7 +67,7 @@ test('the timer words and the checker: it refuses a sample whose public view lea
 test('the generator exists, says how to check it, and writes both copies; the page: noindex, hidden unless gameTv is exactly true, no outside request, nothing stored, nothing fetched', () => {
   const py = read('tools/make-game-sample.py'); assert.match(py, /guess_line/); assert.match(py, /--check/); assert.match(py, /game-tv-sample\.js/);
   const html = read('game-tv/index.html');
-  assert.match(html, /<meta name="robots" content="noindex, nofollow">/); assert.match(html, /<p id="not-available">This page is not available yet\.<\/p>/); assert.match(html, /<div id="game-tv" hidden><\/div>/);
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/); assert.match(html, /<p id="not-available">This page is not available yet\.<\/p>/); assert.match(html, /<div id="game-tv" hidden><h1>[^<]+<\/h1><\/div>/);
   const at = n => html.indexOf(`src="/assets/${n}`); assert.ok(at('ryagram-config.js') > 0 && at('ryagram-config.js') < at('game-tv-sample.js') && at('game-tv-sample.js') < at('game-tv.js'));
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html) && !/<script[^>]*src="https?:/.test(html)); assert.match(html, /<a href="\/ai-content\/">AI content<\/a>/);
   assert.match(read('assets/ryagram-config.js'), /\n  gameTv: false,/);

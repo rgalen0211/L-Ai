@@ -33,7 +33,7 @@ test('the fixture is plainly synthetic: labelled Simulated, made-up names, deter
 
 test('the page: noindex, hidden unless geoDemo is exactly true, no outside request, no map library, the synthetic banner and the rules in the words', () => {
   const html = read('geo-demo/index.html');
-  assert.match(html, /<meta name="robots" content="noindex, nofollow">/); assert.match(html, /<p id="not-available">This page is not available yet\.<\/p>/); assert.match(html, /<div id="geo-demo" hidden><\/div>/);
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/); assert.match(html, /<p id="not-available">This page is not available yet\.<\/p>/); assert.match(html, /<div id="geo-demo" hidden><h1>[^<]+<\/h1><\/div>/);
   assert.match(html, /script-src 'self'; style-src 'self' https:\/\/fonts\.googleapis\.com/); assert.ok(!/connect-src/.test(html) || /default-src 'self'/.test(html));
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html), 'no inline script'); assert.ok(!/<script[^>]*src="https?:/.test(html), 'no outside script');
   assert.ok(html.indexOf('ryagram-config.js') < html.indexOf('geo-demo.js') && html.indexOf('geo-catchment.js') < html.indexOf('geo-demo.js') && html.indexOf('geo-demo-data.js') < html.indexOf('geo-demo.js'));
