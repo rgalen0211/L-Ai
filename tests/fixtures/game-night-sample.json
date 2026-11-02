@@ -1,0 +1,322 @@
+{
+ "game": "guess-the-next-line",
+ "note": "RECORDED sample made by the real engine (guess_line.py) over a MADE-UP transcript; nothing here is a real show, person or clip.",
+ "players": [
+  "Ana",
+  "Ben",
+  "Cy"
+ ],
+ "rounds": [
+  {
+   "guesses": [
+    {
+     "player": "Ana",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 86,
+      "truncated": false,
+      "verdict": "exact"
+     },
+     "text": "harbour at midnight"
+    },
+    {
+     "player": "Ben",
+     "result": {
+      "accuracy": 0.7511,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "harbour"
+       },
+       {
+        "mark": "exact",
+        "word": "at"
+       },
+       {
+        "mark": "exact",
+        "word": "midnight."
+       }
+      ],
+      "points": 65,
+      "truncated": false,
+      "verdict": "partial"
+     },
+     "text": "harbours at midnight"
+    },
+    {
+     "player": "Cy",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "harbour"
+       },
+       {
+        "mark": "missed",
+        "word": "at"
+       },
+       {
+        "mark": "missed",
+        "word": "midnight."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "no guess"
+     },
+     "text": ""
+    }
+   ],
+   "public": {
+    "clip_start_ms": 12980,
+    "difficulty": "one of a kind",
+    "file": "made-up-show-2.mp4",
+    "heard_text": "A cheerful tune drifted over the sleepy",
+    "id": "b1beec28056a",
+    "stop_ms": 16290,
+    "words_left": 3
+   },
+   "reveal": {
+    "answer_text": "harbour at midnight.",
+    "base_points": 86.0,
+    "id": "b1beec28056a",
+    "phrase_count": 1,
+    "rarity": 1.0,
+    "words_left": 3
+   }
+  },
+  {
+   "guesses": [
+    {
+     "player": "Ana",
+     "result": {
+      "accuracy": 0.25,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "exact",
+        "word": "sourdough."
+       }
+      ],
+      "points": 21,
+      "truncated": false,
+      "verdict": "a few words"
+     },
+     "text": "ofs sourdough"
+    },
+    {
+     "player": "Ben",
+     "result": {
+      "accuracy": 0.1,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 8,
+      "truncated": false,
+      "verdict": "a few words"
+     },
+     "text": "of and some other things"
+    },
+    {
+     "player": "Cy",
+     "result": {
+      "accuracy": 0.0,
+      "marks": [
+       {
+        "mark": "missed",
+        "word": "of"
+       },
+       {
+        "mark": "missed",
+        "word": "sourdough."
+       }
+      ],
+      "points": 0,
+      "truncated": false,
+      "verdict": "miss"
+     },
+     "text": "something else entirely"
+    }
+   ],
+   "public": {
+    "clip_start_ms": 4700,
+    "difficulty": "one of a kind",
+    "file": "made-up-show-1.mp4",
+    "heard_text": "Nobody told the baker that the moon was made",
+    "id": "40af1dcf1dd5",
+    "stop_ms": 8730,
+    "words_left": 2
+   },
+   "reveal": {
+    "answer_text": "of sourdough.",
+    "base_points": 84.0,
+    "id": "40af1dcf1dd5",
+    "phrase_count": 1,
+    "rarity": 1.0,
+    "words_left": 2
+   }
+  },
+  {
+   "guesses": [
+    {
+     "player": "Ana",
+     "result": {
+      "accuracy": 0.2143,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "missed",
+        "word": "different"
+       },
+       {
+        "mark": "missed",
+        "word": "cheerful"
+       },
+       {
+        "mark": "missed",
+        "word": "tune."
+       }
+      ],
+      "points": 19,
+      "truncated": false,
+      "verdict": "a few words"
+     },
+     "text": "tower hums a and some other things"
+    },
+    {
+     "player": "Ben",
+     "result": {
+      "accuracy": 1.0,
+      "marks": [
+       {
+        "mark": "exact",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 88,
+      "truncated": false,
+      "verdict": "exact"
+     },
+     "text": "tower hums a different cheerful tune"
+    },
+    {
+     "player": "Cy",
+     "result": {
+      "accuracy": 0.8664,
+      "marks": [
+       {
+        "mark": "near",
+        "word": "tower"
+       },
+       {
+        "mark": "exact",
+        "word": "hums"
+       },
+       {
+        "mark": "exact",
+        "word": "a"
+       },
+       {
+        "mark": "exact",
+        "word": "different"
+       },
+       {
+        "mark": "exact",
+        "word": "cheerful"
+       },
+       {
+        "mark": "exact",
+        "word": "tune."
+       }
+      ],
+      "points": 76,
+      "truncated": false,
+      "verdict": "close"
+     },
+     "text": "towers hums a different cheerful tune"
+    }
+   ],
+   "public": {
+    "clip_start_ms": 8480,
+    "difficulty": "one of a kind",
+    "file": "made-up-show-2.mp4",
+    "heard_text": "Every evening the clock",
+    "id": "c99d3515e5e2",
+    "stop_ms": 10710,
+    "words_left": 6
+   },
+   "reveal": {
+    "answer_text": "tower hums a different cheerful tune.",
+    "base_points": 87.78133333333334,
+    "id": "c99d3515e5e2",
+    "phrase_count": 1,
+    "rarity": 0.895,
+    "words_left": 6
+   }
+  }
+ ],
+ "schema": "ryagram.game-night-sample/0",
+ "seed": "tv-sample-1",
+ "timer_s": 30,
+ "totals": {
+  "Ana": 126,
+  "Ben": 161,
+  "Cy": 76
+ }
+}
