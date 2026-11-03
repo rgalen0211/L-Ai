@@ -8,13 +8,14 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-req');
 const D = 'supabase/functions/connect-core/';
-const SUITE = 'connect-compilation-request.test.mjs';
+const SUITES = ['connect-compilation-request.test.mjs', 'cloud-site-connect-mustfail.test.mjs'];   // the second holds the trimmed-folder bug test (CLOUD-SITE 11-02)
 const mutants = [
   ['no ownership check on the project', D + 'tools.ts', 'if (!saved) return NOT_YOURS("project");', 'if (false) return NOT_YOURS("project");'],
   ['no daily limit', D + 'tools.ts', 'if (!(await ctx.policy.hit(ctx.principal, "compilation_requests"', 'if (false && !(await ctx.policy.hit(ctx.principal, "compilation_requests"'],
   ['a place hidden in the words is accepted', D + 'tools.ts', 'if (words.some((w) => w && looksLikePlace(w)))', 'if (false)'],
   ['a folder may be a path', D + 'tools.ts', 'const NAME_PATTERN = String.raw`^[^\\\\/:*?"<>|\\u0000-\\u001f]{1,80}$`;', 'const NAME_PATTERN = String.raw`^.{0,300}$`;'],
   ['a folder may be . or ..', D + 'tools.ts', ', not: { enum: [".", ".."] } }', ' }'],
+  ['a trimmed folder may be . or .. (CLOUD-SITE 11-02)', D + 'tools.ts', 'if (folders.some((f) => f === "." || f === ".."))', 'if (false)'],
   ['a picture may be any file', D + 'tools.ts', 'const PICTURE_PATTERN = String.raw`^[^\\\\/:*?"<>|\\u0000-\\u001f]{1,100}\\.(png|jpg|jpeg|webp|PNG|JPG|JPEG|WEBP)$`;', 'const PICTURE_PATTERN = String.raw`^.{1,300}$`;'],
   ['the tool is a read tool', D + 'tools.ts', 'title: "Ask for a compilation", scope: "write", readOnly: false,', 'title: "Ask for a compilation", scope: "read", readOnly: false,'],
   ['the tool says it is read-only', D + 'tools.ts', 'title: "Ask for a compilation", scope: "write", readOnly: false,', 'title: "Ask for a compilation", scope: "write", readOnly: true,'],
@@ -28,13 +29,13 @@ const mutants = [
 ];
 
 function run(cwd) {
-  return spawnSync(process.execPath, ['--test', path.join('tests', SUITE)], { encoding: 'utf8', cwd });
+  return spawnSync(process.execPath, ['--test', ...SUITES.map((f) => path.join('tests', f))], { encoding: 'utf8', cwd });
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(path.join(scratch, 'tests'), { recursive: true });
   fs.cpSync(path.join(root, 'supabase/functions'), path.join(scratch, 'supabase/functions'), { recursive: true });
-  fs.copyFileSync(path.join(root, 'tests', SUITE), path.join(scratch, 'tests', SUITE));
+  for (const f of SUITES) fs.copyFileSync(path.join(root, 'tests', f), path.join(scratch, 'tests', f));
 }
 fresh();
 const base = run(scratch);

@@ -107,6 +107,8 @@ window.ryagramConfig = Object.freeze({
   departments: true,
   // The TV screen page for Guess the next line (/game-tv/; NEXT-WEB 203): replays a RECORDED sample game made by FACES' engine over a made-up transcript. Draft words for Ryan. OFF until he has seen it.
   gameTv: false,
+  // The PHONE page for Guess the next line (/game-phone/; CLOUD-SITE 11-02): join with the TV's code and send a typed guess. Only the SAMPLE room works and nothing leaves the phone (the real room is not built). Text only. Draft words for Ryan. OFF until he has seen it.
+  gamePhone: false,
   // The Geographic Intelligence demo page (/geo-demo/; NEXT-WEB 198): shaded areas, markers, a clicked site, a ring and labelled counts, on SYNTHETIC data only. Draft words for Ryan. OFF until he has seen it.
   geoDemo: false,
   // On the geo demo page, a file chooser that loads the PRIVATE real-data file from the person's own computer (NEXT-WEB 204; OpenStreetMap data, attorney rows open). Needs geoDemo. Nothing is uploaded or stored. OFF.

@@ -138,7 +138,9 @@ export function datasetInfoText(d: DsRecord, usable: boolean): { text: string; p
     L.push(`Changes to the areas: ${ch.length} declared${ch.length > MAX_LISTED_CHANGES ? `, the first ${MAX_LISTED_CHANGES} listed` : ""}:`);
     for (const c of ch.slice(0, MAX_LISTED_CHANGES)) L.push(`  - ${c.label}: from ${c.adopted_from}${c.adopted_by_publisher ? " (the publisher's own year)" : " (Ryagram's choice, not the publisher's)"}. ${c.basis}`);
   }
-  L.push(`Measures: ${d.measures.map((m) => `${m.label} (${m.unit || "no unit"}, ${m.role}, ${m.kind})`).join("; ") || "none recorded"}.`);
+  // an empty role or kind in the engine's record is left out, never printed as an empty field ("(per 100k, , rate)", CLOUD-SITE 11-02); a missing unit still says so
+  const measureWords = (m: DsRecord["measures"][number]) => `${m.label} (${[m.unit || "no unit", m.role, m.kind].map((x) => String(x ?? "").trim()).filter(Boolean).join(", ")})`;
+  L.push(`Measures: ${d.measures.map(measureWords).join("; ") || "none recorded"}.`);
   L.push(`Views it can be drawn as: ${d.views.join(", ") || "none"}.`);
   const md = d.missing_data;
   L.push(`Missing data: ${md.absence_is_ambiguous ? "a missing value is ambiguous here" : "a missing value means no figure was published"}${md.note ? `. ${md.note}` : "."}`);
@@ -300,6 +302,8 @@ const setCompilationRequest: ToolDef = {
     if (rules.some((r) => !r.phrase) || texts.some((t) => !t.text)) return refuse("Every rule and every text needs its words.", "args");
     const folders = [...new Set((a.folders as string[]).map((f) => f.trim()).filter(Boolean))];
     if (!folders.length) return refuse("Name at least one of the person's folders.", "args");
+    // the schema's "." / ".." rule sees the name BEFORE it is trimmed (" .." passes it), so the trimmed name is checked again here (CLOUD-SITE 11-02)
+    if (folders.some((f) => f === "." || f === "..")) return refuse("A folder is a NAME, never \".\" or \"..\". Nothing was saved.", "args");
     const rawList = (a.checklist as Record<string, unknown>[] | undefined) ?? [];
     const checklist: ChecklistItem[] = rawList.map((c, i) => ({ id: `c${i + 1}`, what: cleanText(c.what, 200), from: cleanText(c.from ?? "", 200), must_contain: cleanText(c.must_contain ?? "", 200),
       folder: String(c.folder).trim(), count: c.count === undefined ? 1 : Number(c.count) }));

@@ -8,6 +8,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { handleRest } from '../supabase/functions/connect-core/rest.ts';
+import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
 import { build, TEMPLATES } from '../supabase/functions/_shared/templates.ts';
 
@@ -153,4 +154,25 @@ test('MUST FAIL: a cost estimate, a story read and the editor state for another 
     else { assert.equal(r.code, 'not_found', tool); }
     assert.ok(!r.text.includes('Test headline') && !JSON.stringify(r.data ?? {}).includes('Test headline'), `${tool} leaks no story text`);
   }
+});
+
+// ------------------------------------------------------------------------------------------------ BUG (CLOUD-SITE 11-02): folder names trimmed AFTER the "." / ".." rule
+
+test('MUST FAIL (bug): a folder name that is "." or ".." once its spaces are trimmed is refused, in folders and in the checklist, and nothing is saved', async () => {
+  const { w, call } = world();
+  const id = (await call(A, 'create_project', { title: 'Compilation' })).data.project_id;
+  for (const f of [' ..', '.. ', ' . ', '  ..  ']) {
+    const r = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: [f] });
+    assert.equal(r.isError, true, JSON.stringify(f)); assert.equal(r.code, 'args', JSON.stringify(f));
+  }
+  const c = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: ['My Videos', ' ..'], checklist: [{ what: 'the launch', folder: ' ..' }] });
+  assert.equal(c.isError, true); assert.equal(c.code, 'args');
+  assert.equal(w.users.get(A.userId).requests.get(id), undefined, 'nothing was saved');
+  // the advertised schema still tells the AI the rule (an AI reads it before it calls)
+  const t = TOOLS.find((x) => x.name === 'set_compilation_request');
+  assert.deepEqual(t.inputSchema.properties.folders.items.not, { enum: ['.', '..'] });
+  assert.deepEqual(t.inputSchema.properties.checklist.items.properties.folder.not, { enum: ['.', '..'] });
+  // control: a real name with spaces around it is still accepted and saved trimmed
+  const ok = await call(A, 'set_compilation_request', { project_id: id, phrase: 'great news', folders: ['  My Videos  ', '...'] });
+  assert.equal(ok.isError, undefined, ok.text); assert.deepEqual(w.users.get(A.userId).requests.get(id).request.folders, ['My Videos', '...']);
 });
