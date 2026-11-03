@@ -138,7 +138,9 @@ export function datasetInfoText(d: DsRecord, usable: boolean): { text: string; p
     L.push(`Changes to the areas: ${ch.length} declared${ch.length > MAX_LISTED_CHANGES ? `, the first ${MAX_LISTED_CHANGES} listed` : ""}:`);
     for (const c of ch.slice(0, MAX_LISTED_CHANGES)) L.push(`  - ${c.label}: from ${c.adopted_from}${c.adopted_by_publisher ? " (the publisher's own year)" : " (Ryagram's choice, not the publisher's)"}. ${c.basis}`);
   }
-  L.push(`Measures: ${d.measures.map((m) => `${m.label} (${m.unit || "no unit"}, ${m.role}, ${m.kind})`).join("; ") || "none recorded"}.`);
+  // an empty role or kind in the engine's record is left out, never printed as an empty field ("(per 100k, , rate)", CLOUD-SITE 11-02); a missing unit still says so
+  const measureWords = (m: DsRecord["measures"][number]) => `${m.label} (${[m.unit || "no unit", m.role, m.kind].map((x) => String(x ?? "").trim()).filter(Boolean).join(", ")})`;
+  L.push(`Measures: ${d.measures.map(measureWords).join("; ") || "none recorded"}.`);
   L.push(`Views it can be drawn as: ${d.views.join(", ") || "none"}.`);
   const md = d.missing_data;
   L.push(`Missing data: ${md.absence_is_ambiguous ? "a missing value is ambiguous here" : "a missing value means no figure was published"}${md.note ? `. ${md.note}` : "."}`);

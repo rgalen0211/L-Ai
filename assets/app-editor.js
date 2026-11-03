@@ -24,6 +24,26 @@
     rules: [{ id: 'r1', phrase: 'great news', picture: 'img-1', seconds: 2, mode: 'corner', fade_s: 0.2 }], pictures: [{ id: 'img-1', name: 'house.png' }, { id: 'img-2', name: 'chart.png' }],
     look: { theme: 'dark', text_color: '#f2f2f2', box_color: '#14141a', box_opacity: 0.75, letterbox: '#000000' } });
   const TRACK_NAMES = { video: 'Video', pictures: 'Pictures', text: 'Text', music: 'Music' };
+  // Keeping the keyboard's place (CLOUD-SITE 11-02): paint() rebuilds the panels, which threw away the control that had focus, so after pressing a button (a ready-made look, Up, Shorter ...)
+  // a keyboard or screen-reader user was dropped at the top of the page. The control is now found again by what it is (its label, its preset, its clip) and focused; if it is gone or
+  // disabled (Up on the first clip), its panel's heading takes focus instead.
+  const focusKey = el => (!el || !el.getAttribute) ? null : el.getAttribute('aria-label') ? 'label:' + el.getAttribute('aria-label') : el.getAttribute('data-preset') ? 'preset:' + el.getAttribute('data-preset')
+    : el.getAttribute('data-id') ? 'clip:' + String(el.className).split(' ')[0] + ':' + el.getAttribute('data-id') : el.id ? 'id:' + el.id : 'text:' + el.tagName + ':' + String(el.textContent || '').trim();
+  function keepFocus(root, doc, repaint) {
+    const was = doc.activeElement && root.contains(doc.activeElement) ? doc.activeElement : null;
+    const key = focusKey(was), panel = was && was.closest ? was.closest('section,[class~="le-panel"],.le-look,.le-rules,.le-clip-panel,.le-list,.le-flook') : null;
+    const headingId = panel && panel.querySelector ? (panel.querySelector('h2[id]') || {}).id : null;
+    repaint();
+    if (!key) return null;
+    const now = doc.activeElement;
+    if (now && now !== doc.body && now.isConnected !== false && root.contains(now)) return now;                // still in place (or moved on purpose)
+    const all = [...root.querySelectorAll('button,input,select,textarea,a[href]')], twin = all.find(e => focusKey(e) === key);
+    const row = twin && twin.disabled && twin.closest ? twin.closest('.le-item,.le-row,li') : null;                          // e.g. Up on what is now the first clip: its row's next control
+    const same = twin && !twin.disabled ? twin : row ? [...row.querySelectorAll('button,input,select,textarea,a[href]')].find(e => !e.disabled) || null : null;
+    const target = same || (headingId ? root.querySelector('#' + headingId) : null);
+    if (target) { if (!same && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1'); target.focus(); }
+    return target || null;
+  }
 
   function create({ h, data = null }) {
     const btn = (label, cls, onclick, attrs = {}) => h('button', { type: 'button', class: `button ${cls || 'secondary'}`.trim(), onclick, ...attrs }, label);
@@ -545,7 +565,7 @@
                btn('Later', 'secondary', () => apply({ op: 'move_clip', id: c.id, start: Math.round((c.start + 0.1) * 10) / 10 }), { 'aria-label': `Start ${c.label} later` })];
           return h('div', { class: `le-item le-c-${c.track}${selected === c.id ? ' le-sel' : ''}` },
             h('span', { class: 'le-dot', 'aria-hidden': 'true' }),
-            h('button', { type: 'button', class: 'le-itemtext', onclick: () => { selected = c.id; paint(); } }, `${TRACK_NAMES[c.track]}: ${c.label} · ${mmss(c.start)} · ${c.len} s${touched.has('clip:' + c.id) ? ' · by your AI' : ''}${E.isMarked(ed.base, c) ? ' · AI-altered' : ''}`),
+            h('button', { type: 'button', class: 'le-itemtext', 'data-id': c.id, onclick: () => { selected = c.id; paint(); } }, `${TRACK_NAMES[c.track]}: ${c.label} · ${mmss(c.start)} · ${c.len} s${touched.has('clip:' + c.id) ? ' · by your AI' : ''}${E.isMarked(ed.base, c) ? ' · AI-altered' : ''}`),
             h('span', { class: 'le-mv' }, moves,
               btn('Shorter', 'secondary', () => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + c.len - 0.1) * 10) / 10 }), { 'aria-label': `Make ${c.label} shorter` }),
               btn('Longer', 'secondary', () => apply({ op: 'trim_clip', id: c.id, edge: 'end', to: Math.round((c.start + c.len + 0.1) * 10) / 10 }), { 'aria-label': `Make ${c.label} longer` })));
@@ -595,7 +615,8 @@
         warns.replaceChildren(...out.map(t => h('p', { class: 'le-warn', role: 'status' }, t)));
       }
 
-      function paint() {
+      function paint() { const at = document.querySelector('.le'); if (at) keepFocus(at, document, paintNow); else paintNow(); }
+      function paintNow() {
         pill.textContent = onPc ? 'Kept on this computer' : saved ? 'Saved' : 'Draft, not saved';
         if (onPc) { saveBtn.hidden = true; revertBtn.hidden = true; }                // the maker keeps every change as it happens: there is nothing to save or revert to
         const empty = onPc && !isData && !ed.state.clips.length;
@@ -656,5 +677,5 @@
     return { editorView };
   }
 
-  window.ryagramEditorPage = { create, YEARS, LOOK_ROWS, WAITING, DATA_BASE, CLIPS_BASE };
+  window.ryagramEditorPage = { create, YEARS, LOOK_ROWS, WAITING, DATA_BASE, CLIPS_BASE, focusKey, keepFocus };
 })();

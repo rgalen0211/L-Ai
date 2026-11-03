@@ -574,6 +574,14 @@
           { user_email: 'pat@example.com', computer_name: 'PAT-LAPTOP', created_at: iso(3 * 86400000), expires_at: exp, last_used_at: iso(50 * 3600000), waiting_films: 0, running_films: 0 },
           { user_email: 'lee@example.com', computer_name: null, created_at: null, expires_at: null, last_used_at: null, waiting_films: 2, running_films: 0 }], error: null };
       },
+      // worker health (NEXT-WORKER 72, behind workerHealth): one worker running, one not checking in and low on disk (CLOUD-SITE 11-02: the mock had none, so the section could not be checked)
+      admin_worker_health() {
+        if (!adminMock()) return fail('Admins only.');
+        const now = Date.now(), iso = ms => new Date(now - ms).toISOString();
+        return { data: { claims_enabled: true, disabled_job_types: [], workers: [
+          { name: 'ryan-pc', state: 'ok', enabled: true, last_seen_at: iso(30000), last_engine_commit: { commit: 'a1b2c3d4e5f6', ended_at: iso(3600000) }, running: { job_type: 'preview', claimed_at: iso(60000) }, last_claim_at: iso(60000), free_gb: 120 },
+          { name: 'spare', state: 'delayed', enabled: true, last_seen_at: iso(2 * 3600000), last_engine_commit: null, running: null, last_claim_at: iso(86400000), free_gb: 8 }] }, error: null };
+      },
       admin_local_compute_audit() { if (!adminMock()) return fail('Admins only.'); return { data: structuredClone(db.testerAudit || []), error: null }; },
       // Mock of the Connect-an-AI switch (NEXT-WEB 157, SQL 20261027000900): admin only, a reason, refuses an administrator and a worker, every change in a history. maya@example.com and
       // sam@example.com start ON (as after tonight's by-hand SQL); ryan@example.com is an administrator.

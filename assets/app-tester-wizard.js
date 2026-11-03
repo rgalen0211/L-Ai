@@ -57,20 +57,34 @@
   const storedDisk = () => { try { return window.localStorage.getItem(DISK_KEY) === '1'; } catch (e) { return false; } };
   const storeDisk = on => { try { if (on) window.localStorage.setItem(DISK_KEY, '1'); else window.localStorage.removeItem(DISK_KEY); } catch (e) { /* the step just asks again next time */ } };
   const STATE_WORD = { done: 'Done', now: 'Do this now', next: 'Next' };
+  // Keeping the keyboard's place (CLOUD-SITE 11-02): draw() rebuilds the steps after a button is pressed AND every 15 seconds on its own, which threw away the control that had focus, so a
+  // keyboard or screen-reader user was dropped at the top of the page, even while only reading. Each control carries data-wiz; after a redraw the same one is focused again.
+  function keepFocus(body, doc, redraw) {
+    const was = doc.activeElement && body.contains(doc.activeElement) ? doc.activeElement : null;
+    const key = was && was.getAttribute ? was.getAttribute('data-wiz') : null;
+    redraw();
+    if (!key) return null;
+    const now = doc.activeElement;
+    if (now && now !== doc.body && body.contains(now)) return now;
+    const same = body.querySelector(`[data-wiz="${key.replace(/[^a-z0-9-]/g, '')}"]`);
+    if (same) same.focus();
+    return same || null;
+  }
 
   function create({ h, data, errorLine, startHref }) {
     async function wizardView(onStop) {
       const error = errorLine ? errorLine() : null;
       const body = h('div', { class: 'wiz-body' });
       let diskChecked = storedDisk();
-      function draw(r) {
+      function draw(r) { keepFocus(body, document, () => drawNow(r)); }
+      function drawNow(r) {
         if (r.notTester) { body.replaceChildren(h('p', { class: 'form-intro', role: 'status' }, WORDS.notTester)); return; }
         const kids = [h('ol', { class: 'wiz-steps' }, r.steps.map((s, k) => h('li', { class: `wiz-step wiz-${s.state}`, 'aria-current': s.state === 'now' ? 'step' : null },
           h('h2', {}, `${k + 1}. ${s.title}`), h('p', { class: 'meta' }, h('b', {}, STATE_WORD[s.state])), h('p', {}, s.words),
-          ...(s.id === 'disk' ? [h('button', { class: 'button secondary', type: 'button', 'aria-pressed': String(diskChecked), onclick: () => { diskChecked = !diskChecked; storeDisk(diskChecked); load(); } }, diskChecked ? 'I need to check again' : 'I checked: the drive has room')] : []),
-          ...(s.action ? [h('a', { class: `button ${s.state === 'now' ? 'primary' : 'secondary'}`, href: s.action.href }, s.action.label)] : []))))];
+          ...(s.id === 'disk' ? [h('button', { class: 'button secondary', type: 'button', 'data-wiz': 'disk', 'aria-pressed': String(diskChecked), onclick: () => { diskChecked = !diskChecked; storeDisk(diskChecked); load(); } }, diskChecked ? 'I need to check again' : 'I checked: the drive has room')] : []),
+          ...(s.action ? [h('a', { class: `button ${s.state === 'now' ? 'primary' : 'secondary'}`, href: s.action.href, 'data-wiz': `go-${s.id}` }, s.action.label)] : []))))];
         if (r.allDone) kids.push(h('p', { class: 'form-intro', role: 'status' }, 'All four steps are done. You are set.'));
-        kids.push(h('button', { class: 'button secondary', type: 'button', onclick: load }, WORDS.again));
+        kids.push(h('button', { class: 'button secondary', type: 'button', 'data-wiz': 'again', onclick: load }, WORDS.again));
         body.replaceChildren(...kids);
       }
       async function load() {
@@ -91,5 +105,5 @@
     return { wizardView };
   }
   const flagOn = () => !!(window.ryagramConfig && window.ryagramConfig.testerWizard === true);
-  window.ryagramTesterWizard = { WORDS, SEEN_MS, DISK_KEY, computerFacts, steps, create, flagOn, isMac, MAC_LINES };
+  window.ryagramTesterWizard = { WORDS, SEEN_MS, DISK_KEY, computerFacts, steps, create, flagOn, isMac, MAC_LINES, keepFocus };
 })();
