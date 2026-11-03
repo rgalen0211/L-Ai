@@ -4,7 +4,7 @@
   "description": "Test and tooling dependencies only (nothing here ships). Run `npm ci` once in a fresh checkout before `node --test`.",
   "engines": { "node": ">=22" },
   "scripts": {
-    "test": "node --test tests/",
+    "test": "node --test \"tests/*.test.mjs\" \"tests/*.test.cjs\"",
     "connect:predeploy": "node tools/connect_predeploy_check.mjs"
   },
   "devDependencies": {
