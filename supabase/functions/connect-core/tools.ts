@@ -300,6 +300,8 @@ const setCompilationRequest: ToolDef = {
     if (rules.some((r) => !r.phrase) || texts.some((t) => !t.text)) return refuse("Every rule and every text needs its words.", "args");
     const folders = [...new Set((a.folders as string[]).map((f) => f.trim()).filter(Boolean))];
     if (!folders.length) return refuse("Name at least one of the person's folders.", "args");
+    // the schema's "." / ".." rule sees the name BEFORE it is trimmed (" .." passes it), so the trimmed name is checked again here (CLOUD-SITE 11-02)
+    if (folders.some((f) => f === "." || f === "..")) return refuse("A folder is a NAME, never \".\" or \"..\". Nothing was saved.", "args");
     const rawList = (a.checklist as Record<string, unknown>[] | undefined) ?? [];
     const checklist: ChecklistItem[] = rawList.map((c, i) => ({ id: `c${i + 1}`, what: cleanText(c.what, 200), from: cleanText(c.from ?? "", 200), must_contain: cleanText(c.must_contain ?? "", 200),
       folder: String(c.folder).trim(), count: c.count === undefined ? 1 : Number(c.count) }));
