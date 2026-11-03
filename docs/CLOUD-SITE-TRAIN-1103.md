@@ -51,7 +51,7 @@ Once per fresh checkout: `npm ci`. The SQL tests use a throwaway local Postgres,
 
 | Command | Result |
 |---|---|
-| `npm test` | 1478 tests: **1466 pass, 0 fail**, 12 skipped |
+| `npm test` | 1480 tests: **1468 pass, 0 fail**, 12 skipped (1466 before the pre-merge check's own 2 tests were added) |
 | `node tools/check-public-pages.mjs` | 24 pages, **0 hard findings**, 5 warnings (listed below for Ryan) |
 | `node tools/check-phone-keyboard-pass.mjs` | 45 states, **0 failures** |
 | `python -m unittest supabase/tests/test_connect.py` | 66 OK (existing suite, unchanged) |
