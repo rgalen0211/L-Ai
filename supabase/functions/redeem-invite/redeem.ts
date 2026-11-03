@@ -42,8 +42,10 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 320) : "";
   if (!code || !email) return reply(400, { error: "Enter your invite code and your email." });
 
-  // The caller's address, hashed: only used to slow down guessing, kept a day.
-  const ip = (req.headers.get("cf-connecting-ip") ?? req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() || "unknown";
+  // The caller's address, hashed: only used to slow down guessing, kept a day. NEVER a value the client can write: the platform's own cf-connecting-ip, else the LAST hop
+  // of X-Forwarded-For (the one the platform's proxy appended); the first entries are whatever the client sent (CLOUD-SITE 11-02; the same rule as creator-beta and node).
+  const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+  const ip = (req.headers.get("cf-connecting-ip") ?? "").trim() || hops[hops.length - 1] || "unknown";
   let r;
   try { r = await deps.reserve(code, email, await sha256Hex(`ryagram-invite:${ip}`)); }
   catch (e) { console.error(`redeem-invite reserve: ${(e as Error).message}`); return reply(500, { error: "Something went wrong. Try again in a minute." }); }
