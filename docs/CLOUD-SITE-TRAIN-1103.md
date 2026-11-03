@@ -29,7 +29,8 @@ The three round branches mix test commits and fix commits. Each fix was committe
 | b7d1c45 | merge of cloud-site-1102d up to 8c5807c: 10 SQL invite and sign-up must-fail tests |
 | 48b43a5 | merge of the picks: 506dbd3 (<- bf0ee4c) the phone and keyboard check for geo-demo and game-tv; e52d8d4 (<- e11029b) the switches test; c05bdd2 (<- b3d7221) the public pages check and report; c9df92f, 0b53f40 (<- 1a16bd8, 181f22e) the page weight tool and report; 894fbdd (<- e652319) the connector abuse tests; f32d7f2 (<- 95d94e3) the round 1-3 report |
 | 99037d6 | the source-hygiene escape (above) |
-| (next) | this file |
+| cf0c70d | this file |
+| (next) | the one-command pre-merge check, its test, and this section |
 
 ### `cloud-site-features-1103` (main line, oldest first)
 
@@ -37,7 +38,8 @@ The three round branches mix test commits and fix commits. Each fix was committe
 |---|---|
 | 5dd5f13 | merge of cloud-site-1102 up to ed165a2: the coverage map and must-fail tests it builds on, the **folder fix** (df0b48b failing test, 10fcab2 fix), and **the Games phone page** (ed165a2) |
 | 484ce6a | merge of the picks: e147934, 3e69795 (<- 88762f3, 4820eef) the **keyboard focus fix**; 629df56, abe7eae (<- 72cffe2, ca8cf10) the **sign-up guess-limit fix**; e12795c, d7be64e (<- 18f9cc3, d97c113) the **dataset_info fix** |
-| (next) | this file |
+| d43783d | this file |
+| (next) | this file, with the pre-merge check section |
 
 Not on either train: the three round reports' older versions (e6569a1, a8c92a4). The tests train carries the final one (f32d7f2).
 
@@ -78,6 +80,34 @@ This train does not carry the `npm test` fix, so run `node --test` (with no argu
 |---|---|
 | `npm test` | 1503 tests: **1491 pass, 0 fail**, 12 skipped |
 | `node tools/check-public-pages.mjs` | 25 pages (with /game-phone/), 0 hard findings |
+
+## The one-command pre-merge check (on `cloud-site-tests-1103`)
+
+```
+node tools/pre-merge-check.mjs
+```
+
+It runs these in order and prints one PASS / FAIL / SKIP table. It exits 0 only if nothing failed, and it makes no network call, touches no database and deploys nothing.
+1. The node tests: every `tests/*.test.mjs` and `*.test.cjs`, found by itself.
+2. Both public-pages audits: `tools/check-public-pages.mjs` and `tools/audit-public-pages.py` (Python, standard library only).
+3. Every browser page check the branch has (`check-phone-keyboard-pass`, `check-game-phone`, `audit-a11y-switched`; SKIP if Playwright is missing), and the maker copy check (`build-maker-live.mjs --check`).
+4. Every connector mutant runner, `tests/connect_*mutants.mjs` (13 today; a new one is picked up automatically).
+
+Options:
+- `--quick`: the node tests and the public-pages audits only (about 15 s).
+- `--sql <python>`: also the connector and invite SQL suites, with a Python that has pgserver and psycopg (on Ryan's PC: `--sql pgvenv/Scripts/python`).
+
+`tests/pre-merge-check.test.mjs` checks that it finds every test file and every mutant runner, reads the node totals right, and calls a run FAIL when any step fails.
+
+Results (11-03):
+
+| Tree | Steps | Result |
+|---|---|---|
+| `cloud-site-tests-1103` (with `--sql`) | 23: node tests 1466 pass; both public-pages audits; the keyboard/phone pass; the maker check; 13 mutant runners (229 mutants, all caught); 5 SQL suites (100 tests) | **PASS**, about 3 minutes |
+| `cloud-site-features-1103` (tool copied in to measure, not committed there; with `--sql`) | 20: node tests 1473 pass; audit-public-pages.py; the game-phone walk; the switched-pages audit (about 2 minutes on its own); the maker check; 13 mutant runners; 2 SQL suites | **PASS** |
+| both trains merged (local only, with `--sql`) | 25: node tests 1491 pass; everything above together | **PASS** |
+| a planted failing test | node tests: 1 fail | **FAIL**, exit 1 |
+| a planted broken link on privacy-policy.html | both public-pages audits and the node page tests | **FAIL** |
 
 ## Every behaviour change (all on `cloud-site-features-1103`)
 
