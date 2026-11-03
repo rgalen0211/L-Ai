@@ -6,11 +6,11 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { execFileSync } from 'node:child_process';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-const testFiles = execFileSync('git', ['ls-files', 'tests/*.test.mjs', 'tests/*.test.cjs', 'tests/*.test.js'], { cwd: root, encoding: 'utf8' }).split('\n').filter(Boolean).sort();
+// the test files on disk (not git's list: a new test file must count before it is committed)
+const testFiles = fs.readdirSync(path.join(root, 'tests')).filter((f) => /\.test\.(mjs|cjs|js)$/.test(f)).map((f) => `tests/${f}`).sort();
 
 /** The arguments after `node --test`, quotes removed (npm runs the script through a shell; double quotes keep a glob for Node to expand itself, on Windows too). */
 function argsOf(script) {
