@@ -101,7 +101,7 @@ test('MUST FAIL: an existing title does not use up the daily allowance', async (
 
 test('MUST FAIL: a title that is only spaces or control characters is refused, and nothing is created', async () => {
   const { w, call } = world();
-  for (const title of ['   ', '\u0000\u0001', '​​']) {
+  for (const title of ['   ', '\u0000\u0001', '\u200b\u200b']) {
     const r = await call(A, 'create_project', { title });
     assert.equal(r.isError, true, JSON.stringify(title)); assert.equal(r.code, 'args', JSON.stringify(title));
   }
