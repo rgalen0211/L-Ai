@@ -23,6 +23,7 @@ const mutants = [
   ['the adoption years are left out', T, 'if (ad.length) L.push(', 'if (false) L.push('],
   ['the licence is left out of the text', T, 'Licence: ${d.licence || "not recorded"}.', ''],
   ['the id pattern allows anything', T, '"^[a-z0-9_]{1,100}$"', '".*"'],
+  ['an empty role or kind prints as an empty slot', T, '[m.unit || "no unit", m.role, m.kind].filter((x) => x).join(", ")', '[m.unit || "no unit", m.role, m.kind].join(", ")'],
   ['the vendored TS module is edited by hand', C + '../_shared/dataset_info.ts', '"licence":"U.S. Government work, public domain (Bureau of Economic Analysis); cite BEA."', '"licence":"Anyone may use this freely."'],
   ['the vendored JSON is edited by hand (the recorded SHA-256 no longer matches)', C + '../_shared/dataset-info.json', '"licence": "U.S. Government work, public domain (Bureau of Economic Analysis); cite BEA."', '"licence": "Anyone may use this freely."'],
 ];

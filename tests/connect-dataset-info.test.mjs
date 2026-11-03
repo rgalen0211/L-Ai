@@ -112,3 +112,14 @@ test('THE VENDORED FILES: dataset-info.json is ENGINE\'s file byte for byte (its
   assert.equal(new Set(records.map((r) => r.id)).size, records.length);
   for (const r of records) for (const k of ['id', 'label', 'periods', 'geography', 'measures', 'views', 'missing_data', 'method_breaks', 'licence', 'url']) assert.ok(k in r, r.id + ' lacks ' + k);
 });
+
+test('a measure with an empty role, kind or unit prints only what it has: no empty slot like "(per 100k, , rate)"', () => {
+  const base = records.find((r) => r.id === 'state_obesity_fastfood');
+  const odd = { ...base, measures: [{ id: 'm1', label: 'Restaurants', unit: 'per 100k', role: '', kind: 'rate' }, { id: 'm2', label: 'Other', unit: '', role: 'counted', kind: '' }] };
+  const line = datasetInfoText(odd, true).text.split(String.fromCharCode(10)).find((l) => l.startsWith('Measures:'));
+  assert.equal(line, 'Measures: Restaurants (per 100k, rate); Other (no unit, counted).');
+  for (const r of records) {
+    const m = datasetInfoText(r, true).text.split(String.fromCharCode(10)).find((l) => l.startsWith('Measures:'));
+    assert.ok(!/\(\s*,|,\s*,|,\s*\)|\(\s*\)/.test(m), r.id + ': an empty slot in ' + m);
+  }
+});
