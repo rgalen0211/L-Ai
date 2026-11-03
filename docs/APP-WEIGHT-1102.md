@@ -30,14 +30,14 @@ Every app page is the same document: **38 of our scripts (729.6 KB, 234.0 KB gzi
 
 | Page | Requests | On the wire | DOM ready | Load | Heading on screen | Mock files (not on the real site) |
 |---|---|---|---|---|---|---|
-| projects | 44 | 471.3 KB | 3901 ms | 4321 ms | 4367 ms | 4, 36.4 KB |
-| signed-out | 44 | 471.3 KB | 3894 ms | 3895 ms | 3930 ms | 0, 0.0 KB |
-| account | 44 | 471.3 KB | 3888 ms | 4300 ms | 4345 ms | 4, 36.4 KB |
-| credits | 44 | 471.3 KB | 3888 ms | 4298 ms | 4339 ms | 4, 36.4 KB |
-| build | 44 | 471.3 KB | 3879 ms | 4286 ms | 4319 ms | 4, 36.4 KB |
-| looks | 44 | 471.3 KB | 3864 ms | 4273 ms | 4300 ms | 4, 36.4 KB |
-| help | 44 | 471.3 KB | 3870 ms | 4282 ms | 4317 ms | 4, 36.4 KB |
-| admin-ops | 44 | 471.3 KB | 3873 ms | 4284 ms | 4354 ms | 4, 36.4 KB |
+| projects | 44 | 471.3 KB | 3863 ms | 4275 ms | 4328 ms | 4, 36.4 KB |
+| signed-out | 44 | 471.3 KB | 3875 ms | 3876 ms | 3904 ms | 0, 0.0 KB |
+| account | 44 | 471.3 KB | 3863 ms | 4271 ms | 4305 ms | 4, 36.4 KB |
+| credits | 44 | 471.3 KB | 3869 ms | 4277 ms | 4320 ms | 4, 36.4 KB |
+| build | 44 | 471.3 KB | 3883 ms | 4295 ms | 4340 ms | 4, 36.4 KB |
+| looks | 44 | 471.3 KB | 3854 ms | 4262 ms | 4294 ms | 4, 36.4 KB |
+| help | 44 | 471.3 KB | 3879 ms | 4288 ms | 4319 ms | 4, 36.4 KB |
+| admin-ops | 44 | 471.3 KB | 3855 ms | 4264 ms | 4323 ms | 4, 36.4 KB |
 
 ## How much of each script the first screen runs (projects page)
 
@@ -67,7 +67,7 @@ In order of what they save on every page view. Each is a change to app/index.htm
 2. **Load on demand: Other pages behind switches that are OFF (intake, My films, tester wizard).** 3 files, 26.2 KB (10.0 KB gzipped) that the other pages download, parse and run for nothing. Load them the first time their route opens (one small loader that adds the script tags in order and waits), or drop them from the page while their switch is OFF.
 3. **Load on demand: Admin-only code (an admin is one account).** 2 files, 27.1 KB (9.8 KB gzipped) that the other pages download, parse and run for nothing. Load them the first time their route opens (one small loader that adds the script tags in order and waits), or drop them from the page while their switch is OFF.
 4. **Split app-library.js by route.** 139.4 KB (37.4 KB gzipped), the biggest file of ours; the projects page runs about 13% of it. The admin views and the film/version views are the natural first pieces.
-5. **A smaller Supabase client.** The UMD build is 212.8 KB (54.1 KB gzipped) and the first screen runs about 4% of it. The app uses sign-in, RPC calls, storage uploads and (per tests) no realtime channel; a build of only auth-js and postgrest-js (plus storage where uploads happen), pinned the same way with an integrity hash, is worth measuring. It also removes the one outside script every page waits for.
+5. **A smaller Supabase client.** The UMD build is 212.8 KB (54.1 KB gzipped) and the first screen runs about 4% of it. The app uses sign-in, RPC calls, storage (uploads, downloads, signed links: app-data.js) and a realtime channel for job updates (app-data.js, client.channel('jobs:...')), so a slimmer build still needs auth-js, postgrest-js, storage-js and realtime-js; the saving is the UMD wrapper and what those four do not use, so measure it before deciding. Pin it the same way, with an integrity hash. It also removes the one outside script every page waits for.
 6. **Mark the scripts defer.** They already sit at the end of the body, so this saves little today, but with defer the browser can fetch all of them while it parses, and a later move into the head cannot make them block the first paint. Their order is kept.
 7. **Self-host the page font.** The Google Fonts stylesheet is render-blocking and comes from another host (already a pending decision in the page weight pass). One weight of Noto Serif Display, as a woff2 under /assets, with font-display: swap.
 8. **One cache rule for the ?v= files.** Every script carries a version, so a long cache lifetime would be safe, but GitHub Pages sets its own (10 minutes). If the site ever moves behind a CDN that allows headers, `Cache-Control: max-age=31536000, immutable` on /assets/*?v= makes every return visit load from the cache.
