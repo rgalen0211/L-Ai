@@ -99,6 +99,10 @@ begin
 end $$;
 create trigger account_status_new_trg after insert on auth.users for each row execute function ryagram_private.account_status_new();
 
+-- Supabase gives PUBLIC execute on new functions: nothing in ryagram_private below is for a signed-in person to run (the row policies call public.account_gate_ok)
+revoke execute on function ryagram_private.waiting_on(), ryagram_private.account_active(uuid), ryagram_private.require_active(), ryagram_private.require_active_owner(uuid),
+  ryagram_private.account_status_new() from public, anon, authenticated;
+
 -- every account that exists now is active
 insert into public.account_status (user_id, status, source) select u.id, 'active', 'backfill' from auth.users u on conflict (user_id) do nothing;
 

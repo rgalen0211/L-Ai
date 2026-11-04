@@ -225,6 +225,12 @@ class Wait(unittest.TestCase):
             with self.assertRaises(psycopg.Error):
                 self.one(WAIT, "select " + fn, WAIT)
 
+    def test_no_waiting_helper_in_the_private_schema_can_be_run_by_a_signed_in_person(self):
+        names = ("waiting_on", "account_active", "require_active", "require_active_owner", "account_status_new", "activate_account", "gate_apply")
+        for n in names:
+            for role in ("authenticated", "anon"):
+                self.assertFalse(self.db.as_(None).one("select has_function_privilege(%s, p.oid, 'execute') from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'ryagram_private' and p.proname = %s", role, n), f"{role} can run {n}")
+
     def test_status_helpers_are_security_definer_with_a_fixed_search_path(self):
         rows = self.db.as_(None).c.execute("""select p.proname, p.prosecdef, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
             where n.nspname in ('public','ryagram_private') and p.proname in ('account_status_new','account_active','require_active','require_active_owner','waiting_on','activate_account',
@@ -309,6 +315,15 @@ class Wait(unittest.TestCase):
         self.one("service", "select public.invite_sent(%s, %s)", r["redemption"], WAIT)
         self.assertEqual((self.status(WAIT), self.credits(WAIT)), ("active", 20))
         self.assertEqual(self.one(WAIT, "select public.my_access()")["status"], "active")
+
+    def test_invite_sent_activates_even_when_the_code_carries_no_credits(self):
+        self.switch()
+        code = self.code(credits=0)
+        r = self.one("service", "select public.invite_reserve(%s, 'w@x.co', 'ip')", code)
+        self.owner("insert into auth.users (id, email) values (%s, 'w@x.co')", WAIT)
+        self.assertEqual(self.status(WAIT), "waiting")
+        self.one("service", "select public.invite_sent(%s, %s)", r["redemption"], WAIT)
+        self.assertEqual((self.status(WAIT), self.credits(WAIT)), ("active", 0))
 
     def test_invite_sent_with_the_switch_off_pays_as_before(self):
         code = self.code(credits=20)
