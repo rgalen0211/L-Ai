@@ -21,6 +21,7 @@ import test_2a_core as core  # noqa: E402
 
 ROOT = core.ROOT
 LEDGER = ROOT / "phase-2b" / "credits_ledger.sql"
+STRIPE = ROOT / "phase-2b" / "stripe_test_mode.sql"
 ALICE, WAIT, WAIT2, ADMIN, WORKERU, OTHER = (str(uuid.UUID(int=i)) for i in (201, 202, 203, 204, 205, 206))
 WORDS = "waiting list"
 # the same list as ryagram_private.gate_apply(): functions a WAITING person may still run (kept apart on purpose: a change to one without the other fails a test)
@@ -28,7 +29,9 @@ ALLOWED = {"funnel_anon", "record_visit", "report_film_page", "service_status", 
            "is_app_admin", "current_engine_commit", "film_request_cost", "my_access", "account_gate_ok", "connect_consent_check"}
 OPEN_TABLES = {"account_settings", "account_deletion_requests", "ryagram_waitlist", "account_status"}
 WAIT_MIG = next(m for m in core.MIGRATIONS if m.name.startswith("20261104000100_waiting_accounts"))
-PRE = [m for m in core.MIGRATIONS if m.name < WAIT_MIG.name]               # everything before the waiting-accounts file
+# THE ORDER LIVE USES (as in test_policy_grants.LIVE_ORDER): the ledger and the Stripe file went in before the funnel migration; the waiting-accounts file and everything after it come last, and NOTHING is run
+# after them: if a later migration leaves a function ungated, this database is exactly as open as live would be, and the coverage test below sees it.
+PRE = [*[m for m in core.MIGRATIONS if m.name < "20261017000900"], LEDGER, STRIPE, *[m for m in core.MIGRATIONS if "20261017000900" <= m.name < WAIT_MIG.name]]
 POST = [m for m in core.MIGRATIONS if m.name > WAIT_MIG.name]              # the files after it (the join table)
 _server = None
 _count = 0
@@ -50,8 +53,6 @@ def setUpModule():
     with psycopg.connect(_server.get_uri(database="tmplw"), autocommit=True) as c:
         for path in [WAIT_MIG, *POST]:
             c.execute(path.read_text(encoding="utf-8"))
-        c.execute(LEDGER.read_text(encoding="utf-8"))
-        c.execute("select ryagram_private.gate_apply()")          # the ledger came AFTER the migration: this is the documented second run
         c.execute("update public.ops_settings set auto_render = true, default_credits_per_day = 100000")
 
 
@@ -96,7 +97,7 @@ class Wait(unittest.TestCase):
 
     def user(self, uid, email, switch_on=True):
         self.switch(switch_on)
-        self.owner("insert into auth.users (id, email) values (%s, %s)", uid, email)
+        self.owner("insert into auth.users (id, email, email_confirmed_at) values (%s, %s, now())", uid, email)
 
     def status(self, uid):
         row = self.db.as_(None).c.execute("select status from public.account_status where user_id = %s", (uid,)).fetchone()
@@ -116,16 +117,30 @@ class Wait(unittest.TestCase):
         self.owner("insert into public.app_admins (user_id) values (%s) on conflict do nothing", ADMIN)
 
     # ------------------------------------------------------------------------------------------------ the switch
-    def test_switch_off_changes_nothing(self):
+    def test_switch_off_changes_nothing_for_anyone_who_is_open(self):
         self.assertEqual(self.status(ALICE), "active")
         self.owner("insert into auth.users (id, email) values (%s,'x@x')", WAIT)
         self.assertEqual(self.status(WAIT), "active", "a new account while the switch is off is recorded active")
         me = self.one(WAIT, "select public.my_access()")
         self.assertEqual((me["status"], me["gate_on"]), ("active", False))
         self.one(WAIT, "select public.my_departments()")                  # a wrapped SQL function still answers
-        self.owner("update public.account_status set status = 'waiting' where user_id = %s", WAIT)       # even a waiting ROW is ignored while the switch is off
-        self.one(WAIT, "select public.my_departments()")
-        self.assertEqual(self.one(WAIT, "select public.my_access()")["status"], "active")
+
+    def test_a_waiting_row_is_gated_even_when_the_switch_is_off_so_off_then_on_opens_nothing(self):
+        self.user(WAIT, "w@x")                                             # made while the switch is ON: waiting
+        self.switch(False)
+        self.assertEqual(self.one(WAIT, "select public.my_access()")["status"], "waiting")
+        self.refused(WAIT, "select public.my_departments()")
+        self.refused(WAIT, "select public.create_version(null::uuid)")
+        self.switch(True)
+        self.assertEqual(self.one(WAIT, "select public.my_access()")["status"], "waiting")
+        self.assertEqual(self.credits(WAIT), 0)
+
+    def test_an_account_with_no_row_is_open_only_while_the_switch_is_off(self):
+        self.owner("insert into auth.users (id, email) values (%s,'n@x')", OTHER)
+        self.owner("delete from public.account_status where user_id = %s", OTHER)
+        self.assertEqual(self.one(OTHER, "select public.my_access()")["status"], "active")
+        self.switch(True)
+        self.assertEqual(self.one(OTHER, "select public.my_access()")["status"], "waiting")
 
     def test_new_account_waits_when_switch_on_and_old_accounts_stay_active(self):
         self.user(WAIT, "w@x")
@@ -134,12 +149,6 @@ class Wait(unittest.TestCase):
         me = self.one(WAIT, "select public.my_access()")
         self.assertEqual((me["status"], me["gate_on"]), ("waiting", True))
         self.assertEqual(self.one(ALICE, "select public.my_access()")["status"], "active")
-
-    def test_account_with_no_row_is_not_active_when_switch_on(self):
-        self.switch()
-        self.owner("insert into auth.users (id, email) values (%s,'n@x')", OTHER)
-        self.owner("delete from public.account_status where user_id = %s", OTHER)
-        self.assertEqual(self.one(OTHER, "select public.my_access()")["status"], "waiting")
 
     def test_admin_and_worker_count_as_active_whatever_the_table_says(self):
         self.admin()
@@ -226,14 +235,14 @@ class Wait(unittest.TestCase):
                 self.one(WAIT, "select " + fn, WAIT)
 
     def test_no_waiting_helper_in_the_private_schema_can_be_run_by_a_signed_in_person(self):
-        names = ("waiting_on", "account_active", "require_active", "require_active_owner", "account_status_new", "activate_account", "gate_apply")
+        names = ("waiting_on", "account_active", "require_active", "hold_grant", "account_status_new", "activate_account", "gate_apply")
         for n in names:
             for role in ("authenticated", "anon"):
                 self.assertFalse(self.db.as_(None).one("select has_function_privilege(%s, p.oid, 'execute') from pg_proc p join pg_namespace s on s.oid = p.pronamespace where s.nspname = 'ryagram_private' and p.proname = %s", role, n), f"{role} can run {n}")
 
     def test_status_helpers_are_security_definer_with_a_fixed_search_path(self):
         rows = self.db.as_(None).c.execute("""select p.proname, p.prosecdef, p.proconfig from pg_proc p join pg_namespace n on n.oid = p.pronamespace
-            where n.nspname in ('public','ryagram_private') and p.proname in ('account_status_new','account_active','require_active','require_active_owner','waiting_on','activate_account',
+            where n.nspname in ('public','ryagram_private') and p.proname in ('account_status_new','account_active','require_active','hold_grant','waiting_on','activate_account',
               'invite_claim','account_is_active','my_access','account_gate_ok','admin_waiting_list','admin_approve_waiting','gate_apply')""").fetchall()
         self.assertEqual(len(rows), 13)
         for name, secdef, cfg in rows:
@@ -260,6 +269,18 @@ class Wait(unittest.TestCase):
         a = self.db.as_(None).c.execute("select source, by_user, from_status, to_status from public.account_status_audit where user_id = %s", (WAIT,)).fetchall()
         self.assertEqual(a, [("approved", uuid.UUID(ADMIN), "waiting", "active")])
         self.assertEqual(self.one(WAIT, "select public.my_access()")["status"], "active")
+
+    def test_an_unconfirmed_address_is_listed_as_such_and_cannot_be_approved(self):
+        self.admin()
+        self.switch()
+        self.owner("insert into auth.users (id, email) values (%s, 'u@x')", WAIT2)               # no email_confirmed_at: the person never followed the link
+        rows = {str(r[0]): r[3] for r in self.db.as_(ADMIN).c.execute("select * from public.admin_waiting_list()").fetchall()}
+        self.assertEqual(rows[WAIT2], False)
+        with self.assertRaisesRegex(psycopg.Error, "not been confirmed"):
+            self.one(ADMIN, "select public.admin_approve_waiting(%s, 'looks fine')", WAIT2)
+        self.assertEqual(self.status(WAIT2), "waiting")
+        self.owner("update auth.users set email_confirmed_at = now() where id = %s", WAIT2)
+        self.assertTrue(self.one(ADMIN, "select public.admin_approve_waiting(%s, 'looks fine')", WAIT2)["flipped"])
 
     def code(self, credits=0, uses=1):
         code = self.db.as_(None).one("select public.invite_issue('t', %s, 14)", uses)
@@ -333,15 +354,30 @@ class Wait(unittest.TestCase):
         self.assertEqual(self.credits(WAIT), 20)
 
     # ------------------------------------------------------------------------------------------------ credits, connector, service role
-    def test_a_waiting_account_cannot_hold_credits(self):
+    def test_credits_for_a_waiting_account_are_held_never_in_the_ledger_and_paid_once_when_it_opens(self):
+        self.admin()
         self.user(WAIT, "w@x")
-        with self.assertRaises(psycopg.Error) as cm:
-            self.one("service", "select public.grant_credits(%s, 'grant', 5, 'x', 'admin:test')", WAIT)
-        self.assertIn(WORDS, str(cm.exception))
-        self.assertEqual(self.credits(WAIT), 0)
-        self.owner("update public.account_status set status = 'active' where user_id = %s", WAIT)
-        self.assertTrue(self.one("service", "select public.grant_credits(%s, 'grant', 5, 'x', 'admin:test')", WAIT))
-        self.assertEqual(self.credits(WAIT), 5)
+        first = self.one("service", "select public.grant_credits(%s, 'grant', 5, 'x', 'admin:test', 'evt_one')", WAIT)
+        again = self.one("service", "select public.grant_credits(%s, 'grant', 5, 'x', 'admin:test', 'evt_one')", WAIT)
+        self.assertEqual((first, again), (None, None), "a held grant returns nothing and a replay of the same event is the same hold")
+        self.assertEqual(self.credits(WAIT), 0, "no credit row can exist for a waiting account")
+        self.assertEqual(self.owner("select count(*), sum(credits) from public.held_grants where owner_id = %s", WAIT).fetchone(), (1, 5))
+        self.assertEqual(self.owner("select count(*) from public.credit_ledger where owner_id = %s", WAIT).fetchone()[0], 0)
+        self.assertTrue(self.one(ADMIN, "select public.admin_approve_waiting(%s, 'fine')", WAIT)["flipped"])
+        self.assertEqual(self.credits(WAIT), 25, "the 20 welcome credits plus the 5 that were held")
+        self.assertEqual(self.owner("select count(*) from public.held_grants").fetchone()[0], 0, "the hold is gone once paid")
+        self.assertTrue(self.one("service", "select public.grant_credits(%s, 'grant', 3, 'y', 'admin:test')", WAIT), "an open account is paid at once")
+        self.assertEqual(self.credits(WAIT), 28)
+
+    def test_a_paid_month_for_a_waiting_account_does_not_fail_the_stripe_webhook(self):
+        """the Stripe entry point must not raise for a waiting account (the webhook would retry for ever with no credits for a paid month): the grant is held instead"""
+        self.user(WAIT, "w@x")
+        self.owner("insert into public.stripe_customers (owner_id, customer_id) values (%s, 'cus_w')", WAIT)
+        held = self.one("service", "select public.grant_credits(%s, 'subscription_grant', 40, 'month', 'stripe', null, '2026-11', 'plan_a')", WAIT)
+        self.assertIsNone(held)
+        self.assertEqual(self.owner("select count(*) from public.held_grants where period_key = '2026-11'").fetchone()[0], 1)
+        self.one("service", "select public.grant_credits(%s, 'subscription_grant', 40, 'month', 'stripe', null, '2026-11', 'plan_a')", WAIT)
+        self.assertEqual(self.owner("select count(*) from public.held_grants where period_key = '2026-11'").fetchone()[0], 1, "the same billing period is held once")
 
     def test_a_waiting_account_cannot_be_connected_to_an_ai(self):
         self.user(WAIT, "w@x")
@@ -351,7 +387,7 @@ class Wait(unittest.TestCase):
         self.assertTrue(self.db.as_(None).one("select ryagram_private.connect_person_ok(%s)", WAIT))
         self.switch(False)
         self.owner("update public.account_status set status = 'waiting' where user_id = %s", WAIT)
-        self.assertTrue(self.db.as_(None).one("select ryagram_private.connect_person_ok(%s)", WAIT), "switch off: as before")
+        self.assertFalse(self.db.as_(None).one("select ryagram_private.connect_person_ok(%s)", WAIT), "a waiting row stays gated with the switch off")
 
     def test_the_consent_page_says_why_in_plain_words(self):
         src = self.db.as_(None).one("select prosrc from pg_proc where proname = 'connect_consent_check'")
@@ -384,6 +420,12 @@ class Wait(unittest.TestCase):
         self.owner("insert into public.join_attempts (ip_hash, email_hash) select 'x' || g, lpad(g::text, 64, '0') from generate_series(1, 200) g")
         self.assertEqual(self.one("service", "select public.join_reserve('z@example.com', 'ipD')"), {"ok": False, "reason": "throttled"}, "200 a day overall")
 
+    def test_join_one_caller_cannot_use_the_whole_day_for_everyone(self):
+        self.switch()
+        self.owner("insert into public.join_attempts (ip_hash, email_hash, at) select 'ipA', lpad(g::text, 64, '0'), now() - interval '3 hours' from generate_series(1, 10) g")
+        self.assertEqual(self.one("service", "select public.join_reserve('late@example.com', 'ipA')"), {"ok": False, "reason": "throttled"}, "10 in a day from one caller, none in the last hour")
+        self.assertTrue(self.one("service", "select public.join_reserve('late@example.com', 'ipB')")["ok"], "another caller is not held up")
+
     def test_join_old_attempts_are_forgotten_and_nobody_but_the_service_role_can_call_it(self):
         self.switch()
         self.owner("insert into public.join_attempts (ip_hash, email_hash, at) values ('ipA', %s, now() - interval '3 days')", "0" * 64)
@@ -403,7 +445,7 @@ class Wait(unittest.TestCase):
 
     def test_the_after_check_is_all_true_and_sees_a_planted_fault_and_the_switch_files_work(self):
         rows = self.owner(self.live("19_waiting_accounts_after_check.sql")).fetchall()
-        self.assertEqual(len(rows), 7)
+        self.assertEqual(len(rows), 8)
         self.assertEqual([r[0] for r in rows if r[1] is not True], [], "every ok is true on the migrated database")
         self.owner("""create function public.zz_planted() returns int language plpgsql security definer set search_path = '' as $$
 begin
@@ -420,6 +462,7 @@ grant execute on function public.zz_planted() to authenticated;""")
         self.assertTrue(cur.fetchone()[0])
         self.assertEqual(self.owner("select waiting_accounts from public.ops_settings").fetchone()[0], True)
         self.assertEqual([r[0] for r in self.owner(self.live("19_waiting_accounts_after_check.sql")).fetchall() if r[1] is not True], ["the switch is OFF right now (INFO: false here means it is already ON; both are fine, just know which)"])
+        self.assertEqual(self.owner(self.live("19a_waiting_accounts_before_check.sql")).fetchall(), [], "nothing would stop gate_apply")
         self.owner(self.live("21_waiting_accounts_switch_off.sql"))
         self.assertEqual(self.owner("select waiting_accounts from public.ops_settings").fetchone()[0], False)
 
