@@ -991,15 +991,56 @@ const whatIsWithin: ToolDef = {
     if (!(await ctx.policy.hit(ctx.principal, "geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {
       return refuse(`The limit of ${LIMITS.geoQuestionsPerHourPerUser} place questions an hour is reached. Nothing was looked up.`, "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 3600 } });
     }
-    const rep = readGeoAnswer(await sw.within({ lat, lon, minutes, categories }), minutes, categories);
-    if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Estimated), so none of it is shown.", "bad_report");
-    const lines = [`${minutes}-minute area (estimated) around ${lat.toFixed(4)}, ${lon.toFixed(4)}: about ${rep.residents.value === null ? "an unknown number of" : Math.round(rep.residents.value).toLocaleString("en-US")} residents (between ${Math.round(rep.lo).toLocaleString("en-US")} and ${Math.round(rep.hi).toLocaleString("en-US")} if the drive is slower or faster than assumed). Estimated.`];
-    for (const c of categories) lines.push(`  ${c}: ${rep.counts[c].value === null ? "unknown" : rep.counts[c].value} inside. Estimated; ${untrusted("report-sentence", rep.counts[c].source)}.`);
-    lines.push(`Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}`);
-    lines.push(`Source of the resident count: ${untrusted("report-sentence", rep.residents.source)}. This is a circle, not a routed drive time; a real drive time needs a road network and a routing program.`);
-    return ok(lines.join("\n"), { minutes, lat, lon, label_for_everything: "Estimated", residents: { value: rep.residents.value, low: rep.lo, high: rep.hi }, counts: Object.fromEntries(categories.map((c) => [c, rep.counts[c].value])), looked_up: true });
+    // The connector cannot compute this (no engine, no data in an Edge Function): it WRITES A QUESTION for the house computer and says so. geo_answer reads the answer.
+    const asked = await ctx.data.askGeo({ lat, lon, minutes, categories });
+    return ok(`Asked${asked.repeat ? " (the same question was already asked, so this is that one)" : ""}. The computer that answers place questions usually takes under a minute. Ask geo_answer with id ${asked.id} to read the answer. `
+      + "Nothing was looked up here and nothing is saved but the question itself, which is deleted after 7 days." + GEO_STOP,
+      { asked: true, id: asked.id, state: asked.state, repeat: asked.repeat === true, looked_up: false, do_not_poll: false, poll_after_s: 20 });
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin];
+const GEO_STOP = " Do not keep checking: every check uses the person's own AI allowance. Check at most three times, about 20 seconds apart; if there is still no answer, tell the person.";
+const GEO_FAILED: Record<string, string> = {
+  geo_request_rejected: "The computer that answers place questions did not accept the question.",
+  unknown_category: "One of the kinds of business is not one this service knows.",
+  data_not_allowed: "Place questions are only answered on example data for now, and this one is not.",
+  engine_error: "The computer that answers place questions had a problem. Nothing is shown.",
+  answer_rejected: "The place is outside the area the data covers, or the answer was not one this connection will show.",
+};
+const geoAnswer: ToolDef = {
+  name: "geo_answer", title: "Read the answer to a place question", scope: "read", readOnly: true, listed: false,
+  description: "Reads the answer to a place question asked with what_is_within (its id). Read-only: it changes nothing. The answer is an ESTIMATE labelled Estimated, with its assumptions and its source; when the data is example data it says so first.",
+  inputSchema: obj({ id: uuid }, ["id"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.geo;
+    if (!sw || !(await sw.enabled())) return refuse("Questions about places are not available yet. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });
+    if (!(await ctx.policy.hit(ctx.principal, "geo_read", LIMITS.geoReadsPerHourPerUser, 3600))) {
+      return refuse(`The limit of ${LIMITS.geoReadsPerHourPerUser} answer checks an hour is reached. Do not check again; tell the person.`, "rate", { data: { ok: false, retry_after_seconds: 3600 } });
+    }
+    const row = await ctx.data.getGeo(String(a.id));
+    if (!row) return refuse("That place question was not found among yours.", "not_found");
+    if (row.state === "asked" || row.state === "claimed") {
+      const stuck = row.waited_s >= 300;
+      return ok(stuck
+        ? "The computer that answers place questions has not picked this up for several minutes (it may be off or busy). The question is safe and will be answered when it is back, but I cannot say when. Do not check again; tell the person." + GEO_STOP
+        : "Not answered yet." + GEO_STOP, { id: row.id, state: row.state, looked_up: false, do_not_poll: stuck, poll_after_s: stuck ? null : 20 });
+    }
+    if (row.state === "failed") {
+      const words = GEO_FAILED[row.fail_code ?? ""] ?? "The question could not be answered.";
+      return refuse(`${words}${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""} Nothing is shown.`, "bad_report", { data: { ok: false, id: row.id, state: "failed", fail_code: row.fail_code, looked_up: false } });
+    }
+    const rep = readGeoAnswer(row.answer, row.minutes, row.categories);
+    if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Estimated), so none of it is shown.", "bad_report");
+    const example = /example data/i.test(rep.assumptions);
+    const { lat, lon, minutes, categories } = row;
+    const lines = [...(example ? ["EXAMPLE DATA, not a real place: the numbers below come from a made-up county used to test this service."] : []),
+      `${minutes}-minute area (estimated) around ${lat.toFixed(4)}, ${lon.toFixed(4)}: about ${rep.residents.value === null ? "an unknown number of" : Math.round(rep.residents.value).toLocaleString("en-US")} residents (between ${Math.round(rep.lo).toLocaleString("en-US")} and ${Math.round(rep.hi).toLocaleString("en-US")} if the drive is slower or faster than assumed). Estimated.`];
+    for (const c of categories) lines.push(`  ${c}: ${rep.counts[c].value === null ? "unknown" : rep.counts[c].value} inside. Estimated; ${untrusted("report-sentence", rep.counts[c].source)}.`);
+    lines.push(`Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}`);
+    lines.push(`Source of the resident count: ${untrusted("report-sentence", rep.residents.source)}. This is a circle, not a routed drive time; a real drive time needs a road network and a routing program.`);
+    return ok(lines.join("\n"), { id: row.id, minutes, lat, lon, label_for_everything: "Estimated", example_data: example, residents: { value: rep.residents.value, low: rep.lo, high: rep.hi }, counts: Object.fromEntries(categories.map((c) => [c, rep.counts[c].value])), looked_up: true });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

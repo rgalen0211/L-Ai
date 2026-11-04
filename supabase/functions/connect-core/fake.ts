@@ -5,13 +5,13 @@
 import type { Job } from "../ai-editor/tools.ts";
 import { applyOps, LOOK_KEYS, newDraft, undoOps, type Draft, type Mode, type Op } from "./edit_state.ts";
 import { downloadUrlProblem } from "./tools.ts";
-import type { CallLog, Data, DownloadRow, EditState, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
+import type { CallLog, Data, DownloadRow, EditState, GeoRow, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null; run_on?: string };
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
+interface FUser { geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -35,7 +35,7 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
+    const u: FUser = { geo: new Map(), plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
     this.users.set(userId, u);
     return u;
   }
@@ -123,6 +123,21 @@ export class FakeWorld {
         return { id: row.id, host, state: "waiting" };
       },
       listDownloads: async () => u().plans.slice().reverse().slice(0, 20).map((p) => ({ ...p })),
+      askGeo: async (q) => {
+        // mirrors connect_geo_ask: the point is rounded to 4 decimals, the same question is one request, 5 open at once, 100 a day
+        const user = u();
+        const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
+        const cats = [...new Set(q.categories)].sort();
+        const lat = r4(q.lat), lon = r4(q.lon);
+        const same = [...user.geo.values()].reverse().find((g) => g.lat === lat && g.lon === lon && g.minutes === q.minutes && g.categories.join() === cats.join() && g.state !== "failed");
+        if (same) return { id: same.id, state: same.state, repeat: true };
+        if ([...user.geo.values()].filter((g) => g.state === "asked" || g.state === "claimed").length >= 5) throw err("There are already 5 place questions waiting for an answer. Wait for those first.", "PT429");
+        if (user.geo.size >= 100) throw err("That is 100 place questions in a day. Try again tomorrow.", "PT429");
+        const row: GeoRow = { id: id(), state: "asked", lat, lon, minutes: q.minutes, categories: cats, answer: null, fail_code: null, fail_detail: null, waited_s: 0 };
+        user.geo.set(row.id, row);
+        return { id: row.id, state: "asked", repeat: false };
+      },
+      getGeo: async (gid) => { const g = u().geo.get(gid); return g ? JSON.parse(JSON.stringify(g)) : null; },
       saveCompilationRequest: async (pid, request) => {
         const user = u();
         if (!user.projects.some((p) => p.id === pid)) return null;

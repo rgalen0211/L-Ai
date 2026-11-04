@@ -11,6 +11,8 @@ const C = 'supabase/functions/connect-core/';
 const T = C + 'tools.ts', Y = C + 'types.ts', I = 'supabase/functions/connect/index.ts';
 const SUITES = ['connect-geo-within.test.mjs'];
 const HEAD = 'title: "What is within N minutes of this place", scope: "read", readOnly: true, listed: false,';
+const AHEAD = 'title: "Read the answer to a place question", scope: "read", readOnly: true, listed: false,';
+const GOFF = 'if (!sw || !(await sw.enabled())) return refuse("Questions about places are not available yet. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });\n    if (!(await ctx.policy.hit(ctx.principal, "geo_read"';
 // each mutant: [name, [[file, from, to], ...]]
 const mutants = [
   ['the tool is listed', [[T, HEAD, HEAD.replace(' listed: false,', '')]]],
@@ -27,7 +29,7 @@ const mutants = [
   ['a repeated category is asked twice', [[T, 'const categories = [...new Set(raw as string[])];', 'const categories = raw as string[];']]],
   ['the hourly limit is gone', [[T, 'if (!(await ctx.policy.hit(ctx.principal, "geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {', 'if (false) {']]],
   ['the hourly limit is far too high', [[Y, 'geoQuestionsPerHourPerUser: 30,', 'geoQuestionsPerHourPerUser: 3000,']]],
-  ['the lookup is given more than the four fields', [[T, 'sw.within({ lat, lon, minutes, categories })', 'sw.within({ lat, lon, minutes, categories, place: String(a.place ?? "") } as never)']]],
+  ['the question is written with more than the four fields', [[T, 'ctx.data.askGeo({ lat, lon, minutes, categories })', 'ctx.data.askGeo({ lat, lon, minutes, categories, place: String(a.place ?? "") } as never)']]],
   ['a number not labelled Estimated is shown', [[T, 'if (!isObj(v) || v.label !== "Estimated") return null;', 'if (!isObj(v)) return null;']]],
   ['the whole-answer label is not checked', [[T, ' || doc.label_for_everything !== "Estimated"', '']]],
   ['the range label is not checked', [[T, ' || site.residents_range.label !== "Estimated"', '']]],
@@ -40,6 +42,20 @@ const mutants = [
   ['the engine sentences are shown unfenced', [[T, 'Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}', 'Assumed, not measured: ${rep.assumptions}']]],
   ['the answer does not say Estimated', [[T, '(estimated) around', 'around']]],
   ['the answer does not say it is a circle', [[T, 'This is a circle, not a routed drive time; a real drive time needs a road network and a routing program.', '']]],
+  ['geo_answer is listed', [[T, AHEAD, AHEAD.replace(' listed: false,', '')]]],
+  ['geo_answer needs write permission', [[T, AHEAD, AHEAD.replace('scope: "read"', 'scope: "write"')]]],
+  ['geo_answer ignores the switch', [[T, GOFF, GOFF.replace('if (!sw || !(await sw.enabled()))', 'if (false)')]]],
+  ['the answer checks have no limit', [[T, 'if (!(await ctx.policy.hit(ctx.principal, "geo_read", LIMITS.geoReadsPerHourPerUser, 3600))) {', 'if (false) {']]],
+  ['the answer-check limit is far too high', [[Y, 'geoReadsPerHourPerUser: 120,', 'geoReadsPerHourPerUser: 120000,']]],
+  ['an unanswered question says it is answered', [[T, 'Not answered yet."', 'Answered."']]],
+  ['a stuck question still tells the AI to keep checking', [[T, 'do_not_poll: stuck, poll_after_s: stuck ? null : 20', 'do_not_poll: false, poll_after_s: 20']]],
+  ['the machine-may-be-off words are gone', [[T, 'may be off or busy', 'is fine']]],
+  ['a failed question shows an answer anyway', [[T, 'if (row.state === "failed") {', 'if (false) {']]],
+  ['the workers failure detail is shown unfenced', [[T, '${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""}', '${row.fail_detail ? " " + row.fail_detail : ""}']]],
+  ['example data does not announce itself', [[T, 'const example = /example data/i.test(rep.assumptions);', 'const example = false;']]],
+  ['the ask claims a lookup was made', [[T, 'looked_up: false, do_not_poll: false, poll_after_s: 20 }', 'looked_up: true, do_not_poll: false, poll_after_s: 20 }']]],
+  ['the ask does not tell the AI to stop checking', [[T, 'Nothing was looked up here and nothing is saved but the question itself, which is deleted after 7 days." + GEO_STOP,', 'Nothing was looked up here and nothing is saved but the question itself, which is deleted after 7 days.",']]],
+  ['the real function names a geo database call that does not exist', [['supabase/functions/connect/db.ts', '"connect_geo_ask"', '"connect_geo_asks"']]],
   ['the refusal does not say nothing was looked up', [[T, 'Questions about places are not available yet. Nothing was looked up.', 'Questions about places are not available yet.']]],
 ];
 
@@ -50,6 +66,7 @@ function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(path.join(scratch, 'supabase'), { recursive: true });
   fs.cpSync(path.join(root, 'supabase/functions'), path.join(scratch, 'supabase/functions'), { recursive: true });
+  fs.cpSync(path.join(root, 'supabase/migrations'), path.join(scratch, 'supabase/migrations'), { recursive: true });
   fs.cpSync(path.join(root, 'tests'), path.join(scratch, 'tests'), { recursive: true });
   fs.cpSync(path.join(root, 'assets'), path.join(scratch, 'assets'), { recursive: true });
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));

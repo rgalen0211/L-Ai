@@ -361,6 +361,8 @@ class Ops(core.Base):
                            "admin_creator_beta()", "admin_decide_creator(bigint,text)",
                            # waiting accounts (20261104000100): how a WAITING person learns their state, the row policies' own check, Ryan's list and approve (admin-only inside)
                            "my_access()", "account_gate_ok()", "admin_waiting_list()", "admin_approve_waiting(uuid,text)",
+                           # geo requests (20261104000300): the house worker's three functions, each starting with require_worker()
+                           "claim_next_geo()", "finish_geo(uuid,jsonb)", "fail_geo(uuid,text,text)",
                            # tester computers: the admin list (NEXT-WEB 187; starts with require_admin(), revokes public, anon and node_runner)
                            "admin_tester_devices()",
                            # cost ledger: Ryan's screen and settings (same rule)
