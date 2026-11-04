@@ -20,7 +20,7 @@ const mutants = [
   ['the count may be anything', T, 'count: { type: "integer", minimum: 1, maximum: 20,', 'count: { type: "number",'],
   ['any number of items', T, 'checklist: { type: "array", maxItems: MAX_CHECKLIST,', 'checklist: { type: "array",'],
   ['an item may carry extra fields', T, '}, ["what", "folder"]),', '}, ["what", "folder"]).additionalProperties === 0 ? {} : { ...obj({}, []), type: "object", properties: {}, additionalProperties: true }),'],
-  ['the tool does not store the checklist', T, 'note, ...(checklist.length ? { checklist } : {}) };', 'note };'],
+  ['the tool does not store the checklist', T, '...(checklist.length ? { checklist } : {}) };', ' };'],
   ['an empty checklist is stored', T, '...(checklist.length ? { checklist } : {})', 'checklist'],
   ['the text is not cleaned', T, 'what: cleanText(c.what, 200)', 'what: String(c.what)'],
   ['the ids are not given by the tool', T, 'id: `c${i + 1}`', 'id: String(c.id ?? "x")'],

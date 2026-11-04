@@ -261,6 +261,7 @@ const looksLikePlace = (s: string) => PLACE.test(s);
 const LINKISH = /[A-Za-z][A-Za-z0-9+.-]*:\/\/|\bwww\.|\b[A-Za-z0-9-]+\.(com|org|net|gov|edu|io|co|us|uk)\b\/?/i;
 const looksLikeLink = (s: string) => LINKISH.test(s);
 const MAX_CHECKLIST = 12;
+const MAX_CARDS = 4;
 
 const setCompilationRequest: ToolDef = {
   name: "set_compilation_request", title: "Ask for a compilation", scope: "write", readOnly: false, destructive: true, idempotent: true,
@@ -281,6 +282,11 @@ const setCompilationRequest: ToolDef = {
     texts: { type: "array", maxItems: 20, items: obj({
       text: { type: "string", minLength: 1, maxLength: 120 }, start_s: { type: "number", minimum: 0, maximum: 3600 }, length_s: { type: "number", minimum: 0.5, maximum: 30 },
       position: { type: "string", enum: ["top", "centre", "bottom", "lower_third"] }, size: { type: "string", enum: ["small", "medium", "large"] } }, ["text", "start_s", "length_s", "position"]) },
+    cards: { type: "array", maxItems: MAX_CARDS, items: obj({
+      text: { type: "string", minLength: 1, maxLength: 120, description: "The words on the card, on the film's page colour. No picture is needed." },
+      where: { type: "string", enum: ["start", "end"], description: "start = before the first clip; end = after the last." },
+      seconds: { type: "number", minimum: 0.5, maximum: 10, description: "How long the card stays." } }, ["text", "where", "seconds"]),
+      description: "Optional title or end cards: the person's own words on the film's page colour. At most 4. The desktop app builds them; nothing here makes a picture." },
     note: { type: "string", maxLength: 500, description: "A sentence for the person to read when they open the request." },
     checklist: { type: "array", maxItems: MAX_CHECKLIST, items: obj({
       what: { type: "string", minLength: 1, maxLength: 200, description: "What footage to get, in plain words (for example: the 1969 launch, wide shot)." },
@@ -296,10 +302,11 @@ const setCompilationRequest: ToolDef = {
     const rules = ((a.rules as Record<string, unknown>[] | undefined) ?? []).map((r) => ({ phrase: cleanText(r.phrase, 200), picture: String(r.picture), seconds: Number(r.seconds), mode: r.mode as CompilationRequest["rules"][number]["mode"] }));
     const texts = ((a.texts as Record<string, unknown>[] | undefined) ?? []).map((t) => ({ text: cleanText(t.text, 120), start_s: Number(t.start_s), length_s: Number(t.length_s),
       position: t.position as CompilationRequest["texts"][number]["position"], size: (t.size ?? "medium") as CompilationRequest["texts"][number]["size"] }));
+    const cards = ((a.cards as Record<string, unknown>[] | undefined) ?? []).map((c) => ({ text: cleanText(c.text, 120), where: c.where as "start" | "end", seconds: Number(c.seconds) }));
     const note = cleanText(a.note ?? "", 500);
-    const words = [phrase, note, ...rules.map((r) => r.phrase), ...texts.map((t) => t.text)];
+    const words = [phrase, note, ...rules.map((r) => r.phrase), ...texts.map((t) => t.text), ...cards.map((c) => c.text)];
     if (words.some((w) => w && looksLikePlace(w))) return refuse("Write words, not a place on the computer. Folders and pictures are named, never located.", "args");
-    if (rules.some((r) => !r.phrase) || texts.some((t) => !t.text)) return refuse("Every rule and every text needs its words.", "args");
+    if (rules.some((r) => !r.phrase) || texts.some((t) => !t.text) || cards.some((c) => !c.text)) return refuse("Every rule, every text and every card needs its words.", "args");
     const folders = [...new Set((a.folders as string[]).map((f) => f.trim()).filter(Boolean))];
     if (!folders.length) return refuse("Name at least one of the person's folders.", "args");
     // the schema's "." / ".." rule sees the name BEFORE it is trimmed (" .." passes it), so the trimmed name is checked again here (CLOUD-SITE 11-02)
@@ -315,12 +322,12 @@ const setCompilationRequest: ToolDef = {
       return refuse(`You can send ${LIMITS.compilationRequestsPerDayPerUser} compilation requests a day through a connection. Try tomorrow.`, "rate");
     }
     const request: CompilationRequest = { schema: "ryagram.compilation-request/0", phrase, search: (a.search ?? "every") as "every" | "words",
-      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(checklist.length ? { checklist } : {}) };
+      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(cards.length ? { cards } : {}), ...(checklist.length ? { checklist } : {}) };
     const saved = await ctx.data.saveCompilationRequest(String(a.project_id), request);
     if (!saved) return NOT_YOURS("project");
     return ok(`Saved the request for ${untrusted("phrase", phrase)}${request.song ? " as a song" : ""} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
       + "Nothing has been built and no credit was used. The person opens the Ryagram app on their own computer, checks the request and builds the film there; their videos never leave it.",
-      { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length, checklist: checklist.length });
+      { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length, cards: cards.length, checklist: checklist.length });
   },
 };
 
