@@ -388,6 +388,23 @@
         const { data, error } = await client.rpc('is_app_admin');
         return !error && data === true;
       },
+      // Option B (CONNECT's contract, NEXT-WEB waiting pages): who am I (active or waiting), use an invite code on a waiting account, and Ryan's list with an approve button.
+      async myAccess() {
+        const { data, error } = await client.rpc('my_access');
+        if (error) throw new Error('Couldn’t check your access.');
+        return data;
+      },
+      async claimInvite(code) {
+        const { data, error } = await client.functions.invoke('claim-invite', { body: { code } });
+        if (error) { let text = 'Couldn’t check the code just now. Try again in a minute.'; try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ } throw new Error(text); }
+        return data;
+      },
+      adminWaitingList() {
+        return run(client.rpc('admin_waiting_list'), 'Couldn’t load the waiting list.');
+      },
+      adminApproveWaiting(userId, reason) {
+        return run(client.rpc('admin_approve_waiting', { p_user: userId, p_reason: reason }), 'Couldn’t approve that account.');
+      },
       waitlistByFilm(days) {
         return run(client.rpc('waitlist_by_film', { p_days: days }), 'Couldn\u2019t load the waitlist counts.');
       },

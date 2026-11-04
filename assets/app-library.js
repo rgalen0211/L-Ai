@@ -54,6 +54,7 @@
   // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
   const intakeOn = () => window.ryagramConfig?.intake === true;
   const myFilmsOn = () => window.ryagramConfig?.myFilms === true;
+  const waitingOn = () => window.ryagramWaiting?.on() === true;
   const wizardOn = () => window.ryagramTesterWizard?.flagOn() === true;
   const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
   // "Your look" (the profile editor) shows once SQL 20261017000300 is applied (lookEditor: true), or in mock mode.
@@ -103,7 +104,7 @@
       if (!alive || yes !== true) return;                                         // the check belongs to THIS mount: a later sign-in starts its own
       const normal = [['#/', 'All projects'], ['#/account', 'Account'], ['#/help', 'Help']].filter(l => l[0] !== '#/help' || opsOn());
       const admin = [['#/admin/ops', 'Operations and invites', opsOn()], ['#/admin/renders', 'Render approvals', ordersOn()], ['#/admin/tester', 'Tester computers and Connect an AI', desktopOn()],
-        ['#/admin/waitlist', 'Waitlist by film', true], ['#/admin/visits', 'Visits and signups', true], ['#/admin/funnel', 'Funnel by day', funnelOn()]].filter(l => l[2]);
+        ['#/admin/waiting', 'Waiting list', waitingOn()], ['#/admin/waitlist', 'Waitlist by film', true], ['#/admin/visits', 'Visits and signups', true], ['#/admin/funnel', 'Funnel by day', funnelOn()]].filter(l => l[2]);
       const list = (title, rows) => [h('p', { class: 'admin-menu-title' }, title), h('ul', {}, rows.map(([href, label]) => h('li', {}, h('a', { href }, label))))];
       menu = h('details', { class: 'admin-menu' }, h('summary', { class: 'app-nav-link', 'aria-label': 'Admin menu' }, 'Admin'),
         h('nav', { class: 'admin-menu-panel', 'aria-label': 'Admin pages' }, ...list('Admin', admin), ...list('Your pages', normal)));
@@ -131,9 +132,13 @@
       let view;
       try {
         let m;
+        if (await waitingGate()) {                                                // a WAITING account sees one page whatever the address says (the server is the real gate)
+          const email = window.ryagramApp?.client ? ((await window.ryagramApp.client.auth.getSession()).data.session?.user?.email || '') : '';
+          view = await waitingUi().waitingView(email, () => { activeSeen = true; document.body.classList.remove('is-waiting'); if (location.hash === '#/' || location.hash === '') route(); else location.hash = '#/'; });
+        } else if (hash === '#/waiting') { location.replace('#/'); return; }
         // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
-        if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
-        if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
+        else if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
+        else if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
         else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
         else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
@@ -152,6 +157,7 @@
         else if (desktopOn() && window.ryagramDevice.codeFromHash(hash).page) view = await deviceUi().deviceView(window.ryagramDevice.codeFromHash(hash).code, window.ryagramDevice.codeFromHash(hash).bad);
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
+        else if (waitingOn() && hash === '#/admin/waiting' && await data.isAppAdmin()) view = await waitingUi().adminView();
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
@@ -240,6 +246,18 @@
     // The guided builder (assets/app-builder.js): built once, with this page's helpers.
     let intakeCache = null;
     const intakeUi = () => intakeCache || (intakeCache = window.ryagramIntake.create({ h }));
+    let waitingCache = null;
+    const waitingUi = () => waitingCache || (waitingCache = window.ryagramWaiting.create({ h, data, busy, showError, errorLine }));
+    let activeSeen = false;                                                      // 'active' is remembered for this sign-in; anything else is asked again on the next page
+    async function waitingGate() {
+      if (!waitingOn() || !window.ryagramWaiting) return false;
+      if (activeSeen) return false;
+      let access = 'waiting';
+      try { access = window.ryagramWaiting.accessOf(await data.myAccess()); } catch { /* fail closed: the waiting page */ }
+      document.body.classList.toggle('is-waiting', access !== 'active');
+      if (access === 'active') activeSeen = true;
+      return window.ryagramWaiting.pageFor(access, location.hash) === 'waiting';
+    }
     let wizardCache = null;
     const wizardUi = () => wizardCache || (wizardCache = window.ryagramTesterWizard.create({ h, data, errorLine, startHref: () => (startOn() ? '#/start' : '#/') }));
     let filmsCache = null;

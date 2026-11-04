@@ -367,6 +367,25 @@
       sync_version_sources({ p_version }) { return syncSources(p_version); },
       // Mock: the mock user is an admin; three films' worth of made-up signup counts.
       is_app_admin() { return { data: adminMock(), error: null }; },
+      // Mock of CONNECT's Option B contract (PROPOSED names; nothing applied): my_access() is 'waiting' for the signed-in mock when the address has ?waiting (until approved or a code is used) and for
+      // every account made through sign-up; admin_waiting_list() / admin_approve_waiting(p_user, p_reason) are admin only; ?accesserr makes my_access fail (the page must fall back to the waiting page).
+      my_access() {
+        if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
+        const id = session && session.user && session.user.id;
+        const waiting = db.waiting && db.waiting.some(w => w.user_id === id && !w.approved);
+        const asked = typeof location !== 'undefined' && /[?&]waiting(&|$|#)/.test(location.search || '') && !(db.approvedIds || []).includes(id);
+        return { data: waiting || asked ? 'waiting' : 'active', error: null };
+      },
+      admin_waiting_list() {
+        if (!adminMock()) return fail('Admins only.');
+        db.waiting = db.waiting || [{ user_id: 'w-1', email: 'first.waiting@example.com', created_at: '2026-11-03T15:20:00Z', approved: false }, { user_id: 'w-2', email: 'second.waiting@example.com', created_at: '2026-11-04T09:05:00Z', approved: false }];
+        return { data: db.waiting.filter(w => !w.approved).map(({ user_id, email, created_at }) => ({ user_id, email, created_at })), error: null };
+      },
+      admin_approve_waiting({ p_user, p_reason }) {
+        if (!adminMock()) return fail('Admins only.');
+        const w = (db.waiting || []).find(x => x.user_id === p_user); if (!w || w.approved) return fail('That account is not waiting.');
+        w.approved = true; log.push({ approved: w.email, reason: p_reason }); return { data: { status: 'active' }, error: null };
+      },
       waitlist_by_film({ p_days }) {
         const rows = [
           ['2026-10-03', 'r002-industry-story', 'youtube', 3], ['2026-10-03', null, null, 1],
@@ -930,6 +949,14 @@
             const live = !/[?&]mailoff/.test(q);
             return { data: { status: live ? 'sent' : 'saved', to: addr, sends: r2.sends, at: new Date().toISOString(), message: live ? `Sent to ${addr}.` : 'Mail is not switched on, so nothing was sent. The message is saved under Recent messages.' }, error: null };
           }
+          if (name === 'claim-invite') {
+            // Mock of CONNECT's claim-invite (PROPOSED): RYATESTCODE opens the signed-in waiting account; anything else is refused in plain words.
+            const c = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (c !== 'RYATESTCODE' && c !== 'TESTCODE') return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'That code isn’t valid, has expired or has been used up.' }) } } };
+            const id = session && session.user && session.user.id; db.approvedIds = [...(db.approvedIds || []), id];
+            (db.waiting || []).forEach(w => { if (w.user_id === id) w.approved = true; });
+            return { data: { status: 'active' }, error: null };
+          }
           if (name === 'delete-account') {
             if ((body.confirm_email || '').trim().toLowerCase() !== (session?.user?.email || '').toLowerCase()) {
               return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Type your account’s email address exactly to confirm.' }) } } };
@@ -1072,9 +1099,18 @@
         },
         async signInWithPassword({ email }) {
           // An email that starts with "other" is a DIFFERENT account (id u-other), so the mock can walk switching accounts in one tab (live ride 2026-10-26); the account the mock started with keeps its own id.
+          const made = (db.waiting || []).find(x => x.email === email && String(x.user_id).startsWith('new-'));        // an account made through sign-up is the WAITING one (Option B)
+          if (made) session = { user: { id: made.user_id, email } }; else
           session = { user: { id: /^other/i.test(String(email || '')) ? 'u-other' : (String(email || '') === user.email ? user.id : 'u-ryan'), email } };
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { error: null };
+        },
+        async signUp({ email, password }) {
+          // Mock of Auth sign-up for Option B: a new account is WAITING; email confirmation is required, so no session comes back. ?signuperr makes it refuse.
+          if (typeof location !== 'undefined' && /[?&]signuperr/.test(location.search || '')) return { data: null, error: { message: 'Sign-ups are not allowed right now.' } };
+          if (!password || password.length < 12) return { data: null, error: { message: 'Password should be at least 12 characters.' } };
+          db.waiting = db.waiting || []; db.waiting.push({ user_id: `new-${db.waiting.length + 1}`, email, created_at: new Date().toISOString(), approved: false });
+          log.push({ signedUp: email }); return { data: { user: { email }, session: null }, error: null };
         },
         async resetPasswordForEmail(email, options) { log.push({ reset: email, options }); return { data: {}, error: null }; },
         async setSession({ access_token }) {

@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/workflow-audit.css?v=20261023a">
-<link rel="stylesheet" href="/assets/app.css?v=20261031b">
+<link rel="stylesheet" href="/assets/app.css?v=20261104a">
 <link rel="stylesheet" href="/assets/app-editor.css?v=20261031h">
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="stylesheet" href="/assets/ryagram-look.css?v=20261023a">
 </head>
@@ -43,12 +43,31 @@
     </form>
     <p id="forgot-row" hidden><button class="link-button" id="forgot" type="button" aria-expanded="false" aria-controls="reset-form">Forgot your password?</button></p>
     <p class="form-note sign-in-help"><span class="help-line">No invite yet? <a href="/ryagram/#waitlist">Join the waitlist</a> to ask for an invite.</span> <span class="help-line">Trouble signing in? <a href="/help/">Get help</a>.</span></p>
+    <p id="create-row" class="form-note" hidden>First time here? <a href="#/create-account" id="create-link">Create an account</a></p>
     <form id="reset-form" class="contact-form" hidden>
       <label for="rs-email">Email for the reset link</label>
       <input id="rs-email" name="email" type="email" autocomplete="username" required>
       <button class="button secondary" type="submit">Send a reset link</button>
       <p id="reset-note" class="form-note" role="status"></p>
     </form>
+  </section>
+
+  <section id="create-account" class="app-panel" hidden aria-labelledby="create-account-title">
+    <h1 id="create-account-title" tabindex="-1">Create an account</h1>
+    <p class="form-intro">Your account joins the list. We will email you when your access opens.</p>
+    <p class="form-note" role="note">Our Terms of Use and Privacy Policy are drafts while Ryagram is in testing. Creating an account only puts you on the list.</p>
+    <form id="create-account-form" class="contact-form">
+      <label for="ca-email">Email</label>
+      <input id="ca-email" name="email" type="email" autocomplete="username" required>
+      <label for="ca-password">Password (at least 12 characters)</label>
+      <input id="ca-password" name="password" type="password" autocomplete="new-password" required>
+      <label for="ca-again">The same again</label>
+      <input id="ca-again" name="again" type="password" autocomplete="new-password" required>
+      <button class="button primary" type="submit">Create account</button>
+      <p id="create-account-note" class="form-note" role="status"></p>
+      <p id="create-account-error" class="form-note app-error" role="alert" hidden></p>
+    </form>
+    <p class="form-note"><a href="#/" id="create-back">Back to sign in</a></p>
   </section>
 
   <section id="auth-link" class="app-panel" hidden aria-labelledby="auth-link-title">
@@ -84,11 +103,11 @@
   <section id="library" class="app-panel" hidden></section>
 </main>
 <footer class="app-foot"><span>Ryagram is operated by L'Ai, LLC.</span><a href="/help/">Help</a><a href="mailto:ryagram@uselai.com">Contact: ryagram@uselai.com</a><a href="/terms/">Terms of Use</a><a href="/privacy-policy.html">Privacy Policy</a><a href="/ai-content/">AI content</a></footer>
-<script src="/assets/ryagram-config.js?v=20261031w"></script>
+<script src="/assets/ryagram-config.js?v=20261104a"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.2/dist/umd/supabase.js" integrity="sha384-Rj26LVGvoeRVR6+mwQmFfcR3QOBEwT+ZmuCWpuiqeTzJpCs0ER4ITAWGb4Hiy3Ok" crossorigin="anonymous"></script>
 <script src="/assets/funnel.js?v=20261017a"></script>
 <script src="/assets/app-limits.js?v=20261012a"></script>
-<script src="/assets/app-data.js?v=20261101a"></script>
+<script src="/assets/app-data.js?v=20261104a"></script>
 <script src="/assets/app-jobs.js?v=20261030a"></script>
 <script src="/assets/app-templates.js?v=20261018b"></script>
 <script src="/assets/app-credits.js?v=20261004h"></script>
@@ -121,7 +140,8 @@
 <script src="/assets/app-why-clip.js?v=20261031g"></script>
 <script src="/assets/app-lyric-cards.js?v=20261031b"></script>
 <script src="/assets/app-editor.js?v=20261103a"></script>
-<script src="/assets/app-library.js?v=20261101a"></script>
-<script src="/assets/app-auth.js?v=20261030c"></script>
+<script src="/assets/app-waiting.js?v=20261104a"></script>
+<script src="/assets/app-library.js?v=20261104a"></script>
+<script src="/assets/app-auth.js?v=20261104a"></script>
 </body>
 </html>
