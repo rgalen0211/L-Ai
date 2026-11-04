@@ -1220,6 +1220,29 @@
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
       }
 
+      // A forecast for a data film (CC1 for Claude 15:30 item 2), behind forecastToggle (OFF): ENGINE's forecast hand-over drawn by app-forecast.js with RENDERER's look rules. It comes from the
+      // film's own data (bundle.forecast); the mock shows a MADE-UP example (tests/fixtures). A film without one says so. Nothing is computed here, so the page can never invent a forecast.
+      const FC = window.ryagramForecast;
+      const fcOn = isData && !!FC && FC.onHere();                                  // (the switch is read inside app-forecast.js; the maker's PC page does not load it, so it stays off there)
+      const fcHolder = h('section', { class: 'le-forecast', 'aria-labelledby': 'le-fc-h' });
+      let fcShown = false, fcSeries;
+      async function forecastSeries() {
+        if (bundle && bundle.forecast) return bundle.forecast;
+        if (window.ryagramMock && window.RYAGRAM_MOCK_FORECAST) return window.RYAGRAM_MOCK_FORECAST;        // the made-up series the mock carries (the app page may fetch only from its own database host)
+        return null;
+      }
+      function paintForecast() {
+        if (!fcOn) return;
+        const btn = h('button', { class: 'button secondary small', type: 'button', id: 'le-fc-toggle', 'aria-pressed': String(fcShown), onclick: async () => {
+          fcShown = !fcShown;
+          if (fcShown && fcSeries === undefined) fcSeries = await forecastSeries();
+          paintForecast();
+        } }, fcShown ? 'Hide the forecast' : 'Show a forecast');
+        fcHolder.replaceChildren(...[h('h2', { id: 'le-fc-h' }, 'Forecast'), h('p', {}, btn),               // (replaceChildren(null) would print the word "null": drop the empty parts)
+          fcShown ? (fcSeries ? FC.render(fcSeries, { h }) : h('p', { class: 'form-note', role: 'status' }, 'This film has no forecast yet.')) : null,
+          fcShown && fcSeries && !(bundle && bundle.forecast) && window.ryagramMock ? h('p', { class: 'meta' }, 'A made-up example series, not real data.') : null].filter(Boolean));
+      }
+
       const title = h('h1', { tabindex: '-1' }, host ? String(host.title || 'Edit your film').slice(0, 80) : isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
       const emptyNote = h('p', { class: 'le-warn', role: 'status', hidden: true }, 'There is no film to edit yet. In the Ryagram app, choose your clips and press Plan, then open this page again.');
       const root = h('div', { class: 'le' },
@@ -1227,11 +1250,12 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, scrub, ticks, warns, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
+          h('div', { class: 'le-main' }, view, scrub, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
+      paintForecast();
       if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
         const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
         Promise.resolve().then(() => lookLoader(project)).then(b => {

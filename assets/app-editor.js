@@ -633,12 +633,12 @@
       // A forecast for a data film (CC1 for Claude 15:30 item 2), behind forecastToggle (OFF): ENGINE's forecast hand-over drawn by app-forecast.js with RENDERER's look rules. It comes from the
       // film's own data (bundle.forecast); the mock shows a MADE-UP example (tests/fixtures). A film without one says so. Nothing is computed here, so the page can never invent a forecast.
       const FC = window.ryagramForecast;
-      const fcOn = isData && !!FC && FC.on(window.ryagramConfig);
+      const fcOn = isData && !!FC && FC.onHere();                                  // (the switch is read inside app-forecast.js; the maker's PC page does not load it, so it stays off there)
       const fcHolder = h('section', { class: 'le-forecast', 'aria-labelledby': 'le-fc-h' });
       let fcShown = false, fcSeries;
       async function forecastSeries() {
         if (bundle && bundle.forecast) return bundle.forecast;
-        if (window.ryagramMock && window.RYAGRAM_MOCK_FORECAST) return window.RYAGRAM_MOCK_FORECAST;        // the made-up series (tests/fake-supabase.js; the page may only connect to Supabase)
+        if (window.ryagramMock && window.RYAGRAM_MOCK_FORECAST) return window.RYAGRAM_MOCK_FORECAST;        // the made-up series the mock carries (the app page may fetch only from its own database host)
         return null;
       }
       function paintForecast() {

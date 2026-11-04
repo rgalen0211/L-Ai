@@ -94,7 +94,7 @@ test('WIRING: the switch is OFF in the committed config; both pages load the dra
   assert.ok(app.indexOf('/assets/app-forecast.js?v=') > 0 && app.indexOf('/assets/app-forecast.js?v=') < app.indexOf('/assets/app-editor.js?v='), 'app: forecast before the editor');
   assert.ok(film.indexOf('/assets/app-forecast.js?v=') > 0 && film.indexOf('/assets/app-forecast.js?v=') < film.indexOf('/assets/film.js?v='), 'film page: forecast before film.js');
   const ed = read('assets/app-editor.js');
-  assert.match(ed, /const fcOn = isData && !!FC && FC\.on\(window\.ryagramConfig\);/);
+  assert.match(ed, /const fcOn = isData && !!FC && FC\.onHere\(\);/); assert.ok(!/ryagramConfig|supabase/i.test(ed.slice(ed.indexOf('const FC = window.ryagramForecast'), ed.indexOf('function paintForecast'))), 'the editor part never names the config or the database (the maker bundle forbids both)');
   assert.match(ed, /if \(bundle && bundle\.forecast\) return bundle\.forecast;\n\s*if \(window\.ryagramMock && window\.RYAGRAM_MOCK_FORECAST\) return window\.RYAGRAM_MOCK_FORECAST;/);
   assert.ok(!/fetch\(/.test(ed.slice(ed.indexOf('async function forecastSeries'), ed.indexOf('function paintForecast'))), 'no fetch: the app page may only connect to Supabase');
   assert.match(ed, /\]\.filter\(Boolean\)\);/, 'empty parts are dropped (replaceChildren(null) prints "null")');

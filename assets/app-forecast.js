@@ -5,6 +5,7 @@
 // forecast_look.validate, so a series the engine would refuse to draw is refused here too, in words, and nothing is drawn. Everything goes in as text nodes, never HTML.
 (() => {
   const on = cfg => !!cfg && cfg.forecastToggle === true;
+  const onHere = () => on(typeof window !== 'undefined' ? window.ryagramConfig : null);          // the page's own switch (the editor asks this, so it never reads the config itself)
 
   class Refused extends Error {}
 
@@ -115,5 +116,5 @@
     return h('figure', { class: 'fc-chart' }, svg, h('figcaption', {}, ...got.key.map(t => h('p', { class: 'form-note' }, t))));
   }
 
-  window.ryagramForecast = Object.freeze({ on, validate, keyLines, shapes, render, Refused });
+  window.ryagramForecast = Object.freeze({ on, onHere, validate, keyLines, shapes, render, Refused });
 })();
