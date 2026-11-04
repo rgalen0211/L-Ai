@@ -4,7 +4,8 @@
 --
 -- It does nothing until the switch is on: with ops_settings.waiting_accounts = false join_reserve answers 'off' and the function makes no account (otherwise a join would make a
 -- FULL account, because while the switch is off every new account is recorded active).
--- Limits (one hour / one day windows, all joins counted, not just failures): 5 an hour per caller address, 3 a day per email address, 200 a day overall.
+-- Limits (one hour / one day windows, all joins counted, not just failures): 5 an hour and 10 a day per caller address, 3 a day per email address, 200 a day overall (so two callers cannot
+-- use up the day for everyone: a caller is stopped at 10).
 -- Only a SHA-256 of the caller's address and of the email is kept, for two days.
 
 begin;
@@ -32,6 +33,7 @@ begin
   eh := encode(sha256(convert_to('ryagram-join:' || mail, 'UTF8')), 'hex');
   delete from public.join_attempts where at < now() - interval '2 days';
   if (select count(*) from public.join_attempts where ip_hash = left(coalesce(p_ip_hash, 'unknown'), 64) and at > now() - interval '1 hour') >= 5
+     or (select count(*) from public.join_attempts where ip_hash = left(coalesce(p_ip_hash, 'unknown'), 64) and at > now() - interval '1 day') >= 10
      or (select count(*) from public.join_attempts where email_hash = eh and at > now() - interval '1 day') >= 3
      or (select count(*) from public.join_attempts where at > now() - interval '1 day') >= 200 then
     return jsonb_build_object('ok', false, 'reason', 'throttled');
@@ -41,5 +43,7 @@ begin
 end $$;
 revoke execute on function public.join_reserve(text, text) from public, anon, authenticated;
 grant execute on function public.join_reserve(text, text) to service_role;
+
+select ryagram_private.gate_apply();                       -- every migration after the gate ends with this line (a test fails otherwise)
 
 commit;

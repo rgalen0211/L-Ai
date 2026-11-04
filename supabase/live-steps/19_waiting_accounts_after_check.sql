@@ -6,7 +6,8 @@ select 'every account has a status row' as check_name,
 union all select 'every function a signed-in person can run has the waiting check (or is on the named list)',
        not exists (select 1 from pg_proc p join pg_namespace n on n.oid = p.pronamespace
                     where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('authenticated', p.oid, 'execute')
-                      and p.prosrc not like '%require_active%'
+                      and p.prosrc not like '%perform ryagram_private.require_active();%'
+                      and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
                       and p.proname <> all (array['funnel_anon', 'record_visit', 'report_film_page', 'service_status', 'submit_support', 'funnel_attach_source', 'funnel_return_visit',
                                                   'is_app_admin', 'current_engine_commit', 'film_request_cost', 'my_access', 'account_gate_ok', 'connect_consent_check']))
 union all select 'every table with a policy for signed-in people has the waiting policy (or is on the named list)',
@@ -14,8 +15,11 @@ union all select 'every table with a policy for signed-in people has the waiting
                     where pc.schemaname in ('public', 'storage') and pc.permissive = 'PERMISSIVE' and ('authenticated' = any (pc.roles) or 'public' = any (pc.roles))
                       and pc.tablename <> all (array['account_settings', 'account_deletion_requests', 'ryagram_waitlist', 'account_status'])
                       and not exists (select 1 from pg_policies q where q.schemaname = pc.schemaname and q.tablename = pc.tablename and q.policyname = 'account_gate'))
-union all select 'grant_credits refuses a waiting account (needs the credits ledger applied; run gate_apply again if false)',
-       coalesce((select p.prosrc like '%require_active_owner%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'grant_credits'), false)
+union all select 'grant_credits holds a grant for a waiting account (needs the credits ledger applied; run gate_apply again if false)',
+       coalesce((select p.prosrc like '%ryagram_private.hold_grant%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'grant_credits'), false)
+union all select 'the AI connector still asks account_active (connect_person_ok and the consent page); true when the connector is not installed',
+       coalesce((select p.prosrc like '%account_active%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'ryagram_private' and p.proname = 'connect_person_ok'), true)
+       and coalesce((select p.prosrc like '%account_active(me)%' from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = 'connect_consent_check'), true)
 union all select 'nobody signed in can write account_status',
        not has_table_privilege('authenticated', 'public.account_status', 'insert') and not has_table_privilege('authenticated', 'public.account_status', 'update')
        and not has_table_privilege('authenticated', 'public.account_status', 'delete') and not has_table_privilege('anon', 'public.account_status', 'select')

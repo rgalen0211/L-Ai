@@ -2,7 +2,8 @@
 // the account exists once they follow its link and choose a password. The account starts on the WAITING list (the database trigger), so the link opens nothing but the waiting page.
 // Tested in tests/waiting-gate.test.mjs; index.ts wires Supabase.
 //
-// The answer is the SAME whether or not the address already has an account (no way to test which emails are signed up).
+// The answer is the SAME whether or not the address already has an account (no way to test which emails are signed up), and also when Supabase Auth cannot send the email just now
+// (its own hourly allowance can run out): an error that only unknown addresses would hit must not tell a stranger which addresses are signed up. The failure is logged, not shown.
 
 export interface Deps {
   allowedOrigins: string[];
@@ -12,7 +13,7 @@ export interface Deps {
   invite(email: string, redirectTo: string): Promise<void>;
 }
 
-export const SENT = "If that email can join, a link to finish making your account is on its way. It works once. Already have an account? Sign in instead.";
+export const SENT = "If that email can join, a link to finish making your account is on its way. It works once. If it has not come in a few minutes, try again later. Already have an account? Sign in instead.";
 
 async function sha256Hex(text: string): Promise<string> {
   const d = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text)));
@@ -54,8 +55,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
     await deps.invite(email, `${deps.siteUrl}/app/`);
     return reply(200, { message: SENT });
   } catch (e) {
-    if ((e as { code?: string }).code === "email_exists") return reply(200, { message: SENT });      // same answer
-    console.error(`join invite: ${(e as Error).message}`);
-    return reply(503, { error: "We couldn’t send the email just now. Try again later." });
+    if ((e as { code?: string }).code !== "email_exists") console.error(`join invite: ${(e as Error).message}`);       // logged, never shown
+    return reply(200, { message: SENT });                                                                          // the same answer in every case
   }
 }

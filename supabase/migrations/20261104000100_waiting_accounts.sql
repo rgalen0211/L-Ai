@@ -2,8 +2,10 @@
 -- Plan: proposals\CONNECT-WAITING-GATE-PLAN-1104.md (CC1 approved 11-04 13:17).
 --
 -- THE SWITCH. Nothing changes for anyone until Ryan runs:   update public.ops_settings set waiting_accounts = true;
--- While it is false every account counts as active and every check below passes at once, so this migration alone is invisible. Undo = set it back to false (the checks stay in
--- place and pass). New accounts are still RECORDED either way: 'active' while the switch is off, 'waiting' while it is on.
+-- The switch controls how NEW accounts are made and what the pages offer (the join function answers "not open" while it is off; a new account is recorded 'active' while it is off and
+-- 'waiting' while it is on). It does NOT unlock anyone: an account whose row says WAITING is gated ALWAYS, switch on or off, so switching off and on again cannot let a waiting account buy
+-- credits or pair a computer. An account with NO row is open only while the switch is off (older accounts stay safe); once it is on, no row = not open. To let waiting people in, approve them
+-- (the waiting list) or run 22_waiting_accounts_open_all.sql. A migration alone changes nothing visible: every existing account is made active below.
 --
 -- THE STATE. public.account_status: one row per account, 'waiting' or 'active'. An account with NO row is not active once the switch is on (fail closed). Every account that
 -- exists when this file runs (testers, admins, workers) is made ACTIVE below. A worker or an admin counts as active whatever the table says (only Ryan makes those, in SQL).
@@ -55,13 +57,15 @@ language sql stable security definer set search_path = '' as $$
   select coalesce((select o.waiting_accounts from public.ops_settings o limit 1), false)
 $$;
 
--- Is this account open? Switch off = everyone. Switch on = a row saying active, or an admin, or a worker. No row = not open.
+-- Is this account open? A row saying active, or an admin, or a worker. A row saying WAITING is never open (the switch does not matter). No row at all: open only while the switch is off.
 create function ryagram_private.account_active(p_user uuid) returns boolean
 language sql stable security definer set search_path = '' as $$
-  select not ryagram_private.waiting_on()
-      or (p_user is not null and (exists (select 1 from public.account_status s where s.user_id = p_user and s.status = 'active')
-                                  or exists (select 1 from public.app_admins a where a.user_id = p_user)
-                                  or exists (select 1 from public.workers w where w.user_id = p_user)))
+  select case when p_user is null then not ryagram_private.waiting_on()
+              else exists (select 1 from public.account_status s where s.user_id = p_user and s.status = 'active')
+                or exists (select 1 from public.app_admins a where a.user_id = p_user)
+                or exists (select 1 from public.workers w where w.user_id = p_user)
+                or (not ryagram_private.waiting_on() and not exists (select 1 from public.account_status s where s.user_id = p_user))
+         end
 $$;
 
 -- The row policies below call THIS, as the signed-in person. It lives in public on purpose: the credits ledger file revokes every ryagram_private function from signed-in people.
@@ -79,13 +83,27 @@ begin
   end if;
 end $$;
 
--- The same check for an account named by a server-side caller (credits).
-create function ryagram_private.require_active_owner(p_owner uuid) returns void
-language plpgsql stable security definer set search_path = '' as $$
+-- CREDITS for a WAITING account are HELD, not refused (a paid month must never fail inside the Stripe webhook and be retried for ever): the ledger is not touched, the grant waits in held_grants,
+-- and activate_account pays it when the account opens. No credit row can exist for a waiting account. Returns true when the grant was held.
+create table public.held_grants (
+  id bigint generated always as identity primary key,
+  owner_id uuid not null references auth.users (id) on delete cascade,
+  entry text not null, credits int not null check (credits > 0), reason text, created_by text,
+  stripe_event_id text, period_key text, price_code text,
+  held_at timestamptz not null default now()
+);
+create unique index held_grants_event on public.held_grants (stripe_event_id) where stripe_event_id is not null;
+create unique index held_grants_period on public.held_grants (owner_id, period_key, entry) where period_key is not null;
+alter table public.held_grants enable row level security;
+revoke all on public.held_grants from public, anon, authenticated, service_role;
+
+create function ryagram_private.hold_grant(p_owner uuid, p_entry text, p_credits int, p_reason text, p_by text, p_event text, p_period text, p_price text) returns boolean
+language plpgsql security definer set search_path = '' as $$
 begin
-  if not ryagram_private.account_active(p_owner) then
-    raise exception 'That account is on the waiting list, so it cannot hold credits yet.' using errcode = '42501', hint = 'waiting';
-  end if;
+  if ryagram_private.account_active(p_owner) then return false; end if;
+  insert into public.held_grants (owner_id, entry, credits, reason, created_by, stripe_event_id, period_key, price_code)
+    values (p_owner, p_entry, p_credits, left(p_reason, 300), left(p_by, 100), p_event, p_period, p_price) on conflict do nothing;
+  return true;
 end $$;
 
 -- ---------------------------------------------------------------------------------------------------- every NEW account is recorded
@@ -100,7 +118,7 @@ end $$;
 create trigger account_status_new_trg after insert on auth.users for each row execute function ryagram_private.account_status_new();
 
 -- Supabase gives PUBLIC execute on new functions: nothing in ryagram_private below is for a signed-in person to run (the row policies call public.account_gate_ok)
-revoke execute on function ryagram_private.waiting_on(), ryagram_private.account_active(uuid), ryagram_private.require_active(), ryagram_private.require_active_owner(uuid),
+revoke execute on function ryagram_private.waiting_on(), ryagram_private.account_active(uuid), ryagram_private.require_active(), ryagram_private.hold_grant(uuid, text, int, text, text, text, text, text),
   ryagram_private.account_status_new() from public, anon, authenticated;
 
 -- every account that exists now is active
@@ -117,6 +135,13 @@ begin
   insert into public.account_status (user_id, status, source, approved_by) values (p_user, 'active', p_source, p_by)
     on conflict (user_id) do update set status = 'active', source = excluded.source, approved_by = excluded.approved_by, since = now();
   insert into public.account_status_audit (user_id, from_status, to_status, source, by_user, reason) values (p_user, was, 'active', p_source, p_by, left(p_note, 300));
+  declare h record;
+  begin
+    for h in select * from public.held_grants where owner_id = p_user order by id loop                     -- whatever was paid or granted while waiting is paid now, once
+      perform public.grant_credits(h.owner_id, h.entry::public.credit_entry, h.credits, h.reason, h.created_by, h.stripe_event_id, h.period_key, h.price_code);
+      delete from public.held_grants where id = h.id;
+    end loop;
+  end;
   if coalesce(p_credits, 0) > 0 then
     if to_regprocedure('public.grant_credits(uuid,public.credit_entry,integer,text,text,text,text,text)') is null then
       raise exception 'The credits ledger is not applied yet, so welcome credits cannot be granted.' using errcode = '55000';
@@ -151,6 +176,7 @@ declare c public.invite_codes; mail text; flipped boolean;
 begin
   select u.email into mail from auth.users u where u.id = p_user;
   if mail is null then return jsonb_build_object('ok', false, 'reason', 'invalid'); end if;
+  perform 1 from public.account_status s where s.user_id = p_user for update;                   -- two codes claimed at once take turns: the second sees an active account
   if exists (select 1 from public.account_status s where s.user_id = p_user and s.status = 'active') then
     return jsonb_build_object('ok', true, 'already', true);
   end if;
@@ -191,11 +217,11 @@ revoke execute on function public.my_access() from public, anon;
 grant execute on function public.my_access() to authenticated;
 
 -- ---------------------------------------------------------------------------------------------------- Ryan's list and approve button (admin only, app sessions only)
-create function public.admin_waiting_list() returns table (user_id uuid, email text, joined_at timestamptz)
+create function public.admin_waiting_list() returns table (user_id uuid, email text, joined_at timestamptz, confirmed boolean)
 language plpgsql stable security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_admin();
 begin
-  return query select s.user_id, u.email::text, s.since from public.account_status s join auth.users u on u.id = s.user_id
+  return query select s.user_id, u.email::text, s.since, u.email_confirmed_at is not null from public.account_status s join auth.users u on u.id = s.user_id
                where s.status = 'waiting' order by s.since, u.email;
 end $$;
 
@@ -208,6 +234,9 @@ begin
     raise exception 'Say why, in a few words.' using errcode = '22023';
   end if;
   if not exists (select 1 from auth.users where id = p_user) then raise exception 'No such account.' using errcode = 'PT404'; end if;
+  if exists (select 1 from auth.users where id = p_user and email_confirmed_at is null) then
+    raise exception 'That address has not been confirmed yet, so it cannot be approved.' using errcode = '22023';
+  end if;
   select invite_credits into c from public.creator_flow_settings;
   select u.email into mail from auth.users u where u.id = p_user;
   flipped := ryagram_private.activate_account(p_user, 'approved', me, c, btrim(p_reason));
@@ -236,13 +265,14 @@ begin
     ledger := 'the credits ledger is not applied yet (run gate_apply again after it is)';
   else
     def := pg_get_functiondef(fn);
-    if def like '%require_active_owner%' then
+    if def like '%ryagram_private.hold_grant%' then
       ledger := 'grant_credits was already guarded';
     else
-      newdef := regexp_replace(def, E'(^|\\n)([ \\t]*begin\\M[^\\n]*\\n)', E'\\1\\2  perform ryagram_private.require_active_owner(p_owner);\n', 'i');
+      newdef := regexp_replace(def, E'(^|\\n)([ \\t]*begin\\M[^\\n]*\\n)',
+                               E'\\1\\2  if ryagram_private.hold_grant(p_owner, p_entry::text, p_credits, p_reason, p_created_by, p_stripe_event_id, p_period_key, p_price_code) then return null; end if;\n', 'i');
       if newdef = def then raise exception 'gate: grant_credits has no BEGIN line to guard'; end if;
       execute newdef;
-      ledger := 'grant_credits now refuses a waiting account';
+      ledger := 'grant_credits now holds a grant for a waiting account until it opens';
     end if;
   end if;
 
@@ -272,7 +302,8 @@ begin
     select p.oid, p.oid::regprocedure as sig, p.proname, l.lanname, p.proretset, p.pronargs, p.provolatile
       from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid = p.prolang
      where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('authenticated', p.oid, 'execute')
-       and p.proname <> all (allowed) and p.prosrc not like '%require_active%' and p.proname not like '%\_\_ungated'
+       and p.proname <> all (allowed) and p.prosrc not like '%perform ryagram_private.require_active();%' and p.proname not like '%\_\_ungated'
+       and not exists (select 1 from pg_depend d where d.objid = p.oid and d.deptype = 'e')
   loop
     if f.lanname = 'plpgsql' then
       def := pg_get_functiondef(f.oid);
@@ -305,7 +336,7 @@ begin
        and pc.tablename <> all (open_tables)
        and not exists (select 1 from pg_policies q where q.schemaname = pc.schemaname and q.tablename = pc.tablename and q.policyname = 'account_gate')
   loop
-    execute format('create policy account_gate on %I.%I as restrictive for all to authenticated using (public.account_gate_ok()) with check (public.account_gate_ok())',
+    execute format('create policy account_gate on %I.%I as restrictive for all to authenticated using ((select public.account_gate_ok())) with check ((select public.account_gate_ok()))',
                    t.schemaname, t.tablename);
     n_pol := n_pol + 1;
   end loop;
