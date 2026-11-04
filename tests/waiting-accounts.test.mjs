@@ -104,3 +104,35 @@ test('the waitlist section offers "Create an account" only when the switch is ex
   assert.match(read('ryagram/index.html'), /<p id="wl-create" class="rg-note" hidden>Or create an account now and we hold your place: <a href="\/app\/#\/create-account">/);
   assert.match(read('assets/ryagram.js'), /config\.waitingAccounts === true\) createLine\.hidden = false/);
 });
+
+// The data layer for real (not a regex): a fake supabase-js client whose functions.invoke answers like the real one (an error carries the Response as .context)
+const dataWith = invoke => { const win = {}; vm.runInNewContext(read('assets/app-data.js'), { window: win, console }); return win.ryagramData({ functions: { invoke } }); };
+const httpError = (status, body) => ({ data: null, error: { message: 'Edge Function returned a non-2xx status code', context: { status, json: async () => body } } });
+
+test('joinWaiting for real: the trimmed address goes in {email}; 200 is ok with the server words; 409 is "off" (not open yet); other errors carry the server words; a broken reply falls back to plain words', async () => {
+  const calls = [];
+  let D = dataWith(async (name, opts) => { calls.push([name, opts]); return { data: { message: 'If that email can join, a link is on its way.' }, error: null }; });
+  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('  a@b.co '))), { ok: true, off: false, message: 'If that email can join, a link is on its way.' });
+  assert.equal(calls[0][0], 'join'); assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), { body: { email: 'a@b.co' } });
+  D = dataWith(async () => httpError(409, { error: 'Making an account is not open yet. Join the waitlist instead.' }));
+  assert.deepEqual(JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co'))), { ok: false, off: true, message: 'Making an account is not open yet. Join the waitlist instead.' });
+  D = dataWith(async () => httpError(429, { error: 'Too many tries. Wait a while, then try again.' }));
+  const t = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co'))); assert.equal(t.off, false); assert.equal(t.message, 'Too many tries. Wait a while, then try again.');
+  D = dataWith(async () => ({ data: null, error: { message: 'network', context: { status: 0, json: async () => { throw new Error('not json'); } } } }));
+  const n = JSON.parse(JSON.stringify(await D.joinWaiting('a@b.co'))); assert.equal(n.ok, false); assert.equal(n.off, false); assert.match(n.message, /Try again in a minute/);
+});
+
+test('adminApproveWaiting for real: {user_id, reason} to approve-waiting; the server answer comes back; a refusal throws with the server words', async () => {
+  const calls = [];
+  let D = dataWith(async (name, opts) => { calls.push([name, opts]); return { data: { status: 'sent', message: 'a@b.co is approved.' }, error: null }; });
+  assert.equal((await D.adminApproveWaiting('00000000-0000-4000-8000-000000000001', 'approved in the admin page')).message, 'a@b.co is approved.');
+  assert.equal(calls[0][0], 'approve-waiting'); assert.deepEqual(JSON.parse(JSON.stringify(calls[0][1])), { body: { user_id: '00000000-0000-4000-8000-000000000001', reason: 'approved in the admin page' } });
+  D = dataWith(async () => httpError(400, { error: 'That address has not been confirmed yet, so it cannot be approved.' }));
+  await assert.rejects(() => D.adminApproveWaiting('00000000-0000-4000-8000-000000000001', 'approved in the admin page'), /not been confirmed yet/);
+});
+
+test('the list contract: the real gate returns confirmed (CONNECT c4b31e5), and the page needs it', () => {
+  const mig = read('supabase/migrations/20261104000100_waiting_accounts.sql');
+  assert.match(mig, /create function public\.admin_waiting_list\(\) returns table \(user_id uuid, email text, joined_at timestamptz, confirmed boolean\)/);
+  assert.match(mig, /That address has not been confirmed yet, so it cannot be approved\./);
+});

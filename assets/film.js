@@ -110,15 +110,17 @@
   function forecastSection(page) {
     const FC = window.ryagramForecast, series = page.summary && page.summary.forecast;
     if (!FC || !FC.on(window.ryagramConfig) || !series) return null;
-    const holder = h('div', { class: 'film-forecast-body' });
+    const intro = FC.introLine(series);                                    // its words follow the series (a what-if is never called estimated); a refused series shows no section
+    if (!intro) return null;
+    const holder = h('div', { class: 'film-forecast-body', id: 'film-fc-body' });
     let shown = false;
-    const btn = h('button', { class: 'button secondary', type: 'button', id: 'film-fc-toggle', 'aria-pressed': 'false' }, 'Show the forecast');
+    const btn = h('button', { class: 'button secondary', type: 'button', id: 'film-fc-toggle', 'aria-expanded': 'false', 'aria-controls': 'film-fc-body' }, 'Show the forecast');
     btn.addEventListener('click', () => {
-      shown = !shown; btn.setAttribute('aria-pressed', String(shown)); btn.textContent = shown ? 'Hide the forecast' : 'Show the forecast';
+      shown = !shown; btn.setAttribute('aria-expanded', String(shown)); btn.textContent = shown ? 'Hide the forecast' : 'Show the forecast';
       holder.replaceChildren(...(shown ? [FC.render(series, { h })] : []));
     });
     return h('section', { class: 'film-forecast', 'aria-labelledby': 'film-fc-h' }, h('h2', { id: 'film-fc-h' }, 'What the future may hold'),
-      h('p', {}, 'A forecast from the film’s own data: estimated, with its likely range and how well the same method did on past years.'), h('p', {}, btn), holder);
+      h('p', {}, intro), h('p', {}, btn), holder);
   }
 
   function render(page) {

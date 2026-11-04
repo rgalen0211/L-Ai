@@ -1,23 +1,29 @@
 // A FORECAST on a line chart (CC1 for Claude 15:30 item 2, 11-04), behind the site switch forecastToggle (OFF). It draws ENGINE's forecast hand-over (Ryagram main 3900383f,
 // ryagram/predict: {observed: [[year, value]], forecast: [[year, value, low, high]], breaks, method, basis, backtest: {hidden_years, mean_abs_pct_error, inside_band, of}, kind, label})
 // with RENDERER's look rules (tools/forecast_look.py, Q384): observed SOLID, the forecast the same colour DASHED and faded inside its shaded range, a visible "Forecast begins" line,
-// a plain-words key ("Estimated, based on ..."), the backtest sentence ALWAYS shown, missing years left missing, the word Observed never used for a forecast. The checks are the same as
-// forecast_look.validate, so a series the engine would refuse to draw is refused here too, in words, and nothing is drawn. Everything goes in as text nodes, never HTML.
+// a plain-words key ("Estimated, based on ..."), the backtest sentence ALWAYS shown, missing years left missing, the word Observed never used for a forecast. Every refusal of
+// forecast_look.validate is here (same order, same words), so a series the engine's drawer would refuse is refused here too and nothing is drawn; the page is STRICTER in a few places,
+// said where they are (a value must really be a number: null, "" or false never become 0; forecast years one apart; the label words must agree). Everything goes in as text nodes, never HTML.
 (() => {
   const on = cfg => !!cfg && cfg.forecastToggle === true;
   const onHere = () => on(typeof window !== 'undefined' ? window.ryagramConfig : null);          // the page's own switch (the editor asks this, so it never reads the config itself)
 
   class Refused extends Error {}
+  // A value is a real number or it is refused: Number(null), Number('') and Number(false) are 0 in JavaScript, which would draw a missing year as zero (Python's float() refuses them).
+  const num = x => (typeof x === 'number' && Number.isFinite(x) ? x : NaN);
+  const year = x => (Number.isInteger(x) ? x : NaN);
 
-  // forecast_look.validate, line for line (same order, same words)
+  // forecast_look.validate's refusals, in its order and words, plus the stricter checks marked STRICTER
   function validate(series) {
     if (!series || typeof series !== 'object' || Array.isArray(series)) throw new Refused('a series is a dictionary');
-    const obs = (series.observed || []).map(r => [Math.trunc(Number(r[0])), Number(r[1])]);
+    const rows = (x, n) => (Array.isArray(x) ? x : []).map(r => (Array.isArray(r) && r.length >= n ? r : []));
+    const obs = rows(series.observed, 2).map(r => [year(r[0]), num(r[1])]);
     const years = obs.map(r => r[0]);
     if (obs.length < 2 || years.some((y, i) => i && y <= years[i - 1]) || obs.some(r => !Number.isFinite(r[0]) || !Number.isFinite(r[1]))) throw new Refused('observed needs at least two values, one per year, in order');
-    const fc = (series.forecast || []).map(r => [Math.trunc(Number(r[0])), Number(r[1]), Number(r[2]), Number(r[3])]);
+    const fc = rows(series.forecast, 4).map(r => [year(r[0]), num(r[1]), num(r[2]), num(r[3])]);
     if (!fc.length) throw new Refused('there is no forecast to draw');
     const last = obs[obs.length - 1][0];
+    // (STRICTER: the drawer only checks that forecast years rise; the page also wants them one apart, so a skipped forecast year is never drawn as a bridged line)
     if (fc.some((r, i) => r.some(x => !Number.isFinite(x)) || (i && r[0] !== fc[i - 1][0] + 1)) || fc[0][0] <= last) throw new Refused(`the forecast must start after the last observed year (${last}) and go forward one year at a time`);
     let prev = 0;
     for (const [y, v, lo, hi] of fc) {
@@ -25,7 +31,7 @@
       if (hi - lo < prev - 1e-9) throw new Refused(`${y}: the band narrows with distance; a forecast is less certain further out, never more`);
       prev = hi - lo;
     }
-    const breaks = (series.breaks || []).map(b => Math.trunc(Number(b))).sort((a, b) => a - b);
+    const breaks = (Array.isArray(series.breaks) ? series.breaks : []).map(b => Math.trunc(num(b))).filter(Number.isFinite).sort((a, b) => a - b);
     for (const b of breaks) if (last < b && b <= fc[fc.length - 1][0]) throw new Refused(`a method break (${b}) lies inside the forecast; a trend may not cross it unless the person says so`);
     if (!String(series.method || '').trim() || !String(series.basis || '').trim()) throw new Refused('the method and what the forecast is based on must be written in words');
     const bt = series.backtest;
@@ -33,8 +39,9 @@
     const kind = series.kind === undefined ? 'estimated' : series.kind;
     if (kind !== 'estimated' && kind !== 'simulated') throw new Refused('a forecast is Estimated, or Simulated when it comes from a what-if; never Observed');
     const want = kind === 'simulated' ? 'Simulated' : 'Estimated', other = kind === 'simulated' ? 'Estimated' : 'Simulated';
+    // (STRICTER: the label and the first word of the basis must agree with the kind, in any case: "estimated, based on ..." on a what-if is refused)
     if (series.label !== undefined && series.label !== want) throw new Refused('a forecast is Estimated, or Simulated when it comes from a what-if; never Observed');
-    if (/^\s*Observed\b/i.test(String(series.basis)) || new RegExp(`^\\s*${other}\\b`).test(String(series.basis))) throw new Refused(`the words say ${String(series.basis).trim().split(/[ ,]/)[0]} but the forecast is ${want}`);
+    if (/^\s*observed\b/i.test(String(series.basis)) || new RegExp(`^\\s*${other}\\b`, 'i').test(String(series.basis))) throw new Refused(`the words say ${String(series.basis).trim().split(/[ ,]/)[0]} but the forecast is ${want}`);
     return { ...series, observed: obs, forecast: fc, breaks, kind, backtest: bt };
   }
 
@@ -45,7 +52,7 @@
     const bt = s.backtest, pct = Math.round(bt.mean_abs_pct_error * 10) / 10;
     // ENGINE's basis already starts with its label ("Estimated, based on the 2012-2023 trend"); one without a label gets it, and validate() refused one that names the other label.
     const basis = String(s.basis).trim().replace(/\.$/, '');
-    const dashed = /^(Estimated|Simulated)\b/.test(basis) ? basis : `${label}, ${basis}`;
+    const dashed = /^(estimated|simulated)\b/i.test(basis) ? basis.replace(/^(estimated|simulated)\b/i, label) : `${label}, ${basis}`;   // the label word is always ours, in our case
     // A what-if's test is the TREND's (ENGINE carries the trend beside it for scale), so the sentence says whose test it is.
     const whose = s.kind === 'simulated' ? 'A test of the trend shown for scale (not of the what-if)' : 'A test';
     const lines = [
@@ -111,10 +118,20 @@
     catch (err) { return h('p', { class: 'form-note app-error', role: 'status', 'data-part': 'refused' }, `No forecast is drawn: ${err.message}.`); }
     const NS = 'http://www.w3.org/2000/svg', b = box || { w: 320, h: 180 };
     const svg = document.createElementNS(NS, 'svg'); svg.setAttribute('viewBox', `0 0 ${b.w} ${b.h}`); svg.setAttribute('class', 'fc-svg'); svg.setAttribute('role', 'img');
-    svg.setAttribute('aria-label', got.key.join(' '));
+    // a short name for the picture; the key itself is read once, from the caption under it (it used to be read twice)
+    const s = got.series, label = s.kind === 'simulated' ? 'Simulated' : 'Estimated';
+    svg.setAttribute('aria-label', `Line chart: as published ${s.observed[0][0]}-${s.observed[s.observed.length - 1][0]}, then ${label} to ${s.forecast[s.forecast.length - 1][0]}. The key is below.`);
     for (const sh of got.shapes) { const el = document.createElementNS(NS, sh.tag); for (const [k, v] of Object.entries(sh.attrs)) el.setAttribute(k, String(v)); if (sh.text) el.textContent = sh.text; svg.append(el); }
     return h('figure', { class: 'fc-chart' }, svg, h('figcaption', {}, ...got.key.map(t => h('p', { class: 'form-note' }, t))));
   }
 
-  window.ryagramForecast = Object.freeze({ on, onHere, validate, keyLines, shapes, render, Refused });
+  // The one-line introduction a page shows above a forecast: what it is, with the right label (a what-if is never called estimated). null when the series is refused.
+  function introLine(series) {
+    let s; try { s = validate(series); } catch { return null; }
+    return s.kind === 'simulated'
+      ? 'A what-if on the film’s own data: simulated from the assumption shown, beside the trend for scale. It shows what happens if the assumption holds.'
+      : 'A forecast from the film’s own data: estimated, with its likely range and how well the same method did on past years.';
+  }
+
+  window.ryagramForecast = Object.freeze({ on, onHere, validate, keyLines, shapes, render, introLine, Refused });
 })();

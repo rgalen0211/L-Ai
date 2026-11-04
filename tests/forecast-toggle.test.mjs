@@ -96,7 +96,7 @@ test('WIRING: the switch is OFF in the committed config; both pages load the dra
   const ed = read('assets/app-editor.js');
   assert.match(ed, /const fcOn = isData && !!FC && FC\.onHere\(\);/); assert.ok(!/ryagramConfig|supabase/i.test(ed.slice(ed.indexOf('const FC = window.ryagramForecast'), ed.indexOf('function paintForecast'))), 'the editor part never names the config or the database (the maker bundle forbids both)');
   assert.match(ed, /if \(bundle && bundle\.forecast\) return bundle\.forecast;\n\s*if \(window\.ryagramMock && window\.RYAGRAM_MOCK_FORECAST\) return window\.RYAGRAM_MOCK_FORECAST;/);
-  assert.ok(!/fetch\(/.test(ed.slice(ed.indexOf('async function forecastSeries'), ed.indexOf('function paintForecast'))), 'no fetch: the app page may only connect to Supabase');
+  assert.ok(!/fetch\(/.test(ed.slice(ed.indexOf('function forecastSeries'), ed.indexOf('function paintForecast'))), 'no fetch: the app page may only connect to Supabase');
   assert.match(ed, /\]\.filter\(Boolean\)\);/, 'empty parts are dropped (replaceChildren(null) prints "null")');
   const mock = read('tests/fake-supabase.js').match(/\(typeof window !== 'undefined' \? window : globalThis\)\.RYAGRAM_MOCK_FORECAST = (\{.*\});/);
   assert.ok(mock, 'the mock carries the series'); assert.deepEqual(JSON.parse(mock[1]), est, 'the mock series is the fixture, exactly');
@@ -118,4 +118,58 @@ test('every label stays inside the chart: "Forecast begins" sits left of its mar
     assert.ok(nums.length >= 2, 'the lowest and highest values are written on the left');
     assert.ok(shapes.filter(x => x.tag === 'text').every(x => x.attrs.x >= 0 && x.attrs.x <= 320 && x.attrs.y >= 0 && x.attrs.y <= 180), 'no text outside the box');
   }
+});
+
+test('a value must really be a number: null, "", false or a list never become 0 (Python\'s float() refuses them, and a 0 would invent a year)', () => {
+  for (const bad of [null, '', false, [], '12', undefined]) {
+    let s = clone(est); s.observed[3][1] = bad; refuses(s, /observed needs at least two values/);
+    s = clone(est); s.forecast[1] = [s.forecast[1][0], bad, bad, bad]; refuses(s, /one year at a time/);
+  }
+  let s = clone(est); s.observed[2][0] = 2007.5; refuses(s, /observed needs at least two values/);
+  s = clone(est); s.observed = [[2005, 1], [2006]]; refuses(s, /observed needs at least two values/);
+});
+
+test('the label words agree with the kind in ANY case, and the key always prints our own label word', () => {
+  let s = clone(wif); s.basis = 'estimated, based on the trend'; refuses(s, /the words say estimated but the forecast is Simulated/);
+  s = clone(est); s.basis = 'OBSERVED trend'; refuses(s, /but the forecast is Estimated/);
+  s = clone(est); s.basis = 'estimated, based on the 2012-2023 trend';
+  assert.equal(F.keyLines(F.validate(s))[1], 'Dashed line: Estimated, based on the 2012-2023 trend.');
+});
+
+test('the one-line introduction follows the series: a what-if is never called estimated; a refused series has none', () => {
+  assert.match(F.introLine(est), /^A forecast from the film’s own data: estimated/);
+  const w = F.introLine(wif); assert.match(w, /^A what-if on the film’s own data: simulated/); assert.ok(!/estimated/i.test(w));
+  const bad = clone(est); bad.kind = 'observed'; assert.equal(F.introLine(bad), null);
+  assert.match(read('assets/film.js'), /const intro = FC\.introLine\(series\);[^\n]*\n\s*if \(!intro\) return null;/);
+});
+
+// A small stand-in DOM, enough to run render() for real (text nodes, attributes, children) without a browser
+function fakeDoc() {
+  const mk = (tag, ns) => ({ tag, ns, attrs: {}, kids: [], textContent: '', setAttribute(k, v) { this.attrs[k] = String(v); }, append(...c) { this.kids.push(...c); } });
+  return { createElementNS: (ns, tag) => mk(tag, ns), createElement: tag => mk(tag, null) };
+}
+const hOf = doc => (tag, attrs = {}, ...kids) => { const el = doc.createElement(tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); for (const c of kids.flat()) if (c != null && c !== false) el.append(c); return el; };
+const loadWithDoc = doc => { const win = {}; vm.runInNewContext(read('assets/app-forecast.js'), { window: win, document: doc }); return win.ryagramForecast; };
+const texts = el => typeof el === 'string' ? [el] : [...(el.textContent ? [el.textContent] : []), ...el.kids.flatMap(texts)];
+
+test('render() for real: one svg with a SHORT name, the key read once from the caption, every word a text node; a refusal is a sentence, never a chart', () => {
+  const doc = fakeDoc(), FD = loadWithDoc(doc), h = hOf(doc);
+  const fig = FD.render(est, { h });
+  assert.equal(fig.tag, 'figure');
+  const svg = fig.kids[0]; assert.equal(svg.tag, 'svg'); assert.equal(svg.attrs.role, 'img');
+  assert.match(svg.attrs['aria-label'], /^Line chart: as published 2005-2023, then Estimated to 2028\. The key is below\.$/);
+  const caption = fig.kids[1]; assert.equal(caption.tag, 'figcaption');
+  const cap = texts(caption); assert.deepEqual(cap, JSON.parse(JSON.stringify(FD.keyLines(FD.validate(est)))));
+  assert.ok(!svg.attrs['aria-label'].includes('A test:'), 'the key is not read twice');
+  assert.ok(texts(fig).every(t => typeof t === 'string'), 'words are text');
+  const bad = clone(est); bad.kind = 'observed';
+  const r = FD.render(bad, { h }); assert.equal(r.tag, 'p'); assert.match(texts(r)[0], /^No forecast is drawn: a forecast is Estimated/);
+});
+
+test('the editor keeps ONE toggle button (focus stays on it) and asks for the series again on every show', () => {
+  const ed = read('assets/app-editor.js');
+  assert.equal((ed.match(/id: 'le-fc-toggle'/g) || []).length, 1, 'the button is made once');
+  assert.match(ed, /fcBtn\.textContent = fcShown \? 'Hide the forecast' : 'Show a forecast'; fcBtn\.setAttribute\('aria-expanded', String\(fcShown\)\);/);
+  assert.match(ed, /const series = fcShown \? forecastSeries\(\) : null;/);
+  assert.ok(!/aria-pressed/.test(ed.slice(ed.indexOf('const FC = window.ryagramForecast'), ed.indexOf('function paintForecast') + 900)), 'expanded, not pressed');
 });

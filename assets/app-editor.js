@@ -634,23 +634,24 @@
       // film's own data (bundle.forecast); the mock shows a MADE-UP example (tests/fixtures). A film without one says so. Nothing is computed here, so the page can never invent a forecast.
       const FC = window.ryagramForecast;
       const fcOn = isData && !!FC && FC.onHere();                                  // (the switch is read inside app-forecast.js; the maker's PC page does not load it, so it stays off there)
-      const fcHolder = h('section', { class: 'le-forecast', 'aria-labelledby': 'le-fc-h' });
-      let fcShown = false, fcSeries;
-      async function forecastSeries() {
+      const fcBody = h('div', { class: 'le-forecast-body', id: 'le-fc-body' });
+      let fcShown = false;
+      // the button is made ONCE and kept, so keyboard focus stays on it when the chart opens or closes; aria-expanded says which (the label changes too)
+      const fcBtn = h('button', { class: 'button secondary small', type: 'button', id: 'le-fc-toggle', 'aria-expanded': 'false', 'aria-controls': 'le-fc-body', onclick: () => { fcShown = !fcShown; paintForecast(); } }, 'Show a forecast');
+      const fcHolder = h('section', { class: 'le-forecast', 'aria-labelledby': 'le-fc-h' }, h('h2', { id: 'le-fc-h' }, 'Forecast'), h('p', {}, fcBtn), fcBody);
+      // asked again on every show (never kept as "none"), so a film whose data arrives later is not stuck on "no forecast yet"
+      function forecastSeries() {
         if (bundle && bundle.forecast) return bundle.forecast;
         if (window.ryagramMock && window.RYAGRAM_MOCK_FORECAST) return window.RYAGRAM_MOCK_FORECAST;        // the made-up series the mock carries (the app page may fetch only from its own database host)
         return null;
       }
       function paintForecast() {
         if (!fcOn) return;
-        const btn = h('button', { class: 'button secondary small', type: 'button', id: 'le-fc-toggle', 'aria-pressed': String(fcShown), onclick: async () => {
-          fcShown = !fcShown;
-          if (fcShown && fcSeries === undefined) fcSeries = await forecastSeries();
-          paintForecast();
-        } }, fcShown ? 'Hide the forecast' : 'Show a forecast');
-        fcHolder.replaceChildren(...[h('h2', { id: 'le-fc-h' }, 'Forecast'), h('p', {}, btn),               // (replaceChildren(null) would print the word "null": drop the empty parts)
-          fcShown ? (fcSeries ? FC.render(fcSeries, { h }) : h('p', { class: 'form-note', role: 'status' }, 'This film has no forecast yet.')) : null,
-          fcShown && fcSeries && !(bundle && bundle.forecast) && window.ryagramMock ? h('p', { class: 'meta' }, 'A made-up example series, not real data.') : null].filter(Boolean));
+        fcBtn.textContent = fcShown ? 'Hide the forecast' : 'Show a forecast'; fcBtn.setAttribute('aria-expanded', String(fcShown));
+        const series = fcShown ? forecastSeries() : null;
+        fcBody.replaceChildren(...[                                                                          // (replaceChildren(null) would print the word "null": drop the empty parts)
+          fcShown ? (series ? FC.render(series, { h }) : h('p', { class: 'form-note', role: 'status' }, 'This film has no forecast yet.')) : null,
+          fcShown && series && !(bundle && bundle.forecast) && window.ryagramMock ? h('p', { class: 'meta' }, 'A made-up example series, not real data.') : null].filter(Boolean));
       }
 
       const title = h('h1', { tabindex: '-1' }, host ? String(host.title || 'Edit your film').slice(0, 80) : isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
