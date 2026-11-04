@@ -4,6 +4,55 @@ Branch **`cloud-site-1104a`**, from origin/main **faf8228**.
 - Nothing was pushed to main, no PR was opened, nothing was deployed, and no switch was turned on.
 - **Merging it changes the live sign-in page.** That is the point of task 1, since Ryan asked for this layout, but it should be a conscious merge.
 
+## HANDOFF (11-04, cloud credit ending; local sessions take over)
+
+### (a) Exact head
+- Branch **`cloud-site-1104a`**, from origin/main **faf8228**.
+- Code head **ae0fd03**: the last commit with code or tests. The commit that adds this handoff section sits on top of it, and changes only this file.
+- To get the true head: `git fetch origin cloud-site-1104a && git log -1 --format=%h origin/cloud-site-1104a`.
+- Nothing is uncommitted. Nothing was pushed to main, no PR was opened, nothing was deployed, and no switch was changed.
+
+### (b) Done and tested
+1. **Sign-in layout split (Ryan 11-04 11:15)**, in commit c084cd4:
+   - The sign-in page shows only the sign-in box (Email, Password, Sign in, Forgot your password?). Under it: "Have an invite code?", "First time here? Create an account" (the waitlist form for now) and "Get help".
+   - "Have an invite code?" opens its own page, `/app/#/join`: Invite code, Your email, Join, Back to sign in.
+   - Invite links (`#/join?code=&email=` and `/app/?code=`) land there filled in, send nothing, and are cleaned from the address bar.
+   - Tested by `node tools/check-sign-in-pages.mjs`: 320, 390 and 1280 px, layout, keyboard order, both kinds of invite link, the accessibility scan. **0 failures.**
+   - Unit tests: tests/app-auth.test.cjs (26) and tests/consumer-basics.test.mjs.
+   - **Screenshots, before (main) and after, at 320, 390 and 1280 px: `docs/sign-in-1104/`.**
+2. **Waiting-account must-fail tests**, in commit f391b92:
+   - `supabase/tests/test_waiting_gate.py` (8 tests). It skips while the database has no `ryagram_private.is_waiting(uuid)`. Against a scratch "gate" that only marks accounts and enforces nothing, the 4 enforcement tests fail and the other 4 pass.
+   - `tests/waiting-accounts.test.mjs`: 2 cases run now and pass (no Stripe session, download link or film link is handed out on a refusal). 3 are skipped until the gate (the person must be told why, with a 403).
+3. **The whole branch:** `node --test` gives 1495 pass, 0 fail, 15 skipped. `node tools/pre-merge-check.mjs` passes all 20 steps.
+
+### (c) Not done (pick up cold)
+1. **Line up the waiting tests with CONNECT's real gate** (`connect-waiting-gate-1104`).
+   - Do not write new gate code: CONNECT has built it.
+   - At the top of `supabase/tests/test_waiting_gate.py`, change `mark_waiting()` to how that gate marks an account (it assumes a `public.waiting_accounts` row) and `WAITING_STATUS_FN` to its status function (it assumes `my_access_status()`). Also change `GATE` if its check function is not `ryagram_private.is_waiting(uuid)`.
+   - Then run the file with the gate's migration in `supabase/migrations`: `pgvenv/Scripts/python -m unittest supabase/tests/test_waiting_gate.py -v`. Every failure is either a function the gate misses or a test that needs adapting.
+2. **Remove the skips in `tests/waiting-accounts.test.mjs`** once the gate's error code and sentence are fixed.
+   - Set `WAITING_GATE_CODE` (the env var, or the default in the file) to the gate's code.
+   - Expected failures until fixed: **stripe-checkout** answers 502 "Stripe didn't answer" (`supabase/functions/stripe-checkout/checkout.ts`, the catch at the end of `handle`), and **get-delivery-url** answers 404 "Film not found" (`deliver.ts`). Each needs to pass the database's sentence on with a 403.
+   - **app-download** already does this for PT403 (`core.ts`, `PLAIN`).
+3. **Reconcile with CC1's wiring** (`cc1-waiting-wire-1104`). Both branches touch the signed-out pages (`app/index.html`, `assets/app-auth.js`), so merge one onto the other and run `node tools/check-sign-in-pages.mjs` and `node --test`.
+   - Expect conflicts in `tests/asset-versions.json` and the `?v=` stamps in `app/index.html` (both bump `app-auth.js`): keep one new stamp and record its hash.
+   - When real waiting accounts exist, point "First time here? Create an account" (`id="create-account"` in `app/index.html`) at the real sign-up instead of `/ryagram/#waitlist`, and update the expected link in `tests/consumer-basics.test.mjs` and `tools/check-sign-in-pages.mjs`.
+4. **Run the Chrome-only Python checks** that click "Have an invite code?" on a machine with Chrome: `tools/audit-flow.py`, `tools/audit-app-pass.py`, `tools/check-first-run-phone.py`. They should pass unchanged (the click now opens the join page), but this cloud box had no Chrome to prove it.
+5. **Earlier rounds, still open** (details in `docs/CLOUD-SITE-TRAIN-1103.md`):
+   - Should the 22 older admin functions refuse an admin acting through an OAuth client token? That needs a migration.
+   - `.nojekyll` or a robots.txt for the Markdown files; check https://uselai.com/README.html first.
+   - The page-weight cuts in `docs/APP-WEIGHT-1102.md`.
+   - Admin Operations losing keyboard focus after its buttons.
+   - The connector's "confirm=true" instruction sentence.
+   - The wording drafts in `docs/PUBLIC-WORDING-DRAFTS-1103.md` (on the closed branch `cloud-site-1103f`).
+
+### (d) Decisions for Ryan, in plain words
+1. **Merge `cloud-site-1104a` when you want the new sign-in page live.** Merging main publishes it. The screenshots in `docs/sign-in-1104/` show the before and after.
+2. **Choose where "First time here? Create an account" goes.** Today it goes to the waitlist form; when CONNECT's waiting accounts are live it should go to the real sign-up.
+3. **Agree with CONNECT on one error code and sentence** that a waiting person sees when the server refuses them (PT403 already works for the desktop download). Until checkout passes it on, a waiting person who tries to buy credits would be told "Stripe didn't answer", which is wrong.
+4. **Which branch goes first:** this one or CC1's waiting wiring. Both change the sign-in area, so one has to be merged onto the other.
+
+
 ## 1. The sign-in page (Ryan, 11-04 11:15)
 
 **What a person sees now:**
@@ -85,4 +134,5 @@ Ryan's rule: a **waiting** account may reach only the "You are on the list" page
 |---|---|
 | c084cd4 | The sign-in layout, the join page, the new check, the tests and the screenshots |
 | f391b92 | The waiting-account must-fail tests (SQL and edge functions), skipped until the gate |
-| (next) | This file |
+| ae0fd03 | The first version of this file |
+| (next) | The handoff section above |
