@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-req');
 const D = 'supabase/functions/connect-core/';
-const SUITES = ['connect-compilation-request.test.mjs', 'cloud-site-connect-mustfail.test.mjs'];   // the second holds the trimmed-folder bug test (CLOUD-SITE 11-02)
+const SUITES = ['connect-compilation-request.test.mjs', 'cloud-site-connect-mustfail.test.mjs', 'connect-cards.test.mjs'];   // the second holds the trimmed-folder bug test (CLOUD-SITE 11-02)
 const mutants = [
   ['no ownership check on the project', D + 'tools.ts', 'if (!saved) return NOT_YOURS("project");', 'if (false) return NOT_YOURS("project");'],
   ['no daily limit', D + 'tools.ts', 'if (!(await ctx.policy.hit(ctx.principal, "compilation_requests"', 'if (false && !(await ctx.policy.hit(ctx.principal, "compilation_requests"'],
@@ -25,6 +25,13 @@ const mutants = [
   ['song defaults to on', D + 'tools.ts', 'song: a.song === true,', 'song: a.song !== false,'],
   ['a repeated folder name is kept twice', D + 'tools.ts', 'const folders = [...new Set((a.folders as string[]).map((f) => f.trim()).filter(Boolean))];', 'const folders = (a.folders as string[]);'],
   ['the real database call names another function', 'supabase/functions/connect/db.ts', '"connect_set_compilation_request"', '"connect_set_compilation_requests"'],
+  ['cards: any number', D + 'tools.ts', 'cards: { type: "array", maxItems: MAX_CARDS, items', 'cards: { type: "array", maxItems: 2000, items'],
+  ['cards: a place hidden in a card is accepted', D + 'tools.ts', '...texts.map((t) => t.text), ...cards.map((c) => c.text)];', '...texts.map((t) => t.text)];'],
+  ['cards: empty words accepted', D + 'tools.ts', 'texts.some((t) => !t.text) || cards.some((c) => !c.text))', 'texts.some((t) => !t.text))'],
+  ['cards: dropped from the saved request', D + 'tools.ts', '...(cards.length ? { cards } : {}), ', ''],
+  ['cards: an empty list still saves a cards key', D + 'tools.ts', '...(cards.length ? { cards } : {}), ', '...({ cards }), '],
+  ['cards: any length of time', D + 'tools.ts', 'seconds: { type: "number", minimum: 0.5, maximum: 10, description: "How long the card stays." }', 'seconds: { type: "number", description: "How long the card stays." }'],
+  ['cards: any position', D + 'tools.ts', 'where: { type: "string", enum: ["start", "end"], description: "start = before', 'where: { type: "string", description: "start = before'],
   ['the answer claims a build was started', D + 'tools.ts', 'Nothing has been built and no credit was used.', 'The film is being built.'],
 ];
 
