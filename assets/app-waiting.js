@@ -17,18 +17,23 @@
   function pageFor(access, hash) {
     return access === 'active' ? 'normal' : 'waiting';
   }
-  function signUpProblem(email, password, again) {
+  function signUpProblem(email) {
     const e = String(email || '').trim();
     if (!e || e.length > 254 || !EMAIL.test(e)) return 'Type your email address.';
-    if (String(password || '').length < 12) return 'Choose a password of at least 12 characters.';
-    if (password !== again) return 'The two passwords do not match.';
     return null;
   }
-  // The one place that talks to Auth for a new account. Option B (Ryan 11:17): sign-up with email and password, then the confirmation email. If Ryan picks CONNECT's join function
-  // instead (RYAN-QUEUE Q378, A), only this function changes; the page stays the same.
-  async function signUp(client, email, password) {
-    const { error } = await client.auth.signUp({ email: String(email).trim(), password, options: { emailRedirectTo: `${location.origin}/app/` } });
-    return error ? { ok: false, message: error.message } : { ok: true };
+  // The one place a new account is asked for. Q378 = A (Ryan 11-04 15:47): CONNECT's join function, email only. It sends the invite-style email; the person confirms the address and
+  // chooses a password from that link, as testers do. Supabase's own sign-up stays OFF. {ok, off, message}: off = the switch is not on yet (the page sends people to the waitlist).
+  async function signUp(data, email) {
+    return data.joinWaiting(String(email || '').trim());
+  }
+  // One line for #/admin/ops: how many are waiting, and how many of them have confirmed their address (only a confirmed one can be approved).
+  function waitingSummary(list) {
+    const rows = Array.isArray(list) ? list : [];
+    const confirmed = rows.filter(r => r && r.confirmed === true).length;
+    if (!rows.length) return 'Nobody is waiting.';
+    const who = rows.length === 1 ? '1 account is waiting' : `${rows.length} accounts are waiting`;
+    return `${who}; ${confirmed} ${confirmed === 1 ? 'has' : 'have'} confirmed the address and can be approved.`;
   }
 
   const WORDS = {
@@ -112,16 +117,23 @@
       const draw = list => {
         count.textContent = list.length === 1 ? '1 account is waiting.' : `${list.length} accounts are waiting.`;
         body.replaceChildren(...list.map(r => {
+          // Only a confirmed address can be approved (the server refuses the others too): an unconfirmed row says so and has no button.
+          if (r.confirmed !== true) {
+            return h('li', { class: 'wl-row' }, h('span', { class: 'wl-who' }, h('strong', {}, r.email), h('span', { class: 'meta' }, ` joined ${fmt(r.joined_at)}, address not confirmed yet`)));
+          }
           const b = h('button', { class: 'button primary', type: 'button', 'aria-label': `Approve ${r.email}` }, 'Approve');
           b.addEventListener('click', async () => {
             error.hidden = true; note.textContent = '';
             if (!confirm(`Open access for ${r.email}? They get the normal welcome credits and an email.`)) return;
             await busy(b, 'Approving…', async () => {
-              try { await data.adminApproveWaiting(r.user_id, 'approved in the admin page'); note.textContent = `${r.email} is approved.`; draw(list.filter(x => x.user_id !== r.user_id)); }
-              catch (err) { showError(error, err); }
+              try {
+                const res = await data.adminApproveWaiting(r.user_id, 'approved in the admin page');
+                note.textContent = (res && res.message) || `${r.email} is approved.`;
+                draw(list.filter(x => x.user_id !== r.user_id));
+              } catch (err) { showError(error, err); }
             });
           });
-          return h('li', { class: 'wl-row' }, h('span', { class: 'wl-who' }, h('strong', {}, r.email), h('span', { class: 'meta' }, ` joined ${fmt(r.created_at)}`)), b);
+          return h('li', { class: 'wl-row' }, h('span', { class: 'wl-who' }, h('strong', {}, r.email), h('span', { class: 'meta' }, ` joined ${fmt(r.joined_at)}`)), b);
         }));
         if (!list.length) body.replaceChildren(h('li', { class: 'wl-row' }, 'Nobody is waiting.'));
       };
@@ -138,5 +150,5 @@
     return { waitingView, adminView };
   }
 
-  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, signUp, create, WORDS });
+  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, signUp, waitingSummary, create, WORDS });
 })();

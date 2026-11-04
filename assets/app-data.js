@@ -402,8 +402,19 @@
       adminWaitingList() {
         return run(client.rpc('admin_waiting_list'), 'Couldn’t load the waiting list.');
       },
-      adminApproveWaiting(userId, reason) {
-        return run(client.rpc('admin_approve_waiting', { p_user: userId, p_reason: reason }), 'Couldn’t approve that account.');
+      // Approve goes through CONNECT's approve-waiting function (it opens the account, pays the welcome credits once and sends the access-opens email), never the bare database call.
+      async adminApproveWaiting(userId, reason) {
+        const { data, error } = await client.functions.invoke('approve-waiting', { body: { user_id: userId, reason } });
+        if (error) { let text = 'Couldn’t approve that account.'; try { text = (await error.context.json()).error || text; } catch { /* keep the plain message */ } throw new Error(text); }
+        return data;
+      },
+      // "Create an account" (Q378 A, Ryan 11-04 15:47): CONNECT's join function, email only; the person chooses a password from the emailed link. {ok, off, message}: off = not open yet (409).
+      async joinWaiting(email) {
+        const { data, error } = await client.functions.invoke('join', { body: { email: String(email || '').trim() } });
+        if (!error) return { ok: true, off: false, message: data && data.message };
+        let text = 'Couldn’t send that just now. Try again in a minute.', status = 0;
+        try { status = error.context.status || 0; text = (await error.context.json()).error || text; } catch { /* keep the plain message */ }
+        return { ok: false, off: status === 409, message: text };
       },
       waitlistByFilm(days) {
         return run(client.rpc('waitlist_by_film', { p_days: days }), 'Couldn\u2019t load the waitlist counts.');

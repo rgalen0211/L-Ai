@@ -413,13 +413,15 @@
       caForm.addEventListener('submit', async event => {
         event.preventDefault();
         caError.hidden = true; caNote.textContent = '';
-        const f = caForm.elements, problem = window.ryagramWaiting.signUpProblem(f.email.value, f.password.value, f.again.value);
+        const f = caForm.elements, problem = window.ryagramWaiting.signUpProblem(f.email.value);
         if (problem) { caError.textContent = problem; caError.hidden = false; return; }
         window.ryagramFunnel?.signupStarted?.();
         const btn = caForm.querySelector('button'); btn.disabled = true;
         try {
-          const r = await window.ryagramWaiting.signUp(client, f.email.value, f.password.value);
-          if (r.ok) { caNote.textContent = 'Check your email to confirm your address. After that, sign in: your account is on the list until your access opens.'; f.password.value = f.again.value = ''; }
+          // Q378 A: email only, through CONNECT's join function; the emailed link confirms the address and lets the person choose a password.
+          const r = await window.ryagramWaiting.signUp(window.ryagramData(client), f.email.value);
+          if (r.ok) { caNote.textContent = r.message || 'If that email can join, a link to finish joining is on its way.'; }
+          else if (r.off) { caError.textContent = r.message || 'Making an account is not open yet. Join the waitlist instead.'; caError.hidden = false; }
           else { caError.textContent = r.message || 'Couldn’t create the account just now. Try again in a minute.'; caError.hidden = false; }
         } catch { caError.textContent = 'Couldn’t reach the server. Check your connection and try again.'; caError.hidden = false; }
         finally { btn.disabled = false; }

@@ -367,19 +367,21 @@
       sync_version_sources({ p_version }) { return syncSources(p_version); },
       // Mock: the mock user is an admin; three films' worth of made-up signup counts.
       is_app_admin() { return { data: adminMock(), error: null }; },
-      // Mock of CONNECT's Option B contract (PROPOSED names; nothing applied): my_access() is 'waiting' for the signed-in mock when the address has ?waiting (until approved or a code is used) and for
-      // every account made through sign-up; admin_waiting_list() / admin_approve_waiting(p_user, p_reason) are admin only; ?accesserr makes my_access fail (the page must fall back to the waiting page).
+      // Mock of CONNECT's Option B contract (connect-waiting-gate-1104, proposals\CONNECT-WAITING-GATE-BUILD-1104.md): my_access() -> {status, is_admin, gate_on}, 'waiting' for the signed-in
+      // mock when the address has ?waiting (until approved or a code is used); admin_waiting_list() -> user_id, email, joined_at, confirmed (admin only); approving goes through the approve-waiting
+      // function (below, with the join and claim-invite functions); ?accesserr makes my_access fail (the page must fall back to the waiting page).
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
         const id = session && session.user && session.user.id;
         const waiting = db.waiting && db.waiting.some(w => w.user_id === id && !w.approved);
         const asked = typeof location !== 'undefined' && /[?&]waiting(&|$|#)/.test(location.search || '') && !(db.approvedIds || []).includes(id);
-        return { data: waiting || asked ? 'waiting' : 'active', error: null };
+        return { data: { status: waiting || asked ? 'waiting' : 'active', is_admin: adminMock(), gate_on: true }, error: null };
       },
       admin_waiting_list() {
         if (!adminMock()) return fail('Admins only.');
-        db.waiting = db.waiting || [{ user_id: 'w-1', email: 'first.waiting@example.com', created_at: '2026-11-03T15:20:00Z', approved: false }, { user_id: 'w-2', email: 'second.waiting@example.com', created_at: '2026-11-04T09:05:00Z', approved: false }];
-        return { data: db.waiting.filter(w => !w.approved).map(({ user_id, email, created_at }) => ({ user_id, email, created_at })), error: null };
+        db.waiting = db.waiting || [{ user_id: '00000000-0000-4000-8000-000000000001', email: 'first.waiting@example.com', joined_at: '2026-11-03T15:20:00Z', confirmed: true, approved: false },
+                                    { user_id: '00000000-0000-4000-8000-000000000002', email: 'second.waiting@example.com', joined_at: '2026-11-04T09:05:00Z', confirmed: false, approved: false }];
+        return { data: db.waiting.filter(w => !w.approved).map(({ user_id, email, joined_at, confirmed }) => ({ user_id, email, joined_at, confirmed })), error: null };
       },
       admin_approve_waiting({ p_user, p_reason }) {
         if (!adminMock()) return fail('Admins only.');
@@ -948,6 +950,25 @@
             log.push({ inviteMail: addr });
             const live = !/[?&]mailoff/.test(q);
             return { data: { status: live ? 'sent' : 'saved', to: addr, sends: r2.sends, at: new Date().toISOString(), message: live ? `Sent to ${addr}.` : 'Mail is not switched on, so nothing was sent. The message is saved under Recent messages.' }, error: null };
+          }
+          if (name === 'join') {
+            // Mock of CONNECT's join (Q378 A): the same answer for a new and a known address; 409 while the switch is off. The mock adds the address to the waiting list, not confirmed yet.
+            const email = String(body.email || '').trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Enter a valid email address.' }) } } };
+            if (typeof location !== 'undefined' && /[?&]joinoff/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 409, json: async () => ({ error: 'Making an account is not open yet. Join the waitlist instead.' }) } } };
+            db.waiting = db.waiting || [];
+            if (!db.waiting.some(w => w.email === email)) db.waiting.push({ user_id: `00000000-0000-4000-8000-${String(100 + db.waiting.length).padStart(12, '0')}`, email, joined_at: new Date().toISOString(), confirmed: false, approved: false });
+            log.push({ joined: email });
+            return { data: { message: 'If that email can join, a link to finish joining is on its way. It works once.' }, error: null };
+          }
+          if (name === 'approve-waiting') {
+            // Mock of CONNECT's approve-waiting: admin only; refuses an unconfirmed address; answers {status, message} (mail is not switched on in the mock, so 'saved').
+            if (!adminMock()) return { data: null, error: { message: 'x', context: { status: 403, json: async () => ({ error: 'Only an admin can approve.' }) } } };
+            const w = (db.waiting || []).find(x => x.user_id === body.user_id && !x.approved);
+            if (!w) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'That account is not waiting.' }) } } };
+            if (!w.confirmed) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'That address is not confirmed yet, so it cannot be approved.' }) } } };
+            w.approved = true; log.push({ approved: w.email, reason: body.reason });
+            return { data: { status: 'saved', message: `${w.email} is approved. Mail is not switched on, so the access-opens email is saved, not sent.` }, error: null };
           }
           if (name === 'claim-invite') {
             // Mock of CONNECT's claim-invite (PROPOSED): RYATESTCODE opens the signed-in waiting account; anything else is refused in plain words.

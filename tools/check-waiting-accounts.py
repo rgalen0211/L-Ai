@@ -1,13 +1,15 @@
 """Option B pages in real Chrome, mock mode, LOCAL server only (NEXT-WEB waiting pages): a WAITING account sees only "You are on the list" at any address; a wrong code is refused in words and a right one opens the library;
-a failed access check also draws the waiting page (fail closed); Create an account (short password, mismatch, then success) and the new account signs in WAITING; Ryan's #/admin/waiting lists and approves; a non-admin gets no list;
-no sideways scroll at 1200, 375 and 320 px; no console errors. Screenshots go to D:/Ryagram-scratch/WEB/screens/waiting-1104.   python tools/check-waiting-accounts.py"""
-import http.server, re, socketserver, sys, threading
+a failed access check also draws the waiting page (fail closed); Create an account (Q378 A: email only, a bad address refused, then the join answer; "not open yet" while the switch is off);
+Ryan's #/admin/waiting lists them and approves only a CONFIRMED address; a non-admin gets no list; no sideways scroll at 1200, 375 and 320 px; no console errors.
+    python tools/check-waiting-accounts.py [SCREENSHOT_FOLDER]      (default: a new folder in the system temp, so nobody's pictures are overwritten)"""
+import http.server, re, socketserver, sys, tempfile, threading
 from pathlib import Path
 from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 PORT = 8321
-SHOTS = Path('D:/Ryagram-scratch/WEB/screens/waiting-1104'); SHOTS.mkdir(parents=True, exist_ok=True)
+SHOTS = Path(sys.argv[1]) if len(sys.argv) > 1 else Path(tempfile.mkdtemp(prefix='waiting-shots-')); SHOTS.mkdir(parents=True, exist_ok=True)
+print(f'screenshots: {SHOTS}')
 
 
 class H(http.server.SimpleHTTPRequestHandler):
@@ -80,9 +82,12 @@ with sync_playwright() as pw:
         # admin list and approve
         p.evaluate("location.hash='#/admin/waiting'"); p.wait_for_timeout(600)
         check(h1(p) == 'Waiting list' and p.locator('#library .wl-row').count() == 2, 'Ryan sees two waiting accounts')
+        check(p.locator('#library .wl-row >> nth=1 >> button').count() == 0 and 'not confirmed yet' in p.locator('#library .wl-row').nth(1).inner_text(), 'an unconfirmed address has no Approve button and says so')
         p.screenshot(path=str(SHOTS / f'admin-{name}.png'), full_page=True)
         p.click('#library .wl-row >> nth=0 >> button'); p.wait_for_timeout(500)
-        check(p.locator('#library .wl-row').count() == 1 and 'is approved' in p.inner_text('#library'), 'approving removes it from the list and says so')
+        check(p.locator('#library .wl-row').count() == 1 and 'is approved' in p.inner_text('#library'), 'approving the confirmed one removes it from the list and says so')
+        p.evaluate("location.hash='#/admin/ops'"); p.wait_for_timeout(900)
+        check('Waiting list (1)' in p.inner_text('#library') and 'Open the waiting list to approve' in p.inner_text('#library'), '#/admin/ops shows the waiting list count and the way to approve')
         go(p, '&nonadmin', '#/admin/waiting')
         check(h1(p) != 'Waiting list', 'a non-admin does not get the list')
         # create an account, signed out
@@ -93,16 +98,17 @@ with sync_playwright() as pw:
         check(p.evaluate("document.activeElement.id") == 'create-account-title', 'focus moves to the new page title')
         check(noscroll(p), 'create page: no sideways scroll')
         p.screenshot(path=str(SHOTS / f'create-{name}.png'), full_page=True)
-        p.fill('#ca-email', 'new.person@example.com'); p.fill('#ca-password', 'short'); p.fill('#ca-again', 'short')
-        p.evaluate("document.getElementById('create-account-form').noValidate = true"); p.click('#create-account-form button'); p.wait_for_timeout(200)
-        check('at least 12' in p.inner_text('#create-account-error'), 'a short password is refused in words')
-        p.fill('#ca-password', 'a-long-password-1'); p.fill('#ca-again', 'a-long-password-2'); p.click('#create-account-form button'); p.wait_for_timeout(200)
-        check('do not match' in p.inner_text('#create-account-error'), 'a mismatch is refused in words')
-        p.fill('#ca-again', 'a-long-password-1'); p.click('#create-account-form button'); p.wait_for_timeout(300)
-        check('Check your email' in p.inner_text('#create-account-note') and p.locator('#create-account-error').is_hidden(), 'success says to check email and that the account is on the list')
-        p.click('#create-back'); p.wait_for_selector('#sign-in:not([hidden])', timeout=5000)
-        p.fill('#si-email', 'new.person@example.com'); p.fill('#si-password', 'a-long-password-1'); p.click('#sign-in-form button'); p.wait_for_selector('#library h1', timeout=8000); p.wait_for_timeout(600)
-        check(h1(p) == 'You are on the list', 'the new account signs in WAITING')
+        check(p.locator('#create-account input[type=password]').count() == 0, 'no password box on the sign-up page (chosen from the emailed link)')
+        p.evaluate("document.getElementById('create-account-form').noValidate = true")
+        p.fill('#ca-email', 'nope'); p.click('#create-account-form button'); p.wait_for_timeout(200)
+        check('email address' in p.inner_text('#create-account-error'), 'a bad address is refused in words')
+        p.fill('#ca-email', 'new.person@example.com'); p.click('#create-account-form button'); p.wait_for_timeout(400)
+        check('on its way' in p.inner_text('#create-account-note') and p.locator('#create-account-error').is_hidden(), 'join answers with the same "link is on its way" words')
+        go(p, '&joinoff', '#/')
+        if p.locator('text=Sign out').count(): p.click('text=Sign out'); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
+        p.click('#create-link'); p.wait_for_selector('#create-account:not([hidden])', timeout=5000)
+        p.fill('#ca-email', 'later.person@example.com'); p.click('#create-account-form button'); p.wait_for_timeout(400)
+        check('not open yet' in p.inner_text('#create-account-error'), 'while the switch is off, join says "not open yet" and points to the waitlist')
         check(not errs, f'no console errors {errs[:2]}')
         p.context.close()
     b.close()
