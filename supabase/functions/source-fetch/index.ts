@@ -3,7 +3,7 @@
 // Needs migration 20261027000300_find_data_fetch.sql applied first (and the trust-label ones before it). No secret of its own: it uses the project's service key (by name, through _shared/service_key.ts) to call the
 // service-role-only fetch_* functions and to put the bytes into the person's slot of the private bucket 'ryagram-uploads'. Nothing here is on until that deploy.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
-import { verifyAppUser } from "../_shared/oauth_guard.ts";
+import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 import { handle, type Registered } from "./core.ts";
 
@@ -20,7 +20,7 @@ async function rpc(name: string, args: Record<string, unknown>): Promise<unknown
 serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   async verifyUser(jwt) {
-    const u = await verifyAppUser(service.auth, jwt);
+    const u = await verifyActiveUser(service.auth, jwt, activeGate(service));
     return u ? { id: u.id, clientId: null } : null;
   },
   async hostListed(host) {

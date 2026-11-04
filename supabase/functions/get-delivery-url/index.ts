@@ -3,7 +3,7 @@
 // No secrets of its own: the service role Supabase gives every function is used only for delivery_object_for (which
 // enforces owner, expiry and deletion) and for signing that one object.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
-import { verifyAppUser } from "../_shared/oauth_guard.ts";
+import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { handle } from "./deliver.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
 
@@ -17,7 +17,7 @@ serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   // The shared guard first: a connection token is refused before Supabase is even asked. deliver.ts keeps its own clientId refusal as a second line.
   async verifyUser(jwt) {
-    const u = await verifyAppUser(service.auth, jwt);
+    const u = await verifyActiveUser(service.auth, jwt, activeGate(service));
     return u ? { id: u.id, clientId: null } : null;
   },
   async objectFor(owner, delivery) {

@@ -102,7 +102,7 @@ test('INPUT: bad JSON, a non-object, an oversized body and an unknown action are
 test('A CONNECTION TOKEN NEVER REACHES THE BUILDER: index.ts verifies through the shared verifyAppUser guard (which refuses an OAuth token before Supabase is asked), uses no getUser of its own, and builder.ts has no dead second line', async () => {
   const fs = await import('node:fs');
   const idx = fs.readFileSync(new URL('../supabase/functions/guided-builder/index.ts', import.meta.url), 'utf8');
-  assert.match(idx, /verifyAppUser\(service\.auth, jwt\)/);
+  assert.match(idx, /verifyActiveUser\(service\.auth, jwt, activeGate\(service\)\)/);   // the shared guard plus the waiting-list gate (11-04)
   assert.doesNotMatch(idx, /\.auth\.getUser\(|claimsOf|clientId: null/);
   const bld = fs.readFileSync(new URL('../supabase/functions/guided-builder/builder.ts', import.meta.url), 'utf8');
   assert.doesNotMatch(bld, /clientId|claimsOf|through its own tools/, 'no dead code that can never run');
