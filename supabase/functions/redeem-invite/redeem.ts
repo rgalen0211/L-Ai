@@ -13,6 +13,26 @@ export interface Deps {
   release(redemption: number): Promise<void>;
   // Supabase Auth's admin invite. Throws with .code "email_exists" when the address has an account.
   invite(email: string, redirectTo: string): Promise<{ userId: string | null }>;
+  /** Which header names the caller, for the guess limit (docs/REDEEM-INVITE-HEADER-CHECK.md). Unset or unknown = the default rule. Set only if the header check
+   *  on the real project says so, as the function secret REDEEM_CALLER_HEADER. */
+  callerHeader?: string;
+}
+
+/** The caller's address for the guess limit, by mode. NEVER a value the client can write; which header that is depends on the platform, so it is checked once on the
+ *  real project (docs/REDEEM-INVITE-HEADER-CHECK.md):
+ *    default (unset):   cf-connecting-ip, else the LAST X-Forwarded-For hop (the one the platform's proxy appended)
+ *    cf-connecting-ip:  only cf-connecting-ip (if the gateway does not append to X-Forwarded-For)
+ *    x-real-ip:         only x-real-ip (if the gateway sets it and neither of the others can be trusted)
+ *    xff-last:          only the LAST X-Forwarded-For hop (if a client-sent cf-connecting-ip reaches the function unchanged)
+ *  An unknown mode is the default. No usable value gives "unknown" (every such caller shares one count, and the site-wide cap still applies). */
+export const CALLER_MODES = ["cf-connecting-ip", "x-real-ip", "xff-last"] as const;
+export function callerIp(headers: Headers, mode?: string): string {
+  const one = (name: string) => (headers.get(name) ?? "").split(",")[0].trim();
+  const hops = (headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
+  const last = hops[hops.length - 1] ?? "";
+  const m = String(mode ?? "").trim().toLowerCase();
+  const ip = m === "cf-connecting-ip" ? one("cf-connecting-ip") : m === "x-real-ip" ? one("x-real-ip") : m === "xff-last" ? last : (one("cf-connecting-ip") || last);
+  return ip || "unknown";
 }
 
 export const SENT = "If that email can join, a link to finish joining is on its way. It works once. " +
@@ -44,8 +64,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
 
   // The caller's address, hashed: only used to slow down guessing, kept a day. NEVER a value the client can write: the platform's own cf-connecting-ip, else the LAST hop
   // of X-Forwarded-For (the one the platform's proxy appended); the first entries are whatever the client sent (CLOUD-SITE 11-02; the same rule as creator-beta and node).
-  const hops = (req.headers.get("x-forwarded-for") ?? "").split(",").map((h) => h.trim()).filter(Boolean);
-  const ip = (req.headers.get("cf-connecting-ip") ?? "").trim() || hops[hops.length - 1] || "unknown";
+  const ip = callerIp(req.headers, deps.callerHeader);
   let r;
   try { r = await deps.reserve(code, email, await sha256Hex(`ryagram-invite:${ip}`)); }
   catch (e) { console.error(`redeem-invite reserve: ${(e as Error).message}`); return reply(500, { error: "Something went wrong. Try again in a minute." }); }

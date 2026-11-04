@@ -21,6 +21,8 @@ async function rpc(name: string, args: Record<string, unknown>) {
 serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   siteUrl: "https://uselai.com",
+  // Unset by default (the default rule). Set the function secret REDEEM_CALLER_HEADER only if docs/REDEEM-INVITE-HEADER-CHECK.md says so.
+  callerHeader: Deno.env.get("REDEEM_CALLER_HEADER") ?? "",
   reserve: (code, email, ipHash) => rpc("invite_reserve", { p_code: code, p_email: email, p_ip_hash: ipHash }),
   sent: async (redemption, userId) => { await rpc("invite_sent", { p_redemption: redemption, p_user: userId }); },
   release: async (redemption) => { await rpc("invite_release", { p_redemption: redemption }); },
