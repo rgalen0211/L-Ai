@@ -46,6 +46,8 @@ export interface CompilationRequest {
   rules: { phrase: string; picture: string; seconds: number; mode: "full" | "centre" | "corner" | "lower_third" }[];
   texts: { text: string; start_s: number; length_s: number; position: "top" | "centre" | "bottom" | "lower_third"; size: "small" | "medium" | "large" }[];
   note: string;
+  /** Title / end cards (BUILDER 11-04): the person's own words on the film's page colour, no picture. Optional: older requests have none. At most 4. */
+  cards?: { text: string; where: "start" | "end"; seconds: number }[];
   /** Guided footage (NEXT-CONNECT 161): what footage to get and where to put it, written by the AI as a checklist. TEXT ONLY: Ryagram downloads nothing; the person gets the footage themselves. Optional: older requests have none. */
   checklist?: ChecklistItem[];
 }
