@@ -74,3 +74,8 @@ test('the account-made-by-sign-up path: the mock starts it WAITING and only a co
   assert.match(src, /my_access\(\)/); assert.match(src, /admin_approve_waiting/); assert.match(src, /name === 'claim-invite'/);
   assert.match(src, /async signUp\(/); assert.match(src, /Admins only\./);
 });
+
+test('the waitlist section offers "Create an account" only when the switch is exactly true (hidden in the page, shown by ryagram.js)', () => {
+  assert.match(read('ryagram/index.html'), /<p id="wl-create" class="rg-note" hidden>Or create an account now and we hold your place: <a href="\/app\/#\/create-account">/);
+  assert.match(read('assets/ryagram.js'), /config\.waitingAccounts === true\) createLine\.hidden = false/);
+});
