@@ -39,7 +39,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     'sign-in-error': el(), 'account-email': el(), 'sign-out': signOut,
     forgot, 'reset-form': resetForm, 'reset-note': el(), 'set-password': el(), 'set-password-form': setForm,
     'set-password-error': el(), 'set-password-title': el(), 'forgot-row': el(),
-    'invite-row': el(), 'have-invite': el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { listeners.haveInvite = fn; } }),
+    'invite-row': el(), 'have-invite': el(), 'join': el(), 'join-title': el(), 'sign-in-title': el(),
     'invite-form': inviteForm, 'invite-note': el(),
     'auth-link': el(), 'auth-link-title': el(), 'auth-link-text': el(), 'auth-link-go': el({ addEventListener(t, fn) { listeners.authGo = fn; } }),
     'auth-expired': el(), 'auth-expired-title': el(), 'auth-expired-form': expiredForm, 'auth-expired-note': el(),
@@ -69,14 +69,15 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     ryagramLibrary: { mount(root, data) { calls.mounts++; calls.mountedWith = { root, data }; return () => { calls.unmounts++; }; } }
   };
   if (library) window.supabase = { createClient: (url, key, opts) => { calls.created = { url, key, opts }; return client; } };
+  const loc = { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location };
   vm.runInNewContext(code, { document: { getElementById: id => els[id], createElement: () => ({}), body: { append: x => appended.push(x) } }, window,
-                            location: { pathname: '/app/', hash: '', origin: 'https://uselai.com', ...location }, history, URLSearchParams, atob, setTimeout: fn => fn() });
+                            location: loc, history, URLSearchParams, atob, setTimeout: fn => fn() });
   const flush = () => new Promise(r => setImmediate(r));
-  return { els, button, calls, window, appended, fireHash: () => [...hashFns].forEach(f => f()), hashFns, emit: async s => { authListener('X', s); await flush(); },
+  return { els, button, calls, window, appended, setHash: hash => { loc.hash = hash; }, fireHash: () => [...hashFns].forEach(f => f()), hashFns, emit: async s => { authListener('X', s); await flush(); },
            submit: () => listeners.submit({ preventDefault() {} }), signOut: () => listeners.signOut(),
            forgot: () => listeners.forgot(), resetForm, setForm,
            requestReset: () => listeners.reset({ preventDefault() {} }), inviteForm,
-           redeem: () => listeners.invite({ preventDefault() {} }), haveInvite: () => listeners.haveInvite(), savePassword: () => listeners.setPassword({ preventDefault() {} }),
+           redeem: () => listeners.invite({ preventDefault() {} }), savePassword: () => listeners.setPassword({ preventDefault() {} }),
            click: async () => { await listeners.authGo(); await flush(); }, resend: () => listeners.expired({ preventDefault() {} }), back: () => listeners.back(),
            expiredForm, flush };
 }
@@ -214,31 +215,48 @@ test('a reset link: the token leaves the address bar, NOTHING is checked until t
   assert.equal(junk.calls.replaced.length, 1);
 });
 
-test('the invite email’s link (#/join?code=&email=) opens the invite form with both boxes filled, submits nothing, and is removed from the address bar', async () => {
+test('the invite email’s link (#/join?code=&email=) lands on the invite code’s OWN page with both boxes filled, submits nothing, and the address bar keeps only #/join', async () => {
   const cfg = { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true };
-  const h = harness({ config: cfg, location: { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/join?code=RYA-K7M2-9QPX&email=maya%40example.com', origin: 'https://uselai.com' } });
-  assert.equal(h.inviteForm.hidden, false);
+  const at = (hash, search = '') => ({ hostname: 'uselai.com', search, pathname: '/app/', hash, origin: 'https://uselai.com' });
+  const h = harness({ config: cfg, location: at('#/join?code=RYA-K7M2-9QPX&email=maya%40example.com') });
+  await h.emit(null);
+  assert.deepEqual([h.els.join.hidden, h.els['sign-in'].hidden], [false, true], 'the join page, not the sign-in page');
   assert.equal(h.inviteForm.elements.code.value, 'RYA-K7M2-9QPX');
   assert.equal(h.inviteForm.elements.email.value, 'maya@example.com');
   assert.equal(h.calls.invoked.length, 0);                                           // nothing submits itself
   assert.equal(h.calls.replaced.length, 1);
-  assert.ok(!/join|code=|email=/.test(String(h.calls.replaced[0][2])), 'the address bar no longer carries the code or the address');
+  assert.equal(String(h.calls.replaced[0]), '/app/#/join', 'the address bar keeps the page, never the code or the address');
+  // the same from a link with ?code= in the query: it lands on #/join, filled, and the query is cleaned
+  const q = harness({ config: cfg, location: at('', '?code=RYA-K7M2-9QPX&email=maya%40example.com') });
+  assert.equal(String(q.calls.replaced[0]), '/app/#/join');
   for (const bad of ['#/join?code=x&email=a@b.co', '#/join?code=RYA-K7M2-9QPX&email=a%20b@c.co', '#/join?code=RYA-K7M2-9QPX&email=a%40b.co%2Cc%40d.co', '#/join?code=%3Cscript%3E1234&email=a%40b.co']) {
-    const j = harness({ config: cfg, location: { hostname: 'uselai.com', search: '', pathname: '/app/', hash: bad, origin: 'https://uselai.com' } });
-    assert.equal(j.inviteForm.hidden, true, bad);                                     // a link that does not look right fills nothing
-    assert.equal(j.inviteForm.elements.code.value || '', '', bad);
-    assert.equal(j.calls.replaced.length, 1, bad);                                    // but it is still removed from the address bar
+    const j = harness({ config: cfg, location: at(bad) });
+    await j.emit(null);
+    assert.equal(j.inviteForm.elements.code.value || '', '', bad);                   // a link that does not look right fills nothing
+    assert.equal(j.calls.replaced.length, 1, bad);                                    // but it is still cleaned from the address bar
+    assert.equal(String(j.calls.replaced[0]), '/app/#/join', bad);
   }
-  const off = harness({ location: { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/join?code=RYA-K7M2-9QPX&email=a%40b.co', origin: 'https://uselai.com' } });
-  assert.equal(off.els['invite-row'].hidden, true);                                  // invite sign-up not switched on: nothing is opened
+  const off = harness({ location: at('#/join?code=RYA-K7M2-9QPX&email=a%40b.co') });
+  await off.emit(null);
+  assert.equal(off.els['invite-row'].hidden, true);                                  // invite sign-up not switched on: no link to the page,
+  assert.deepEqual([off.els.join.hidden, off.els['sign-in'].hidden], [true, false]);  // and #/join shows the sign-in page instead
+  assert.equal(off.inviteForm.elements.code.value || '', '');
 });
 
-test('invite codes: hidden until the invite email is set up; a code and email go to redeem-invite', async () => {
+test('invite codes: the link to the code page shows only while invite sign-up is on; #/ and #/join switch between the two pages; a code and email go to redeem-invite', async () => {
   assert.equal(harness().els['invite-row'].hidden, true);
-  const h = harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true } });
+  const loc = { hostname: 'uselai.com', search: '', pathname: '/app/', hash: '#/', origin: 'https://uselai.com' };
+  const h = harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true }, location: loc });
+  await h.emit(null);
   assert.equal(h.els['invite-row'].hidden, false);
-  h.haveInvite();
-  assert.equal(h.inviteForm.hidden, false);
+  assert.deepEqual([h.els['sign-in'].hidden, h.els.join.hidden], [false, true]);
+  h.setHash('#/join'); h.fireHash();                                                  // "Have an invite code?" is a link to #/join
+  assert.deepEqual([h.els['sign-in'].hidden, h.els.join.hidden], [true, false]);
+  assert.equal(h.els['join-title'].focused, true, 'the move lands on the new page’s heading');
+  h.setHash('#/'); h.fireHash();                                                      // "Back to sign in"
+  assert.deepEqual([h.els['sign-in'].hidden, h.els.join.hidden], [false, true]);
+  assert.equal(h.els['sign-in-title'].focused, true);
+  h.setHash('#/join'); h.fireHash();
   h.inviteForm.elements.code.value = 'RYA-K7M2-9QPX';
   h.inviteForm.elements.email.value = ' new@example.com ';
   await h.redeem();
@@ -459,10 +477,10 @@ test('WELCOME ONCE: the welcome and "saved" messages clear on the person’s nex
   await h.savePassword();
   await h.flush();
   assert.equal(h.els['app-status'].textContent, 'Welcome. Your password is saved.');
-  assert.equal(h.hashFns.length, 1);
+  const withOnce = h.hashFns.length;                                                  // the page's own route listener stays; the one-time one is extra
   h.fireHash();                                                                       // the person goes somewhere
   assert.equal(h.els['app-status'].textContent, '');
-  assert.equal(h.hashFns.length, 0);                                                  // and the listener is gone: nothing greets them again
+  assert.equal(h.hashFns.length, withOnce - 1);                                       // and the one-time listener is gone: nothing greets them again
   const c = harness({ location: confirmAt('signup') });
   await c.emit(null); await c.click();
   assert.match(c.els['app-status'].textContent, /email is confirmed/);

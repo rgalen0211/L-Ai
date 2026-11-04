@@ -71,13 +71,17 @@
 
   // The link in Ryagram's invite email (NEXT-WEB 155): /app/#/join?code=...&email=... The code and the address ride in the FRAGMENT, which a browser never sends to any server or log. They are read
   // here, checked for shape, and the address bar and history entry are cleaned at once; the invite form opens below with both boxes filled and NOTHING submits itself.
+  // CLOUD-SITE 11-04 (Ryan 11-04 11:15): the code now has its OWN page, #/join, so the link lands there (cleaned) instead of on the sign-in page. A link with ?code= in the query
+  // (/app/?code=...&email=...) is read the same way; the query is cleaned too.
   let joinFill = null;
   {
     const m = /^#\/join\?(.*)$/.exec(location.hash);
-    if (m) {
-      const jp = new URLSearchParams(m[1]), code = jp.get('code') || '', mail = jp.get('email') || '';
+    const fromQuery = !m && query.has('code') ? new URLSearchParams(query.toString()) : null;
+    if (m || fromQuery) {
+      const jp = m ? new URLSearchParams(m[1]) : fromQuery, code = jp.get('code') || '', mail = jp.get('email') || '';
       if (/^[A-Za-z0-9 -]{8,24}$/.test(code) && mail.length <= 320 && !/[\s<>,;"]/.test(mail)) joinFill = { code, email: mail };
-      history.replaceState(null, '', location.pathname + location.search + '#/');
+      if (fromQuery) { query.delete('code'); query.delete('email'); }
+      history.replaceState(null, '', location.pathname + (query.toString() ? `?${query}` : '') + '#/join');
     }
   }
 
@@ -142,10 +146,14 @@
       email_change: ['Confirm your new email', 'Press the button to confirm your new email address.', 'Confirm the new address'],
       email: ['Continue to Ryagram', 'Press the button to continue.', 'Continue']
     };
-    function hideLinkPanels() { if (authLink) authLink.hidden = true; if (authExpired) authExpired.hidden = true; }
+    const joinPage = $('join');                                                  // the invite code's own page (#/join), signed out only
+    const inviteOn = () => window.ryagramConfig?.inviteSignup === true || !!window.ryagramMock;
+    let signedOutShown = false;                                                  // the sign-in or join page is on screen (so #/join and #/ switch between them)
+    function hideLinkPanels() { if (authLink) authLink.hidden = true; if (authExpired) authExpired.hidden = true; if (joinPage) joinPage.hidden = true; signedOutShown = false; }
     function showAuthLink() {
       if (unmount) { unmount(); unmount = null; }
       library.hidden = true; signIn.hidden = true; setPassword.hidden = true; account.hidden = true; authExpired.hidden = true;
+      if (joinPage) joinPage.hidden = true; signedOutShown = false;
       let [title, text, go] = LINK_WORDS[linkType] || LINK_WORDS.email;
       if (implicitSession) {                                                      // this link would sign the person in: say as whom, and let them refuse
         title = 'Sign in to Ryagram';
@@ -160,6 +168,7 @@
     function showAuthExpired() {
       if (unmount) { unmount(); unmount = null; }
       library.hidden = true; signIn.hidden = true; setPassword.hidden = true; account.hidden = true; authLink.hidden = true;
+      if (joinPage) joinPage.hidden = true; signedOutShown = false;
       authExpired.hidden = false;
       $('auth-expired-title').focus();
     }
@@ -177,6 +186,7 @@
         // A tab left on the computer-approval page (#/device) with no code must not be where signing in lands (live ride, Ryan 2026-10-26 12:37): home instead, unless a code rides in the link.
         const d = window.ryagramDevice && window.ryagramDevice.codeFromHash ? window.ryagramDevice.codeFromHash(location.hash) : null;
         if (d && d.page && !d.code && !d.bad) history.replaceState(null, '', location.pathname + location.search + '#/');
+        if (/^#\/join\b/.test(location.hash)) history.replaceState(null, '', location.pathname + location.search + '#/');   // the code page is for signed-out people only
         // Signing in as a DIFFERENT account from a tab left on the last account's project, version, delivery page or look: home, not that page (live ride, Ryan 2026-10-26 17:32).
         if (lastUserId && user.id && lastUserId !== user.id && /^#\/(p|v|delivery|looks\/edit)\//.test(location.hash)) history.replaceState(null, '', location.pathname + location.search + '#/');
         lastUserId = user.id || lastUserId;
@@ -185,14 +195,25 @@
       }
     }
 
-    function showSignIn() {
+    // Signed out: the sign-in page, or the invite code's own page on #/join (only while invite sign-up is on; otherwise #/join shows sign-in).
+    function showSignIn(moved = false) {
       if (unmount) { unmount(); unmount = null; }
       hideLinkPanels();
       library.hidden = true;
       account.hidden = true;
       setPassword.hidden = true;
-      signIn.hidden = false;
+      const join = !!joinPage && inviteOn() && /^#\/join\b/.test(location.hash);
+      signIn.hidden = join;
+      if (joinPage) joinPage.hidden = !join;
+      signedOutShown = true;
+      if (join && joinFill) {                                                    // from an invite link: both boxes filled; the person presses Join
+        const f = $('invite-form');
+        if (f) { f.elements.code.value = joinFill.code; f.elements.email.value = joinFill.email; }
+        joinFill = null;
+      }
+      if (moved) { const t = $(join ? 'join-title' : 'sign-in-title'); if (t && t.focus) t.focus(); }   // a move between the two pages lands on the new page's heading
     }
+    window.addEventListener?.('hashchange', () => { if (signedOutShown) showSignIn(true); });
 
     function showSetPassword() {
       if (unmount) { unmount(); unmount = null; }
@@ -393,22 +414,9 @@
     // Beta invite codes: shown once the invite email is set up (inviteSignup: true), or in mock mode.
     // The same answer whether or not the email already has an account.
     if ($('invite-row')) {
-      $('invite-row').hidden = !(window.ryagramConfig?.inviteSignup === true || window.ryagramMock);
-      const haveInvite = $('have-invite');
+      $('invite-row').hidden = !inviteOn();                                      // the "Have an invite code?" link (to #/join), only while invite sign-up is on
       const inviteForm = $('invite-form');
       const inviteNote = $('invite-note');
-      if (joinFill && !$('invite-row').hidden) {                                   // from the invite email: open the form with both boxes filled; the person presses the button
-        inviteForm.hidden = false;
-        haveInvite.setAttribute('aria-expanded', 'true');
-        inviteForm.elements.code.value = joinFill.code;
-        inviteForm.elements.email.value = joinFill.email;
-        joinFill = null;
-      }
-      haveInvite.addEventListener('click', () => {
-        inviteForm.hidden = !inviteForm.hidden;
-        haveInvite.setAttribute('aria-expanded', String(!inviteForm.hidden));
-        if (!inviteForm.hidden) inviteForm.elements.code.focus();
-      });
       inviteForm.addEventListener('submit', async event => {
         event.preventDefault();
         if (!inviteForm.reportValidity()) return;

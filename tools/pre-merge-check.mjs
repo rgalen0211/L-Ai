@@ -31,7 +31,7 @@ export function hasPlaywright() {
 }
 
 // the browser page checks, if this branch has them (names in order); each prints its own count and exits 1 on a finding
-export const PAGE_CHECKS = ['tools/check-phone-keyboard-pass.mjs', 'tools/check-game-phone.mjs', 'tools/audit-a11y-switched.mjs'];
+export const PAGE_CHECKS = ['tools/check-phone-keyboard-pass.mjs', 'tools/check-game-phone.mjs', 'tools/audit-a11y-switched.mjs', 'tools/check-sign-in-pages.mjs'];
 
 /** The steps, as [group, name, argv, how to read the result]. */
 export function steps({ quick = false, sql = null } = {}) {

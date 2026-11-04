@@ -6,13 +6,16 @@ import fs from 'node:fs';
 
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 
-test('SIGN-IN: a person with no invite is not left at a dead end: waitlist, email for an invite, and help', () => {
+test('SIGN-IN: a person with no invite is not left at a dead end: the invite code page, create an account (the waitlist for now), and help (Ryan 11-04 layout)', () => {
   const html = read('app/index.html');
-  const p = html.slice(html.indexOf('<p class="form-note sign-in-help">'), html.indexOf('</p>', html.indexOf('<p class="form-note sign-in-help">')));
-  assert.match(p, /No invite yet\? <a href="\/ryagram\/#waitlist">Join the waitlist<\/a>/);
-  assert.doesNotMatch(p, /mailto:/, 'no new mail address until Ryan has confirmed it receives mail');
-  assert.match(p, /<a href="\/ryagram\/#waitlist">Join the waitlist<\/a> to ask for an invite\./);
-  assert.match(p, /Trouble signing in\? <a href="\/help\/">Get help<\/a>/);
+  const signIn = html.slice(html.indexOf('<section id="sign-in"'), html.indexOf('</section>', html.indexOf('<section id="sign-in"')));
+  const links = signIn.slice(signIn.indexOf('<ul class="sign-in-links">'));
+  assert.match(links, /<li id="invite-row" hidden><a id="have-invite" href="#\/join">Have an invite code\?<\/a><\/li>/);
+  assert.match(links, /<a id="create-account" href="\/ryagram\/#waitlist">First time here\? Create an account<\/a>/, 'Create an account opens the waitlist for now: sign-ups stay closed');
+  assert.match(links, /Trouble signing in\? <a href="\/help\/">Get help<\/a>/);
+  assert.doesNotMatch(signIn, /mailto:/, 'no new mail address until Ryan has confirmed it receives mail');
+  assert.ok(signIn.indexOf('id="sign-in-form"') < signIn.indexOf('id="forgot-row"') && signIn.indexOf('id="forgot-row"') < signIn.indexOf('<ul class="sign-in-links">'), 'the sign-in box first, then Forgot, then the links');
+  assert.ok(!signIn.includes('id="invite-form"'), 'the invite form is not on the sign-in page');
   assert.ok(read('ryagram/index.html').includes('id="waitlist"'), 'the waitlist anchor it points at exists');
 });
 

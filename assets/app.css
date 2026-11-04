@@ -194,6 +194,9 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 .sign-in-help .help-line{display:block;margin:2px 0}
 .link-button{min-height:40px;padding:10px 2px}
 .sign-in-help{margin:18px 0}
+/* sign-in and join pages: the links under the form, one per line, each a 44 px tap target (CLOUD-SITE 11-04) */
+.sign-in-links{list-style:none;margin:18px 0 0;padding:0}.sign-in-links li{margin:0}.sign-in-links a{display:inline-block;min-height:44px;padding:11px 2px;box-sizing:border-box}.sign-in-links .sign-in-help{margin:0}
+#join h1{margin-bottom:18px}
 @media(max-width:760px){.app-account{gap:8px}.app-account #account-email{display:none}}
 /* Consumer audit: stacked link lines keep their spacing; the folded Advanced panel on a version page */
 .app-main p.meta + p.meta{margin-top:10px}.admin-links{line-height:2}
