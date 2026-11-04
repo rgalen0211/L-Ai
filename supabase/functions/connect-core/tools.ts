@@ -940,5 +940,66 @@ const getDraftMessages: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages];
+// ---------------------------------------------------------------------------------------------- geographic intelligence (NEXT-CONNECT 193)
+// "What is within N minutes of this place": a read-only question about ONE point. UNLISTED and OFF: the real function wires no `geo` switch, so today it refuses and looks nothing up. With a stand-in switch ON it shows the engine's
+// drive-estimate answer (ryagram/geo/drivetime.py): a CIRCLE from an assumed speed and winding, never a routed drive time, so EVERY number must arrive labelled Estimated or the whole answer is refused.
+const GEO_SCHEMA = "ryagram.drive-estimate/0";
+const GEO_CATEGORY = /^[a-z][a-z0-9_]{1,30}$/;
+interface GeoNumber { value: number | null; note: string; source: string }
+function readGeoNumber(v: unknown): GeoNumber | null {
+  if (!isObj(v) || v.label !== "Estimated") return null;
+  const value = v.value === null ? null : num(v.value);
+  const note = str(v.note, 1600), source = str(v.source, 300);
+  if ((v.value !== null && value === null) || note === null || source === null) return null;
+  return { value, note, source };
+}
+function readGeoAnswer(doc: unknown, minutes: number, categories: string[]) {
+  if (!isObj(doc) || doc.schema !== GEO_SCHEMA || doc.label_for_everything !== "Estimated" || num(doc.minutes) !== minutes || !Array.isArray(doc.sites) || doc.sites.length !== 1) return null;
+  const assumptions = str(doc.assumptions, 1600);
+  const site = doc.sites[0];
+  if (assumptions === null || !isObj(site) || !isObj(site.residents_range) || !isObj(site.counts)) return null;
+  const residents = readGeoNumber(site.residents);
+  const lo = num(site.residents_range.low), hi = num(site.residents_range.high);
+  if (!residents || lo === null || hi === null || site.residents_range.label !== "Estimated") return null;
+  const counts: Record<string, GeoNumber> = {};
+  for (const c of categories) {
+    const n = readGeoNumber((site.counts as Record<string, unknown>)[c]);
+    if (!n) return null;
+    counts[c] = n;
+  }
+  return { assumptions, residents, lo, hi, counts };
+}
+
+const whatIsWithin: ToolDef = {
+  name: "what_is_within", title: "What is within N minutes of this place", scope: "read", readOnly: true, listed: false,
+  description: "Asks what lies within a drive time of ONE place given as a latitude and longitude: the residents (from Census counts) and, for the categories asked, the businesses. It is an ESTIMATE, never a routed drive time: the area is a circle worked out from an assumed "
+    + "average speed and winding, and every number comes back labelled Estimated with its assumptions and its source. Read-only: it looks one place up, saves nothing, draws nothing and changes nothing.",
+  inputSchema: obj({
+    lat: { type: "number", minimum: -90, maximum: 90, description: "Latitude of the place, in degrees." },
+    lon: { type: "number", minimum: -180, maximum: 180, description: "Longitude of the place, in degrees (west is negative)." },
+    minutes: { type: "integer", minimum: 1, maximum: 60, description: "The drive time, in whole minutes." },
+    categories: { type: "array", maxItems: 4, items: { type: "string", pattern: "^[a-z][a-z0-9_]{1,30}$" }, description: "Kinds of business to count inside the area, by name (for example chicken). Leave out to count none." },
+  }, ["lat", "lon", "minutes"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.geo;
+    if (!sw || !(await sw.enabled())) return refuse("Questions about places are not available yet. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });
+    const lat = num(a.lat), lon = num(a.lon), minutes = num(a.minutes);
+    if (lat === null || lon === null || minutes === null || lat < -90 || lat > 90 || lon < -180 || lon > 180 || !Number.isInteger(minutes) || minutes < 1 || minutes > 60) return refuse("Give a latitude, a longitude and a whole number of minutes from 1 to 60. Nothing was looked up.", "args");
+    const raw = a.categories === undefined ? [] : a.categories;
+    if (!Array.isArray(raw) || raw.length > 4 || raw.some((c) => typeof c !== "string" || !GEO_CATEGORY.test(c))) return refuse("Categories are up to four short lowercase names. Nothing was looked up.", "args");
+    const categories = [...new Set(raw as string[])];
+    if (!(await ctx.policy.hit(ctx.principal, "geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {
+      return refuse(`The limit of ${LIMITS.geoQuestionsPerHourPerUser} place questions an hour is reached. Nothing was looked up.`, "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 3600 } });
+    }
+    const rep = readGeoAnswer(await sw.within({ lat, lon, minutes, categories }), minutes, categories);
+    if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Estimated), so none of it is shown.", "bad_report");
+    const lines = [`${minutes}-minute area (estimated) around ${lat.toFixed(4)}, ${lon.toFixed(4)}: about ${rep.residents.value === null ? "an unknown number of" : Math.round(rep.residents.value).toLocaleString("en-US")} residents (between ${Math.round(rep.lo).toLocaleString("en-US")} and ${Math.round(rep.hi).toLocaleString("en-US")} if the drive is slower or faster than assumed). Estimated.`];
+    for (const c of categories) lines.push(`  ${c}: ${rep.counts[c].value === null ? "unknown" : rep.counts[c].value} inside. Estimated; ${untrusted("report-sentence", rep.counts[c].source)}.`);
+    lines.push(`Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}`);
+    lines.push(`Source of the resident count: ${untrusted("report-sentence", rep.residents.source)}. This is a circle, not a routed drive time; a real drive time needs a road network and a routing program.`);
+    return ok(lines.join("\n"), { minutes, lat, lon, label_for_everything: "Estimated", residents: { value: rep.residents.value, low: rep.lo, high: rep.hi }, counts: Object.fromEntries(categories.map((c) => [c, rep.counts[c].value])), looked_up: true });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
