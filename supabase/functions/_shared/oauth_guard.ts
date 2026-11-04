@@ -35,3 +35,27 @@ export async function verifyAppUser(auth: AuthLike, jwt: string): Promise<{ id: 
   const { data, error } = await auth.getUser(jwt);
   return error || !data?.user ? null : { id: data.user.id, email: data.user.email ?? "" };
 }
+
+/** What the Edge Functions ask the database about a person (the service role runs public.account_is_active). */
+export interface ActiveGate { isActive(userId: string): Promise<boolean> }
+
+/** The gate over a supabase-js service client. Fails CLOSED: an error or an odd answer is "not open". */
+export function activeGate(service: { rpc(name: string, args: Record<string, unknown>): PromiseLike<{ data: unknown; error: unknown }> }): ActiveGate {
+  return {
+    async isActive(userId: string) {
+      const { data, error } = await service.rpc("account_is_active", { p_user: userId });
+      return !error && data === true;
+    },
+  };
+}
+
+/**
+ * The signed-in PERSON for an app session whose account is OPEN (not on the waiting list), or null: everything verifyAppUser refuses, plus a WAITING account.
+ * Every Edge Function a WAITING person must NOT reach calls this instead of verifyAppUser. The two that they may reach (delete-account, claim-invite) keep verifyAppUser;
+ * tests/connect-oauth-guard.test.mjs lists both groups. The database has its own gate; this one stops the service-role code paths, which the database cannot see.
+ */
+export async function verifyActiveUser(auth: AuthLike, jwt: string, gate: ActiveGate): Promise<{ id: string; email: string } | null> {
+  const u = await verifyAppUser(auth, jwt);
+  if (!u) return null;
+  try { return (await gate.isActive(u.id)) ? u : null; } catch { return null; }
+}

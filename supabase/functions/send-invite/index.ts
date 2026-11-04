@@ -3,7 +3,7 @@
 // The JWT is checked inside (verifyAppUser, which refuses an AI's token) and the database checks the caller is an admin. It sends through the ops mail path:
 // until OPS_MAIL_MODE=resend (with RESEND_API_KEY and OPS_MAIL_FROM) is set, a send is only SAVED to ops_outbox and the page says so.
 import { createClient } from "npm:@supabase/supabase-js@2.117.2";
-import { verifyAppUser } from "../_shared/oauth_guard.ts";
+import { activeGate, verifyActiveUser } from "../_shared/oauth_guard.ts";
 import { chooseSender, type Outbox } from "../_shared/ops_mail.ts";
 import { handle } from "./send.ts";
 import { guardedServe, resolveServiceKey } from "../_shared/service_key.ts";
@@ -28,7 +28,7 @@ const asCaller = (jwt: string) => createClient(url, Deno.env.get("SUPABASE_ANON_
 serve((req) => handle(req, {
   allowedOrigins: ["https://uselai.com", "https://www.uselai.com"],
   siteUrl: "https://uselai.com",
-  verifyUser: (jwt) => verifyAppUser(service.auth, jwt),
+  verifyUser: (jwt) => verifyActiveUser(service.auth, jwt, activeGate(service)),
   async begin(jwt, code, email) {
     const { data, error } = await asCaller(jwt).rpc("admin_invite_send_begin", { p_code: code, p_email: email });
     if (error) throw new Error(error.message);

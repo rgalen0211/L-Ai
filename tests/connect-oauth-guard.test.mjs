@@ -71,8 +71,8 @@ for (const [name, handle, body] of cases) {
 }
 
 // Every function directory has a recorded decision. A new function fails this test until someone classifies it.
-const USER_TOKEN = ['ai-editor', 'app-download', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'send-invite', 'source-fetch', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
-const NO_USER_TOKEN = ['app-link', 'cost-sync', 'creator-beta', 'ops-digest', 'ops-tick', 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-webhook'];
+const USER_TOKEN = ['ai-editor', 'app-download', 'approve-waiting', 'claim-invite', 'delete-account', 'film-page', 'get-delivery-url', 'guided-builder', 'send-invite', 'source-fetch', 'stripe-checkout'];      // sign a person in: must use verifyAppUser
+const NO_USER_TOKEN = ['app-link', 'cost-sync', 'creator-beta', 'join', 'ops-digest', 'ops-tick', 'purge-partial-uploads', 'purge-uploads', 'redeem-invite', 'stripe-webhook'];
 const NOT_USER_FUNCTIONS = ['_shared', 'connect', 'connect-core', 'node', 'node-core'];   // connect has its own verifier (requires client_id); node has its own (an opaque rgn_ token, hashed, resolved in the database; r9 M4)
 
 test('every function directory is classified, and the classification is true', () => {
@@ -80,9 +80,12 @@ test('every function directory is classified, and the classification is true', (
   const known = [...USER_TOKEN, ...NO_USER_TOKEN, ...NOT_USER_FUNCTIONS].sort();
   assert.deepEqual(dirs, known, 'a function was added or removed: classify it in tests/connect-oauth-guard.test.mjs');
   const sources = (dir) => fs.readdirSync(path.join(FUNCS, dir)).filter((f) => f.endsWith('.ts')).map((f) => fs.readFileSync(path.join(FUNCS, dir, f), 'utf8')).join('\n');
+  // A WAITING person may reach exactly these two (delete their account; enter an invite code); every other user function refuses them too (waiting-accounts gate, 11-04).
+  const WAITING_OK = ['claim-invite', 'delete-account'];
   for (const d of USER_TOKEN) {
     const idx = fs.readFileSync(path.join(FUNCS, d, 'index.ts'), 'utf8');
-    assert.match(idx, /verifyAppUser\(service\.auth, jwt\)/, `${d} must verify the person with verifyAppUser`);
+    if (WAITING_OK.includes(d)) assert.match(idx, /verifyAppUser\(service\.auth, jwt\)/, `${d} must verify the person with verifyAppUser`);
+    else assert.match(idx, /verifyActiveUser\(service\.auth, jwt, activeGate\(service\)\)/, `${d} must verify the person with verifyActiveUser: a WAITING person is refused here`);
   }
   for (const d of dirs.filter((x) => x !== '_shared')) {
     const src = sources(d);
