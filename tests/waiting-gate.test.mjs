@@ -170,6 +170,18 @@ test('approve-waiting: the email words are the draft Ryan approves (one credit r
 const joinDeps = (over = {}) => ({ allowedOrigins: [ORIGIN], siteUrl: ORIGIN, reserve: async () => ({ ok: true }), invite: async () => {}, ...over });
 const anon = (body, extra = {}) => new Request('https://x.test/fn', { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json', ...extra }, body: JSON.stringify(body) });
 
+test('join: a mail failure (the Auth services own hourly email allowance run out) gives the SAME answer as a known and an unknown address, so it tells a stranger nothing', async () => {
+  const bodies = [];
+  for (const invite of [async () => {}, async () => { throw Object.assign(new Error('registered'), { code: 'email_exists' }); },
+                        async () => { throw Object.assign(new Error('rate limit'), { code: 'over_email_send_rate_limit' }); }, async () => { throw new Error('smtp'); }]) {
+    const r = await join(anon({ email: 'a@example.test' }), joinDeps({ invite }));
+    assert.equal(r.status, 200);
+    bodies.push(await r.json());
+  }
+  for (const b of bodies) assert.deepEqual(b, bodies[0]);
+  assert.match(bodies[0].message, /try again later/);
+});
+
 test('join: the answer is the same whether or not the address already has an account', async () => {
   const fresh = await join(anon({ email: 'new@example.test' }), joinDeps());
   const known = await join(anon({ email: 'old@example.test' }), joinDeps({ invite: async () => { throw Object.assign(new Error('registered'), { code: 'email_exists' }); } }));
@@ -178,7 +190,7 @@ test('join: the answer is the same whether or not the address already has an acc
   assert.equal((await (await join(anon({ email: 'x@example.test' }), joinDeps())).json()).message, JOINED);
 });
 
-test('join: closed, throttled, bad email and a mail failure each say so in plain words; nothing is invited when reserve says no', async () => {
+test('join: closed, throttled and bad email each say so in plain words; nothing is invited when reserve says no', async () => {
   let invited = 0;
   const invite = async () => { invited++; };
   for (const [reason, status] of [['off', 409], ['throttled', 429], ['email', 400]]) {
@@ -186,7 +198,6 @@ test('join: closed, throttled, bad email and a mail failure each say so in plain
     assert.equal(r.status, status, reason);
   }
   assert.equal(invited, 0);
-  assert.equal((await join(anon({ email: 'a@example.test' }), joinDeps({ invite: async () => { throw new Error('smtp'); } }))).status, 503);
   assert.equal((await join(anon({ email: 'a@example.test' }), joinDeps({ reserve: async () => { throw new Error('db'); } }))).status, 500);
   assert.equal((await join(anon({}), joinDeps())).status, 400);
 });
@@ -209,6 +220,22 @@ test('join: other origins are refused, only POST, and the redirect after the ema
   let to;
   await join(anon({ email: 'a@example.test' }), joinDeps({ invite: async (_e, redirect) => { to = redirect; } }));
   assert.equal(to, 'https://uselai.com/app/');
+});
+
+// ---------------------------------------------------------------------------------------------------- the gate is STICKY
+test('every migration after the waiting-accounts file ends with select ryagram_private.gate_apply() before its commit, so a later function or table can never be left open', () => {
+  const dir = path.resolve('supabase/migrations');
+  const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  const gate = files.find((f) => f.startsWith('20261104000100_waiting_accounts'));
+  assert.ok(gate);
+  const later = files.filter((f) => f > gate);
+  for (const f of later) {
+    const text = fs.readFileSync(path.join(dir, f), 'utf8').replace(/\r\n/g, '\n');
+    const body = text.split('\n').filter((l) => l.trim() && !l.trim().startsWith('--')).map((l) => l.replace(/\s*--.*$/, '').trim());
+    const commit = body.lastIndexOf('commit;');
+    assert.ok(commit > 0, f + ' has a commit');
+    assert.equal(body[commit - 1], 'select ryagram_private.gate_apply();', f + ' must end with select ryagram_private.gate_apply(); right before commit;');
+  }
 });
 
 // ---------------------------------------------------------------------------------------------------- no function reaches the database as a person without the gate
