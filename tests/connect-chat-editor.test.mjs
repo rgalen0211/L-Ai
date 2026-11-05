@@ -56,13 +56,14 @@ function load() {
   const parent = { postMessage: (m) => sent.push(JSON.parse(JSON.stringify(m))) };
   const other = { postMessage: () => assert.fail('wrote to a window that is not the host') };
   const win = { parent };
-  const ctx = { window: win, addEventListener: (n, f) => { (listeners[n] ||= []).push(f); }, setTimeout, clearTimeout, Promise, Error, JSON, Number, Math, Map, String, Array, Object, RegExp,
+  const clock = { now: 1_000_000 };
+  const ctx = { Date: { now: () => clock.now }, window: win, addEventListener: (n, f) => { (listeners[n] ||= []).push(f); }, setTimeout, clearTimeout, Promise, Error, JSON, Number, Math, Map, String, Array, Object, RegExp,
     document: { getElementById: () => null, createElement: () => ({}), body: {}, documentElement: { getBoundingClientRect: () => ({ height: 400, width: 600 }) } } };
   vm.runInNewContext(HOST_SRC, ctx, { timeout: 2000 });
   const fire = (data, source = parent) => (listeners.message || []).forEach((f) => f({ source, data }));
   const reply = (id, rest) => fire({ jsonrpc: '2.0', id, ...rest });
   const last = (method) => sent.filter((s) => s.method === method).at(-1);
-  return { sent, parent, other, win, host: win.ryagramLiveHost, fire, reply, last, rpc: (n, a) => win.ryagramLiveHost.rpc(n, a) };
+  return { sent, parent, other, win, clock, host: win.ryagramLiveHost, fire, reply, last, rpc: (n, a) => win.ryagramLiveHost.rpc(n, a) };
 }
 const calls = (p) => p.sent.filter((s) => s.method === 'tools/call');
 const ok = (data) => ({ result: { content: [{ type: 'text', text: 'ok' }], structuredContent: { data } } });
@@ -172,6 +173,30 @@ test('only the log read is rewritten: an answer to any other call keeps its rows
   const pr = p.rpc('editor_apply_ops', { p_project: PROJECT, p_ops: [{ op: 'move_clip' }] });
   p.reply(calls(p)[0].id, ok({ revision: 2, ops: [{ id: 1, actor: 'ai', client: 'Ryagram panel' }] }));
   assert.equal(plain(await pr).data.ops[0].actor, 'ai');
+});
+
+test('the two-second ask for changes is answered from the last answer for 5 seconds when the revision is the same: one call, an independent copy each time, and a fresh call after 5 s, a new revision or a change of ours', async () => {
+  const p = load();
+  const ask = (rev = 3) => p.rpc('my_edit_ops_since', { p_project: PROJECT, p_mode: 'data', p_revision: rev });
+  const first = ask(); p.reply(calls(p)[0].id, ok({ revision: 3, ops: [{ id: 1 }] }));
+  const a = plain(await first);
+  const b = await ask(); b.data.ops.push('mutated');
+  const c = plain(await ask());
+  assert.equal(calls(p).length, 1, 'two more asks, no more calls');
+  assert.deepEqual(a, c); assert.deepEqual(c.data.ops, [{ id: 1 }], 'a copy that was changed does not change the next answer');
+  p.clock.now += 4900; await ask();
+  assert.equal(calls(p).length, 1, 'still inside 5 s');
+  p.clock.now += 200;
+  const d = ask(); assert.equal(calls(p).length, 2, 'after 5 s it asks again'); p.reply(calls(p)[1].id, ok({ revision: 3, ops: [] })); await d;
+  const e = ask(4); assert.equal(calls(p).length, 3, 'another revision is a new question'); p.reply(calls(p)[2].id, ok({ revision: 4, ops: [] })); await e;
+  const f = p.rpc('editor_apply_ops', { p_project: PROJECT, p_mode: 'data', p_base_revision: 4, p_ops: [{ op: 'set_look', key: 'state.fill', value: '#112233' }] }); p.reply(calls(p)[3].id, ok({ revision: 5 })); await f;
+  const g = ask(4); assert.equal(calls(p).length, 5 - 0, 'after a change of ours the same ask goes to the server'); p.reply(calls(p)[4].id, ok({ revision: 5, ops: [] })); await g;
+});
+
+test('an ask that was refused is not remembered: the next one goes to the server', async () => {
+  const p = load();
+  const a = p.rpc('my_edit_ops_since', { p_project: PROJECT, p_mode: 'data', p_revision: 0 }); p.reply(calls(p)[0].id, bad({ code: 'PT404', message: 'gone' })); await a;
+  const b = p.rpc('my_edit_ops_since', { p_project: PROJECT, p_mode: 'data', p_revision: 0 }); assert.equal(calls(p).length, 2); p.reply(calls(p)[1].id, ok({ revision: 0, ops: [] })); await b;
 });
 
 test('an undo is reported as an undo', async () => {

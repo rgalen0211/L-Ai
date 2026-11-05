@@ -113,6 +113,9 @@ export interface Data extends Omit<UserData, "submitJob"> {
   editOps(projectId: string, mode: "data" | "compilation", baseRevision: number, ops: Record<string, unknown>[]): Promise<EditResult>;
   /** Takes back the AI's own most recent batch (never the person's changes). */
   editUndoAi(projectId: string, mode: "data" | "compilation"): Promise<EditUndoResult>;
+  /** The chat panel's five calls (migrations/20261105000100_chat_editor.sql, NOT APPLIED): `name` is one of the website editor's names (editor_apply_ops, editor_undo, editor_undo_all_ai, my_edit_ops_since,
+   *  editor_heartbeat); the answer is the database's own JSON; a refusal throws its { code, message }. Optional: a database without the migration has none, and the tools say so. */
+  editorCall?(name: string, args: Record<string, unknown>): Promise<unknown>;
 }
 
 /** NEXT-CONNECT 168: public-domain footage plans. NOT wired in the real function: with no `footage` here the tool refuses and writes nothing (the switch is OFF). The plan table is the next piece. */
@@ -174,6 +177,8 @@ export interface ToolDef {
   listed?: boolean;
   /** Per-user hourly bucket shared by the render tools, if any. */
   ladder?: boolean;
+  /** The chat editor (second switch, off by default): "model" = a tool the AI sees; "app" = a tool only the chat panel calls (listed with visibility app). Absent = a normal tool. When the switch is off such a tool is "no such tool". */
+  chatEditor?: "app" | "model";
   inputSchema: Record<string, unknown>; // JSON Schema; additionalProperties:false always
   run(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult>;
 }
@@ -189,6 +194,8 @@ export const LIMITS = Object.freeze({
   footagePlansPerDayPerUser: 20,
   geoQuestionsPerHourPerUser: 30,
   geoReadsPerHourPerUser: 120,
+  panelCallsPerMinutePerClient: 90,      // the chat panel polls (about 10 a minute) and beats; its calls have their own buckets so they cannot use up the AI's
+  panelCallsPerMinutePerAccount: 150,
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
   maxStoryBytes: 256 * 1024,
 });

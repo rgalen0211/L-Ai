@@ -4,7 +4,10 @@
 // A host that does not know MCP Apps ignores all of that and shows the tool's text, which is unchanged.
 // Spec: MCP Apps extension (modelcontextprotocol/ext-apps, 2026-01-26): tool `_meta.ui.resourceUri`, resource mimeType `text/html;profile=mcp-app`, resource `_meta.ui` { csp, domain, prefersBorder }.
 
+import { EDITOR_HTML } from "./editor_page.ts";
+
 export const CARD_URI = "ui://ryagram/card";
+export const EDITOR_URI = "ui://ryagram/editor";
 export const MCP_APP_MIME = "text/html;profile=mcp-app";
 /** The most the card page may weigh. A test fails above it: the card is a glance, not an app. */
 export const CARD_MAX_BYTES = 12 * 1024;
@@ -15,6 +18,8 @@ export interface McpAppConfig {
   uiDomain?: string;
   /** The address of the Ryagram app, for the card's one link. Absent = no link. */
   appUrl?: string;
+  /** The live editor inside the chat (a second switch, with enabled): serves ui://ryagram/editor and lists its tools. Absent or false = none of it exists. */
+  chatEditor?: boolean;
 }
 
 /** Which tools show which page. The tool's text and structured data are exactly what they were. */
@@ -111,14 +116,15 @@ export function cardHtml(appUrl?: string): string {
     "<script>" + CARD_SCRIPT + "</script></body></html>";
 }
 
-export function resourceList() {
-  return [{ uri: CARD_URI, name: "Ryagram card", description: "A small card showing the Ryagram account and projects the AI is working with.", mimeType: MCP_APP_MIME }];
+export function resourceList(cfg?: McpAppConfig) {
+  return [{ uri: CARD_URI, name: "Ryagram card", description: "A small card showing the Ryagram account and projects the AI is working with.", mimeType: MCP_APP_MIME },
+    ...(cfg?.chatEditor ? [{ uri: EDITOR_URI, name: "Ryagram editor", description: "The Ryagram live editor for one of the person's films.", mimeType: MCP_APP_MIME }] : [])];
 }
 
 /** null = no such page. */
 export function readResource(uri: unknown, cfg: McpAppConfig) {
-  if (uri !== CARD_URI) return null;
+  if (uri !== CARD_URI && !(uri === EDITOR_URI && cfg.chatEditor)) return null;
   const ui: Record<string, unknown> = { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false };
   if (cfg.uiDomain && UI_DOMAIN.test(cfg.uiDomain)) ui.domain = cfg.uiDomain;
-  return { contents: [{ uri: CARD_URI, mimeType: MCP_APP_MIME, text: cardHtml(cfg.appUrl), _meta: { ui } }] };
+  return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: uri === EDITOR_URI ? EDITOR_HTML : cardHtml(cfg.appUrl), _meta: { ui } }] };
 }

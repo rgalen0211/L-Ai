@@ -3,8 +3,8 @@
 // Spec: MCP 2025-06-18 / 2025-11-25 transports and authorization (RFC 9728 protected-resource metadata).
 import { callTool, type Env } from "./dispatch.ts";
 import { TOOLS } from "./tools.ts";
-import { LIMITS, type Principal } from "./types.ts";
-import { readResource, resourceList, toolUiMeta, UI_TOOL_URIS, type McpAppConfig } from "./mcp_app.ts";
+import { LIMITS, type Principal, type ToolDef } from "./types.ts";
+import { EDITOR_URI, readResource, resourceList, toolUiMeta, UI_TOOL_URIS, type McpAppConfig } from "./mcp_app.ts";
 
 export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 export const SERVER_INFO = { name: "ryagram", title: "Ryagram", version: "1.0.0" };
@@ -31,10 +31,14 @@ export interface McpDeps extends Env {
   mcpApp?: McpAppConfig;
 }
 
-export const toolList = (mcpApp = false) => TOOLS.filter((t) => t.listed !== false).map((t) => ({
+/** The chat editor needs the MCP App face as well as its own switch. */
+export const chatEditorOn = (a?: McpAppConfig) => !!(a?.enabled && a.chatEditor);
+const uiMeta = (t: ToolDef, mcpApp: boolean) => t.chatEditor === "app" ? { ui: { visibility: ["app"] } } : t.chatEditor === "model" ? toolUiMeta(EDITOR_URI) : mcpApp && UI_TOOL_URIS[t.name] ? toolUiMeta(UI_TOOL_URIS[t.name]) : null;
+
+export const toolList = (mcpApp = false, chatEditor = false) => TOOLS.filter((t) => t.listed !== false && (!t.chatEditor || chatEditor)).map((t) => ({
   name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema,
   annotations: { readOnlyHint: t.readOnly, destructiveHint: t.destructive === true, idempotentHint: t.idempotent ?? t.readOnly, openWorldHint: false },
-  ...(mcpApp && UI_TOOL_URIS[t.name] ? { _meta: toolUiMeta(UI_TOOL_URIS[t.name]) } : {}),
+  ...(uiMeta(t, mcpApp) ? { _meta: uiMeta(t, mcpApp) } : {}),
 }));
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -92,10 +96,10 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
         serverInfo: SERVER_INFO, instructions: INSTRUCTIONS } });
     }
     case "ping": return json(200, { jsonrpc: "2.0", id: msg.id, result: {} });
-    case "tools/list": return json(200, { jsonrpc: "2.0", id: msg.id, result: { tools: toolList(!!deps.mcpApp?.enabled) } });
+    case "tools/list": return json(200, { jsonrpc: "2.0", id: msg.id, result: { tools: toolList(!!deps.mcpApp?.enabled, chatEditorOn(deps.mcpApp)) } });
     case "resources/list": {
       if (!deps.mcpApp?.enabled) return rpcError(msg.id, -32601, `Method not found: ${String(msg.method).slice(0, 60)}`);
-      return json(200, { jsonrpc: "2.0", id: msg.id, result: { resources: resourceList() } });
+      return json(200, { jsonrpc: "2.0", id: msg.id, result: { resources: resourceList(deps.mcpApp) } });
     }
     case "resources/read": {
       if (!deps.mcpApp?.enabled) return rpcError(msg.id, -32601, `Method not found: ${String(msg.method).slice(0, 60)}`);
@@ -105,7 +109,7 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
     case "tools/call": {
       const name = msg.params?.name;
       if (typeof name !== "string") return rpcError(msg.id, -32602, "A tool name is required.");
-      const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps };
+      const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps, chatEditor: chatEditorOn(deps.mcpApp) };
       const r = await callTool(name, msg.params?.arguments, principal, env);
       const result: Record<string, unknown> = { content: [{ type: "text", text: r.text }], isError: !!r.isError };
       if (r.data) result.structuredContent = r.data;
