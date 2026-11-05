@@ -163,7 +163,7 @@ class Forecast(core.Base):
         self.assertIsNone(self.get(self.b, r["id"]))
         for who in ("anon", ALICE, "service"):
             with self.assertRaises(psycopg.Error, msg=who):
-                self.db.as_(who).one("select connect_forecast_ask(%s, '[]'::jsonb, 3, null, null, null)", self.a)
+                self.db.as_(who).one("select connect_forecast_ask(%s, %s::text::jsonb, 3, null, null, null)", self.a, json.dumps(SERIES))
         with self.assertRaises(psycopg.Error):
             self.runner().one("select connect_forecast_ask(%s, '[]'::jsonb, 3, null, null, null)", "0" * 64)            # a token that is not live
 
@@ -174,20 +174,19 @@ class Forecast(core.Base):
 
     # ------------------------------------------------------------------------------------------------ the house worker
     def test_each_claim_function_hands_out_only_its_own_kind(self):
-        f = self.fc(self.a, SERIES, 4, "log", [2018], "people")
         old = self.runner().one("select connect_geo_ask(%s, 39.7589, -84.1916, 10, array['chicken'])", self.a)
         v = self.place(self.a)
+        f = self.fc(self.a, SERIES, 4, "log", [2018], "people")                 # the NEWEST: a claim that ignored the kind would hand out an older request first
         for who in (ALICE, "anon"):
             with self.assertRaises(psycopg.Error):
                 self.db.as_(who).c.execute("select * from public.claim_next_forecast()")
+        cur = self.worker().c.execute("select request_id, series, horizon, method, breaks, unit from public.claim_next_forecast()")
+        self.assertEqual([d.name for d in cur.description], ["request_id", "series", "horizon", "method", "breaks", "unit"])
+        self.assertEqual([(str(r[0]), r[1], r[2], r[3], r[4], r[5]) for r in cur.fetchall()], [(f["id"], SERIES, 4, "log", [2018], "people")], "the forecast claim skips the older requests of other kinds")
         self.assertEqual([str(r[0]) for r in self.worker().c.execute("select request_id from public.claim_next_geo()").fetchall()], [old["id"]])
         self.assertEqual(self.worker().c.execute("select * from public.claim_next_geo()").fetchall(), [], "the place claim never hands out a forecast")
         self.assertEqual([str(r[0]) for r in self.worker().c.execute("select request_id from public.claim_next_geo_question()").fetchall()], [v["id"]])
         self.assertEqual(self.worker().c.execute("select * from public.claim_next_geo_question()").fetchall(), [], "the question claim never hands out a forecast")
-        cur = self.worker().c.execute("select request_id, series, horizon, method, breaks, unit from public.claim_next_forecast()")
-        self.assertEqual([d.name for d in cur.description], ["request_id", "series", "horizon", "method", "breaks", "unit"])
-        got = cur.fetchall()
-        self.assertEqual([(str(r[0]), r[1], r[2], r[3], r[4], r[5]) for r in got], [(f["id"], SERIES, 4, "log", [2018], "people")])
         self.assertEqual(self.owner("select state, claimed_at is not null from public.geo_requests where id = %s", f["id"]).fetchone(), ("claimed", True))
         self.assertEqual(self.worker().c.execute("select * from public.claim_next_forecast()").fetchall(), [], "a claimed request is not handed out twice")
 
