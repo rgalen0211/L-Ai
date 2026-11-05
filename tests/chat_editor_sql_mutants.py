@@ -29,6 +29,10 @@ def scoped(name, header):
 
 
 W.MUTANTS[:] = [
+    ("the AI's undo takes back a panel change", "     and e.client_label is distinct from ryagram_private.chat_editor_label()\n     and e.revision = (select max", "     and e.revision = (select max"),
+    ("the AI's latest batch counts panel changes", "x.status in ('applied', 'pending')\n                          and x.client_label is distinct from ryagram_private.chat_editor_label());", "x.status in ('applied', 'pending'));"),
+    ("a client can be named like the panel", "  if lower(btrim(label)) = lower(ryagram_private.chat_editor_label()) then label := 'AI client (renamed)'; end if;\n", "  null;\n"),
+    ("the panel name is compared exactly only", "if lower(btrim(label)) = lower(ryagram_private.chat_editor_label()) then", "if label = ryagram_private.chat_editor_label() then"),
     ("a panel change is recorded as the person's", "p_base_revision, 'ai', ryagram_private.chat_editor_label(), p_ops)", "p_base_revision, 'person', ryagram_private.chat_editor_label(), p_ops)"),
     ("a panel change carries no label", "p_base_revision, 'ai', ryagram_private.chat_editor_label(), p_ops)", "p_base_revision, 'ai', null, p_ops)"),
     ("the label is something else", "select 'Ryagram panel'::text", "select 'Claude'::text"),

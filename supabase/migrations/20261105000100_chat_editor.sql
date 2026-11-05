@@ -86,6 +86,41 @@ begin
   return 'null'::jsonb;
 end $$;
 
+-- The label "Ryagram panel" marks a change made by a click in the panel; the page reads it as the person's own. Two functions of the live editor are therefore replaced here (same signature, same grants):
+--   * connect_edit_ops (the AI's own changes): a client whose registered name is the panel label gets a different label, so no connector client can make its own edit look like a click (the client name is whatever the client registered);
+--   * connect_edit_undo_ai (the AI's undo): it skips panel changes, both when choosing the batch and when finding "the latest batch", so the AI can never reverse a click the person made in the panel.
+-- The panel's own undo (connect_editor_undo, connect_editor_undo_ai) still takes back panel changes: that is the person undoing their own click.
+-- What stays true and is not enforced here: the server cannot tell a click from a client that holds the same token, so a client that calls the panel's own (app-only) calls by name is treated as the panel. That client is still under the AI's limits, and the person's "Undo all" in the app still takes back all of it.
+create or replace function public.connect_edit_ops(p_token_hash text, p_project uuid, p_mode text, p_base_revision bigint, p_ops jsonb) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  me uuid := ryagram_private.connect_actor(p_token_hash, 'edit');
+  label text;
+begin
+  select c.name into label from public.connect_tokens t join public.connect_clients c on c.client_id = t.client_id where t.access_hash = p_token_hash;
+  if lower(btrim(label)) = lower(ryagram_private.chat_editor_label()) then label := 'AI client (renamed)'; end if;
+  return ryagram_private.apply_edit_ops(me, p_project, p_mode, p_base_revision, 'ai', label, p_ops);
+end $$;
+
+create or replace function public.connect_edit_undo_ai(p_token_hash text, p_project uuid, p_mode text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  me uuid := ryagram_private.connect_actor(p_token_hash, 'edit');
+  ids bigint[];
+begin
+  if p_mode not in ('data', 'compilation') then raise exception 'That is not an editor mode.' using errcode = '22023'; end if;
+  if not exists (select 1 from public.projects where id = p_project and owner_id = me) then
+    raise exception 'That project was not found among your projects.' using errcode = 'PT404';
+  end if;
+  -- the AI's own most recent batch only (one revision), never the person's changes and never a change made by a click in the panel
+  select coalesce(array_agg(e.id), '{}') into ids from public.edit_ops e
+   where e.project_id = p_project and e.mode = p_mode and e.owner_id = me and e.actor = 'ai' and e.status in ('applied', 'pending')
+     and e.client_label is distinct from ryagram_private.chat_editor_label()
+     and e.revision = (select max(x.revision) from public.edit_ops x where x.project_id = p_project and x.mode = p_mode and x.owner_id = me and x.actor = 'ai' and x.status in ('applied', 'pending')
+                          and x.client_label is distinct from ryagram_private.chat_editor_label());
+  return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'ai');
+end $$;
+
 revoke execute on function ryagram_private.chat_editor_label(), ryagram_private.chat_editor_gate(uuid, uuid, text) from public, anon, authenticated, service_role;
 revoke all on function public.connect_editor_apply(text, uuid, text, bigint, jsonb), public.connect_editor_undo(text, uuid, text, bigint), public.connect_editor_undo_ai(text, uuid, text),
   public.connect_editor_since(text, uuid, text, bigint), public.connect_editor_heartbeat(text, uuid, text) from public, anon, authenticated, service_role;

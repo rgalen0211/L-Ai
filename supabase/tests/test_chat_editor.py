@@ -8,6 +8,7 @@ Rules proved (each with a control that passes and a fault that must be refused)
   * its changes are the AI's: actor 'ai', the fixed client label 'Ryagram panel', the AI's limits (60 a minute with the AI's own changes counted together), the same vocabulary and revision rules, and the person's undo still stops a repeat
   * a compilation can be read or changed only while the track list is shared with the AI (PT403), exactly as for the AI's own tools; the shared draft shows the same log the website's editor gets
   * an undo touches only ops whose actor is 'ai': never the person's own edits made in the real editor, never another person's
+  * the AI's own undo never reverses a change labelled 'Ryagram panel' (a click of the person's), and a client registered under that name cannot get its own change labelled that way; the panel's own undo and the app's "Undo all" still take panel changes back
   * another person's project looks absent (PT404) on every call; a mode that is not data/compilation is refused
   * a heartbeat says only "an editor is open" (editor_open in the AI's state) and changes no draft or revision
   * nothing is granted to any API role but the connector's: every function and both helpers
@@ -282,6 +283,65 @@ class ChatEditor(core.Base):
         self.assertEqual(self.undo(a, p, ids["network.color"])["undone"], 1)             # the AI's
         self.assertEqual(self.look(p), {"page.background": DARK, "state.fill": LIGHT})
         self.assertEqual(self.admin("select status from public.edit_ops where id = %s", ids["page.background"]), "applied")
+
+    # ---------------------------------------------------------------------------------------------- the AI can never undo a click of the person's, and cannot make its own change look like one
+    def test_the_ais_undo_never_reverses_a_panel_change_and_still_takes_back_its_own_batch(self):
+        a = self.alice()
+        p = self.project(a)
+        self.runner().one("select connect_edit_ops(%s, %s, 'data', 0, %s::jsonb)", h(a), p, json.dumps([LOOK("network.color", DARK)]))      # the AI's own batch, revision 1
+        self.apply(a, p, [LOOK("state.fill", LIGHT)], base=1)                                                                               # a click in the panel, revision 2 (the latest batch)
+        r = self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(a), p)
+        self.assertEqual(r["undone"], 1, "the AI's undo took back its own batch, not the click")
+        self.assertEqual(self.look(p), {"state.fill": LIGHT}, "the person's click is still in place")
+        self.assertEqual(self.admin("select status from public.edit_ops where project_id = %s and op ->> 'key' = 'state.fill'", p), "applied")
+        again = self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(a), p)
+        self.assertEqual(again["undone"], 0)
+        self.assertEqual(self.look(p), {"state.fill": LIGHT})
+
+    def test_with_only_panel_changes_the_ais_undo_does_nothing(self):
+        a = self.alice()
+        p = self.project(a)
+        self.apply(a, p, [LOOK("state.fill", LIGHT)])
+        self.apply(a, p, [LOOK("network.color", DARK)], base=1)
+        r = self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(a), p)
+        self.assertEqual((r["undone"], r["skipped"]), (0, 0))
+        self.assertEqual(self.look(p), {"state.fill": LIGHT, "network.color": DARK})
+        self.assertEqual([r[0] for r in self.rows("select status from public.edit_ops where project_id = %s order by id", p)], ["applied", "applied"])
+
+    def test_a_client_registered_under_the_panel_name_cannot_make_its_own_change_look_like_a_click(self):
+        for name in (LABEL, "  ryagram PANEL ", "RYAGRAM PANEL"):
+            with self.subTest(name=name):
+                cid = self.runner().one("select connect_register_client(%s, array[%s])", name, tc.URI)
+                _, a, _ = self.connect(ALICE, scopes=SCOPES, client=cid)
+                p = self.project(a, title="Film " + name.strip())
+                self.runner().one("select connect_edit_ops(%s, %s, 'data', 0, %s::jsonb)", h(a), p, json.dumps([LOOK("state.fill", DARK)]))
+                label = self.admin("select client_label from public.edit_ops where project_id = %s", p)
+                self.assertNotEqual(label.strip().lower(), LABEL.lower(), "the AI's own change must not carry the panel's label")
+                r = self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(a), p)
+                self.assertEqual(r["undone"], 1, "so the AI's undo may still take it back")
+                self.assertEqual(self.look(p), {})
+
+    def test_only_the_panels_own_calls_write_the_panel_label(self):
+        a = self.alice()
+        p = self.project(a)
+        self.runner().one("select connect_edit_ops(%s, %s, 'data', 0, %s::jsonb)", h(a), p, json.dumps([LOOK("network.color", DARK)]))
+        self.apply(a, p, [LOOK("state.fill", LIGHT)], base=1)
+        self.assertEqual([r[0] for r in self.rows("select client_label = %s from public.edit_ops where project_id = %s order by id", LABEL, p)], [False, True])
+
+    def test_the_persons_own_undo_from_the_panel_or_the_app_does_take_back_a_panel_change(self):
+        a = self.alice()
+        p = self.project(a)
+        self.apply(a, p, [LOOK("state.fill", LIGHT)])
+        self.apply(a, p, [LOOK("network.color", DARK)], base=1)
+        op = self.admin("select id from public.edit_ops where project_id = %s and op ->> 'key' = 'state.fill'", p)
+        self.assertEqual(self.undo(a, p, op)["undone"], 1)                                   # the panel's undo of one click
+        self.assertEqual(self.look(p), {"network.color": DARK})
+        self.assertEqual(self.undo_all(a, p)["undone"], 1)                                   # the panel's "Undo all"
+        self.assertEqual(self.look(p), {})
+        self.apply(a, p, [LOOK("state.fill", LIGHT)], base=self.revision(p))
+        r = self.app(ALICE).one("select editor_undo_all_ai(%s, 'data')", p)                 # the website editor's own "Undo all AI changes"
+        self.assertEqual(r["undone"], 1)
+        self.assertEqual(self.look(p), {})
 
     def test_undo_all_takes_back_everything_the_ai_side_did_and_nothing_the_person_did(self):
         a = self.alice()
