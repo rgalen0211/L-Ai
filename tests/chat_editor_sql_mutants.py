@@ -29,7 +29,8 @@ def scoped(name, header):
 
 
 W.MUTANTS[:] = [
-    ("the AI's undo takes back a panel change", "     and e.client_label is distinct from ryagram_private.chat_editor_label()\n     and e.revision = (select max", "     and e.revision = (select max"),
+    # Dropped as equivalent: removing the panel exclusion from the id list alone changes nothing a test can see, because the id list is already limited to the latest NON-panel revision
+    # and one revision never holds both a panel batch and an AI batch. The exclusion in the latest-batch lookup below is the one that matters, and its mutant is caught.
     ("the AI's latest batch counts panel changes", "x.status in ('applied', 'pending')\n                          and x.client_label is distinct from ryagram_private.chat_editor_label());", "x.status in ('applied', 'pending'));"),
     ("a client can be named like the panel", "  if lower(btrim(label)) = lower(ryagram_private.chat_editor_label()) then label := 'AI client (renamed)'; end if;\n", "  null;\n"),
     ("the panel name is compared exactly only", "if lower(btrim(label)) = lower(ryagram_private.chat_editor_label()) then", "if label = ryagram_private.chat_editor_label() then"),
