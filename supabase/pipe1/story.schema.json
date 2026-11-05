@@ -1047,6 +1047,35 @@
                     "required": [
                       "kind"
                     ]
+                  },
+                  "forecast": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "to": {
+                        "type": "integer",
+                        "minimum": 1000,
+                        "maximum": 9999
+                      },
+                      "method": {
+                        "enum": [
+                          "linear",
+                          "log",
+                          "moving_average"
+                        ]
+                      },
+                      "window": {
+                        "type": "integer",
+                        "minimum": 2,
+                        "maximum": 10
+                      },
+                      "across_breaks": {
+                        "type": "boolean"
+                      }
+                    },
+                    "required": [
+                      "to"
+                    ]
                   }
                 },
                 "required": [
