@@ -99,6 +99,35 @@ test('Undo my AI\'s changes reaches the draft (so the AI is told it was undone) 
   assert.match(again.error.message, /undid exactly this/);
 });
 
+test('a change made in the Ryagram panel of the AI chat is the person\'s own: applied as theirs, not counted as the AI\'s, and kept by Undo my AI\'s changes (the server keeps it too)', async () => {
+  const w = world('data'); await w.draft.open();
+  w.m.ai.apply(P, 'data', 0, [{ op: 'set_look', key: 'state.fill', value: BLUE }], 'Ryagram panel');
+  w.m.ai.apply(P, 'data', 1, [{ op: 'set_look', key: 'network.color', value: GREEN }], 'Claude');
+  const r = await w.draft.poll(0);
+  assert.equal(r.applied.length, 2);
+  assert.deepEqual(plain(w.editor.log.map(e => e.by)), ['you', 'ai'], 'the panel click is a step of the person\'s, the other is the AI\'s');
+  assert.equal(typeof w.editor.log[0].serverId, 'number', 'it has its server id, so the person\'s Undo reaches the draft');
+  assert.deepEqual(plain(w.editor.aiTouched()), ['look:network.color'], 'the banner counts only the AI\'s change');
+  const u = await w.draft.undoAi();
+  assert.equal(u.undone, 1, 'the server took back one change: the AI\'s');
+  assert.equal(w.editor.state.look['state.fill'], BLUE, 'the person\'s panel click is still on screen');
+  assert.equal(w.editor.state.look['network.color'], '#6fd1bd');
+  assert.equal(w.m.draft(P, 'data').state.look['state.fill'], BLUE, 'and still in the draft the AI reads');
+  assert.equal(w.m.draft(P, 'data').state.look['network.color'], undefined);
+});
+
+test('this page\'s own panel edit is matched to its step and never applied twice', async () => {
+  const w = world('data'); await w.draft.open();
+  const op = { op: 'set_look', key: 'state.fill', value: BLUE };
+  w.editor.do(op, 'you');
+  w.m.ai.apply(P, 'data', 0, [op], 'Ryagram panel');
+  const r = await w.draft.poll(0);
+  assert.equal(r.applied.length, 0);
+  assert.equal(w.editor.log.length, 1);
+  assert.equal(typeof w.editor.log[0].serverId, 'number');
+  assert.equal((await w.draft.poll(0)).applied.length, 0, 'and a second look changes nothing');
+});
+
 test('the person\'s undo is sent with its server id; with nothing to undo it does nothing', async () => {
   const w = world('data'); await w.draft.open();
   assert.equal((await w.draft.undo()).ok, false);

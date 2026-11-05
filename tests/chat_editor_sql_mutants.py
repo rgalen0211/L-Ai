@@ -32,6 +32,8 @@ W.MUTANTS[:] = [
     # Dropped as equivalent: removing the panel exclusion from the id list alone changes nothing a test can see, because the id list is already limited to the latest NON-panel revision
     # and one revision never holds both a panel batch and an AI batch. The exclusion in the latest-batch lookup below is the one that matters, and its mutant is caught.
     ("the AI's latest batch counts panel changes", "x.status in ('applied', 'pending')\n                          and x.client_label is distinct from ryagram_private.chat_editor_label());", "x.status in ('applied', 'pending'));"),
+    ("the panel's Undo all takes back a panel click", "     and e.client_label is distinct from ryagram_private.chat_editor_label();", ";"),
+    ("the website's Undo my AI's changes takes back a panel click", "     and client_label is distinct from ryagram_private.chat_editor_label();", ";"),
     ("a client can be named like the panel", "  if lower(btrim(label)) = lower(ryagram_private.chat_editor_label()) then label := 'AI client (renamed)'; end if;\n", "  null;\n"),
     ("the panel name is compared exactly only", "if lower(btrim(label)) = lower(ryagram_private.chat_editor_label()) then", "if label = ryagram_private.chat_editor_label() then"),
     ("a panel change is recorded as the person's", "p_base_revision, 'ai', ryagram_private.chat_editor_label(), p_ops)", "p_base_revision, 'person', ryagram_private.chat_editor_label(), p_ops)"),
@@ -47,7 +49,7 @@ W.MUTANTS[:] = [
     scoped("the heartbeat", "create function public.connect_editor_heartbeat(p_token_hash text, p_project uuid, p_mode text) returns jsonb"),
     ("an undo by id reaches the person's own edits", "where e.id = p_op_id and e.project_id = p_project and e.mode = p_mode and e.owner_id = me and e.actor = 'ai';", "where e.id = p_op_id and e.project_id = p_project and e.mode = p_mode and e.owner_id = me;"),
     # (no mutant for dropping `e.owner_id = me` from the undo by id: the project's owner check and e.project_id = p_project already make it impossible to reach another person's op, so the mutant could not change any answer)
-    ("undo-all takes back the person's own edits too", "where e.project_id = p_project and e.mode = p_mode and e.owner_id = me and e.actor = 'ai' and e.status in ('applied', 'pending');", "where e.project_id = p_project and e.mode = p_mode and e.owner_id = me and e.status in ('applied', 'pending');"),
+    ("undo-all takes back the person's own edits too", "e.actor = 'ai' and e.status in ('applied', 'pending')\n     and e.client_label is distinct from ryagram_private.chat_editor_label();", "e.status in ('applied', 'pending');"),
     ("an undo is recorded as the person's", "  return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'ai');\nend $$;\n\n-- Undo everything", "  return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'person');\nend $$;\n\n-- Undo everything"),
     ("undo-all is recorded as the person's", "  return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'ai');\nend $$;\n\n-- The log since", "  return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'person');\nend $$;\n\n-- The log since"),
     ("the log read ignores the revision asked for", "e.revision > greatest(coalesce(p_revision, 0), 0)", "e.revision > 0"),

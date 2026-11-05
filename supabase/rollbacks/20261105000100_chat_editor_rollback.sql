@@ -1,7 +1,15 @@
 -- CHAT EDITOR: the exact undo of migrations/20261105000100_chat_editor.sql (CONNECT, 2026-11-05). NOT a migration: it lives outside migrations/ so nothing applies it by itself.
 -- It changes no data: drafts and ops written through these functions stay (they are ordinary rows of edit_drafts / edit_ops). Turn the connector's CONNECT_CHAT_EDITOR switch off first.
 begin;
--- put back the live editor's own definitions of the two functions this migration replaced (migrations/20261027000400_live_editor.sql)
+-- put back the live editor's own definitions of the three functions this migration replaced (migrations/20261027000400_live_editor.sql)
+create or replace function public.editor_undo_all_ai(p_project uuid, p_mode text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := ryagram_private.connect_app_session(); ids bigint[];
+begin
+  select coalesce(array_agg(id), '{}') into ids from public.edit_ops where project_id = p_project and mode = p_mode and owner_id = me and actor = 'ai' and status in ('applied', 'pending');
+  return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'person');
+end $$;
+
 create or replace function public.connect_edit_ops(p_token_hash text, p_project uuid, p_mode text, p_base_revision bigint, p_ops jsonb) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare

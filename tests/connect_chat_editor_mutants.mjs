@@ -8,8 +8,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-chated');
-const H = 'tools/chat-editor/live-host.js', CSS = 'tools/chat-editor/chat-extra.css', B = 'tools/build-chat-editor.mjs';
-const SUITES = ['connect-chat-editor.test.mjs'];
+const H = 'tools/chat-editor/live-host.js', CSS = 'tools/chat-editor/chat-extra.css', B = 'tools/build-chat-editor.mjs', DR = 'assets/app-editor-draft.js';
+const SUITES = ['connect-chat-editor.test.mjs', 'live-editor-draft.test.mjs'];
 const mutants = [
   ['a sixth name is allowed', H, "'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];", "'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat', 'set_look'];"],
   ['the name guard is gone', H, "if (!NAMES.includes(name)) throw new Error('Not an editor call.');", ''],
@@ -38,6 +38,8 @@ const mutants = [
   ['the policy lets the page run eval', B, "script-src 'unsafe-inline'", "script-src 'unsafe-inline' 'unsafe-eval'"],
   ['the footer about a final button is left in the chat', H, "    reword();\n    if (typeof MutationObserver", "    if (typeof MutationObserver"],
   ['the footer is reworded once and never again', H, "new MutationObserver(reword).observe(root, { childList: true, subtree: true, characterData: true });", ""],
+  ['a panel click is read as the AI\'s change', DR, "if (o.actor === 'ai' && o.client === PANEL) {", 'if (false) {'],
+  ['a panel click made on this page is applied a second time', DR, 'if (mine) mine.serverId = o.id;\n          else {', 'if (false) mine.serverId = o.id;\n          else {'],
   ['the build button is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-pill{display:none}'],
   ['the pill that talks about the computer is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-top .button.primary{display:none}'],
   ['the panel does not say drafts are kept by Ryagram', H, "'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'", "''"],

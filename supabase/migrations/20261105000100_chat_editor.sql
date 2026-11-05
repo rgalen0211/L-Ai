@@ -7,7 +7,8 @@
 --   * its changes are recorded as actor 'ai' under the AI's limits (20 a call, 60 a minute, 600 a day), with the fixed client label 'Ryagram panel' (the panel's page reads that label as the person's own, so it does not apply
 --     its own edits twice); the person can undo them in the real editor;
 --   * a compilation can be read or changed only when the person shared the track list with their AI (the same PT403 as the AI's own tools): without that a token could read tracks the person never shared;
---   * an undo touches ONLY ops whose actor is 'ai' (the AI's and the panel's), never the person's own edits made in the real editor;
+--   * an undo of ONE op (by id) touches only ops whose actor is 'ai' (the AI's and the panel's), never the person's own edits made in the real editor; an "undo all" (here in the panel and in the website's editor) takes back the AI's own
+--     changes and NEVER a change labelled 'Ryagram panel', because that is a click of the person's own (Q449);
 --   * nothing here saves, builds, renders or spends: the draft becomes the film only when the person saves or builds it in the Ryagram app.
 -- A heartbeat only says "an editor is open" (what get_edit_state reports as editor_open); it changes no draft.
 -- Needs 20261027000400_live_editor.sql (apply_edit_ops, undo_edit_ops, edit_drafts, edit_ops) and 20261018000100_connect_ai.sql (connect_actor, connect_runner). Undo: supabase/rollbacks/20261105000100_chat_editor_rollback.sql.
@@ -51,14 +52,15 @@ begin
   return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'ai');
 end $$;
 
--- Undo everything the AI side has done and not yet had undone (the button "Undo all"): ops with actor 'ai' only.
+-- Undo everything the AI has done and not yet had undone (the button "Undo my AI's changes"): ops with actor 'ai' that are not panel clicks (a click of the person's is theirs; undo one by id).
 create function public.connect_editor_undo_ai(p_token_hash text, p_project uuid, p_mode text) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.connect_actor(p_token_hash, 'edit'); ids bigint[];
 begin
   perform ryagram_private.chat_editor_gate(me, p_project, p_mode);
   select coalesce(array_agg(e.id), '{}') into ids from public.edit_ops e
-   where e.project_id = p_project and e.mode = p_mode and e.owner_id = me and e.actor = 'ai' and e.status in ('applied', 'pending');
+   where e.project_id = p_project and e.mode = p_mode and e.owner_id = me and e.actor = 'ai' and e.status in ('applied', 'pending')
+     and e.client_label is distinct from ryagram_private.chat_editor_label();
   return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'ai');
 end $$;
 
@@ -119,6 +121,16 @@ begin
      and e.revision = (select max(x.revision) from public.edit_ops x where x.project_id = p_project and x.mode = p_mode and x.owner_id = me and x.actor = 'ai' and x.status in ('applied', 'pending')
                           and x.client_label is distinct from ryagram_private.chat_editor_label());
   return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'ai');
+end $$;
+
+-- The website's own "Undo my AI's changes" (editor_undo_all_ai, a signed-in call) is replaced the same way: it leaves changes labelled 'Ryagram panel' alone, so a click the person made in the chat panel is never undone as if it were the AI's.
+create or replace function public.editor_undo_all_ai(p_project uuid, p_mode text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare me uuid := ryagram_private.connect_app_session(); ids bigint[];
+begin
+  select coalesce(array_agg(id), '{}') into ids from public.edit_ops where project_id = p_project and mode = p_mode and owner_id = me and actor = 'ai' and status in ('applied', 'pending')
+     and client_label is distinct from ryagram_private.chat_editor_label();
+  return ryagram_private.undo_edit_ops(me, p_project, p_mode, ids, 'person');
 end $$;
 
 revoke execute on function ryagram_private.chat_editor_label(), ryagram_private.chat_editor_gate(uuid, uuid, text) from public, anon, authenticated, service_role;
