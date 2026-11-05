@@ -162,7 +162,7 @@ class Geo(core.Base):
         for who in (ALICE, "anon"):
             with self.assertRaises(psycopg.Error):
                 self.db.as_(who).one("select public.finish_geo(%s, %s::jsonb)", r["id"], '{"schema": "ryagram.drive-estimate/0"}')
-        with self.assertRaises(psycopg.Error):
+        with self.assertRaisesRegex(psycopg.Error, "not a drive estimate"):                 # refused as an unknown schema, not only as the wrong kind of answer
             self.worker().one("select public.finish_geo(%s, %s::jsonb)", r["id"], '{"schema": "something.else"}')
         self.worker().one("select public.finish_geo(%s, %s::jsonb)", r["id"], __import__("json").dumps(ANSWER))
         done = self.get(self.a, r["id"])

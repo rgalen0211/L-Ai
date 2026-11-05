@@ -231,7 +231,7 @@ test('READ: an answer that is not exactly this shape is refused whole, and nothi
     bad('where_to_go', 'a winner in an answer line', () => whereDoc({ answers: [item('The winner is block group 7', 'bg7', 'Calculated', { value: 'bg7' })] })),
     bad('where_to_go', 'missing assumptions', () => whereDoc({ assumptions: undefined })),
     bad('verdict', 'markup in the assumptions', () => verdictDoc({ assumptions: '<b>no sales data</b>' })),
-    bad('verdict', 'a control character in the assumptions', () => verdictDoc({ assumptions: 'no sales data' })),
+    bad('verdict', 'a control character in the assumptions', () => verdictDoc({ assumptions: 'no sales data\x07' })),
   ];
   for (const c of cases) {
     const { w, call } = world({ geo: switchOn() });

@@ -190,6 +190,22 @@ class Forecast(core.Base):
         self.assertEqual(self.owner("select state, claimed_at is not null from public.geo_requests where id = %s", f["id"]).fetchone(), ("claimed", True))
         self.assertEqual(self.worker().c.execute("select * from public.claim_next_forecast()").fetchall(), [], "a claimed request is not handed out twice")
 
+    def test_a_mixed_queue_each_claim_takes_its_own_kind_whichever_waits_longest(self):
+        f = self.fc(self.a)                                                    # the OLDEST, still asked: a question claim that took the first waiting request would take THIS
+        v = self.place(self.a)
+        self.owner("update public.geo_requests set asked_at = now() - interval '2 minutes' where id = %s", f["id"])
+        got = self.worker().c.execute("select request_id, shape from public.claim_next_geo_question()").fetchall()
+        self.assertEqual([(str(r[0]), r[1]) for r in got], [(v["id"], "verdict")], "the question claim skips the older forecast")
+        self.assertEqual(self.worker().c.execute("select * from public.claim_next_geo_question()").fetchall(), [])
+        self.assertEqual(self.owner("select state from public.geo_requests where id = %s", f["id"]).fetchone(), ("asked",), "the question claim left the forecast alone")
+        self.assertEqual([str(r[0]) for r in self.worker().c.execute("select request_id from public.claim_next_forecast()").fetchall()], [f["id"]])
+        w = self.place(self.a, 40.1, -84.2)                                    # and the other way: a place question OLDER than the forecast
+        g = self.fc(self.a, SERIES, 5)
+        self.owner("update public.geo_requests set asked_at = now() - interval '3 minutes' where id = %s", w["id"])
+        self.assertEqual([str(r[0]) for r in self.worker().c.execute("select request_id from public.claim_next_forecast()").fetchall()], [g["id"]], "the forecast claim skips the older place question")
+        self.assertEqual(self.owner("select state from public.geo_requests where id = %s", w["id"]).fetchone(), ("asked",), "the forecast claim left the place question alone")
+        self.assertEqual([str(r[0]) for r in self.worker().c.execute("select request_id from public.claim_next_geo_question()").fetchall()], [w["id"]])
+
     def test_a_claim_nobody_finished_comes_back_and_claims_off_means_no_claims(self):
         self.fc(self.a)
         self.worker().c.execute("select * from public.claim_next_forecast()").fetchall()

@@ -68,9 +68,8 @@ def one_run(label, mutate=None):
     (SCRATCH / "supabase").mkdir(parents=True)
     shutil.copytree(ROOT / "supabase", SCRATCH / "supabase", dirs_exist_ok=True)
     (SCRATCH / "tests").mkdir(exist_ok=True)
-    path = SCRATCH / MIG
-    if mutate is not None:
-        old, new = mutate
+    for rel, old, new in (mutate or []):
+        path = SCRATCH / rel
         text = path.read_text(encoding="utf-8").replace("\r\n", "\n")
         if text.count(old) != 1:
             return "broken", 0, 0
@@ -96,10 +95,20 @@ def one_run(label, mutate=None):
     return verdict
 
 
+def edits_of(m):
+    """A mutant is (name, old, new) in the migration MIG, or (name, [(migration path, old, new), ...]) when the rule's final definition is in a later migration, or in several."""
+    return m[1] if isinstance(m[1], list) else [(MIG, m[1], m[2])]
+
+
 def targets_bad():
-    text = (ROOT / MIG).read_text(encoding="utf-8").replace("\r\n", "\n")
     names = [m[0] for m in MUTANTS]
-    return [n for n, old, new in MUTANTS if text.count(old) != 1 or old == new] + sorted({n for n in names if names.count(n) > 1})
+    bad = []
+    for m in MUTANTS:
+        for rel, old, new in edits_of(m):
+            if (ROOT / rel).read_text(encoding="utf-8").replace("\r\n", "\n").count(old) != 1 or old == new:
+                bad.append(m[0])
+                break
+    return bad + sorted({n for n in names if names.count(n) > 1})
 
 
 def run(only=None):
@@ -111,8 +120,9 @@ def run(only=None):
         if v != "survived":
             print("BASELINE FAILED: the unmutated tests must pass first")
             return 2
-        for name, old, new in selected:
-            v, f, e = one_run(name, (old, new))
+        for m in selected:
+            name = m[0]
+            v, f, e = one_run(name, edits_of(m))
             if v == "caught":
                 print(f"caught  {name}  (assertion failures: {f})", flush=True)
             elif v == "broken":

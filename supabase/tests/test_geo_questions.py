@@ -168,6 +168,12 @@ class GeoQuestions(core.Base):
         self.shape(self.b, "where_to_go", None, None, "pizza")
         self.assertEqual(self.owner("select count(*) from public.geo_requests where asked_at < now() - interval '7 days'").fetchone()[0], 0)
 
+    def test_a_read_also_drops_what_is_older_than_seven_days(self):
+        v = self.shape(self.a, "verdict", (39.75, -84.185), None, "chicken")
+        self.owner("insert into public.geo_requests (owner_id, shape, category, asked_at) values (%s, 'where_to_go', 'chicken', now() - interval '8 days')", BOB)
+        self.assertEqual(self.get(self.a, v["id"])["state"], "asked")
+        self.assertEqual(self.owner("select count(*) from public.geo_requests where asked_at < now() - interval '7 days'").fetchone()[0], 0)
+
     # ------------------------------------------------------------------------------------------------ the house worker
     def test_each_claim_function_hands_out_only_its_own_kind(self):
         o = self.old(self.a)
