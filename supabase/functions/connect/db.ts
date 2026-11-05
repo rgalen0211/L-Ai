@@ -78,6 +78,9 @@ export class ConnectDb {
         return sha ? { sha256: sha } : null;
       },
       askGeo: (q) => self.fn("connect_geo_ask", ["text", "float8", "float8", "int", "text[]"], [h, q.lat, q.lon, q.minutes, q.categories]),
+      askForecast: (q) => self.fn("connect_forecast_ask", ["text", "jsonb", "int", "text", "int[]", "text"], [h, JSON.stringify(q.series), q.horizon, q.method ?? null, q.breaks ?? null, q.unit ?? null]),
+      askGeoShape: (q) => self.fn("connect_geo_ask_shape", ["text", "text", "float8", "float8", "float8", "float8", "text", "text"],
+        [h, q.shape, q.a?.lat ?? null, q.a?.lon ?? null, q.b?.lat ?? null, q.b?.lon ?? null, q.category ?? null, q.town ?? null]),
       getGeo: (id) => self.fn("connect_geo_get", ["text", "uuid"], [h, id]),
       currentVersionId: (projectId) => self.fn("connect_current_version", ["text", "uuid"], [h, projectId]),
       getVersion: (versionId) => self.fn("connect_get_version", ["text", "uuid"], [h, versionId]),

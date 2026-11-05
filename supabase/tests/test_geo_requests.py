@@ -205,8 +205,8 @@ class Geo(core.Base):
 
     def test_the_rollback_removes_every_geo_object_and_nothing_else(self):
         self.ask(self.a)
-        text = (core.ROOT / "rollbacks" / "20261104000300_geo_requests_rollback.sql").read_text(encoding="utf-8")
-        self.owner(text)
+        for name in ("20261104000400_geo_questions_rollback.sql", "20261104000300_geo_requests_rollback.sql"):       # newest first
+            self.owner((core.ROOT / "rollbacks" / name).read_text(encoding="utf-8"))
         left = self.owner("""select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public','ryagram_private')
                                        and (p.proname like '%geo%')),
                                   (select count(*) from pg_class where relname = 'geo_requests')""").fetchone()

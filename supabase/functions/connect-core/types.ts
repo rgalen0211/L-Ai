@@ -95,6 +95,10 @@ export interface Data extends Omit<UserData, "submitJob"> {
   saveCompilationRequest(projectId: string, request: CompilationRequest): Promise<{ sha256: string } | null>;
   /** NEXT-CONNECT 196: writes a place question for the house computer to answer. The point is rounded to 4 decimals by the database. Asking the same thing twice is one request (repeat: true). */
   askGeo(q: { lat: number; lon: number; minutes: number; categories: string[] }): Promise<{ id: string; state: string; repeat?: boolean }>;
+  /** GEO question shapes (migration 20261104000400): compare two places, "will a <category> place at A succeed" (never a yes or no), "where should a <category> place go" (never a place picked). Same rules as askGeo. */
+  /** Forecast requests (migration 20261104000500): the person's AI hands over pairs of [year, number]; the house computer forecasts them (ENGINE's ryagram.predict), the answer is read back with getGeo. */
+  askForecast(q: { series: [number, number][]; horizon: number; method?: string; breaks?: number[]; unit?: string }): Promise<{ id: string; state: string; repeat?: boolean }>;
+  askGeoShape(q: { shape: GeoShape; a?: { lat: number; lon: number }; b?: { lat: number; lon: number }; category?: string; town?: string }): Promise<{ id: string; state: string; repeat?: boolean }>;
   /** One of the person's own place questions, or null. */
   getGeo(id: string): Promise<GeoRow | null>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
@@ -124,8 +128,11 @@ export interface GeoSwitch {
   enabled(): boolean | Promise<boolean>;
 }
 /** A place question as the database holds it (NEXT-CONNECT 196): asked here, answered by the house computer, read back with geo_answer. `answer` is the engine's ryagram.drive-estimate/0 JSON, untrusted until the tool has checked it. */
+export type GeoShape = "compare_sites" | "verdict" | "where_to_go";
 export interface GeoRow {
-  id: string; state: "asked" | "claimed" | "answered" | "failed"; lat: number; lon: number; minutes: number; categories: string[];
+  id: string; state: "asked" | "claimed" | "answered" | "failed"; lat: number | null; lon: number | null; minutes: number | null; categories: string[];
+  /** absent on a database that has not had migration 20261104000400: that is the old shape */
+  shape?: "within_minutes" | GeoShape | "forecast"; lat_b?: number | null; lon_b?: number | null; category?: string | null; town?: string | null; horizon?: number | null; method?: string | null; unit?: string | null;
   answer: unknown; fail_code: string | null; fail_detail: string | null; waited_s: number;
 }
 
@@ -135,6 +142,8 @@ export interface Deps {
   now?: () => number;
   footage?: FootageSwitch;
   geo?: GeoSwitch;
+  /** The forecast tools' own switch (same shape as `geo`): the real function wires none, so they refuse and ask nothing. */
+  forecast?: GeoSwitch;
 }
 
 export interface ToolCtx {
