@@ -287,6 +287,7 @@ const setCompilationRequest: ToolDef = {
       where: { type: "string", enum: ["start", "end"], description: "start = before the first clip; end = after the last." },
       seconds: { type: "number", minimum: 0.5, maximum: 10, description: "How long the card stays." } }, ["text", "where", "seconds"]),
       description: "Optional title or end cards: the person's own words on the film's page colour. At most 4. The desktop app builds them; nothing here makes a picture." },
+    clip_labels: { type: "string", enum: ["file", "file_and_time"], description: "Optional: label every video clip with where it comes from, small at the top for its first 2 seconds: file = the file's name; file_and_time = the name and where in the file the clip starts. The desktop app makes the labels from file names and times only; nothing here reads a file." },
     note: { type: "string", maxLength: 500, description: "A sentence for the person to read when they open the request." },
     checklist: { type: "array", maxItems: MAX_CHECKLIST, items: obj({
       what: { type: "string", minLength: 1, maxLength: 200, description: "What footage to get, in plain words (for example: the 1969 launch, wide shot)." },
@@ -322,12 +323,12 @@ const setCompilationRequest: ToolDef = {
       return refuse(`You can send ${LIMITS.compilationRequestsPerDayPerUser} compilation requests a day through a connection. Try tomorrow.`, "rate");
     }
     const request: CompilationRequest = { schema: "ryagram.compilation-request/0", phrase, search: (a.search ?? "every") as "every" | "words",
-      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(cards.length ? { cards } : {}), ...(checklist.length ? { checklist } : {}) };
+      folders, song: a.song === true, clean_cuts: a.clean_cuts === true, rules, texts, note, ...(cards.length ? { cards } : {}), ...(a.clip_labels ? { clip_labels: a.clip_labels as "file" | "file_and_time" } : {}), ...(checklist.length ? { checklist } : {}) };
     const saved = await ctx.data.saveCompilationRequest(String(a.project_id), request);
     if (!saved) return NOT_YOURS("project");
     return ok(`Saved the request for ${untrusted("phrase", phrase)}${request.song ? " as a song" : ""} on this project, for ${folders.length} folder${folders.length === 1 ? "" : "s"}. `
       + "Nothing has been built and no credit was used. The person opens the Ryagram app on their own computer, checks the request and builds the film there; their videos never leave it.",
-      { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length, cards: cards.length, checklist: checklist.length });
+      { saved: true, project_id: String(a.project_id), request_sha256: saved.sha256, folders: folders.length, rules: rules.length, texts: texts.length, cards: cards.length, ...(request.clip_labels ? { clip_labels: request.clip_labels } : {}), checklist: checklist.length });
   },
 };
 

@@ -48,6 +48,8 @@ export interface CompilationRequest {
   note: string;
   /** Title / end cards (BUILDER 11-04): the person's own words on the film's page colour, no picture. Optional: older requests have none. At most 4. */
   cards?: { text: string; where: "start" | "end"; seconds: number }[];
+  /** Clip labels (BUILDER 11-04): label every video clip with its file's name ("file") or name and time ("file_and_time"). Optional: absent = no labels, and older requests have none. */
+  clip_labels?: "file" | "file_and_time";
   /** Guided footage (NEXT-CONNECT 161): what footage to get and where to put it, written by the AI as a checklist. TEXT ONLY: Ryagram downloads nothing; the person gets the footage themselves. Optional: older requests have none. */
   checklist?: ChecklistItem[];
 }
