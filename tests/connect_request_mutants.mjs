@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-req');
 const D = 'supabase/functions/connect-core/';
-const SUITES = ['connect-compilation-request.test.mjs', 'cloud-site-connect-mustfail.test.mjs', 'connect-cards.test.mjs'];   // the second holds the trimmed-folder bug test (CLOUD-SITE 11-02)
+const SUITES = ['connect-compilation-request.test.mjs', 'cloud-site-connect-mustfail.test.mjs', 'connect-cards.test.mjs', 'connect-clip-labels.test.mjs'];   // the second holds the trimmed-folder bug test (CLOUD-SITE 11-02)
 const mutants = [
   ['no ownership check on the project', D + 'tools.ts', 'if (!saved) return NOT_YOURS("project");', 'if (false) return NOT_YOURS("project");'],
   ['no daily limit', D + 'tools.ts', 'if (!(await ctx.policy.hit(ctx.principal, "compilation_requests"', 'if (false && !(await ctx.policy.hit(ctx.principal, "compilation_requests"'],
@@ -32,6 +32,10 @@ const mutants = [
   ['cards: an empty list still saves a cards key', D + 'tools.ts', '...(cards.length ? { cards } : {}), ', '...({ cards }), '],
   ['cards: any length of time', D + 'tools.ts', 'seconds: { type: "number", minimum: 0.5, maximum: 10, description: "How long the card stays." }', 'seconds: { type: "number", description: "How long the card stays." }'],
   ['cards: any position', D + 'tools.ts', 'where: { type: "string", enum: ["start", "end"], description: "start = before', 'where: { type: "string", description: "start = before'],
+  ['clip_labels: any word', D + 'tools.ts', 'clip_labels: { type: "string", enum: ["file", "file_and_time"], description', 'clip_labels: { type: "string", description'],
+  ['clip_labels: dropped from the saved request', D + 'tools.ts', '...(a.clip_labels ? { clip_labels: a.clip_labels as "file" | "file_and_time" } : {}), ', ''],
+  ['clip_labels: always saved, even when absent', D + 'tools.ts', '...(a.clip_labels ? { clip_labels: a.clip_labels as "file" | "file_and_time" } : {}), ', '...({ clip_labels: (a.clip_labels ?? "file") as "file" | "file_and_time" }), '],
+  ['clip_labels: not told to the AI in the answer', D + 'tools.ts', '...(request.clip_labels ? { clip_labels: request.clip_labels } : {}), ', ''],
   ['the answer claims a build was started', D + 'tools.ts', 'Nothing has been built and no credit was used.', 'The film is being built.'],
 ];
 
