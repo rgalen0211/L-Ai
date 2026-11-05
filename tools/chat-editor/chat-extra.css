@@ -1,0 +1,6 @@
+/* The few rules only the chat panel needs (tools/build-chat-editor.mjs puts them between the maker's base and the editor's own stylesheet). */
+[hidden]{display:none!important}
+.container{padding:12px}
+.le-chatbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 8px}
+/* the film is saved and built in the Ryagram app, and the pill's words belong to the computer's page: neither is offered here */
+.le-pill,.le-top .button.primary{display:none}
