@@ -57,6 +57,7 @@ const mutants = [
   ['a value list may have a non-text member', [[T, 'typeof x === "string" ? str(x, 60) : null', 'typeof x === "string" ? str(x, 60) : "ok"']]],
   ['a list of any length is accepted', [[T, 'it.value.length <= 50', 'true']]],
   ['answer lines are not checked for markup, control characters or folders', [[T, 'const text = str(it.text, 300), source = str(it.source, 300), note = str(it.note, 1600);', 'const text = typeof it.text === "string" ? it.text : null, source = typeof it.source === "string" ? it.source : null, note = typeof it.note === "string" ? it.note : null;']]],
+  ['a statement is refused for a word that recommends, like an answer line', [[T, 'const t = str(st, 600); if (t === null) return null;', 'const t = str(st, 600); if (t === null || CLAIM_WORDS.test(t)) return null;']]],
   ['statements are not checked for markup or control characters', [[T, 'const t = str(st, 600); if (t === null) return null;', 'const t = typeof st === "string" ? st : null; if (t === null) return null;']]],
   ['example data from the assumptions is not announced', [[T, '/example data/i.test(assumptions) || ', '']]],
   ['example data from a statement is not announced', [[T, 'statements.some((t) => /example data/i.test(t)) || ', '']]],

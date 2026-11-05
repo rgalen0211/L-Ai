@@ -194,6 +194,50 @@ test('READ where_to_go: no place is picked, the counts are for the whole of the 
   assert.ok(!/was named/.test(r2.text), 'no town named, none said');
 });
 
+// Q451 c (Ryan 2026-11-05 18:45, GEO + CONNECT): the chat's "where should it go" shows BOTH stated orderings side by side. The sentence that says neither is a recommendation is a STATEMENT, never an answer line.
+const FARTHEST = 'The first 5 block groups with no listed chicken place within 1.5 km, the farthest from any listed place first';
+const MOST = 'The first 5 block groups with no listed chicken place within 1.5 km, the most residents within 1.5 km first';
+const TWO_RULES = 'Two orderings by two stated rules: farthest from any listed place, and most people with none near. Neither is a recommendation.';
+const twoOrderings = (over = {}) => whereDoc({
+  answers: [item('Listed chicken places inside the county', 21, 'Calculated'), item('County residents per listed chicken place', 6100, 'Calculated'),
+    item(FARTHEST, ['bg1', 'bg2', 'bg3', 'bg4', 'bg5'], 'Calculated'), item(MOST, ['bg7', 'bg8', 'bg9', 'bg10', 'bg11'], 'Estimated', { note: 'an ordering by a stated rule, not a recommendation; the residents are estimated by the even-spread share' })],
+  statements: ["No 'best' place is picked: there is no sales data, so any 'best' would be invented. Here is what can be counted instead.", TWO_RULES], ...over });
+
+test('READ where_to_go with two orderings: each rule is its own line with its own label, the farthest-first one Calculated and the most-residents one Estimated, and the sentence about two stated rules is shown', async () => {
+  const { w, call } = world({ geo: switchOn() });
+  const r = await askAndAnswer(w, call, 'where_to_go', twoOrderings());
+  assert.equal(r.isError, undefined, r.text);
+  assert.ok(r.text.includes(FARTHEST) && r.text.includes(MOST), 'both ordering lines are shown');
+  assert.match(r.text, /the most residents within 1\.5 km first: [^\n]*\(Estimated\)/);
+  assert.match(r.text, /farthest from any listed place first: [^\n]*\(Calculated\)/);
+  assert.match(r.text, /Two orderings by two stated rules: farthest from any listed place, and most people with none near\. Neither is a recommendation\./);
+  assert.equal(r.data.place_picked, false);
+  assert.deepEqual(r.data.answers.map((a) => a.label), ['Calculated', 'Calculated', 'Calculated', 'Estimated']);
+  assert.deepEqual(r.data.answers[2].value, ['bg1', 'bg2', 'bg3', 'bg4', 'bg5']); assert.deepEqual(r.data.answers[3].value, ['bg7', 'bg8', 'bg9', 'bg10', 'bg11']);
+  assert.ok(r.data.answers.every((a) => a.text.length <= 300), 'every line is within the 300 characters a line may have');
+});
+
+test('READ where_to_go with two orderings: the same sentence sent as an answer LINE is refused whole (a line may not carry a word that recommends), so the worker must send it as a statement', async () => {
+  const { w, call } = world({ geo: switchOn() });
+  const doc = twoOrderings();
+  doc.statements = doc.statements.slice(0, 1);
+  doc.answers = [...doc.answers, item(TWO_RULES.replace(/\.$/, ''), 2, 'Calculated')];
+  const r = await askAndAnswer(w, call, 'where_to_go', doc);
+  assert.equal(r.isError, true, r.text); assert.equal(r.code, 'bad_report');
+  assert.match(r.text, /none of it is shown/); assert.ok(!/bg1|bg7/.test(r.text), 'nothing of the answer leaks into the refusal');
+});
+
+test('READ where_to_go with two orderings: a line over 300 characters, or a ninth statement, is refused whole', async () => {
+  for (const [label, mk] of [
+    ['a line over 300 characters', () => twoOrderings({ answers: [item('x'.repeat(290), ['bg1'], 'Estimated')] })],
+    ['nine statements', () => twoOrderings({ statements: Array.from({ length: 9 }, () => TWO_RULES) })],
+  ]) {
+    const { w, call } = world({ geo: switchOn() });
+    const r = await askAndAnswer(w, call, 'where_to_go', mk());
+    assert.equal(r.isError, true, label + ': ' + r.text); assert.equal(r.code, 'bad_report', label);
+  }
+});
+
 test('READ: example data announces itself first, from the assumptions, a statement or the flag', async () => {
   for (const make of [() => compareDoc({ assumptions: 'Example data, not a real place: made-up county' }), () => compareDoc({ statements: ['Example data, not a real place.'] }), () => compareDoc({ example_data: true })]) {
     const { w, call } = world({ geo: switchOn() });
