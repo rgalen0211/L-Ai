@@ -77,6 +77,8 @@ export class ConnectDb {
         const sha = await self.fn<string | null>("connect_set_compilation_request", ["text", "uuid", "jsonb"], [h, projectId, request]);
         return sha ? { sha256: sha } : null;
       },
+      askGeo: (q) => self.fn("connect_geo_ask", ["text", "float8", "float8", "int", "text[]"], [h, q.lat, q.lon, q.minutes, q.categories]),
+      getGeo: (id) => self.fn("connect_geo_get", ["text", "uuid"], [h, id]),
       currentVersionId: (projectId) => self.fn("connect_current_version", ["text", "uuid"], [h, projectId]),
       getVersion: (versionId) => self.fn("connect_get_version", ["text", "uuid"], [h, versionId]),
       listVersions: (projectId) => self.fn("connect_list_versions", ["text", "uuid"], [h, projectId]),

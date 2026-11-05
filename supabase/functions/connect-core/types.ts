@@ -95,6 +95,10 @@ export interface Data extends Omit<UserData, "submitJob"> {
   currentVersionId(projectId: string): Promise<string | null>;
   /** Saves (replaces) the compilation request on one of the person's projects. null = the project is not theirs. */
   saveCompilationRequest(projectId: string, request: CompilationRequest): Promise<{ sha256: string } | null>;
+  /** NEXT-CONNECT 196: writes a place question for the house computer to answer. The point is rounded to 4 decimals by the database. Asking the same thing twice is one request (repeat: true). */
+  askGeo(q: { lat: number; lon: number; minutes: number; categories: string[] }): Promise<{ id: string; state: string; repeat?: boolean }>;
+  /** One of the person's own place questions, or null. */
+  getGeo(id: string): Promise<GeoRow | null>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
   jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null;
     /** r9: where the job runs. 'owner_local' = on the person's own computer, made by their Ryagram desktop app. Absent = the house. */
@@ -116,11 +120,23 @@ export interface FootageSwitch {
   request(plan: { source: "nasa" | "nara"; item_id: string; why: string }): Promise<{ id: string; state: string }>;
 }
 
+/** NEXT-CONNECT 193: "what is within N minutes of this place" (Geographic Intelligence). NOT wired in the real function: with no `geo` here the tool refuses and looks nothing up (the switch is OFF).
+ *  `within` returns the engine's drive-estimate answer (schema ryagram.drive-estimate/0, ryagram/geo/drivetime.py) for ONE place; the tool checks its shape and that every number is labelled Estimated before it shows a word of it. */
+export interface GeoSwitch {
+  enabled(): boolean | Promise<boolean>;
+}
+/** A place question as the database holds it (NEXT-CONNECT 196): asked here, answered by the house computer, read back with geo_answer. `answer` is the engine's ryagram.drive-estimate/0 JSON, untrusted until the tool has checked it. */
+export interface GeoRow {
+  id: string; state: "asked" | "claimed" | "answered" | "failed"; lat: number; lon: number; minutes: number; categories: string[];
+  answer: unknown; fail_code: string | null; fail_detail: string | null; waited_s: number;
+}
+
 export interface Deps {
   /** Compiles a JSON Schema into a checker that returns plain-words problems ([] = fine). */
   compile(schema: object): ((value: unknown) => string[]) & { detailed?: (value: unknown) => { instancePath: string; keyword: string; params: Record<string, unknown>; message?: string; schemaPath?: string }[] };
   now?: () => number;
   footage?: FootageSwitch;
+  geo?: GeoSwitch;
 }
 
 export interface ToolCtx {
@@ -169,6 +185,8 @@ export const LIMITS = Object.freeze({
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
   footagePlansPerDayPerUser: 20,
+  geoQuestionsPerHourPerUser: 30,
+  geoReadsPerHourPerUser: 120,
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
   maxStoryBytes: 256 * 1024,
 });
