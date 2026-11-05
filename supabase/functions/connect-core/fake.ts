@@ -133,7 +133,38 @@ export class FakeWorld {
         if (same) return { id: same.id, state: same.state, repeat: true };
         if ([...user.geo.values()].filter((g) => g.state === "asked" || g.state === "claimed").length >= 5) throw err("There are already 5 place questions waiting for an answer. Wait for those first.", "PT429");
         if (user.geo.size >= 100) throw err("That is 100 place questions in a day. Try again tomorrow.", "PT429");
-        const row: GeoRow = { id: id(), state: "asked", lat, lon, minutes: q.minutes, categories: cats, answer: null, fail_code: null, fail_detail: null, waited_s: 0 };
+        const row: GeoRow = { id: id(), state: "asked", shape: "within_minutes", lat, lon, minutes: q.minutes, categories: cats, answer: null, fail_code: null, fail_detail: null, waited_s: 0 };
+        user.geo.set(row.id, row);
+        return { id: row.id, state: "asked", repeat: false };
+      },
+      askForecast: async (q) => {
+        // mirrors connect_forecast_ask: the same request in 10 minutes is one request, the same 5-open and 100-a-day caps as the place questions
+        const user = u();
+        const brk = [...new Set(q.breaks ?? [])].sort((x, y) => x - y), un = (q.unit ?? "").trim() || null, series = JSON.stringify(q.series);
+        const same = [...user.geo.values()].reverse().find((g) => g.shape === "forecast" && JSON.stringify((g as GeoRow & { series?: unknown }).series) === series && g.horizon === q.horizon
+          && (g.method ?? null) === (q.method ?? null) && JSON.stringify((g as GeoRow & { breaks?: number[] }).breaks ?? []) === JSON.stringify(brk) && (g.unit ?? null) === un && g.state !== "failed");
+        if (same) return { id: same.id, state: same.state, repeat: true };
+        if ([...user.geo.values()].filter((g) => g.state === "asked" || g.state === "claimed").length >= 5) throw err("There are already 5 place questions waiting for an answer. Wait for those first.", "PT429");
+        if (user.geo.size >= 100) throw err("That is 100 place questions in a day. Try again tomorrow.", "PT429");
+        const row = { id: id(), state: "asked", shape: "forecast", lat: null, lon: null, lat_b: null, lon_b: null, minutes: null, categories: [], category: null, town: null, horizon: q.horizon, method: q.method ?? null, unit: un,
+          series: JSON.parse(series), breaks: brk, answer: null, fail_code: null, fail_detail: null, waited_s: 0 } as GeoRow;
+        user.geo.set(row.id, row);
+        return { id: row.id, state: "asked", repeat: false };
+      },
+      askGeoShape: async (q) => {
+        // mirrors connect_geo_ask_shape: points rounded to 4 decimals, the same question is one request, the same 5-open and 100-a-day caps as askGeo
+        const user = u();
+        const r4 = (x: number) => Math.round(x * 1e4) / 1e4;
+        const pt = (p?: { lat: number; lon: number }) => (p ? { lat: r4(p.lat), lon: r4(p.lon) } : null);
+        const a = q.shape === "where_to_go" ? null : pt(q.a), b = q.shape === "compare_sites" ? pt(q.b) : null;
+        const category = q.shape === "compare_sites" ? null : (q.category ?? null), town = q.shape === "where_to_go" ? ((q.town ?? "").trim() || null) : null;
+        const same = [...user.geo.values()].reverse().find((g) => g.shape === q.shape && (g.lat ?? null) === (a?.lat ?? null) && (g.lon ?? null) === (a?.lon ?? null) && (g.lat_b ?? null) === (b?.lat ?? null)
+          && (g.lon_b ?? null) === (b?.lon ?? null) && (g.category ?? null) === category && (g.town ?? null) === town && g.state !== "failed");
+        if (same) return { id: same.id, state: same.state, repeat: true };
+        if ([...user.geo.values()].filter((g) => g.state === "asked" || g.state === "claimed").length >= 5) throw err("There are already 5 place questions waiting for an answer. Wait for those first.", "PT429");
+        if (user.geo.size >= 100) throw err("That is 100 place questions in a day. Try again tomorrow.", "PT429");
+        const row: GeoRow = { id: id(), state: "asked", shape: q.shape, lat: a?.lat ?? null, lon: a?.lon ?? null, lat_b: b?.lat ?? null, lon_b: b?.lon ?? null, minutes: null, categories: [], category, town,
+          answer: null, fail_code: null, fail_detail: null, waited_s: 0 };
         user.geo.set(row.id, row);
         return { id: row.id, state: "asked", repeat: false };
       },
