@@ -44,6 +44,6 @@ test('nothing is promised: no price, no date, no absolute or boasting word, no o
 test('the page code shows the draft note and the three sections only through detailsFor, and the other Coming soon pages are untouched', () => {
   const code = read('assets/app-departments.js');
   assert.match(code, /const more = detailsFor\(id, window\.ryagramConfig\)/); assert.match(code, /Draft wording, not yet approved\./);
-  assert.match(code, /k\.picture === 'phrase' \? phrasePicture\(\) : null, \.\.\.moreEls, area, msg/);
+  assert.match(code, /k\.picture === 'phrase' \? phrasePicture\(\) : null, id === 'geo_intelligence' && locationPreviewOn\(window\.ryagramConfig\) \? locationPicture\(\) : null, \.\.\.moreEls, area, msg/);      // (the made-up location picture, behind locationPreview OFF: tests/location-preview.test.mjs)
   assert.equal(J(Dp.KNOWN.compilations).line.startsWith('Say a phrase.'), true); assert.equal(J(Dp.KNOWN.games).line, 'Play with your own data and footage in small games you can share.');
 });

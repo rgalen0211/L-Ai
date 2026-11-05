@@ -111,10 +111,18 @@ window.ryagramConfig = Object.freeze({
   gamePhone: false,
   // The Geographic Intelligence demo page (/geo-demo/; NEXT-WEB 198): shaded areas, markers, a clicked site, a ring and labelled counts, on SYNTHETIC data only. Draft words for Ryan. OFF until he has seen it.
   geoDemo: false,
+  // Option B (Ryan 11-04): "Create an account" without an invite code makes a WAITING account that sees only a "You are on the list" page (pages: #/create-account, waiting screen, #/admin/waiting). The server gate (CONNECT) must be applied first or everyone is held; OFF.
+  waitingAccounts: false,
   // On the geo demo page, a file chooser that loads the PRIVATE real-data file from the person's own computer (NEXT-WEB 204; OpenStreetMap data, attorney rows open). Needs geoDemo. Nothing is uploaded or stored. OFF.
   geoRealData: false,
   // More honest words on the Geographic Intelligence and Games Coming soon pages (NEXT-WEB 200, from the departments brief): what is coming, how numbers and people are treated, what is not built yet. Draft words for Ryan. OFF until he has read them.
   departmentDetails: false,
+  // A small made-up example of a site check on the Geographic Intelligence Coming soon page (CC1 for Claude 15:30, 11-04): made-up places and numbers only (the real Dayton demo is private
+  // until attorney row G11). Draft words for Ryan in proposals\CC1-LOCATION-PAGE-WORDS-DRAFT.md. OFF until he has read them.
+  locationPreview: false,
+  // A forecast on a data film (CC1 for Claude 15:30, 11-04): the live editor's "Show a forecast" and the film page's forecast section draw ENGINE's forecast hand-over (Estimated, with its range
+  // and backtest) with RENDERER's look rules; nothing is computed on the page. Draft words for Ryan in proposals\CC1-FORECAST-TOGGLE-WORDS-DRAFT.md. OFF.
+  forecastToggle: false,
   // The desktop app's sign-in: the approval page (#/device) and Account > Computers signed in (testers only), the admin Tester computers page, and the Windows download card (testers only). ON (Ryan's typed yes) once the r9 migration is applied and the `node` function is deployed (RYAN-GO-LIVE-SESSION.md part C); only an account with the tester flag, or one that already has a computer, sees anything on Account.
   desktopApp: true,
   // Worker health on #/admin/ops (NEXT-WORKER 72): per render worker, whether it checks in, its engine commit, what it is making or when it last took a

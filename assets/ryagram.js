@@ -124,6 +124,8 @@
   const baseUrl = String(config.supabaseUrl || '').replace(/\/+$/, '');
   const key = String(config.supabaseKey || '');
   let sending = false;
+  const createLine = document.getElementById && document.getElementById('wl-create');           // Option B: shown only when the waitingAccounts switch is exactly true
+  if (createLine && config.waitingAccounts === true) createLine.hidden = false;
 
   function say(message) {
     status.hidden = false;

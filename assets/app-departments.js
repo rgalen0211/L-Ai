@@ -146,6 +146,18 @@
         h('p', { class: 'meta' }, 'An illustration with public-domain words (Lincoln, 1863) and made-up timestamps, not a screenshot.'));
     }
 
+    // The Geographic Intelligence picture (CC1 for Claude 15:30 item 3, behind locationPreview, OFF): text only like the phrase picture, and EVERY place and number in it is MADE UP. The real Dayton
+    // demo stills are not used here: they are OpenStreetMap data that stays private until attorney row G11. Each line carries the label the real page will use. DRAFT WORDS (proposals\CC1-LOCATION-PAGE-WORDS-DRAFT.md).
+    function locationPicture() {
+      return h('div', { class: 'soon-picture', role: 'img', 'aria-label': 'An illustration of a site check on a made-up map' },
+        h('p', { class: 'meta' }, 'SITE  a made-up corner in a made-up town'),
+        h('p', {}, 'People within 1 mile: 4,210  (Calculated, from made-up census areas)'),
+        h('p', {}, 'Nearest similar restaurant: 0.6 miles  (Observed, on a made-up map)'),
+        h('p', {}, 'Yearly spending on eating out nearby: about $2.1 million  (Estimated, method shown)'),
+        h('p', { class: 'meta' }, 'An illustration with made-up places and numbers, not a real place and not a screenshot.'));
+    }
+    const locationPreviewOn = cfg => !!cfg && cfg.locationPreview === true;
+
     // A Coming soon page: tag, heading, one line, an optional picture, and the button that records interest (and sends nothing).
     async function soonPage(id) {
       const k = KNOWN[id];
@@ -169,7 +181,7 @@
       const more = detailsFor(id, window.ryagramConfig);
       const moreEls = more ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), ...SECTIONS.flatMap(([key, title]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, more[key].map(t => h('li', {}, t)))])] : [];
       return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
-              k.picture === 'phrase' ? phrasePicture() : null, ...moreEls, area, msg];
+              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, ...moreEls, area, msg];
     }
 
     // #/d/<id>. An id this account's list does not include, or any failure, is the plain "not available" page with a way home: never a blank page.

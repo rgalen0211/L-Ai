@@ -1,3 +1,6 @@
+// The made-up forecast series the live editor shows in mock mode (CC1, 11-04): a copy of tests/fixtures/forecast-estimated-1104.json, a REAL output of ENGINE's tools/predict_run.py on a made-up series
+// (tests/forecast-toggle.test.mjs keeps the two identical). The app page's security policy lets it fetch only from Supabase, so the mock carries it here.
+(typeof window !== 'undefined' ? window : globalThis).RYAGRAM_MOCK_FORECAST = {"observed":[[2005,994.7],[2006,1009.5],[2007,1044.9],[2008,1048.4],[2009,1083.5],[2010,1100.1],[2011,1112.9],[2012,1148.9],[2013,1157.8],[2014,1193.1],[2015,1206.1],[2016,1231.1],[2017,1266.0],[2018,1303.4],[2019,1308.2],[2020,1337.6],[2021,1376.6],[2022,1413.7],[2023,1430.6]],"forecast":[[2024,1462.4498204689119,1437.6726153520433,1487.6540420614704],[2025,1493.139203717259,1466.967109381614,1519.7782332128909],[2026,1524.472601024058,1496.7665243931237,1552.6915343161809],[2027,1556.4635269687385,1527.0871344332368,1586.4050296534524],[2028,1589.125779733009,1557.94538421342,1620.9302132160656]],"breaks":[],"method":"a steady percentage change per year, fitted to the years, carried forward","basis":"Estimated, based on the 2012-2023 trend","backtest":{"hidden_years":4,"mean_abs_pct_error":0.57,"inside_band":4,"of":4,"benchmark_mean_abs_pct_error":5.86,"beats_benchmark":true},"kind":"estimated","label":"Estimated"};
 // An in-memory stand-in for the parts of supabase-js the app uses, with the
 // database rules the views depend on: version numbering and copying, locked
 // versions, submit_job's checks (parameters, one job in flight per type, the
@@ -367,6 +370,27 @@
       sync_version_sources({ p_version }) { return syncSources(p_version); },
       // Mock: the mock user is an admin; three films' worth of made-up signup counts.
       is_app_admin() { return { data: adminMock(), error: null }; },
+      // Mock of CONNECT's Option B contract (connect-waiting-gate-1104, proposals\CONNECT-WAITING-GATE-BUILD-1104.md): my_access() -> {status, is_admin, gate_on}, 'waiting' for the signed-in
+      // mock when the address has ?waiting (until approved or a code is used); admin_waiting_list() -> user_id, email, joined_at, confirmed (admin only); approving goes through the approve-waiting
+      // function (below, with the join and claim-invite functions); ?accesserr makes my_access fail (the page must fall back to the waiting page).
+      my_access() {
+        if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
+        const id = session && session.user && session.user.id;
+        const waiting = db.waiting && db.waiting.some(w => w.user_id === id && !w.approved);
+        const asked = typeof location !== 'undefined' && /[?&]waiting(&|$|#)/.test(location.search || '') && !(db.approvedIds || []).includes(id);
+        return { data: { status: waiting || asked ? 'waiting' : 'active', is_admin: adminMock(), gate_on: true }, error: null };
+      },
+      admin_waiting_list() {
+        if (!adminMock()) return fail('Admins only.');
+        db.waiting = db.waiting || [{ user_id: '00000000-0000-4000-8000-000000000001', email: 'first.waiting@example.com', joined_at: '2026-11-03T15:20:00Z', confirmed: true, approved: false },
+                                    { user_id: '00000000-0000-4000-8000-000000000002', email: 'second.waiting@example.com', joined_at: '2026-11-04T09:05:00Z', confirmed: false, approved: false }];
+        return { data: db.waiting.filter(w => !w.approved).map(({ user_id, email, joined_at, confirmed }) => ({ user_id, email, joined_at, confirmed })), error: null };
+      },
+      admin_approve_waiting({ p_user, p_reason }) {
+        if (!adminMock()) return fail('Admins only.');
+        const w = (db.waiting || []).find(x => x.user_id === p_user); if (!w || w.approved) return fail('That account is not waiting.');
+        w.approved = true; log.push({ approved: w.email, reason: p_reason }); return { data: { status: 'active' }, error: null };
+      },
       waitlist_by_film({ p_days }) {
         const rows = [
           ['2026-10-03', 'r002-industry-story', 'youtube', 3], ['2026-10-03', null, null, 1],
@@ -930,6 +954,33 @@
             const live = !/[?&]mailoff/.test(q);
             return { data: { status: live ? 'sent' : 'saved', to: addr, sends: r2.sends, at: new Date().toISOString(), message: live ? `Sent to ${addr}.` : 'Mail is not switched on, so nothing was sent. The message is saved under Recent messages.' }, error: null };
           }
+          if (name === 'join') {
+            // Mock of CONNECT's join (Q378 A): the same answer for a new and a known address; 409 while the switch is off. The mock adds the address to the waiting list, not confirmed yet.
+            const email = String(body.email || '').trim().toLowerCase();
+            if (!/^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(email)) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'Enter a valid email address.' }) } } };
+            if (typeof location !== 'undefined' && /[?&]joinoff/.test(location.search || '')) return { data: null, error: { message: 'x', context: { status: 409, json: async () => ({ error: 'Making an account is not open yet. Join the waitlist instead.' }) } } };
+            db.waiting = db.waiting || [];
+            if (!db.waiting.some(w => w.email === email)) db.waiting.push({ user_id: `00000000-0000-4000-8000-${String(100 + db.waiting.length).padStart(12, '0')}`, email, joined_at: new Date().toISOString(), confirmed: false, approved: false });
+            log.push({ joined: email });
+            return { data: { message: 'If that email can join, a link to finish joining is on its way. It works once.' }, error: null };
+          }
+          if (name === 'approve-waiting') {
+            // Mock of CONNECT's approve-waiting: admin only; refuses an unconfirmed address; answers {status, message} (mail is not switched on in the mock, so 'saved').
+            if (!adminMock()) return { data: null, error: { message: 'x', context: { status: 403, json: async () => ({ error: 'Only an admin can approve.' }) } } };
+            const w = (db.waiting || []).find(x => x.user_id === body.user_id && !x.approved);
+            if (!w) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'That account is not waiting.' }) } } };
+            if (!w.confirmed) return { data: null, error: { message: 'x', context: { status: 400, json: async () => ({ error: 'That address is not confirmed yet, so it cannot be approved.' }) } } };
+            w.approved = true; log.push({ approved: w.email, reason: body.reason });
+            return { data: { status: 'saved', message: `${w.email} is approved. Mail is not switched on, so the access-opens email is saved, not sent.` }, error: null };
+          }
+          if (name === 'claim-invite') {
+            // Mock of CONNECT's claim-invite (PROPOSED): RYATESTCODE opens the signed-in waiting account; anything else is refused in plain words.
+            const c = String(body.code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+            if (c !== 'RYATESTCODE' && c !== 'TESTCODE') return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'That code isn’t valid, has expired or has been used up.' }) } } };
+            const id = session && session.user && session.user.id; db.approvedIds = [...(db.approvedIds || []), id];
+            (db.waiting || []).forEach(w => { if (w.user_id === id) w.approved = true; });
+            return { data: { status: 'active' }, error: null };
+          }
           if (name === 'delete-account') {
             if ((body.confirm_email || '').trim().toLowerCase() !== (session?.user?.email || '').toLowerCase()) {
               return { data: null, error: { message: 'x', context: { json: async () => ({ error: 'Type your account’s email address exactly to confirm.' }) } } };
@@ -1072,9 +1123,18 @@
         },
         async signInWithPassword({ email }) {
           // An email that starts with "other" is a DIFFERENT account (id u-other), so the mock can walk switching accounts in one tab (live ride 2026-10-26); the account the mock started with keeps its own id.
+          const made = (db.waiting || []).find(x => x.email === email && String(x.user_id).startsWith('new-'));        // an account made through sign-up is the WAITING one (Option B)
+          if (made) session = { user: { id: made.user_id, email } }; else
           session = { user: { id: /^other/i.test(String(email || '')) ? 'u-other' : (String(email || '') === user.email ? user.id : 'u-ryan'), email } };
           for (const cb of authListeners) cb('SIGNED_IN', session);
           return { error: null };
+        },
+        async signUp({ email, password }) {
+          // Mock of Auth sign-up for Option B: a new account is WAITING; email confirmation is required, so no session comes back. ?signuperr makes it refuse.
+          if (typeof location !== 'undefined' && /[?&]signuperr/.test(location.search || '')) return { data: null, error: { message: 'Sign-ups are not allowed right now.' } };
+          if (!password || password.length < 12) return { data: null, error: { message: 'Password should be at least 12 characters.' } };
+          db.waiting = db.waiting || []; db.waiting.push({ user_id: `new-${db.waiting.length + 1}`, email, created_at: new Date().toISOString(), approved: false });
+          log.push({ signedUp: email }); return { data: { user: { email }, session: null }, error: null };
         },
         async resetPasswordForEmail(email, options) { log.push({ reset: email, options }); return { data: {}, error: null }; },
         async setSession({ access_token }) {

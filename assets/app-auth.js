@@ -185,9 +185,19 @@
       }
     }
 
+    const createPanel = $('create-account');
+    const waitingOn = () => window.ryagramWaiting?.on() === true;
+    function showCreateAccount() {
+      if (unmount) { unmount(); unmount = null; }
+      hideLinkPanels();
+      library.hidden = true; account.hidden = true; setPassword.hidden = true; signIn.hidden = true;
+      createPanel.hidden = false;
+      $('create-account-title').focus();
+    }
     function showSignIn() {
       if (unmount) { unmount(); unmount = null; }
       hideLinkPanels();
+      if (createPanel) createPanel.hidden = true;
       library.hidden = true;
       account.hidden = true;
       setPassword.hidden = true;
@@ -205,12 +215,17 @@
     }
 
     function render(session) {
+      lastSession = session;
+      if (createPanel) createPanel.hidden = true;
       if (pendingLink) showAuthLink();
       else if (expiredMode) showAuthExpired();
       else if (session?.user && recovering) showSetPassword();
       else if (session?.user) showLibrary(session.user);
+      else if (waitingOn() && location.hash === '#/create-account') showCreateAccount();
       else showSignIn();
     }
+    let lastSession = null;
+    if (waitingOn()) window.addEventListener('hashchange', () => { if (!lastSession?.user && !pendingLink && !expiredMode) render(lastSession); });
 
     if (linkToken || implicitSession) {
       const FAILED = {
@@ -389,6 +404,29 @@
         save.disabled = false;
       }
     });
+
+    // Option B (NEXT-WEB waiting pages): "First time here? Create an account" replaces the waitlist line when the switch is on; the account made is WAITING until access opens (server gate, CONNECT).
+    if ($('create-row') && waitingOn() && window.ryagramWaiting) {
+      $('create-row').hidden = false;
+      const old = document.querySelector('.sign-in-help .help-line'); if (old && /waitlist/i.test(old.textContent)) old.hidden = true;
+      const caForm = $('create-account-form'), caNote = $('create-account-note'), caError = $('create-account-error');
+      caForm.addEventListener('submit', async event => {
+        event.preventDefault();
+        caError.hidden = true; caNote.textContent = '';
+        const f = caForm.elements, problem = window.ryagramWaiting.signUpProblem(f.email.value);
+        if (problem) { caError.textContent = problem; caError.hidden = false; return; }
+        window.ryagramFunnel?.signupStarted?.();
+        const btn = caForm.querySelector('button'); btn.disabled = true;
+        try {
+          // Q378 A: email only, through CONNECT's join function; the emailed link confirms the address and lets the person choose a password.
+          const r = await window.ryagramWaiting.signUp(window.ryagramData(client), f.email.value);
+          if (r.ok) { caNote.textContent = r.message || 'If that email can join, a link to finish joining is on its way.'; }
+          else if (r.off) { caError.textContent = r.message || 'Making an account is not open yet. Join the waitlist instead.'; caError.hidden = false; }
+          else { caError.textContent = r.message || 'Couldn’t create the account just now. Try again in a minute.'; caError.hidden = false; }
+        } catch { caError.textContent = 'Couldn’t reach the server. Check your connection and try again.'; caError.hidden = false; }
+        finally { btn.disabled = false; }
+      });
+    }
 
     // Beta invite codes: shown once the invite email is set up (inviteSignup: true), or in mock mode.
     // The same answer whether or not the email already has an account.

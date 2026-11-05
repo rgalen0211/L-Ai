@@ -244,3 +244,6 @@ body:has(.mock-bar) .app-foot{padding-bottom:120px}
 /* One font for every control (King's Island W7): a button, input, select and textarea take the page's own font stack, not the browser's default for controls (it drew serif in a WebKit build without the system UI font). */
 button,input,select,textarea{font-family:inherit}
 .wiz-steps{list-style:none;margin:16px 0;padding:0;display:grid;gap:14px}.wiz-step{border:1px solid var(--line,#3a3a44);border-radius:10px;padding:12px 14px}.wiz-steps .wiz-step h2{margin:0 0 4px;padding:0;font-size:1.1rem}.wiz-step p{margin:6px 0}.wiz-step .button{margin-top:6px}.wiz-done{opacity:.8}.wiz-now{border-color:var(--accent,#6fd1bd);box-shadow:0 0 0 1px var(--accent,#6fd1bd)}
+/* Option B: a WAITING account sees one page; the nav shows only the account and sign-out (NEXT-WEB waiting pages) */
+body.is-waiting .dept-slot,body.is-waiting .admin-menu,body.is-waiting .app-account .app-nav-link:not([href="#/account"]){display:none!important}
+.wl-list{list-style:none;margin:12px 0;padding:0}.wl-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line,#3a3a44)}.wl-who{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}.wl-row .button{min-height:44px}

@@ -105,6 +105,24 @@
       cta: `/ryagram/?utm_source=film_page&utm_medium=remix&utm_campaign=${campaign}#waitlist` });
   }
 
+  // A forecast, when the film's own data carries one (CC1 for Claude 15:30 item 2), behind forecastToggle (OFF): ENGINE's hand-over drawn by app-forecast.js with RENDERER's look rules,
+  // hidden until the visitor asks; nothing is computed here. A film without a forecast shows nothing at all. Draft words: proposals\CC1-FORECAST-TOGGLE-WORDS-DRAFT.md.
+  function forecastSection(page) {
+    const FC = window.ryagramForecast, series = page.summary && page.summary.forecast;
+    if (!FC || !FC.on(window.ryagramConfig) || !series) return null;
+    const intro = FC.introLine(series);                                    // its words follow the series (a what-if is never called estimated); a refused series shows no section
+    if (!intro) return null;
+    const holder = h('div', { class: 'film-forecast-body', id: 'film-fc-body' });
+    let shown = false;
+    const btn = h('button', { class: 'button secondary', type: 'button', id: 'film-fc-toggle', 'aria-expanded': 'false', 'aria-controls': 'film-fc-body' }, 'Show the forecast');
+    btn.addEventListener('click', () => {
+      shown = !shown; btn.setAttribute('aria-expanded', String(shown)); btn.textContent = shown ? 'Hide the forecast' : 'Show the forecast';
+      holder.replaceChildren(...(shown ? [FC.render(series, { h })] : []));
+    });
+    return h('section', { class: 'film-forecast', 'aria-labelledby': 'film-fc-h' }, h('h2', { id: 'film-fc-h' }, 'What the future may hold'),
+      h('p', {}, intro), h('p', {}, btn), holder);
+  }
+
   function render(page) {
     const s = page.summary || {};
     document.title = `${page.title} | Made with Ryagram`;
@@ -127,6 +145,7 @@
           h('p', { class: 'film-meta' }, 'Ryagram is opening by invitation. Join the waitlist and we will tell you when it is your turn. Already have an invite? ', h('a', { href: '/app/' }, 'Sign in'), '.')),
         h('a', { class: 'button primary', href: cta }, 'Make your own data film')),
       remixSection(page),
+      forecastSection(page),
       sourcesSection(s),
       receipt(page)].filter(Boolean));
     window.ryagramFunnel?.filmEvent('film_view');
