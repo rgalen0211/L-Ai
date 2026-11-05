@@ -147,6 +147,8 @@ test('every SQL function the server names exists in the migration, and none take
     connect_rendering_state: 'supabase/migrations/20261027001100_connect_rendering_state.sql',
     connect_request_download: DOWNLOADS, connect_list_downloads: DOWNLOADS,
     connect_geo_ask: 'supabase/migrations/20261104000300_geo_requests.sql', connect_geo_get: 'supabase/migrations/20261104000300_geo_requests.sql',
+    connect_geo_ask_shape: 'supabase/migrations/20261104000400_geo_questions.sql',
+    connect_forecast_ask: 'supabase/migrations/20261104000500_forecast_requests.sql',
     connect_editor_apply: CHAT, connect_editor_undo: CHAT, connect_editor_undo_ai: CHAT, connect_editor_since: CHAT, connect_editor_heartbeat: CHAT };
   const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
   for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);
