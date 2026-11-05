@@ -138,6 +138,8 @@ def main():
                     check(not fr.locator('button:has-text("Build final film")').is_visible() and not fr.locator('button:has-text("Render final film")').is_visible(), 'there is no build or render button in the chat panel')
                     check(not fr.locator('.le-pill').is_visible(), 'and no "Kept on this computer" pill (that is the computer page’s wording)')
                     check('Save or build the film in the Ryagram app' in fr.inner_text('.le-chatbar'), 'the panel says in words that saving and building happen in the Ryagram app')
+                    foot = fr.inner_text('body')
+                    check('final button' not in foot and 'kept on your computer' not in foot, 'and the computer page’s footer sentence (a final button, kept on your computer) is not in the chat panel')
                     said = fr.evaluate("window.ryagramLiveHost.render()")
                     check('built in the Ryagram app' in (said.get('error') or '') and len(said) == 1, 'and the page’s own build call, if anything ever made it, answers with that sentence and starts nothing')
                     check(all(t in NAMES and t not in ('render',) for t, _ in calls()[n1:]), 'and it called nothing that could start a build')

@@ -45,6 +45,12 @@ test('the chat panel hides what only the computer page may offer (the build and 
   assert.ok(EDITOR_HTML.includes('Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'));
 });
 
+test('the computer page\'s footer sentence about a final button and "your computer" is replaced in the chat (the shared page is untouched)', () => {
+  assert.ok(EDITOR_HTML.includes('Changes here stay drafts. Nothing is built, and nothing uses credits, from this panel.'));
+  assert.ok(EDITOR_HTML.includes("root.querySelectorAll('p.meta').forEach(p => { if (p.textContent.indexOf(FOOT_OLD) === 0) p.textContent = FOOT_NEW; });"));
+  assert.ok(/reword\(\);\s*if \(typeof MutationObserver === 'function'\) new MutationObserver\(reword\)/.test(EDITOR_HTML), 'it runs once the film opens and again whenever the page redraws');
+});
+
 test('the page has no non-ASCII character (the file is escaped) and no control character', () => {
   const src = fs.readFileSync(new URL('../' + OUT, import.meta.url), 'utf8');
   assert.ok(!/[^\x20-\x7e\r\n\t]/.test(src));

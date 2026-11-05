@@ -36,6 +36,8 @@ const mutants = [
   ['the panel opens a link from the host', H, 'const stops = [];', "const stops = []; request('ui/open-link', { url: 'https://evil.example/' }).catch(() => {});"],
   ['the policy lets the page reach out', B, "connect-src 'none'", 'connect-src *'],
   ['the policy lets the page run eval', B, "script-src 'unsafe-inline'", "script-src 'unsafe-inline' 'unsafe-eval'"],
+  ['the footer about a final button is left in the chat', H, "    reword();\n    if (typeof MutationObserver", "    if (typeof MutationObserver"],
+  ['the footer is reworded once and never again', H, "new MutationObserver(reword).observe(root, { childList: true, subtree: true, characterData: true });", ""],
   ['the build button is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-pill{display:none}'],
   ['the pill that talks about the computer is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-top .button.primary{display:none}'],
   ['the panel does not say drafts are kept by Ryagram', H, "'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'", "''"],

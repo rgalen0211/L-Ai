@@ -118,6 +118,14 @@
   function stopAll() { clearTimeout(tellTimer); stops.splice(0).forEach(f => { try { f(); } catch (e) { /* closing */ } }); }
   addEventListener('pagehide', stopAll);
 
+  // ---- the computer page's footer says "Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button." In the chat there is no final button and Ryagram keeps the drafts, so that sentence is replaced
+  const FOOT_OLD = 'Everything here is drawn and kept on your computer.', FOOT_NEW = 'Changes here stay drafts. Nothing is built, and nothing uses credits, from this panel.';
+  function reword() {
+    const root = document.getElementById('live-root');
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('p.meta').forEach(p => { if (p.textContent.indexOf(FOOT_OLD) === 0) p.textContent = FOOT_NEW; });
+  }
+
   // ---- the call that opened the panel tells us which film
   function opened(sc) {
     if (mounted || !sc || typeof sc !== 'object') return;
@@ -132,6 +140,8 @@
     fullBtn = h('button', { type: 'button', class: 'button secondary', hidden: true, onclick: toggleFull }, 'Full screen');
     root.replaceChildren(h('div', { class: 'le-chatbar' }, h('span', { class: 'meta' }, 'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'), fullBtn), window.ryagramEditorPage.create({ h }).editorView(window.ryagramLiveHost.mode, fn => stops.push(fn)));
     paintFull();
+    reword();
+    if (typeof MutationObserver === 'function') new MutationObserver(reword).observe(root, { childList: true, subtree: true, characterData: true });
   }
 
   // ---- size, so the host can fit the panel to its content
