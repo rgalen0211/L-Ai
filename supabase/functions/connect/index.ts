@@ -6,6 +6,8 @@
 //   CONNECT_DB_URL        pooler (transaction mode) connection string for the role connect_runner. That role can execute connect_* only.
 //   CONNECT_CONSENT_URL   e.g. https://uselai.com/app/#/connect/consent?request=   (the request id is appended)
 //   CONNECT_APP_URL       e.g. https://uselai.com/app/
+//   CONNECT_MCP_APP       (optional) "on" shows the inline Ryagram card in assistants that render MCP Apps. Anything else = off, the connector exactly as it was.
+//   CONNECT_UI_DOMAIN     (optional, with CONNECT_MCP_APP) Claude's sandbox origin for this server: 32 hex characters + .claudemcpcontent.com (sha256 of the server URL; see proposals/CONNECT-MCP-APP-PLAN-1105.md)
 //   CONNECT_PUBLIC_URL    (recommended) https://<ref>.supabase.co/functions/v1/connect  pins the issuer address; if absent the platform's SUPABASE_URL is used
 // There is NO Supabase key here: not the service role, not the anon key. The function never reads a Supabase JWT.
 import postgres from "npm:postgres@3.4.5";
@@ -34,6 +36,7 @@ const db = new ConnectDb(async (text, params) => {
   return await sql.unsafe(text, params as unknown[]) as unknown as Record<string, unknown>[];
 }, appUrl);
 const compile = makeCompile(Ajv2020);
+const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
 
 Deno.serve(async (req) => {
   try {
@@ -41,7 +44,7 @@ Deno.serve(async (req) => {
     return await handleRequest(req, {
       store: db.authStore(), consentUrl, publicBase,
       mcp: {
-        data: null as never, policy: db.policy(), deps: { compile },
+        data: null as never, policy: db.policy(), deps: { compile }, mcpApp,
         async verifyToken(token: string) { return await db.verify(await sha256hex(token)); },
         dataFor: (_t: string, p: { tokenHash: string }) => db.data(p),
       },
