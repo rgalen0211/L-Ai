@@ -7,6 +7,7 @@ The boundary under test: connect_runner (a role with NO table/sequence/schema pr
 only) acts for a person ONLY through a live token hash. No connect_* function takes an owner id.
 """
 import hashlib
+import re
 import sys
 import unittest
 import uuid
@@ -915,6 +916,20 @@ class RealisticDefaults(core.Base):
         with psycopg.connect(core._server.get_uri(), autocommit=True) as c:
             c.execute(f"drop database {name}")
 
+
+
+class MigrationRevokes(unittest.TestCase):
+    """RE-AIM of the mutant 'a helper function with no revoke' (CONNECT 11-06): a later migration's gate_apply() wraps every public function a signed-in person can run and revokes it from PUBLIC, so a function the connect
+    migration forgot to revoke was healed by the end state and the runner (which applies every migration) could not see it. This reads the connect migration itself: every function it creates must appear in one of ITS OWN
+    'revoke all on function ... from' statements. No database."""
+    MIG = core.ROOT / "migrations" / "20261018000100_connect_ai.sql"
+
+    def test_every_function_the_connect_migration_creates_is_revoked_inside_it(self):
+        sql = self.MIG.read_text(encoding="utf-8").replace("\r\n", "\n")
+        created = re.findall(r"^create (?:or replace )?function ([a-z_]+\.[a-z_0-9]+)\(", sql, flags=re.M)
+        revokes = " ".join(re.findall(r"^revoke all on function(.*?);", sql, flags=re.M | re.S))
+        self.assertGreaterEqual(len(created), 40)
+        self.assertEqual([f for f in created if f + "(" not in revokes], [])
 
 
 class LiveFiles(core.Base):
