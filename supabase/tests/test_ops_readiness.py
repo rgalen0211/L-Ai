@@ -363,6 +363,10 @@ class Ops(core.Base):
                            "my_access()", "account_gate_ok()", "admin_waiting_list()", "admin_approve_waiting(uuid,text)",
                            # geo requests (20261104000300): the house worker's three functions, each starting with require_worker()
                            "claim_next_geo()", "finish_geo(uuid,jsonb)", "fail_geo(uuid,text,text)",
+                           # geo question shapes (20261104000400): the house worker's claim for the three new shapes, starting with require_worker()
+                           "claim_next_geo_question()",
+                           # forecast requests (20261104000500): the house worker's claim for a forecast, starting with require_worker()
+                           "claim_next_forecast()",
                            # tester computers: the admin list (NEXT-WEB 187; starts with require_admin(), revokes public, anon and node_runner)
                            "admin_tester_devices()",
                            # cost ledger: Ryan's screen and settings (same rule)

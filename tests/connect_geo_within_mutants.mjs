@@ -13,6 +13,8 @@ const SUITES = ['connect-geo-within.test.mjs'];
 const HEAD = 'title: "What is within N minutes of this place", scope: "read", readOnly: true, listed: false,';
 const AHEAD = 'title: "Read the answer to a place question", scope: "read", readOnly: true, listed: false,';
 const GOFF = 'if (!sw || !(await sw.enabled())) return refuse("Questions about places are not available yet. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });\n    if (!(await ctx.policy.hit(ctx.principal, "geo_read"';
+// nth(k, from, to): the k-th copy of `from` in tools.ts (the later tools reuse these sentences); the earlier copies are broken harmlessly first
+const nth = (k, from, to) => [...Array.from({ length: k - 1 }, () => [T, from, from.slice(0, 12) + '/*x*/' + from.slice(12)]), [T, from, to]];
 // each mutant: [name, [[file, from, to], ...]]
 const mutants = [
   ['the tool is listed', [[T, HEAD, HEAD.replace(' listed: false,', '')]]],
@@ -39,19 +41,19 @@ const mutants = [
   ['a missing asked category is accepted', [[T, 'if (!n) return null;', 'if (!n) continue;']]],
   ['the engine text is not checked for control characters or folders', [[T, 'const assumptions = str(doc.assumptions, 1600);', 'const assumptions = typeof doc.assumptions === "string" ? doc.assumptions : null;'],
     [T, 'const note = str(v.note, 1600), source = str(v.source, 300);', 'const note = typeof v.note === "string" ? v.note : null, source = typeof v.source === "string" ? v.source : null;']]],
-  ['the engine sentences are shown unfenced', [[T, 'Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}', 'Assumed, not measured: ${rep.assumptions}']]],
+  ['the engine sentences are shown unfenced', nth(2, 'Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}', 'Assumed, not measured: ${rep.assumptions}')],
   ['the answer does not say Estimated', [[T, '(estimated) around', 'around']]],
   ['the answer does not say it is a circle', [[T, 'This is a circle, not a routed drive time; a real drive time needs a road network and a routing program.', '']]],
   ['geo_answer is listed', [[T, AHEAD, AHEAD.replace(' listed: false,', '')]]],
   ['geo_answer needs write permission', [[T, AHEAD, AHEAD.replace('scope: "read"', 'scope: "write"')]]],
   ['geo_answer ignores the switch', [[T, GOFF, GOFF.replace('if (!sw || !(await sw.enabled()))', 'if (false)')]]],
-  ['the answer checks have no limit', [[T, 'if (!(await ctx.policy.hit(ctx.principal, "geo_read", LIMITS.geoReadsPerHourPerUser, 3600))) {', 'if (false) {']]],
+  ['the answer checks have no limit', nth(2, 'if (!(await ctx.policy.hit(ctx.principal, "geo_read", LIMITS.geoReadsPerHourPerUser, 3600))) {', 'if (false) {')],
   ['the answer-check limit is far too high', [[Y, 'geoReadsPerHourPerUser: 120,', 'geoReadsPerHourPerUser: 120000,']]],
-  ['an unanswered question says it is answered', [[T, 'Not answered yet."', 'Answered."']]],
-  ['a stuck question still tells the AI to keep checking', [[T, 'do_not_poll: stuck, poll_after_s: stuck ? null : 20', 'do_not_poll: false, poll_after_s: 20']]],
-  ['the machine-may-be-off words are gone', [[T, 'may be off or busy', 'is fine']]],
-  ['a failed question shows an answer anyway', [[T, 'if (row.state === "failed") {', 'if (false) {']]],
-  ['the workers failure detail is shown unfenced', [[T, '${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""}', '${row.fail_detail ? " " + row.fail_detail : ""}']]],
+  ['an unanswered question says it is answered', nth(2, 'Not answered yet."', 'Answered."')],
+  ['a stuck question still tells the AI to keep checking', nth(2, 'do_not_poll: stuck, poll_after_s: stuck ? null : 20', 'do_not_poll: false, poll_after_s: 20')],
+  ['the machine-may-be-off words are gone', nth(2, 'may be off or busy', 'is fine')],
+  ['a failed question shows an answer anyway', nth(2, 'if (row.state === "failed") {', 'if (false) {')],
+  ['the workers failure detail is shown unfenced', nth(2, '${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""}', '${row.fail_detail ? " " + row.fail_detail : ""}')],
   ['example data does not announce itself', [[T, 'const example = /example data/i.test(rep.assumptions);', 'const example = false;']]],
   ['the ask claims a lookup was made', [[T, 'looked_up: false, do_not_poll: false, poll_after_s: 20 }', 'looked_up: true, do_not_poll: false, poll_after_s: 20 }']]],
   ['the ask does not tell the AI to stop checking', [[T, 'Nothing was looked up here and nothing is saved but the question itself, which is deleted after 7 days." + GEO_STOP,', 'Nothing was looked up here and nothing is saved but the question itself, which is deleted after 7 days.",']]],

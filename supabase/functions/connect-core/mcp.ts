@@ -4,6 +4,7 @@
 import { callTool, type Env } from "./dispatch.ts";
 import { TOOLS } from "./tools.ts";
 import { LIMITS, type Principal } from "./types.ts";
+import { readResource, resourceList, toolUiMeta, UI_TOOL_URIS, type McpAppConfig } from "./mcp_app.ts";
 
 export const PROTOCOLS = ["2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05"];
 export const SERVER_INFO = { name: "ryagram", title: "Ryagram", version: "1.0.0" };
@@ -26,11 +27,14 @@ export interface McpDeps extends Env {
   dataFor(token: string, p: Principal): Env["data"];
   /** Where RFC 9728 metadata lives, for the WWW-Authenticate challenge. */
   resourceMetadataUrl: string;
+  /** The MCP App face (the inline Ryagram card). Absent or enabled:false = the connector exactly as it was: no resources, no `_meta`. */
+  mcpApp?: McpAppConfig;
 }
 
-export const toolList = () => TOOLS.filter((t) => t.listed !== false).map((t) => ({
+export const toolList = (mcpApp = false) => TOOLS.filter((t) => t.listed !== false).map((t) => ({
   name: t.name, title: t.title, description: t.description, inputSchema: t.inputSchema,
   annotations: { readOnlyHint: t.readOnly, destructiveHint: t.destructive === true, idempotentHint: t.idempotent ?? t.readOnly, openWorldHint: false },
+  ...(mcpApp && UI_TOOL_URIS[t.name] ? { _meta: toolUiMeta(UI_TOOL_URIS[t.name]) } : {}),
 }));
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
@@ -84,11 +88,20 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
       const asked = String(msg.params?.protocolVersion ?? "");
       return json(200, { jsonrpc: "2.0", id: msg.id, result: {
         protocolVersion: PROTOCOLS.includes(asked) ? asked : PROTOCOLS[0],
-        capabilities: { tools: { listChanged: false } },
+        capabilities: { tools: { listChanged: false }, ...(deps.mcpApp?.enabled ? { resources: {} } : {}) },
         serverInfo: SERVER_INFO, instructions: INSTRUCTIONS } });
     }
     case "ping": return json(200, { jsonrpc: "2.0", id: msg.id, result: {} });
-    case "tools/list": return json(200, { jsonrpc: "2.0", id: msg.id, result: { tools: toolList() } });
+    case "tools/list": return json(200, { jsonrpc: "2.0", id: msg.id, result: { tools: toolList(!!deps.mcpApp?.enabled) } });
+    case "resources/list": {
+      if (!deps.mcpApp?.enabled) return rpcError(msg.id, -32601, `Method not found: ${String(msg.method).slice(0, 60)}`);
+      return json(200, { jsonrpc: "2.0", id: msg.id, result: { resources: resourceList() } });
+    }
+    case "resources/read": {
+      if (!deps.mcpApp?.enabled) return rpcError(msg.id, -32601, `Method not found: ${String(msg.method).slice(0, 60)}`);
+      const r = readResource(msg.params?.uri, deps.mcpApp);
+      return r ? json(200, { jsonrpc: "2.0", id: msg.id, result: r }) : rpcError(msg.id, -32002, "That page does not exist.");
+    }
     case "tools/call": {
       const name = msg.params?.name;
       if (typeof name !== "string") return rpcError(msg.id, -32602, "A tool name is required.");

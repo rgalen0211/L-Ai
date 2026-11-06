@@ -8,7 +8,7 @@ import { textOk } from "./edit_state.ts";
 import { checkStoryStructured } from "./story_check.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
-import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
+import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type GeoRow, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
 const uuid = { type: "string", pattern: UUID };
@@ -1007,6 +1007,243 @@ const whatIsWithin: ToolDef = {
   },
 };
 
+// ---------------------------------------------------------------------------------------------- GEO's question shapes (migration 20261104000400)
+// Three more questions about places, asked the same way (a row the house computer answers) and read back with geo_answer. UNLISTED and OFF behind the same `geo` switch. What each may say is fixed HERE, not left to the answer:
+//   compare_sites  two places, rings of 1, 2 and 4 km; no score and no winner.
+//   verdict        "will a <category> place at A succeed": NEVER a yes or no. The tool says so in its own words first; the answer is only what can be counted around the place.
+//   where_to_go    "where should a <category> place go": NEVER a place picked. The county's counts, for the whole of the data used; a town named is said not to narrow them.
+const ASK_SCHEMA = "ryagram.geo-ask/0";
+const ASK_SHAPE_ID: Record<string, string> = { compare_sites: "compare-these", verdict: "verdict-question", where_to_go: "where-should-it-go" };
+const ASK_LABELS = new Set(["Calculated", "Estimated"]);
+const GEO_TOWN = /^[A-Za-z][A-Za-z .'-]{0,39}$/;
+// the answer lines are counts and distances; a word that recommends or predicts has no place in one (the statements may quote the refusal itself, so they are not checked this way)
+const CLAIM_WORDS = /\b(best|ideal|profitable|profit|in demand|high demand|will succeed|will work|good location|great location|should open|recommend\w*|winner|wins)\b/i;
+const FIXED_VERDICT = "No yes or no is given. This service cannot say whether a business would do well at a place: that needs sales and footfall data, and none is used. Here is what can be counted around the place instead.";
+const FIXED_WHERE = "No place is picked. There is no sales data, so any \"best\" or \"right\" place would be invented. Here are counts to read, for the whole of the data used.";
+interface AskItem { text: string; label: string; value: number | string | string[] | null; source: string; note: string }
+function readAskAnswer(doc: unknown, shape: string): { assumptions: string; items: AskItem[]; statements: string[]; example: boolean } | null {
+  if (!isObj(doc) || doc.schema !== ASK_SCHEMA || !ASK_SHAPE_ID[shape] || doc.shape !== ASK_SHAPE_ID[shape]) return null;
+  if (doc.refused !== undefined && doc.refused !== null) return null;
+  const assumptions = str(doc.assumptions, 1600);
+  if (assumptions === null || !Array.isArray(doc.answers) || doc.answers.length < 1 || doc.answers.length > 40 || !Array.isArray(doc.statements) || doc.statements.length > 8) return null;
+  const items: AskItem[] = [];
+  for (const it of doc.answers) {
+    if (!isObj(it)) return null;
+    const text = str(it.text, 300), source = str(it.source, 300), note = str(it.note, 1600);
+    if (text === null || source === null || note === null || typeof it.label !== "string" || !ASK_LABELS.has(it.label) || !text.endsWith(`(${it.label})`) || CLAIM_WORDS.test(text)) return null;
+    let value: AskItem["value"];
+    if (it.value === null) value = null;
+    else if (num(it.value) !== null) value = it.value as number;
+    else if (typeof it.value === "string") { const v = str(it.value, 100); if (v === null) return null; value = v; }
+    else if (Array.isArray(it.value) && it.value.length <= 50) { const ids = it.value.map((x) => (typeof x === "string" ? str(x, 60) : null)); if (ids.some((x) => x === null)) return null; value = ids as string[]; }
+    else return null;
+    items.push({ text, label: it.label, value, source, note });
+  }
+  const statements: string[] = [];
+  for (const st of doc.statements) { const t = str(st, 600); if (t === null) return null; statements.push(t); }
+  const example = /example data/i.test(assumptions) || statements.some((t) => /example data/i.test(t)) || doc.example_data === true;
+  return { assumptions, items, statements, example };
+}
+
+const placeQuestion: ToolDef = {
+  name: "place_question", title: "Ask a question about places", scope: "read", readOnly: true, listed: false,
+  description: "Asks one of three questions about places, then geo_answer reads the answer. compare_sites: two places (site_a, site_b), counted side by side with no score and no winner. verdict: whether a kind of business (category) \"would succeed\" at a place (site_a): "
+    + "this NEVER gives a yes or no, only what can be counted around the place. where_to_go: where a kind of business (category) should go, optionally in a named town: this NEVER picks a place, only counts for the whole of the data used. "
+    + "Every number comes back labelled Calculated or Estimated with its source. Read-only: it saves nothing but the question, which is deleted after 7 days.",
+  inputSchema: obj({
+    shape: { type: "string", enum: ["compare_sites", "verdict", "where_to_go"], description: "Which question: compare_sites needs site_a and site_b; verdict needs site_a and category; where_to_go needs category and may name a town." },
+    site_a: obj({ lat: { type: "number", minimum: -90, maximum: 90 }, lon: { type: "number", minimum: -180, maximum: 180 } }, ["lat", "lon"]),
+    site_b: obj({ lat: { type: "number", minimum: -90, maximum: 90 }, lon: { type: "number", minimum: -180, maximum: 180 } }, ["lat", "lon"]),
+    category: { type: "string", pattern: "^[a-z][a-z0-9_]{1,30}$", description: "One kind of business by name (for example chicken)." },
+    town: { type: "string", pattern: "^[A-Za-z][A-Za-z .'-]{0,39}$", description: "Only for where_to_go: a town name. It is said back but never narrows the counts." },
+  }, ["shape"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.geo;
+    if (!sw || !(await sw.enabled())) return refuse("Questions about places are not available yet. Nothing was looked up.", "not_available", { data: { ok: false, looked_up: false } });
+    const shape = a.shape;
+    if (shape !== "compare_sites" && shape !== "verdict" && shape !== "where_to_go") return refuse("Choose compare_sites, verdict or where_to_go. Nothing was looked up.", "args");
+    const point = (v: unknown): { lat: number; lon: number } | null => {
+      if (!isObj(v) || Object.keys(v).some((k) => k !== "lat" && k !== "lon")) return null;
+      const lat = num(v.lat), lon = num(v.lon);
+      return lat === null || lon === null || lat < -90 || lat > 90 || lon < -180 || lon > 180 ? null : { lat, lon };
+    };
+    const has = (k: string) => a[k] !== undefined;
+    const wantA = shape !== "where_to_go", wantB = shape === "compare_sites", wantCat = shape !== "compare_sites", wantTown = shape === "where_to_go";
+    const siteA = wantA ? point(a.site_a) : null, siteB = wantB ? point(a.site_b) : null;
+    const category = wantCat ? (typeof a.category === "string" && GEO_CATEGORY.test(a.category) ? a.category : null) : null;
+    const town = wantTown && has("town") ? (typeof a.town === "string" && GEO_TOWN.test(a.town.trim()) ? a.town.trim() : null) : null;
+    const needs = shape === "compare_sites" ? "site_a and site_b" : shape === "verdict" ? "site_a and a category" : "a category (and, if you like, a town)";
+    if ((wantA && !siteA) || (wantB && !siteB) || (wantCat && !category) || (wantTown && has("town") && !town)
+      || (!wantA && has("site_a")) || (!wantB && has("site_b")) || (!wantCat && has("category")) || (!wantTown && has("town"))) {
+      return refuse(`${shape} takes ${needs} and nothing else, each in the right form (latitudes from -90 to 90, longitudes from -180 to 180, a category as a short lowercase name). Nothing was looked up.`, "args");
+    }
+    if (siteA && siteB && Math.round(siteA.lat * 1e4) === Math.round(siteB.lat * 1e4) && Math.round(siteA.lon * 1e4) === Math.round(siteB.lon * 1e4)) {
+      return refuse("Compare two different places: these two are the same point. Nothing was looked up.", "args");
+    }
+    if (!(await ctx.policy.hit(ctx.principal, "geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {
+      return refuse(`The limit of ${LIMITS.geoQuestionsPerHourPerUser} place questions an hour is reached. Nothing was looked up.`, "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 3600 } });
+    }
+    const asked = await ctx.data.askGeoShape({ shape, ...(siteA ? { a: siteA } : {}), ...(siteB ? { b: siteB } : {}), ...(category ? { category } : {}), ...(town ? { town } : {}) });
+    const note = shape === "verdict" ? " This will not be a yes or no." : shape === "where_to_go" ? " This will not pick a place." : "";
+    return ok(`Asked${asked.repeat ? " (the same question was already asked, so this is that one)" : ""}.${note} The computer that answers place questions usually takes under a minute. Ask geo_answer with id ${asked.id} to read the answer. `
+      + "Nothing was looked up here and nothing is saved but the question itself, which is deleted after 7 days." + GEO_STOP,
+      { asked: true, id: asked.id, shape, state: asked.state, repeat: asked.repeat === true, looked_up: false, do_not_poll: false, poll_after_s: 20 });
+  },
+};
+
+function showShapeAnswer(row: GeoRow): ToolResult {
+  const shape = row.shape as string;
+  const rep = readAskAnswer(row.answer, shape);
+  if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Calculated or Estimated, or a line recommended something), so none of it is shown.", "bad_report");
+  const pt = (la: number | null | undefined, lo: number | null | undefined) => (la == null || lo == null ? "an unknown place" : `${la.toFixed(4)}, ${lo.toFixed(4)}`);
+  const lines: string[] = [];
+  if (rep.example) lines.push("EXAMPLE DATA, not a real place: the numbers below come from a made-up county used to test this service.");
+  if (shape === "compare_sites") lines.push(`Two places side by side: site A (${pt(row.lat, row.lon)}) and site B (${pt(row.lat_b, row.lon_b)}). There is no score and no winner: picking one would need sales data, and none is used.`);
+  else if (shape === "verdict") lines.push(FIXED_VERDICT, `The place: ${pt(row.lat, row.lon)}; the kind of business: ${row.category ?? "unknown"}.`);
+  else lines.push(FIXED_WHERE, `The kind of business: ${row.category ?? "unknown"}.${row.town ? ` ${untrusted("town", row.town)} was named, but these counts are for the whole of the data given: the town is not singled out.` : ""}`);
+  for (const it of rep.items) lines.push(`  ${untrusted("report-sentence", it.text)}`);
+  for (const st of rep.statements) lines.push(untrusted("report-sentence", st));
+  lines.push(`Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}`);
+  lines.push(`Sources: ${[...new Set(rep.items.map((i) => i.source))].map((x) => untrusted("report-sentence", x)).join("; ")}.`);
+  return ok(lines.join("\n"), {
+    id: row.id, shape, label_for_everything: "Calculated and Estimated", example_data: rep.example, verdict_given: false, place_picked: false,
+    answers: rep.items.map((i) => ({ text: i.text, value: i.value, label: i.label })), looked_up: true,
+  });
+}
+
+// ---------------------------------------------------------------------------------------------- forecast (migration 20261104000500)
+// "Forecast this series": the person's AI hands over pairs of [year, number] (6 to 120 of them); the house computer runs ENGINE's ryagram.predict on exactly those numbers and writes back a ryagram.forecast-answer/0. UNLISTED and OFF
+// behind its own `forecast` switch. What may be said is fixed HERE: every forecast number is Estimated and says it is not measured; the band is a likely range, not a promise; the test that hid the last measured years is ALWAYS shown (with
+// its warning when the method was no better than assuming nothing changes, or the band was too narrow); and the numbers are the ones the AI supplied: this connection did not check them against any source.
+const FORECAST_SCHEMA = "ryagram.forecast-answer/0";
+const FORECAST_UNIT = /^[A-Za-z%$ ./-]{1,30}$/;
+const FORECAST_METHODS = ["linear", "log", "moving_average"];
+interface Backtest { error: number; hidden: number; inside: number; of: number; beats: boolean; benchmark: number }
+function readForecast(doc: unknown, horizon: number) {
+  if (!isObj(doc) || doc.schema !== FORECAST_SCHEMA || !isObj(doc.series)) return null;
+  const s = doc.series;
+  if (s.label !== "Estimated" || s.kind !== "estimated") return null;
+  const method = str(s.method, 300), basis = str(s.basis, 300);
+  if (method === null || basis === null || !Array.isArray(s.observed) || s.observed.length < 6 || s.observed.length > 120 || !Array.isArray(s.forecast) || s.forecast.length !== horizon) return null;
+  const last = Array.isArray(s.observed[s.observed.length - 1]) ? num((s.observed[s.observed.length - 1] as unknown[])[0]) : null;
+  if (last === null) return null;
+  const rows: { year: number; value: number; low: number; high: number }[] = [];
+  let prevWidth = 0, prevYear = last;
+  for (const r of s.forecast) {
+    if (!Array.isArray(r) || r.length !== 4) return null;
+    const [y, v, lo, hi] = r.map((x) => num(x));
+    if (y === null || v === null || lo === null || hi === null || !Number.isInteger(y) || y !== prevYear + 1 || lo > v || v > hi || hi - lo < prevWidth - 1e-9) return null;
+    rows.push({ year: y, value: v, low: lo, high: hi });
+    prevWidth = hi - lo; prevYear = y;
+  }
+  const b = s.backtest;
+  if (!isObj(b)) return null;
+  const error = num(b.mean_abs_pct_error), bench = num(b.benchmark_mean_abs_pct_error), hidden = num(b.hidden_years), inside = num(b.inside_band), of = num(b.of);
+  if (error === null || bench === null || hidden === null || inside === null || of === null || !Number.isInteger(hidden) || hidden < 1 || !Number.isInteger(inside) || !Number.isInteger(of) || of < 1 || inside < 0 || inside > of || typeof b.beats_benchmark !== "boolean") return null;
+  const unit = s.unit === undefined || s.unit === "" ? "" : str(s.unit, 30);
+  if (unit === null) return null;
+  const narrow = s.band_too_narrow_in_test === true || inside * 2 < of;
+  const words: string[] = [];
+  if (s.words !== undefined) {
+    if (!Array.isArray(s.words) || s.words.length > 16) return null;
+    for (const w of s.words) { const t = str(w, 700); if (t === null) return null; words.push(t); }
+  }
+  const backtest: Backtest = { error, hidden, inside, of, beats: b.beats_benchmark, benchmark: bench };
+  return { method, basis, rows, backtest, unit, narrow, words, lastObserved: last, observedCount: s.observed.length };
+}
+
+const forecastSeries: ToolDef = {
+  name: "forecast_series", title: "Ask for a forecast of a series of years", scope: "read", readOnly: true, listed: false,
+  description: "Asks for a forecast of a series of numbers by year that YOU supply (6 to 120 pairs of [year, number], oldest first, a missing year left out, never written as zero), then forecast_answer reads the answer. The forecast is an ESTIMATE labelled Estimated, "
+    + "with a likely range that widens with distance and a test that hid the last measured years and forecast them; it is made from exactly the numbers given, which this service does not check against any source. Read-only: it saves nothing but the request, which is deleted after 7 days.",
+  inputSchema: obj({
+    series: { type: "array", minItems: 6, maxItems: 120, items: { type: "array", minItems: 2, maxItems: 2, items: { type: "number" } }, description: "Pairs of [year, number], oldest first, each year once." },
+    horizon: { type: "integer", minimum: 1, maximum: 10, description: "How many years ahead to forecast (at most half the history)." },
+    method: { type: "string", enum: FORECAST_METHODS, description: "Optional. Leave out to let the test choose among the methods." },
+    breaks: { type: "array", maxItems: 5, items: { type: "integer", minimum: 1000, maximum: 2200 }, description: "Optional: years in which the way the number is counted changed. A trend does not cross one." },
+    unit: { type: "string", pattern: "^[A-Za-z%$ ./-]{1,30}$", description: "Optional: what the numbers count, like people or percent." },
+  }, ["series", "horizon"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.forecast;
+    if (!sw || !(await sw.enabled())) return refuse("Forecasts are not available yet. Nothing was asked.", "not_available", { data: { ok: false, looked_up: false } });
+    const raw = a.series, horizon = num(a.horizon);
+    if (!Array.isArray(raw) || raw.length < 6 || raw.length > 120 || horizon === null || !Number.isInteger(horizon) || horizon < 1 || horizon > 10) return refuse("Give 6 to 120 pairs of [year, number] and a whole number of years ahead from 1 to 10. Nothing was asked.", "args");
+    const series: [number, number][] = [];
+    for (const r of raw) {
+      const y = Array.isArray(r) && r.length === 2 ? num(r[0]) : null, v = Array.isArray(r) && r.length === 2 ? num(r[1]) : null;
+      if (y === null || v === null || !Number.isInteger(y) || y < 1000 || y > 2200 || Math.abs(v) > 1e15 || (series.length && y <= series[series.length - 1][0])) {
+        return refuse("Each pair is a whole year and a number, the years go forward and each comes once. Nothing was asked.", "args");
+      }
+      series.push([y, v]);
+    }
+    const method = a.method === undefined ? undefined : (typeof a.method === "string" && FORECAST_METHODS.includes(a.method) ? a.method : null);
+    const unit = a.unit === undefined ? undefined : (typeof a.unit === "string" && FORECAST_UNIT.test(a.unit) ? a.unit : null);
+    const rawBreaks = a.breaks === undefined ? [] : a.breaks;
+    if (method === null || unit === null || !Array.isArray(rawBreaks) || rawBreaks.length > 5 || rawBreaks.some((b) => typeof b !== "number" || !Number.isInteger(b) || b < 1000 || b > 2200)) {
+      return refuse("The method is linear, log or moving_average; a unit is a short word; breaks are up to five years. Nothing was asked.", "args");
+    }
+    if (!(await ctx.policy.hit(ctx.principal, "geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {
+      return refuse(`The limit of ${LIMITS.geoQuestionsPerHourPerUser} place questions an hour is reached. Nothing was asked.`, "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 3600 } });
+    }
+    const breaks = [...new Set(rawBreaks as number[])].sort((x, y) => x - y);
+    const asked = await ctx.data.askForecast({ series, horizon, ...(method ? { method } : {}), ...(breaks.length ? { breaks } : {}), ...(unit ? { unit } : {}) });
+    return ok(`Asked${asked.repeat ? " (the same request was already asked, so this is that one)" : ""}. The computer that makes forecasts usually takes under a minute. Ask forecast_answer with id ${asked.id} to read the answer. `
+      + "Nothing was computed here and nothing is saved but the request itself, which is deleted after 7 days. The forecast will be made from exactly the numbers you gave, which this service does not check against any source." + GEO_STOP,
+      { asked: true, id: asked.id, state: asked.state, repeat: asked.repeat === true, looked_up: false, do_not_poll: false, poll_after_s: 20 });
+  },
+};
+
+const FORECAST_FAILED: Record<string, string> = {
+  geo_request_rejected: "The computer that makes forecasts did not accept this series.",
+  unknown_category: "The computer that makes forecasts did not accept this series.",
+  data_not_allowed: "Forecasts are not switched on for real use yet.",
+  engine_error: "The computer that makes forecasts had a problem. Nothing is shown.",
+  answer_rejected: "The forecast was not one this connection will show.",
+};
+const forecastAnswer: ToolDef = {
+  name: "forecast_answer", title: "Read the answer to a forecast request", scope: "read", readOnly: true, listed: false,
+  description: "Reads the answer to a forecast asked with forecast_series (its id). Read-only: it changes nothing. The forecast is an ESTIMATE labelled Estimated, shown with its likely range and the test that hid the last measured years.",
+  inputSchema: obj({ id: uuid }, ["id"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.forecast;
+    if (!sw || !(await sw.enabled())) return refuse("Forecasts are not available yet. Nothing was asked.", "not_available", { data: { ok: false, looked_up: false } });
+    if (!(await ctx.policy.hit(ctx.principal, "geo_read", LIMITS.geoReadsPerHourPerUser, 3600))) {
+      return refuse(`The limit of ${LIMITS.geoReadsPerHourPerUser} answer checks an hour is reached. Do not check again; tell the person.`, "rate", { data: { ok: false, retry_after_seconds: 3600 } });
+    }
+    const row = await ctx.data.getGeo(String(a.id));
+    if (!row || row.shape !== "forecast") return refuse("That forecast request was not found among yours.", "not_found");
+    if (row.state === "asked" || row.state === "claimed") {
+      const stuck = row.waited_s >= 300;
+      return ok(stuck
+        ? "The computer that makes forecasts has not picked this up for several minutes (it may be off or busy). The request is safe and will be answered when it is back, but I cannot say when. Do not check again; tell the person." + GEO_STOP
+        : "Not answered yet." + GEO_STOP, { id: row.id, state: row.state, looked_up: false, do_not_poll: stuck, poll_after_s: stuck ? null : 20 });
+    }
+    if (row.state === "failed") {
+      const words = FORECAST_FAILED[row.fail_code ?? ""] ?? "The forecast could not be made.";
+      return refuse(`${words}${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""} Nothing is shown.`, "bad_report", { data: { ok: false, id: row.id, state: "failed", fail_code: row.fail_code, looked_up: false } });
+    }
+    const horizon = row.horizon ?? 0;
+    const rep = readForecast(row.answer, horizon);
+    if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Estimated, the range did not widen, or the test was missing), so none of it is shown.", "bad_report");
+    const fmt = (x: number) => (Math.abs(x) >= 100 ? Math.round(x).toLocaleString("en-US") : String(Math.round(x * 100) / 100));
+    const unit = rep.unit ? ` ${rep.unit}` : "";
+    const bt = rep.backtest;
+    const lines = [`FORECAST (Estimated), from the ${rep.observedCount} numbers you supplied, ending ${rep.lastObserved}. These years are not measured, and this service did not check the numbers against any source.`,
+      `Method: ${untrusted("report-sentence", rep.method)} ${untrusted("report-sentence", rep.basis)}`];
+    for (const r of rep.rows) lines.push(`  ${r.year}: about ${fmt(r.value)}${unit} (likely range ${fmt(r.low)} to ${fmt(r.high)}). Estimated.`);
+    lines.push("The range is where the number would likely fall if the past pattern holds; it widens the further out you look. It is not a promise.");
+    lines.push(`The test: hiding the last ${bt.hidden} measured year${bt.hidden === 1 ? "" : "s"} and forecasting them, this method missed by ${fmt(bt.error)}% on average, and ${bt.inside} of ${bt.of} fell inside the range. `
+      + (bt.beats ? `It did beat assuming nothing changes (which missed by ${fmt(bt.benchmark)}%).` : `WARNING: it was NO BETTER than assuming nothing changes (which missed by ${fmt(bt.benchmark)}%).`));
+    if (rep.narrow) lines.push(`WARNING: only ${bt.inside} of ${bt.of} hidden years fell inside the range in the test, so treat the range as too narrow: the real range is probably wider.`);
+    for (const w of rep.words) lines.push(untrusted("report-sentence", w));
+    return ok(lines.join("\n"), {
+      id: row.id, label_for_everything: "Estimated", from_supplied_numbers: true, unit: rep.unit || null, horizon,
+      forecast: rep.rows, backtest: { mean_abs_pct_error: bt.error, hidden_years: bt.hidden, inside_band: bt.inside, of: bt.of, beats_benchmark: bt.beats, benchmark_mean_abs_pct_error: bt.benchmark },
+      band_too_narrow_in_test: rep.narrow, looked_up: true,
+    });
+  },
+};
+
 const GEO_STOP = " Do not keep checking: every check uses the person's own AI allowance. Check at most three times, about 20 seconds apart; if there is still no answer, tell the person.";
 const GEO_FAILED: Record<string, string> = {
   geo_request_rejected: "The computer that answers place questions did not accept the question.",
@@ -1027,6 +1264,7 @@ const geoAnswer: ToolDef = {
     }
     const row = await ctx.data.getGeo(String(a.id));
     if (!row) return refuse("That place question was not found among yours.", "not_found");
+    if (row.shape === "forecast") return refuse("That is a forecast, not a place question: read it with forecast_answer.", "not_found");
     if (row.state === "asked" || row.state === "claimed") {
       const stuck = row.waited_s >= 300;
       return ok(stuck
@@ -1037,6 +1275,8 @@ const geoAnswer: ToolDef = {
       const words = GEO_FAILED[row.fail_code ?? ""] ?? "The question could not be answered.";
       return refuse(`${words}${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""} Nothing is shown.`, "bad_report", { data: { ok: false, id: row.id, state: "failed", fail_code: row.fail_code, looked_up: false } });
     }
+    if (row.shape !== undefined && row.shape !== "within_minutes") return showShapeAnswer(row);
+    if (row.lat === null || row.lon === null || row.minutes === null) return refuse("The answer was not in a shape this connection knows, so none of it is shown.", "bad_report");
     const rep = readGeoAnswer(row.answer, row.minutes, row.categories);
     if (!rep) return refuse("The answer was not in a shape this connection knows (or a number was not labelled Estimated), so none of it is shown.", "bad_report");
     const example = /example data/i.test(rep.assumptions);
@@ -1050,5 +1290,5 @@ const geoAnswer: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer];
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

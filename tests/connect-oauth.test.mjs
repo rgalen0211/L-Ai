@@ -145,7 +145,9 @@ test('every SQL function the server names exists in the migration, and none take
   const LATER = { connect_set_compilation_request: 'supabase/migrations/20261026000300_compilation_requests.sql', connect_edit_state: EDITOR, connect_edit_ops: EDITOR, connect_edit_undo_ai: EDITOR,
     connect_rendering_state: 'supabase/migrations/20261027001100_connect_rendering_state.sql',
     connect_request_download: DOWNLOADS, connect_list_downloads: DOWNLOADS,
-    connect_geo_ask: 'supabase/migrations/20261104000300_geo_requests.sql', connect_geo_get: 'supabase/migrations/20261104000300_geo_requests.sql' };
+    connect_geo_ask: 'supabase/migrations/20261104000300_geo_requests.sql', connect_geo_get: 'supabase/migrations/20261104000300_geo_requests.sql',
+    connect_geo_ask_shape: 'supabase/migrations/20261104000400_geo_questions.sql',
+    connect_forecast_ask: 'supabase/migrations/20261104000500_forecast_requests.sql' };
   const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
   for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);
   for (const text of [mig, ...Object.values(later)]) for (const m of text.matchAll(/create function public\.(connect_[a-z_]+)\(([^)]*)\)/g)) assert.doesNotMatch(m[2], /owner|user/i, m[1]);
@@ -158,7 +160,8 @@ test('the function entry holds no Supabase key and reads only its own settings',
   const src = fs.readFileSync('supabase/functions/connect/index.ts', 'utf8');
   assert.doesNotMatch(src, /SERVICE_ROLE|service_role|ANON_KEY|getUser|createClient/);
   // SUPABASE_URL is the project's public address (used only to build the issuer address), not a key
-  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_PUBLIC_URL', 'SUPABASE_URL']);
+  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_MCP_APP', 'CONNECT_PUBLIC_URL', 'CONNECT_UI_DOMAIN', 'SUPABASE_URL']);
+  // the two MCP App settings (inline Ryagram card, off unless CONNECT_MCP_APP is "on") are switches and a public sandbox address: no key, no secret
   assert.match(src, /projectUrl\)\s*\?\s*`\$\{projectUrl\}\/functions\/v1\/connect`/);          // and only ever turned into the issuer address
   assert.equal([...src.matchAll(/projectUrl/g)].length, 3);
 });
