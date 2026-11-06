@@ -176,8 +176,11 @@ test('an undo takes back only what the AI side did: never the person\'s own edit
   assert.equal((await call(A, 'editor_undo', { p_project: id, p_mode: 'data', p_op_id: ids['state.fill'] })).data.data.undone, 1);
   await apply(call, A, id, [look('network.color', DARK)], w.draft(A.userId, id, 'data').revision);
   const all = await call(A, 'editor_undo_all_ai', { p_project: id, p_mode: 'data' });
-  assert.equal(all.data.data.undone, 1);
-  assert.deepEqual(w.draft(A.userId, id, 'data').look, { 'page.background': DARK });
+  assert.equal(all.data.data.undone, 0, 'Undo all in the panel leaves a click made in the panel alone (Q449)');
+  assert.deepEqual(w.draft(A.userId, id, 'data').look, { 'page.background': DARK, 'network.color': DARK });
+  await w.data(A.userId).editOps(id, 'data', w.draft(A.userId, id, 'data').revision, [look('state.fill', LIGHT)]);              // the AI's own change
+  assert.equal((await call(A, 'editor_undo_all_ai', { p_project: id, p_mode: 'data' })).data.data.undone, 1, 'and takes back what the AI itself changed');
+  assert.deepEqual(w.draft(A.userId, id, 'data').look, { 'page.background': DARK, 'network.color': DARK });
 });
 
 test('a change the person just undid cannot be repeated by the panel', async () => {

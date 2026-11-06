@@ -112,6 +112,8 @@ export class ConnectDb {
         if (name === "editor_heartbeat") return self.fn("connect_editor_heartbeat", ["text", "uuid", "text"], [h, a.p_project, a.p_mode]);
         return Promise.reject(Object.assign(new Error("There is no such editor call."), { code: "22023" }));
       },
+      // migrations/20261105000200_editor_link_check.sql (NOT APPLIED): the hash the signed read link names the signed-in person by
+      editorLinkOwner: (projectId) => self.fn<string | null>("connect_editor_link_owner", ["text", "uuid"], [h, projectId]),
       // No file links leave the database: the AI is pointed at the person's own Ryagram page, where they sign in to watch.
       async links(versionId, jobId) {
         const v = await d.getVersion(versionId);

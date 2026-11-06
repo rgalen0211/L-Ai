@@ -111,6 +111,10 @@ class EditorLink(core.Base):
         self.assertIs(self.check(None, None), False)
 
     def test_only_the_service_role_may_call_it_and_the_helper_is_private(self):
+        own = "public.connect_editor_link_owner(text, uuid)"
+        self.assertTrue(self.admin("select has_function_privilege('connect_runner', %s, 'execute')", own))
+        for role in ("anon", "authenticated", "service_role"):
+            self.assertFalse(self.admin("select has_function_privilege(%s, %s, 'execute')", role, own), role)
         sig = "public.editor_link_check(uuid, text)"
         self.assertTrue(self.admin("select has_function_privilege('service_role', %s, 'execute')", sig))
         for role in ("anon", "authenticated", "connect_runner"):
@@ -118,6 +122,42 @@ class EditorLink(core.Base):
         self.assertEqual(self.admin("select count(*) from pg_proc p, aclexplode(p.proacl) x where p.oid = %s::regprocedure and x.grantee = 0", sig), 0, "not PUBLIC")
         for role in ("anon", "authenticated", "service_role", "connect_runner"):
             self.assertFalse(self.admin("select has_function_privilege(%s, 'ryagram_private.editor_link_owner_hash(uuid)', 'execute')", role), role)
+
+    def owner(self, access, project):
+        return self.runner().one("select connect_editor_link_owner(%s, %s)", h(access), project)
+
+    def test_the_connector_gets_the_hash_for_its_own_project_only(self):
+        _, a, _ = self.connect(ALICE, scopes=SCOPES)
+        _, b, _ = self.connect(BOB, scopes=SCOPES)
+        pa = self.runner().one("select connect_create_project(%s, 'Film')", h(a))["id"]
+        pb = self.runner().one("select connect_create_project(%s, 'Film')", h(b))["id"]
+        self.assertEqual(self.owner(a, pa), owner_hash(ALICE))
+        self.assertEqual(self.owner(b, pb), owner_hash(BOB))
+        self.assertIsNone(self.owner(a, pb), "another person's film: null, like every not-found")
+        self.assertIsNone(self.owner(a, "00000000-0000-4000-8000-000000000000"))
+        self.assertIsNone(self.owner(a, None))
+        self.assertIs(self.check(pa, self.owner(a, pa)), True, "and what it returns is exactly what the check accepts")
+
+    def test_the_owner_call_needs_the_edit_scope_a_live_grant_and_the_switch(self):
+        _, ro, _ = self.connect(ALICE, scopes=NO_EDIT)
+        pr = self.runner().one("select connect_create_project(%s, 'Film')", h(ro))["id"]
+        with self.assertRaises(Exception) as cm:
+            self.owner(ro, pr)
+        self.assertEqual(getattr(cm.exception, "sqlstate", None), "PT403", "a connection that may not edit gets no link")
+        _, a, _ = self.connect(BOB, scopes=SCOPES)
+        pb = self.runner().one("select connect_create_project(%s, 'Film')", h(a))["id"]
+        self.run_sql("update public.connect_grants set revoked_at = now() where owner_id = %s", BOB)
+        with self.assertRaises(Exception) as cm:
+            self.owner(a, pb)
+        self.assertEqual(getattr(cm.exception, "sqlstate", None), "PT403")
+        self.run_sql("update public.connect_grants set revoked_at = null where owner_id = %s", BOB)
+        with self.assertRaises(Exception) as cm:
+            self.runner().one("select connect_editor_link_owner(%s, %s)", "0" * 64, pb)
+        self.assertEqual(getattr(cm.exception, "sqlstate", None), "PT401", "an unknown token")
+        self.run_sql("update public.connect_flags set connections_enabled = false where id")
+        with self.assertRaises(Exception) as cm:
+            self.owner(a, pb)
+        self.assertEqual(getattr(cm.exception, "sqlstate", None), "PT403", "the connector switch off")
 
     def test_it_changes_nothing(self):
         p = self.film(ALICE)
@@ -129,8 +169,8 @@ class EditorLink(core.Base):
         sql = (core.ROOT / "migrations" / "20261105000200_editor_link_check.sql").read_text(encoding="utf-8")
         lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
         self.assertEqual(lines[-2:], ["select ryagram_private.gate_apply();", "commit;"])
-        names = ("editor_link_check", "editor_link_owner_hash")
-        self.assertEqual(self.admin("select count(*) from pg_proc where proname = any (%s)", list(names)), 2)
+        names = ("editor_link_check", "editor_link_owner_hash", "connect_editor_link_owner")
+        self.assertEqual(self.admin("select count(*) from pg_proc where proname = any (%s)", list(names)), 3)
         self.run_sql((core.ROOT / "rollbacks" / "20261105000200_editor_link_check_rollback.sql").read_text(encoding="utf-8"))
         self.assertEqual(self.admin("select count(*) from pg_proc where proname = any (%s)", list(names)), 0)
         self.assertEqual(self.admin("select count(*) from pg_proc where proname = 'connect_person_ok'"), 1)

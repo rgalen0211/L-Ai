@@ -2,7 +2,7 @@
 Run from the repo root with the pgserver venv and TEMP on D:
     pgvenv/Scripts/python tests/editor_link_sql_mutants.py [--check-targets] [mutant name ...]
 Reuses the runner of tests/waiting_sql_mutants.py (own temp per run, the pgserver folder deleted before the next mutant, CAUGHT only on an assertion failure, baseline first). ONE runner at a time in a tree.
-Dropped as EQUIVALENT: the form check on the hash (a hash of the wrong form can never equal a real one) and the null guards (coalesce already turns null into false).
+Dropped as EQUIVALENT: letting service_role keep execute on the private helper (the test database gives service_role no default privileges on that schema, so the revoke of it is a no-op here; the real project's defaults are covered by the house default-privileges test in test_connect.py); the form check on the hash (a hash of the wrong form can never equal a real one) and the null guards (coalesce already turns null into false).
 """
 import os
 import sys
@@ -28,7 +28,10 @@ W.MUTANTS[:] = [
     ("the hash is cut to a different length", "'hex'), 1, 32)", "'hex'), 1, 31)"),
     ("anon may call it", "grant execute on function public.editor_link_check(uuid, text) to service_role;", "grant execute on function public.editor_link_check(uuid, text) to service_role, anon;"),
     ("the connector's role may call it", "grant execute on function public.editor_link_check(uuid, text) to service_role;", "grant execute on function public.editor_link_check(uuid, text) to service_role, connect_runner;"),
-    ("the helper is callable by the service role", "revoke execute on function ryagram_private.editor_link_owner_hash(uuid) from public, anon, authenticated, service_role;", "revoke execute on function ryagram_private.editor_link_owner_hash(uuid) from public, anon, authenticated;"),
+    ("the owner call hands the hash for any project", "if p_project is null or not exists (select 1 from public.projects where id = p_project and owner_id = me) then return null; end if;", "if p_project is null then return null; end if;"),
+    ("the owner call needs only read permission", "language plpgsql security definer set search_path = '' as $$\ndeclare me uuid := ryagram_private.connect_actor(p_token_hash, 'edit');\nbegin\n  if p_project is null", "language plpgsql security definer set search_path = '' as $$\ndeclare me uuid := ryagram_private.connect_actor(p_token_hash, 'read');\nbegin\n  if p_project is null"),
+    ("anon may ask for the owner hash", "grant execute on function public.connect_editor_link_owner(text, uuid) to connect_runner;", "grant execute on function public.connect_editor_link_owner(text, uuid) to connect_runner, anon;"),
+    ("the owner call returns nothing for the owner", "return ryagram_private.editor_link_owner_hash(me);", "return null;"),
     ("the waiting-list check is not applied", "select ryagram_private.gate_apply();                       -- every migration after the gate ends with this line (a test fails otherwise)", "select 1;                       -- every migration after the gate ends with this line (a test fails otherwise)"),
 ]
 

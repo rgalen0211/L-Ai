@@ -7,6 +7,7 @@
 //                      (scope edit, the grant check on every call, the AI's limits, the track list only when shared, undo only of the AI side's own changes), all of it enforced in SQL.
 // An app-only answer is { data } or, with isError, { error: { code, message } }: the panel's page reads exactly that.
 import { untrusted } from "../ai-editor/prompt.ts";
+import { mintLink } from "../editor-bundle/core.ts";
 import type { Data, ToolCtx, ToolDef, ToolResult } from "./types.ts";
 
 export const PANEL_NAMES = ["editor_apply_ops", "editor_undo", "editor_undo_all_ai", "my_edit_ops_since", "editor_heartbeat"] as const;
@@ -19,6 +20,20 @@ const ok = (text: string, data?: Record<string, unknown>): ToolResult => ({ text
 const refuse = (text: string, code: string): ToolResult => ({ text, isError: true, code });
 
 type Friendly = (e: unknown) => string;
+
+/** The signed read link for ONE data film's drawing bundle (10 minutes at most), or null when the link is not configured, the database has no function for it, or anything at all goes wrong: a link is a convenience, never a reason to fail the call. */
+async function bundleLink(ctx: ToolCtx, projectId: string): Promise<{ url: string; expires_at: number } | null> {
+  const cfg = ctx.deps.editorLink;
+  if (!cfg) return null;
+  try {
+    const secret = cfg.secret(), base = cfg.baseUrl, owner = (ctx.data as Data).editorLinkOwner;
+    if (!secret || !base || !owner) return null;
+    const hash = await owner.call(ctx.data, projectId);
+    if (!hash) return null;
+    const { token, expires_at } = await mintLink(secret, { project_id: projectId, owner_hash: hash, now: cfg.now(), jti: cfg.jti() });
+    return { url: base.replace(/[/]+$/, "") + "/" + token, expires_at };
+  } catch { return null; }
+}
 
 export function makeEditorTools(friendly: Friendly): ToolDef[] {
   /** One panel call: the database's own answer as { data }, or its sentence and code as { error }. */
@@ -53,9 +68,11 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
         return refuse('The person has not shared their track list with their AI. Ask them to tick "Let my AI see my track list" in the Ryagram app, then open the editor again.', "not_shared");
       }
       const title = (await ctx.data.listProjects()).find((p) => p.id === id)?.title ?? "";
-      return ok(`The Ryagram editor is open for ${untrusted("project-title", title)} (${mode === "data" ? "a data film" : "a clip film"}). `
+      const link = mode === "data" ? await bundleLink(ctx, id) : null;
+      const opened = ok(`The Ryagram editor is open for ${untrusted("project-title", title)} (${mode === "data" ? "a data film" : "a clip film"}). `
         + "The person can change it there; each change is a draft they save or build in the Ryagram app. Read get_edit_state before you change anything yourself.",
         { project_id: id, mode, title });
+      return link ? { ...opened, meta: { "ryagram/editor_bundle": link } } : opened;
     },
   };
 

@@ -113,6 +113,7 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
       const r = await callTool(name, msg.params?.arguments, principal, env);
       const result: Record<string, unknown> = { content: [{ type: "text", text: r.text }], isError: !!r.isError };
       if (r.data) result.structuredContent = r.data;
+      if (r.meta) result._meta = r.meta;
       return json(200, { jsonrpc: "2.0", id: msg.id, result });
     }
     default: return rpcError(msg.id, -32601, `Method not found: ${String(msg.method).slice(0, 60)}`);

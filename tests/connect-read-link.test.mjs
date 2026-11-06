@@ -40,7 +40,7 @@ function world({ now = T0, switchOn = true, key = KEY } = {}) {
   };
   return w;
 }
-const mint = (w, over = {}) => mintLink(KEY, { project_id: PROJECT, owner_id: OWNER, now: w.now, jti: 'jti-' + Math.random().toString(36).slice(2, 12), ...over });
+const mint = async (w, over = {}) => { const { owner_id = OWNER, ...rest } = over; return mintLink(KEY, { project_id: PROJECT, owner_hash: await ownerHash(owner_id), now: w.now, jti: 'jti-' + Math.random().toString(36).slice(2, 12), ...rest }); };
 const req = (token, init = {}, path = '/editor-bundle/') => new Request(URLBASE + path + token, { method: 'GET', ...init });
 const flat = async (res) => ({ status: res.status, body: await res.text(), headers: Object.fromEntries([...res.headers.entries()].sort()) });
 
@@ -74,8 +74,8 @@ test('a link is minted for one project with a lifetime of at most 10 minutes, wh
 });
 
 test('minting refuses what it cannot do well: no key, a short key, a bad project id, an unreadable clock', async () => {
-  const base = { project_id: PROJECT, owner_id: OWNER, now: T0, jti: 'jti-abcdef12' };
-  for (const [label, key, over] of [['no key', undefined, {}], ['a short key', 'short', {}], ['a bad project', KEY, { project_id: 'not-a-uuid' }], ['a bad clock', KEY, { now: Number.NaN }], ['an empty owner', KEY, { owner_id: '' }], ['a bad jti', KEY, { jti: 'x' }]]) {
+  const base = { project_id: PROJECT, owner_hash: await ownerHash(OWNER), now: T0, jti: 'jti-abcdef12' };
+  for (const [label, key, over] of [['no key', undefined, {}], ['a short key', 'short', {}], ['a bad project', KEY, { project_id: 'not-a-uuid' }], ['a bad clock', KEY, { now: Number.NaN }], ['a bad owner hash', KEY, { owner_hash: 'xyz' }], ['no owner hash', KEY, { owner_hash: undefined }], ['a bad jti', KEY, { jti: 'x' }]]) {
     await assert.rejects(mintLink(key, { ...base, ...over }), label);
   }
 });
