@@ -19,6 +19,7 @@ export function compose(a: Approved, siteUrl: string): { subject: string; body: 
     `Sign in with the email and password you chose: ${site}/app/`,
     ...(a.credits > 0 ? ["", `${a.credits} welcome credit${a.credits === 1 ? " is" : "s are"} waiting for you.`] : []), "",
     "Beta credits are free, in exchange for your feedback. If you talk about or promote Ryagram, or a film you made with it, please say your credits were free.", "",
+    "If you didn't create this account, ignore this email, or sign in and delete the account from the Account page.", "",
     "The Ryagram Team",
   ].join("\n");
   return { subject: "Your Ryagram access is open", body };

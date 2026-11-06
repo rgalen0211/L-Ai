@@ -164,6 +164,14 @@ test('approve-waiting: the email words are the draft Ryan approves (one credit r
   assert.match(compose({ flipped: true, email: 'e', credits: 1 }, ORIGIN).body, /1 welcome credit is waiting for you\./);
   assert.doesNotMatch(compose({ flipped: true, email: 'e', credits: 0 }, ORIGIN).body, /welcome credit/);
   assert.match(compose({ flipped: true, email: 'e', credits: 5 }, 'https://uselai.com/').body, /https:\/\/uselai\.com\/app\//);
+  // Q473 option 3 (Ryan 11-06 07:02): ONE added line, a way out for someone whose address another person typed, pointing at the real delete-account button on the Account page; no name greeting, no timing line.
+  for (const credits of [0, 1, 5]) {
+    const body = compose({ flipped: true, email: 'e', credits }, ORIGIN).body;
+    const way = "If you didn't create this account, ignore this email, or sign in and delete the account from the Account page.";
+    assert.equal(body.split(way).length - 1, 1, 'the way-out line appears once');
+    assert.ok(body.indexOf(way) > body.indexOf('please say your credits were free.') && body.indexOf(way) < body.indexOf('The Ryagram Team'), 'after the credits sentence, before the sign-off');
+    assert.doesNotMatch(body, /^(Hi|Hello|Dear)\b/m, 'no name greeting'); assert.doesNotMatch(body, /\b(minutes?|seconds?|within an hour|takes about)\b/i, 'no timing line');
+  }
 });
 
 // ---------------------------------------------------------------------------------------------------- join (Create an account, no code)
