@@ -41,8 +41,11 @@
   // that arrives here, and no op can set them. The AI-altered marker (`ai_altered`, FACES 63) is NOT stripped: it travels with the clip through every move, trim, reorder and undo.
   const LOCAL_ONLY = ['speaker', 'speakers', 'speaker_state', 'speaker_label', 'voice', 'voices', 'voice_id', 'cast', 'cast_badge', 'face', 'faces'];
   const stripLocal = c => { const o = clone(c); for (const k of LOCAL_ONLY) delete o[k]; return o; };
-  function newState(init = {}) {
-    const s = { look: clone(init.look || {}), clips: (init.clips || []).map(stripLocal), duration: init.duration || 0, revision: 0 };
+  function newState(base) {
+    // A project with nothing in it can reach here as null, a number or a list with junk in it (an empty project, a half-written draft): that is an empty state, never a crash.
+    const init = base && typeof base === 'object' ? base : {};
+    const clips = (Array.isArray(init.clips) ? init.clips : []).filter(c => c && typeof c === 'object' && !Array.isArray(c));
+    const s = { look: clone(init.look || {}), clips: clips.map(stripLocal), duration: num(init.duration) ? init.duration : 0, revision: 0 };
     // From the track summary (BUILDER 21): the lanes the maker can build today (an edit in any other lane is refused), and the engine's own limits (text letters).
     if (Array.isArray(init.lanes)) s.lanes = init.lanes.filter(l => TRACKS.includes(l));
     // The film's own text rules (BUILDER 12:25: textstyle.rules for the canvas the FINAL film has) ride in the summary; kept only when they have the shape the layout needs, never edited by an op.
@@ -227,6 +230,13 @@
 
   // Snapping while dragging: to the playhead, to another clip's edge, then to a grid; within `reach` seconds, else the raw value.
   function snap(state, id, start, { playhead = null, grid = 0.1, reach = 0.15 } = {}) {
+    // A start, grid, reach or playhead that is not a plain finite number (a pointer event gone wrong) is replaced, so the answer is always a finite time of 0 or more.
+    if (!num(start)) start = 0;
+    start = Math.min(start, 1e7);                                      // a start past 115 days is a pointer gone wrong; the rounding below would overflow on it
+    if (!(num(grid) && grid > 0)) grid = 0.1;
+    grid = Math.min(Math.max(grid, 0.001), 3600);
+    if (!(num(reach) && reach >= 0)) reach = 0.15;
+    if (!num(playhead)) playhead = null;
     const c = clipOf(state, id);
     const edges = [0];
     if (playhead !== null) edges.push(playhead);
