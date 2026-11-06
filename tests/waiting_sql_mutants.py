@@ -18,6 +18,7 @@ import connect_sql_mutants as base  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 SCRATCH = ROOT / ".mut_wait"
 MIG = "supabase/migrations/20261104000100_waiting_accounts.sql"
+HMIG = "supabase/migrations/20261106000100_waiting_gate_hardening.sql"
 TEST = "supabase/tests/test_waiting_accounts.py"
 RUN_TMP = base.BASE_TEMP / f"wait-mut-{os.getpid()}"
 
@@ -28,19 +29,10 @@ MUTANTS = [
     ("an admin does not count as active", "                or exists (select 1 from public.app_admins a where a.user_id = p_user)\n", ""),
     ("a worker does not count as active", "                or exists (select 1 from public.workers w where w.user_id = p_user)\n", ""),
     ("a waiting account is paid credits straight into the ledger", ", p_price_code) then return null; end if;", ", p_price_code) then null; end if;"),
-    ("hold_grant never holds", "  if ryagram_private.account_active(p_owner) then return false; end if;", "  if true then return false; end if;"),
-    ("held credits are never paid when the account opens", "      perform public.grant_credits(h.owner_id, h.entry::public.credit_entry, h.credits, h.reason, h.created_by, h.stripe_event_id, h.period_key, h.price_code);\n", ""),
-    ("held credits stay held after they are paid", "      delete from public.held_grants where id = h.id;\n", ""),
     ("an unconfirmed address can be approved", "  if exists (select 1 from auth.users where id = p_user and email_confirmed_at is null) then", "  if false then"),
     ("the gate check does nothing", "if auth.uid() is not null and not ryagram_private.account_active(auth.uid()) then", "if false then"),
     ("a new account is never recorded waiting", "case when ryagram_private.waiting_on() then 'waiting' else 'active' end, case when", "'active', case when"),
     ("the backfill is missing", "insert into public.account_status (user_id, status, source) select u.id, 'active', 'backfill' from auth.users u on conflict (user_id) do nothing;", "select 1;"),
-    ("activation pays twice (no already-active stop)", "  if was = 'active' then return false; end if;\n", ""),
-    ("activation writes no audit row", "  insert into public.account_status_audit (user_id, from_status, to_status, source, by_user, reason) values (p_user, was, 'active', p_source, p_by, left(p_note, 300));\n", ""),
-    ("a claimed code is not used up", "  update public.invite_codes set uses = uses + 1 where code_hash = c.code_hash;\n  insert into public.invite_redemptions (code_hash, email, user_id, status)",
-     "  insert into public.invite_redemptions (code_hash, email, user_id, status)"),
-    ("claim guesses are not counted", "    insert into public.invite_attempts (ip_hash) values (left(coalesce(p_ip_hash, 'unknown'), 64));\n    return jsonb_build_object('ok', false, 'reason', 'invalid');\n  end if;\n  update public.invite_codes set uses = uses + 1 where code_hash = c.code_hash;\n  insert into public.invite_redemptions (code_hash, email, user_id, status)",
-     "    return jsonb_build_object('ok', false, 'reason', 'invalid');\n  end if;\n  update public.invite_codes set uses = uses + 1 where code_hash = c.code_hash;\n  insert into public.invite_redemptions (code_hash, email, user_id, status)"),
     ("an invited tester is not activated by invite_sent", "  perform ryagram_private.activate_account(p_user, 'invite', null, 0, 'invite:' || p_redemption);\n", ""),
     ("one table is skipped by the row policies", "       and pc.tablename <> all (open_tables)\n", "       and pc.tablename <> all (open_tables) and pc.tablename <> 'projects'\n"),
     ("one function is skipped by the function guard", "       and p.proname <> all (allowed) and", "       and p.proname <> all (allowed || array['create_version']) and"),
@@ -54,6 +46,14 @@ MUTANTS = [
     ("a person may write their own status", "grant select on public.account_status to authenticated;", "grant select, update on public.account_status to authenticated;\ncreate policy zz_self on public.account_status for update to authenticated using (user_id = auth.uid()) with check (true);"),
     ("the status trigger is not security definer", "create function ryagram_private.account_status_new() returns trigger\nlanguage plpgsql security definer set search_path = '' as $$",
      "create function ryagram_private.account_status_new() returns trigger\nlanguage plpgsql set search_path = '' as $$"),
+    # RE-AIMED 11-06 (CONNECT): the gate hardening migration redefines these functions with create or replace, so the rule's FINAL text lives there and a mutant in 20261104 was healed (7 MISSED on the final tree)
+    ('hold_grant never holds', [(HMIG, '  if ryagram_private.account_active(p_owner) then return false; end if;', '  if true then return false; end if;')]),
+    ('held credits are never paid when the account opens', [(HMIG, '      perform public.grant_credits(h.owner_id, h.entry::public.credit_entry, h.credits, h.reason, h.created_by, h.stripe_event_id, h.period_key, h.price_code);\n', '')]),
+    ('held credits stay held after they are paid', [(HMIG, '      delete from public.held_grants where id = h.id;\n', '')]),
+    ('activation pays twice (no already-active stop)', [(HMIG, "  if was = 'active' then return false; end if;\n", '')]),
+    ('activation writes no audit row', [(HMIG, "  insert into public.account_status_audit (user_id, from_status, to_status, source, by_user, reason) values (p_user, was, 'active', p_source, p_by, left(p_note, 300));\n", '')]),
+    ('a claimed code is not used up', [(HMIG, '  update public.invite_codes set uses = uses + 1 where code_hash = c.code_hash;\n  insert into public.invite_redemptions (code_hash, email, user_id, status)', '  insert into public.invite_redemptions (code_hash, email, user_id, status)')]),
+    ('claim guesses are not counted', [(HMIG, "    insert into public.invite_attempts (ip_hash) values (ip);\n    return jsonb_build_object('ok', false, 'reason', 'invalid');\n  end if;\n  update public.invite_codes set uses = uses + 1 where code_hash = c.code_hash;\n  insert into public.invite_redemptions (code_hash, email, user_id, status)", "    return jsonb_build_object('ok', false, 'reason', 'invalid');\n  end if;\n  update public.invite_codes set uses = uses + 1 where code_hash = c.code_hash;\n  insert into public.invite_redemptions (code_hash, email, user_id, status)")]),
 ]
 
 
