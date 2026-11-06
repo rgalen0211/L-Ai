@@ -31,7 +31,9 @@ def serve():
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
     socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    global PORT, BASE
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one was refused on back-to-back runs (ECONNREFUSED 11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -65,7 +67,7 @@ def main():
                 check('10%' in text, 'with the conversion between steps (400 visits -> 40 signups)')
                 check('By source' in text and 'youtube' in text and 'reddit.com' in text, 'by source')
                 check('By week' in text and '2026-10-12' in text, 'and by week')
-                check(sec.locator('table.funnel-steps tbody tr').count() == 13, 'thirteen step rows')
+                check(sec.locator('table.funnel-steps tbody tr').count() == 15, 'fifteen step rows (eleven in the chain, four judged against signups; it was thirteen before contact sheet, preview, render approved, film requested and film delivered were added)')
                 check(p.evaluate('document.documentElement.scrollWidth <= window.innerWidth'), 'no sideways scroll')
                 sec.screenshot(path=str(OUT / f'funnel-{name}.png'))
                 sec.get_by_role('button', name='12 weeks').click()
@@ -96,7 +98,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('RESULT:', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
 

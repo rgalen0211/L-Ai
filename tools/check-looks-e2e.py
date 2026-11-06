@@ -32,7 +32,9 @@ def serve():
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
     socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    global PORT, BASE
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (flaky goto/ECONNREFUSED, 11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -103,7 +105,7 @@ def main():
                 p.wait_for_selector('.look-list', timeout=10000)
                 check('House style' in p.inner_text('.look-list') and 'Default' in p.inner_text('.look-list'), 'saved as the default look and listed')
                 p.screenshot(path=str(OUT / f'list-{name}.png'), full_page=True)
-                p.click('a:has-text("Edit")')
+                p.click('.look-list a:text-is("Edit")')
                 p.wait_for_selector('#look-name', timeout=10000)
                 check(p.input_value('#look-title') == 'House style' and p.input_value('#look-look-ramp-high') == '#ffd23f', 'edit shows the saved values')
                 check(p.locator('#look-name[readonly]').count() == 1, 'the name is fixed once saved')
@@ -123,7 +125,7 @@ def main():
                 p.evaluate("location.hash = '#/'")
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'Sample film')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 p.click('button:has-text("Use this film")')
                 p.wait_for_function("document.body.innerText.includes('Using your look: House style')", timeout=20000)

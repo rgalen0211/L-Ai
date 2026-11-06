@@ -31,7 +31,9 @@ class H(http.server.SimpleHTTPRequestHandler):
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    global PORT
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (flaky goto/ECONNREFUSED, 11-06)
+    PORT = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     ok = True
 
@@ -51,7 +53,7 @@ def main():
                 p.goto(f'http://127.0.0.1:{PORT}/app/?mock', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'Wide rents')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('.uploads-panel', state='attached', timeout=20000)
                 p.locator('.byod-pointer button').click()
                 p.locator('#upload-file').set_input_files(str(WIDE))
@@ -71,6 +73,7 @@ def main():
                 p.locator('select[aria-label="What lets you use it"]').select_option('public_domain')
                 p.fill('#prov-unit', 'dollars')
                 p.check('#prov-attest')
+                p.check('#trust-ack')                                                          # Q234: the confirm needs the choose-to-use-it tick, which this check predates
                 p.get_by_role('button', name='These are right').click()
                 p.wait_for_selector('.upload-card button:has-text("Use in this film")', timeout=15000)
                 check(True, 'ticked and complete: the file becomes Ready')

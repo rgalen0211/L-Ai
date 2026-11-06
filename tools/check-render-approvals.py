@@ -31,7 +31,9 @@ def serve():
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
     socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    global PORT, BASE
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (flaky goto/ECONNREFUSED, 11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -40,7 +42,7 @@ def request_a_render(p, title):
     p.evaluate("location.hash = '#/'")
     p.wait_for_selector('#np-title', timeout=20000)
     p.fill('#np-title', title)
-    p.click('button:has-text("Create")')
+    p.click('button:text-is("Create")')
     p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
     p.wait_for_selector('.template-picker summary', timeout=20000)
     if p.locator('details.template-picker[open]').count() == 0:
