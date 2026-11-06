@@ -42,7 +42,7 @@ _server = None
 
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-grants-"), cleanup_mode="stop")
+    _server = core.start_pg("ryagram-grants-")
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:      # the stub makes cluster-wide roles: run it once
         c.execute("drop database if exists gstub")
         c.execute("create database gstub")
