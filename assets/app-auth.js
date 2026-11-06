@@ -187,7 +187,9 @@
 
     const createPanel = $('create-account');
     const waitingOn = () => window.ryagramWaiting?.on() === true;
+    let cameFromCreate = false;      // true while Create an account is the page: going back to Sign in then puts focus on the heading, so a screen reader hears the page changed
     function showCreateAccount() {
+      cameFromCreate = true;
       if (unmount) { unmount(); unmount = null; }
       hideLinkPanels();
       library.hidden = true; account.hidden = true; setPassword.hidden = true; signIn.hidden = true;
@@ -202,6 +204,7 @@
       account.hidden = true;
       setPassword.hidden = true;
       signIn.hidden = false;
+      if (cameFromCreate) { cameFromCreate = false; $('sign-in-title').focus(); }
     }
 
     function showSetPassword() {
