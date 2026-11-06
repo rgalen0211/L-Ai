@@ -60,7 +60,9 @@ MUTANTS = [
     ("a NULL client skips the binding at refresh", "t.client_id is distinct from p_client_id", "t.client_id <> p_client_id"),
     ("a failed exchange does not burn the code", "update public.connect_codes set used_at = now() where code_hash = p_code_hash;      -- a failed attempt burns the code (OAuth 2.1)", ""),
     ("free is not free: a costing job is submitted", "if coalesce((public.connect_quote(p_token_hash, p_version, p_job_type) ->> 'credits')::int, 0) > 0 then", "if false then"),
-    ("worker accounts can be connected", "     and not exists (select 1 from public.workers w where w.user_id = p_owner)\n", ""),
+    # RE-AIMED (CONNECT 11-06): taking the clause OUT made the waiting-accounts migration refuse to run ('gate: connect_person_ok changed'), so the suite ERRORED and the runner (rightly) did not count a catch.
+    # The clause is now commented out instead: its text is still there for that migration to find, but a worker is no longer refused, so the tests must FAIL on an assertion.
+    ("worker accounts can be connected", "     and not exists (select 1 from public.workers w where w.user_id = p_owner)\n", "     -- and not exists (select 1 from public.workers w where w.user_id = p_owner)\n"),
     ("unknown scopes default to everything offered", "if cardinality(want) = 0 then want := array['read']; end if;", "if cardinality(want) = 0 then want := ryagram_private.connect_offered_scopes(); end if;"),
     ("a deny redirects without the allowlist check", "if not ryagram_private.connect_uri_ok(r.redirect_uri) then\n    raise exception 'This assistant''s return address", "if false then\n    raise exception 'This assistant''s return address"),
     ("an admin function accepts a token with a client_id", "perform ryagram_private.connect_app_session();\n  if not ryagram_private.is_app_admin() then raise exception 'Admins only.' using errcode = '42501'; end if;\n  select id into target",
