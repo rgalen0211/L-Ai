@@ -14,7 +14,7 @@ import sys
 import tempfile
 from pathlib import Path
 
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import expect, sync_playwright
 
 HERE = Path(__file__).resolve().parent
 ENGINE = Path(sys.argv[1]).resolve()
@@ -62,8 +62,10 @@ try:
         pg.on("pageerror", lambda e: errors.append(str(e)))
         pg.on("request", lambda r: outside.append(r.url) if not re.match(r"^(http://127\.0\.0\.1:\d+/|data:|blob:)", r.url) else None)
         pg.goto(f"http://127.0.0.1:{port}/?t={token}", wait_until="load")
-        pg.wait_for_function("document.querySelectorAll('#recipe option').length >= 2", timeout=20000)
-        opts = pg.eval_on_selector_all("#recipe option", "o => o.map(x => ({v: x.value, t: x.textContent}))")
+        # waits read the page through locators, never a JS string: the maker's CSP (script-src 'self') rightly refuses
+        # eval, and Edge enforces that on Playwright's string evaluation (WORKER Edge rehearsal 2026-11-06)
+        pg.locator("#recipe option").nth(1).wait_for(state="attached", timeout=20000)
+        opts = [(o.get_attribute("value"), o.text_content()) for o in pg.locator("#recipe option").all()]
         check(len(opts) == 2, "both recipes are in the list")
         pg.select_option("#recipe", "sam-first.json")
         check(pg.input_value("#words") == "well that is great news for everyone", "a words recipe fills the words box with its own words (no retyping)")
@@ -72,9 +74,10 @@ try:
         check(pg.locator("#recipe-import").is_visible() and "recipe from a file" in pg.inner_text("#recipe-import"), "'Use a recipe from a file' is on the page")
         check(pg.locator("#share-card").is_visible(), "the share card is on the page")
         pg.click("#share-go")
-        pg.wait_for_function("document.getElementById('share-msg').textContent.length > 0", timeout=10000)
+        # the button first shows "Working..." (desktop_maker.py share-go handler); wait for the real answer, not that
+        expect(pg.locator("#share-msg")).to_have_text(re.compile(r"^(?!Working)\S"), timeout=10000)
         check("Build a final film" in pg.inner_text("#share-msg"), "'Share this film as a recipe' tells the person to build a final film first")
-        pg.wait_for_function("document.getElementById('blur-msg').textContent.length > 0", timeout=10000)
+        expect(pg.locator("#blur-msg")).to_have_text(re.compile(r"\S"), timeout=10000)
         check(pg.is_disabled("#blur-on") and not pg.is_checked("#blur-on") and "face finder" in pg.inner_text("#blur-msg"), "'Blur faces I haven't named' is off, cannot be switched on, and says why")
         pg.screenshot(path=str(tmp / "page.png"), full_page=True)
         check(not errors, "no page errors" + (f": {errors[:2]}" if errors else ""))
