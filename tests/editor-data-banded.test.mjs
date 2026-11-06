@@ -41,13 +41,17 @@ test('the drawer draws solid bands: the colour of an area is one of the bundleâ€
 });
 
 test('rows and presets mean something for a banded film: no low or high colour, presets change only the page and theme, the bands are listed', () => {
-  assert.deepEqual(J(D.rowsFor(RL, banded).map(r => r[0])), ['page.background']);                  // no light theme in a banded bundle, so no Theme row either
+  assert.deepEqual(J(D.rowsFor(RL, banded).map(r => r[0])), ['choropleth.low', 'choropleth.high', 'page.background']);   // a banded bundle that records its ramp takes low and high; no light theme, so no Theme row
+  const oldBanded = { ...banded, ramp: undefined };                                                // an older bundle with no ramp record ignores them
+  assert.deepEqual(J(D.rowsFor(RL, oldBanded).map(r => r[0])), ['page.background']);
   assert.deepEqual(J(D.rowsFor(RL, plainBundle).map(r => r[0])), ['choropleth.low', 'choropleth.high', 'page.background', 'sequence.theme']);
   const white = D.PRESETS.find(p => p.id === 'white-background'), mono = D.PRESETS.find(p => p.id === 'monochrome');
-  assert.deepEqual(J(D.presetOps(white, {}, banded).map(o => o.key)), ['page.background']);
-  assert.deepEqual(J(D.presetOps(mono, {}, banded)), []);                                       // monochrome sets only low and high: nothing for a banded film
+  assert.deepEqual(J(D.presetOps(white, {}, banded).map(o => o.key).sort()), ['choropleth.high', 'choropleth.low', 'page.background']);
+  assert.deepEqual(J(D.presetOps(white, {}, oldBanded).map(o => o.key)), ['page.background']);
+  assert.deepEqual(J(D.presetOps(mono, {}, banded).map(o => o.key).sort()), ['choropleth.high', 'choropleth.low']);
+  assert.deepEqual(J(D.presetOps(mono, {}, oldBanded)), []);                                    // monochrome sets only low and high: nothing for a film that ignores them
   assert.equal(D.presetOps(white, {}, plainBundle).length, 4);
-  assert.deepEqual(J(D.bandColours(banded)), ['#3c5aa0', '#9696a0', '#e6963c']);
+  assert.deepEqual(J(D.bandColours(banded)), ['#3c5aa0', '#a37674', '#e6963c']);                  // the recorded ramp's three colours (the middle one is the engine's Lab midpoint)
   assert.deepEqual(J(D.bandColours(plainBundle)), []);
   assert.deepEqual(J(D.warnings(banded, { 'page.background': '#000000' })), []);
 });
@@ -65,4 +69,26 @@ test('a banded bundle has no light theme: the drawer says so in words if asked, 
   assert.ok(!r.error, r.error);
   assert.ok(decodeURIComponent(r.src).includes('rgb(255,255,255)'));
   assert.ok(D.rowsFor(RL, plainBundle).some(r => r[0] === 'sequence.theme'));
+});
+
+test('a banded bundle that records its ramp takes the low and high colours: the drawn bands change with them; one that does not ignores them', () => {
+  assert.equal(D.hasRamp(banded), true); assert.equal(D.hasRamp({ ...banded, ramp: undefined }), false);
+  const svg = look => decodeURIComponent(D.pictureFor(RL, banded, 0, look).src.split(',')[1]);
+  const plain = svg({});
+  const low = svg({ 'choropleth.low': '#ff0000', 'choropleth.high': '#00ff00' });
+  assert.notEqual(low, plain, 'a new low and high change the picture');
+  assert.ok(/rgb\(255,0,0\)|rgb\(0,255,0\)/.test(low), 'the picture uses the new ends');
+  const ignored = decodeURIComponent(D.pictureFor(RL, { ...banded, ramp: undefined }, 0, { 'choropleth.low': '#ff0000', 'choropleth.high': '#00ff00' }).src.split(',')[1]);
+  assert.equal(ignored, plain, 'a bundle with no ramp record ignores them');
+  assert.deepEqual([D.defaults(banded, {})['choropleth.low'], D.defaults(banded, {})['choropleth.high']], ['#3c5aa0', '#e6963c']);
+});
+
+test('the DRAFT frame: an exact subset of the full picture for a slider being dragged, and never a different picture', () => {
+  const full = D.pictureFor(RL, plainBundle, 0.5, {}), draft = D.pictureFor(RL, plainBundle, 0.5, {}, { draft: true });
+  assert.ok(full.src && draft.src);
+  const els = s => [...decodeURIComponent(s.split(',')[1]).matchAll(/<(use|path|rect|text|g)\b[^>]*>/g)].map(m => m[0]);
+  const f = els(full.src), d = els(draft.src);
+  assert.ok(d.length <= f.length, 'no more elements than the full frame');
+  let i = 0; for (const e of d) { i = f.indexOf(e, i); assert.ok(i >= 0, `draft element is in the full frame in order: ${e.slice(0, 60)}`); i++; }
+  assert.equal(D.pictureFor(RL, plainBundle, 0.5, {}, { draft: false }).src, full.src, 'draft:false is the full picture');
 });

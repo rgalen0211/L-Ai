@@ -4,9 +4,10 @@ REGENERATED 2026-10-30 on L-Ai branch live-editor-ai-tweaks (WEB 171): the AI pa
 REGENERATED 2026-10-30 on L-Ai branch editor-first-clip-leadin (WEB 180): the editor core lets a video clip's START trim go below 0 (more lead-in on the first clip; the file's own start is still guarded); the PC page shares the core, so its bytes moved.
 REGENERATED 2026-10-30 on L-Ai branch song-speed-cap (WEB 182): the engine's newer drawer and banded maps in the website editor; the PC page has no data mode, so nothing changes for it, but the bytes moved.
 REGENERATED 2026-10-31 on L-Ai branch train-1031 (WEB 191): the merged editor files (pace, why-clip, lyric card).
+REGENERATED 2026-11-05 on L-Ai branch live-editor-banded-1105 (WEB): banded maps take low and high colours, and the engine's draft frame while a slider is dragged (the PC page has no data mode, so nothing changes for it, but the bytes moved).
 live.html from 34376ac: its own title, unchanged), NEXT-WEB 152, contract: docs/maker-live-host-contract.md). They are GENERATED there
 (node tools/build-maker-live.mjs) from the website's own editor files, so the PC's page cannot drift from the site's. Replace them by copying WEB's three files and changing the hashes in this
 file in the same commit; tools/check-maker-live-page.py fails when a hash here is not the file's.
 live.html 637 bytes sha256 6277e70c0c6c453e48562578d94b9cc832489d8aca9da339a91bd1cfff8442e8
 live.css 9161 bytes sha256 089b25a51ac93dfc9497ae8f1c795f552c2f80f25b9dd52f745e9dd367f7495c
-live.js 112369 bytes sha256 654a6de36f1a95db98c94098308ce2cd3b22b9bb1ef8aa1681173b732ac56285
+live.js 119275 bytes sha256 7630841caf85e0f5c9519e6d49309639a994de1feae3e5ec95afb3edc8ee5ec9

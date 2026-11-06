@@ -7,7 +7,9 @@
   // THE BAR RACE (ENGINE's bars-rules scene, drawn by the rules drawer assets/preview/scene-draw-rules.min.js after look-draw's barsApply): the bars have ONE colour, which the worker cannot take yet, so only the page colour and
   // (where the scene carries the other theme's colour table) the theme are offered; no ramp, so no low or high colour.
   const isBars = b => !!b && b.format === 'ryagram-scene' && b.kind === 'bars-rules';
-  const noRamp = b => isBanded(b) || isBars(b);
+  // A banded map that RECORDS its ramp (the engine's banded bundle since look-banded-key-1030) takes the low and high colours: its bands are recomputed from them. One that does not (an older bundle) ignores them.
+  const hasRamp = b => isBanded(b) && !!b.ramp && Array.isArray(b.ramp.low) && Array.isArray(b.ramp.high);
+  const noRamp = b => (isBanded(b) && !hasRamp(b)) || isBars(b);
   // A bar-race scene may hold only a slice of the film (the first seconds): true when its clock names more periods than the frames it carries ever reach.
   const barsPartial = b => isBars(b) && new Set(b.clock.ticks.slice(0, b.frames).map(t => t[0])).size < b.clock.periods.length;
   const hex2 = n => Math.max(0, Math.min(255, Math.round(n))).toString(16).padStart(2, '0');
@@ -74,6 +76,7 @@
   // What the colour inputs show before the person has set anything: the bundle's own ramp ends (stops are [r,g,b]; the drawer's low is stop 0, its high stop 2).
   function defaults(bundle, look) {
     const s = (bundle && bundle.stops) || [], light = look && look['sequence.theme'] === 'light';
+    if (hasRamp(bundle)) return { 'choropleth.low': rgbHex(bundle.ramp.low), 'choropleth.high': rgbHex(bundle.ramp.high), 'page.background': light ? '#ffffff' : DARK_PAGE, 'sequence.theme': 'dark', 'state.outline_width': 1 };
     if (isBars(bundle)) { const pg = bundle.rules.page, lt = bundle.look_themes && bundle.look_themes.light && bundle.look_themes.light[`rgb(${pg[0]},${pg[1]},${pg[2]})`]; const lc = light && lt && /\d+/.test(lt) ? lt.match(/\d+/g).map(Number) : pg; return { 'page.background': rgbHex(lc), 'sequence.theme': 'dark' }; }
     return { 'choropleth.low': s[0] ? rgbHex(s[0]) : '#a8562a', 'choropleth.high': s[2] ? rgbHex(s[2]) : '#f0c23a', 'page.background': light ? '#ffffff' : DARK_PAGE, 'sequence.theme': 'dark', 'state.outline_width': 1 };
   }
@@ -109,7 +112,8 @@
       label: seconds => String(RL.describe(bundle, Math.min(seconds, (frames - 1) / fps)).period) };
   }
   // One frame as a picture the page can show: ENGINE's drawer, then a standalone SVG document as a data address (the app's policy allows data images, not inline script).
-  function pictureFor(RL, bundle, seconds, look) {
+  // opts.draft: the engine's DRAFT frame (no county outlines, no metal finish: an exact subset of the full frame, about twice as cheap to paint) for a slider being dragged or a film playing.
+  function pictureFor(RL, bundle, seconds, look, opts) {
     try {
       const lf = RL.lookFromStory(story(look));
       if (isBars(bundle)) {                                                    // the bar race: the look's page colour and theme onto the scene, then the rules drawer; the bar colour waits for the worker
@@ -119,6 +123,7 @@
         const frame = Math.max(0, Math.min(bundle.frames - 1, Math.round(seconds * bundle.fps)));
         return { src: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(SC.draw(applied, frame))}`, ignored: lf.ignored };
       }
+      if (opts && opts.draft) lf.look.draft = true;
       const frame = RL.drawFrame(bundle, seconds, lf.look);
       if (frame && frame.loading) return { loading: true };                  // a streamed period whose chunk has not arrived yet: say so, never a half picture
       if (!frame || !frame.elements) return { error: (frame && frame.unsupported) || 'The engine could not draw that.' };
@@ -164,5 +169,5 @@
     if (keys.includes('choropleth.low') && keys.includes('choropleth.high')) out.push('Use colours that are easy to tell apart if you are colour-blind');
     return out.slice(0, 4);
   }
-  window.ryagramEditorData = { describeOps, suggestions, barsPartial, isBars, noRamp, streamProblem, ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, rowsFor, bandColours, isBanded, hasLight, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
+  window.ryagramEditorData = { hasRamp, describeOps, suggestions, barsPartial, isBars, noRamp, streamProblem, ROWS, WAITING, PRESETS, DARK_PAGE, cautions, story, honoured, rowsFor, bandColours, isBanded, hasLight, presetOps, presetOf, defaults, warnings, timeline, pictureFor, bundleProblem, rgbHex, hexRgb };
 })();

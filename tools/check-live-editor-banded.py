@@ -31,7 +31,7 @@ def check(c, w):
     print(('  ok   ' if c else '  FAIL ') + w); ok = ok and bool(c)
 
 
-BANDS = [[60, 90, 160], [150, 150, 160], [230, 150, 60]]
+BANDS = [[60, 90, 160], [163, 118, 116], [230, 150, 60]]
 with sync_playwright() as pw:
     b = pw.chromium.launch(channel='chrome')
     for name, opts in (('desktop', dict(viewport={'width': 1280, 'height': 900})), ('phone', dict(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True))):
@@ -42,9 +42,9 @@ with sync_playwright() as pw:
         p.on('pageerror', lambda e: errs.append(str(e))); p.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
         p.goto(f'http://127.0.0.1:{PORT}/app/?mock&banded#/editor/data', wait_until='load')
         p.wait_for_selector('img.le-svg', timeout=20000)
-        check(p.locator('#le-look-choropleth\\.low').count() == 0 and p.locator('#le-look-choropleth\\.high').count() == 0, 'the low and high colour rows are NOT offered for a banded film')
+        check(p.locator('#le-look-choropleth\.low').count() == 1 and p.locator('#le-look-choropleth\.high').count() == 1, 'the low and high colour rows ARE offered: this banded bundle records its ramp')
         check(p.locator('#le-look-page\\.background').count() == 1 and p.locator('#le-look-sequence\\.theme').count() == 0, 'the page colour row is there and the Theme row is NOT (a banded map has no light theme)')
-        check(p.locator('[data-key="bands"] .le-swatch').count() == 3 and 'solid bands' in p.inner_text('[data-key="bands"]'), 'the three bands are shown, with the plain sentence')
+        check(p.locator('[data-key="bands"] .le-swatch').count() == 3 and 'follow the low and high' in p.inner_text('[data-key="bands"]'), 'the three bands are shown, with the sentence that they follow the low and high colours')
         seen = set()
         for frame in (0, 10, 20, 30):
             p.fill('#le-range', str(frame)); p.dispatch_event('#le-range', 'input')
@@ -53,8 +53,16 @@ with sync_playwright() as pw:
             seen.add(tuple(px))
         check(len(seen) >= 2, 'and it changes band across the periods')
         # a preset with nothing to change for this film says so (a fresh look: nothing is set)
-        p.click('[data-preset="monochrome"]'); p.wait_for_timeout(400)
-        check('does not use' in p.inner_text('.le'), 'Monochrome says it changes only the low and high colours, which this film does not use')
+        # the low colour recolours the bands, and the draft note shows only while the slider is being moved
+        p.eval_on_selector('#le-look-choropleth\.low', 'e => { e.value = "#ff0000"; e.dispatchEvent(new Event("change", {bubbles: true})); }'); p.wait_for_timeout(500)
+        seen2 = set()
+        for frame in (0, 10, 20, 30):
+            p.fill('#le-range', str(frame)); p.dispatch_event('#le-range', 'input'); p.wait_for_timeout(150); seen2.add(tuple(p.evaluate(PIXEL, 'img.le-svg')['a']))
+        check(seen2 != seen and any(c[0] > 150 and c[1] < 90 for c in seen2), f'a red low colour recolours the bands ({sorted(seen2)})')
+        p.dispatch_event('#le-range', 'pointerdown'); p.eval_on_selector('#le-range', 'e => { e.value = "12"; e.dispatchEvent(new Event("input", {bubbles: true})); }'); p.wait_for_timeout(250)      # (fill() would also fire change, which is the release)
+        check(p.locator('.le-draft').count() == 1, 'while the slider is being moved the page says it is a quick draft')
+        p.evaluate("window.dispatchEvent(new Event('pointerup'))"); p.wait_for_timeout(300)
+        check(p.locator('.le-draft').count() == 0, 'and the note is gone when the slider is let go')
         # the page colour and the theme still change the picture
         p.eval_on_selector('#le-look-page\\.background', 'e => { e.value = "#ffffff"; e.dispatchEvent(new Event("change", {bubbles: true})); }')
         p.wait_for_timeout(500)
@@ -62,7 +70,7 @@ with sync_playwright() as pw:
         # a preset changes only the page and the theme
         p.click('[data-preset="white-background"]'); p.wait_for_timeout(600)
         look = p.evaluate("window.ryagramMockEditor.draft(window.RYAGRAM_MOCK_EDITOR_PROJECT, 'data').state.look")
-        check(sorted(look.keys()) == ['page.background'], f'White background sets only the page colour, not the theme this map cannot switch ({sorted(look.keys())})')
+        check(sorted(look.keys()) == ['choropleth.high', 'choropleth.low', 'page.background'], f'White background sets low, high and the page colour, not the theme this map cannot switch ({sorted(look.keys())})')
         check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
         p.screenshot(path=f'D:/Ryagram-scratch/WEB/live-editor-banded-{name}.png', full_page=True)
         check(not errs, 'no console errors' + (f': {errs[:2]}' if errs else ''))
