@@ -30,7 +30,7 @@ const mutants = [
   ['clip words are shown without the untrusted wrapper', D + 'tools.ts', 'untrusted("clip-text", c.text.slice(0, 200))', 'c.text.slice(0, 200)'],
   ['the answer claims everything was saved', D + 'tools.ts', 'nothing is saved until they press Save or Build', 'everything is saved'],
   ['what the person took back is not shown', D + 'tools.ts', 'if (s.recently_undone.length) {', 'if (false) {'],
-  ['undo takes back the person\'s own changes too', D + 'fake.ts', 'o.actor === "ai" && (o.status === "applied"', '(o.status === "applied"'],
+  ['undo takes back the person\'s own changes too', D + 'fake.ts', 'o.actor === "ai" && o.client !== "Ryagram panel" && (o.status === "applied"', '(o.status === "applied"'],
   ['another account\'s project can be edited', D + 'fake.ts', 'if (!u().projects.some((p) => p.id === pid)) throw err("That project was not found among your projects.", "PT404");', ''],
   ['the real database call names another function', 'supabase/functions/connect/db.ts', '"connect_edit_ops"', '"connect_edit_opss"', ['connect-oauth.test.mjs'], 'every SQL function the server names'],
   ['the edit scope is not advertised', D + 'rest.ts', 'edit: "Change the look and the clip list in your open editor, as drafts you can undo"', 'edit_off: "x"', ['connect-mcp-sdk.test.mjs'], 'every address the metadata advertises'],

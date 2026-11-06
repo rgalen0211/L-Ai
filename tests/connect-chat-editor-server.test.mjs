@@ -183,6 +183,19 @@ test('an undo takes back only what the AI side did: never the person\'s own edit
   assert.deepEqual(w.draft(A.userId, id, 'data').look, { 'page.background': DARK, 'network.color': DARK });
 });
 
+test('the AI\'s own undo (undo_my_changes) never reverses a click made in the panel, and still takes back the AI\'s own earlier batch', async () => {
+  const { w, call } = world();
+  const id = await project(call);
+  await w.data(A.userId).editOps(id, 'data', 0, [look('network.color', DARK)]);                          // the AI's own batch, revision 1
+  await apply(call, A, id, [look('state.fill', LIGHT)], 1);                                              // a click in the panel, revision 2: the latest batch
+  const r = await call(A, 'undo_my_changes', { project_id: id, mode: 'data' });
+  assert.equal(r.isError, undefined, r.text);
+  assert.equal(r.data.undone, 1, 'the AI\'s undo took back its own batch, not the click');
+  assert.deepEqual(w.draft(A.userId, id, 'data').look, { 'state.fill': LIGHT });
+  assert.equal((await call(A, 'undo_my_changes', { project_id: id, mode: 'data' })).data.undone, 0, 'and with only the click left it does nothing');
+  assert.deepEqual(w.draft(A.userId, id, 'data').look, { 'state.fill': LIGHT });
+});
+
 test('a change the person just undid cannot be repeated by the panel', async () => {
   const { w, call } = world();
   const id = await project(call);
