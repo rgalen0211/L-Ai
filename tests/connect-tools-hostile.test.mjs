@@ -8,6 +8,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
+import { handleMcp } from '../supabase/functions/connect-core/mcp.ts';
 
 const compile = makeCompile(Ajv2020);
 const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
@@ -81,4 +82,61 @@ test('a hostile value never changes who is acting: no matter the arguments, anot
       assert.ok(!JSON.stringify(r).includes('BobSecretTitleZZ'), `${tool.name} showed another person's film to Alice`);
     }
   }
+});
+
+// ------------------------------------------------------------------------------------------------ the auth in front of the card and the editor (missing-check sweep)
+const ON = { enabled: true, chatEditor: true, appUrl: 'https://uselai.com/app/' };
+const PANEL = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];
+function mcp() {
+  const w = new FakeWorld();
+  const B = { tokenHash: 'h-bob', userId: 'u-bob', clientId: 'client-claude' };
+  const R = { tokenHash: 'h-ro', userId: 'u-ro', clientId: 'client-ro' };
+  for (const [p, mail] of [[A, 'alice'], [B, 'bob'], [R, 'ro']]) w.addUser(p.userId, `${mail}@example.test`, 100);
+  w.invite(A.userId, A.clientId, SCOPES); w.invite(B.userId, B.clientId, SCOPES); w.invite(R.userId, R.clientId, ['read', 'write', 'render_free']);
+  w.issue('tok-a', A); w.issue('tok-b', B); w.issue('tok-r', R);
+  const deps = { data: null, policy: w.policy(), deps: { compile }, verifyToken: w.verifyToken, dataFor: (_t, p) => w.data(p.userId), resourceMetadataUrl: 'http://127.0.0.1:1/.well-known/oauth-protected-resource', mcpApp: ON };
+  const raw = (method, params, header) => handleMcp(new Request('http://127.0.0.1:1/mcp', { method: 'POST',
+    headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', ...(header === undefined ? {} : { authorization: header }) }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }), deps);
+  const rpc = async (method, params, token = 'tok-a') => JSON.parse(await (await raw(method, params, 'Bearer ' + token)).text());
+  return { w, raw, rpc };
+}
+const PROJ = '33333333-3333-4333-8333-333333333333';
+const EVERY_CALL = [['initialize', { protocolVersion: '2025-06-18' }], ['ping'], ['tools/list'], ['resources/list'], ['resources/read', { uri: 'ui://ryagram/editor' }], ['resources/read', { uri: 'ui://ryagram/card' }],
+  ['tools/call', { name: 'open_editor', arguments: { project_id: PROJ, mode: 'data' } }],
+  ...PANEL.map((n) => ['tools/call', { name: n, arguments: { p_project: PROJ, p_mode: 'data', p_base_revision: 0, p_ops: [{ op: 'set_look', key: 'state.fill', value: '#112233' }], p_op_id: 1, p_revision: 0 } }])];
+
+test('no token, a wrong token and a token in the wrong form get the sign-in challenge on EVERY method, and the editor page and tools are never served to them', async () => {
+  const { raw } = mcp();
+  for (const header of [undefined, '', 'Bearer', 'Bearer ', 'Bearer nope', 'Basic dG9rLWE6', 'bearer tok-a x', 'Token tok-a']) {
+    for (const [method, params] of EVERY_CALL) {
+      const res = await raw(method, params, header);
+      assert.equal(res.status, 401, `${method} with ${JSON.stringify(header)}`);
+      assert.ok(res.headers.get('www-authenticate'), `${method}: the challenge`);
+      const body = await res.text();
+      assert.ok(!/ryagram-editor|le-chatbar|live-root|Ryagramming/.test(body), `${method}: no page text`);
+    }
+  }
+});
+
+test('a connection that may only read and write cannot use the editor: every editor tool is refused with the scope word and no data', async () => {
+  const { rpc } = mcp();
+  for (const [method, params] of EVERY_CALL.filter(([m]) => m === 'tools/call')) {
+    const r = await rpc(method, params, 'tok-r');
+    assert.equal(r.result.isError, true, params.name);
+    assert.ok(!r.result.structuredContent || !('revision' in (r.result.structuredContent.data || {})), params.name + ': no draft data');
+    assert.match(r.result.content[0].text, /not allowed|edit/i, params.name);
+  }
+});
+
+test('another person\'s film, with valid-looking panel calls: every call is "not found" and the draft of the owner is untouched', async () => {
+  const { w, rpc } = mcp();
+  const mine = (await rpc('tools/call', { name: 'create_project', arguments: { title: 'Alice film' } })).result.structuredContent.project_id;
+  const before = JSON.stringify(w.draft('u-alice', mine, 'data'));
+  for (const name of ['open_editor', ...PANEL]) {
+    const args = name === 'open_editor' ? { project_id: mine, mode: 'data' } : { p_project: mine, p_mode: 'data', p_base_revision: 0, p_ops: [{ op: 'set_look', key: 'state.fill', value: '#112233' }], p_op_id: 1, p_revision: 0 };
+    const r = await rpc('tools/call', { name, arguments: args }, 'tok-b');
+    assert.equal(r.result.isError, true, name);
+    assert.ok(!JSON.stringify(r).includes('Alice film') && !JSON.stringify(r).includes('#112233'), name + ': nothing of the owner\'s film');
+  }
+  assert.equal(JSON.stringify(w.draft('u-alice', mine, 'data')), before, 'the owner\'s draft did not change');
 });

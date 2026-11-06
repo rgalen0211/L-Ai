@@ -14,6 +14,8 @@ const SUITES = ['connect-tools-hostile.test.mjs'];
 const CATCH = '} catch (e) {NL    return finish({ text: friendlyError(e), isError: true, code: "error" }, "error", "tool_error");NL  }';
 const RETHROW = '} catch (e) {NL    throw e;NL  }';
 const mutants = [
+  ['the sign-in challenge is skipped', [[C + 'mcp.ts', 'if (!principal) return json(401', 'if (false) return json(401']]],
+  ['the scope check is skipped', [[D, 'if (!grant.scopes.includes(tool.scope)) {', 'if (false) {']]],
   ['the argument check is skipped', [[D, 'if (problems.length) return refused(', 'if (false) return refused(']]],
   ['the argument check is skipped and a throwing tool is not caught', [[D, 'if (problems.length) return refused(', 'if (false) return refused('], [D, CATCH, RETHROW]]],
   ['the argument check is skipped and an error message is shown whatever it says', [[D, 'if (problems.length) return refused(', 'if (false) return refused('], [T, 'if (!own || msg.length > 300) return "Ryagram could not do that right now. Nothing was changed. Try again in a moment.";', 'if (false) return "x";']]],

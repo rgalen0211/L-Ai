@@ -283,3 +283,38 @@ test('every message the page sends is JSON-RPC 2.0 to its host window, and none 
   const wire = JSON.stringify(p.sent.map((s) => s.m));
   assert.ok(!wire.includes('secret-label') && !wire.includes('secret-title') && !wire.includes('p1'));
 });
+
+// ------------------------------------------------------------------------------------------------ a hostile-result sweep of the card (CONNECT, overnight 11-06)
+// Whatever the host puts in a tool result, the card must not throw, must make only its own kinds of element, must show only clean TEXT of a bounded length, and must ask the host for nothing but its handshake, its height and (when
+// configured) the one link. A fixed-seed generator builds 500 results from the fields the card reads, with values of every wrong type and shape.
+function mulberryC(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const NASTY = ['', ' ', 'x'.repeat(20000), '<img src=x onerror=alert(1)>', '</script><script>alert(1)</script>', 'a' + String.fromCharCode(0, 0x202e, 0x2066, 0x200f, 0x9f) + 'b' + String.fromCharCode(10) + 'c', String.fromCharCode(92) + 'u0041', '__proto__', 'constructor', 'javascript:alert(1)', 'https://evil.example/'];
+const NUMS = [null, true, 0, -1, 1.5, 2 ** 53, 1e308, -1e308, Infinity, '12', '<b>9</b>', NaN, [], {}, [1], { valueOf: 1 }];
+function junkC(r, depth = 0) {
+  const pick = (xs) => xs[Math.floor(r() * xs.length)];
+  if (depth > 3 || r() < 0.3) return r() < 0.5 ? pick(NASTY) : pick(NUMS);
+  if (r() < 0.25) return Array.from({ length: Math.floor(r() * 12) }, () => junkC(r, depth + 1));
+  const o = {};
+  for (const k of ['account', 'credits_available', 'credits_held', 'projects', 'id', 'title', '__proto__', 'constructor', 'count', 'more']) if (r() < 0.45) o[k] = junkC(r, depth + 1);
+  return o;
+}
+test('500 hostile results never throw, make only the card\'s own elements, show only clean bounded text, and ask the host for nothing beyond the handshake, the height and the one link', () => {
+  const r = mulberryC(20261106);
+  const p = load();
+  const before = p.sent.length;
+  for (let i = 0; i < 500; i++) {
+    let sc = junkC(r);
+    try { sc = JSON.parse(JSON.stringify(sc)); } catch { continue; }
+    assert.doesNotThrow(() => p.fire(RESULT(sc)), 'result ' + i + ' threw');
+    const all = p.card.all();
+    assert.ok(all.every((n) => ['main', 'div', 'span', 'h1', 'p', 'button'].includes(n.tag)), 'an element of another kind was made at result ' + i);
+    for (const t of texts(p.card)) {
+      assert.ok(t.length <= 400, 'a text of ' + t.length + ' characters at result ' + i);
+      assert.ok(!/[\u0000-\u0008\u000b-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069\u200e\u200f]/.test(t), 'a control or direction character was shown at result ' + i);
+    }
+  }
+  for (const s of p.sent.slice(before)) assert.ok(['ui/notifications/size-changed', 'ui/open-link'].includes(s.m.method), 'the card sent ' + s.m.method);
+  assert.ok(p.sent.every((s) => s.target === '*' || typeof s.target === 'string' || s.target === undefined));
+  p.fire(RESULT({ account: 'after the storm', credits_available: 7 }));
+  assert.ok(texts(p.card).includes('after the storm'), 'a good result is shown after all of them');
+});
