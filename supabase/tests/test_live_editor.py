@@ -439,7 +439,7 @@ class LiveEditor(core.Base):
         self.runner().one("select connect_edit_undo_ai(%s, %s, 'data')", h(a), p)
         self.state(a, p)
         self.assertEqual(before, self.admin(snap))                                                              # the saved story, the jobs and the projects are untouched
-        names = self.admin("select array_agg(proname order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname like 'connect\\_edit%%'")
+        names = self.admin("select array_agg(proname order by proname) from pg_proc where pronamespace = 'public'::regnamespace and proname like 'connect\\_edit\\_%%'")
         self.assertEqual(names, ["connect_edit_ops", "connect_edit_state", "connect_edit_undo_ai"])             # exactly three connector doors, none named for a render, save or fetch
 
     def test_every_function_is_callable_by_exactly_the_roles_intended_also_under_supabases_default_privileges(self):
@@ -522,6 +522,7 @@ class LiveEditor(core.Base):
         a = self.alice()
         p = self.project(a)
         self.ai(a, p, [LOOK("network.color", DARK)])
+        self.db.as_(None).c.execute((core.ROOT / "rollbacks" / "20261105000100_chat_editor_rollback.sql").read_text(encoding="utf-8"))       # the chat editor's five functions lean on the draft tables: they go first
         rb = (core.ROOT / "rollbacks" / "20261027000400_live_editor_rollback.sql").read_text(encoding="utf-8")
         self.db.as_(None).c.execute(rb)
         self.assertEqual(self.admin("select ryagram_private.connect_offered_scopes()"), ["read", "write", "render_free"])

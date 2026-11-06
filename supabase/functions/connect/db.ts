@@ -22,7 +22,9 @@ export class ConnectDb {
     // jsonb and array parameters travel as TEXT and are cast in SQL. If the driver is told the parameter is jsonb it JSON-encodes a string a second time
     // (a story arrived as a JSON string, found against the real database), so the driver is never asked to know those types.
     const ph = types.map((t, i) => (t === "jsonb" || t.endsWith("[]") ? `$${i + 1}::text::${t}` : `$${i + 1}::${t}`)).join(", ");
-    const rows = await this.q(`select public.${name}(${ph}) as r`, args.map(wire));
+    // a jsonb parameter is ALWAYS JSON text, an array too (the live editor's list of changes is a jsonb ARRAY: `wire` would have made it a Postgres array literal, '{"[object Object]"}', which is not JSON);
+    // only a text[] parameter becomes an array literal
+    const rows = await this.q(`select public.${name}(${ph}) as r`, args.map((v, i) => (types[i] === "jsonb" ? (v === null || v === undefined ? null : JSON.stringify(v)) : wire(v))));
     return rows[0]?.r as T;
   }
 
@@ -101,6 +103,15 @@ export class ConnectDb {
       editState: (projectId) => self.fn("connect_edit_state", ["text", "uuid"], [h, projectId]),
       editOps: (projectId, mode, base, ops) => self.fn("connect_edit_ops", ["text", "uuid", "text", "bigint", "jsonb"], [h, projectId, mode, base, ops]),
       editUndoAi: (projectId, mode) => self.fn("connect_edit_undo_ai", ["text", "uuid", "text"], [h, projectId, mode]),
+      // migrations/20261105000100_chat_editor.sql (NOT APPLIED): the chat panel's five calls, each the token's own person, under the AI's rules
+      editorCall(name, a) {
+        if (name === "editor_apply_ops") return self.fn("connect_editor_apply", ["text", "uuid", "text", "bigint", "jsonb"], [h, a.p_project, a.p_mode, a.p_base_revision, a.p_ops]);
+        if (name === "editor_undo") return self.fn("connect_editor_undo", ["text", "uuid", "text", "bigint"], [h, a.p_project, a.p_mode, a.p_op_id]);
+        if (name === "editor_undo_all_ai") return self.fn("connect_editor_undo_ai", ["text", "uuid", "text"], [h, a.p_project, a.p_mode]);
+        if (name === "my_edit_ops_since") return self.fn("connect_editor_since", ["text", "uuid", "text", "bigint"], [h, a.p_project, a.p_mode, a.p_revision]);
+        if (name === "editor_heartbeat") return self.fn("connect_editor_heartbeat", ["text", "uuid", "text"], [h, a.p_project, a.p_mode]);
+        return Promise.reject(Object.assign(new Error("There is no such editor call."), { code: "22023" }));
+      },
       // No file links leave the database: the AI is pointed at the person's own Ryagram page, where they sign in to watch.
       async links(versionId, jobId) {
         const v = await d.getVersion(versionId);

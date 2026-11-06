@@ -11,6 +11,7 @@
   const NAMES = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];
   const PARENT = window.parent;
   const WAIT_MS = 20000;
+  const POLL_MS = 5000;          // the page asks for changes every 2 s; each ask is a call through the host to the server, so an ask for the SAME revision within 5 s is answered from the last answer
   const PANEL = 'Ryagram panel';          // the label the server gives this panel's own edits (they are recorded under the AI's limits, so they come back as the AI's rows)
   const DOWN = { data: null, error: { code: null, message: 'Ryagram did not answer. Ask your AI to open the editor again.' } };
   const BAD = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069\u200e\u200f]/g;
@@ -48,8 +49,12 @@
   });
 
   // ---- the five calls: a tool call through the host, read as data, never as instructions
+  const poll = { key: '', at: 0, data: null };
   async function rpc(name, args) {
     if (!NAMES.includes(name)) throw new Error('Not an editor call.');
+    const a0 = args && typeof args === 'object' ? args : {};
+    const pollKey = name === 'my_edit_ops_since' ? `${a0.p_project}|${a0.p_mode}|${a0.p_revision}` : '';
+    if (pollKey && pollKey === poll.key && poll.data !== null && Date.now() - poll.at < POLL_MS) return { data: JSON.parse(poll.data), error: null };
     let r;
     try { r = await request('tools/call', { name, arguments: args && typeof args === 'object' ? args : {} }); } catch (e) { return DOWN; }
     const sc = r && typeof r === 'object' ? r.structuredContent : null;
@@ -58,10 +63,11 @@
       const e = sc.error && typeof sc.error === 'object' ? sc.error : {};
       return { data: null, error: { code: typeof e.code === 'string' ? e.code.slice(0, 16) : null, message: clean(e.message || 'Ryagram could not do that.', 300) } };
     }
-    if (name === 'editor_apply_ops' || name === 'editor_undo' || name === 'editor_undo_all_ai') told(name, args, sc.data);
+    if (name === 'editor_apply_ops' || name === 'editor_undo' || name === 'editor_undo_all_ai') { poll.at = 0; told(name, args, sc.data); }
     let data = sc.data === undefined ? null : sc.data;
     // the page applies a row from the AI as "your AI changed this"; this panel's own edits come back in the log too, and the page must read them as its own (the person's), or it would apply each twice
     if (name === 'my_edit_ops_since' && data && typeof data === 'object' && Array.isArray(data.ops)) data = { ...data, ops: data.ops.map(o => (o && typeof o === 'object' && o.actor === 'ai' && o.client === PANEL ? { ...o, actor: 'person' } : o)) };
+    if (pollKey) { poll.key = pollKey; poll.at = Date.now(); poll.data = JSON.stringify(data); }
     return { data, error: null };
   }
 
@@ -112,6 +118,14 @@
   function stopAll() { clearTimeout(tellTimer); stops.splice(0).forEach(f => { try { f(); } catch (e) { /* closing */ } }); }
   addEventListener('pagehide', stopAll);
 
+  // ---- the computer page's footer says "Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button." In the chat there is no final button and Ryagram keeps the drafts, so that sentence is replaced
+  const FOOT_OLD = 'Everything here is drawn and kept on your computer.', FOOT_NEW = 'Changes here stay drafts. Nothing is built, and nothing uses credits, from this panel.';
+  function reword() {
+    const root = document.getElementById('live-root');
+    if (!root || typeof root.querySelectorAll !== 'function') return;
+    root.querySelectorAll('p.meta').forEach(p => { if (p.textContent.indexOf(FOOT_OLD) === 0) p.textContent = FOOT_NEW; });
+  }
+
   // ---- the call that opened the panel tells us which film
   function opened(sc) {
     if (mounted || !sc || typeof sc !== 'object') return;
@@ -126,6 +140,8 @@
     fullBtn = h('button', { type: 'button', class: 'button secondary', hidden: true, onclick: toggleFull }, 'Full screen');
     root.replaceChildren(h('div', { class: 'le-chatbar' }, h('span', { class: 'meta' }, 'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'), fullBtn), window.ryagramEditorPage.create({ h }).editorView(window.ryagramLiveHost.mode, fn => stops.push(fn)));
     paintFull();
+    reword();
+    if (typeof MutationObserver === 'function') new MutationObserver(reword).observe(root, { childList: true, subtree: true, characterData: true });
   }
 
   // ---- size, so the host can fit the panel to its content

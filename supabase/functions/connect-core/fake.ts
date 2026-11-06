@@ -236,6 +236,23 @@ export class FakeWorld {
         const last = mine.length ? Math.max(...mine.map((o) => o.revision)) : -1;
         return undoOps(d, mine.filter((o) => o.revision === last).map((o) => o.id), Date.now(), "ai");
       },
+      editorCall: async (name, a) => {
+        const pid = String(a.p_project), mode = a.p_mode as Mode;
+        if (mode !== "data" && mode !== "compilation") throw err("That is not an editor mode.", "22023");
+        if (!u().projects.some((p) => p.id === pid)) throw err("That project was not found among your projects.", "PT404");
+        const d = this.draft(userId, pid, mode);
+        if (mode === "compilation" && !d.ai_visible) throw err('The person has not shared their track list with their AI. Ask them to tick "Let my AI see my track list" in the Ryagram app.', "PT403");
+        if (name === "editor_apply_ops") return applyOps(d, "ai", "Ryagram panel", Number(a.p_base_revision), a.p_ops, () => ++this.opId);
+        if (name === "editor_undo") return undoOps(d, d.ops.filter((o) => o.id === a.p_op_id && o.actor === "ai").map((o) => o.id), Date.now(), "ai");
+        if (name === "editor_undo_all_ai") return undoOps(d, d.ops.filter((o) => o.actor === "ai" && (o.status === "applied" || o.status === "pending")).map((o) => o.id), Date.now(), "ai");
+        if (name === "my_edit_ops_since") {
+          const since = Math.max(Number(a.p_revision) || 0, 0);
+          return JSON.parse(JSON.stringify({ revision: d.revision, state: mode === "data" ? { look: d.look } : d.tracks, mirrored: d.mirrored, ai_visible: d.ai_visible,
+            ops: d.ops.filter((o) => o.revision > since).slice(0, 200).map((o) => ({ id: o.id, revision: o.revision, actor: o.actor, client: o.client, op: o.op, status: o.status, at: new Date(o.at).toISOString() })) }));
+        }
+        if (name === "editor_heartbeat") { d.editor_seen_at = Date.now(); return null; }
+        throw err("There is no such editor call.", "22023");
+      },
       clipReports: async (pid) => (u().projects.some((p) => p.id === pid) ? JSON.parse(JSON.stringify(this.reports.get(userId + "/" + pid) ?? { why_clip: null, draft_messages: null })) : null),
       currentEngine: async () => this.engine,
       readReceipt: async () => null,

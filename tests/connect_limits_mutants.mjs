@@ -11,7 +11,7 @@ const C = 'supabase/functions/connect-core/';
 const T = C + 'tools.ts', D = C + 'dispatch.ts', Y = C + 'types.ts', S = C + 'story_check.ts', F = C + 'fake.ts';
 const SUITES = ['connect-safety-limits.test.mjs'];
 const mutants = [
-  ['the account-wide call limit is gone', D, '    if (!(await policy.hit(principal, "calls_acct", LIMITS.callsPerMinutePerAccount, 60))) {', '    if (false) {'],
+  ['the account-wide call limit is gone', D, '    if (!panelCall && !(await policy.hit(principal, "calls_acct", LIMITS.callsPerMinutePerAccount, 60))) {', '    if (false) {'],
   ['the account limit is as small as one connection', Y, 'callsPerMinutePerAccount: 120,', 'callsPerMinutePerAccount: 60,'],
   ['the account limit is far too large', Y, 'callsPerMinutePerAccount: 120,', 'callsPerMinutePerAccount: 100000,'],
   ['a refused call does not say how long to wait', D, ' retry_after_seconds: windowSeconds,', ''],
