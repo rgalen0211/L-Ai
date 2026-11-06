@@ -1,7 +1,7 @@
 // Ryan approves a WAITING account (Option B, Ryan 2026-11-04): the account becomes active with the normal welcome credits, once, and the person is emailed that their access is open.
 // Admin only: the caller's own login is checked (an AI's token is refused, a WAITING person is refused) and the DATABASE decides everything else (admin_approve_waiting checks is_app_admin,
 // writes the audit row, flips once, pays once). The email goes through the ops mail sender (OPS_MAIL_MODE): until live mail is switched on it is only SAVED and the answer says so.
-// Tested in tests/waiting-gate.test.mjs. THE EMAIL'S WORDS BELOW ARE A DRAFT FOR RYAN TO APPROVE (CONNECT, 2026-11-04); nothing is sent until he does and the function is deployed.
+// Tested in tests/waiting-gate.test.mjs. THE EMAIL'S WORDS BELOW ARE A DRAFT FOR RYAN TO APPROVE (CONNECT, 2026-11-04); the way-out line was added at Ryan's Q473 option 3 (2026-11-06: no name greeting, no timing line); nothing is sent until he does and the function is deployed.
 
 export interface Approved { flipped: boolean; email: string; credits: number }
 export interface Deps {
@@ -19,6 +19,7 @@ export function compose(a: Approved, siteUrl: string): { subject: string; body: 
     `Sign in with the email and password you chose: ${site}/app/`,
     ...(a.credits > 0 ? ["", `${a.credits} welcome credit${a.credits === 1 ? " is" : "s are"} waiting for you.`] : []), "",
     "Beta credits are free, in exchange for your feedback. If you talk about or promote Ryagram, or a film you made with it, please say your credits were free.", "",
+    "If you didn't create this account, ignore this email, or sign in and delete the account from the Account page.", "",
     "The Ryagram Team",
   ].join("\n");
   return { subject: "Your Ryagram access is open", body };
