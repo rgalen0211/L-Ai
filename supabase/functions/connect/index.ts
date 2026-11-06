@@ -37,6 +37,14 @@ const db = new ConnectDb(async (text, params) => {
   return await sql.unsafe(text, params as unknown[]) as unknown as Record<string, unknown>[];
 }, appUrl);
 const compile = makeCompile(Ajv2020);
+// The signed read link for the chat editor's drawing bundle (supabase/functions/editor-bundle): made only when BOTH the secret EDITOR_LINK_KEY and the function's address are set, and only for a data film.
+const bundleBase = Deno.env.get("CONNECT_EDITOR_BUNDLE_URL") ?? "";
+const editorLink = {
+  secret: () => Deno.env.get("EDITOR_LINK_KEY"),
+  baseUrl: /^https:[/][/][a-z0-9.-]+([/][A-Za-z0-9_-]+)*$/.test(bundleBase) ? bundleBase : undefined,
+  now: () => Math.floor(Date.now() / 1000),
+  jti: () => crypto.randomUUID().replace(/-/g, ""),
+};
 const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", chatEditor: Deno.env.get("CONNECT_CHAT_EDITOR") === "on", uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
 
 Deno.serve(async (req) => {
@@ -45,7 +53,7 @@ Deno.serve(async (req) => {
     return await handleRequest(req, {
       store: db.authStore(), consentUrl, publicBase,
       mcp: {
-        data: null as never, policy: db.policy(), deps: { compile }, mcpApp,
+        data: null as never, policy: db.policy(), deps: { compile, editorLink }, mcpApp,
         async verifyToken(token: string) { return await db.verify(await sha256hex(token)); },
         dataFor: (_t: string, p: { tokenHash: string }) => db.data(p),
       },

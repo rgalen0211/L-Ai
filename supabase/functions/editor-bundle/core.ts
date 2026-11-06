@@ -47,16 +47,17 @@ export async function ownerHash(ownerId: string): Promise<string> {
   return [...d].map((b) => b.toString(16).padStart(2, "0")).join("").slice(0, 32);
 }
 
-export interface MintInput { project_id: string; owner_id: string; now: number; jti: string; ttl_seconds?: number }
+/** The owner is named by the hash the DATABASE gives the connector for the signed-in person (connect_editor_link_owner), never by an account id: the connector does not hold one. */
+export interface MintInput { project_id: string; owner_hash: string; now: number; jti: string; ttl_seconds?: number }
 
 /** Mints a link. The lifetime is capped at LINK_MAX_SECONDS here, whatever the caller asks for. Throws on anything unusable (the caller then returns no link). */
 export async function mintLink(secret: string | undefined, p: MintInput): Promise<{ token: string; expires_at: number }> {
   if (typeof secret !== "string" || secret.length < MIN_KEY_CHARS) throw new Error("no link key");
-  if (!Number.isFinite(p.now) || !UUID.test(p.project_id) || !JTI.test(p.jti) || typeof p.owner_id !== "string" || p.owner_id === "") throw new Error("bad link input");
+  if (!Number.isFinite(p.now) || !UUID.test(p.project_id) || !JTI.test(p.jti) || typeof p.owner_hash !== "string" || !OWNER_HASH.test(p.owner_hash)) throw new Error("bad link input");
   const asked = p.ttl_seconds === undefined ? LINK_MAX_SECONDS : Math.floor(p.ttl_seconds);
   const ttl = Math.min(LINK_MAX_SECONDS, Math.max(1, Number.isFinite(asked) ? asked : LINK_MAX_SECONDS));
   const iat = Math.floor(p.now);
-  const claims: LinkClaims = { v: LINK_VERSION, project_id: p.project_id, owner_hash: await ownerHash(p.owner_id), scope: LINK_SCOPE, iat, exp: iat + ttl, jti: p.jti };
+  const claims: LinkClaims = { v: LINK_VERSION, project_id: p.project_id, owner_hash: p.owner_hash, scope: LINK_SCOPE, iat, exp: iat + ttl, jti: p.jti };
   const payload = toB64u(enc.encode(JSON.stringify(claims)));
   const sig = new Uint8Array(await crypto.subtle.sign("HMAC", await hmacKey(secret, "sign"), enc.encode(payload)));
   return { token: payload + "." + toB64u(sig), expires_at: claims.exp };

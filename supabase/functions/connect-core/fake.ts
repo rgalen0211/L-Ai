@@ -5,6 +5,7 @@
 import type { Job } from "../ai-editor/tools.ts";
 import { applyOps, LOOK_KEYS, newDraft, undoOps, type Draft, type Mode, type Op } from "./edit_state.ts";
 import { downloadUrlProblem } from "./tools.ts";
+import { ownerHash } from "../editor-bundle/core.ts";
 import type { CallLog, Data, DownloadRow, EditState, GeoRow, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null; run_on?: string };
@@ -254,6 +255,7 @@ export class FakeWorld {
         throw err("There is no such editor call.", "22023");
       },
       clipReports: async (pid) => (u().projects.some((p) => p.id === pid) ? JSON.parse(JSON.stringify(this.reports.get(userId + "/" + pid) ?? { why_clip: null, draft_messages: null })) : null),
+      editorLinkOwner: async (pid) => (u().projects.some((p) => p.id === pid) ? await ownerHash(userId) : null),
       currentEngine: async () => this.engine,
       readReceipt: async () => null,
       quote: async (vid, t) => quote(vid, t),

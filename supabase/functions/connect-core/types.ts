@@ -120,6 +120,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   /** The chat panel's five calls (migrations/20261105000100_chat_editor.sql, NOT APPLIED): `name` is one of the website editor's names (editor_apply_ops, editor_undo, editor_undo_all_ai, my_edit_ops_since,
    *  editor_heartbeat); the answer is the database's own JSON; a refusal throws its { code, message }. Optional: a database without the migration has none, and the tools say so. */
   editorCall?(name: string, args: Record<string, unknown>): Promise<unknown>;
+  /** The hash the signed read link names the owner by (migrations/20261105000200_editor_link_check.sql: connect_editor_link_owner), or null when the project is not the person's. Optional: a database without the migration has none, and no link is made. */
+  editorLinkOwner?(projectId: string): Promise<string | null>;
 }
 
 /** NEXT-CONNECT 168: public-domain footage plans. NOT wired in the real function: with no `footage` here the tool refuses and writes nothing (the switch is OFF). The plan table is the next piece. */
@@ -151,6 +153,8 @@ export interface Deps {
   geo?: GeoSwitch;
   /** The forecast tools' own switch (same shape as `geo`): the real function wires none, so they refuse and ask nothing. */
   forecast?: GeoSwitch;
+  /** The signed read link for the chat editor's drawing bundle (supabase/functions/editor-bundle). Absent, or a missing secret or address: open_editor returns no link. */
+  editorLink?: { secret(): string | undefined; baseUrl: string | undefined; now(): number; jti(): string };
 }
 
 export interface ToolCtx {
@@ -170,6 +174,8 @@ export interface ToolResult {
   code?: string;                        // for the log
   credits?: number;                     // for the log
   failedChecks?: number;
+  /** Goes out as the MCP result's `_meta`: for the app view only, never for the model's text. The signed read link travels here and nowhere else. */
+  meta?: Record<string, unknown>;
 }
 
 export interface ToolDef {
