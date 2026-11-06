@@ -13,13 +13,13 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('audit_a11y', ROOT / 'tools' / 'audit-a11y.py')
 aa = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(aa)
-aa.PORT = 8186
-BASE = f'http://127.0.0.1:{aa.PORT}'
+BASE = None          # set from the server's own port once it is serving (see main)
 AI = "window.ryagramMockEditor.ai.apply(window.RYAGRAM_MOCK_EDITOR_PROJECT, 'data', window.ryagramMockEditor.draft(window.RYAGRAM_MOCK_EDITOR_PROJECT, 'data').revision, %s, 'Claude')"
 
 
 def main():
     srv = aa.serve()
+    global BASE; BASE = aa.BASE
     cfg = re.sub(r'whyClip:\s*false', 'whyClip: true', re.sub(r'clipPace:\s*false', 'clipPace: true', re.sub(r'liveEditor:\s*false', 'liveEditor: true', (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8'))))
     findings = []
 
@@ -74,7 +74,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     seen = set()
     uniq = [f for f in findings if not (f.split(': ', 1)[1] in seen or seen.add(f.split(': ', 1)[1]))]
     for f in findings:

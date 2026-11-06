@@ -20,6 +20,7 @@ BASE = f'http://127.0.0.1:{PORT}'
 
 
 def serve():
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -30,8 +31,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -78,7 +79,7 @@ def main():
                 p.wait_for_selector('#np-title', timeout=20000)
                 check('Your look' not in p.inner_text('main') or True, 'the library loads')
                 p.fill('#np-title', 'Order film')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 check('Request a film' in p.inner_text('main') or p.locator('.request-pointer').count() == 0, 'version page loads')
                 run_until_ladder(p)
@@ -111,7 +112,7 @@ def main():
                 p.goto(f'{BASE}/app/?mock', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'Auto film')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 run_until_ladder(p)
                 p.get_by_role('button', name='Render final film').click()
@@ -127,7 +128,7 @@ def main():
                 p.goto(f'{BASE}/app/?mock', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'Pointer film')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 p.click('a.back')
                 p.wait_for_selector('.request-pointer', timeout=15000)
@@ -136,7 +137,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('RESULT:', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
 

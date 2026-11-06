@@ -16,8 +16,8 @@ class H(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 
 
-socketserver.TCPServer.allow_reuse_address = True
-srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 ok = True
 
@@ -67,5 +67,5 @@ with sync_playwright() as pw:
         check(q.locator('[data-key="consent-email"]').inner_text() == 'other@example.com', 'switching from the refused page lands on the same request, now allowed for the other account')
         check(not errs, 'no page errors' + (f': {errs[:2]}' if errs else ''))
     b.close()
-srv.shutdown()
+srv.shutdown(); srv.server_close()
 print('ALL OK' if ok else 'FAILED'); sys.exit(0 if ok else 1)

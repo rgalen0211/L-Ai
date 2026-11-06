@@ -74,3 +74,5 @@ input[type=text],input[type=number],textarea{background:#101015;color:var(--ink)
 .le-lc{border:0;margin:8px 0 0;padding:0;min-width:0}.le-lc legend{font-weight:600;padding:0 0 4px}.le-lc-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,13em),1fr));gap:8px}
 .le-lc-opt{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start;border:1px solid var(--line,#3a3a44);border-radius:8px;padding:8px;min-height:44px;cursor:pointer}.le-lc-opt input{grid-row:1/4;margin:4px 0 0;min-width:24px;min-height:24px}
 .le-lc-opt img{grid-column:2;width:100%;height:auto;border-radius:4px}.le-lc-name{grid-column:2;font-weight:600}.le-lc-line{grid-column:2;font-size:.85rem;opacity:.85;overflow-wrap:anywhere}.le-lc-opt:has(input:checked){border-color:var(--accent,#e8b030);box-shadow:0 0 0 1px var(--accent,#e8b030)}.le-lc-opt:has(input:focus-visible){outline:2px solid var(--accent,#e8b030);outline-offset:2px}
+.le-ticks.le-ticks-flat{position:static;height:auto;display:flex;justify-content:space-between}.le-ticks.le-ticks-flat span{position:static;transform:none}
+.le-top h1{min-width:0;overflow-wrap:anywhere}

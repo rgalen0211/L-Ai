@@ -15,8 +15,7 @@ OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/p
 spec = importlib.util.spec_from_file_location('audit_a11y', ROOT / 'tools' / 'audit-a11y.py')
 aa = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(aa)
-aa.PORT = 8191
-BASE = f'http://127.0.0.1:{aa.PORT}'
+BASE = None          # set from the server's own port once it is serving (see main)
 
 PAGES = [('home', '/'), ('help', '/help/'), ('connect-ai', '/connect-ai/'), ('film', '/film/'), ('report', '/report/'), ('ryagram', '/ryagram/'),
          ('workflow-audit', '/workflow-audit/'), ('ai-content', '/ai-content/'), ('terms', '/terms/'), ('privacy', '/privacy-policy.html'),
@@ -41,6 +40,7 @@ BIG = r"""() => {
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     srv = aa.serve()
+    global BASE; BASE = aa.BASE
     bad = 0
     try:
         with sync_playwright() as pw:
@@ -71,7 +71,7 @@ def main():
                 p.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('FINDINGS:', bad)
     sys.exit(1 if bad else 0)
 

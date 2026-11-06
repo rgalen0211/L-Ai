@@ -21,6 +21,7 @@ GONE = '00000000-0000-4000-8000-000000000999'
 
 
 def serve():
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -31,8 +32,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -71,7 +72,7 @@ def main():
                 p.goto(f'{BASE}/app/?mock', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'Account A project')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 page_hash = p.evaluate('location.hash')
                 check(page_hash.startswith('#/v/'), 'a signed-in person is on a version page')
@@ -109,7 +110,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('ALL OK' if ok else 'FAILED')
     sys.exit(0 if ok else 1)
 

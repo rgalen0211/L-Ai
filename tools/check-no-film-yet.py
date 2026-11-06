@@ -13,8 +13,8 @@ class H(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 
 
-socketserver.TCPServer.allow_reuse_address = True
-srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (flaky goto/ECONNREFUSED, 11-06)
+PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 ok = True
 
@@ -31,7 +31,7 @@ with sync_playwright() as pw:
         p = b.new_context(**opts).new_page(); errs = []
         p.on('pageerror', lambda e: errs.append(str(e))); p.on('dialog', lambda d: d.accept())
         p.goto(f'http://127.0.0.1:{PORT}/app/?mock&empty', wait_until='load'); p.wait_for_selector('#np-title')
-        p.fill('#np-title', 'My first film'); p.click('button:has-text("Create")'); p.wait_for_selector('h1:has-text("Version 1")')
+        p.fill('#np-title', 'My first film'); p.click('button:text-is("Create")'); p.wait_for_selector('h1:has-text("Version 1")')
         note = p.locator('[data-key="no-film-yet"]')
         check(note.is_visible() and 'Choose one above' in note.inner_text(), 'a line beside the buttons says there is no film yet and what to do')
         for label in ('Make contact sheet', 'Make preview', 'Render final film'):

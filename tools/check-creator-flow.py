@@ -20,6 +20,7 @@ Q = 'Which states built the most apartments between 2015 and 2024?'
 
 
 def serve():
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -30,8 +31,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -125,8 +126,9 @@ def main():
                 csec = p.locator('section.ops-section', has=p.locator('h2', has_text='Creator beta applications')).first
                 ct = csec.inner_text()
                 check('RYA-K7M2-9QPX' in ct and '(shown once; copy it now)' in ct and 'Creator beta applications (1)' in ct, 'the invite code is shown once, and the application leaves the waiting list')
-                mail = csec.locator('a:has-text("Email it to")')
-                check(mail.count() == 1 and mail.get_attribute('href').startswith('mailto:'), 'with a mailto: link Ryan sends himself')
+                # Since 10-27 (NEXT-WEB 155) Ryagram sends the invite itself: a Send button and a Copy code button, not a mailto link Ryan sends by hand.
+                send = csec.locator('[data-key="invite-resend"]')
+                check(send.count() == 1 and send.inner_text().startswith('Send to ') and csec.get_by_role('button', name='Copy code').count() == 1, 'with a Send to button (Ryagram emails it) and a Copy code button')
                 csec.screenshot(path=str(OUT / f'flow-{name}-invite.png'))
                 csec.get_by_role('button', name='Done').click()
                 p.wait_for_timeout(500)
@@ -135,7 +137,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('RESULT:', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
 

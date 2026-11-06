@@ -28,8 +28,9 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    global PORT, BASE
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port (a fixed one can be bound twice at once on Windows)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -71,21 +72,17 @@ def main():
                 check(box['height'] < 140, f'the header did not wrap into a tall block ({box["height"]:.0f}px)')
                 page.locator('#creators').scroll_into_view_if_needed()
                 page.screenshot(path=str(OUT / f'creator-{name}-section.png'))
-                # an empty submit is stopped by the browser's own required-field check; a bad link by ours
-                page.fill('#cb-name', 'Maya Ortiz')
-                page.fill('#cb-email', 'maya@example.com')
-                page.select_option('#cb-kind', 'youtuber')
-                page.fill('#cb-makes', 'Weekly explainers on housing')
-                page.fill('#cb-link', 'https://www.youtube.com/@maya')
-                page.fill('#cb-question', 'Did cities that legalized duplexes build more homes within five years?')
+                # creatorBeta is OFF in the committed config (Ryan 2026-10-17: the landing ships before the Terms and Privacy pages), so there is no form to fill in for nothing: the fields are hidden,
+                # the form's place says to email, and the hero button is the invite email. (This block used to fill and submit the form; that was the page before the ruling.)
                 sent = []
                 page.on('request', lambda r: sent.append(r.url) if 'functions/v1' in r.url else None)
-                page.click('#creator-form button[type=submit]')
-                page.wait_for_timeout(400)
+                fields = page.locator('#creator-form .creator-fields')
+                check(fields.count() == 1 and not fields.is_visible(), 'switched off: the form fields are not shown')
                 msg = page.inner_text('#creator-status')
                 check('open soon' in msg and 'ryagram@uselai.com' in msg, f'switched off: it says to email, not "thanks" ({msg[:60]!r})')
+                hero = page.locator('.rg-hero-cta a.rg-btn')
+                check(hero.count() == 1 and (hero.get_attribute('href') or '').startswith('mailto:ryagram@uselai.com'), 'and the hero button is the invite email')
                 check(not sent, 'and nothing was sent')
-                check(page.evaluate("document.activeElement.id") == 'creator-status', 'the message takes focus (screen readers hear it)')
                 page.screenshot(path=str(OUT / f'creator-{name}-filled.png'))
                 check(not errors, f'no console errors {errors}')
                 ctx.close()

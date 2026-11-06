@@ -18,9 +18,7 @@ OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/f
 spec = importlib.util.spec_from_file_location('audit_a11y', ROOT / 'tools' / 'audit-a11y.py')
 aa = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(aa)
-aa.PORT = 8188
-aa.BASE = f'http://127.0.0.1:{aa.PORT}'
-BASE = aa.BASE
+BASE = None          # set from the server's own port once it is serving (see main)
 
 FIELDS = r"""() => {
   const out = { small_font: [], short: [], below_fold: [], keyboard: [] };
@@ -45,6 +43,7 @@ FIELDS = r"""() => {
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     srv = aa.serve()
+    global BASE; BASE = aa.BASE
     ok = True
     findings = []
 
@@ -119,7 +118,7 @@ def main():
             step(p, '04-library', 'the library')
             p.fill('#np-title', 'My first film')
             step(p, '05-named', 'the library with a name typed')
-            p.click('button:has-text("Create")')
+            p.click('button:text-is("Create")')
             p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
             p.wait_for_selector('.template-picker summary', timeout=20000)
             step(p, '06-version', 'the first version page')
@@ -140,7 +139,7 @@ def main():
             ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print(f'FINDINGS: {len(aa_findings)}')
     for f in aa_findings:
         print('  ' + f)

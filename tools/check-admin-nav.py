@@ -18,8 +18,8 @@ class H(http.server.SimpleHTTPRequestHandler):
     def log_message(self, *a): pass
 
 
-socketserver.TCPServer.allow_reuse_address = True
-srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (flaky goto/ECONNREFUSED, 11-06)
+PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 ok = True
 
@@ -29,7 +29,7 @@ def check(c, w):
     print(('  ok   ' if c else '  FAIL ') + w); ok = ok and bool(c)
 
 
-PAGES = [('Operations and invites', '#/admin/ops'), ('Render approvals', '#/admin/renders'), ('Tester computers and Connect an AI', '#/admin/tester'),
+PAGES = [('Operations and invites', '#/admin/ops'), ('Render approvals', '#/admin/renders'), ('Tester computers and Connect an AI', '#/admin/tester'), ('Waiting list', '#/admin/waiting'),
          ('Waitlist by film', '#/admin/waitlist'), ('Visits and signups', '#/admin/visits'), ('Funnel by day', '#/admin/funnel'), ('All projects', '#/'), ('Account', '#/account'), ('Help', '#/help')]
 with sync_playwright() as pw:
     b = pw.chromium.launch(channel='chrome')

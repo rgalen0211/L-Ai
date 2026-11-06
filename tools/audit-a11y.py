@@ -55,6 +55,8 @@ SCAN = r"""() => {
 
 
 def serve():
+    """Serves the repo on its OWN port (0 = the system picks a free one) and sets this module's PORT and BASE to it, so a caller reads aa.PORT / aa.BASE AFTER calling serve(). A fixed shared port (this module used 8185) can be bound by two servers at once on Windows (address reuse), and a page then gets its files from whichever one answers: 0 to 335 findings per run on a busy PC (11-06). Close it with srv.shutdown(); srv.server_close()."""
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -65,8 +67,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 

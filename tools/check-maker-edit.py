@@ -118,9 +118,10 @@ def drawn_matches(p, t):
 
 
 def main():
+    global PORT
     OUT.mkdir(parents=True, exist_ok=True)
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     base = f'http://127.0.0.1:{PORT}'
     external = []
@@ -365,7 +366,7 @@ def main():
             finally:
                 b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     check(not errs, f'no page errors or console errors ({errs[:2]})')
     check(not external, f'every request to another host was refused ({len(external)})')
     print('RESULT: ' + ('PASS' if ok else 'FAIL'))
