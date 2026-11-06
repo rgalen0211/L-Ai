@@ -195,8 +195,8 @@ test('READ where_to_go: no place is picked, the counts are for the whole of the 
 });
 
 // Q451 c (Ryan 2026-11-05 18:45, GEO + CONNECT): the chat's "where should it go" shows BOTH stated orderings side by side. The sentence that says neither is a recommendation is a STATEMENT, never an answer line.
-const FARTHEST = 'The first 5 block groups with no listed chicken place within 1.5 km, the farthest from any listed place first';
-const MOST = 'The first 5 block groups with no listed chicken place within 1.5 km, the most residents within 1.5 km first';
+const FARTHEST = 'The first 5 block groups of the stated underserved ordering';                                    // GEO's final words (geo-where-both-1105 0db662dd): the farthest-first line is unchanged
+const MOST = 'The first 5 block groups with no listed chicken place within 1.5 km, the most residents within 1.5 km first';   // GEO's final words for the new line
 const TWO_RULES = 'Two orderings by two stated rules: farthest from any listed place, and most people with none near. Neither is a recommendation.';
 const twoOrderings = (over = {}) => whereDoc({
   answers: [item('Listed chicken places inside the county', 21, 'Calculated'), item('County residents per listed chicken place', 6100, 'Calculated'),
@@ -209,7 +209,7 @@ test('READ where_to_go with two orderings: each rule is its own line with its ow
   assert.equal(r.isError, undefined, r.text);
   assert.ok(r.text.includes(FARTHEST) && r.text.includes(MOST), 'both ordering lines are shown');
   assert.match(r.text, /the most residents within 1\.5 km first: [^\n]*\(Estimated\)/);
-  assert.match(r.text, /farthest from any listed place first: [^\n]*\(Calculated\)/);
+  assert.match(r.text, /stated underserved ordering: [^\n]*\(Calculated\)/);
   assert.match(r.text, /Two orderings by two stated rules: farthest from any listed place, and most people with none near\. Neither is a recommendation\./);
   assert.equal(r.data.place_picked, false);
   assert.deepEqual(r.data.answers.map((a) => a.label), ['Calculated', 'Calculated', 'Calculated', 'Estimated']);
