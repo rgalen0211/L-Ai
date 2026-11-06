@@ -45,8 +45,8 @@ class H(http.server.SimpleHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store'); super().end_headers()
 
 
-socketserver.TCPServer.allow_reuse_address = True
-srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 cfg = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
 for _k in ('liveEditor', 'whyClip', 'songIntake', 'adminTesterDevices', 'testerFilmProgress', 'myFilms', 'intake', 'testerWizard'):
@@ -74,5 +74,5 @@ with sync_playwright() as pw:
         print(('  FAIL ' if flag else '  ok   ') + f"{name:<20} [{r['h1']}] width {r['scrollW']} px{'  OVER: ' + '; '.join(r['over']) if r['over'] else ''}   small controls: {r['small']}{' (' + ', '.join(r['smallEx']) + ')' if r['smallEx'] else ''}{'  ERRORS: ' + str(errs[:1]) if errs else ''}")
         ctx.close()
     b.close()
-srv.shutdown()
+srv.shutdown(); srv.server_close()
 print('ALL OK' if not bad else f'{bad} route(s) to fix'); sys.exit(0 if not bad else 1)

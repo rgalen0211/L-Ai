@@ -12,8 +12,8 @@ class H(http.server.SimpleHTTPRequestHandler):
     def __init__(self, *a, **k): super().__init__(*a, directory=str(ROOT), **k)
     def log_message(self, *a): pass
 
-socketserver.TCPServer.allow_reuse_address = True
-srv = socketserver.ThreadingTCPServer(('127.0.0.1', 8188), H)
+srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port (a fixed one can be bound twice at once on Windows)
+PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 ok = True
 def check(c, w):
@@ -25,7 +25,7 @@ try:
         try:
             p = b.new_context(viewport={'width': 1100, 'height': 900}).new_page(); errs = []
             p.on('pageerror', lambda e: errs.append(str(e)))
-            p.goto('http://127.0.0.1:8188/app/?mock#/admin/tester', wait_until='load')
+            p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/admin/tester', wait_until='load')
             p.wait_for_selector('h1:has-text("Tester computers")', timeout=20000)
             check('Only an admin can change this' in p.inner_text('main'), 'admin sees the page')
             p.fill('#tester-email', 'sam@example.com'); p.fill('#tester-reason', 'ab')
@@ -63,10 +63,10 @@ try:
             check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
             check(not errs, 'no page errors')
             q = b.new_context(viewport={'width': 1100, 'height': 900}).new_page()
-            q.goto('http://127.0.0.1:8188/app/?mock&nonadmin#/admin/tester', wait_until='load'); q.wait_for_timeout(3000)
+            q.goto(f'http://127.0.0.1:{PORT}/app/?mock&nonadmin#/admin/tester', wait_until='load'); q.wait_for_timeout(3000)
             check('Tester computers' not in q.inner_text('main') and 'Turn on' not in q.inner_text('main'), 'a non-admin does not get the page')
         finally:
             b.close()
 finally:
-    srv.shutdown()
+    srv.shutdown(); srv.server_close()
 print('RESULT: ' + ('PASS' if ok else 'FAIL'))

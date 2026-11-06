@@ -28,8 +28,8 @@ class H(http.server.SimpleHTTPRequestHandler):
         pass
 
 
-socketserver.TCPServer.allow_reuse_address = True
-srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 with sync_playwright() as pw:
     b = pw.chromium.launch(channel='chrome')
@@ -47,5 +47,5 @@ with sync_playwright() as pw:
     page.evaluate("document.querySelector('.pv-bitmap').hidden = true; for (const c of document.querySelectorAll('.pv-endcard')) c.remove()")   # the closing card is the demo's, not the film's
     page.locator('.pv-stage').screenshot(path=str(OUT), type='jpeg', quality=88)
     b.close()
-srv.shutdown()
+srv.shutdown(); srv.server_close()
 print('wrote', OUT, OUT.stat().st_size, 'bytes')

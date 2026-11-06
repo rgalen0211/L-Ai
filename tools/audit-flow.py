@@ -25,6 +25,7 @@ SMALL = """() => [...document.querySelectorAll('a, button, input:not([type=hidde
 
 
 def serve():
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -35,8 +36,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -68,16 +69,16 @@ def main():
                 p.evaluate("() => { location.hash = '#/x'; setTimeout(() => { location.hash = '#/'; }, 30); }")
                 p.wait_for_selector('#np-title', timeout=10000)
                 shot('01-empty-library')
-                p.click('button:has-text("Create")')                                  # empty name
+                p.click('button:text-is("Create")')                                  # empty name
                 shot('02-create-empty-name')
                 p.fill('#np-title', 'Housing prices')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 shot('03-version-blank')
                 p.click('a.back')
                 p.wait_for_selector('h1:has-text("Housing prices")', timeout=10000)
                 shot('04-project-page')
-                p.click('.project-list a, .version-list a, ul a >> nth=0')
+                p.click('.version-list a.version-link >> nth=0')          # was '.project-list a, .version-list a, ul a >> nth=0': the loose 'ul a' now meets the closed Admin menu's hidden links first
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=10000)
                 if p.locator('details.template-picker[open]').count() == 0:
                     p.click('.template-picker summary')
@@ -136,7 +137,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     (OUT / 'flow.json').write_text(json.dumps(notes, indent=1), encoding='utf-8')
     for n in notes:
         print(f"{n['width'][:2]} {n['step']:<28} {'OVERFLOW ' if n['overflow'] else ''}small={len(n['small'])} h1={n['h1']} err={len(n['errors'])}")

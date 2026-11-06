@@ -30,7 +30,6 @@ class H(http.server.SimpleHTTPRequestHandler):
 
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
-    socketserver.TCPServer.allow_reuse_address = True
     global PORT
     srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (flaky goto/ECONNREFUSED, 11-06)
     PORT = srv.server_address[1]

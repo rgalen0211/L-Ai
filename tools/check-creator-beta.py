@@ -28,7 +28,6 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
     global PORT, BASE
     srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port (a fixed one can be bound twice at once on Windows)
     PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'

@@ -18,9 +18,7 @@ SHOTS = Path(sys.argv[1]) if len(sys.argv) > 1 else None
 spec = importlib.util.spec_from_file_location('audit_a11y', ROOT / 'tools' / 'audit-a11y.py')
 aa = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(aa)
-aa.PORT = 8195
-aa.BASE = f'http://127.0.0.1:{aa.PORT}'
-BASE = aa.BASE
+BASE = None          # set from the server's own port once it is serving (see main)
 
 FIELDS = r"""() => {
   const out = { small_font: [], short: [], keyboard: [] };
@@ -49,6 +47,7 @@ CONSENT = '00000000-0000-4000-8000-0000000000aa'
 
 def main():
     srv = aa.serve()
+    global BASE; BASE = aa.BASE
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8')
     for k in FLAGS_OFF:
         cfg = re.sub(rf'{k}:\s*false', f'{k}: true', cfg)
@@ -120,7 +119,7 @@ def main():
                 page.wait_for_selector('#np-title', timeout=20000)
                 scan(page, f'library [{tag}]', phone)
                 page.fill('#np-title', 'Audit film')
-                page.click('button:has-text("Create")')
+                page.click('button:text-is("Create")')
                 page.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 ids = __import__('json').loads(page.evaluate(MAKE))
                 scan(page, f'version page [{tag}]', phone)
@@ -196,7 +195,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     # ---- report, by page, with the same finding across sizes folded together
     by_issue = {}
     for where, items in findings.items():

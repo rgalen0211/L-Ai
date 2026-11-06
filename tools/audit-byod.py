@@ -28,6 +28,7 @@ SMALL = """() => [...document.querySelectorAll('a, button, input:not([type=hidde
 
 
 def serve():
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -38,8 +39,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -73,7 +74,7 @@ def main():
                 p.goto(f'{BASE}/app/?mock', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.fill('#np-title', 'My rents')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 p.wait_for_selector('.uploads-panel', state='attached', timeout=15000)
                 p.wait_for_timeout(800)
@@ -129,6 +130,7 @@ def main():
                 p.locator('select[aria-label="What lets you use it"]').select_option('public_domain')
                 p.fill('#prov-unit', 'dollars')
                 p.check('#prov-attest')
+                p.check('#trust-ack')                                                          # Q234: the confirm needs the choose-to-use-it tick, which this audit predates
                 step('source-fields-filled')
                 p.get_by_role('button', name='These are right').click()
                 p.wait_for_selector('.upload-card button:has-text("Use in this film")', timeout=15000)
@@ -144,7 +146,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     (OUT / 'byod.json').write_text(json.dumps(log, indent=1), encoding='utf-8')
     print('wrote', OUT / 'byod.json', len(log), 'entries')
 
