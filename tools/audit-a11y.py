@@ -54,7 +54,8 @@ SCAN = r"""() => {
 }"""
 
 
-def serve():
+def serve(port=PORT):
+    """port=PORT keeps every old caller as it was. A check that must not meet another run on this PC passes 0 and reads srv.server_address[1]: on Windows two servers CAN bind 8185 at once (address reuse), and the page then gets its files from whichever one answers."""
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -66,7 +67,7 @@ def serve():
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
     socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', port), H)
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
