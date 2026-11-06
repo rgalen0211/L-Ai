@@ -39,7 +39,7 @@ _count = 0
 
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-pg-wait-"), cleanup_mode="stop")
+    _server = core.start_pg("ryagram-pg-wait-")
     assert WAIT_MIG.name.startswith("20261104000100_waiting_accounts"), WAIT_MIG.name
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmplpre")
