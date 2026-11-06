@@ -54,8 +54,9 @@ SCAN = r"""() => {
 }"""
 
 
-def serve(port=PORT):
-    """port=PORT keeps every old caller as it was. A check that must not meet another run on this PC passes 0 and reads srv.server_address[1]: on Windows two servers CAN bind 8185 at once (address reuse), and the page then gets its files from whichever one answers."""
+def serve(port=None):
+    """port=None serves on this module's PORT as it is WHEN CALLED (several callers set aa.PORT first, so a default bound at definition time would serve the wrong port). A check that must not meet another run on this PC passes 0 and reads srv.server_address[1]: on Windows two servers CAN bind 8185 at once (address reuse), and the page then gets its files from whichever one answers."""
+    port = PORT if port is None else port
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
