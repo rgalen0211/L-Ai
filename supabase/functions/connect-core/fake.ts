@@ -232,7 +232,7 @@ export class FakeWorld {
       editUndoAi: async (pid, mode) => {
         if (!u().projects.some((p) => p.id === pid)) throw err("That project was not found among your projects.", "PT404");
         const d = this.draft(userId, pid, mode);
-        const mine = d.ops.filter((o) => o.actor === "ai" && (o.status === "applied" || o.status === "pending"));
+        const mine = d.ops.filter((o) => o.actor === "ai" && o.client !== "Ryagram panel" && (o.status === "applied" || o.status === "pending"));        // never a click made in the panel
         const last = mine.length ? Math.max(...mine.map((o) => o.revision)) : -1;
         return undoOps(d, mine.filter((o) => o.revision === last).map((o) => o.id), Date.now(), "ai");
       },
@@ -244,7 +244,7 @@ export class FakeWorld {
         if (mode === "compilation" && !d.ai_visible) throw err('The person has not shared their track list with their AI. Ask them to tick "Let my AI see my track list" in the Ryagram app.', "PT403");
         if (name === "editor_apply_ops") return applyOps(d, "ai", "Ryagram panel", Number(a.p_base_revision), a.p_ops, () => ++this.opId);
         if (name === "editor_undo") return undoOps(d, d.ops.filter((o) => o.id === a.p_op_id && o.actor === "ai").map((o) => o.id), Date.now(), "ai");
-        if (name === "editor_undo_all_ai") return undoOps(d, d.ops.filter((o) => o.actor === "ai" && (o.status === "applied" || o.status === "pending")).map((o) => o.id), Date.now(), "ai");
+        if (name === "editor_undo_all_ai") return undoOps(d, d.ops.filter((o) => o.actor === "ai" && o.client !== "Ryagram panel" && (o.status === "applied" || o.status === "pending")).map((o) => o.id), Date.now(), "ai");
         if (name === "my_edit_ops_since") {
           const since = Math.max(Number(a.p_revision) || 0, 0);
           return JSON.parse(JSON.stringify({ revision: d.revision, state: mode === "data" ? { look: d.look } : d.tracks, mirrored: d.mirrored, ai_visible: d.ai_visible,

@@ -14,6 +14,7 @@ ROOT = Path(os.environ.get("LIVE_TREE_SUPABASE") or Path(__file__).resolve().par
 STUB = ROOT / "tests" / "supabase_stub.sql"
 TEMP = Path(os.environ.get("TEMP") or tempfile.gettempdir()) / "pg-live"
 TEMP.mkdir(parents=True, exist_ok=True)
+_server_dir = None
 
 # the nine pending live steps, in the order of the sheet
 STEPS = [
@@ -36,9 +37,10 @@ _server = None
 
 
 def server():
-    global _server
+    global _server, _server_dir
     if _server is None:
-        _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-pg-live-", dir=str(TEMP)), cleanup_mode="stop")
+        _server_dir = tempfile.mkdtemp(prefix="ryagram-pg-live-", dir=str(TEMP))
+        _server = pgserver.get_server(_server_dir, cleanup_mode="stop")
     return _server
 
 
@@ -95,10 +97,16 @@ def run_check(c, path):
 
 
 def stop():
-    global _server
+    global _server, _server_dir
     if _server is not None:
         _server.cleanup()
         _server = None
+    if _server_dir is not None:                                                  # the throwaway folder goes with the server (Q464); only the one this run made, and only inside TEMP
+        import shutil
+        d = Path(_server_dir)
+        if d.parent.resolve() == TEMP.resolve() and d.name.startswith("ryagram-pg-live-"):
+            shutil.rmtree(d, ignore_errors=True)
+        _server_dir = None
 
 
 if __name__ == "__main__":
@@ -197,6 +205,48 @@ if __name__ == "__main__":
                     for line in diff(prev, cur):
                         print(line[:330])
                 prev = cur
+        elif cmd == "chat-editor":
+            LS = ROOT / "live-steps"
+            check = LS / "23_chat_editor_after_check.sql"
+            mig = ROOT / "migrations" / "20261105000100_chat_editor.sql"
+            rb = ROOT / "rollbacks" / "20261105000100_chat_editor_rollback.sql"
+            ok_all = True
+            c = newdb([p for p in ALL if p.name != mig.name])
+            before = run_check(c, check)                                                    # a database WITHOUT the migration: false rows, never an error
+            bad0 = [r[0] for r in before if not r[1]]
+            good0 = len(before) >= 15 and len(bad0) >= 10
+            print(f"without the migration: {len(before)} rows, {len(bad0)} false, no error -> " + ("as it should" if good0 else "UNEXPECTED"))
+            ok_all = ok_all and good0
+            c.execute(mig.read_text(encoding="utf-8"))
+            rows = run_check(c, check)
+            bad = [r[0] for r in rows if not r[1]]
+            print(f"after the migration: {len(rows)} rows, " + ("ALL TRUE" if not bad else f"FALSE: {bad}"))
+            ok_all = ok_all and not bad
+            faults = [
+                ("anon may run a panel function", "grant execute on function public.connect_editor_apply(text, uuid, text, bigint, jsonb) to anon", "revoke execute on function public.connect_editor_apply(text, uuid, text, bigint, jsonb) from anon", "ONLY the connector login"),
+                ("the website's Undo all AI takes panel clicks again", None, None, "website''s Undo my AI''s changes (editor_undo_all_ai) skips"),
+            ]
+            for label, fault, undo, expect in faults:
+                if fault is None:
+                    src = c.execute("select pg_get_functiondef('public.editor_undo_all_ai(uuid,text)'::regprocedure)").fetchone()[0]
+                    c.execute(src.replace("and client_label is distinct from ryagram_private.chat_editor_label()", ""))
+                    undo_sql = src
+                else:
+                    c.execute(fault)
+                    undo_sql = undo
+                badf = [r[0] for r in run_check(c, check) if not r[1]]
+                good = len(badf) == 1 and expect.replace("''", "'") in badf[0]
+                print(f"planted fault ({label}) -> " + ("exactly the expected row goes FALSE" if good else "UNEXPECTED: " + str(badf)))
+                ok_all = ok_all and good
+                c.execute(undo_sql)
+                again = [r[0] for r in run_check(c, check) if not r[1]]
+                ok_all = ok_all and not again
+            c.execute(rb.read_text(encoding="utf-8"))
+            after_rb = run_check(c, check)                                                     # after the rollback: false rows again, still no error
+            print(f"after the rollback: {len(after_rb)} rows, {len([r for r in after_rb if not r[1]])} false, no error")
+            ok_all = ok_all and len([r for r in after_rb if not r[1]]) >= 10
+            print("RESULT:", "CHECK BEHAVES" if ok_all else "PROBLEMS")
+            sys.exit(0 if ok_all else 1)
         elif cmd == "gen":
             RB = ROOT / "rollbacks"
 
