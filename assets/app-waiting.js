@@ -57,7 +57,7 @@
           try {
             const r = await data.claimInvite(code.value);
             if (accessOf(r) === 'active') { claimNote.textContent = 'Your access is open.'; code.value = ''; onOpened(); }
-            else claimNote.textContent = (r && r.message) || 'That code could not be used.';
+            else claimNote.textContent = (r && typeof r.message === 'string' && r.message.slice(0, 300)) || 'That code could not be used.';      // server text: a plain string, cut, never markup
           } catch (err) { showError(claimError, err); }
         });
       } }, h('label', { for: 'wt-code' }, 'Invite code'), code, claimBtn, claimNote, claimError);
@@ -109,7 +109,8 @@
 
     // #/admin/waiting: Ryan only. The server refuses everyone else; the page also asks isAppAdmin before drawing it.
     async function adminView() {
-      const rows = await data.adminWaitingList();
+      const asked = await data.adminWaitingList();
+      const rows = (Array.isArray(asked) ? asked : []).filter(r => r && typeof r === 'object' && typeof r.user_id === 'string');      // a row that is not an object with an id is ignored, not a crash
       const note = h('p', { class: 'form-note', role: 'status' }), error = errorLine();
       const body = h('ul', { class: 'wl-list' });
       const count = h('p', { class: 'meta', id: 'wl-count' });

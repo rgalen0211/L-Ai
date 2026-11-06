@@ -253,7 +253,8 @@
       if (!waitingOn() || !window.ryagramWaiting) return false;
       if (activeSeen) return false;
       let access = 'waiting';
-      try { access = window.ryagramWaiting.accessOf(await data.myAccess()); } catch { /* fail closed: the waiting page */ }
+      // An answer that never comes is the same as a failed one: after 12 seconds the page stops loading and fails closed (the waiting page), instead of "Loading…" for ever.
+      try { access = window.ryagramWaiting.accessOf(await Promise.race([data.myAccess(), new Promise((_, no) => setTimeout(() => no(new Error('no answer')), 12000))])); } catch { /* fail closed: the waiting page */ }
       document.body.classList.toggle('is-waiting', access !== 'active');
       if (access === 'active') activeSeen = true;
       return window.ryagramWaiting.pageFor(access, location.hash) === 'waiting';

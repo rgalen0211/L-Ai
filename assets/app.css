@@ -247,3 +247,4 @@ button,input,select,textarea{font-family:inherit}
 /* Option B: a WAITING account sees one page; the nav shows only the account and sign-out (NEXT-WEB waiting pages) */
 body.is-waiting .dept-slot,body.is-waiting .admin-menu,body.is-waiting .app-account .app-nav-link:not([href="#/account"]){display:none!important}
 .wl-list{list-style:none;margin:12px 0;padding:0}.wl-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line,#3a3a44)}.wl-who{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}.wl-row .button{min-height:44px}
+.contact-form .form-note,.account-section .form-note,.wl-list{overflow-wrap:anywhere}
