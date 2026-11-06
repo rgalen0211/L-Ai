@@ -29,6 +29,28 @@
       notYet: ['No game can be played yet.', 'There is no price and no date.']
     }
   };
+  // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Geographic Intelligence Coming soon pages and a Forecasts group on the Data films page,
+  // shown only when the site switch deptStills is exactly true (OFF). The files are NOT in the repo: each frame asks for /assets/dept-stills/<name>-<n>.svg, then .png, and stays hidden if neither
+  // exists, so with no files nothing shows. Alt text is the draft in proposals/DEPT-PAGES-STILLS-1105.md (made-up lines, a made-up county, SAMPLE numbers).
+  const STILLS = {
+    games: { name: 'games', label: 'Pictures of the Games page on a made-up night', alts: [
+      'A game on the TV: a trivia question with its answers, a timer, and who has answered so far.',
+      'The answers revealed: each player’s result marked with a word and a shape as well as a colour.',
+      'The end of the night: the final scores.',
+      'A phone joining the game with a four-letter code and a name.'] },
+    geo_intelligence: { name: 'geo', label: 'Pictures of a site check on a made-up county', alts: [
+      'A map of a made-up county, each neighbourhood shaded by how far it is from the nearest chicken restaurant, with the restaurants marked.',
+      'Two made-up candidate sites on the same map, each with two rings and a panel of numbers, every number labelled.',
+      'The same made-up county with the neighbourhoods that have no chicken restaurant within a mile marked.',
+      'A made-up what-if: one imagined restaurant added, and the share of residents within a mile before and after, the after marked Simulated.'] },
+    data_films: { name: 'forecast', label: 'Pictures of forecasts drawn from sample numbers', alts: [
+      'A line chart: the real data as a solid line, then a dashed forecast inside a shaded band, with the words Forecast begins.',
+      'Four moments of the same chart: the real line draws, the forecast begins, the forecast draws, the finished chart with its test.',
+      'A map of made-up areas, the forecast ones hatched, with thicker outlines where the guess is less sure.',
+      'A bar race whose bars are hatched because they are guesses, each with a line for its likely range.'] }
+  };
+  const stillsOn = cfg => !!cfg && cfg.deptStills === true;
+  const stillsFor = (id, cfg) => (stillsOn(cfg) && Object.prototype.hasOwnProperty.call(STILLS, id) ? STILLS[id] : null);
   const SECTIONS = [['building', 'What we are building'], ['rules', 'How it will treat your data and other people'], ['notYet', 'What is not built yet']];
   const detailsOn = cfg => !!cfg && cfg.departmentDetails === true;
   const detailsFor = (id, cfg) => (detailsOn(cfg) && Object.prototype.hasOwnProperty.call(DETAILS, id) ? DETAILS[id] : null);
@@ -125,6 +147,24 @@
     const homeLink = () => h('a', { class: 'button primary', id: 'department-home', href: '#/' }, 'Back to your projects');
     const unavailable = () => [h('h1', { tabindex: '-1' }, WORDS.unavailable), h('p', { class: 'form-intro', role: 'status' }, 'It may belong to a different account, or it may have been removed.'), homeLink()];
 
+    // The picture slots: every frame is hidden until its file loads; the group stays hidden until a frame has, so no file means no empty frame. Text alt only, never a caption of my own.
+    function stillsBlock(id) {
+      const s = stillsFor(id, window.ryagramConfig);
+      if (!s) return null;
+      const group = h('div', { class: 'soon-stills', role: 'group', 'aria-label': s.label, hidden: true });
+      s.alts.forEach((alt, i) => {
+        const base = `/assets/dept-stills/${s.name}-${i + 1}`;
+        const fig = h('figure', { class: 'soon-still', hidden: true });
+        const img = h('img', { alt, decoding: 'async' });
+        let tried = 0;
+        img.addEventListener('load', () => { fig.hidden = false; group.hidden = false; });
+        img.addEventListener('error', () => { if (tried++ === 0) img.src = `${base}.png`; else fig.remove(); });
+        img.src = `${base}.svg`;
+        fig.append(img); group.append(fig);
+      });
+      return group;
+    }
+
     // A department that works: heading and sentence, the AI strip, your films, and the no-AI way.
     async function workingPage(id) {
       const strip = startUi ? await startUi().strip() : null;
@@ -133,7 +173,7 @@
       const list = projects.length
         ? h('ul', { class: 'project-list' }, projects.map(p => h('li', {}, h('a', { href: `#/p/${p.id}` }, p.title), h('span', { class: 'meta' }, p.latest ? ` Version ${p.latest.number}` : ''))))
         : h('p', { class: 'form-intro' }, 'No data films yet. Start one in your AI, or build one step by step.');
-      return [h('h1', { tabindex: '-1' }, KNOWN[id].label), h('p', { class: 'form-intro' }, KNOWN[id].sentence),
+      return [h('h1', { tabindex: '-1' }, KNOWN[id].label), h('p', { class: 'form-intro' }, KNOWN[id].sentence), stillsBlock(id),
               h('h2', {}, WORDS.fewLines), strip || h('p', { class: 'meta' }, h('a', { href: '#/start' }, 'Connect your AI to start films by talking')),
               h('h2', {}, WORDS.yourFilms), list, h('p', { class: 'meta' }, h('a', { href: '#/build' }, WORDS.noAi))];
     }
@@ -181,7 +221,7 @@
       const more = detailsFor(id, window.ryagramConfig);
       const moreEls = more ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), ...SECTIONS.flatMap(([key, title]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, more[key].map(t => h('li', {}, t)))])] : [];
       return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
-              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, ...moreEls, area, msg];
+              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...moreEls, area, msg];
     }
 
     // #/d/<id>. An id this account's list does not include, or any failure, is the plain "not available" page with a way home: never a blank page.
@@ -196,5 +236,5 @@
     return { mountBar, unmountBar, pageView, load };
   }
 
-  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
+  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
 })();

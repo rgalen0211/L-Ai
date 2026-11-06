@@ -160,6 +160,32 @@ def main():
                 check('Tell me when it' not in p.inner_text('body'), 'flag off: #/d/compilations is not a page')
                 check(errors == [], 'flag off: no console errors')
                 ctx.close()
+                # 8. picture slots (deptStills, CC1 11-05): OFF = no frames; ON with no files = no frames and no empty box; ON with files = the frames, with their alt text
+                SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#888"/></svg>'
+                for label, cfgtext, files in (('OFF', flipped, None), ('ON, no files', flipped.replace('deptStills: false', 'deptStills: true'), False), ('ON, files', flipped.replace('deptStills: false', 'deptStills: true'), True)):
+                    ctx = b.new_context(**opts)
+                    ctx.route('**/assets/ryagram-config.js*', (lambda body: (lambda route: route.fulfill(status=200, content_type='text/javascript', body=body)))(cfgtext))
+                    if files:
+                        ctx.route('**/assets/dept-stills/*.svg', lambda route: route.fulfill(status=200, content_type='image/svg+xml', body=SVG))
+                    p = ctx.new_page()
+                    errors = []
+                    p.on('pageerror', lambda e: errors.append(str(e)))
+                    p.goto(f'{BASE}/app/?mock&aiconnected#/', wait_until='load')
+                    p.wait_for_selector('.dept-bar', timeout=20000)
+                    for dept, want in (('data_films', 'Data films'), ('games', 'Games'), ('geo_intelligence', 'Geographic Intelligence')):
+                        p.evaluate(f"location.hash = '#/d/{dept}'")
+                        p.wait_for_selector(f'h1:has-text("{want}")', timeout=10000)
+                        p.wait_for_timeout(500)
+                        n = p.locator('.soon-still:not([hidden])').count()
+                        boxes = p.locator('.soon-stills:not([hidden])').count()
+                        if files:
+                            check(n == 4 and boxes == 1 and all(len(a or '') > 20 for a in p.locator('.soon-still img').evaluate_all('els => els.map(e => e.alt)')), f'{label}: {dept} shows four frames with alt text')
+                            check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), f'{label}: {dept} no sideways scroll')
+                            p.screenshot(path=str(OUT / f'stills-{dept}-{name}.png'), full_page=True)
+                        else:
+                            check(n == 0 and boxes == 0 and (p.locator('.soon-stills').count() == 0 if files is None else p.locator('.soon-still').count() == 0), f'{label}: {dept} shows no frame and no empty box')
+                    check(errors == [], f'{label}: no page errors')
+                    ctx.close()
             b.close()
     finally:
         srv.shutdown()
