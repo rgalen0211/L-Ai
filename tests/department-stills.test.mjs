@@ -34,8 +34,21 @@ test('a frame is hidden until its file loads, tries .svg then .png, and is remov
   assert.ok(!/innerHTML|insertAdjacentHTML/.test(block) && !/caption/i.test(block), 'text alt only, no caption words of mine');
 });
 
-test('the block is drawn only on the three pages, after the sentence or picture, and no stills are copied into the repo', () => {
+test('the block is drawn only on the three pages, after the sentence or picture; the stills are the sample-data files and the page asks for exactly them', () => {
   const src = read('assets/app-departments.js');
   assert.equal((src.match(/stillsBlock\(id\)/g) || []).length, 3, 'defined once, used on Data films and on a Coming soon page');
-  assert.ok(!fs.existsSync(new URL('../assets/dept-stills/', import.meta.url)), 'the stills are Ryan\'s call: not in the repo yet');
+});
+
+test('the twelve still files are in the repo under the names the page asks for, SVG first; each SVG is plain drawing (no script, no outside link, no embedded picture) and the total is small', () => {
+  const dir = new URL('../assets/dept-stills/', import.meta.url);
+  const want = ['games-1.png', 'games-2.png', 'games-3.png', 'games-4.png', 'geo-1.svg', 'geo-2.svg', 'geo-3.svg', 'geo-4.svg', 'forecast-1.svg', 'forecast-2.png', 'forecast-3.svg', 'forecast-4.svg'];
+  assert.deepEqual(fs.readdirSync(dir).sort(), want.sort());
+  let total = 0;
+  for (const f of want) {
+    const b = fs.readFileSync(new URL(f, dir)); total += b.length;
+    if (f.endsWith('.svg')) { const s = b.toString('utf8'); assert.match(s, /^<svg /); assert.ok(!/<script|foreignObject|<image|href=|xlink|@import|url\(\s*['"]?https?:|onload=/i.test(s), f); }
+    else assert.deepEqual([...b.subarray(0, 4)], [0x89, 0x50, 0x4e, 0x47], f + ' is a PNG');
+  }
+  assert.ok(total < 700000, `total ${total} bytes`);
+  for (const id of ['games', 'geo_intelligence', 'data_films']) { const s = Dp.STILLS[id]; for (let i = 1; i <= 4; i++) assert.ok(want.some(f => f.startsWith(`${s.name}-${i}.`)), `${s.name}-${i}`); }
 });

@@ -162,10 +162,12 @@ def main():
                 ctx.close()
                 # 8. picture slots (deptStills, CC1 11-05): OFF = no frames; ON with no files = no frames and no empty box; ON with files = the frames, with their alt text
                 SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="#888"/></svg>'
-                for label, cfgtext, files in (('OFF', flipped, None), ('ON, no files', flipped.replace('deptStills: false', 'deptStills: true'), False), ('ON, files', flipped.replace('deptStills: false', 'deptStills: true'), True)):
+                for label, cfgtext, files in (('OFF', flipped, None), ('ON, no files', flipped.replace('deptStills: false', 'deptStills: true'), False), ('ON, files', flipped.replace('deptStills: false', 'deptStills: true'), True), ('ON, real files', flipped.replace('deptStills: false', 'deptStills: true'), 'real')):
                     ctx = b.new_context(**opts)
                     ctx.route('**/assets/ryagram-config.js*', (lambda body: (lambda route: route.fulfill(status=200, content_type='text/javascript', body=body)))(cfgtext))
-                    if files:
+                    if files is False:
+                        ctx.route('**/assets/dept-stills/*', lambda route: route.fulfill(status=404, body=''))        # the real files are in the repo now: simulate none
+                    if files is True:
                         ctx.route('**/assets/dept-stills/*.svg', lambda route: route.fulfill(status=200, content_type='image/svg+xml', body=SVG))
                     p = ctx.new_page()
                     errors = []
@@ -179,6 +181,8 @@ def main():
                         n = p.locator('.soon-still:not([hidden])').count()
                         boxes = p.locator('.soon-stills:not([hidden])').count()
                         if files:
+                            if files == 'real':
+                                check(p.locator('.soon-still img').evaluate_all('els => els.length === 4 && els.every(e => e.complete && e.naturalWidth > 0)'), f'{label}: {dept} all four real pictures decoded')
                             check(n == 4 and boxes == 1 and all(len(a or '') > 20 for a in p.locator('.soon-still img').evaluate_all('els => els.map(e => e.alt)')), f'{label}: {dept} shows four frames with alt text')
                             check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), f'{label}: {dept} no sideways scroll')
                             p.screenshot(path=str(OUT / f'stills-{dept}-{name}.png'), full_page=True)
