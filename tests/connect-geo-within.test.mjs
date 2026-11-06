@@ -64,7 +64,7 @@ test('both tools are unlisted: an AI never sees them in tools/list, and the regi
 
 test('the real function wires no geo switch, so both tools are OFF where people use it', () => {
   const src = fs.readFileSync(new URL('../supabase/functions/connect/index.ts', import.meta.url), 'utf8');
-  assert.match(src, /deps: \{ compile \}/); assert.ok(!/\bgeo\b/.test(src), 'no geo dependency is wired in the real function');
+  assert.match(src, /deps: \{ compile, editorLink \}/); assert.ok(!/\bgeo\b/.test(src), 'no geo dependency is wired in the real function');
 });
 
 test('the database layer names exactly the two functions the migration defines, each token-first, and the real calls carry the token hash and the question only', () => {

@@ -60,7 +60,7 @@ test('both tools are unlisted, read-only and take only their own fields; the reg
 
 test('the real function wires no forecast switch, and the database layer names the function the migration defines, token first, with the series as TEXT', () => {
   const src = fs.readFileSync(new URL('../supabase/functions/connect/index.ts', import.meta.url), 'utf8');
-  assert.match(src, /deps: \{ compile \}/); assert.ok(!/\bforecast\b/.test(src));
+  assert.match(src, /deps: \{ compile, editorLink \}/); assert.ok(!/\bforecast\b/.test(src));
   const db = fs.readFileSync(new URL('../supabase/functions/connect/db.ts', import.meta.url), 'utf8');
   const mig = fs.readFileSync(new URL('../supabase/migrations/20261104000500_forecast_requests.sql', import.meta.url), 'utf8');
   assert.match(db, /"connect_forecast_ask", \["text", "jsonb", "int", "text", "int\[\]", "text"\], \[h, JSON\.stringify\(q\.series\)/, 'the series travels as a JSON string (an array would be sent as a Postgres array literal)');
