@@ -166,6 +166,25 @@ test('approve-waiting: the email words are the draft Ryan approves (one credit r
   assert.match(compose({ flipped: true, email: 'e', credits: 5 }, 'https://uselai.com/').body, /https:\/\/uselai\.com\/app\//);
 });
 
+test('approve-waiting: the email has a way out for someone whose address another person typed, and nothing else was added (Ryan Q473 option 3)', () => {
+  for (const credits of [0, 1, 5]) {
+    const body = compose({ flipped: true, email: 'e', credits }, ORIGIN).body;
+    const lines = body.split('\n');
+    // the new line, exactly, after the free-credits sentence and before the sign-off
+    const way = lines.indexOf("If you didn't create this account, ignore this email, or sign in and delete the account from the Account page.");
+    assert.ok(way > 0, 'the way-out line is present');
+    assert.ok(way > lines.findIndex((l) => l.startsWith('Beta credits are free')), 'after the free-credits sentence');
+    assert.equal(lines[way + 1], '', 'a blank line, then the sign-off');
+    assert.equal(lines[way + 2], 'The Ryagram Team');
+    assert.equal(lines.length, way + 3, 'nothing after the sign-off');
+    // no name greeting, no timing line, no link other than the app address
+    assert.doesNotMatch(body, /^Hi\b/m);
+    assert.doesNotMatch(body, /minute|seconds|within|takes about/i);
+    assert.deepEqual(body.match(/https?:\/\/\S+/g), [`${ORIGIN}/app/`]);
+  }
+  assert.equal(compose({ flipped: true, email: 'e', credits: 5 }, ORIGIN).subject, 'Your Ryagram access is open');
+});
+
 // ---------------------------------------------------------------------------------------------------- join (Create an account, no code)
 const joinDeps = (over = {}) => ({ allowedOrigins: [ORIGIN], siteUrl: ORIGIN, reserve: async () => ({ ok: true }), invite: async () => {}, ...over });
 const anon = (body, extra = {}) => new Request('https://x.test/fn', { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json', ...extra }, body: JSON.stringify(body) });
