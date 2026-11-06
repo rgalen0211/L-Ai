@@ -10,7 +10,9 @@ supabase_stub.sql stands in for Supabase's auth/storage schemas and roles.
 auth.uid() reads request.jwt.claim.sub, as PostgREST sets it.
 """
 import os
+import shutil
 import tempfile
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -26,9 +28,48 @@ _server = None
 _count = 0
 
 
+def remove_pg_folder(path):
+    """Removes ONE throwaway database folder made by start_pg (Q464). It refuses anything else: the folder must sit directly in the temp folder, be named ryagram-..., and not be a link.
+    Windows may hold a file for a moment after the server stops, so it tries again a few times; a folder that still will not go is left and said so on stderr (never raised: a test result must not hide behind it)."""
+    p = os.path.realpath(path)
+    if os.path.dirname(p) != os.path.realpath(tempfile.gettempdir()) or not os.path.basename(p).startswith("ryagram-") or os.path.islink(path):
+        return False
+    for _ in range(8):
+        shutil.rmtree(p, ignore_errors=True)
+        if not os.path.exists(p):
+            return True
+        time.sleep(0.5)
+    import sys
+    sys.stderr.write(f"could not remove the test database folder {p}\n")
+    return False
+
+
+def start_pg(prefix="ryagram-pg-"):
+    """Starts a throwaway Postgres in a new temp folder and REMOVES that folder when the test module ends, however it ends: all passed, a test failed, or setUpModule itself raised.
+    unittest.addModuleCleanup runs after tearDownModule and also when setUpModule fails, and it is registered BEFORE anything can fail. tests/test_pg_cleanup.py proves nothing is left."""
+    path = tempfile.mkdtemp(prefix=prefix)
+    trace = os.environ.get("RYAGRAM_PG_TRACE")
+    if trace:                                            # the mutant harness (tests/connect_sql_mutants.py) proves which temp folder the tests used by this marker, because the folder itself is removed at the end of the module
+        with open(trace, "a", encoding="utf-8") as f:
+            f.write(path + "\n")
+    box = {}
+
+    def remove():
+        s = box.get("server")
+        if s is not None:
+            try:
+                s.cleanup()
+            except Exception:
+                pass
+        remove_pg_folder(path)
+    unittest.addModuleCleanup(remove)
+    box["server"] = pgserver.get_server(path, cleanup_mode="stop")
+    return box["server"]
+
+
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-pg-"), cleanup_mode="stop")
+    _server = start_pg("ryagram-pg-")
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmpl")
         c.execute("create database tmpl")

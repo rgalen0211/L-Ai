@@ -29,7 +29,7 @@ _count = 0
 
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-stripe-"), cleanup_mode="stop")
+    _server = core.start_pg("ryagram-stripe-")
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmplst")
         c.execute("create database tmplst")

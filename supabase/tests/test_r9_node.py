@@ -47,7 +47,7 @@ def story(*views):
 
 def setUpModule():
     global _server
-    _server = pgserver.get_server(tempfile.mkdtemp(prefix="ryagram-pg-r9-"), cleanup_mode="stop")
+    _server = core.start_pg("ryagram-pg-r9-")
     with psycopg.connect(_server.get_uri(), autocommit=True) as c:
         c.execute("drop database if exists tmplr9")
         c.execute("drop database if exists tmplr9base")

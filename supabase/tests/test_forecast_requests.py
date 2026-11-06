@@ -277,5 +277,12 @@ class Forecast(core.Base):
             self.worker().one("select public.finish_geo(%s, %s::jsonb)", v["id"], json.dumps(DRIVE))
 
 
+    def test_the_migration_ends_with_the_waiting_list_gate_like_every_migration_after_it(self):
+        """MASKED-MUTANT RE-AIM (CC1 05:04): a later migration that ends with gate_apply() re-applies the waiting-list check to every signed-in function, so a mutant that takes the line out of THIS migration was healed by the next one
+        and never failed. This test reads the file itself: its last statement before commit must be the gate, whatever is applied after it."""
+        sql = (core.ROOT / "migrations" / "20261104000500_forecast_requests.sql").read_text(encoding="utf-8")
+        lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
+        self.assertEqual(lines[-2:], ["select ryagram_private.gate_apply();", "commit;"])
+
 if __name__ == "__main__":
     unittest.main()
