@@ -16,8 +16,9 @@ language sql immutable set search_path = '' as $$
 $$;
 
 create function public.editor_link_check(p_project uuid, p_owner_hash text) returns boolean
-language sql stable security definer set search_path = '' as $$
-  select coalesce(
+language plpgsql stable security definer set search_path = '' as $$
+begin
+  return coalesce(
     p_project is not null and p_owner_hash is not null and p_owner_hash ~ '^[0-9a-f]{32}$'
     and ryagram_private.connect_on()
     and exists (
@@ -26,8 +27,8 @@ language sql stable security definer set search_path = '' as $$
          and ryagram_private.editor_link_owner_hash(p.owner_id) = p_owner_hash
          and ryagram_private.connect_person_ok(p.owner_id)
          and exists (select 1 from public.connect_grants g where g.owner_id = p.owner_id and g.revoked_at is null and 'edit' = any (g.scopes))),
-    false)
-$$;
+    false);
+end $$;
 
 -- The connector's half: the connector never holds an account id, so it asks the database, with the token's hash, for the hash the link names the signed-in person by. Scope edit (the same as every editor call);
 -- a project that is not the person's gives null, the same "not found" as everywhere in the connector.

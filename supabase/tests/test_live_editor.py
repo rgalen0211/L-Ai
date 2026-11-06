@@ -522,6 +522,7 @@ class LiveEditor(core.Base):
         a = self.alice()
         p = self.project(a)
         self.ai(a, p, [LOOK("network.color", DARK)])
+        self.db.as_(None).c.execute((core.ROOT / "rollbacks" / "20261105000200_editor_link_check_rollback.sql").read_text(encoding="utf-8"))   # the signed read link's three functions are named editor_* / connect_editor_*
         self.db.as_(None).c.execute((core.ROOT / "rollbacks" / "20261105000100_chat_editor_rollback.sql").read_text(encoding="utf-8"))       # the chat editor's five functions lean on the draft tables: they go first
         rb = (core.ROOT / "rollbacks" / "20261027000400_live_editor_rollback.sql").read_text(encoding="utf-8")
         self.db.as_(None).c.execute(rb)
