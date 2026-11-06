@@ -11,13 +11,21 @@ import connect_sql_mutants as h  # noqa: E402
 
 
 class FakeProc:
-    """Stands in for the unittest child: creates the given number of pgserver folders in its TEMP and answers with canned output."""
-    def __init__(self, folders, out, code, env):
+    """Stands in for the unittest child: creates the given number of pgserver folders in its TEMP and answers with canned output.
+    Like the real fixture (test_2a_core.start_pg) it appends each folder's path to the marker file named by RYAGRAM_PG_TRACE; the options let a case leave the marker out, point it elsewhere, or remove the folder itself the way the tests now do at the end of the module."""
+    def __init__(self, folders, out, code, env, mark=True, marker_dir=None, self_remove=False):
         self.pid, self.returncode, self._out = 1, code, out
         for i in range(folders):
             d = Path(env["TEMP"]) / f"ryagram-pg-fake{i}"
             (d / "pgdata").mkdir(parents=True)
             (d / "pgdata" / "big.dat").write_bytes(b"x" * 1000)
+            if mark:
+                shown = (Path(marker_dir) / d.name) if marker_dir else d
+                with open(env[h.TRACE_ENV], "a", encoding="utf-8") as f:
+                    f.write(str(shown) + "\n")
+            if self_remove:
+                import shutil
+                shutil.rmtree(d)
 
     def communicate(self, timeout=None):
         return self._out, None
@@ -36,8 +44,8 @@ class Harness(unittest.TestCase):
         import shutil
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def fake_popen(self, folders, out, code):
-        h.subprocess.Popen = lambda cmd, **kw: FakeProc(folders, out, code, kw["env"])
+    def fake_popen(self, folders, out, code, **opts):
+        h.subprocess.Popen = lambda cmd, **kw: FakeProc(folders, out, code, kw["env"], **opts)
 
     # ---- only an assertion failure is a catch
     def test_classify_counts_only_assertion_failures_as_caught(self):
@@ -88,13 +96,29 @@ class Harness(unittest.TestCase):
         with self.assertRaises(h.HarnessError):
             h.one_run("after a leftover", None)
 
-    def test_tests_that_ran_without_a_pgserver_folder_in_the_controlled_temp_stop_the_run(self):
-        # they used a fallback temp location (possibly on C:), where this harness could neither see nor delete the folder
-        self.fake_popen(0, "Ran 58 tests in 5s\n\nOK\n", 0)
+    def test_tests_that_ran_without_a_marker_stop_the_run(self):
+        # no marker = the server was not started through the test fixture, so where the tests ran cannot be proved (the folder may be somewhere this harness can neither see nor delete): stop, do not guess
+        self.fake_popen(0, "Ran 58 tests in 5s\n\nOK\n", 0, mark=False)
+        with self.assertRaises(h.HarnessError):
+            h.one_run("tests wrote no marker", None)
+        self.fake_popen(1, "Ran 58 tests in 5s\n\nOK\n", 0, mark=False)            # a folder is there but the fixture never wrote its marker: still refused
+        with self.assertRaises(h.HarnessError):
+            h.one_run("folder without a marker", None)
+        self.fake_popen(0, "Ran 58 tests in 5s\n\nFAILED (errors=58)\n", 1, mark=False)           # an erroring run that never started a server is just errored
+        self.assertEqual(h.one_run("no server started", None)[0], "errored")
+
+    def test_a_marker_that_points_outside_the_controlled_temp_stops_the_run(self):
+        elsewhere = self.tmp / "somewhere-else"
+        elsewhere.mkdir()
+        self.fake_popen(1, "Ran 58 tests in 5s\n\nOK\n", 0, marker_dir=elsewhere)
         with self.assertRaises(h.HarnessError):
             h.one_run("tests wrote elsewhere", None)
-        self.fake_popen(0, "Ran 58 tests in 5s\n\nFAILED (errors=58)\n", 1)           # an erroring run that never started a server is just errored
-        self.assertEqual(h.one_run("no server started", None)[0], "errored")
+
+    def test_a_folder_the_tests_removed_themselves_is_fine_when_the_marker_is_in_the_controlled_temp(self):
+        # what the real tests do now (Q464): the folder is gone when the run ends, only the marker remains
+        self.fake_popen(1, "Ran 58 tests in 5s\n\nOK\n", 0, self_remove=True)
+        self.assertEqual(h.one_run("self-removing", None)[0], "survived")
+        self.assertEqual(h.pg_dirs(h.RUN_TMP / "t"), [])
 
     def test_low_disk_space_stops_the_run(self):
         h.free_gb = lambda p: 1.0
