@@ -1,5 +1,5 @@
 -- WAITING GATE HARDENING: the exact undo of migrations/20261106000100_waiting_gate_hardening.sql (CONNECT, 2026-11-06). NOT a migration: it lives outside migrations/ so nothing applies it by itself.
--- It puts the four function bodies back as 20261104000100 / 20261104000200 wrote them (same signatures; grants are kept by create or replace). It changes no data.
+-- It puts the five function bodies back as 20261104000100 / 20261104000200 wrote them (same signatures; grants are kept by create or replace). It changes no data.
 begin;
 
 -- hold_grant (20261104000100)
@@ -87,6 +87,33 @@ begin
   insert into public.invite_redemptions (code_hash, email, user_id, status) values (c.code_hash, lower(btrim(mail)), p_user, 'sent');
   flipped := ryagram_private.activate_account(p_user, 'code', null, c.grant_credits, 'code:' || c.label);
   return jsonb_build_object('ok', true, 'activated', flipped);
+end $$;
+
+-- invite_reserve (20261003000200)
+create or replace function public.invite_reserve(p_code text, p_email text, p_ip_hash text) returns jsonb
+language plpgsql security definer set search_path = '' as $$
+declare
+  c public.invite_codes;
+  rid bigint;
+begin
+  delete from public.invite_attempts where at < now() - interval '1 day';
+  if (select count(*) from public.invite_attempts where ip_hash = p_ip_hash and at > now() - interval '1 hour') >= 10
+     or (select count(*) from public.invite_attempts where at > now() - interval '1 hour') >= 300 then
+    return jsonb_build_object('ok', false, 'reason', 'throttled');
+  end if;
+  if coalesce(p_email, '') !~ '^[^@\s]{1,64}@[^@\s]{1,255}\.[^@\s]{2,63}$' then
+    return jsonb_build_object('ok', false, 'reason', 'email');
+  end if;
+  select * into c from public.invite_codes where code_hash = ryagram_private.invite_hash(p_code) for update;
+  if not found or c.disabled or c.expires_at <= now() or c.uses >= c.max_uses
+     or length(ryagram_private.invite_normal(p_code)) not between 8 and 16 then
+    insert into public.invite_attempts (ip_hash) values (left(coalesce(p_ip_hash, 'unknown'), 64));
+    return jsonb_build_object('ok', false, 'reason', 'invalid');
+  end if;
+  update public.invite_codes set uses = uses + 1 where code_hash = c.code_hash;
+  insert into public.invite_redemptions (code_hash, email) values (c.code_hash, lower(btrim(p_email)))
+    returning id into rid;
+  return jsonb_build_object('ok', true, 'redemption', rid);
 end $$;
 
 commit;
