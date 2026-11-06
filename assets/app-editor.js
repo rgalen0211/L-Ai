@@ -105,7 +105,7 @@
           sv('path', { d: 'M12 62 L30 30 L56 24 L78 36 L98 22 L126 30 L146 52 L120 70 L84 66 L52 74Z', fill: look['state.fill'], stroke: look['network.context_color'], 'stroke-width': 0.8 }),
           sv('path', { d: 'M60 70 L90 58 L130 56', fill: 'none', stroke: look['network.base_color'], 'stroke-width': 1.2 }));
         const road = sv('path', { d: 'M20 58 L38 36 L60 32 L80 44 L100 30 L124 40', fill: 'none', stroke: look['network.color'], 'stroke-width': 1.6, pathLength: 100, 'stroke-dasharray': `${Math.round(reveal * 100)} 100` });
-        const title = sv('text', { x: 10, y: 14, fill: '#f2f2ef', 'font-size': 7 }); title.textContent = 'Stand-in drawing (the engine’s drawer comes later)';
+        const title = sv('text', { x: 10, y: 14, fill: '#f2f2ef', 'font-size': 7, textLength: 140, lengthAdjust: 'spacingAndGlyphs' }); title.textContent = 'Stand-in drawing (the engine’s drawer comes later)';
         const yr = sv('text', { x: 150, y: 84, fill: '#b6b5ae', 'font-size': 9, 'text-anchor': 'end' }); yr.textContent = String(Math.round(position));
         svg.append(road, title, yr);
         view.replaceChildren(svg);
@@ -209,7 +209,7 @@
       const stopPlay = () => { const was = !!timer; if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; if (was && bundleMode && bundleState === 'ready') paintPreview(); };
       onStop(stopPlay);
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
-      const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;
+      const ticks = isData ? h('div', { class: bundleMode ? 'le-ticks' : 'le-ticks le-ticks-flat', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;      // the stand-in's years have no position of their own: they sit in a row, not piled at the left
 
       // ---- the controls
       const pill = h('span', { class: 'le-pill' });

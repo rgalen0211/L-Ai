@@ -42,3 +42,13 @@ test('check() and apply() on a hostile op never throw, and an accepted op leaves
     if (why === null) { const n = E.apply(st, op); assert.ok(n.clips.every(c => Number.isFinite(c.start) && Number.isFinite(c.len)), JSON.stringify(op)); assert.equal(new Set(n.clips.map(c => c.id)).size, n.clips.length); }
   }
 });
+
+test('phone layout (WEB night pass): the stand-in drawing\'s year labels sit in a row (not piled at the left), the drawing\'s label fits its box, and a long unbroken heading wraps', () => {
+  const js = fs.readFileSync(new URL('../assets/app-editor.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const css = fs.readFileSync(new URL('../assets/app-editor.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(js, /class: bundleMode \? 'le-ticks' : 'le-ticks le-ticks-flat'/);
+  assert.match(js, /textLength: 140, lengthAdjust: 'spacingAndGlyphs'/);
+  assert.match(css, /\.le-ticks\.le-ticks-flat\{position:static;height:auto;display:flex;justify-content:space-between\}\.le-ticks\.le-ticks-flat span\{position:static;transform:none\}/);
+  assert.match(css, /\.le-top h1\{min-width:0;overflow-wrap:anywhere\}/);
+  assert.ok(css.indexOf('.le-ticks.le-ticks-flat') > css.indexOf('.le-ticks span:last-child{transform:translateX(-100%)}'), 'the row layout comes after the positioned one so it wins');
+});
