@@ -26,7 +26,7 @@ const mutants = [
   ['the tool says it is not read-only', [[T, HEAD, HEAD.replace('readOnly: true', 'readOnly: false')]]],
   ['the switch is ignored (the tool works with nothing wired)', [[T, GATE, 'const shape = a.shape;']]],
   ['a switch that says no is ignored', [[T, GATE, GATE.replace('!sw || !(await sw.enabled())', '!sw')]]],
-  ['the real function wires a geo switch', [[I, 'deps: { compile }', 'deps: { compile, geo: undefined as never }']]],
+  ['the real function wires a geo switch', [[I, 'deps: { compile, editorLink }', 'deps: { compile, editorLink, geo: undefined as never }']]],
   ['an unknown shape is accepted (schema and run)', [[T, 'enum: ["compare_sites", "verdict", "where_to_go"], description:', 'description:'], [T, 'if (shape !== "compare_sites" && shape !== "verdict" && shape !== "where_to_go") return refuse(', 'if (false) return refuse(']]],
   ['fields that belong to another shape are accepted', [[T, ' || (!wantA && has("site_a")) || (!wantB && has("site_b")) || (!wantCat && has("category")) || (!wantTown && has("town"))', '']]],
   ['the same point twice is compared', [[T, 'if (siteA && siteB && Math.round', 'if (false && Math.round']]],

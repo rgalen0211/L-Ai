@@ -22,7 +22,7 @@ const mutants = [
   ['the tool says it is not read-only', [[T, HEAD, HEAD.replace('readOnly: true', 'readOnly: false')]]],
   ['the switch is ignored (the tool works with nothing wired)', [[T, 'if (!sw || !(await sw.enabled())) return refuse("Questions about places', 'if (false) return refuse("Questions about places']]],
   ['a switch that says no is ignored', [[T, '!sw || !(await sw.enabled())) return refuse("Questions about places', '!sw) return refuse("Questions about places']]],
-  ['the real function wires a geo switch', [[I, 'deps: { compile }', 'deps: { compile, geo: undefined as never }']]],
+  ['the real function wires a geo switch', [[I, 'deps: { compile, editorLink }', 'deps: { compile, editorLink, geo: undefined as never }']]],
   ['latitude is not range-checked (schema and run)', [[T, 'minimum: -90, maximum: 90,', ''], [T, 'lat < -90 || lat > 90 ||', '']]],
   ['minutes are not range-checked (schema and run)', [[T, 'type: "integer", minimum: 1, maximum: 60,', 'type: "integer",'], [T, '|| minutes < 1 || minutes > 60)', ')']]],
   ['minutes may be fractions (schema and run)', [[T, 'type: "integer", minimum: 1, maximum: 60,', 'type: "number", minimum: 1, maximum: 60,'], [T, '!Number.isInteger(minutes) ||', '']]],

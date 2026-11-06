@@ -70,7 +70,7 @@ test('the tool is unlisted, read-only and takes only its own fields; the registr
 
 test('the real function still wires no geo switch, and the database layer names the new function the migration defines, token first', () => {
   const src = fs.readFileSync(new URL('../supabase/functions/connect/index.ts', import.meta.url), 'utf8');
-  assert.match(src, /deps: \{ compile \}/); assert.ok(!/\bgeo\b/.test(src));
+  assert.match(src, /deps: \{ compile, editorLink \}/); assert.ok(!/\bgeo\b/.test(src));
   const db = fs.readFileSync(new URL('../supabase/functions/connect/db.ts', import.meta.url), 'utf8');
   const mig = fs.readFileSync(new URL('../supabase/migrations/20261104000400_geo_questions.sql', import.meta.url), 'utf8');
   assert.match(db, /"connect_geo_ask_shape"/);
