@@ -135,6 +135,7 @@ SESSION = json.dumps({k: sess[k] for k in ("access_token", "refresh_token", "exp
 
 
 def serve():
+    global PORT
     config = (APP / "assets" / "ryagram-config.js").read_text(encoding="utf-8")
     config = re.sub(r"supabaseUrl: '[^']*'", f"supabaseUrl: '{URL}'", config)
     config = re.sub(r"supabaseKey: '[^']*'", f"supabaseKey: '{KEY}'", config)
@@ -163,8 +164,8 @@ def serve():
             self.end_headers()
             self.wfile.write(body)
 
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(("127.0.0.1", PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -303,7 +304,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print("RESULT:", "PASS" if ok else "FAIL")
     return 0 if ok else 1
 

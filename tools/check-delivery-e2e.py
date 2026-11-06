@@ -24,6 +24,7 @@ UNKNOWN = '33333333-3333-4333-8333-333333333333'
 
 
 def serve():
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -34,8 +35,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -82,7 +83,7 @@ def main():
                 p.wait_for_selector('#np-title', timeout=20000)
                 check('30 credits available' in p.inner_text('.credit-balance, main') and 'held' not in p.inner_text('main').split('30 credits available')[1][:40], 'the library starts at 30 credits available, none held')
                 p.fill('#np-title', 'Smoke film')
-                p.click('button:has-text("Create")')
+                p.click('button:text-is("Create")')
                 p.wait_for_selector('h1:has-text("Version 1")', timeout=20000)
                 run_until_ladder(p)
                 led = p.evaluate("JSON.stringify(window.ryagramMock.client.db.jobs.map(j => [j.job_type, j.held || 0, j.captured || 0]))")
@@ -140,7 +141,7 @@ def main():
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('RESULT:', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
 

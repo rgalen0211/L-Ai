@@ -97,9 +97,9 @@ def serve():
     handler.log_message = lambda *a: None
     class Quiet(http.server.SimpleHTTPRequestHandler):
         def log_message(self, *a): pass
-    class Server(socketserver.TCPServer):
-        allow_reuse_address = True
-    srv = Server(('127.0.0.1', PORT), lambda *a, **k: Quiet(*a, directory=str(ROOT), **k))
+    global PORT
+    srv = socketserver.TCPServer(('127.0.0.1', 0), lambda *a, **k: Quiet(*a, directory=str(ROOT), **k))          # its own port (a fixed one can be bound twice at once on Windows)
+    PORT = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 

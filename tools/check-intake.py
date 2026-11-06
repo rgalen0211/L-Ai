@@ -16,8 +16,8 @@ class H(http.server.SimpleHTTPRequestHandler):
         self.send_header('Cache-Control', 'no-store'); super().end_headers()
 
 
-socketserver.TCPServer.allow_reuse_address = True
-srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
 on_cfg = re.sub(r'intake:\s*false', 'intake: true', base)
@@ -104,5 +104,5 @@ with sync_playwright() as pw:
     p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/new', wait_until='load'); p.wait_for_timeout(1200)
     check(p.locator('.intake').count() == 0 and p.locator('h1:has-text("Your projects")').count() == 1, 'the address shows the library, not the intake')
     p.context.close(); b.close()
-srv.shutdown()
+srv.shutdown(); srv.server_close()
 print('ALL OK' if ok else 'FAILED'); sys.exit(0 if ok else 1)

@@ -16,6 +16,7 @@ OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/r
 PORT = 8167
 BASE = f'http://127.0.0.1:{PORT}'
 def serve():
+    global PORT, BASE
     class H(http.server.SimpleHTTPRequestHandler):
         def __init__(self, *a, **k):
             super().__init__(*a, directory=str(ROOT), **k)
@@ -26,8 +27,8 @@ def serve():
         def end_headers(self):
             self.send_header('Cache-Control', 'no-store')
             super().end_headers()
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', PORT), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; BASE = f'http://127.0.0.1:{PORT}'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 
@@ -61,7 +62,7 @@ def main():
             check(not errors, f'no page errors {errors}')
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('RESULT:', 'PASS' if ok else 'FAIL')
     return 0 if ok else 1
 

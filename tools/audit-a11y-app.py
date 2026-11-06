@@ -13,8 +13,7 @@ ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('audit_a11y', ROOT / 'tools' / 'audit-a11y.py')
 aa = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(aa)
-aa.PORT = 8188
-BASE = f'http://127.0.0.1:{aa.PORT}'
+BASE = None          # set from the server's own port once it is serving (see main)
 # (name, query+hash, heading that proves the page opened, clicks first)
 ROUTES = [
     ('projects', '?mock#/', 'Your projects', []), ('projects-empty', '?mock&empty#/', 'Your projects', []), ('account', '?mock#/account', 'Your account', []),
@@ -31,6 +30,7 @@ SWITCHES = ('liveEditor', 'adminTesterDevices', 'testerFilmProgress', 'myFilms',
 
 def main(only):
     srv = aa.serve()
+    global BASE; BASE = aa.BASE
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8')
     for k in SWITCHES:
         cfg = re.sub(rf'\b{k}:\s*false', f'{k}: true', cfg)
@@ -83,7 +83,7 @@ def main(only):
                 ctx.close()
             b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     seen = set()
     uniq = [f for f in findings if not (f.split(': ', 1)[1] in seen or seen.add(f.split(': ', 1)[1]))]
     for s in dict.fromkeys(skipped):

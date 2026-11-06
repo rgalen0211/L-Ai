@@ -25,8 +25,9 @@ class H(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 8192), H)
+    global PORT
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port (a fixed one can be bound twice at once on Windows)
+    PORT = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     ok = True
 
@@ -44,7 +45,7 @@ def main():
                     p = ctx.new_page()
                     errs = []
                     p.on('pageerror', lambda e: errs.append(str(e)))
-                    p.goto('http://127.0.0.1:8192/preview-demo/', wait_until='load')
+                    p.goto(f'http://127.0.0.1:{PORT}/preview-demo/', wait_until='load')
                     p.wait_for_selector('input[type=range]', timeout=20000)
                     p.wait_for_timeout(5000)
                     p.locator('input[type=range]').first.evaluate("el => { el.value = el.max; el.dispatchEvent(new Event('input', {bubbles:true})); el.dispatchEvent(new Event('change', {bubbles:true})); }")
@@ -60,7 +61,7 @@ def main():
             finally:
                 b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     print('RESULT: ' + ('PASS' if ok else 'FAIL'))
     sys.exit(0 if ok else 1)
 

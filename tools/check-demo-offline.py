@@ -52,8 +52,9 @@ def serve():
 
         def handle_error(self, request, client_address):
             pass
-    Quiet.allow_reuse_address = True
-    srv = Quiet(('127.0.0.1', PORT), H)
+    global PORT, URL
+    srv = Quiet(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
+    PORT = srv.server_address[1]; URL = f'http://localhost:{PORT}/preview-demo/'
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     return srv
 

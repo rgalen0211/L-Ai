@@ -29,9 +29,10 @@ class H(http.server.SimpleHTTPRequestHandler):
 
 
 def main():
+    global PORT
     OUT.mkdir(parents=True, exist_ok=True)
-    socketserver.TCPServer.allow_reuse_address = True
-    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 8193), H)
+    srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port (a fixed one can be bound twice at once on Windows)
+    PORT = srv.server_address[1]
     threading.Thread(target=srv.serve_forever, daemon=True).start()
     ok = True
 
@@ -62,7 +63,7 @@ def main():
                     p = ctx.new_page()
                     errs = []
                     p.on('pageerror', lambda e: errs.append(str(e)))
-                    p.goto(f'http://127.0.0.1:8193/app/{query}#/account', wait_until='load')
+                    p.goto(f'http://127.0.0.1:{PORT}/app/{query}#/account', wait_until='load')
                     p.wait_for_selector('main h1:visible', timeout=20000)
                     p.wait_for_timeout(1800)
                     card = p.locator('section.windows-card')
@@ -87,7 +88,7 @@ def main():
             finally:
                 b.close()
     finally:
-        srv.shutdown()
+        srv.shutdown(); srv.server_close()
     check(not any(u.startswith('http://127.0.0.1') for u in external), f'every request to another host was aborted ({len(external)})')
     print('RESULT: ' + ('PASS' if ok else 'FAIL'))
     sys.exit(0 if ok else 1)
