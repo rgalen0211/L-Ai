@@ -599,7 +599,7 @@
       function paintBanner() {
         const n = ed.log.filter(e => e.by === 'ai').length;
         banner.hidden = n === 0;
-        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below.'), ...(isData && DD.describeOps && aiSaid.length ? [h('ul', { class: 'le-ai-list' }, DD.describeOps(aiSaid).map(t => h('li', {}, t)))] : []), btn('Undo my AI’s changes', 'secondary', async () => { if (draft) await draft.undoAi(); else ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
+        if (n) banner.replaceChildren(h('span', {}, h('b', {}, `Your AI changed ${n} thing${n === 1 ? '' : 's'}.`), ' They are marked below. What you did yourself in the Ryagram panel of your AI chat is yours, so undoing the AI changes keeps it.'), ...(isData && DD.describeOps && aiSaid.length ? [h('ul', { class: 'le-ai-list' }, DD.describeOps(aiSaid).map(t => h('li', {}, t)))] : []), btn('Undo my AI’s changes', 'secondary', async () => { if (draft) await draft.undoAi(); else ed.undoAi(); saved = false; say('Your AI’s changes are undone.'); paint(); }));
       }
       function paintWarns() {
         const out = [];

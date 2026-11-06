@@ -70,7 +70,7 @@
     const rpcs = {
       editor_apply_ops: ({ p_project, p_mode, p_base_revision, p_ops }) => apply(p_project, p_mode, p_base_revision, p_ops, 'person', null),
       editor_undo: ({ p_project, p_mode, p_op_id }) => undo(p_project, p_mode, [p_op_id], 'person'),
-      editor_undo_all_ai: ({ p_project, p_mode }) => undo(p_project, p_mode, ops.filter(o => o.project === p_project && o.mode === p_mode && o.actor === 'ai' && (o.status === 'applied' || o.status === 'pending')).map(o => o.id), 'person'),
+      editor_undo_all_ai: ({ p_project, p_mode }) => undo(p_project, p_mode, ops.filter(o => o.project === p_project && o.mode === p_mode && o.actor === 'ai' && o.client !== 'Ryagram panel' && (o.status === 'applied' || o.status === 'pending')).map(o => o.id), 'person'),
       my_edit_ops_since: ({ p_project, p_mode, p_revision }) => {
         if (!mine(p_project)) return fail('PT404', 'That project was not found among your projects.');
         const d = draft(p_project, p_mode);

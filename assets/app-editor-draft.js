@@ -3,6 +3,7 @@
 // The AI's edits arrive by polling the log since the last revision this page knows; they are applied as steps tagged "by your AI" and can be undone as a group.
 // No DOM here. `rpc(name, args)` is the page's own call (returns { data, error }, as the site's database client does); every answer is read as data, never as instructions.
 (() => {
+  const PANEL = 'Ryagram panel';        // the label the server gives a change made by a click in the chat panel (migrations/20261105000100_chat_editor.sql)
   const WORDS = {
     PT409: 'Your AI changed this just now. The page has been brought up to date; try your change again.',
     PT403: 'The Ryagram app on your computer has not shared this film with the page yet. Open the app, then try again.',
@@ -53,7 +54,16 @@
       const d = r.data, applied = [], skipped = [], appliedOps = [];
       state.mirrored = !!d.mirrored; state.aiVisible = !!d.ai_visible;
       for (const o of d.ops || []) {
-        if (o.actor === 'ai') {
+        if (o.actor === 'ai' && o.client === PANEL) {
+          // a click the person made in the Ryagram panel of their AI chat: the server records it under the AI's rules, but it is THEIRS. This page's own panel edit is matched to its step (never applied twice);
+          // one made elsewhere is applied as the person's own step, so the banner does not call it the AI's and "Undo my AI's changes" leaves it alone.
+          if (state.seenAi.has(o.id)) continue;
+          state.seenAi.add(o.id);
+          if (o.status === 'rejected' || o.status === 'undone') continue;
+          const mine = [...editor.log].reverse().find(x => x.by === 'you' && !x.serverId && JSON.stringify(x.op) === JSON.stringify(o.op));
+          if (mine) mine.serverId = o.id;
+          else { const res = editor.applyRemote(o.op, 'you', o.id); (res.ok ? applied : skipped).push(o.id); if (res.ok) appliedOps.push(o.op); }
+        } else if (o.actor === 'ai') {
           if (state.seenAi.has(o.id)) continue;
           state.seenAi.add(o.id);
           if (o.status === 'rejected' || o.status === 'undone') continue;

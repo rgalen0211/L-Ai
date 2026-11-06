@@ -4,13 +4,15 @@
 import { friendlyError, TOOL_BY_NAME } from "./tools.ts";
 import { LIMITS, type CallLog, type Data, type Deps, type Policy, type Principal, type ToolResult } from "./types.ts";
 
-export interface Env { data: Data; policy: Policy; deps: Deps }
+/** chatEditor: the chat editor's tools exist only when this is true (the connector's second switch); otherwise they are "no such tool". */
+export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean }
 
 const NO_GRANT = "This Ryagram account is not enabled for AI connections (it is invite-only for now), or the connection was revoked. The person can ask Ryan for an invite or reconnect.";
 
 export async function callTool(name: string, rawArgs: unknown, principal: Principal, env: Env): Promise<ToolResult> {
   const { policy, data, deps } = env;
-  const tool = TOOL_BY_NAME.get(name);
+  const found = TOOL_BY_NAME.get(name);
+  const tool = found && found.chatEditor && !env.chatEditor ? undefined : found;
   const finish = async (r: ToolResult, result: CallLog["result"], code: string): Promise<ToolResult> => {
     try {
       await policy.log(principal, { tool: tool ? name : "unknown",
@@ -33,10 +35,17 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
   }
 
   try {
-    if (!(await policy.hit(principal, "calls", LIMITS.callsPerMinutePerClient, 60))) {
+    const panelCall = tool.chatEditor === "app";                    // the chat panel polls: its calls count in their own buckets, not the AI's
+    if (panelCall && !(await policy.hit(principal, "panel", LIMITS.panelCallsPerMinutePerClient, 60))) {
+      return limited("The editor panel is asking too often. It will catch up in a moment.", "panel_calls", LIMITS.panelCallsPerMinutePerClient, 60);
+    }
+    if (panelCall && !(await policy.hit(principal, "panel_acct", LIMITS.panelCallsPerMinutePerAccount, 60))) {
+      return limited("The editor panel is asking too often. It will catch up in a moment.", "panel_calls_account", LIMITS.panelCallsPerMinutePerAccount, 60);
+    }
+    if (!panelCall && !(await policy.hit(principal, "calls", LIMITS.callsPerMinutePerClient, 60))) {
       return limited(`Too many calls from this connection in the last minute (the limit is ${LIMITS.callsPerMinutePerClient}). Wait a minute and continue.`, "connection_calls", LIMITS.callsPerMinutePerClient, 60);
     }
-    if (!(await policy.hit(principal, "calls_acct", LIMITS.callsPerMinutePerAccount, 60))) {
+    if (!panelCall && !(await policy.hit(principal, "calls_acct", LIMITS.callsPerMinutePerAccount, 60))) {
       return limited(`Too many calls on this Ryagram account in the last minute, counting every connected AI together (the limit is ${LIMITS.callsPerMinutePerAccount}). Wait a minute and continue.`, "account_calls", LIMITS.callsPerMinutePerAccount, 60);
     }
     if (tool.ladder && !(await policy.hit(principal, "ladder", LIMITS.ladderPerHourPerUser, 3600))) {
