@@ -15,6 +15,7 @@ const mutants = [
   ['the name guard is gone', H, "if (!NAMES.includes(name)) throw new Error('Not an editor call.');", ''],
   ['messages from any window are believed', H, 'if (ev.source !== PARENT) return;', ''],
   ['the protocol version is not checked', H, "typeof m !== 'object' || m.jsonrpc !== '2.0') return;", "typeof m !== 'object') return;"],
+  ['a null message from the host is not skipped', H, "if (!m || typeof m !== 'object' || m.jsonrpc !== '2.0') return;", "if (typeof m !== 'object' || m.jsonrpc !== '2.0') return;"],
   ['a refusal is read as success', H, 'if (r.isError || sc.error) {', 'if (false) {'],
   ['a refusal\'s words are not cleaned or cut', H, "message: clean(e.message || 'Ryagram could not do that.', 300)", 'message: e.message'],
   ['a refusal\'s code is taken as it comes', H, "typeof e.code === 'string' ? e.code.slice(0, 16) : null", 'e.code'],

@@ -262,3 +262,57 @@ test('the seam never calls a tool by any name but the five, and never sends a ch
   assert.ok(!/ui\/message|ui\/open-link/.test(HOST_SRC));
   assert.equal((HOST_SRC.match(/request\('tools\/call'/g) || []).length, 1, 'one place makes a tool call, and it is guarded by the name list');
 });
+
+// ------------------------------------------------------------------------------------------------ a hostile-message sweep (CONNECT, overnight 11-06)
+// The host is not trusted with SHAPE: whatever it sends must never throw, never make the panel say something it should not, and never stop a later good call from working. A fixed-seed generator makes 600 messages out of
+// the host-protocol keys and hostile values; they are fired from the host window, and the same again from another window (which must change nothing at all).
+function mulberry(a) { return () => { a |= 0; a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+const KEYS = ['jsonrpc', 'id', 'method', 'params', 'result', 'error', 'code', 'message', 'hostContext', 'availableDisplayModes', 'displayMode', 'structuredContent', 'data', 'project_id', 'mode', 'title', '__proto__', 'constructor', 'toString'];
+const METHODS = ['ui/initialize', 'ui/resource-teardown', 'ui/notifications/host-context-changed', 'ui/notifications/tool-result', 'tools/call', 'ping', 'ui/message', 'ui/open-link', '__proto__', '', 'x'.repeat(5000)];
+const BIGTEXT = 'A'.repeat(100_000);
+function junk(rnd, depth = 0) {
+  const pick = (xs) => xs[Math.floor(rnd() * xs.length)];
+  const leaf = () => pick([null, true, false, 0, -1, 1.5, 2 ** 53, '', 'x', '2.0', BIGTEXT, '<img src=x onerror=alert(1)>', '../../etc/passwd', String.fromCharCode(0, 0x202e), ['inline'], ['fullscreen', 7, null], 'fullscreen', pick(METHODS)]);
+  if (depth > 3 || rnd() < 0.35) return leaf();
+  if (rnd() < 0.2) return Array.from({ length: Math.floor(rnd() * 4) }, () => junk(rnd, depth + 1));
+  const o = {};
+  for (let i = 0, n = Math.floor(rnd() * 6); i < n; i++) o[pick(KEYS)] = junk(rnd, depth + 1);
+  if (rnd() < 0.4) o.jsonrpc = '2.0';
+  if (rnd() < 0.4) o.method = pick(METHODS);
+  return o;
+}
+const ALLOWED_OUT = new Set(['tools/call', 'ui/initialize', 'ui/notifications/initialized', 'ui/notifications/size-changed', 'ui/request-display-mode', 'ui/update-model-context']);
+
+test('600 hostile messages from the host never throw, never make the panel ask for anything outside its short list, and never stop a later good call from working', async () => {
+  const p = load();
+  const rnd = mulberry(20261106);
+  const before = p.sent.length;
+  for (let i = 0; i < 600; i++) {
+    let data = junk(rnd);
+    try { data = JSON.parse(JSON.stringify(data)); } catch { continue; }
+    assert.doesNotThrow(() => p.fire(data), 'message ' + i + ' threw');
+  }
+  for (const s of p.sent.slice(before)) {
+    if (typeof s.method === 'string') assert.ok(ALLOWED_OUT.has(s.method), 'the panel sent ' + s.method);
+    else assert.ok(s.jsonrpc === '2.0' && s.id !== undefined && ('result' in s || 'error' in s), 'a reply the panel sent is a proper JSON-RPC answer: ' + JSON.stringify(s).slice(0, 120));
+  }
+  assert.ok(p.sent.every((s) => !JSON.stringify(s).includes(BIGTEXT)), 'a hostile value is never echoed back to the host at length');
+  const pr = p.rpc('my_edit_ops_since', { p_project: PROJECT, p_mode: 'data', p_revision: 0 });
+  const c = p.sent.filter((s) => s.method === 'tools/call').at(-1);
+  p.reply(c.id, ok({ revision: 1, ops: [] }));
+  const r = plain(await pr);
+  assert.equal(r.error, null); assert.equal(r.data.revision, 1);
+});
+
+test('the same 600 messages from any other window change nothing: nothing is sent and no call is settled', async () => {
+  const p = load();
+  const rnd = mulberry(77);
+  const pr = p.rpc('editor_heartbeat', { p_project: PROJECT, p_mode: 'data' });
+  const c = p.sent.filter((s) => s.method === 'tools/call').at(-1);
+  const n = p.sent.length;
+  for (let i = 0; i < 600; i++) { let d = junk(rnd); try { d = JSON.parse(JSON.stringify(d)); } catch { continue; } p.fire(d, p.other); }
+  p.fire({ jsonrpc: '2.0', id: c.id, result: { content: [], structuredContent: { data: 'forged' } } }, p.other);
+  assert.equal(p.sent.length, n, 'nothing was sent');
+  p.reply(c.id, ok(null));
+  assert.equal(plain(await pr).error, null, 'only the host settled the call');
+});
