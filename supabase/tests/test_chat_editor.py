@@ -436,6 +436,18 @@ class ChatEditor(core.Base):
         self.since(a, p, 0)
         self.assertEqual(before, count())
 
+    def test_the_live_step_after_check_names_its_columns_and_every_row_is_true(self):
+        """supabase/live-steps/23_chat_editor_after_check.sql: what Ryan runs right after the migration. The harness (live_steps_harness.py chat-editor) proves the other halves: false rows, never an error, on a database without it, and one false row per planted fault."""
+        c = self.db.as_(None).c
+        with c.cursor() as cur:
+            cur.execute((core.ROOT / "live-steps" / "23_chat_editor_after_check.sql").read_text(encoding="utf-8"))
+            cols = [d.name for d in cur.description]
+            rows = cur.fetchall()
+        self.assertEqual(cols, ["check_name", "ok"])
+        self.assertGreaterEqual(len(rows), 15)
+        self.assertEqual([r[0] for r in rows if r[1] is not True], [])
+        self.assertEqual(len({r[0] for r in rows}), len(rows), "every row has its own name")
+
     def test_the_migration_ends_with_the_waiting_list_gate_like_every_migration_after_it(self):
         sql = (core.ROOT / "migrations" / "20261105000100_chat_editor.sql").read_text(encoding="utf-8")
         lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
