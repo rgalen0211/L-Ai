@@ -41,7 +41,7 @@ test('the block is drawn only on the three pages, after the sentence or picture;
 
 test('the twelve still files are in the repo under the names the page asks for, SVG first; each SVG is plain drawing (no script, no outside link, no embedded picture) and the total is small', () => {
   const dir = new URL('../assets/dept-stills/', import.meta.url);
-  const want = ['games-1.png', 'games-2.png', 'games-3.png', 'games-4.png', 'geo-1.svg', 'geo-2.svg', 'geo-3.svg', 'geo-4.svg', 'forecast-1.svg', 'forecast-2.png', 'forecast-3.svg', 'forecast-4.svg'];
+  const want = ['games-1.svg', 'games-2.svg', 'games-3.svg', 'games-4.svg', 'geo-1.svg', 'geo-2.svg', 'geo-3.svg', 'geo-4.svg', 'forecast-1.svg', 'forecast-2.png', 'forecast-3.svg', 'forecast-4.svg'];
   assert.deepEqual(fs.readdirSync(dir).sort(), want.sort());
   let total = 0;
   for (const f of want) {
