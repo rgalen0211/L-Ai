@@ -76,7 +76,9 @@ def one_run(label, mutate=None):
         path.write_text(text.replace(old, new, 1), encoding="utf-8")
     mut_tmp = RUN_TMP / "t"
     mut_tmp.mkdir(exist_ok=True)
-    env = dict(os.environ, TEMP=str(mut_tmp), TMP=str(mut_tmp), TMPDIR=str(mut_tmp), PYTHONDONTWRITEBYTECODE="1")
+    trace = RUN_TMP / "pg-trace.txt"
+    trace.unlink(missing_ok=True)
+    env = dict(os.environ, TEMP=str(mut_tmp), TMP=str(mut_tmp), TMPDIR=str(mut_tmp), PYTHONDONTWRITEBYTECODE="1", **{base.TRACE_ENV: str(trace)})
     proc = subprocess.Popen([sys.executable, "-u", "-B", "-m", "unittest", TEST], cwd=SCRATCH, env=env, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     try:
         out, _ = proc.communicate(timeout=1800)
@@ -86,9 +88,7 @@ def one_run(label, mutate=None):
         out += "\nTIMEOUT\n"
     verdict = base.classify(out, proc.returncode)
     try:
-        n = len(base.pg_dirs(mut_tmp))
-        if n > 1:
-            raise base.HarnessError(f"{label}: {n} pgserver folders in one mutant's temp")
+        base.prove_controlled_temp(label, trace, mut_tmp, verdict[0])          # where the tests ran, by the marker their fixture writes (they delete their own folder, Q464)
     finally:
         base.remove_pg_folders(mut_tmp)
         shutil.rmtree(SCRATCH, ignore_errors=True)

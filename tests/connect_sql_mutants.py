@@ -121,6 +121,7 @@ MUTANTS = [
 #     disk, a setup failure): errors are reported as NOT CAUGHT. The unmutated copy must pass first (baseline).
 #  4. Free space on the temp drive is checked before every run.
 PG_DIR = re.compile(r"^ryagram-pg-")
+TRACE_ENV = "RYAGRAM_PG_TRACE"          # a file the test fixture (test_2a_core.start_pg) appends the path of every pgserver folder it makes to: the proof of WHERE the tests ran, since they delete the folder themselves
 MIN_FREE_GB = float(os.environ.get("CONNECT_MUT_MIN_FREE_GB", "8"))
 BASE_TEMP = Path(os.environ.get("TEMP") or tempfile.gettempdir())
 RUN_TMP = BASE_TEMP / f"connect-mut-{os.getpid()}"
@@ -132,6 +133,23 @@ class HarnessError(RuntimeError):
 
 def pg_dirs(root):
     return sorted(p for p in Path(root).iterdir() if p.is_dir() and PG_DIR.match(p.name)) if Path(root).exists() else []
+
+
+def prove_controlled_temp(label, trace, mut_tmp, verdict):
+    """The tests must have made their pgserver folder in the CONTROLLED temp (mut_tmp), never in a fallback location (possibly C:). Since the tests remove the folder themselves at the end of the module, the proof is the marker
+    the fixture wrote when it made it (rule 2 too: one server folder per mutant run). No marker with a run that got as far as the tests = the server was not started through the fixture: stop, do not guess."""
+    trace = Path(trace)
+    created = [l.strip() for l in trace.read_text(encoding="utf-8").splitlines() if l.strip()] if trace.exists() else []
+    if len(created) > 1:
+        raise HarnessError(f"{label}: {len(created)} pgserver folders were made in one mutant run (the tests start one server per process): {[Path(c).name for c in created]}")
+    if not created:
+        if verdict != "errored":
+            raise HarnessError(f"{label}: the tests ran but wrote no marker for their pgserver folder, so where they ran cannot be proved (they did not start their server through the test fixture)")
+        return []
+    for c in created:
+        if os.path.normcase(os.path.realpath(os.path.dirname(c))) != os.path.normcase(os.path.realpath(str(mut_tmp))):
+            raise HarnessError(f"{label}: the tests made their pgserver folder in {os.path.dirname(c)}, not in the controlled temp {mut_tmp}; they used another location")
+    return created
 
 
 def classify(output, returncode):
@@ -201,7 +219,9 @@ def one_run(label, mutate=None, env_override=None):
         path.write_text(text.replace(old, new, 1), encoding="utf-8")
     mut_tmp = RUN_TMP / "t"
     mut_tmp.mkdir(exist_ok=True)
-    env = dict(os.environ, TEMP=str(mut_tmp), TMP=str(mut_tmp), TMPDIR=str(mut_tmp), PYTHONDONTWRITEBYTECODE="1")
+    trace = RUN_TMP / "pg-trace.txt"
+    trace.unlink(missing_ok=True)
+    env = dict(os.environ, TEMP=str(mut_tmp), TMP=str(mut_tmp), TMPDIR=str(mut_tmp), PYTHONDONTWRITEBYTECODE="1", **{TRACE_ENV: str(trace)})
     env.update(env_override or {})
     proc = subprocess.Popen([sys.executable, "-u", "-m", "unittest", "supabase/tests/test_connect.py"], cwd=SCRATCH, env=env,
                             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
@@ -214,11 +234,9 @@ def one_run(label, mutate=None, env_override=None):
     verdict = classify(out, proc.returncode)
     try:
         n = len(pg_dirs(mut_tmp))
-        if n > 1:
-            raise HarnessError(f"{label}: {n} pgserver folders in one mutant's temp (the tests start one server per process)")
-        if n == 0 and verdict[0] != "errored":
-            # the tests ran but their server is not where we can see and delete it: it went to a fallback temp folder (possibly C:)
-            raise HarnessError(f"{label}: the tests ran but left no pgserver folder in the controlled temp {mut_tmp}; they used another location")
+        prove_controlled_temp(label, trace, mut_tmp, verdict[0])          # the marker, not a leftover folder: the tests delete their own folder now (Q464)
+        if n:
+            print(f"  (note: {label}: {n} pgserver folder(s) were left in the controlled temp; the harness removes them)", flush=True)
     finally:
         remove_pg_folders(mut_tmp)
         shutil.rmtree(SCRATCH, ignore_errors=True)
@@ -262,6 +280,45 @@ def run(only=None):
     return 1 if bad else 0
 
 
+def selftest_location():
+    """Must-fail for the proof of WHERE the tests ran: the marker must name a folder directly in the controlled temp; no marker, a marker elsewhere and two markers all stop the run. Then the real thing: tests that really
+    DO use another location (their TEMP pointed elsewhere while the harness expects its own) must stop the harness."""
+    ok = True
+    work = RUN_TMP / "selftest-location"
+    shutil.rmtree(work, ignore_errors=True)
+    mut = work / "t"
+    other = work / "elsewhere"
+    mut.mkdir(parents=True)
+    other.mkdir(parents=True)
+
+    def expect(title, trace_lines, verdict, stops):
+        nonlocal ok
+        tf = work / "trace.txt"
+        tf.unlink(missing_ok=True)
+        if trace_lines is not None:
+            tf.write_text("".join(l + "\n" for l in trace_lines), encoding="utf-8")
+        try:
+            prove_controlled_temp("selftest", tf, mut, verdict)
+            stopped = False
+        except HarnessError:
+            stopped = True
+        print(f"  {title} -> {'stops' if stopped else 'accepted'}  expected: {'stops' if stops else 'accepted'}"); ok &= (stopped == stops)
+    expect("a marker for a folder in the controlled temp", [str(mut / "ryagram-pg-a")], "survived", False)
+    expect("a marker for a folder in another location", [str(other / "ryagram-pg-a")], "survived", True)
+    expect("no marker, and the tests ran", None, "survived", True)
+    expect("no marker, and the run errored before any server (a setup failure)", None, "errored", False)
+    expect("two markers (two servers in one run)", [str(mut / "ryagram-pg-a"), str(mut / "ryagram-pg-b")], "survived", True)
+    try:
+        one_run("selftest: tests that really use another location", None, {"TEMP": str(other), "TMP": str(other), "TMPDIR": str(other)})
+        print("  tests that really use another location -> accepted  expected: stops"); ok = False
+    except HarnessError as err:
+        print(f"  tests that really use another location -> stops ({str(err)[:90]}...)  expected: stops")
+    finally:
+        remove_pg_folders(other)
+        shutil.rmtree(work, ignore_errors=True)
+    return ok
+
+
 def selftest():
     """Must-fail for the harness itself: a mutant whose tests ERROR is NOT caught; a setup failure is NOT caught; a real rule break IS caught."""
     ok = True
@@ -275,6 +332,7 @@ def selftest():
         print(f"  a real rule break -> {v} (failures={f})  expected: caught"); ok &= (v == "caught")
         left = pg_dirs(RUN_TMP / "t") if (RUN_TMP / "t").exists() else []
         print(f"  pgserver folders left in the run temp: {len(left)}  expected: 0"); ok &= (not left)
+        ok &= selftest_location()
     except HarnessError as err:
         print(f"HARNESS STOPPED: {err}")
         return 3

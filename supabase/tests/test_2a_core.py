@@ -48,6 +48,10 @@ def start_pg(prefix="ryagram-pg-"):
     """Starts a throwaway Postgres in a new temp folder and REMOVES that folder when the test module ends, however it ends: all passed, a test failed, or setUpModule itself raised.
     unittest.addModuleCleanup runs after tearDownModule and also when setUpModule fails, and it is registered BEFORE anything can fail. tests/test_pg_cleanup.py proves nothing is left."""
     path = tempfile.mkdtemp(prefix=prefix)
+    trace = os.environ.get("RYAGRAM_PG_TRACE")
+    if trace:                                            # the mutant harness (tests/connect_sql_mutants.py) proves which temp folder the tests used by this marker, because the folder itself is removed at the end of the module
+        with open(trace, "a", encoding="utf-8") as f:
+            f.write(path + "\n")
     box = {}
 
     def remove():
