@@ -48,7 +48,7 @@
   function create({ h, data = null }) {
     const btn = (label, cls, onclick, attrs = {}) => h('button', { type: 'button', class: `button ${cls || 'secondary'}`.trim(), onclick, ...attrs }, label);
 
-    function editorView(kind, onStop) {
+    function editorView(kind, onStop, routeProject) {
       const isData = kind === 'data';
       const onPc = !!window.ryagramLiveHost;                                   // on the person's own computer: no demo film, no stand-in; only what the maker's draft holds
       // Data-film mode with the engine's own drawer (NEXT-WEB 154): when the page can get the film's look bundle (the host's bundle(project) call; in mock mode a synthetic one) and
@@ -62,8 +62,10 @@
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
       // The host: on the website the app's data layer (mock mode only, until CONNECT's SQL is applied); on the maker's own page (tools/maker-live/) window.ryagramLiveHost, whose rpc talks to the PC.
       const host = window.ryagramLiveHost || null;
-      const project = host ? host.project : window.RYAGRAM_MOCK_EDITOR_PROJECT;
-      const hostRpc = host ? host.rpc : (data && data.editorRpc && window.ryagramMock ? (n, a) => data.editorRpc(n, a) : null);
+      // On the website a project in the address (#/editor/data/<project>) is the person's own film: the shared draft is the real one (CONNECT's editor_* functions, Q319). With no project in the address the page keeps the
+      // test mock's project and only runs in mock mode, as before. The drawing data of a person's own film has no route yet, so the preview stays the stand-in (the page says so) until it does.
+      const project = host ? host.project : (routeProject || window.RYAGRAM_MOCK_EDITOR_PROJECT);
+      const hostRpc = host ? host.rpc : (data && data.editorRpc && (routeProject || window.ryagramMock) ? (n, a) => data.editorRpc(n, a) : null);
       const D = window.ryagramEditorDraft;
       let aiSaid = [], askedAt = 0, askTimer = 0;                               // what the person's AI changed (for the list), and when the person last sent it a note (0 = not waiting)
       const draft = hostRpc && project && D ? D.createDraft({ rpc: hostRpc, project, mode: kind, editor: ed, onChange: x => { if (x && ((x.applied && x.applied.length) || (x.skipped && x.skipped.length))) saved = false; if (x && x.ops && x.ops.length) { aiSaid.push(...x.ops); aiSaid = aiSaid.slice(-12); askedAt = 0; clearTimeout(askTimer); paintAiWait(false); } if (x && x.skipped && x.skipped.length) say(`${x.skipped.length} change${x.skipped.length === 1 ? '' : 's'} from your AI could not be applied here, so ${x.skipped.length === 1 ? 'it was' : 'they were'} left out.`); paint(); } }) : null;
@@ -83,13 +85,15 @@
           view.setAttribute('aria-label', bundleState === 'opening' ? 'Opening the film' : 'The film could not be opened');
           return;
         }
-        const r = DD.pictureFor(RL, bundle, position, { ...ed.state.look, ...(preview || {}) });
+        const quick = (dragging || !!timer) && !DD.isBars(bundle);
+        const r = DD.pictureFor(RL, bundle, position, { ...ed.state.look, ...(preview || {}) }, { draft });
         if (!r.error && !r.loading) pic.src = r.src;
         view.replaceChildren(pic);
         if (r.error) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, r.error));
         if (r.loading) view.append(h('p', { class: 'le-bundle-note le-loading', role: 'status' }, streamNote || 'This part of the film is still loading. The picture below is the last one that was ready.'));
         else if (streamLeft > 0) view.append(h('p', { class: 'le-bundle-note le-loading', role: 'status' }, `Still loading the film: ${streamLeft} part${streamLeft === 1 ? '' : 's'} to come.`));
         else if (streamNote) view.append(h('p', { class: 'le-bundle-note', role: 'status' }, streamNote));
+        if (quick && !r.error && !r.loading) view.append(h('p', { class: 'meta le-draft' }, 'A quick draft while you move. The full picture comes back when you let go.'));
         view.setAttribute('aria-label', `Preview of ${tl.label(position)}`);
       }
       function drawData() {
@@ -177,6 +181,7 @@
       }
 
       // ---- the scrubber: a real range input (keyboard and screen reader for free)
+      let dragging = false;                                                     // the slider is being moved: the page draws the engine's quicker DRAFT frame and the full picture comes back on release
       const range = h('input', { type: 'range', class: 'le-range', id: 'le-range', 'aria-label': isData ? (bundleMode ? 'Period of the film' : 'Year') : 'Time in the film' });
       const posText = h('b', { class: 'le-pos' });
       const setPos = v => { position = v; paintPreview();
@@ -185,6 +190,9 @@
         range.setAttribute('aria-valuetext', isData ? (bundleMode ? shown : `Year ${Math.round(position)}`) : `${mmss(position)} of ${mmss(ed.state.duration)}`); paintHead();
         if (whyOn && whyState === 'ready') { const c = WHY.clipAt(whyReport, position), n = c ? c.n : null; if (n !== whyNowN) paintWhy(); } };      // the panel is redrawn only when the clip at the playhead changes
       const paintPreview = () => (isData ? drawData() : hostPreview ? drawHost() : drawClips());
+      const endDrag = () => { if (!dragging) return; dragging = false; if (bundleMode && bundleState === 'ready') paintPreview(); };
+      range.addEventListener('pointerdown', () => { dragging = true; }); range.addEventListener('keydown', () => { dragging = true; }); range.addEventListener('keyup', endDrag); range.addEventListener('change', endDrag); range.addEventListener('blur', endDrag);
+      window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
       range.addEventListener('input', () => setPos(bundleMode ? (tl ? tl.seconds(Number(range.value)) : 0) : isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
         if (timer) { stopPlay(); return; }
@@ -198,7 +206,7 @@
         timer = setInterval(() => { const step = isData ? 0.25 : 0.1, max = isData ? LAST : ed.state.duration; if (position + step > max) { setPos(isData ? FIRST : 0); } else setPos(position + step); range.value = String(isData ? position : Math.round(position * 10)); }, isData ? 60 : 100);
       });
       let timer = null;
-      const stopPlay = () => { if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; };
+      const stopPlay = () => { const was = !!timer; if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; if (was && bundleMode && bundleState === 'ready') paintPreview(); };
       onStop(stopPlay);
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
       const ticks = isData ? h('div', { class: 'le-ticks', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;
@@ -375,7 +383,7 @@
           h('p', { class: 'meta' }, 'A ready-made look sets the colours below; its middle colour waits for the worker and is not shown until it can be saved.'),
           ...(DD.isBars(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bars' }, h('p', { class: 'meta' }, `This film is a bar race. Its bars have one colour, so there are no low and high colours; the page colour${DD.hasLight(bundle) ? ' and the theme' : ''} work. Changing the bar colour waits for the worker.`),
             DD.barsPartial(bundle) ? h('p', { class: 'meta' }, `This preview holds only the first ${Math.round(bundle.frames / bundle.fps * 10) / 10} seconds of the film.`) : null)] : []),
-          ...(DD.isBanded(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bands' }, h('p', { class: 'meta' }, 'This film colours its areas in solid bands, so the low and high colours do not apply. The bands are shown here; changing them waits for the worker, and the moving dots keep their colour.'),
+          ...(DD.isBanded(bundle) ? [h('div', { class: 'le-bands', 'data-key': 'bands' }, h('p', { class: 'meta' }, DD.hasRamp(bundle) ? 'This film colours its areas in solid bands. The bands follow the low and high colours below; the swatches show the film’s own bands, and the picture shows yours.' : 'This film colours its areas in solid bands, so the low and high colours do not apply. The bands are shown here; changing them waits for the worker, and the moving dots keep their colour.'),
             h('div', { class: 'le-band-row' }, DD.bandColours(bundle).map((c, i) => { const sw = h('span', { class: 'le-swatch', role: 'img', 'aria-label': `Band ${i + 1}: ${c}` }); sw.style.background = c; return sw; })))] : []),
           ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
@@ -664,7 +672,7 @@
           h('div', { class: 'le-main' }, view, scrub, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
-        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
+        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
       paintForecast();
       if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
