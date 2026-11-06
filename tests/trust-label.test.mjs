@@ -68,7 +68,7 @@ test('WIRING: the stamps moved so a returning visitor gets the new scripts; noth
   assert.match(html, /app-uploads\.js\?v=20261026b/);
   assert.match(html, /app-data\.js\?v=20261104c/);                    // (data and library moved again with the sign-in landing fix, 2026-10-26 17:3x)
   assert.match(html, /app-library\.js\?v=20261105a/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
-  assert.match(html, /app\.css\?v=20261104a/);
+  assert.match(html, /app\.css\?v=20261105b/);
   assert.match(read('film/index.html'), /film\.js\?v=20261104c/);
   assert.match(read('assets/ryagram-config.js'), /uploads: false,/);
 });
