@@ -117,6 +117,8 @@ test('open_editor: another person\'s film is not found, a clip film needs the tr
   }
   const ro = await call(R, 'open_editor', { project_id: id, mode: 'data' });
   assert.equal(ro.code, 'scope');
+  // the refusal says HOW to get the permission (there is no switch in Ryagram: disconnect and connect again), not that the person can change it somewhere that does not exist
+  assert.match(ro.text, /Account, then Connected AIs/); assert.match(ro.text, /Disconnect/); assert.match(ro.text, /connects the AI again/); assert.doesNotMatch(ro.text, /can change what this connection may do/);
 });
 
 // ------------------------------------------------------------------------------------------------ the five panel tools
