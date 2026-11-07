@@ -31,7 +31,7 @@ export async function callTool(name: string, rawArgs: unknown, principal: Princi
   try { grant = await policy.grantFor(principal); } catch { return finish({ text: friendlyError(null), isError: true, code: "error" }, "error", "grant_lookup"); }
   if (!grant) return refused(NO_GRANT, "no_grant");
   if (!grant.scopes.includes(tool.scope)) {
-    return refused(`This connection was not allowed to do that (${tool.scope.replace("_", " ")}). The person can change what this connection may do in Ryagram.`, "scope");
+    return refused(`This connection was not allowed to do that (${tool.scope.replace("_", " ")}): it was connected without that permission. There is no switch for it in Ryagram. To add it, the person opens Account, then Connected AIs in Ryagram and presses Disconnect, then connects the AI again from the AI app and keeps the box for this permission ticked on the Ryagram page.`, "scope");
   }
 
   try {
