@@ -139,9 +139,12 @@ test('a change from the panel is the AI\'s, labelled "Ryagram panel", and comes 
 test('a refusal comes back as isError with { error: { code, message } } in the database\'s own words, and changes nothing', async () => {
   const { w, call } = world();
   const id = await project(call);
-  await apply(call, A, id, [look('state.fill', DARK)]);
+  const first = await apply(call, A, id, [look('state.fill', DARK)]);
+  assert.deepEqual(JSON.parse(first.text), { data: first.data.data });          // a success reaches a text-only host as the same data
   const stale = await apply(call, A, id, [look('state.fill', LIGHT)], 0);
-  assert.equal(stale.isError, true); assert.equal(stale.data.error.code, 'PT409'); assert.match(stale.data.error.message, /revision 1/); assert.equal(stale.text, stale.data.error.message);
+  assert.equal(stale.isError, true); assert.equal(stale.data.error.code, 'PT409'); assert.match(stale.data.error.message, /revision 1/);
+  // some hosts hand a panel only the text parts of an answer: the text is the same answer as JSON (the panel calls are visible to the panel only, never to the AI)
+  assert.deepEqual(JSON.parse(stale.text), { error: stale.data.error });
   const bad = await apply(call, A, id, [{ op: 'set_look', key: 'no.such.key', value: DARK }], 1);
   assert.equal(bad.data.error.code, '22023');
   assert.equal(w.draft(A.userId, id, 'data').revision, 1); assert.deepEqual(w.draft(A.userId, id, 'data').look, { 'state.fill': DARK });

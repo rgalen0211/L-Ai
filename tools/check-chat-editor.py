@@ -53,12 +53,16 @@ addEventListener('message', async e => {
   if (m.method === 'ui/initialize') reply({ result: { protocolVersion: '2026-01-26', hostInfo: { name: 'stand-in', version: '0' }, hostCapabilities: {}, hostContext: window.__ctx } });
   else if (m.method === 'tools/call') {
     if (!NAMES.includes(m.params.name)) { window.__refused.push(m.params.name); reply({ error: { code: -32601, message: 'Tool is not visible to the app' } }); return; }
-    reply({ result: await window.hostCall(m.params.name, m.params.arguments) });
+    let res = await window.hostCall(m.params.name, m.params.arguments);
+    if (window.__textOnly) res = { content: [{ type: 'text', text: JSON.stringify(res.structuredContent) }], isError: !!res.isError };
+    reply({ result: res });
   }
   else if (m.method === 'ui/request-display-mode') { window.__ctx = { ...window.__ctx, displayMode: m.params.mode }; reply({ result: { mode: m.params.mode } }); }
   else if (m.method === 'ui/update-model-context') reply({ result: {} });
   else if (m.method === 'ui/notifications/size-changed') f.style.height = m.params.height + 'px';
 });
+window.openInput = args => f.contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/tool-input', params: { arguments: args } }, '*');
+window.openText = (text, extra) => f.contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { content: [{ type: 'text', text }], ...(extra || {}) } }, '*');
 window.openWith = sc => f.contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/tool-result', params: { content: [{ type: 'text', text: 'opened' }], structuredContent: sc } }, '*');
 </script>"""
 
@@ -175,6 +179,64 @@ def main():
             h.wait_for_timeout(200)
             check(h.frames[1].locator('.le-panel').count() == 0, 'a result naming no film opens nothing')
             ctx.close()
+            # hosts differ in what they hand a panel: tool-input plus a prose result and text-only answers (no structuredContent), a result whose film is in its JSON text, a host that says nothing, and a page that throws while loading
+            def fresh(html=None, textonly=False):
+                c = b.new_context(viewport={'width': 1280, 'height': 900})
+                p = c.new_page()
+                p.on('pageerror', lambda e: None)
+                p.set_content(HOST.replace('__DOC__', json.dumps(html or doc).replace('</', '<' + chr(92) + '/')).replace('__NAMES__', json.dumps(NAMES)).replace('__CTX__', json.dumps({'displayMode': 'inline', 'availableDisplayModes': ['inline']})))
+                p.add_script_tag(content=fake_js)
+                p.evaluate(INIT, [PROJECT, SUMMARY])
+                p.evaluate('(t) => { window.__textOnly = t; }', textonly)
+                p.wait_for_function("window.__log.some(m => m.method === 'ui/notifications/initialized')", timeout=8000)
+                return c, p
+            print('a host that sends the call\u2019s arguments and a prose result, and keeps only text parts')
+            c2, p2 = fresh(textonly=True)
+            p2.evaluate("(a) => openInput(a)", {'project_id': PROJECT, 'mode': 'compilation'})
+            p2.evaluate("() => openText('The Ryagram editor is open for My film (a clip film). The person can change it there.')")
+            p2.frames[1].wait_for_selector('.le-panel', timeout=8000)
+            p2.wait_for_timeout(700)
+            check(p2.frames[1].locator('.le-clip').count() >= 3, 'the editor opens from the call\u2019s arguments when the result is prose, and draws the draft that came back as text')
+            check(all(t in NAMES for t, _ in p2.evaluate('window.__calls')) and not p2.evaluate('window.__refused'), 'and it called only the five editor names')
+            p2.frames[1].focus('.le-clip[data-id="v3"]')
+            p2.keyboard.press('ArrowLeft')
+            p2.wait_for_timeout(600)
+            check(any(t == 'editor_apply_ops' for t, _ in p2.evaluate('window.__calls')) and p2.frames[1].eval_on_selector_all('.le-lane:first-child .le-clip', 'els => els.map(e => e.dataset.id)') == ['v1', 'v3', 'v2'], 'a change made there reaches the draft and the screen follows, with text-only answers')
+            c2.close()
+            print('a host whose result holds the film as JSON text')
+            c3, p3 = fresh(textonly=True)
+            p3.evaluate("() => openText(JSON.stringify({ project_id: '%s', mode: 'compilation', title: 'Text title' }))" % PROJECT)
+            p3.frames[1].wait_for_selector('.le-panel', timeout=8000)
+            check(p3.frames[1].inner_text('h1') == 'Text title', 'the film and its title are read from the JSON text part')
+            c3.close()
+            print('a host that sends only the call\u2019s arguments')
+            c4, p4 = fresh()
+            p4.evaluate("(a) => openInput(a)", {'project_id': PROJECT, 'mode': 'compilation'})
+            p4.frames[1].wait_for_selector('.le-panel', timeout=8000)
+            check(True, 'the editor opens within a few seconds from the arguments alone')
+            c4.close()
+            print('a host that never says which film')
+            c5, p5 = fresh()
+            for _ in range(80):
+                if 'has not told it which film' in p5.frames[1].inner_text('body'):
+                    break
+                p5.wait_for_timeout(250)
+            t5 = p5.frames[1].inner_text('body')
+            check('Ask your AI to open the editor again' in t5 and 'the chat sent initialized' in t5, 'after a wait the panel says in words that the chat did not name a film, and what it did send')
+            c5.close()
+            print('a page that throws while loading')
+            bad = doc.replace('<script>\n/* ---- assets/app-editor-core.js', '<script>throw new Error("boom in load");\n/* ---- assets/app-editor-core.js', 1)
+            check(bad != doc, 'the throwing page was built')
+            c6 = b.new_context(viewport={'width': 1280, 'height': 900})
+            p6 = c6.new_page()
+            p6.on('pageerror', lambda e: None)
+            p6.set_content(HOST.replace('__DOC__', json.dumps(bad).replace('</', '<' + chr(92) + '/')).replace('__NAMES__', json.dumps(NAMES)).replace('__CTX__', '{}'))
+            for _ in range(40):
+                if 'could not draw' in p6.frames[1].inner_text('body'):
+                    break
+                p6.wait_for_timeout(200)
+            check('boom in load' in p6.frames[1].inner_text('body'), 'the person reads that it could not draw, with the reason, not a placeholder that never changes')
+            c6.close()
         finally:
             b.close()
     print('ALL OK' if ok else 'FAILED')
