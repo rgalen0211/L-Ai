@@ -82,7 +82,7 @@ def main():
                 p.fill('#look-look-ramp-high', '#ffd23f')
                 check(p.locator('.look-form button[type=submit]').is_enabled(), 'fixed colours enable Save again')
                 p.get_by_label('Vertical').check()
-                check(p.locator('.look-vertical-note:not([hidden])').count() == 1 and 'laid out for the map, bar race and line views' in p.inner_text('.look-layout') and 'choose 16:9' in p.inner_text('.look-layout'), 'Vertical shows the engine warning beside the option')
+                check(p.locator('.look-vertical-note:not([hidden])').count() == 1 and 'laid out for the map, bar race, line and living map views' in p.inner_text('.look-layout') and 'choose 16:9' in p.inner_text('.look-layout'), 'Vertical shows the engine warning beside the option')
                 p.get_by_label('16:9 HD').check()
                 # a sample sheet
                 p.click('text=Make a sample sheet')
