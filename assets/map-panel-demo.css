@@ -22,7 +22,7 @@
 .mp .zoomctl button{width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:20px;cursor:pointer}
 .mp .src{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--mute);background:rgba(10,16,30,.8);padding:3px 8px;border-radius:6px;max-width:70%}
 .mp .layers{padding:12px;overflow:auto}.mp.phone .layers{border-top:1px solid var(--line)}.mp.phone .layers[hidden]{display:none}
-.mp .layers h3{font-size:14px;margin:0 0 8px;color:var(--ink)}.mp .layers fieldset{border:0;margin:0;padding:0;min-width:0}
+.mp .layers h2{font-size:14px;margin:0 0 8px;color:var(--ink)}.mp .layers fieldset{border:0;margin:0;padding:0;min-width:0}
 .mp .lrow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:44px}
 .mp .lrow input{width:24px;height:24px;margin-top:2px;accent-color:var(--gold);flex:none}
 .mp .lrow .t{flex:1;min-width:0;color:var(--ink)}.mp .lrow .why{display:block;color:var(--mute);font-size:12.5px}.mp .lrow.off .t>b{color:var(--mute)}

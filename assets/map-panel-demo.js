@@ -128,7 +128,7 @@
             <div class="zoomctl"><button type="button" aria-label="Zoom in" data-zoom="1" data-keep="zin">+</button><button type="button" aria-label="Zoom out" data-zoom="-1" data-keep="zout">&minus;</button></div>
           </div>
           ${S.phone ? `<button type="button" class="sheethandle" id="mp-sheet" aria-expanded="${S.sheet}" aria-controls="lay"><span>Layers, ${nOn} on</span><span aria-hidden="true">${S.sheet ? '&#9662;' : '&#9652;'}</span></button>` : ''}
-          <div class="layers" id="lay" ${open ? '' : 'hidden'}><h3>Layers</h3><fieldset><legend class="sr">Map layers</legend>${rows}</fieldset>
+          <div class="layers" id="lay" ${open ? '' : 'hidden'}><h2>Layers</h2><fieldset><legend class="sr">Map layers</legend>${rows}</fieldset>
             <button type="button" class="reset" data-reset ${Object.keys(S.user).length ? '' : 'disabled'}>Back to the standard layers</button>
             <p class="fine">The standard layers change with the zoom. A layer you set stays as you set it.</p></div>
           <div class="time"><div class="row"><button type="button" class="play" data-play data-keep="play" aria-label="${S.play ? 'Pause' : 'Play'} the years">${S.play ? '&#10074;&#10074;' : '&#9654;'}</button>
