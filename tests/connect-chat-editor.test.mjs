@@ -42,8 +42,10 @@ test('a first small script turns a load error into words, so a page that throws 
 });
 
 test('the opening handshake reads the film from the result, its JSON text, or the call\'s own arguments, and says in words when none arrives', () => {
-  const host = fs.readFileSync('tools/chat-editor/live-host.js', 'utf8');
+  const host = fs.readFileSync('tools/chat-editor/live-host.js', 'utf8').replace(/\r\n/g, '\n');
   for (const need of ['ui/notifications/tool-input', 'ui/notifications/tool-result', 'function unwrap', 'structuredContent', 'part.text', 'has not told it which film']) assert.ok(host.includes(need), need);
+  // a refused open_editor is words, never an editor; the arguments open a film only when no result has come at all, after a long wait
+  for (const need of ['params && params.isError', 'refused(params)', 'if (!seen.result) opened(input)', '}, 8000);', '    stopAll();\n    mounted = true; didRefuse = true;', "root.replaceChildren(h('p', { class: 'meta' }, text))"]) assert.ok(host.includes(need), need);
 });
 
 test('the page carries its own strict policy: nothing may be fetched, framed or submitted', () => {

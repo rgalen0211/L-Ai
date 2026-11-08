@@ -45,7 +45,7 @@
     });
   }
 
-  let mounted = false, fullBtn = null;
+  let mounted = false, didRefuse = false, fullBtn = null;
   addEventListener('message', ev => {
     if (ev.source !== PARENT) return;
     const m = ev.data;
@@ -144,7 +144,8 @@
 
   // ---- the call that opened the panel tells us which film: its result (with the title), or failing that the arguments the host says it was called with
   function gotResult(params) {
-    seen.result = true;
+    seen.result = true; clearTimeout(inputTimer);
+    if (params && params.isError) { refused(params); return; }      // the call was refused: say why in the server's own words, never open an editor whose every call would be refused
     const sc = unwrap(params);
     opened(sc && typeof sc.project_id === 'string' ? sc : input ? { ...input, ...(sc || {}) } : sc);
   }
@@ -153,7 +154,20 @@
     if (!args || typeof args !== 'object') return;
     input = { project_id: args.project_id, mode: args.mode, title: '' };
     clearTimeout(inputTimer);
-    inputTimer = setTimeout(() => opened(input), 1500);          // give the result (which names the film) a moment to arrive first
+    inputTimer = setTimeout(() => { if (!seen.result) opened(input); }, 8000);     // only when the host never sends a result at all (the call itself can take a few seconds)
+  }
+  // a refusal (film not found, track list not shared, a missing permission): its sentence, cleaned, in place of any editor; if an editor was already opened from the arguments it is taken down
+  function refused(params) {
+    const parts = params && Array.isArray(params.content) ? params.content.filter(c => c && c.type === 'text' && typeof c.text === 'string').map(c => c.text) : [];
+    let text = clean(parts.join(' '), 300).trim();
+    if (text.startsWith('{')) { try { const e = JSON.parse(text); text = e && e.error && typeof e.error.message === 'string' ? clean(e.error.message, 300).trim() : ''; } catch (x) { text = ''; } }
+    if (!text) text = 'Ryagram could not open that film. Ask your AI to open the editor again.';
+    clearTimeout(watchTimer); clearTimeout(inputTimer); clearTimeout(tellTimer);
+    stopAll();
+    mounted = true; didRefuse = true;
+    window.ryagramLiveHost.project = '';
+    const root = document.getElementById('live-root');
+    if (root) root.replaceChildren(h('p', { class: 'meta' }, text));
   }
   function noFilm() {
     if (mounted) return;
@@ -163,7 +177,7 @@
     root.replaceChildren(h('p', { class: 'meta' }, `Ryagram is here but your chat has not told it which film to show. Ask your AI to open the editor again. (For Ryagram support: the chat sent ${got}.)`));
   }
   function opened(sc) {
-    if (mounted || !sc || typeof sc !== 'object') return;
+    if (mounted || didRefuse || !sc || typeof sc !== 'object') return;
     const project = typeof sc.project_id === 'string' && /^[0-9A-Za-z-]{8,64}$/.test(sc.project_id) ? sc.project_id : '';
     if (!project) return;
     mounted = true; seen.film = true; clearTimeout(watchTimer); clearTimeout(inputTimer);
