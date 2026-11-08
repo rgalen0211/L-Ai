@@ -52,7 +52,7 @@ test('the first script ends its error words with the build, so "old page or new 
   assert.equal(logged[0][3], 12);
   // no detail, and a message full of control and non-ASCII characters, still end with the build
   root.kids = [];
-  handler({ message: '‮\u0000evil ' });
+  handler({ message: '\u202e\u0000evil\u2028' });
   assert.ok(root.kids[0].textContent.endsWith(`Panel build ${EDITOR_BUILD}.`) && !/[^\x20-\x7e]/.test(root.kids[0].textContent));
   root.kids = [];
   handler(null);
