@@ -16,7 +16,7 @@ const mutants = [
   ['the list ignores the switch', M, '(!t.chatEditor || chatEditor)', 'true'],
   ['every call is told the switch is on', M, 'chatEditor: chatEditorOn(deps.mcpApp) };', 'chatEditor: true };'],
   ['the editor switch works without the app face', M, 'export const chatEditorOn = (a?: McpAppConfig) => !!(a?.enabled && a.chatEditor);', 'export const chatEditorOn = (a?: McpAppConfig) => !!a?.chatEditor;'],
-  ['the editor page is served when the switch is off', A, '!(uri === EDITOR_URI && cfg.chatEditor)', '!(uri === EDITOR_URI)'],
+  ['the editor page is served when the switch is off', A, '!(editor && cfg.chatEditor)', '!(editor)'],
   ['the editor page is listed when the switch is off', A, '...(cfg?.chatEditor ? [', '...(true ? ['],
   ['the editor page may open a network origin', A, "const ui: Record<string, unknown> = { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false };", "const ui: Record<string, unknown> = { csp: { connectDomains: ['https://api.example.com'], resourceDomains: [] }, prefersBorder: false };"],
   // visibility

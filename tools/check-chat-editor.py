@@ -8,6 +8,7 @@ Checks: nothing is drawn before the opening result; the editor opens on the film
 answer; the AI's change shows with the banner; a stale change is reported in words; the AI is told in ONE short line that carries no clip text; the final-build button cannot start anything; full screen only
 where the host offers it; no sideways scroll; no request leaves the page; no policy violation; no console error. Exit 1 on any failure."""
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -283,7 +284,9 @@ def main():
                 if 'could not draw' in p6.frames[1].inner_text('body'):
                     break
                 p6.wait_for_timeout(200)
+            build = (re.search(r'data-build="([0-9a-f]{12})"', doc) or [None, ''])[1]
             check('boom in load' in p6.frames[1].inner_text('body'), 'the person reads that it could not draw, with the reason, not a placeholder that never changes')
+            check(len(build) == 12 and p6.frames[1].inner_text('body').rstrip().endswith('Panel build ' + build + '.'), 'the words end with the page\'s build id, so an old page (no id) is told from a new one')
             c6.close()
         finally:
             b.close()
