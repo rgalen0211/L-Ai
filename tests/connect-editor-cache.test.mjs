@@ -36,20 +36,31 @@ test('the first script ends its error words with the build, so "old page or new 
   assert.equal(first, early(EDITOR_BUILD));
   let handler = null;
   const root = { querySelector: () => null, textContent: 'x', kids: [], appendChild(p) { this.kids.push(p); } };
-  const ctx = { addEventListener: (type, fn) => { if (type === 'error') handler = fn; }, document: { getElementById: (id) => (id === 'live-root' ? root : null), createElement: () => ({}) } };
+  const logged = [];
+  const ctx = { console: { error: (...a) => logged.push(a) }, addEventListener: (type, fn) => { if (type === 'error') handler = fn; }, document: { getElementById: (id) => (id === 'live-root' ? root : null), createElement: () => ({}) } };
   vm.runInNewContext(first, ctx);
   assert.equal(typeof handler, 'function');
-  handler({ message: 'Uncaught TypeError: Cannot read properties of undefined (reading \'toLowerCase\')' });
+  handler({ message: 'Uncaught TypeError: Cannot read properties of undefined (reading \'toLowerCase\')', filename: 'https://host.example/bridge.js', lineno: 12, colno: 7,
+    error: { stack: 'TypeError: x\n    at lower (https://host.example/bridge.js:12:7)\n    at onMessage (https://host.example/bridge.js:40:2)\n    at third (nope)' } });
   const p = root.kids[0];
-  assert.match(p.textContent, /could not draw\. Ask your AI to open the editor in the Ryagram app instead\. \(Uncaught TypeError: Cannot read properties of undefined \(reading 'toLowerCase'\)\) Panel build [0-9a-f]{12}\.$/);
+  assert.match(p.textContent, /could not draw\. Ask your AI to open the editor in the Ryagram app instead\. \(Uncaught TypeError: Cannot read properties of undefined \(reading 'toLowerCase'\)\) At https:\/\/host\.example\/bridge\.js line 12 column 7\. Stack: at lower \(https:\/\/host\.example\/bridge\.js:12:7\) \| at onMessage \(https:\/\/host\.example\/bridge\.js:40:2\)\. Panel build [0-9a-f]{12}\.$/);
+  assert.ok(!p.textContent.includes('third'), 'only the first two stack lines');
   assert.ok(p.textContent.endsWith(`Panel build ${EDITOR_BUILD}.`));
+  assert.equal(logged.length, 1, 'the whole error is also written to the console');
+  assert.equal(logged[0][0], 'Ryagram panel error');
+  assert.equal(logged[0][2], 'https://host.example/bridge.js');
+  assert.equal(logged[0][3], 12);
   // no detail, and a message full of control and non-ASCII characters, still end with the build
   root.kids = [];
   handler({ message: '‮\u0000evil ' });
   assert.ok(root.kids[0].textContent.endsWith(`Panel build ${EDITOR_BUILD}.`) && !/[^\x20-\x7e]/.test(root.kids[0].textContent));
   root.kids = [];
   handler(null);
-  assert.match(root.kids[0].textContent, /\(no detail\) Panel build /);
+  assert.match(root.kids[0].textContent, /\(no detail\) At unknown line \? column \?\. Panel build /);
+  // a host script that reports no detail at all (a cross-origin script) still gives words, with the file when it has one
+  root.kids = [];
+  handler({ message: 'Script error.', filename: '', lineno: 0, colno: 0 });
+  assert.match(root.kids[0].textContent, /\(Script error\.\) At unknown line \? column \?\. Panel build /);
 });
 
 test('every address of the editor answers with the CURRENT page, under the address that was asked for, and only when the editor switch is on', () => {
