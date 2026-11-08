@@ -248,6 +248,21 @@ def main():
             p10.wait_for_timeout(1200)
             check(p10.frames[1].locator('.le-panel').count() == 0 and 'Let my AI see my track list' in p10.frames[1].inner_text('body'), 'a host that sends no result for 8 s, then a refusal: the editor opened from the arguments is taken down and the words shown')
             c10.close()
+            print('a data film that has never had its look changed (or an older one) holds no look keys')
+            c11, p11 = fresh()
+            errs11 = []
+            p11.on('pageerror', lambda e: errs11.append(str(e)))
+            p11.evaluate("(sc) => openWith(sc)", {'project_id': PROJECT, 'mode': 'data', 'title': 'Older state map'})
+            for _ in range(40):
+                if p11.frames[1].locator('.le-panel').count() or 'could not draw' in p11.frames[1].inner_text('body'):
+                    break
+                p11.wait_for_timeout(200)
+            p11.wait_for_timeout(800)
+            t11 = p11.frames[1].inner_text('body')
+            check('could not draw' not in t11 and not any('toLowerCase' in e for e in errs11), 'the page draws and throws nothing when the film names no line colour, land colour or page colour')
+            check(p11.frames[1].locator('h1').count() == 1 and p11.frames[1].inner_text('h1') == 'Older state map' and not any('colour' in w for w in p11.frames[1].locator('.le-warn').all_inner_texts()), 'it opens on the film, with no colour warning made up from keys that are missing')
+            check('undefined' not in t11, 'and no word undefined reaches the person')
+            c11.close()
             print('a host that never says which film')
             c5, p5 = fresh()
             for _ in range(80):

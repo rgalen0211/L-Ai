@@ -48,6 +48,14 @@ test('the opening handshake reads the film from the result, its JSON text, or th
   for (const need of ['params && params.isError', 'refused(params)', 'if (!seen.result) opened(input)', '}, 8000);', '    stopAll();\n    mounted = true; didRefuse = true;', "root.replaceChildren(h('p', { class: 'meta' }, text))"]) assert.ok(host.includes(need), need);
 });
 
+test('a film whose look names no colours (a new one, or an older one) never crashes the page: every look read is guarded', () => {
+  const src = fs.readFileSync('assets/app-editor.js', 'utf8').replace(/\r\n/g, '\n');
+  // Q511 follow-up 2026-11-07: lk['network.color'].toLowerCase() threw on any data film with no look overrides, and the chat panel sat on its error words
+  assert.ok(!/lk\[[^\]]+\]\.(toLowerCase|toUpperCase|trim|split|slice)\(/.test(src.replace("typeof lk[k] === 'string' ? lk[k].toLowerCase() : ''", '')), 'a look value is read with a method call and no guard');
+  for (const need of ["const hue = k => (typeof lk[k] === 'string' ? lk[k].toLowerCase() : '');", "const same = (a, b) => hue(a) !== '' && hue(a) === hue(b);", 'if (v != null) el.setAttribute(k, String(v))', 'LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined)']) assert.ok(src.includes(need), need);
+  assert.ok(EDITOR_HTML.includes("const hue = k => (typeof lk[k] === 'string'"), 'the built page carries the guard');
+});
+
 test('the page carries its own strict policy: nothing may be fetched, framed or submitted', () => {
   assert.ok(EDITOR_HTML.includes(`content="${POLICY}"`));
   for (const want of ["default-src 'none'", "connect-src 'none'", "base-uri 'none'", "form-action 'none'", "img-src data:"]) assert.ok(POLICY.includes(want), want);

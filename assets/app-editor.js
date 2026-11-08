@@ -5,7 +5,7 @@
 (() => {
   const E = window.ryagramEditor;
   const SVG = 'http://www.w3.org/2000/svg';
-  const sv = (tag, attrs = {}) => { const el = document.createElementNS(SVG, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, String(v)); return el; };
+  const sv = (tag, attrs = {}) => { const el = document.createElementNS(SVG, tag); for (const [k, v] of Object.entries(attrs)) if (v != null) el.setAttribute(k, String(v)); return el; };
   const mmss = t => `${Math.floor(t / 60)}:${(Math.floor(t % 60) + '').padStart(2, '0')}.${Math.floor((t * 10) % 10)}`;
   const YEARS = [1985, 1990, 1995, 2000, 2005, 2010];                       // the stand-in film runs 1985 to 2010
   const FIRST = YEARS[0], LAST = YEARS[YEARS.length - 1];
@@ -98,7 +98,7 @@
       }
       function drawData() {
         if (bundleMode) { drawBundle(); return; }
-        const look = { ...ed.state.look, ...(preview || {}) };
+        const look = { ...DATA_BASE().look, ...ed.state.look, ...(preview || {}) };            // a sketch: a colour the film has not set is drawn in the editor's own default
         const reveal = (position - FIRST) / (LAST - FIRST);
         const svg = sv('svg', { viewBox: '0 0 160 90', class: 'le-svg' });
         svg.append(sv('rect', { width: 160, height: 90, fill: look['page.background'] }),
@@ -223,7 +223,7 @@
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
         if (bundleMode) { const rows = DD.rowsFor(RL, bundle).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
-        if (isData) return ['The look you can see:', ...LOOK_ROWS.map(([k, l]) => `${l} ${ed.state.look[k]}`)];
+        if (isData) { const rows = LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l} ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
       }
@@ -614,9 +614,12 @@
         if (layoutProblem) out.push(layoutProblem);
         if (bundleMode) { if (bundleState === 'ready') out.push(...DD.warnings(bundle, ed.state.look)); }
         else if (isData) {
-          const lk = ed.state.look;
-          if (lk['network.color'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The lines are the same colour as the page, so you cannot see them. You can still render; the final checks decide if it is publishable.');
-          if (lk['state.fill'].toLowerCase() === lk['page.background'].toLowerCase()) out.push('The land is the same colour as the page.');
+          // a film that has never had its look changed (or an older one) holds none of these keys: a missing colour is no warning, never a crash
+          const lk = ed.state.look || {};
+          const hue = k => (typeof lk[k] === 'string' ? lk[k].toLowerCase() : '');
+          const same = (a, b) => hue(a) !== '' && hue(a) === hue(b);
+          if (same('network.color', 'page.background')) out.push('The lines are the same colour as the page, so you cannot see them. You can still render; the final checks decide if it is publishable.');
+          if (same('state.fill', 'page.background')) out.push('The land is the same colour as the page.');
         } else {
           for (const c of ed.state.clips) if (c.track === 'text' && c.text && ed.state.clips.some(v => v.track === 'video' && v.start < c.start + c.len && c.start < v.start + v.len) === false) out.push(`The text "${c.text}" is not over any video clip.`);
         }
