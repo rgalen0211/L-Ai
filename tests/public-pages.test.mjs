@@ -12,9 +12,9 @@ const files = execFileSync('git', ['ls-files', '*.html'], { cwd: root, encoding:
   .filter(f => !/^(supabase|node_modules|tests)\//.test(f));
 const read = f => fs.readFileSync(path.join(root, f), 'utf8').replace(/\r\n/g, '\n');
 
-const SHOULD_BE_NOINDEX = new Set(['connect-ai/index.html', 'game-tv/index.html', 'game-phone/index.html', 'geo-demo/index.html', 'landing-drafts/song-films/index.html', 'landing-drafts/compilations/index.html', 'directory-drafts/privacy/index.html', 'directory-drafts/terms/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html', 'ai-content/index.html', 'terms/index.html', 'thank-you.html', 'workflow-audit-thanks.html', '404.html', 'app/index.html', 'get-app/index.html']);
+const SHOULD_BE_NOINDEX = new Set(['connect-ai/index.html', 'game-tv/index.html', 'game-phone/index.html', 'geo-demo/index.html', 'map-panel-demo/index.html', 'landing-drafts/song-films/index.html', 'landing-drafts/compilations/index.html', 'directory-drafts/privacy/index.html', 'directory-drafts/terms/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html', 'ai-content/index.html', 'terms/index.html', 'thank-you.html', 'workflow-audit-thanks.html', '404.html', 'app/index.html', 'get-app/index.html']);
 const SHOULD_BE_INDEXED = new Set(['index.html', 'ryagram/index.html', 'help/index.html', 'privacy-policy.html']);
-const UNLISTED = ['connect-ai/index.html', 'game-tv/index.html', 'game-phone/index.html', 'geo-demo/index.html', 'landing-drafts/song-films/index.html', 'landing-drafts/compilations/index.html', 'directory-drafts/privacy/index.html', 'directory-drafts/terms/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html'];
+const UNLISTED = ['connect-ai/index.html', 'game-tv/index.html', 'game-phone/index.html', 'geo-demo/index.html', 'map-panel-demo/index.html', 'landing-drafts/song-films/index.html', 'landing-drafts/compilations/index.html', 'directory-drafts/privacy/index.html', 'directory-drafts/terms/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html'];
 
 // Every outside host the public pages may use, and why.
 const OUTSIDE = {

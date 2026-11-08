@@ -14,7 +14,7 @@ const read = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g,
 const exists = (p) => fs.existsSync(path.join(ROOT, p));
 
 // Pages that must keep search engines away (drafts, private, not a destination). The same list as tests/public-pages.test.mjs, plus anything that says it is a draft.
-export const NOINDEX_EXPECTED = ['connect-ai/index.html', 'game-tv/index.html', 'geo-demo/index.html', 'landing-drafts/song-films/index.html', 'landing-drafts/compilations/index.html',
+export const NOINDEX_EXPECTED = ['connect-ai/index.html', 'game-tv/index.html', 'geo-demo/index.html', 'map-panel-demo/index.html', 'landing-drafts/song-films/index.html', 'landing-drafts/compilations/index.html',
   'directory-drafts/privacy/index.html', 'directory-drafts/terms/index.html', 'legal-drafts/privacy-policy.html', 'legal-drafts/terms.html', 'ai-content/index.html', 'terms/index.html',
   'thank-you.html', 'workflow-audit-thanks.html', '404.html', 'app/index.html', 'get-app/index.html'];
 

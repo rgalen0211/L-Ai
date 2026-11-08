@@ -111,6 +111,8 @@ window.ryagramConfig = Object.freeze({
   gamePhone: false,
   // The Geographic Intelligence demo page (/geo-demo/; NEXT-WEB 198): shaded areas, markers, a clicked site, a ring and labelled counts, on SYNTHETIC data only. Draft words for Ryan. OFF until he has seen it.
   geoDemo: false,
+  // The interactive map panel demo page (/map-panel-demo/; WEB 11-08): the layers side panel and time slider on MADE-UP data only, no live data. Draft words for Ryan. OFF until he has seen it.
+  mapPanelDemo: false,
   // Option B (Ryan 11-04): "Create an account" without an invite code makes a WAITING account that sees only a "You are on the list" page (pages: #/create-account, waiting screen, #/admin/waiting). The server gate (CONNECT) must be applied first or everyone is held; OFF.
   waitingAccounts: false,
   // On the geo demo page, a file chooser that loads the PRIVATE real-data file from the person's own computer (NEXT-WEB 204; OpenStreetMap data, attorney rows open). Needs geoDemo. Nothing is uploaded or stored. OFF.

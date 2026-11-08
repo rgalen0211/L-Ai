@@ -1,0 +1,45 @@
+/* Map panel demo (WEB 11-08): the layers side panel and time slider on MADE-UP data. Dark by default (Ryan's standing rule). All sizes that are tapped are at least 44 px. */
+.mpd{--bg:#0b1220;--panel:#111a2e;--panel2:#16213a;--line:#2a3856;--ink:#e8edf7;--mute:#9fb0cf;--gold:#e8b84a;--orange:#f08a24;--obs:#6fb3ff;--calc:#c59bff;--est:#f2b34c;--focus:#ffd76a;background:var(--bg);color:var(--ink);border-radius:12px;padding:16px;margin:12px 0}
+.mpd *{box-sizing:border-box}
+.mpd h1{color:var(--ink);margin:4px 0 6px}.mpd p{color:var(--mute);max-width:70ch}
+.mpd .banner{border:1px dashed var(--orange);color:var(--orange);padding:6px 10px;border-radius:6px;margin:10px 0;font-size:13px}
+.mpd .demo-controls{display:flex;gap:12px;flex-wrap:wrap;margin:12px 0;padding:8px 10px;border:1px dashed var(--line);border-radius:8px}
+.mpd .demo-controls legend{color:var(--mute);font-size:12.5px;padding:0 4px}.mpd .demo-controls label{font-size:13px;color:var(--mute)}
+.mpd select{background:var(--panel2);color:var(--ink);border:1px solid var(--line);border-radius:6px;padding:8px;max-width:100%;min-height:44px;font:inherit}
+.mpd button,.mpd input{font:inherit}
+.mp{width:100%;max-width:980px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;display:grid;grid-template-columns:minmax(0,1fr) 280px;grid-template-rows:auto 1fr auto}
+.mp.phone{grid-template-columns:minmax(0,1fr)}
+.mp header{grid-column:1/-1;display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:10px 12px;border-bottom:1px solid var(--line)}
+.mp .title{font-weight:650;color:var(--ink)}
+.mp .chip{display:inline-block;border:1px solid currentColor;border-radius:999px;padding:1px 9px;font-size:12px;white-space:nowrap}
+.mp .chip.obs{color:var(--obs)}.mp .chip.calc{color:var(--calc)}.mp .chip.est{color:var(--est)}.mp .levelchip{color:var(--gold)}
+.mp .mapwrap{position:relative;min-height:340px;background:#0e1730;border-right:1px solid var(--line)}
+.mp.phone .mapwrap{min-height:300px;border-right:0}
+.mp .mapwrap svg{display:block;width:100%;height:100%;min-height:340px}.mp.phone .mapwrap svg{min-height:300px}
+.mp .status{position:absolute;left:10px;right:10px;top:10px;background:rgba(10,16,30,.92);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:13px;color:var(--ink)}
+.mp .status[hidden]{display:none}.mp .status b{color:var(--gold)}.mp .status a{color:var(--gold)}
+.mp .zoomctl{position:absolute;right:10px;bottom:10px;display:flex;flex-direction:column;gap:6px}
+.mp .zoomctl button{width:44px;height:44px;border-radius:8px;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:20px;cursor:pointer}
+.mp .src{position:absolute;left:10px;bottom:10px;font-size:12px;color:var(--mute);background:rgba(10,16,30,.8);padding:3px 8px;border-radius:6px;max-width:70%}
+.mp .layers{padding:12px;overflow:auto}.mp.phone .layers{border-top:1px solid var(--line)}.mp.phone .layers[hidden]{display:none}
+.mp .layers h3{font-size:14px;margin:0 0 8px;color:var(--ink)}.mp .layers fieldset{border:0;margin:0;padding:0;min-width:0}
+.mp .lrow{display:flex;gap:10px;align-items:flex-start;padding:8px 0;border-bottom:1px solid var(--line);min-height:44px}
+.mp .lrow input{width:24px;height:24px;margin-top:2px;accent-color:var(--gold);flex:none}
+.mp .lrow .t{flex:1;min-width:0;color:var(--ink)}.mp .lrow .why{display:block;color:var(--mute);font-size:12.5px}.mp .lrow.off .t>b{color:var(--mute)}
+.mp .pill{font-size:11.5px;border-radius:6px;padding:1px 6px;margin-left:6px;border:1px solid var(--line);color:var(--mute)}.mp .pill.you{color:var(--gold);border-color:var(--gold)}
+.mp .reset{margin-top:8px;background:none;border:1px solid var(--line);color:var(--ink);border-radius:8px;padding:8px 12px;min-height:44px;cursor:pointer}.mp .reset:disabled{opacity:.55;cursor:default}
+.mp .time{grid-column:1/-1;border-top:1px solid var(--line);padding:10px 12px}.mp .time .row{display:flex;gap:10px;align-items:center}
+.mp .play{width:44px;height:44px;border-radius:50%;border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:16px;cursor:pointer;flex:none}
+.mp .sl{position:relative;flex:1;min-width:0;padding:4px 0 22px}.mp .sl input[type=range]{width:100%;height:44px;accent-color:var(--gold);margin:0}
+.mp .marks{position:absolute;left:0;right:0;bottom:0;height:20px;font-size:11px;color:var(--mute);pointer-events:none}
+.mp .marks span{position:absolute;transform:translateX(-50%);white-space:nowrap}
+.mp .brk{position:absolute;top:2px;width:2px;height:14px;background:var(--calc)}.mp .fc{position:absolute;top:18px;height:0;border-top:3px dashed var(--est);pointer-events:none}
+.mp .yr{font-variant-numeric:tabular-nums;font-weight:650;min-width:4.5ch;text-align:right;color:var(--ink)}
+.mp .fine{font-size:12.5px;color:var(--mute);margin-top:4px}
+.mp .actions{grid-column:1/-1;display:flex;gap:8px;flex-wrap:wrap;padding:10px 12px;border-top:1px solid var(--line)}
+.mp .btn{border:1px solid var(--gold);background:transparent;color:var(--gold);border-radius:8px;padding:8px 14px;min-height:44px;cursor:pointer;font-weight:600}.mp .btn.sec{border-color:var(--line);color:var(--ink);font-weight:400}
+.mp .sheethandle{display:none}
+.mp.phone .sheethandle{display:flex;align-items:center;justify-content:space-between;width:100%;min-height:48px;padding:0 12px;background:var(--panel2);color:var(--ink);border:0;border-top:1px solid var(--line);font-size:15px;cursor:pointer}
+.mpd :focus-visible{outline:3px solid var(--focus);outline-offset:2px}
+.mpd .sr{position:absolute;left:-9999px}
+.mp .mapwrap>[data-map]{height:100%;min-height:inherit}
