@@ -4,8 +4,8 @@
 //   window.ryagramLiveHost = { rpc, render, mode, project, media, title }
 //   rpc(name, args) -> Promise<{ data, error: { code, message } | null }>   the same five names the page has always sent, and nothing else. Each one is a connector tool that only this panel is
 //   meant to call (visibility "app"); the host (Claude, ChatGPT, ...) forwards it with the connection the person already has. The panel holds no token, no cookie and no website session.
-// The wire (MCP Apps, JSON-RPC over postMessage to the window that framed us): ui/initialize, then ui/notifications/initialized; the host sends ui/notifications/tool-result for the call that
-// opened the panel (structuredContent: { project_id, mode, title }); the panel sends tools/call, ui/update-model-context (one short line about what changed), ui/request-display-mode, and
+// The wire (MCP Apps, JSON-RPC over postMessage to the window that framed us): ui/initialize, then ui/notifications/initialized; the host sends ui/notifications/tool-input and ui/notifications/tool-result for the call that
+// opened the panel (the film is named by the result's structuredContent or its JSON text part, { project_id, mode, title }, or else by the call's own arguments); the panel sends tools/call, ui/update-model-context (one short line about what changed), ui/request-display-mode, and
 // ui/notifications/size-changed. A tool answer is { structuredContent: { data } } or, with isError, { structuredContent: { error: { code, message } } }; anything else reads as "did not answer".
 (() => {
   const NAMES = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];
@@ -18,6 +18,21 @@
   const clean = (s, n) => String(s == null ? '' : s).replace(BAD, ' ').slice(0, n);
 
   let nid = 0, ctx = {};
+  // Hosts differ in what they keep of a tool result: some pass structuredContent, some only the text parts. Read the first, else a text part that is a JSON object; anything else is "nothing".
+  function unwrap(res) {
+    if (!res || typeof res !== 'object') return null;
+    if (res.structuredContent && typeof res.structuredContent === 'object') return res.structuredContent;
+    if (Array.isArray(res.content)) {
+      for (const part of res.content) {
+        if (part && part.type === 'text' && typeof part.text === 'string' && part.text.length < 2000000 && part.text.trimStart().startsWith('{')) {
+          try { const v = JSON.parse(part.text); if (v && typeof v === 'object' && !Array.isArray(v)) return v; } catch (e) { /* prose, not data */ }
+        }
+      }
+    }
+    return null;
+  }
+  const seen = { initialized: false, input: false, result: false, film: false };   // what has reached the panel, for the words shown if it never gets a film (kinds only, no content)
+  let input = null, inputTimer = 0, watchTimer = 0;
   const pending = new Map();
   const post = m => PARENT.postMessage({ jsonrpc: '2.0', ...m }, '*');
   const notify = (method, params) => post({ method, params });
@@ -30,13 +45,14 @@
     });
   }
 
-  let mounted = false, fullBtn = null;
+  let mounted = false, didRefuse = false, fullBtn = null;
   addEventListener('message', ev => {
     if (ev.source !== PARENT) return;
     const m = ev.data;
     if (!m || typeof m !== 'object' || m.jsonrpc !== '2.0') return;
     if (typeof m.method === 'string') {
-      if (m.method === 'ui/notifications/tool-result') opened(m.params && m.params.structuredContent);
+      if (m.method === 'ui/notifications/tool-input') gotInput(m.params && m.params.arguments);
+      else if (m.method === 'ui/notifications/tool-result') gotResult(m.params);
       else if (m.method === 'ui/notifications/host-context-changed') { ctx = { ...ctx, ...(m.params || {}) }; paintFull(); }
       else if (m.id !== undefined) post({ id: m.id, ...(m.method === 'ui/resource-teardown' ? { result: {} } : { error: { code: -32601, message: 'Method not found' } }) });
       if (m.method === 'ui/resource-teardown') stopAll();
@@ -57,8 +73,8 @@
     if (pollKey && pollKey === poll.key && poll.data !== null && Date.now() - poll.at < POLL_MS) return { data: JSON.parse(poll.data), error: null };
     let r;
     try { r = await request('tools/call', { name, arguments: args && typeof args === 'object' ? args : {} }); } catch (e) { return DOWN; }
-    const sc = r && typeof r === 'object' ? r.structuredContent : null;
-    if (!sc || typeof sc !== 'object') return DOWN;
+    const sc = unwrap(r);
+    if (!sc) return DOWN;
     if (r.isError || sc.error) {
       const e = sc.error && typeof sc.error === 'object' ? sc.error : {};
       return { data: null, error: { code: typeof e.code === 'string' ? e.code.slice(0, 16) : null, message: clean(e.message || 'Ryagram could not do that.', 300) } };
@@ -126,12 +142,45 @@
     root.querySelectorAll('p.meta').forEach(p => { if (p.textContent.indexOf(FOOT_OLD) === 0) p.textContent = FOOT_NEW; });
   }
 
-  // ---- the call that opened the panel tells us which film
+  // ---- the call that opened the panel tells us which film: its result (with the title), or failing that the arguments the host says it was called with
+  function gotResult(params) {
+    seen.result = true; clearTimeout(inputTimer);
+    if (params && params.isError) { refused(params); return; }      // the call was refused: say why in the server's own words, never open an editor whose every call would be refused
+    const sc = unwrap(params);
+    opened(sc && typeof sc.project_id === 'string' ? sc : input ? { ...input, ...(sc || {}) } : sc);
+  }
+  function gotInput(args) {
+    seen.input = true;
+    if (!args || typeof args !== 'object') return;
+    input = { project_id: args.project_id, mode: args.mode, title: '' };
+    clearTimeout(inputTimer);
+    inputTimer = setTimeout(() => { if (!seen.result) opened(input); }, 8000);     // only when the host never sends a result at all (the call itself can take a few seconds)
+  }
+  // a refusal (film not found, track list not shared, a missing permission): its sentence, cleaned, in place of any editor; if an editor was already opened from the arguments it is taken down
+  function refused(params) {
+    const parts = params && Array.isArray(params.content) ? params.content.filter(c => c && c.type === 'text' && typeof c.text === 'string').map(c => c.text) : [];
+    let text = clean(parts.join(' '), 300).trim();
+    if (text.startsWith('{')) { try { const e = JSON.parse(text); text = e && e.error && typeof e.error.message === 'string' ? clean(e.error.message, 300).trim() : ''; } catch (x) { text = ''; } }
+    if (!text) text = 'Ryagram could not open that film. Ask your AI to open the editor again.';
+    clearTimeout(watchTimer); clearTimeout(inputTimer); clearTimeout(tellTimer);
+    stopAll();
+    mounted = true; didRefuse = true;
+    window.ryagramLiveHost.project = '';
+    const root = document.getElementById('live-root');
+    if (root) root.replaceChildren(h('p', { class: 'meta' }, text));
+  }
+  function noFilm() {
+    if (mounted) return;
+    const root = document.getElementById('live-root');
+    if (!root) return;
+    const got = ['initialized', 'input', 'result'].filter(k => seen[k]).join(', ') || 'nothing';
+    root.replaceChildren(h('p', { class: 'meta' }, `Ryagram is here but your chat has not told it which film to show. Ask your AI to open the editor again. (For Ryagram support: the chat sent ${got}.)`));
+  }
   function opened(sc) {
-    if (mounted || !sc || typeof sc !== 'object') return;
+    if (mounted || didRefuse || !sc || typeof sc !== 'object') return;
     const project = typeof sc.project_id === 'string' && /^[0-9A-Za-z-]{8,64}$/.test(sc.project_id) ? sc.project_id : '';
     if (!project) return;
-    mounted = true;
+    mounted = true; seen.film = true; clearTimeout(watchTimer); clearTimeout(inputTimer);
     window.ryagramLiveHost.project = project;
     window.ryagramLiveHost.mode = sc.mode === 'data' ? 'data' : 'compilation';
     window.ryagramLiveHost.title = clean(sc.title, 80);
@@ -153,6 +202,6 @@
   if (typeof ResizeObserver === 'function') new ResizeObserver(size).observe(document.body);
 
   request('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'ryagram-editor', version: '1' }, appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] } })
-    .then(r => { ctx = (r && r.hostContext && typeof r.hostContext === 'object') ? r.hostContext : {}; notify('ui/notifications/initialized', {}); size(); paintFull(); })
+    .then(r => { ctx = (r && r.hostContext && typeof r.hostContext === 'object') ? r.hostContext : {}; seen.initialized = true; notify('ui/notifications/initialized', {}); size(); paintFull(); watchTimer = setTimeout(noFilm, 12000); })
     .catch(() => { const root = document.getElementById('live-root'); if (root && !mounted) root.replaceChildren(h('p', { class: 'meta' }, 'Ryagram could not start here. Ask your AI to open the editor in the Ryagram app instead.')); });
 })();

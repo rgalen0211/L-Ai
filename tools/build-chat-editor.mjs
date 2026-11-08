@@ -15,6 +15,9 @@ export const CSS = ['tools/maker-live/live-base.css', 'tools/chat-editor/chat-ex
 export const OUT = 'supabase/functions/connect-core/editor_page.ts';
 export const POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
 
+// A first, tiny script of its own: if the big one throws while it loads (a host sandbox can refuse something the page uses), the person reads that in words instead of a placeholder that never changes.
+export const EARLY = "addEventListener('error',function(e){var r=document.getElementById('live-root');if(r&&!r.querySelector('.le-panel')){var p=document.createElement('p');p.className='meta';p.textContent='Ryagram panel hit an error and could not draw. Ask your AI to open the editor in the Ryagram app instead. ('+String(e&&e.message||'no detail').replace(/[^\x20-\x7e]/g,' ').slice(0,140)+')';r.textContent='';r.appendChild(p);}});";
+
 export function html() {
   const js = JS.map(f => `/* ---- ${f} ---- */\n${read(f)}`).join('\n');
   const css = CSS.map(f => `/* ---- ${f} ---- */\n${read(f)}`).join('\n');
@@ -22,7 +25,7 @@ export function html() {
   if (/<\/style/i.test(css) || /@import|url\(/.test(css)) throw new Error('the stylesheet loads something or holds a style end tag');
   return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">` +
     `<meta http-equiv="Content-Security-Policy" content="${POLICY}"><meta name="color-scheme" content="dark"><title>Ryagram editor</title><style>\n${css}\n</style></head>` +
-    `<body><main id="live-root" class="container"><p class="meta">Opening your film...</p></main><script>\n${js}\n</script></body></html>`;
+    `<body><main id="live-root" class="container"><p class="meta">Opening your film...</p></main><script>${EARLY}</script><script>\n${js}\n</script></body></html>`;
 }
 
 export function build() {

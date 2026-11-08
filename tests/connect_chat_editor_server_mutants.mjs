@@ -34,8 +34,10 @@ const mutants = [
   // the answers
   ["a refusal is shown in the database's raw words", E, 'const message = friendly(e);', 'const message = String((e as Error)?.message ?? "");'],
   ['a code of any form is passed on', E, 'const code = typeof (e as { code?: unknown })?.code === "string" ? String((e as { code: string }).code).slice(0, 16) : null;', 'const code = ((e as { code?: unknown })?.code ?? null) as string | null;'],
-  ['a refusal is not marked as an error', E, 'return { text: message, isError: true, code: code ?? "error", data: { error: { code, message } } };', 'return { text: message, isError: false, code: code ?? "error", data: { error: { code, message } } };'],
-  ['a missing migration is not said', E, 'if (!call) return { text: "The editor panel is not available yet.", isError: true, code: "unavailable",', 'if (!call) return { text: "The editor panel is not available yet.", isError: false, code: "unavailable",'],
+  ['a refusal is not marked as an error', E, 'return { text: JSON.stringify({ error }), isError: true, code: code ?? "error", data: { error } };', 'return { text: JSON.stringify({ error }), isError: false, code: code ?? "error", data: { error } };'],
+  ['a refusal reaches a text-only host as prose, not as the same JSON', E, 'return { text: JSON.stringify({ error }), isError: true, code: code ?? "error", data: { error } };', 'return { text: message, isError: true, code: code ?? "error", data: { error } };'],
+  ['an answer reaches a text-only host as the word Done, not as the data', E, 'return ok(JSON.stringify(body), body);', 'return ok("Done.", body);'],
+  ['a missing migration is not said', E, 'if (!call) { const error = { code: null, message: "The editor panel is not available yet." }; return { text: JSON.stringify({ error }), isError: true,', 'if (!call) { const error = { code: null, message: "The editor panel is not available yet." }; return { text: JSON.stringify({ error }), isError: false,'],
   // the buckets
   ['panel calls count against the AI\'s calls', D, 'const panelCall = tool.chatEditor === "app";', 'const panelCall = false;'],
   ['panel calls are also counted against the AI\'s calls', D, 'if (!panelCall && !(await policy.hit(principal, "calls", LIMITS.callsPerMinutePerClient, 60))) {', 'if (!(await policy.hit(principal, "calls", LIMITS.callsPerMinutePerClient, 60))) {'],
