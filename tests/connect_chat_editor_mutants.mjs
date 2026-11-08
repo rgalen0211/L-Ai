@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-chated');
-const H = 'tools/chat-editor/live-host.js', CSS = 'tools/chat-editor/chat-extra.css', B = 'tools/build-chat-editor.mjs', DR = 'assets/app-editor-draft.js';
+const AE = 'assets/app-editor.js', H = 'tools/chat-editor/live-host.js', CSS = 'tools/chat-editor/chat-extra.css', B = 'tools/build-chat-editor.mjs', DR = 'assets/app-editor-draft.js';
 const SUITES = ['connect-chat-editor.test.mjs', 'live-editor-draft.test.mjs'];
 const mutants = [
   ['a sixth name is allowed', H, "'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];", "'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat', 'set_look'];"],
@@ -30,7 +30,17 @@ const mutants = [
   ['a change of ours does not clear the cached ask', H, "{ poll.at = 0; told(name, args, sc.data); }", "{ told(name, args, sc.data); }"],
   ['a frame feed is added to the seam', H, "window.ryagramLiveHost = { rpc, render, mode: 'compilation'", "window.ryagramLiveHost = { rpc, render, frame() {}, mode: 'compilation'"],
   ['a film id is used whatever its form', H, '&& /^[0-9A-Za-z-]{8,64}$/.test(sc.project_id)', ''],
-  ['a second result moves the panel to another film', H, "if (mounted || !sc || typeof sc !== 'object') return;", "if (!sc || typeof sc !== 'object') return;"],
+  ['a second result moves the panel to another film', H, "if (mounted || didRefuse || !sc || typeof sc !== 'object') return;", "if (didRefuse || !sc || typeof sc !== 'object') return;"],
+  ['a refused call still opens an editor from the arguments', H, "if (params && params.isError) { refused(params); return; }", ''],
+  ['the arguments open the film even when a result has arrived', H, 'if (!seen.result) opened(input);', 'opened(input);'],
+  ['the arguments open the film after 1.5 s, before a slow result', H, '}, 8000);     // only when', '}, 1500);     // only when'],
+  ['a refusal leaves the editor on screen and shows nothing', H, "if (root) root.replaceChildren(h('p', { class: 'meta' }, text));", ''],
+  ['a refusal after the editor opened leaves its timers running', H, '    stopAll();\n    mounted = true; didRefuse = true;', '    mounted = true; didRefuse = true;'],
+  ['a refusal that arrives later still lets the film open', H, 'mounted = true; didRefuse = true;', 'mounted = true;'],
+  ['a look colour is read without a guard', AE, "const hue = k => (typeof lk[k] === 'string' ? lk[k].toLowerCase() : '');", "const hue = k => lk[k].toLowerCase();"],
+  ['two colours that are both missing count as the same', AE, "const same = (a, b) => hue(a) !== '' && hue(a) === hue(b);", "const same = (a, b) => hue(a) === hue(b);"],
+  ['the sketch writes the word undefined into a picture attribute', AE, 'if (v != null) el.setAttribute(k, String(v))', 'el.setAttribute(k, String(v))'],
+  ['the look summary lists a colour the film does not hold', AE, 'LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined)', 'LOOK_ROWS'],
   ['the title is not cleaned', H, 'window.ryagramLiveHost.title = clean(sc.title, 80);', 'window.ryagramLiveHost.title = String(sc.title);'],
   ['the teardown request is not answered', H, "m.method === 'ui/resource-teardown' ? { result: {} } :", "m.method === 'ui/resource-teardown' ? { error: { code: -32601, message: 'x' } } :"],
   ['the panel opens a link from the host', H, 'const stops = [];', "const stops = []; request('ui/open-link', { url: 'https://evil.example/' }).catch(() => {});"],

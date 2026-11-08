@@ -23,8 +23,8 @@ test('the committed page is exactly what the generator writes from the website\'
 
 test('the page is one self-contained file under 300 KB that loads nothing and uses no way to reach out', () => {
   assert.ok(Buffer.byteLength(EDITOR_HTML) <= 300 * 1024, `${Buffer.byteLength(EDITOR_HTML)} bytes`);
-  assert.equal((EDITOR_HTML.match(/<script/g) || []).length, 1);
-  assert.equal((EDITOR_HTML.match(/<\/script/g) || []).length, 1);
+  assert.equal((EDITOR_HTML.match(/<script/g) || []).length, 2);          // a tiny first one that reports a load error in words, then the page
+  assert.equal((EDITOR_HTML.match(/<\/script/g) || []).length, 2);
   assert.equal((EDITOR_HTML.match(/<style/g) || []).length, 1);
   const noNs = EDITOR_HTML.replace(/http:\/\/www\.w3\.org\/\d+\/svg/g, '');
   assert.ok(!/https?:\/\//i.test(noNs), 'no web address (the SVG namespace aside)');
@@ -32,6 +32,28 @@ test('the page is one self-contained file under 300 KB that loads nothing and us
     'insertAdjacentHTML', 'document.write', 'importScripts', 'window.open', 'Worker(', '<link', '@import', 'url(', '<iframe', ' src=', 'srcdoc', 'location.', 'history.']) {
     assert.ok(!EDITOR_HTML.includes(bad), `the page does not use ${bad}`);
   }
+});
+
+test('a first small script turns a load error into words, so a page that throws never sits on its placeholder', () => {
+  const first = EDITOR_HTML.slice(EDITOR_HTML.indexOf('<script>') + 8, EDITOR_HTML.indexOf('</script>'));
+  assert.ok(first.length < 700 && first.includes("addEventListener('error'") && first.includes('could not draw'));
+  assert.ok(!/fetch|XMLHttp|src=|eval|innerHTML/.test(first));
+  assert.ok(EDITOR_HTML.indexOf('<script>') < EDITOR_HTML.indexOf('/* ---- assets/app-editor-core.js'));
+});
+
+test('the opening handshake reads the film from the result, its JSON text, or the call\'s own arguments, and says in words when none arrives', () => {
+  const host = fs.readFileSync('tools/chat-editor/live-host.js', 'utf8').replace(/\r\n/g, '\n');
+  for (const need of ['ui/notifications/tool-input', 'ui/notifications/tool-result', 'function unwrap', 'structuredContent', 'part.text', 'has not told it which film']) assert.ok(host.includes(need), need);
+  // a refused open_editor is words, never an editor; the arguments open a film only when no result has come at all, after a long wait
+  for (const need of ['params && params.isError', 'refused(params)', 'if (!seen.result) opened(input)', '}, 8000);', '    stopAll();\n    mounted = true; didRefuse = true;', "root.replaceChildren(h('p', { class: 'meta' }, text))"]) assert.ok(host.includes(need), need);
+});
+
+test('a film whose look names no colours (a new one, or an older one) never crashes the page: every look read is guarded', () => {
+  const src = fs.readFileSync('assets/app-editor.js', 'utf8').replace(/\r\n/g, '\n');
+  // Q511 follow-up 2026-11-07: lk['network.color'].toLowerCase() threw on any data film with no look overrides, and the chat panel sat on its error words
+  assert.ok(!/lk\[[^\]]+\]\.(toLowerCase|toUpperCase|trim|split|slice)\(/.test(src.replace("typeof lk[k] === 'string' ? lk[k].toLowerCase() : ''", '')), 'a look value is read with a method call and no guard');
+  for (const need of ["const hue = k => (typeof lk[k] === 'string' ? lk[k].toLowerCase() : '');", "const same = (a, b) => hue(a) !== '' && hue(a) === hue(b);", 'if (v != null) el.setAttribute(k, String(v))', 'LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined)']) assert.ok(src.includes(need), need);
+  assert.ok(EDITOR_HTML.includes("const hue = k => (typeof lk[k] === 'string'"), 'the built page carries the guard');
 });
 
 test('the page carries its own strict policy: nothing may be fetched, framed or submitted', () => {

@@ -27,14 +27,17 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
     inputSchema: obj(props, ["p_project", "p_mode", ...Object.keys(props).filter((k) => !["p_project", "p_mode"].includes(k))]),
     async run(a, ctx: ToolCtx) {
       const call = (ctx.data as Data).editorCall;
-      if (!call) return { text: "The editor panel is not available yet.", isError: true, code: "unavailable", data: { error: { code: null, message: "The editor panel is not available yet." } } };
+      if (!call) { const error = { code: null, message: "The editor panel is not available yet." }; return { text: JSON.stringify({ error }), isError: true, code: "unavailable", data: { error } }; }
       try {
         const data = await call.call(ctx.data, name, a);
-        return ok("Done.", { data: data === undefined ? null : data });
+        // the text is the same answer as JSON: only the panel calls these (visibility app), and some hosts hand a panel the text parts and not structuredContent
+        const body = { data: data === undefined ? null : data };
+        return ok(JSON.stringify(body), body);
       } catch (e) {
         const code = typeof (e as { code?: unknown })?.code === "string" ? String((e as { code: string }).code).slice(0, 16) : null;
         const message = friendly(e);
-        return { text: message, isError: true, code: code ?? "error", data: { error: { code, message } } };
+        const error = { code, message };
+        return { text: JSON.stringify({ error }), isError: true, code: code ?? "error", data: { error } };
       }
     },
   });
