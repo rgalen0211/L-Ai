@@ -1003,11 +1003,12 @@
         const touched = new Set(ed.aiTouched());
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
           ...LOOK_ROWS.map(([key, label]) => {
-            const input = h('input', { type: 'color', value: ed.state.look[key], id: `le-look-${key}`, 'aria-label': label, disabled: locked });
+            const input = h('input', { type: 'color', value: ed.state.look[key] !== undefined ? ed.state.look[key] : DATA_BASE().look[key], id: `le-look-${key}`, 'aria-label': label, disabled: locked });
             input.addEventListener('input', () => { preview = { [key]: input.value }; paintPreview(); });
             input.addEventListener('change', () => { preview = null; apply({ op: 'set_look', key, value: input.value }); });
             return h('div', { class: 'le-row' }, h('label', { for: input.id }, label, touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null), input);
           }),
+          ...(LOOK_ROWS.some(([k]) => ed.state.look[k] === undefined) ? [h('p', { class: 'meta le-defaults' }, "A colour this film has not changed is shown in the editor's own starting colour. The film's own colours are not shown here yet.")] : []),
           ...WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the engine'))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }

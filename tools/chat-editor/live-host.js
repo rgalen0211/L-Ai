@@ -120,6 +120,13 @@
   // ---- full screen, where the host offers it
   const modes = () => (Array.isArray(ctx.availableDisplayModes) ? ctx.availableDisplayModes : []);
   function paintFull() {
+    // Full screen: the chat's reply box sits over the bottom of the panel, so nothing the person needs may sit in the last ~90 px (chat-extra.css makes the room). A host that tells its safe area adds to it.
+    const de = document.documentElement;
+    if (de && de.classList) {
+      const sb = ctx.safeAreaInsets && typeof ctx.safeAreaInsets.bottom === 'number' && isFinite(ctx.safeAreaInsets.bottom) ? Math.min(200, Math.max(0, Math.round(ctx.safeAreaInsets.bottom))) : 0;
+      if (de.style && de.style.setProperty) de.style.setProperty('--le-safe-bottom', sb + 'px');
+      de.classList.toggle('le-fullscreen', ctx.displayMode === 'fullscreen');
+    }
     if (!fullBtn) return;
     const can = modes().includes('fullscreen');
     fullBtn.hidden = !can;
