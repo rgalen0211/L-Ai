@@ -1,6 +1,6 @@
 """Phone-width check (Claude's night note 11-06, item 2) of the department pages in mock mode (`departments` and `aiFirst` on, as committed): Data films and the four Coming soon pages
 (Compilations, Geographic Intelligence, Games, Animation Studio) at 320, 360, 375 and 390 px, in three switch settings: all picture and detail switches OFF (today), `deptStills` ON with test
-pictures, and `departmentDetails` + `locationPreview` ON (the longest pages). For each: no sideways scroll, nothing wider than the screen, no text cut off in its own box, every visible control
+pictures, and `departmentDetails` + `locationPreview` ON (the longest pages), and `locationWords` + `locationPreview` ON (GEO's words). For each: no sideways scroll, nothing wider than the screen, no text cut off in its own box, every visible control
 at least 44 px, no button wrapped to more than two lines, the accessibility scan, and (with deptStills on) every picture inside the screen. Writes screenshots. Exit 1 on any finding.
 Needs Chrome, so it is not part of the node suite. Reuses the probe of tools/check-signin-phone.py.
 
@@ -32,6 +32,8 @@ def main():
     if has_stills:
         settings.append(('stills', cfg.replace('deptStills: false', 'deptStills: true'), True))
     settings.append(('details', cfg.replace('departmentDetails: false', 'departmentDetails: true').replace('locationPreview: false', 'locationPreview: true'), False))
+    if 'locationWords: false' in cfg:                                              # GEO's Location Intelligence words (WEB-3), with the made-up picture too: the longest Geographic Intelligence page
+        settings.append(('location-words', cfg.replace('locationWords: false', 'locationWords: true').replace('locationPreview: false', 'locationPreview: true'), False))
     srv = aa.serve(); port = srv.server_address[1] if hasattr(srv, 'server_address') else aa.PORT
     found, states = [], 0
     with sync_playwright() as pw:
