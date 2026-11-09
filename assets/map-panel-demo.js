@@ -5,7 +5,7 @@
 (function () {
   const on = cfg => !!cfg && cfg.mapPanelDemo === true;
   const NS = 'http://www.w3.org/2000/svg';
-  const STILL_MS = 3000;       // option A: a place that is not held fills in by itself once the view has been still for this long
+  const STILL_MS = 3000;       // (Ryan's Q520 answer 1 = A): a place that is not held fills in by itself once the view has been still for this long
   const RETRY_SECONDS = 20;    // invented; the real panel shows the seconds the service asks for
   const FC_MAX = 2029;         // invented; the real limit comes from the forecast core
   const FIRST = 2012, LAST = 2023;
@@ -37,7 +37,7 @@
   function create(host, win) {
     const doc = host.ownerDocument || document;
     const setT = (win && win.setTimeout) || setTimeout, clearT = (win && win.clearTimeout) || clearTimeout;
-    const S = { z: 8, st: 'loading', fm: 'A', year: LAST, play: false, user: {}, sheet: false, phone: false };
+    const S = { z: 8, st: 'loading', year: LAST, play: false, user: {}, sheet: false, phone: false };
     let timer = null, playTimer = null;
     const isOn = L => (L.id in S.user ? S.user[L.id] : L.on(S.z));
     const fcOn = () => isOn(LAYERS[5]);
@@ -72,9 +72,7 @@
       if (S.st === 'slow') return `<b>Slowing down.</b> Too many requests; the map stays as drawn. Try again in ${RETRY_SECONDS} seconds.`;
       if (S.st === 'newer') return '<b>This map is newer than this panel.</b> Close it and reopen it from the chat.';
       if (S.st === 'level') return '<b>Not published at this level.</b> The agency publishes nothing this fine, or this coarse, for this measure. Ryagram does not spread it down or add it up to make a number.';
-      if (S.st === 'loading') return S.fm === 'A'
-        ? '<b>Not fetched yet.</b> This is published, and Ryagram does not hold it yet. It is fetching 4 counties now, about 4 seconds. It fills in by itself once you have held the view still for 3 seconds.'
-        : '<b>Not fetched yet.</b> This is published, and Ryagram does not hold it yet. <button type="button" class="btn sec" data-load>Load this area</button>';
+      if (S.st === 'loading') return '<b>Not fetched yet.</b> This is published, and Ryagram does not hold it yet. It is fetching 4 counties now, about 4 seconds. It fills in by itself once you have held the view still for 3 seconds.';
       if (S.st === 'nofig') return '<b>Withheld, or no figure.</b> The agency hides the value for this place or has none. It is not a zero and it is not filled in.';
       if (lvl === 'None') return '<b>Nothing is published at this zoom yet.</b> Zoom in to see states.';
       if (fc && S.year > FC_MAX) return '<b>No estimate that far ahead.</b>';
@@ -118,7 +116,6 @@
         <div class="banner">DEMO: invented grid and figures, not real data. Dark by default. Every word is a draft for Ryan.</div>
         <fieldset class="demo-controls"><legend>Demo controls (not part of the panel)</legend>
           <label>Panel state <select id="mp-st">${stateOpts}</select></label>
-          <label>When a place is not held <select id="mp-fm"><option value="A" ${S.fm === 'A' ? 'selected' : ''}>A: fills in by itself after 3 s still (default)</option><option value="B" ${S.fm === 'B' ? 'selected' : ''}>B: a "Load this area" button</option></select></label>
         </fieldset>
         <section class="mp ${S.phone ? 'phone' : ''}" aria-label="Map panel demo">
           <header><span class="title">Limited-service restaurants (invented)</span><span class="chip ${lab[0]}" data-label>${lab[1]}</span><span class="chip levelchip" title="One level per answer, never mixed">${lvl === 'None' ? 'No level' : lvl}</span></header>
@@ -141,9 +138,9 @@
       if (keep) { const el = host.querySelector('#' + keep.replace(/[^A-Za-z0-9_-]/g, '')) || host.querySelector(`[data-keep="${keep}"]`); if (el && el.focus) el.focus(); }
     }
 
-    function armFill() {                                       // option A: the view has been still for STILL_MS, so the places that were not held fill in by themselves
+    function armFill() {                                       // (Ryan's Q520 answer 1 = A): the view has been still for STILL_MS, so the places that were not held fill in by themselves
       clearT(timer); timer = null;
-      if (S.st === 'loading' && S.fm === 'A') timer = setT(() => { timer = null; S.st = 'drawn'; render(); }, STILL_MS);
+      if (S.st === 'loading') timer = setT(() => { timer = null; S.st = 'drawn'; render(); }, STILL_MS);
     }
     function moved() {                                         // a zoom or pan to a view that is not held yet (demo: any zoom, unless an error state is being shown)
       if (!ERROR_STATES.includes(S.st) && S.st !== 'level' && S.st !== 'nofig') S.st = 'loading';
@@ -157,24 +154,21 @@
       else if (b.hasAttribute('data-reset')) { S.user = {}; render(); }
       else if (b.id === 'mp-sheet') { S.sheet = !S.sheet; render(); }
       else if (b.hasAttribute('data-play')) { S.play = !S.play; clearT(playTimer); playTimer = null; if (S.play) tick(); render(); }
-      else if (b.hasAttribute('data-load')) { S.st = 'drawn'; render(); }
     });
     host.addEventListener('change', e => {
       const t = e.target;
       if (t.id === 'mp-st') setState(t.value);
-      else if (t.id === 'mp-fm') setFetchMode(t.value);
       else if (t.dataset && t.dataset.l) { S.user[t.dataset.l] = !!t.checked; render(); }
     });
     host.addEventListener('input', e => {
       if (e.target.id === 'mp-yr') { S.year = clampYear(e.target.value, yMax()); updateMap(); }
     });
     function setState(v) { if (STATES.some(s => s[0] === v)) { S.st = v; armFill(); render(); } }
-    function setFetchMode(v) { S.fm = v === 'B' ? 'B' : 'A'; armFill(); render(); }
     function tick() {
       playTimer = setT(() => { const mx = yMax(); S.year = S.year >= mx ? FIRST : S.year + 1; render(); if (S.play) tick(); }, 900);
     }
     render(); armFill();
-    return { S, render, setState, setFetchMode, setPhone(p) { p = !!p; if (S.phone !== p) { S.phone = p; render(); } }, stop() { clearT(timer); clearT(playTimer); } };
+    return { S, render, setState, setPhone(p) { p = !!p; if (S.phone !== p) { S.phone = p; render(); } }, stop() { clearT(timer); clearT(playTimer); } };
   }
 
   function mount(root) {

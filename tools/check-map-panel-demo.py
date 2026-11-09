@@ -1,5 +1,5 @@
 """The map panel demo page (/map-panel-demo/, WEB 11-08) in real Chrome, LOCAL server only, `mapPanelDemo` ON in a local config copy, desktop (1100 px) and phone (390 px): switch off shows only the plain line; on shows the demo
-banner, the panel with its six layers and the time slider; the default state is "not held" and fills in by itself after 3 s still (option A); option B shows a Load this area button; the three no-number states and the three
+banner, the panel with its six layers and the time slider; the default state is "not held" and fills in by itself after 3 s still (option A); there is no Load this area button; the three no-number states and the three
 chat/service states each show their own words; a layer you set shows "you set this" and the reset restores the standard layers; the slider keeps focus while dragged and the forecast layer extends it and labels it Estimated;
 the phone has a Layers sheet that opens and closes; every tap target is at least 44 px; no outside request except the page font; no sideways scroll; no console errors. Needs Chrome.   python tools/check-map-panel-demo.py"""
 import http.server, re, socketserver, threading
@@ -67,18 +67,13 @@ with sync_playwright() as pw:
         check(p.evaluate("document.querySelectorAll('.lrow').length") == 6, 'six layers listed')
         check(p.evaluate("!!document.querySelector('.mp.phone')") == phone, 'the phone layout is used only on a phone')
         s0 = p.evaluate(STATUS)
-        check(s0.startswith('Not fetched yet') and 'by itself' in s0, 'default state: not held, fills in by itself (option A)')
+        check(s0.startswith('Not fetched yet') and 'by itself' in s0, 'default state: not held, fills in by itself (Ryan Q520: A)')
         p.wait_for_timeout(3400)
         check(p.evaluate(STATUS) == '', 'after 3 s still the places fill in by themselves and the note goes')
         p.click('[data-zoom="1"]'); p.wait_for_timeout(100)
         check(p.evaluate(STATUS).startswith('Not fetched yet'), 'a zoom to a view not held shows the not-held note again')
         p.wait_for_timeout(3400)
         check(p.evaluate(STATUS) == '', 'and it fills in by itself again')
-        p.select_option('#mp-fm', 'B'); p.select_option('#mp-st', 'loading'); p.wait_for_timeout(3400)
-        check(p.evaluate(STATUS).startswith('Not fetched yet') and p.is_visible('[data-load]'), 'option B: the note stays and a Load this area button shows (no self-fill)')
-        p.click('[data-load]'); p.wait_for_timeout(80)
-        check(p.evaluate(STATUS) == '', 'pressing Load this area draws it')
-        p.select_option('#mp-fm', 'A')
         s1, s3 = state(p, 'level'), state(p, 'nofig')
         check(s1.startswith('Not published at this level') and s3.startswith('Withheld, or no figure') and s1 != s3, 'not published and withheld are different words')
         check('not a zero' in s3, 'withheld says it is not a zero')

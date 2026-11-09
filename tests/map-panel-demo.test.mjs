@@ -1,5 +1,5 @@
 // WEB 11-08: the map panel demo page (/map-panel-demo/, behind mapPanelDemo, OFF) on MADE-UP data: hidden unless the switch is exactly true, no network or storage, the three no-number states kept apart in the words,
-// and the real script run against a minimal page (off shows the plain line; on builds the panel; option A fills in by itself after 3 s, option B waits for the button).
+// and the real script run against a minimal page (off shows the plain line; on builds the panel; a pan fills in by itself after 3 s, Ryan Q520 answer A).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -25,7 +25,7 @@ test('the page: noindex, content hidden in the HTML, no inline script or style, 
 
 test('the words keep the three no-number states apart and name the options', () => {
   assert.match(code, /Not published at this level\./); assert.match(code, /Not fetched yet\./); assert.match(code, /Withheld, or no figure\./); assert.match(code, /It is not a zero/);
-  assert.match(code, /held the view still for 3 seconds/); assert.match(code, /Load this area/);
+  assert.match(code, /held the view still for 3 seconds/); assert.ok(!/Load this area/.test(code), 'Ryan chose A at Q520: no Load this area button');
   for (const w of ['This chat does not let the map load detail', 'Slowing down', 'This map is newer than this panel', 'reach the map service']) assert.ok(code.includes(w), w);
   assert.equal(new Set(['Not published at this level.', 'Not fetched yet.', 'Withheld, or no figure.']).size, 3);
 });
@@ -55,11 +55,10 @@ test('the switch: off shows only the plain line; "true", 1 and a missing switch 
   assert.equal(d.els['map-panel-demo'].hidden, false); assert.equal(d.els['not-available'].hidden, true); assert.equal(api.on({ mapPanelDemo: true }), true);
 });
 
-test('option A fills in by itself after 3 s still; option B waits for the button; an error state never self-fills', () => {
+test('a pan fills in by itself after 3 s still (Ryan Q520 answer A); an error state never self-fills', () => {
   const { d, api } = load({ mapPanelDemo: true }); void d;
   const mk = () => { const x = dom(); const host = { ...x.els['map-panel-demo'], ownerDocument: x.doc }; return { x, host }; };
   { const { x, host } = mk(); const p = api.create(host, x.win); assert.equal(p.S.st, 'loading'); x.advance(2999); assert.equal(p.S.st, 'loading'); x.advance(2); assert.equal(p.S.st, 'drawn'); }
-  { const { x, host } = mk(); const p = api.create(host, x.win); p.setFetchMode('B'); x.advance(10000); assert.equal(p.S.st, 'loading', 'B never fills by itself'); }
   assert.equal(api.STILL_MS, 3000);
   assert.deepEqual(JSON.parse(JSON.stringify(api.STATES.map(s => s[0]))), ['loading', 'drawn', 'level', 'nofig', 'offline', 'blocked', 'slow', 'newer']);
   assert.deepEqual(JSON.parse(JSON.stringify([0, 3, 4, 6, 7, 12].map(api.level))), ['None', 'None', 'States', 'States', 'Counties', 'Counties']);
