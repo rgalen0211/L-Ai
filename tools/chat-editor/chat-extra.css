@@ -4,3 +4,5 @@
 .le-chatbar{display:flex;justify-content:space-between;align-items:center;gap:12px;margin:0 0 8px}
 /* the film is saved and built in the Ryagram app, and the pill's words belong to the computer's page: neither is offered here */
 .le-pill,.le-top .button.primary{display:none}
+/* full screen: the chat's reply box covers the bottom ~90 px of the panel, so the page ends 96 px higher (plus whatever safe area the host reports) and the last control can be scrolled above it */
+.le-fullscreen body{padding-bottom:calc(96px + var(--le-safe-bottom,0px))}
