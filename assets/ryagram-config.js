@@ -117,6 +117,8 @@ window.ryagramConfig = Object.freeze({
   geoRealData: false,
   // More honest words on the Geographic Intelligence and Games Coming soon pages (NEXT-WEB 200, from the departments brief): what is coming, how numbers and people are treated, what is not built yet. Draft words for Ryan. OFF until he has read them.
   departmentDetails: false,
+  // GEO's own plain words for the Geographic Intelligence Coming soon page (BACKLOG WEB-3 / NEXT-WEB 207; proposals/GEO-LI-COMING-SOON-WORDS-1106.md, claims guard clean): what it will do, what it will not claim, how to read the numbers. Replaces the departmentDetails words on that page. Draft words for Ryan. OFF until he has read them.
+  locationWords: false,
   // Picture slots on the Games and Geographic Intelligence Coming soon pages and a Forecasts group on the Data films page (CC1 11-05). Each frame asks for /assets/dept-stills/<name>-<n>.svg (then .png) and stays
   // hidden if the file is not there; the stills are not in the repo until Ryan decides. Alt text is the draft in proposals\DEPT-PAGES-STILLS-1105.md. OFF.
   deptStills: false,

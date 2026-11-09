@@ -52,6 +52,34 @@
   const stillsOn = cfg => !!cfg && cfg.deptStills === true;
   const stillsFor = (id, cfg) => (stillsOn(cfg) && Object.prototype.hasOwnProperty.call(STILLS, id) ? STILLS[id] : null);
   const SECTIONS = [['building', 'What we are building'], ['rules', 'How it will treat your data and other people'], ['notYet', 'What is not built yet']];
+  // Location Intelligence words (BACKLOG WEB-3 / NEXT-WEB 207): GEO's own plain words, from proposals/GEO-LI-COMING-SOON-WORDS-1106.md, run through the claims guard (ryagram.geo.claims.check flags none).
+  // Shown on the Geographic Intelligence Coming soon page only when the site switch locationWords is exactly true (OFF), in place of the departmentDetails words. No figure for any real place; no example numbers.
+  const LOCATION = {
+    intro: 'Maps and counts for a place you are thinking about.',
+    sections: [
+      ['What it will do', [
+        ['Drop a pin on the map', 'and see who lives around it: residents within 1 and 2 km, and within an estimated 10-minute drive.'],
+        ['See what is already there:', 'listed food places, grocery stores and other businesses near the pin, and how far away the nearest one is.'],
+        ['Compare two spots side by side,', 'with the overlap counted once, so the same people are not counted twice.'],
+        ['See the county’s trend', 'beside each number: population and business counts, with a likely range and how far the same method missed when tested on past years.'],
+        ['Ask in plain words,', 'for example “What is within 10 minutes of here?” or “Compare these two sites.”']]],
+      ['What it will not claim', [
+        ['It does not say whether a business would succeed.', 'There is no sales, rent or footfall data in it, so nothing here can speak to that.'],
+        ['It does not pick a “best” site.', 'It shows counts side by side, and you choose.'],
+        ['It does not say what zoning allows.', 'It shows a zone as the city published it; ask the planning office.'],
+        ['Counts are what is listed', 'in public maps on a stated date. A place that is missing from the list may still exist.'],
+        ['A forecast is an estimate', 'with its range, never a promise.']]],
+      ['How to read the numbers', [
+        ['Observed:', 'published by a source, such as the Census.'],
+        ['Calculated:', 'counted or measured from those sources.'],
+        ['Estimated:', 'modelled, with the assumption stated.'],
+        ['Simulated:', 'a “what if” you asked for.']]],
+    ],
+    noFigure: 'Every number carries one of those words. Where there is no figure, it says “no figure”. It never shows a zero in its place.',
+    source: 'U.S. Census Bureau (population and block groups), OpenStreetMap contributors (listed places and roads), the Bureau of Economic Analysis and the Census Bureau’s business counts (county trends). Each source is named beside its numbers.'
+  };
+  const locationOn = cfg => !!cfg && cfg.locationWords === true;
+  const locationFor = (id, cfg) => (locationOn(cfg) && id === 'geo_intelligence' ? LOCATION : null);
   const detailsOn = cfg => !!cfg && cfg.departmentDetails === true;
   const detailsFor = (id, cfg) => (detailsOn(cfg) && Object.prototype.hasOwnProperty.call(DETAILS, id) ? DETAILS[id] : null);
   const WORDS = {
@@ -218,10 +246,14 @@
         }
       };
       draw();
-      const more = detailsFor(id, window.ryagramConfig);
+      const loc = locationFor(id, window.ryagramConfig);
+      const more = loc ? null : detailsFor(id, window.ryagramConfig);
       const moreEls = more ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), ...SECTIONS.flatMap(([key, title]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, more[key].map(t => h('li', {}, t)))])] : [];
+      const locEls = loc ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), h('p', { class: 'form-intro' }, [h('strong', {}, 'Coming soon. '), loc.intro]),
+        ...loc.sections.flatMap(([title, items]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, items.map(([lead, rest]) => h('li', {}, [h('strong', {}, lead), ' ' + rest])))]),
+        h('p', {}, loc.noFigure), h('h2', {}, 'Where the data comes from'), h('p', {}, loc.source)] : [];
       return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
-              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...moreEls, area, msg];
+              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...moreEls, ...locEls, area, msg];
     }
 
     // #/d/<id>. An id this account's list does not include, or any failure, is the plain "not available" page with a way home: never a blank page.
@@ -236,5 +268,5 @@
     return { mountBar, unmountBar, pageView, load };
   }
 
-  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
+  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, LOCATION, locationOn, locationFor, STILLS, stillsOn, stillsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
 })();
