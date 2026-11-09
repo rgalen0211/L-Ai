@@ -158,7 +158,11 @@ class FilmCards(core.Base):
                    "select %s, %s, v.id, lpad(to_hex(g), 64, '0'), 'failed', now() from generate_series(1, 95) g, public.versions v where v.project_id = %s limit 95", ALICE, films[0], films[0])
         self.fails(lambda: self.runner(), "select connect_film_card_ask(%s, %s)", self.a, films[5], code="PT429")
         pb = self.film(self.b)[0]
-        self.assertTrue(self.ask(self.b, pb)["id"], "another person is not held up by Alice's limits")
+        try:
+            got = self.ask(self.b, pb)
+        except psycopg.Error as e:
+            self.fail(f"another person was held up by Alice's limits (sqlstate {e.sqlstate})")
+        self.assertTrue(got["id"], "another person is not held up by Alice's limits")
 
     # ------------------------------------------------------------------------------------------------ privacy
     def test_the_table_is_closed_to_every_api_role(self):
@@ -278,6 +282,15 @@ class FilmCards(core.Base):
         self.assertEqual((again["state"], again["repeat"]), ("asked", False))
         self.assertNotEqual(again["id"], r["id"])
         self.assertEqual(self.owner("select count(*) from public.film_card_requests").fetchone()[0], 1)
+
+    def test_only_an_engine_error_is_retried_a_film_the_engine_cannot_draw_stays_failed(self):
+        p, _, _ = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        self.worker().one("select public.fail_film_card(%s, 'view_not_supported', 'no card for this view')", r["id"])
+        self.owner("update public.film_card_requests set finished_at = now() - interval '2 hours'")
+        again = self.ask(self.a, p)
+        self.assertEqual((again["id"], again["repeat"], again["state"]), (r["id"], True, "failed"), "not retried, however long ago")
 
     def test_a_claim_nobody_finished_comes_back_after_ten_minutes_and_claims_off_means_none(self):
         p, _, _ = self.film(self.a)
