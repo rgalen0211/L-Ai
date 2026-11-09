@@ -291,3 +291,16 @@ test('the shared JSON schema (tests/fixtures/film-card/film-card.schema.json, th
   }
   assert.ok(schemaRejects >= 8, 'the schema is not an empty promise: it rejects the structural cases');
 });
+
+// ------------------------------------------------------------------------------------------------ the real database layer
+test('the database layer sends each film card call to its own function, the token\'s hash first and never an owner or a story', async () => {
+  const { ConnectDb } = await import('../supabase/functions/connect/db.ts');
+  const seen = [];
+  const db = new ConnectDb(async (sql, params) => { seen.push({ sql, params }); return [{ r: { state: 'none' } }]; }, 'https://x.example/app/');
+  const data = db.data({ tokenHash: 'h'.repeat(64) });
+  const P = '00000000-0000-4000-8000-0000000000a1';
+  await data.askFilmCard(P);
+  await data.getFilmCard(P);
+  assert.deepEqual(seen.map((s) => s.sql), ['select public.connect_film_card_ask($1::text, $2::uuid) as r', 'select public.connect_film_card_get($1::text, $2::uuid) as r']);
+  for (const s of seen) assert.deepEqual(s.params, ['h'.repeat(64), P]);
+});
