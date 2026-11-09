@@ -7,8 +7,10 @@
 //                      (scope edit, the grant check on every call, the AI's limits, the track list only when shared, undo only of the AI side's own changes), all of it enforced in SQL.
 // An app-only answer is { data } or, with isError, { error: { code, message } }: the panel's page reads exactly that.
 import { untrusted } from "../ai-editor/prompt.ts";
-import type { Data, ToolCtx, ToolDef, ToolResult } from "./types.ts";
+import { checkFilmCard } from "./film_card.ts";
+import { LIMITS, type Data, type FilmCardRead, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
+export const FILM_CARD_TOOL = "editor_film_card";
 export const PANEL_NAMES = ["editor_apply_ops", "editor_undo", "editor_undo_all_ai", "my_edit_ops_since", "editor_heartbeat"] as const;
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -62,8 +64,57 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
     },
   };
 
+  /** Editor Step A (migration 20261109000100, contract proposals/CONNECT-EDITOR-STEP-A-CONTRACT-1109.md): the film's look card for the panel. App-only, behind the chat-editor switch, scope read. It asks the house computer for a card of the film's CURRENT
+   *  saved story (p_ask), and reads the newest card or where the request stands. A card is checked here (film_card.ts) before the panel ever sees it; `p_have` (the story hash of a card the panel already holds) keeps a poll from carrying the same card twice. */
+  const FAIL_WORDS: Record<string, string> = {
+    view_not_supported: "The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.",
+    story_not_found: "The saved film could not be read to draw its picture.",
+    engine_error: "Drawing the film's picture did not work this time. It will be tried again later.",
+    card_rejected: "The film's picture was drawn but could not be used.",
+  };
+  const shape = (r: FilmCardRead, have: string | null): Record<string, unknown> => {
+    if (r.state === "ready") {
+      const sha = (r.card as { basis?: { story_sha256?: unknown } } | null | undefined)?.basis?.story_sha256;
+      if (checkFilmCard(r.card).length || sha !== r.built_sha256) return { state: "failed", code: "card_rejected", message: FAIL_WORDS.card_rejected };
+      const refresh = r.refresh ? { refresh: { state: r.refresh.state, ...(r.refresh.state === "failed" ? { code: r.refresh.fail_code && FAIL_WORDS[r.refresh.fail_code] ? r.refresh.fail_code : "engine_error" } : {}) } } : {};
+      if (have && have === r.built_sha256) return { state: "ready", unchanged: true, stale: r.stale === true, built_sha256: r.built_sha256, ...refresh };
+      return { state: "ready", stale: r.stale === true, built_sha256: r.built_sha256, ...refresh, card: r.card };
+    }
+    if (r.state === "failed") { const code = r.fail_code && FAIL_WORDS[r.fail_code] ? r.fail_code : "engine_error"; return { state: "failed", code, message: FAIL_WORDS[code] }; }
+    if (r.state === "asked" || r.state === "claimed") return { state: r.state, waited_seconds: Math.max(0, Math.floor(Number(r.waited_s) || 0)) };
+    return { state: "none" };
+  };
+  const filmCard: ToolDef = {
+    name: FILM_CARD_TOOL, title: "Editor panel: the film's picture and colours", scope: "read", readOnly: false, idempotent: true, chatEditor: "app",
+    description: "ONLY for the Ryagram editor panel in this conversation; do not call it yourself. Asks for, and reads, the real colours and one real still picture of the person's film (drawn by the Ryagram computer). It changes nothing in the film.",
+    inputSchema: obj({ p_project: uuid, p_ask: { type: "boolean" }, p_have: { type: "string", pattern: "^[0-9a-f]{64}$" } }, ["p_project"]),
+    async run(a, ctx: ToolCtx) {
+      const get = ctx.data.getFilmCard, ask = ctx.data.askFilmCard;
+      const answer = (data: Record<string, unknown>, isError = false, code?: string): ToolResult => { const body = isError ? { error: data } : { data }; return { text: JSON.stringify(body), data: body, ...(isError ? { isError: true, code: code ?? "error" } : {}) }; };
+      if (!get || !ask) return answer({ code: null, message: "The film picture is not available yet." }, true, "unavailable");
+      const id = String(a.p_project), have = typeof a.p_have === "string" ? a.p_have : null;
+      try {
+        const r = await get.call(ctx.data, id);
+        if (!r) return answer({ code: "PT404", message: "That film was not found among your projects." }, true, "not_found");
+        // ask when there is no card at all, or only a stale one and nothing has been asked for the current save yet; one ask per save, so a panel that keeps polling never asks twice
+        if ((r.state === "none" || (r.state === "ready" && r.stale === true && !r.refresh)) && a.p_ask === true) {
+          if (!(await ctx.policy.hit(ctx.principal, "film_card", LIMITS.filmCardsPerHourPerUser, 3600))) {
+            return answer({ code: "PT429", message: `The limit of ${LIMITS.filmCardsPerHourPerUser} film pictures an hour is reached.` }, true, "rate");
+          }
+          const asked = await ask.call(ctx.data, id);
+          if (r.state === "ready") return answer({ ...shape({ ...r, refresh: { state: asked.state } }, have) });          // the old card stays on show while the new one is drawn
+          return answer({ state: asked.state === "claimed" ? "claimed" : "asked", waited_seconds: 0 });
+        }
+        return answer(shape(r, have));
+      } catch (e) {
+        const code = typeof (e as { code?: unknown })?.code === "string" ? String((e as { code: string }).code).slice(0, 16) : null;
+        return answer({ code, message: friendly(e) }, true, code ?? "error");
+      }
+    },
+  };
+
   return [
-    openEditor,
+    openEditor, filmCard,
     panel("editor_apply_ops", "Editor panel: make changes", "ONLY for the Ryagram editor panel in this conversation; do not call it yourself (use set_look or edit_tracks). Applies the person's changes to the shared draft.",
       { p_project: uuid, p_mode: MODE, p_base_revision: { type: "integer", minimum: 0, maximum: 1_000_000_000 }, p_ops: { type: "array", minItems: 1, maxItems: 20, items: { type: "object" } } }, false),
     panel("editor_undo", "Editor panel: undo one change", "ONLY for the Ryagram editor panel; do not call it yourself. Undoes one earlier change made from the panel or by the AI.",

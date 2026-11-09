@@ -1,0 +1,51 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ryagram.invalid/film-card.schema.json",
+  "title": "Ryagram film look card, v1 (CONNECT contract for editor Step A, 2026-11-09)",
+  "description": "What the engine writes for one saved film so the chat editor can show the film's REAL colours and one REAL still frame. Total size at most 262144 bytes of JSON text (typical 20 to 200 KB).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "basis", "look", "frame"],
+  "properties": {
+    "schema": { "const": 1 },
+    "basis": {
+      "type": "object", "additionalProperties": false,
+      "required": ["story_sha256", "view", "theme"],
+      "properties": {
+        "story_sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$", "description": "The sha-256 of the saved story the card was drawn from, exactly as the connector's get_story reports it." },
+        "view": { "type": "string", "pattern": "^[a-z0-9_]{1,40}$", "description": "The engine's view name (network, living map, bar race ...)." },
+        "theme": { "type": "string", "pattern": "^[a-z0-9_-]{1,40}$" },
+        "dataset": { "type": "string", "pattern": "^[a-z0-9_]{1,60}$" },
+        "engine": { "type": "string", "maxLength": 40, "description": "A short engine build label, for the person's bug reports only." }
+      }
+    },
+    "look": {
+      "type": "object",
+      "description": "Every look key the panel shows, RESOLVED: the film's saved look over the theme and view defaults. Colour values only, 6-digit hex.",
+      "required": ["network.color", "network.base_color", "network.context_color", "state.fill", "page.background"],
+      "propertyNames": { "pattern": "^[a-z0-9_]{1,24}(\\.[a-z0-9_]{1,24}){0,2}$" },
+      "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
+      "maxProperties": 40
+    },
+    "ramp": {
+      "type": "array", "maxItems": 12,
+      "items": { "type": "object", "additionalProperties": false, "required": ["at", "color"],
+        "properties": { "at": { "type": "number", "minimum": 0, "maximum": 1 }, "color": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" } } }
+    },
+    "frame": {
+      "type": "object", "additionalProperties": false,
+      "required": ["svg", "width", "height"],
+      "properties": {
+        "label": { "type": "string", "maxLength": 60, "description": "Which moment of the film this still is (a year or a date), in plain words." },
+        "width": { "type": "integer", "minimum": 64, "maximum": 4096 },
+        "height": { "type": "integer", "minimum": 64, "maximum": 4096 },
+        "svg": { "type": "string", "maxLength": 200000, "description": "ONE plain SVG document string: only g, path, rect, circle, ellipse, line, polyline, polygon, text, tspan, defs, linearGradient, radialGradient, stop, clipPath, title; presentation attributes only; no script, style, image, foreignObject, use, animation, event handler or address other than a #fragment. The panel rebuilds it element by element and drops anything else." }
+      }
+    },
+    "notes": {
+      "type": "array", "maxItems": 5,
+      "items": { "type": "string", "maxLength": 160 },
+      "description": "Plain sentences for the person, e.g. 'This still shows the last year of the film.'"
+    }
+  }
+}

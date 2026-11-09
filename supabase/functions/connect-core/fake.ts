@@ -8,10 +8,11 @@ import { downloadUrlProblem } from "./tools.ts";
 import type { CallLog, Data, DownloadRow, EditState, GeoRow, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null; run_on?: string };
+interface FCard { id: string; project_id: string; version_id: string; sha: string; state: "asked" | "claimed" | "answered" | "failed"; answer: unknown; fail_code: string | null; fail_detail: string | null; asked: number; claimed: number | null; finished: number | null }
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
+interface FUser { cards: Map<string, FCard>; geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -35,11 +36,40 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { geo: new Map(), plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
+    const u: FUser = { cards: new Map(), geo: new Map(), plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
     this.users.set(userId, u);
     return u;
   }
   /** Make this person's jobs run on their own computer (owner_local), with the computer's last-seen time and name. */
+  /** The house worker's three calls for the film card, as the database has them (claim hands out the saved story, finish stores a card drawn from THAT story, fail records a known code). For tests of the connector. */
+  cardWorker(userId: string) {
+    const user = this.users.get(userId)!;
+    return {
+      claim: () => {
+        const c = [...user.cards.values()].find((x) => x.state === "asked" || (x.state === "claimed" && (x.claimed ?? 0) < Date.now() - 600000));
+        if (!c) return null;
+        c.state = "claimed"; c.claimed = Date.now();
+        const v = user.versions.find((x) => x.id === c.version_id)!;
+        return { request_id: c.id, project_id: c.project_id, version_id: c.version_id, story_sha256: c.sha, story: JSON.parse(JSON.stringify(v.story_spec)) as Record<string, unknown> };
+      },
+      finish: (rid: string, card: unknown) => {
+        const c = user.cards.get(rid);
+        const o = card as Record<string, unknown> | null;
+        const bad = !o || typeof o !== "object" || Array.isArray(o) || JSON.stringify(o).length > 262144 || o.schema !== 1 || typeof o.look !== "object" || o.look === null || Array.isArray(o.look)
+          || typeof (o.frame as { svg?: unknown } | undefined)?.svg !== "string";
+        if (bad) throw err("That is not a film look card.", "22023");
+        if (!c || c.state !== "claimed") throw err("No such claimed request.", "PT404");
+        if ((o!.basis as { story_sha256?: unknown } | undefined)?.story_sha256 !== c.sha) throw err("That card was not drawn from this request's saved story.", "22023");
+        c.state = "answered"; c.answer = JSON.parse(JSON.stringify(card)); c.finished = Date.now(); c.fail_code = null; c.fail_detail = null;
+      },
+      fail: (rid: string, code: string, detail = "") => {
+        if (!["story_not_found", "view_not_supported", "engine_error", "card_rejected"].includes(code)) throw err("Unknown failure code.", "22023");
+        const c = user.cards.get(rid);
+        if (!c || c.state !== "claimed") throw err("No such claimed request.", "PT404");
+        c.state = "failed"; c.fail_code = code; c.fail_detail = detail.trim().slice(0, 300); c.finished = Date.now();
+      },
+    };
+  }
   setLocal(userId: string, l: FLocal) { this.users.get(userId)!.local = l; }
   /** The live editor stand-in (the SQL is the authority). The draft of one mode of one project; made on first use. */
   draft(userId: string, projectId: string, mode: Mode): Draft {
@@ -252,6 +282,37 @@ export class FakeWorld {
         }
         if (name === "editor_heartbeat") { d.editor_seen_at = Date.now(); return null; }
         throw err("There is no such editor call.", "22023");
+      },
+      askFilmCard: async (pid) => {
+        // mirrors connect_film_card_ask: the project's newest version's saved story is what is asked for (the caller never names a story); asking again for the same saved story is one request;
+        // an engine_error may be tried again after 10 minutes; 5 open at once, 100 a day
+        const user = u();
+        const vs = user.versions.filter((v) => v.project_id === pid).sort((a, b) => b.number - a.number);
+        if (!user.projects.some((p) => p.id === pid) || !vs.length) throw err("That film was not found among your projects.", "22023");
+        const v = vs[0];
+        const same = [...user.cards.values()].find((c) => c.project_id === pid && c.sha === v.story_sha256);
+        if (same) {
+          if (same.state === "failed" && same.fail_code === "engine_error" && (same.finished ?? 0) < Date.now() - 600000) user.cards.delete(same.id);
+          else return { id: same.id, state: same.state, repeat: true };
+        }
+        if ([...user.cards.values()].filter((c) => c.state === "asked" || c.state === "claimed").length >= 5) throw err("There are already 5 film pictures waiting to be drawn. Wait for those first.", "PT429");
+        if (user.cards.size >= 100) throw err("That is 100 film pictures in a day. Try again tomorrow.", "PT429");
+        const row: FCard = { id: id(), project_id: pid, version_id: v.id, sha: v.story_sha256, state: "asked", answer: null, fail_code: null, fail_detail: null, asked: Date.now(), claimed: null, finished: null };
+        user.cards.set(row.id, row);
+        return { id: row.id, state: "asked", repeat: false };
+      },
+      getFilmCard: async (pid) => {
+        // mirrors connect_film_card_get: the newest answered card (this save's first), else where the request for the current save stands; null for a film that is not the person's
+        const user = u();
+        const vs = user.versions.filter((v) => v.project_id === pid).sort((a, b) => b.number - a.number);
+        if (!user.projects.some((p) => p.id === pid) || !vs.length) return null;
+        const cur = vs[0].story_sha256;
+        const done = [...user.cards.values()].filter((c) => c.project_id === pid && c.state === "answered").sort((a, b) => Number(b.sha === cur) - Number(a.sha === cur) || (b.finished ?? 0) - (a.finished ?? 0))[0];
+        const r = [...user.cards.values()].find((c) => c.project_id === pid && c.sha === cur);
+        if (done) return JSON.parse(JSON.stringify({ state: "ready", id: done.id, card: done.answer, built_sha256: done.sha, current_sha256: cur, stale: done.sha !== cur,
+          refresh: done.sha === cur || !r ? null : { state: r.state, fail_code: r.fail_code }, waited_s: Math.floor(((done.finished ?? 0) - done.asked) / 1000) }));
+        if (!r) return { state: "none", current_sha256: cur };
+        return { state: r.state === "answered" ? "ready" : r.state, id: r.id, current_sha256: cur, fail_code: r.fail_code, fail_detail: r.fail_detail, waited_s: Math.floor(((r.finished ?? Date.now()) - r.asked) / 1000) };
       },
       clipReports: async (pid) => (u().projects.some((p) => p.id === pid) ? JSON.parse(JSON.stringify(this.reports.get(userId + "/" + pid) ?? { why_clip: null, draft_messages: null })) : null),
       currentEngine: async () => this.engine,
