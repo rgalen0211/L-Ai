@@ -162,8 +162,8 @@ test('the function entry holds no Supabase key and reads only its own settings',
   const src = fs.readFileSync('supabase/functions/connect/index.ts', 'utf8');
   assert.doesNotMatch(src, /SERVICE_ROLE|service_role|ANON_KEY|getUser|createClient/);
   // SUPABASE_URL is the project's public address (used only to build the issuer address), not a key
-  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CHAT_EDITOR', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_MCP_APP', 'CONNECT_PUBLIC_URL', 'CONNECT_UI_DOMAIN', 'SUPABASE_URL']);
-  // the two MCP App settings (inline Ryagram card, off unless CONNECT_MCP_APP is "on") are switches and a public sandbox address: no key, no secret
+  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CHAT_EDITOR', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_MAP_PROBE', 'CONNECT_MCP_APP', 'CONNECT_PUBLIC_URL', 'CONNECT_UI_DOMAIN', 'SUPABASE_URL']);
+  // the MCP App settings (inline Ryagram card, off unless CONNECT_MCP_APP is "on"; the Q520 probe, off unless CONNECT_MAP_PROBE is "on" too) are switches and a public sandbox address: no key, no secret
   assert.match(src, /projectUrl\)\s*\?\s*`\$\{projectUrl\}\/functions\/v1\/connect`/);          // and only ever turned into the issuer address
   assert.equal([...src.matchAll(/projectUrl/g)].length, 3);
 });

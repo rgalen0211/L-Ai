@@ -37,7 +37,7 @@ const db = new ConnectDb(async (text, params) => {
   return await sql.unsafe(text, params as unknown[]) as unknown as Record<string, unknown>[];
 }, appUrl);
 const compile = makeCompile(Ajv2020);
-const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", chatEditor: Deno.env.get("CONNECT_CHAT_EDITOR") === "on", uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
+const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", chatEditor: Deno.env.get("CONNECT_CHAT_EDITOR") === "on", probe: Deno.env.get("CONNECT_MAP_PROBE") === "on", uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
 
 Deno.serve(async (req) => {
   try {

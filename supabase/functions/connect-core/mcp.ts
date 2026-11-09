@@ -3,6 +3,7 @@
 // Spec: MCP 2025-06-18 / 2025-11-25 transports and authorization (RFC 9728 protected-resource metadata).
 import { callTool, type Env } from "./dispatch.ts";
 import { TOOLS } from "./tools.ts";
+import { probeOn, withProbeTools } from "./probe.ts";
 import { LIMITS, type Principal, type ToolDef } from "./types.ts";
 import { EDITOR_URI, readResource, resourceList, toolUiMeta, UI_TOOL_URIS, type McpAppConfig } from "./mcp_app.ts";
 
@@ -96,7 +97,7 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
         serverInfo: SERVER_INFO, instructions: INSTRUCTIONS } });
     }
     case "ping": return json(200, { jsonrpc: "2.0", id: msg.id, result: {} });
-    case "tools/list": return json(200, { jsonrpc: "2.0", id: msg.id, result: { tools: toolList(!!deps.mcpApp?.enabled, chatEditorOn(deps.mcpApp)) } });
+    case "tools/list": return json(200, { jsonrpc: "2.0", id: msg.id, result: { tools: withProbeTools(toolList(!!deps.mcpApp?.enabled, chatEditorOn(deps.mcpApp)), deps.mcpApp, toolUiMeta) } });
     case "resources/list": {
       if (!deps.mcpApp?.enabled) return rpcError(msg.id, -32601, `Method not found: ${String(msg.method).slice(0, 60)}`);
       return json(200, { jsonrpc: "2.0", id: msg.id, result: { resources: resourceList(deps.mcpApp) } });
@@ -109,7 +110,7 @@ export async function handleMcp(req: Request, deps: McpDeps): Promise<Response> 
     case "tools/call": {
       const name = msg.params?.name;
       if (typeof name !== "string") return rpcError(msg.id, -32602, "A tool name is required.");
-      const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps, chatEditor: chatEditorOn(deps.mcpApp) };
+      const env: Env = { data: deps.dataFor(token, principal), policy: deps.policy, deps: deps.deps, probe: probeOn(deps.mcpApp), chatEditor: chatEditorOn(deps.mcpApp) };
       const r = await callTool(name, msg.params?.arguments, principal, env);
       const result: Record<string, unknown> = { content: [{ type: "text", text: r.text }], isError: !!r.isError };
       if (r.data) result.structuredContent = r.data;

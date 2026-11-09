@@ -2,16 +2,17 @@
 //   unknown tool -> invited + consented? -> scope -> rate limits -> argument check -> run -> log.
 // Nothing here knows which assistant is calling.
 import { friendlyError, TOOL_BY_NAME } from "./tools.ts";
+import { probeTool } from "./probe.ts";
 import { LIMITS, type CallLog, type Data, type Deps, type Policy, type Principal, type ToolResult } from "./types.ts";
 
 /** chatEditor: the chat editor's tools exist only when this is true (the connector's second switch); otherwise they are "no such tool". */
-export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean }
+export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean; probe?: boolean }
 
 const NO_GRANT = "This Ryagram account is not enabled for AI connections (it is invite-only for now), or the connection was revoked. The person can ask Ryan for an invite or reconnect.";
 
 export async function callTool(name: string, rawArgs: unknown, principal: Principal, env: Env): Promise<ToolResult> {
   const { policy, data, deps } = env;
-  const found = TOOL_BY_NAME.get(name);
+  const found = TOOL_BY_NAME.get(name) ?? probeTool(name, env.probe);   // the probe's tools (probe.ts) exist only when its own switch is on
   const tool = found && found.chatEditor && !env.chatEditor ? undefined : found;
   const finish = async (r: ToolResult, result: CallLog["result"], code: string): Promise<ToolResult> => {
     try {

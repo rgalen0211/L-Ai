@@ -188,6 +188,8 @@ export interface ToolDef {
   ladder?: boolean;
   /** The chat editor (second switch, off by default): "model" = a tool the AI sees; "app" = a tool only the chat panel calls (listed with visibility app). Absent = a normal tool. When the switch is off such a tool is "no such tool". */
   chatEditor?: "app" | "model";
+  /** The Q520 probe's own tools (probe.ts, a third switch, off by default; never in TOOLS): the address of the throwaway page the tool shows. */
+  probe?: string;
   inputSchema: Record<string, unknown>; // JSON Schema; additionalProperties:false always
   run(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult>;
 }
