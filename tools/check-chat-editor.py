@@ -345,6 +345,15 @@ def main():
             c14, p14, e14, o14 = card_page([{'state': 'failed', 'code': 'view_not_supported', 'message': 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.'}])
             check('cannot draw a picture of this kind of film yet' in p14.frames[1].locator('.le-card').inner_text() and not e14, 'a film the engine cannot draw says why in words and keeps the stand-in')
             c14.close()
+            c14b, p14b, e14b, o14b = card_page([{'state': 'failed', 'code': 'view_not_supported', 'size': {'characters': 359069, 'limit': 200000},
+                'message': "This film's picture is too detailed to draw in the chat: it would be 359,069 characters and the limit is 200,000. The editor keeps its stand-in picture."}])
+            f14b = p14b.frames[1]
+            t14b = f14b.locator('.le-card').inner_text()
+            check("too detailed to draw in the chat: it would be 359,069 characters and the limit is 200,000" in t14b and not e14b, 'a county map the engine refused for size says so in ONE plain sentence with its two numbers, and nothing threw')
+            check(f14b.locator('.le-cardpic').count() == 0 and not f14b.locator('.le-card svg').count(), 'no picture box and no broken or empty picture in its place')
+            check(f14b.locator('.le-view').count() >= 1 and len(swatches(p14b)) >= 5, 'the film\'s other parts still work: the stand-in preview and the colour controls are there')
+            check('D:' not in t14b and 'Error' not in t14b and 'engine' not in t14b.lower(), 'no path, no engine talk in the words')
+            c14b.close()
             c15, p15, e15, o15 = card_page([{'error': {'code': None, 'message': 'The film picture is not available yet.'}}])
             check(p15.frames[1].locator('.le-card').count() == 0 or p15.frames[1].locator('.le-card').is_hidden(), 'a database without the card says nothing new: no card box')
             check(p15.frames[1].locator('.le-defaults').count() == 1 and not e15, 'the editor still works and still says the colours are starting colours')
