@@ -281,10 +281,13 @@ export function applyProfile(rawProfile: unknown, story: Json, mode: "restyle" |
       warnings.push(`pacing.hold_seconds ${g(pace.hold_seconds)} is above ${g(MAP_HOLD_WARN_ABOVE)} s per period on a map film. Measured on the obesity map, a hatched map held 3 s per period kept 83% of its frames moving, 2.5 s kept 89% and 2 s kept 91%, against the strict motion check's 90% floor, so a long hold can fail it. Make a contact sheet first.`);
     }
   }
-  // A portrait canvas is accepted by the worker, but the engine has no vertical layout yet.
+  // A portrait canvas is accepted by the worker. The engine lays the map, bars, line and living views out for it (ryagram/sequence/compose.py LAYOUT_VIEWS); any other view is drawn at 16:9 and its film fails vertical_view_is_laid_out.
   const cv = out.sequence.canvas;
   if (Array.isArray(cv) && cv[1] > cv[0]) {
-    warnings.push("this canvas is vertical, but the engine has no vertical layout yet: the 16:9 drawing is fitted into the frame with bars above and below, not re-laid-out (DESIGN-VERTICAL.md is a spec, not built). The contact sheet shows the drawing, not the fitted frame.");
+    const LAID_OUT_VERTICAL = ["map", "bars", "line", "living"];
+    if (clips.some((c) => c.kind === "render" && typeof c.view === "string" && !LAID_OUT_VERTICAL.includes(c.view))) {
+      warnings.push("this film uses a view that is not laid out for a vertical frame yet, so a vertical version would fail its checks and could not be published. Choose 16:9 for this film.");
+    }
   }
   const pinned = story?.sequence?.style_overrides?.choropleth?.mode;
   const want = look.ramp?.mode;
