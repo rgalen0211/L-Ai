@@ -44,6 +44,9 @@ declare
   me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
   v public.versions; same public.film_card_requests; waiting int; today int; nid uuid;
 begin
+  -- One ask at a time per person: two asks in flight together (an AI making parallel tool calls) would both count the same open requests and both insert, passing the 5-open and 100-a-day limits and storing the same film twice.
+  -- The second waits here until the first has committed, then counts it. The lock is released at the end of the transaction; another person's ask is never held by it. (WORKER's finding for the county and place asks; the same lock there.)
+  perform pg_advisory_xact_lock(hashtextextended('film_card:' || me::text, 0));
   perform ryagram_private.film_card_sweep();
   select ver.* into v from public.versions ver join public.projects p on p.id = ver.project_id
     where ver.project_id = p_project and ver.owner_id = me and p.owner_id = me and p.archived_at is null order by ver.number desc limit 1;
@@ -76,7 +79,7 @@ create function public.connect_film_card_get(p_token_hash text, p_project uuid) 
 language plpgsql security definer set search_path = '' as $$
 declare
   me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
-  cur text; ok public.film_card_requests; r public.film_card_requests;
+  cur text; ok public.film_card_requests; r public.film_card_requests; retry boolean;
 begin
   perform ryagram_private.film_card_sweep();
   select ver.story_sha256 into cur from public.versions ver join public.projects p on p.id = ver.project_id
@@ -84,14 +87,16 @@ begin
   if not found then return null; end if;
   select * into ok from public.film_card_requests where owner_id = me and project_id = p_project and state = 'answered' order by (story_sha256 = cur) desc, finished_at desc limit 1;
   select * into r from public.film_card_requests where owner_id = me and project_id = p_project and story_sha256 = cur;
+  -- the same rule the ask applies: only a card that failed because the engine broke may be asked for again, and only after 10 minutes; the connector asks again only when this says so
+  retry := r.id is not null and r.state = 'failed' and r.fail_code = 'engine_error' and r.finished_at < now() - interval '10 minutes';
   if ok.id is not null then
     -- an older card is shown (stale) while a newer one is asked for; 'refresh' says where that request stands, so the panel asks once and the tool never asks twice
     return jsonb_build_object('state', 'ready', 'id', ok.id, 'card', ok.answer, 'built_sha256', ok.story_sha256, 'current_sha256', cur, 'stale', ok.story_sha256 <> cur,
-                              'refresh', case when ok.story_sha256 = cur or r.id is null then null else jsonb_build_object('state', r.state, 'fail_code', r.fail_code) end,
+                              'refresh', case when ok.story_sha256 = cur or r.id is null then null else jsonb_build_object('state', r.state, 'fail_code', r.fail_code, 'retry', retry) end,
                               'waited_s', floor(extract(epoch from (ok.finished_at - ok.asked_at)))::int);
   end if;
   if r.id is null then return jsonb_build_object('state', 'none', 'current_sha256', cur); end if;
-  return jsonb_build_object('state', r.state, 'id', r.id, 'current_sha256', cur, 'fail_code', r.fail_code, 'fail_detail', r.fail_detail,
+  return jsonb_build_object('state', r.state, 'id', r.id, 'current_sha256', cur, 'fail_code', r.fail_code, 'fail_detail', r.fail_detail, 'retry', retry,
                             'waited_s', floor(extract(epoch from (coalesce(r.finished_at, now()) - r.asked_at)))::int);
 end $$;
 
@@ -123,7 +128,7 @@ begin
      or jsonb_typeof(p_card -> 'look') is distinct from 'object' or jsonb_typeof(p_card #> '{frame,svg}') is distinct from 'string' then
     raise exception 'That is not a film look card.' using errcode = '22023';
   end if;
-  select * into g from public.film_card_requests where id = p_id and state = 'claimed';
+  select * into g from public.film_card_requests where id = p_id and state = 'claimed' for update;          -- the row is locked: a second finish, or a fail, for the same request waits here and then finds it no longer claimed
   if not found then raise exception 'No such claimed request.' using errcode = 'PT404'; end if;
   if p_card #>> '{basis,story_sha256}' is distinct from g.story_sha256 then
     raise exception 'That card was not drawn from this request''s saved story.' using errcode = '22023';

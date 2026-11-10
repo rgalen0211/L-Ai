@@ -152,6 +152,34 @@
   }
  },
  {
+  "name": "good text fitted to a length",
+  "ok": true,
+  "why": "lengthAdjust is spacing or spacingAndGlyphs and xml:space is preserve or default (the bar race still of the engine uses them)",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "test-1"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "2024",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><text x=\"20\" y=\"40\" font-size=\"20\" textLength=\"120.5\" lengthAdjust=\"spacing\" xml:space=\"preserve\" fill=\"#ffffff\">Rent  index</text><text x=\"20\" y=\"80\" textLength=\"90\" lengthAdjust=\"spacingAndGlyphs\" xml:space=\"default\">Year</text></svg>"
+   }
+  }
+ },
+ {
   "name": "good text with a text length",
   "ok": true,
   "why": "textLength is a plain presentation attribute: a number only",
@@ -177,6 +205,37 @@
     "height": 540,
     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><text x=\"20\" y=\"40\" font-size=\"20\" textLength=\"120.5\" fill=\"#ffffff\">Rent</text></svg>"
    }
+  }
+ },
+ {
+  "name": "good label of 30 emoji",
+  "ok": true,
+  "why": "exactly at the 60-unit label cap (30 emoji are 60 UTF-16 units), with an engine label of 20 emoji (40 units) and a note of 80 emoji (160 units): the edge passes",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><rect width=\"960\" height=\"540\" fill=\"#0d0d11\"/></svg>"
+   },
+   "notes": [
+    "\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac"
+   ]
   }
  },
  {
@@ -282,6 +341,90 @@
   }
  },
  {
+  "name": "a length adjustment that is not an allowed word",
+  "ok": false,
+  "why": "lengthAdjust is only spacing or spacingAndGlyphs",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "test-1"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "2024",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><text x=\"1\" y=\"1\" textLength=\"50\" lengthAdjust=\"stretch\">a</text></svg>"
+   }
+  }
+ },
+ {
+  "name": "an xml:space that is not an allowed word",
+  "ok": false,
+  "why": "xml:space is only preserve or default",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "test-1"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "2024",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><text x=\"1\" y=\"1\" xml:space=\"remove\">a</text></svg>"
+   }
+  }
+ },
+ {
+  "name": "an xml attribute that is not on the list",
+  "ok": false,
+  "why": "xml:lang is not allowed (only xml:space is)",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "test-1"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "2024",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><text x=\"1\" y=\"1\" xml:lang=\"en\">a</text></svg>"
+   }
+  }
+ },
+ {
   "name": "a text length that is not a plain number",
   "ok": false,
   "why": "textLength is a number only",
@@ -335,6 +478,121 @@
     "height": 540,
     "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><text x=\"1\" y=\"1\" textLength=\"1e3\">a</text></svg>"
    }
+  }
+ },
+ {
+  "name": "a text length written in non-ASCII digits",
+  "ok": false,
+  "why": "textLength is the ASCII digits 0-9 only: a script that has its own digits (Arabic-Indic here) is refused, so a checker whose digit class is Unicode (Python re without ASCII) must not pass it",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "test-1"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "2024",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><text x=\"1\" y=\"1\" textLength=\"\u0661\u0660\">a</text></svg>"
+   }
+  }
+ },
+ {
+  "name": "a label of 31 emoji",
+  "ok": false,
+  "why": "lengths count UTF-16 units, as JavaScript does: 31 emoji are 62 units, over the 60 a label may have (a checker that counts code points sees 31)",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "test-1"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><rect width=\"960\" height=\"540\" fill=\"#0d0d11\"/></svg>"
+   }
+  }
+ },
+ {
+  "name": "an engine label of 21 emoji",
+  "ok": false,
+  "why": "the engine label is at most 40 UTF-16 units: 21 emoji are 42",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "2024",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><rect width=\"960\" height=\"540\" fill=\"#0d0d11\"/></svg>"
+   }
+  }
+ },
+ {
+  "name": "a note of 81 emoji",
+  "ok": false,
+  "why": "a note is at most 160 UTF-16 units: 81 emoji are 162",
+  "card": {
+   "schema": 1,
+   "basis": {
+    "story_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "view": "network",
+    "theme": "dark3",
+    "dataset": "invented_set",
+    "engine": "test-1"
+   },
+   "look": {
+    "network.color": "#6fd1bd",
+    "network.base_color": "#c9a66b",
+    "network.context_color": "#5a5a66",
+    "state.fill": "#23232d",
+    "page.background": "#0d0d11"
+   },
+   "frame": {
+    "label": "2024",
+    "width": 960,
+    "height": 540,
+    "svg": "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"960\" height=\"540\" viewBox=\"0 0 960 540\"><rect width=\"960\" height=\"540\" fill=\"#0d0d11\"/></svg>"
+   },
+   "notes": [
+    "\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac\ud83c\udfac"
+   ]
   }
  },
  {

@@ -11,6 +11,8 @@ import base64
 import hashlib
 import json
 import sys
+import threading
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -164,6 +166,99 @@ class FilmCards(core.Base):
             self.fail(f"another person was held up by Alice's limits (sqlstate {e.sqlstate})")
         self.assertTrue(got["id"], "another person is not held up by Alice's limits")
 
+    # ------------------------------------------------------------------------------------------------ two asks in flight at once (WORKER's finding for the county and place asks, CC1 20:50: the same gap, so the same lock)
+    def other(self):
+        c = psycopg.connect(self.db.c.info.dsn, autocommit=False)
+        c.execute("set role connect_runner")
+        return c
+
+    def race(self, first_ask, second_ask):
+        """Two asks at the same moment on two connections. The first is held open (uncommitted) until the second is waiting behind it on an advisory lock (or has finished: it did not wait).
+        Returns (first, second, waited): each the answer or the database error, and whether the second had to wait."""
+        # a token's last-used time is written by the first call of each minute, and that write would queue a second ask behind the first by itself; a warm token (the usual case) leaves the lock as the ONLY thing that can hold it
+        self.owner("update public.connect_tokens set last_used_at = now()")
+        sql = "select connect_film_card_ask(%s, %s)"
+        c1, c2, c3 = self.other(), self.other(), psycopg.connect(self.db.c.info.dsn, autocommit=True)
+        out = {}
+        waited = False
+
+        def second():
+            try:
+                out["b"] = c2.execute(sql, second_ask).fetchone()[0]
+            except psycopg.Error as e:
+                out["b"] = e
+        try:
+            try:
+                first = c1.execute(sql, first_ask).fetchone()[0]
+            except psycopg.Error as e:
+                first = e
+            t = threading.Thread(target=second)
+            t.start()
+            end = time.time() + 5
+            while t.is_alive() and time.time() < end:
+                if c3.execute("select count(*) from pg_locks where locktype = 'advisory' and not granted").fetchone()[0]:
+                    waited = True
+                    break
+                time.sleep(0.05)
+            if isinstance(first, psycopg.Error):
+                c1.rollback()
+            else:
+                c1.commit()
+            t.join(10)
+            self.assertFalse(t.is_alive(), "the second ask never finished")
+            if isinstance(out["b"], psycopg.Error):
+                c2.rollback()
+            else:
+                c2.commit()
+        finally:
+            for c in (c1, c2, c3):
+                c.close()
+        return first, out["b"], waited
+
+    def counts(self):
+        return self.owner("select count(*) filter (where state in ('asked','claimed')), count(*) from public.film_card_requests where owner_id = %s", ALICE).fetchone()
+
+    def test_two_asks_for_different_films_at_four_open_leave_at_most_five_and_the_second_is_told_in_words(self):
+        films = [self.film(self.a, f"Invented film {i}", {"title": f"s{i}"})[0] for i in range(6)]
+        for p in films[:4]:
+            self.ask(self.a, p)
+        first, second, waited = self.race((self.a, films[4]), (self.a, films[5]))
+        self.assertTrue(waited, "the second ask waits behind the first (a lock per person)")
+        self.assertIsInstance(first, dict, "the first ask is accepted")
+        self.assertIsInstance(second, psycopg.Error, "the second ask is refused (limit 5), not accepted")
+        self.assertEqual(second.sqlstate, "PT429")
+        self.assertIn("5 film pictures waiting", second.diag.message_primary)
+        self.assertEqual(self.counts()[0], 5)
+
+    def test_two_asks_at_ninety_nine_in_a_day_leave_at_most_one_hundred(self):
+        films = [self.film(self.a, f"Invented film {i}", {"title": f"s{i}"})[0] for i in range(2)]
+        self.owner("insert into public.film_card_requests (owner_id, project_id, version_id, story_sha256, state, finished_at) "
+                   "select %s, %s, v.id, lpad(to_hex(g), 64, '0'), 'failed', now() from generate_series(1, 99) g, public.versions v where v.project_id = %s limit 99", ALICE, films[0], films[0])
+        first, second, waited = self.race((self.a, films[0]), (self.a, films[1]))
+        self.assertTrue(waited, "the second ask waits behind the first (a lock per person)")
+        self.assertIsInstance(first, dict, "the first ask is accepted")
+        self.assertIsInstance(second, psycopg.Error, "the second ask is refused (limit 100 a day)")
+        self.assertEqual(second.sqlstate, "PT429")
+        self.assertEqual(self.counts()[1], 100)
+
+    def test_the_same_film_asked_twice_at_once_is_one_request(self):
+        p = self.film(self.a)[0]
+        first, second, waited = self.race((self.a, p), (self.a, p))
+        self.assertTrue(waited)
+        self.assertIsInstance(first, dict)
+        self.assertIsInstance(second, dict, "the repeat is answered, not refused or stored twice")
+        self.assertEqual(first["id"], second["id"])
+        self.assertTrue(second.get("repeat"))
+        self.assertEqual(self.counts()[1], 1)
+
+    def test_two_people_asking_at_once_do_not_wait_for_each_other(self):
+        pa, pb = self.film(self.a)[0], self.film(self.b)[0]
+        first, second, waited = self.race((self.a, pa), (self.b, pb))
+        self.assertFalse(waited, "another person's ask does not wait for Alice's")
+        self.assertIsInstance(first, dict)
+        self.assertIsInstance(second, dict, "Bob's ask is not held up by Alice's lock")
+        self.assertNotEqual(first["id"], second["id"])
+
     # ------------------------------------------------------------------------------------------------ privacy
     def test_the_table_is_closed_to_every_api_role(self):
         p, _, _ = self.film(self.a)
@@ -236,7 +331,7 @@ class FilmCards(core.Base):
         self.assertEqual(r2["state"], "asked")
         still = self.get(self.a, p)
         self.assertEqual((still["state"], still["stale"]), ("ready", True), "the old card is still shown while the new one is drawn")
-        self.assertEqual(still["refresh"], {"state": "asked", "fail_code": None}, "and the answer says the new one is being asked for")
+        self.assertEqual(still["refresh"], {"state": "asked", "fail_code": None, "retry": False}, "and the answer says the new one is being asked for")
         got = self.claim()
         self.assertEqual(got[0][3], sha2)
         self.finish(r2["id"], card(sha2))
@@ -282,6 +377,93 @@ class FilmCards(core.Base):
         self.assertEqual((again["state"], again["repeat"]), ("asked", False))
         self.assertNotEqual(again["id"], r["id"])
         self.assertEqual(self.owner("select count(*) from public.film_card_requests").fetchone()[0], 1)
+
+    def test_the_read_says_when_a_failed_picture_may_be_asked_for_again_the_same_rule_as_the_ask(self):
+        """The connector asks again for a failed picture ONLY when this says so (before this, a failed picture was never asked for again, whatever the words promised)."""
+        p, _, _ = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        self.worker().one("select public.fail_film_card(%s, 'engine_error', 'it broke')", r["id"])
+        g = self.get(self.a, p)
+        self.assertEqual((g["state"], g["fail_code"], g.get("retry")), ("failed", "engine_error", False), "not before ten minutes")
+        self.owner("update public.film_card_requests set finished_at = now() - interval '9 minutes'")
+        self.assertFalse(self.get(self.a, p).get("retry"), "nine minutes is not ten")
+        self.owner("update public.film_card_requests set finished_at = now() - interval '11 minutes'")
+        self.assertTrue(self.get(self.a, p).get("retry"), "after ten minutes an engine error may be asked for again")
+        again = self.ask(self.a, p)
+        self.assertEqual((again["state"], again["repeat"]), ("asked", False), "and the ask the connector then makes is accepted")
+        self.assertEqual(self.get(self.a, p)["state"], "asked")
+
+    def test_a_failure_that_is_not_an_engine_error_is_never_offered_again(self):
+        for code in ("view_not_supported", "card_rejected", "story_not_found"):
+            p, _, _ = self.film(self.a, f"Invented film {code}", {"title": code})
+            r = self.ask(self.a, p)
+            self.claim()
+            self.worker().one("select public.fail_film_card(%s, %s, 'x')", r["id"], code)
+            self.owner("update public.film_card_requests set finished_at = now() - interval '2 hours' where id = %s", r["id"])
+            g = self.get(self.a, p)
+            self.assertEqual((g["state"], g["fail_code"], g.get("retry")), ("failed", code, False), code)
+
+    def test_a_failed_refresh_says_when_it_may_be_asked_for_again_too(self):
+        p, v, sha = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        self.finish(r["id"], card(sha))
+        self.runner().one("select connect_save_story(%s, %s, %s::jsonb)", self.a, v, json.dumps(STORY2))
+        r2 = self.ask(self.a, p)
+        self.claim()
+        self.worker().one("select public.fail_film_card(%s, 'engine_error', 'it broke')", r2["id"])
+        self.assertEqual(self.get(self.a, p)["refresh"], {"state": "failed", "fail_code": "engine_error", "retry": False})
+        self.owner("update public.film_card_requests set finished_at = now() - interval '11 minutes' where id = %s", r2["id"])
+        g = self.get(self.a, p)
+        self.assertEqual((g["state"], g["stale"], g["refresh"].get("retry")), ("ready", True, True), "the old picture stays on show and a new ask is allowed")
+
+    def test_two_finishes_for_one_claim_leave_the_first_card_and_the_second_is_told_the_claim_is_gone(self):
+        """A claim that came back after ten minutes can be finished by two workers (or twice by one): the row is locked, so the second waits and then finds the request answered; the first card stands."""
+        p, _, sha = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        dsn = self.db.c.info.dsn
+
+        def as_worker():
+            c = psycopg.connect(dsn, autocommit=False)
+            c.execute("set role authenticated")
+            c.execute("select set_config('request.jwt.claim.sub', %s, false)", (core.WORKER,))
+            return c
+        first_card, second_card = card(sha, frame={"label": "first", "width": 960, "height": 540, "svg": card(sha)["frame"]["svg"]}), card(sha, frame={"label": "second", "width": 960, "height": 540, "svg": card(sha)["frame"]["svg"]})
+        c1, c2, c3 = as_worker(), as_worker(), psycopg.connect(dsn, autocommit=True)
+        out = {}
+
+        def second():
+            try:
+                out["b"] = c2.execute("select public.finish_film_card(%s, %s::jsonb)", (r["id"], json.dumps(second_card))).fetchone()
+            except psycopg.Error as e:
+                out["b"] = e
+        waited = False
+        try:
+            c1.execute("select public.finish_film_card(%s, %s::jsonb)", (r["id"], json.dumps(first_card)))
+            t = threading.Thread(target=second)
+            t.start()
+            end = time.time() + 5
+            while t.is_alive() and time.time() < end:
+                if c3.execute("select count(*) from pg_locks where not granted and locktype in ('transactionid', 'tuple')").fetchone()[0]:
+                    waited = True
+                    break
+                time.sleep(0.05)
+            c1.commit()
+            t.join(10)
+            self.assertFalse(t.is_alive(), "the second finish never ended")
+            if isinstance(out["b"], psycopg.Error):
+                c2.rollback()
+            else:
+                c2.commit()
+        finally:
+            for c in (c1, c2, c3):
+                c.close()
+        self.assertTrue(waited, "the second finish waits behind the first")
+        self.assertIsInstance(out["b"], psycopg.Error, "the second finish is refused, not stored over the first")
+        self.assertEqual(out["b"].sqlstate, "PT404")
+        self.assertEqual(self.get(self.a, p)["card"]["frame"]["label"], "first")
 
     def test_only_an_engine_error_is_retried_a_film_the_engine_cannot_draw_stays_failed(self):
         p, _, _ = self.film(self.a)

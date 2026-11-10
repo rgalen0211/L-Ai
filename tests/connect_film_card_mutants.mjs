@@ -12,6 +12,13 @@ const scratch = path.join(root, '.mut-card');
 const FC = 'supabase/functions/connect-core/film_card.ts', ET = 'supabase/functions/connect-core/editor_tools.ts', FK = 'supabase/functions/connect-core/fake.ts', TY = 'supabase/functions/connect-core/types.ts', DB = 'supabase/functions/connect/db.ts';
 const SUITES = ['connect-film-card.test.mjs', 'connect-chat-editor-server.test.mjs'];
 const mutants = [
+  // ---- a failed picture is asked for again (only when the database says ten minutes have passed)
+  ['a failed picture is never asked for again, whatever the words say', ET, ' || again) && a.p_ask === true) {', ') && a.p_ask === true) {'],
+  ['a failed picture is asked for again whatever the reason it failed', ET, 'const again = (r.state === "failed" && r.retry === true)', 'const again = (r.state === "failed")'],
+  ['a stale picture whose refresh failed is never asked for again', ET, ' || (r.state === "ready" && r.stale === true && r.refresh?.state === "failed" && r.refresh.retry === true);', ';'],
+  ['the stand-in offers a new ask at once, not after ten minutes', FK, 'c.state === "failed" && c.fail_code === "engine_error" && (c.finished ?? 0) < Date.now() - 600000', 'c.state === "failed" && c.fail_code === "engine_error" && (c.finished ?? 0) < Date.now() + 600000'],
+  ['the stand-in offers a new ask for any failure', FK, 'c.state === "failed" && c.fail_code === "engine_error" && (c.finished ?? 0)', 'c.state === "failed" && (c.finished ?? 0)'],
+  ['the words promise a retry nobody makes', ET, 'Open the editor again in about ten minutes to try again.', 'It will be tried again later.'],
   // ---- the checker: what a picture may hold
   ['the picture may hold a script element', FC, 'new Set(["svg", "g", "path",', 'new Set(["script", "svg", "g", "path",'],
   ['the picture may hold a use element', FC, '"clipPath", "title"]);', '"clipPath", "title", "use"]);'],
@@ -38,7 +45,11 @@ const mutants = [
   ['any schema number is accepted', FC, 'if (card.schema !== 1) p.push(', 'if (false) p.push('],
   ['the page background is no longer required', FC, 'export const LOOK_REQUIRED = ["page.background"] as const;', 'export const LOOK_REQUIRED = [] as const;'],
   ['all five look keys are required again (a bar race is refused)', FC, 'export const LOOK_REQUIRED = ["page.background"] as const;', 'export const LOOK_REQUIRED = ["network.color", "network.base_color", "network.context_color", "state.fill", "page.background"] as const;'],
-  ['textLength is no longer an allowed attribute', FC, '"letter-spacing", "textLength", "dx"', '"letter-spacing", "dx"'],
+  ['lengthAdjust is no longer an allowed attribute', FC, '"textLength", "lengthAdjust", "xml:space", "dx"', '"textLength", "xml:space", "dx"'],
+  ['xml:space is no longer an allowed attribute', FC, '"textLength", "lengthAdjust", "xml:space", "dx"', '"textLength", "lengthAdjust", "dx"'],
+  ['a length adjustment may be any word', FC, 'if (key === "lengthAdjust" && ', 'if (false && '],
+  ['an xml:space may be any word', FC, 'if (key === "xml:space" && ', 'if (false && '],
+  ['textLength is no longer an allowed attribute', FC, '"letter-spacing", "textLength", "lengthAdjust"', '"letter-spacing", "lengthAdjust"'],
   ['a text length may be any text', FC, 'if (key === "textLength" && !', 'if (false && !'],
   ['a look may lack a required colour', FC, 'for (const k of LOOK_REQUIRED) if (!(k in look)) p.push(', 'for (const k of LOOK_REQUIRED) if (false) p.push('],
   ['a look colour need not be hex', FC, 'else if (typeof look[k] !== "string" || !HEX.test(look[k] as string)) p.push(', 'else if (false) p.push('],
