@@ -363,6 +363,8 @@ class Ops(core.Base):
                            "my_access()", "account_gate_ok()", "admin_waiting_list()", "admin_approve_waiting(uuid,text)",
                            # the waiting list (20261110000200): Ryan's counts and approve step, each starting with require_admin()
                            "admin_waitlist_counts()", "admin_waitlist_approve(integer)",
+                           # and the visitors' door, join_waitlist: executable by anon ON PURPOSE (the same answer for a new and a repeat address; limits and fixed words inside), never by a signed-in person
+                           "join_waitlist(text,text,text)",
                            # geo requests (20261104000300): the house worker's three functions, each starting with require_worker()
                            "claim_next_geo()", "finish_geo(uuid,jsonb)", "fail_geo(uuid,text,text)",
                            # geo question shapes (20261104000400): the house worker's claim for the three new shapes, starting with require_worker()
