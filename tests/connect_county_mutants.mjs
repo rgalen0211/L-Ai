@@ -16,7 +16,17 @@ const PERM = '/' + BS + 'bpermitted to' + BS + 'b|' + BS + 'b(?:is|are|be|being)
 const mutants = [
   // ---- the closed request rules and GEO's words
   ['a third county is offered', CT, '"39113": "Montgomery County, Ohio" });', '"39113": "Montgomery County, Ohio", "39049": "Another County, Ohio" });'],
-  ['any kind is accepted', CT, 'if (kind !== "limited_service") {', 'if (false) {'],
+  ['any kind is accepted', CT, 'if (typeof kind !== "string" || !(COUNTY_KINDS as readonly string[]).includes(kind)) {', 'if (false) {'],
+  ['the title of the kind comes from the answer', CT, 'kind_title: COUNTY_KIND_TITLES[kind], series, not_held', 'kind_title: String(v.kind_title), series, not_held'],
+  ['a profile of another kind than the one asked is shown', CT, 'v.schema !== PROFILE_SCHEMA || v.kind !== kind ||', 'v.schema !== PROFILE_SCHEMA ||'],
+  ['a comparison of another kind than the one asked is shown', CT, 'answer.kind !== ask.kind || !(ask.kind in COUNTY_KIND_TITLES) ||', '!(ask.kind in COUNTY_KIND_TITLES) ||'],
+  ['county figures may point at another county', CT, 'fp.tool !== "county_profile" || fp.county !== county || fp.kind !== kind', 'fp.tool !== "county_profile" || fp.kind !== kind'],
+  ['county figures may point at another kind', CT, 'fp.tool !== "county_profile" || fp.county !== county || fp.kind !== kind', 'fp.tool !== "county_profile" || fp.county !== county'],
+  ['county figures may point at another tool', CT, 'fp.tool !== "county_profile" || fp.county !== county || fp.kind !== kind', 'fp.county !== county || fp.kind !== kind'],
+  ['the pointer words are not checked for a path or a claim', CT, 'const words = plainWords(fp.words, 300);\n  if (!words) return null;', 'const words = String(fp.words);'],
+  ['the pointer to the full profile is not shown', CT, '    if (p.more) lines.push(`More: ${wrap(p.more)}`);\n', ''],
+  ['grocery and pharmacy close a comparison with the restaurant line', CT, '...(shape === "compare" ? [KIND_SAY_COMPARE[kind] ?? SAY_COMPARE] : [])', '...(shape === "compare" ? [SAY_COMPARE] : [])'],
+  ['grocery and pharmacy lack their own line', CT, '...(KIND_SAY[kind] ? [KIND_SAY[kind]] : []),', ''],
   ['any rule is accepted', CT, 'if (rule !== null && (typeof rule !== "string" || !(rule in COUNTY_RULES))) {', 'if (false) {'],
   ['a year is accepted with no rule', CT, 'if (rule === null) return { refused: "a year chooses', 'if (false) return { refused: "a year chooses'],
   ['any year is accepted', CT, 'if (typeof year !== "number" || !Number.isInteger(year) || year < YEAR_MIN || year > YEAR_MAX) return { refused:', 'if (false) return { refused:'],
@@ -48,8 +58,8 @@ const mutants = [
   ['a hidden character may be shown', CT, 'hidden(s) || ', ''],
   ['an answer that forecasts is shown (profile)', CT, 'if (typeof v.forecast !== "string" || !v.forecast.startsWith("none")) return null;', ''],
   ['an answer for another county is shown', CT, '(expect !== null && v.county !== expect)', 'false'],
-  ['the county name comes from the answer', CT, 'return { fips: v.county, name: COUNTY_LIST[v.county], series,', 'return { fips: v.county, name: String(v.county_name), series,'],
-  ['an answer of another schema is shown', CT, 'v.schema !== PROFILE_SCHEMA || v.kind !== "limited_service"', 'false'],
+  ['the county name comes from the answer', CT, 'return { fips: county, name: COUNTY_LIST[county], kind_title:', 'return { fips: county, name: String(v.county_name), kind_title:'],
+  ['an answer of another schema is shown', CT, 'v.schema !== PROFILE_SCHEMA || v.kind !== kind || !(kind in COUNTY_KIND_TITLES)', 'false'],
   ['a not-held item with a path is shown', CT, 'const source = isObj(e) ? plainWords(e.source, 100) : null, why = isObj(e) ? plainWords(e.why, 300) : null;', 'const source = isObj(e) ? String(e.source) : null, why = isObj(e) ? String(e.why) : null;'],
   ['a not-held sentence with a path is shown', CT, 'for (const t of v.not_held) { const w = plainWords(t, 400);', 'for (const t of v.not_held) { const w = typeof t === "string" ? t : null;'],
   ['a read-from sentence with a folder is shown', CT, ': (plainWords(v.read_from, 300));', ': (typeof v.read_from === "string" ? v.read_from : null);'],
@@ -63,11 +73,11 @@ const mutants = [
   ['equal values may break the order asked', CT, 'if (a === b && ask.counties.indexOf(table[i - 1].fips) > ask.counties.indexOf(table[i].fips)) return null;', ''],
   ['the table need not match the profiles', CT, 'if (!s || !y || y.value !== r.value) return null;', ''],
   ['no order made may still reorder the counties', CT, '} else if (!sameList(shown, ask.counties)) return null;', '}'],
-  ['a comparison that forecasts is shown', CT, 'answer.kind !== "limited_service" || typeof answer.forecast !== "string" || !answer.forecast.startsWith("none")) return null;', 'answer.kind !== "limited_service") return null;'],
+  ['a comparison that forecasts is shown', CT, 'typeof answer.forecast !== "string" || !answer.forecast.startsWith("none")) return null;\n  if (!Array.isArray(answer.counties)', ') return null;\n  if (!Array.isArray(answer.counties)'],
   ['a table row with no label is accepted', CT, '|| (r.label !== "Observed" && r.label !== "Calculated")) return null;', ') return null;'],
   ['a missing table figure need not say why', CT, 'if (!source || unit === null || note === "bad" || (value === null && note === null)) return null;', 'if (!source || unit === null || note === "bad") return null;'],
   // ---- the words
-  ['the fixed lines are missing from the answer', CT, ', ...SAY_LINES, ...(r.shape === "compare" ? [SAY_COMPARE] : [])];', ', ...(r.shape === "compare" ? [SAY_COMPARE] : [])];'],
+  ['the fixed lines are missing from the answer', CT, 'never estimated)", ...r.say];', 'never estimated)"];'],
   ['a fixed line is reworded', CT, '"These are counts of places, not of sales or customers.",', '"These are counts of places, and a sign of sales or customers.",'],
   ['the sources line is missing', CT, 'lines.push(SOURCES_NEVER_ADDED);', ''],
   ['the series break is not said', CT, 'const brk = s.breaks.length ?', 'const brk = false ?'],
@@ -89,7 +99,7 @@ const mutants = [
   ['the ask goes to the read function', DB, 'askCounty: (q) => self.fn("connect_county_ask"', 'askCounty: (q) => self.fn("connect_county_get"'],
   ['the read goes to the ask function', DB, 'getCounty: (id) => self.fn("connect_county_get"', 'getCounty: (id) => self.fn("connect_county_ask"'],
   ['the stand-in lets many requests wait', FK, 'c.state === "claimed").length >= 5) throw err("There are already 5 county questions', 'c.state === "claimed").length >= 500) throw err("There are already 5 county questions'],
-  ['the stand-in worker may store an answer of any schema', FK, 'o.schema !== (c.shape === "profile" ? "ryagram.geo-county-profile/0" : "ryagram.geo-compare-counties/0")', 'false'],
+  ['the stand-in worker may store an answer of any schema', FK, 'o.schema !== (c.shape === "profile" ? "ryagram.geo-county-profile/0" : "ryagram.geo-compare-counties/1")', 'false'],
 ];
 
 function run(cwd) {

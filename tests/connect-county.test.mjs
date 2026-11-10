@@ -11,9 +11,9 @@ import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { handleMcp, toolList } from '../supabase/functions/connect-core/mcp.ts';
 import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { openApi } from '../supabase/functions/connect-core/rest.ts';
-import { BANNED_WORDS, COMPARE_COUNTIES_DESCRIPTION, COMPARE_SCHEMA, COUNTY_LIST, COUNTY_PROFILE_DESCRIPTION, COUNTY_RULES, PATHISH, PROFILE_SCHEMA, SAY_COMPARE, SAY_LINES, SOURCES_NEVER_ADDED, checkCountyArgs, countyLines, plainWords, readCountyAnswer } from '../supabase/functions/connect-core/county.ts';
+import { BANNED_WORDS, COMPARE_COUNTIES_DESCRIPTION, COMPARE_SCHEMA, COUNTY_KIND_TITLES, COUNTY_LIST, COUNTY_PROFILE_DESCRIPTION, COUNTY_RULES, PATHISH, PROFILE_SCHEMA, SAY_COMPARE, SAY_LINES, SOURCES_NEVER_ADDED, checkCountyArgs, countyLines, plainWords, readCountyAnswer } from '../supabase/functions/connect-core/county.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
-import { cases as sharedCases, G, M, series, yrs, CBP, SERIES, NOT_HELD_ITEMS, profile, rowOf, compare, PROFILE_ASK, COMPARE_ASK, mutate, BAD_PROFILES, cmp, BAD_COMPARES } from './fixtures/county/build-cases.mjs';
+import { cases as sharedCases, G, M, figures, series, yrs, CBP, SERIES, NOT_HELD_ITEMS, profile, rowOf, compare, PROFILE_ASK, COMPARE_ASK, mutate, BAD_PROFILES, cmp, BAD_COMPARES } from './fixtures/county/build-cases.mjs';
 
 const compile = makeCompile(Ajv2020);
 const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
@@ -43,19 +43,17 @@ test('the descriptions and the fixed lines are GEO\'s, word for word (proposals/
   assert.equal(SOURCES_NEVER_ADDED, 'QCEW and County Business Patterns count differently; their figures are never added together or averaged.');
   assert.deepEqual(COUNTY_LIST, { 39057: 'Greene County, Ohio', 39113: 'Montgomery County, Ohio' });
   assert.deepEqual(Object.keys(COUNTY_RULES), ['per_10k_low_first', 'per_10k_high_first', 'count_high_first']);
-  assert.equal(PROFILE_SCHEMA, 'ryagram.geo-county-profile/0'); assert.equal(COMPARE_SCHEMA, 'ryagram.geo-compare-counties/0');
+  assert.equal(PROFILE_SCHEMA, 'ryagram.geo-county-profile/0'); assert.equal(COMPARE_SCHEMA, 'ryagram.geo-compare-counties/1');
 });
 
 const COVERS = 'Greene County, Ohio (39057) and Montgomery County, Ohio (39113)';
-const KINDS = 'Kinds: limited_service (limited-service restaurants)';
+const KINDS = 'Kinds: limited_service (limited-service restaurants), grocery (supermarkets and other grocery stores), pharmacy (pharmacies and drug stores), eating_places (restaurants and other eating places)';
 const OFFLIST = (c) => `county ${c}: version one covers only ${COVERS}; every other county comes once per-county extracts exist. Nothing is guessed for it.`;
 const REFUSALS = [
   ['profile', { county: '3905' }, "county '3905': a county is its 5-digit FIPS code (state + county), for example 39057"],
   ['profile', { county: 39057 }, "county '39057': a county is its 5-digit FIPS code (state + county), for example 39057"],
   ['profile', { county: '39049' }, OFFLIST('39049')],
   ['profile', { county: G, kind: 'food_drink' }, "kind 'food_drink' is not in version one: all of NAICS 722 also counts bars and drinking places (7224) and caterers and mobile food (7223), which are not restaurants. " + KINDS],
-  ['profile', { county: G, kind: 'grocery' }, "kind 'grocery' is not in version one: grocery is not offered yet; version one covers restaurants only. " + KINDS],
-  ['profile', { county: G, kind: 'pharmacy' }, "kind 'pharmacy' is not in version one: pharmacy is not offered yet; version one covers restaurants only. " + KINDS],
   ['profile', { county: G, kind: 'best_spot' }, "kind 'best_spot' is not one this tool knows; it is not guessed. " + KINDS],
   ['compare', { counties: '39057' }, "counties: give a list of 5-digit FIPS codes, for example ['39057', '39113']"],
   ['compare', { counties: [G, 7] }, "counties: give a list of 5-digit FIPS codes, for example ['39057', '39113']"],
@@ -129,7 +127,7 @@ test('ON: a good question writes ONE request, says so in words, asking again is 
   const again = await s.call('county_profile', { county: G });
   assert.equal(again.structuredContent.id, r.structuredContent.id); assert.equal(again.structuredContent.repeat, true);
   assert.equal(s.w.users.get(A.userId).counties.size, 1);
-  for (const [name, args, want] of [['county_profile', { county: '39049' }, OFFLIST('39049')], ['compare_counties', { counties: [G, M], rule: 'x' }, null], ['county_profile', { county: G, kind: 'grocery' }, null]]) {
+  for (const [name, args, want] of [['county_profile', { county: '39049' }, OFFLIST('39049')], ['compare_counties', { counties: [G, M], rule: 'x' }, null], ['county_profile', { county: G, kind: 'best_spot' }, null]]) {
     const bad = await s.call(name, args);
     assert.equal(bad.isError, true); assert.equal(bad.structuredContent.asked, false);
     if (want) assert.equal(bad.content[0].text, want, 'GEO\'s words, as they are');
@@ -173,9 +171,9 @@ test('a good profile and a good comparison are read: the NAME is from our closed
   assert.deepEqual([c.shape, c.rule, c.rule_year, c.ordered], ['compare', 'per_10k_low_first', 2023, true]);
   assert.deepEqual(c.profiles.map((x) => x.name), ['Montgomery County, Ohio', 'Greene County, Ohio'], 'in the order shown');
   assert.deepEqual(c.table.map((r) => [r.fips, r.value]), [[M, 5.1], [G, 7.4]]);
-  const noRule = readCountyAnswer({ shape: 'compare', counties: [G, M], rule: null, year: null }, compare({ counties: [{ county: G }, { county: M }], rule: null, ordered: false, rule_table: [], profiles: [profile(G), profile(M)], order_words: 'the order you asked; no rule was stated, so nothing is ordered' }));
+  const noRule = readCountyAnswer({ shape: 'compare', counties: [G, M], kind: 'limited_service', rule: null, year: null }, compare({ counties: [{ county: G }, { county: M }], rule: null, ordered: false, rule_table: [], county_figures: [figures(G), figures(M)], order_words: 'the order you asked; no rule was stated, so nothing is ordered' }));
   assert.equal(noRule.ordered, false);
-  const gap = compare({ counties: [{ county: G }, { county: M }], ordered: false, rule_table: [rowOf(G, 'x', 7.4), rowOf(M, 'y', null, { note: 'not held for 2023' })], profiles: [profile(G), profile(M)], order_words: 'no order: Montgomery County, Ohio (39113) has no figure for places per 10,000 residents in 2023 (not held for 2023); an order is never made with a county left out or counted as zero' });
+  const gap = compare({ counties: [{ county: G }, { county: M }], ordered: false, rule_table: [rowOf(G, 'x', 7.4), rowOf(M, 'y', null, { note: 'not held for 2023' })], county_figures: [figures(G), figures(M)], order_words: 'no order: Montgomery County, Ohio (39113) has no figure for places per 10,000 residents in 2023 (not held for 2023); an order is never made with a county left out or counted as zero' });
   assert.equal(readCountyAnswer(COMPARE_ASK, gap).ordered, false, 'a county with no figure: nothing is ordered, and the county is named');
 });
 
@@ -236,7 +234,7 @@ test('the text the AI reads opens with GEO\'s fixed lines, shows each series wit
   const c = countyLines(readCountyAnswer(COMPARE_ASK, compare()), wrap);
   assert.deepEqual(c.slice(1, 5), [...SAY_LINES, SAY_COMPARE]);
   assert.ok(c.some((l) => l.startsWith('Order (places per 10,000 residents, lowest first, 2023): Montgomery County, Ohio (39113) 5.1, then Greene County, Ohio (39057) 7.4.')));
-  const none = countyLines(readCountyAnswer({ shape: 'compare', counties: [G, M], rule: null, year: null }, compare({ counties: [{ county: G }, { county: M }], rule: null, ordered: false, rule_table: [], profiles: [profile(G), profile(M)], order_words: null })), wrap);
+  const none = countyLines(readCountyAnswer({ shape: 'compare', counties: [G, M], kind: 'limited_service', rule: null, year: null }, compare({ counties: [{ county: G }, { county: M }], rule: null, ordered: false, rule_table: [], county_figures: [figures(G), figures(M)], order_words: null })), wrap);
   assert.ok(none.includes('No order was made: the counties are shown in the order asked.'));
   const lastNull = profile(G, { series: [series('payroll', 'Annual payroll', 'Observed', CBP, 'thousand dollars', yrs([[2022, 5], [2023, null, 'not published for 2023']]))] });
   assert.ok(countyLines(readCountyAnswer(PROFILE_ASK, lastNull), wrap).some((l) => l.includes('2023: no figure (<<not published for 2023>>)')), 'the latest year not held says so and says why');
@@ -357,9 +355,14 @@ import fs from 'node:fs';
 const REAL = new URL('./fixtures/county-real/', import.meta.url);
 const realFiles = fs.readdirSync(REAL).filter((f) => f.endsWith('.json')).sort();
 const real = (f) => JSON.parse(fs.readFileSync(new URL(f, REAL), 'utf8'));
+const askOf = (d) => ({ kind: 'limited_service', ...d.ask });                  // yesterday's files predate the kind in the request: they are all restaurants
+// GEO's real answers of 11-10 (the slim comparison, schema /1, and the three new kinds), read from the per-county extracts
+const REAL2 = new URL('./fixtures/county-real-1110/', import.meta.url);
+const real2Files = fs.readdirSync(REAL2).filter((f) => f.endsWith('.json')).sort();
+const real2 = (f) => JSON.parse(fs.readFileSync(new URL(f, REAL2), 'utf8'));
 
-test('the nine real answers are exactly the files GEO made (the hashes are pinned, so a change to GEO\'s tool shows up here as a fixture diff, not silently)', () => {
-  assert.equal(realFiles.length, 9);
+test('the six real profile and edge answers of 11-09 are exactly the files GEO made (the hashes are pinned, so a change to GEO\'s tool shows up here as a fixture diff, not silently)', () => {
+  assert.equal(realFiles.length, 6);
   const sums = Object.fromEntries(fs.readFileSync(new URL('SHA256SUMS.txt', REAL), 'utf8').split(/\r?\n/).filter(Boolean).map((l) => { const m = /^([0-9a-f]{64}) \*(.+)$/.exec(l); return [m[2], m[1]]; }));
   assert.deepEqual(Object.keys(sums).sort(), realFiles);
   for (const f of realFiles) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(new URL(f, REAL))).digest('hex'), sums[f], f);
@@ -368,7 +371,7 @@ test('the nine real answers are exactly the files GEO made (the hashes are pinne
 
 test('EVERY real answer is shown by the reader (a real shape the reader withholds fails here), with nothing of a place on a computer in what the AI reads', () => {
   for (const f of realFiles) {
-    const { ask, answer } = real(f);
+    const { answer } = real(f), ask = askOf(real(f));
     const r = readCountyAnswer(ask, answer);
     assert.ok(r, `${f} is withheld`);
     assert.equal(r.shape, ask.shape, f);
@@ -379,33 +382,79 @@ test('EVERY real answer is shown by the reader (a real shape the reader withhold
 });
 
 test('the real answers say what they are: the names are ours, an order is only under a rule, the edge cases name what is not held without a folder', () => {
-  const g = readCountyAnswer(real('greene_profile.json').ask, real('greene_profile.json').answer);
+  const g = readCountyAnswer(askOf(real('greene_profile.json')), real('greene_profile.json').answer);
   assert.deepEqual([g.profiles[0].fips, g.profiles[0].name], [G, 'Greene County, Ohio']);
-  const m = readCountyAnswer(real('montgomery_profile.json').ask, real('montgomery_profile.json').answer);
+  const m = readCountyAnswer(askOf(real('montgomery_profile.json')), real('montgomery_profile.json').answer);
   assert.equal(m.profiles[0].name, 'Montgomery County, Ohio');
-  const c = real('compare_per10k_low.json'), cr = readCountyAnswer(c.ask, c.answer);
+  const c = real2('compare_limited_service_per_10k_low_first.json'), cr = readCountyAnswer(c.ask, c.answer);
   assert.equal(cr.ordered, true); assert.equal(cr.rule, 'per_10k_low_first'); assert.equal(cr.table.length, 2); assert.ok(cr.table[0].value <= cr.table[1].value);
-  const h = real('compare_count_high_2015.json'), hr = readCountyAnswer(h.ask, h.answer);
+  const h = real2('compare_limited_service_count_high_first.json'), hr = readCountyAnswer(h.ask, h.answer);
   assert.deepEqual(hr.profiles.map((p) => p.fips).sort(), [G, M]); assert.equal(hr.rule_year, 2015); assert.ok(hr.table[0].value >= hr.table[1].value);
-  const n = real('compare_norule.json'), nr = readCountyAnswer(n.ask, n.answer);
-  assert.equal(nr.ordered, false); assert.deepEqual(nr.profiles.map((p) => p.fips), [G, M], 'the order asked');
-  const q = real('edge_no_qcew.json'), qr = readCountyAnswer(q.ask, q.answer);
+  const n = real2('compare_limited_service_norule.json'), nr = readCountyAnswer(n.ask, n.answer);
+  assert.equal(nr.ordered, false); assert.deepEqual(nr.profiles.map((p) => p.fips), n.ask.counties, 'the order asked');
+  const q = real('edge_no_qcew.json'), qr = readCountyAnswer(askOf(q), q.answer);
   assert.ok(qr.profiles[0].not_held.some((x) => /QCEW/.test(x.source)), 'BLS QCEW is named as not held');
-  const pm = real('edge_no_permits.json'), pr = readCountyAnswer(pm.ask, pm.answer);
+  const pm = real('edge_no_permits.json'), pr = readCountyAnswer(askOf(pm), pm.answer);
   assert.ok(pr.profiles[0].not_held.some((x) => /Building Permits/.test(x.source)));
-  const x = real('edge_no_extract.json'), xr = readCountyAnswer(x.ask, x.answer);
+  const x = real('edge_no_extract.json'), xr = readCountyAnswer(askOf(x), x.answer);
   assert.equal(xr.profiles[0].read_from, 'read from the national files');
-  const by = real('edge_bad_cbp_year.json'), br = readCountyAnswer(by.ask, by.answer);
+  const by = real('edge_bad_cbp_year.json'), br = readCountyAnswer(askOf(by), by.answer);
   assert.ok(br.profiles[0].series.some((s) => s.years.some((y) => y.value === null && y.note)), 'a year that could not be read stays a missing year with its reason');
-  for (const f of realFiles) { const d = real(f); const r = readCountyAnswer(d.ask, d.answer); for (const p of r.profiles) assert.equal(p.withheld, 0, `${f}: nothing was left out`); }
+  for (const f of realFiles) { const d = real(f); const r = readCountyAnswer(askOf(d), d.answer); for (const p of r.profiles) assert.equal(p.withheld, 0, `${f}: nothing was left out`); }
+});
+
+test('GEO\'s real answers of 11-10 are exactly the files GEO made (the hashes are pinned)', () => {
+  const sums = Object.fromEntries(fs.readFileSync(new URL('SHA256SUMS.txt', REAL2), 'utf8').split(/\r?\n/).filter(Boolean).map((l) => { const m = /^([0-9a-f]{64}) \*(.+)$/.exec(l); return [m[2], m[1]]; }));
+  assert.deepEqual(Object.keys(sums).sort(), real2Files);
+  assert.equal(real2Files.length, 26);
+  for (const f of real2Files) {
+    assert.equal(crypto.createHash('sha256').update(fs.readFileSync(new URL(f, REAL2))).digest('hex'), sums[f], f);
+    assert.ok(!/[^\x20-\x7e\r\n]/.test(fs.readFileSync(new URL(f, REAL2), 'utf8')), `${f}: plain ASCII`);
+  }
+});
+
+// the one string GEO is asked to reword (CONNECT 10:40): the sales rule lets a negation stand only close to the word, and 'not of meals, customers or sales' is a comma list
+const EP_OLD = 'not of meals, customers or sales', EP_NEW = 'not of sales, meals or customers';
+const readReal2 = (f, swap = false) => { const d = JSON.parse((swap ? fs.readFileSync(new URL(f, REAL2), 'utf8').replaceAll(EP_OLD, EP_NEW) : fs.readFileSync(new URL(f, REAL2), 'utf8'))); return [d, readCountyAnswer(d.ask, d.answer)]; };
+test('GEO\'s real answers of 11-10 are shown by the reader, each of the kind it was asked for, with GEO\'s own closing lines for grocery and pharmacy and a pointer to the full profile', () => {
+  let shown = 0;
+  for (const f of real2Files) {
+    if (f.startsWith('compare3_')) continue;                                                   // Clark (39023) is off the county list: refused below
+    if (f.includes('eating_places')) continue;                                                 // the note string: below
+    const [d, r] = readReal2(f);
+    assert.ok(r, `${f} is withheld`);
+    assert.equal(r.kind, d.ask.kind, f); assert.equal(r.shape, d.ask.shape, f);
+    const text = countyLines(r, wrap).join('\n');
+    assert.ok(!PATHISH.test(text), `${f}: a place on a computer in the words`);
+    assert.ok(text.includes(`(${r.profiles[0].fips}), ${COUNTY_KIND_TITLES[d.ask.kind]}:`), `${f}: the kind's own title, ours`);
+    if (d.ask.shape === 'compare') assert.ok(r.profiles.every((p) => p.more && p.more.startsWith('every other figure')) && text.includes('More: <<every other figure'), `${f}: the pointer to the full profile`);
+    assert.equal(r.say.some((l) => /grocery stores and people/.test(l)), d.ask.kind === 'grocery', f);
+    assert.equal(r.say.some((l) => /pharmacies and people/.test(l)), d.ask.kind === 'pharmacy', f);
+    if (d.ask.shape === 'compare' && d.ask.kind !== 'limited_service' && d.ask.kind !== 'eating_places') assert.equal(r.say[r.say.length - 1], d.answer.say[d.answer.say.length - 1], `${f}: the closing line is GEO's own, word for word`);
+    shown++;
+  }
+  assert.equal(shown, 13);
+});
+
+test('the eating places answers: refused as GEO made them (the note trips the sales rule), shown once that one string is reworded; the three-county ones are refused only for Clark', () => {
+  for (const f of real2Files.filter((x) => x.includes('eating_places') && !x.startsWith('compare3_'))) {
+    assert.equal(readReal2(f)[1], null, `${f}: as GEO made it`);
+    const [d, r] = readReal2(f, true);
+    assert.ok(r, `${f}: with the note reworded`); assert.equal(r.kind, 'eating_places');
+  }
+  for (const f of real2Files.filter((x) => x.startsWith('compare3_'))) {
+    assert.equal(readReal2(f)[1], null, `${f}: Clark County is not on the list`);
+    const d = JSON.parse(fs.readFileSync(new URL(f, REAL2), 'utf8'));
+    assert.ok(d.ask.counties.includes('39023') && !('39023' in COUNTY_LIST));
+  }
 });
 
 test('a real answer asked about the wrong county or with the wrong rule is NOT shown (the real shapes are checked against the request too)', () => {
   const { ask, answer } = real('greene_profile.json');
-  assert.equal(readCountyAnswer({ ...ask, counties: [M] }, answer), null);
-  const c = real('compare_per10k_low.json');
+  assert.equal(readCountyAnswer({ ...askOf({ ask }), counties: [M] }, answer), null);
+  const c = real2('compare_limited_service_per_10k_low_first.json');
   assert.equal(readCountyAnswer({ ...c.ask, rule: 'count_high_first' }, c.answer), null);
-  assert.equal(readCountyAnswer({ shape: 'compare', counties: [G, M], rule: null, year: null }, c.answer), null, 'a comparison with an order though no rule was asked');
+  assert.equal(readCountyAnswer({ shape: 'compare', counties: [G, M], kind: 'limited_service', rule: null, year: null }, c.answer), null, 'a comparison with an order though no rule was asked');
 });
 
 test('a unit may be up to 80 characters (GEO\'s longest real unit is 50), and no longer', () => {
@@ -434,5 +483,5 @@ test('the reader shows every good shared case for its own ask and refuses every 
   const cs = JSON.parse(fs.readFileSync(new URL('./fixtures/county/cases.json', import.meta.url), 'utf8'));
   assert.ok(cs.length >= 60 && cs.filter((c) => c.ok).length >= 5 && cs.filter((c) => !c.ok).length >= 55, 'the cases are not an empty promise');
   assert.equal(new Set(cs.map((c) => c.name)).size, cs.length, 'every case has its own name');
-  for (const c of cs) assert.equal(readCountyAnswer(c.ask, c.answer) !== null, c.ok, c.name);
+  for (const c of cs) assert.equal(readCountyAnswer(askOf(c), c.answer) !== null, c.ok, c.name);
 });

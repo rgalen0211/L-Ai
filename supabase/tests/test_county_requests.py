@@ -29,7 +29,7 @@ URI = "https://claude.ai/api/mcp/auth_callback"
 VER = "v" * 43
 GREENE, MONT = "39057", "39113"
 PROFILE = {"schema": "ryagram.geo-county-profile/0", "county": {"fips": GREENE, "name": "Invented County"}, "kind": "limited_service", "figures": [], "say": ["invented line"]}
-COMPARE = {"schema": "ryagram.geo-compare-counties/0", "counties": [], "rule": None, "year": None, "order": None, "order_words": "invented", "say": ["invented line"]}
+COMPARE = {"schema": "ryagram.geo-compare-counties/1", "counties": [], "rule": None, "year": None, "order": None, "order_words": "invented", "say": ["invented line"]}
 
 
 def h(s):
@@ -116,7 +116,7 @@ class County(core.Base):
     def test_a_request_that_is_not_one_of_the_closed_shapes_is_refused_in_words_and_stores_nothing(self):
         bad = [
             dict(shape="best"), dict(counties=("3905",)), dict(counties=("39057x",)), dict(counties=()), dict(counties=(GREENE, GREENE), shape="compare"),
-            dict(counties=(GREENE, MONT)), dict(shape="compare", counties=(GREENE,)), dict(kind="food_drink"), dict(kind="grocery"), dict(rule="per_10k_low_first"), dict(year=2023),
+            dict(counties=(GREENE, MONT)), dict(shape="compare", counties=(GREENE,)), dict(kind="food_drink"), dict(kind="Grocery"), dict(kind=""), dict(rule="per_10k_low_first"), dict(year=2023),
             dict(shape="compare", counties=(GREENE, MONT), rule="best_first"), dict(shape="compare", counties=(GREENE, MONT), year=2023),
             dict(shape="compare", counties=(GREENE, MONT), rule="count_high_first", year=1990), dict(shape="compare", counties=(GREENE, MONT), rule="count_high_first", year=2025),
             dict(shape="compare", counties=tuple(f"3900{i}" for i in range(6))),
@@ -144,6 +144,32 @@ class County(core.Base):
         self.owner("insert into public.county_requests (owner_id, shape, counties) values (%s, 'compare', array['39001','39003','39005'])", ALICE)
         with self.assertRaises(psycopg.Error) as cm:
             self.owner("insert into public.county_requests (owner_id, shape, counties) values (%s, 'compare', array['39001','39003','39005','39007'])", ALICE)
+        self.assertEqual(cm.exception.sqlstate, "23514", "a check constraint, whoever writes the row")
+
+    def test_the_four_kinds_are_stored_as_asked_and_each_is_its_own_question(self):
+        """GEO's kinds (Ryan Q551): restaurants, grocery, pharmacy and eating places; the same county is a different question for each kind."""
+        ids = {}
+        for kind in ("limited_service", "grocery", "pharmacy", "eating_places"):
+            try:
+                r = self.ask(self.a, "profile", (GREENE,), kind)
+            except psycopg.Error as e:                          # a kind that should be accepted and is not is a failed check, not a crash
+                self.fail(f"the kind {kind} was refused: {e.diag.message_primary}")
+            self.assertFalse(r["repeat"], kind)
+            ids[kind] = r["id"]
+            self.assertEqual(self.owner("select kind from public.county_requests where id = %s", r["id"]).fetchone()[0], kind)
+            self.assertTrue(self.ask(self.a, "profile", (GREENE,), kind)["repeat"], f"asking {kind} again is one request")
+        self.assertEqual(len(set(ids.values())), 4, "four kinds, four requests")
+        c = self.ask(self.a, "compare", (GREENE, MONT), "pharmacy", "per_10k_low_first", 2023)
+        self.assertFalse(c["repeat"])
+
+    def test_a_kind_that_is_not_one_of_the_four_is_refused_in_words_that_name_them_and_the_table_agrees(self):
+        for bad in ("food_drink", "Grocery", "", "limited-service", "bars"):
+            e = self.fails("select connect_county_ask(%s, 'profile', %s, %s, null, null)", self.a, [GREENE], bad, code="22023")
+            for k in ("limited_service", "grocery", "pharmacy", "eating_places"):
+                self.assertIn(k, e.diag.message_primary, bad)
+        self.assertEqual(self.count(), 0)
+        with self.assertRaises(psycopg.Error) as cm:
+            self.owner("insert into public.county_requests (owner_id, shape, counties, kind) values (%s, 'profile', array['39057'], 'food_drink')", ALICE)
         self.assertEqual(cm.exception.sqlstate, "23514", "a check constraint, whoever writes the row")
 
     def test_five_open_at_once_and_one_hundred_a_day(self):
@@ -301,7 +327,7 @@ class County(core.Base):
             self.assertEqual(cm.exception.sqlstate, "22023", name)
         self.worker().one("select public.finish_county(%s, %s::jsonb)", r["id"], json.dumps(COMPARE))
         done = self.get(self.a, r["id"])
-        self.assertEqual((done["state"], done["answer"]["schema"]), ("answered", "ryagram.geo-compare-counties/0"))
+        self.assertEqual((done["state"], done["answer"]["schema"]), ("answered", "ryagram.geo-compare-counties/1"))
         with self.assertRaises(psycopg.Error) as cm:
             self.worker().one("select public.finish_county(%s, %s::jsonb)", r["id"], json.dumps(COMPARE))
         self.assertEqual(cm.exception.sqlstate, "PT404", "a request is answered once")

@@ -56,7 +56,7 @@ export class FakeWorld {
         const c = user.counties.get(rid);
         if (!c || c.state !== "claimed") throw err("No such claimed request.", "PT404");
         const o = answer as Record<string, unknown> | null;
-        if (!o || typeof o !== "object" || Array.isArray(o) || JSON.stringify(o).length > 65536 || o.schema !== (c.shape === "profile" ? "ryagram.geo-county-profile/0" : "ryagram.geo-compare-counties/0")) throw err("That is not a county answer.", "22023");
+        if (!o || typeof o !== "object" || Array.isArray(o) || JSON.stringify(o).length > 65536 || o.schema !== (c.shape === "profile" ? "ryagram.geo-county-profile/0" : "ryagram.geo-compare-counties/1")) throw err("That is not a county answer.", "22023");
         c.state = "answered"; c.answer = JSON.parse(JSON.stringify(answer)); c.finished = Date.now(); c.fail_code = null; c.fail_detail = null;
       },
       fail: (rid: string, code: string, detail = "") => {

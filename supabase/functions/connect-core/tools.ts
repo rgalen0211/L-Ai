@@ -1319,14 +1319,14 @@ const countyProfile: ToolDef = {
   name: "county_profile", title: "A county's restaurant figures", scope: "read", readOnly: true, listed: false,
   description: COUNTY_PROFILE_DESCRIPTION + " Read the answer with county_answer.",
   inputSchema: obj({ county: { type: "string", description: "The county's 5-digit FIPS code: 39057 (Greene County, Ohio) or 39113 (Montgomery County, Ohio) in version one." },
-    kind: { type: "string", description: "limited_service (limited-service restaurants), the only kind in version one. Leave out to mean that." } }, ["county"]),
+    kind: { type: "string", description: "limited_service (limited-service restaurants), grocery (supermarkets and other grocery stores), pharmacy (pharmacies and drug stores) or eating_places (restaurants and other eating places). Leave out to mean limited_service." } }, ["county"]),
   run: (a, ctx) => askCountyTool("profile", a, ctx),
 };
 const compareCounties: ToolDef = {
   name: "compare_counties", title: "Compare counties' restaurant figures", scope: "read", readOnly: true, listed: false,
   description: COMPARE_COUNTIES_DESCRIPTION + " Read the answer with county_answer.",
   inputSchema: obj({ counties: { description: "A list of two or three different 5-digit FIPS codes, for example [\"39057\", \"39113\"]. Three is the most." },
-    kind: { type: "string", description: "limited_service, the only kind in version one. Leave out to mean that." },
+    kind: { type: "string", description: "limited_service, grocery, pharmacy or eating_places. Leave out to mean limited_service." },
     rule: { type: "string", description: "Only if the person states one: per_10k_low_first, per_10k_high_first or count_high_first. With none, the counties stay in the order asked." },
     year: { description: "A 4-digit year from 1998 to 2024, only with a rule." } }, ["counties"]),
   run: (a, ctx) => askCountyTool("compare", a, ctx),
@@ -1357,7 +1357,7 @@ const countyAnswer: ToolDef = {
     const rep = readCountyAnswer(row, row.answer);
     if (!rep) return refuse("The answer was not in a shape this connection knows (a figure was not labelled, sourced and dated, a sentence held a place on a computer or a claim this service does not make, or an order did not follow the stated rule), so none of it is shown.", "bad_report", { data: { ok: false, looked_up: false } });
     return ok(countyLines(rep, (s) => untrusted("report-sentence", s)).join("\n"), {
-      id: row.id, shape: rep.shape, looked_up: true, labels: ["Observed", "Calculated"], say: [...SAY_LINES, ...(rep.shape === "compare" ? [SAY_COMPARE] : [])],
+      id: row.id, shape: rep.shape, looked_up: true, labels: ["Observed", "Calculated"], say: rep.say,
       profiles: rep.profiles, rule: rep.rule, rule_year: rep.rule_year, ordered: rep.ordered, order_words: rep.order_words, table: rep.table,
     });
   },

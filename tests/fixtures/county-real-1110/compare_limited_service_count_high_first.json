@@ -1,0 +1,776 @@
+{
+ "ask": {
+  "shape": "compare",
+  "counties": [
+   "39113",
+   "39057"
+  ],
+  "kind": "limited_service",
+  "rule": "count_high_first",
+  "year": 2015
+ },
+ "answer": {
+  "schema": "ryagram.geo-compare-counties/1",
+  "kind": "limited_service",
+  "kind_title": "limited-service restaurants",
+  "counties": [
+   {
+    "county": "39113",
+    "name": "Montgomery County, Ohio"
+   },
+   {
+    "county": "39057",
+    "name": "Greene County, Ohio"
+   }
+  ],
+  "rule": {
+   "id": "count_high_first",
+   "words": "the count of places, highest first",
+   "measure": "establishments",
+   "year": 2015
+  },
+  "ordered": true,
+  "order_words": "ordered by the count of places, highest first, in 2015, as you asked; equal values keep the order you gave",
+  "rule_table": [
+   {
+    "county": "39113",
+    "name": "Montgomery County, Ohio",
+    "year": 2015,
+    "value": 468,
+    "label": "Observed",
+    "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+    "unit": "places",
+    "note": ""
+   },
+   {
+    "county": "39057",
+    "name": "Greene County, Ohio",
+    "year": 2015,
+    "value": 132,
+    "label": "Observed",
+    "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+    "unit": "places",
+    "note": ""
+   }
+  ],
+  "county_figures": [
+   {
+    "county": "39113",
+    "name": "Montgomery County, Ohio",
+    "read_how": "per_county_extract",
+    "series": [
+     {
+      "measure": "establishments",
+      "title": "limited-service restaurants: establishments",
+      "label": "Observed",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+      "unit": "places",
+      "breaks": [
+       2012
+      ],
+      "note": "a count of places, as published; the industry code changed in 2012 (722211 to 722513), so the two sides are not one series",
+      "years": [
+       {
+        "year": 1998,
+        "value": 409,
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 402,
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 421,
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 421,
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 439,
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 454,
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 450,
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 451,
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 441,
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 440,
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 436,
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 436,
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 452,
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 458,
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 455,
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 462,
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 477,
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 468,
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 487,
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 472,
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 485,
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 495,
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 502,
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 502,
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 503,
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 515,
+        "note": ""
+       }
+      ]
+     },
+     {
+      "measure": "per_10k",
+      "title": "limited-service restaurants: places per 10,000 residents",
+      "label": "Calculated",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain); U.S. Census Bureau, Population Estimates Program, county totals (public domain)",
+      "unit": "places per 10,000 residents",
+      "breaks": [
+       2000,
+       2010,
+       2012,
+       2020
+      ],
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "years": [
+       {
+        "year": 1998,
+        "value": 7.22,
+        "residents": 566715,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 7.15,
+        "residents": 561944,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 7.54,
+        "residents": 558522,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 7.58,
+        "residents": 555536,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 7.94,
+        "residents": 553170,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 8.23,
+        "residents": 551742,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 8.19,
+        "residents": 549713,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 8.25,
+        "residents": 546979,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 8.11,
+        "residents": 543620,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 8.14,
+        "residents": 540667,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 8.11,
+        "residents": 537664,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 8.15,
+        "residents": 535294,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 8.44,
+        "residents": 535751,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 8.56,
+        "residents": 535298,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 8.49,
+        "residents": 535653,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 8.62,
+        "residents": 536165,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 8.92,
+        "residents": 534953,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 8.75,
+        "residents": 534832,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 9.09,
+        "residents": 535576,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 8.81,
+        "residents": 535794,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 9.04,
+        "residents": 536312,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 9.22,
+        "residents": 537026,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 9.35,
+        "residents": 537139,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 9.36,
+        "residents": 536229,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 9.41,
+        "residents": 534355,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 9.62,
+        "residents": 535313,
+        "estimate": "2020-2024",
+        "note": ""
+       }
+      ]
+     }
+    ],
+    "not_held_items": [],
+    "full_profile": {
+     "tool": "county_profile",
+     "county": "39113",
+     "kind": "limited_service",
+     "words": "every other figure for this county (employees, payroll, QCEW, permits, population) is in its full county profile"
+    }
+   },
+   {
+    "county": "39057",
+    "name": "Greene County, Ohio",
+    "read_how": "per_county_extract",
+    "series": [
+     {
+      "measure": "establishments",
+      "title": "limited-service restaurants: establishments",
+      "label": "Observed",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+      "unit": "places",
+      "breaks": [
+       2012
+      ],
+      "note": "a count of places, as published; the industry code changed in 2012 (722211 to 722513), so the two sides are not one series",
+      "years": [
+       {
+        "year": 1998,
+        "value": 95,
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 93,
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 91,
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 93,
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 105,
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 105,
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 112,
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 110,
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 123,
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 134,
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 126,
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 124,
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 127,
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 125,
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 128,
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 134,
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 132,
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 132,
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 145,
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 144,
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 149,
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 152,
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 147,
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 156,
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 157,
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 154,
+        "note": ""
+       }
+      ]
+     },
+     {
+      "measure": "per_10k",
+      "title": "limited-service restaurants: places per 10,000 residents",
+      "label": "Calculated",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain); U.S. Census Bureau, Population Estimates Program, county totals (public domain)",
+      "unit": "places per 10,000 residents",
+      "breaks": [
+       2000,
+       2010,
+       2012,
+       2020
+      ],
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "years": [
+       {
+        "year": 1998,
+        "value": 6.5,
+        "residents": 146266,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 6.31,
+        "residents": 147479,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 6.13,
+        "residents": 148401,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 6.21,
+        "residents": 149643,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 6.93,
+        "residents": 151537,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 6.86,
+        "residents": 153064,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 7.21,
+        "residents": 155442,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 7.04,
+        "residents": 156223,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 7.79,
+        "residents": 157850,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 8.42,
+        "residents": 159055,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 7.87,
+        "residents": 160115,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 7.7,
+        "residents": 161075,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 7.86,
+        "residents": 161548,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 7.65,
+        "residents": 163345,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 7.81,
+        "residents": 163943,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 8.2,
+        "residents": 163339,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 8.05,
+        "residents": 163927,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 8.08,
+        "residents": 163348,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 8.83,
+        "residents": 164215,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 8.71,
+        "residents": 165237,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 8.98,
+        "residents": 165955,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 9.08,
+        "residents": 167462,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 8.74,
+        "residents": 168130,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 9.27,
+        "residents": 168250,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 9.27,
+        "residents": 169380,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 9.04,
+        "residents": 170335,
+        "estimate": "2020-2024",
+        "note": ""
+       }
+      ]
+     }
+    ],
+    "not_held_items": [],
+    "full_profile": {
+     "tool": "county_profile",
+     "county": "39057",
+     "kind": "limited_service",
+     "words": "every other figure for this county (employees, payroll, QCEW, permits, population) is in its full county profile"
+    }
+   }
+  ],
+  "say": [
+   "Ryagram counts places, jobs, wages paid, permits and people. It has no sales data, so it cannot say where a business would do well.",
+   "These are counts of places, not of sales or customers.",
+   "An order shown here follows the stated rule only; it is not a ranking of better places.",
+   "This order follows only the rule you stated. It is not a ranking, and it does not say where a restaurant would do well."
+  ],
+  "forecast": "none: this tool gives held figures only"
+ }
+}

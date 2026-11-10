@@ -1,0 +1,1115 @@
+{
+ "ask": {
+  "shape": "compare",
+  "counties": [
+   "39113",
+   "39057",
+   "39023"
+  ],
+  "kind": "eating_places",
+  "rule": null,
+  "year": null
+ },
+ "answer": {
+  "schema": "ryagram.geo-compare-counties/1",
+  "kind": "eating_places",
+  "kind_title": "restaurants and other eating places",
+  "counties": [
+   {
+    "county": "39113",
+    "name": "Montgomery County, Ohio"
+   },
+   {
+    "county": "39057",
+    "name": "Greene County, Ohio"
+   },
+   {
+    "county": "39023",
+    "name": "Clark County, Ohio"
+   }
+  ],
+  "rule": null,
+  "ordered": false,
+  "order_words": "the order you asked; no rule was stated, so nothing is ordered",
+  "rule_table": [],
+  "county_figures": [
+   {
+    "county": "39113",
+    "name": "Montgomery County, Ohio",
+    "read_how": "per_county_extract",
+    "series": [
+     {
+      "measure": "establishments",
+      "title": "restaurants and other eating places: establishments",
+      "label": "Observed",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+      "unit": "places",
+      "breaks": [
+       2012
+      ],
+      "note": "a count of places, as published. A count of places, not of meals, customers or sales. Before 2012 no count was published for this group; the sum of the two older groups is shown as its own Calculated series.",
+      "years": [
+       {
+        "year": 1998,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 1999,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2000,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2001,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2002,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2003,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2004,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2005,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2006,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2007,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2008,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2009,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2010,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2011,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2012,
+        "value": 884,
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 884,
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 904,
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 891,
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 905,
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 881,
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 883,
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 888,
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 902,
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 901,
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 914,
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 927,
+        "note": ""
+       }
+      ]
+     },
+     {
+      "measure": "per_10k",
+      "title": "restaurants and other eating places: places per 10,000 residents",
+      "label": "Calculated",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain); U.S. Census Bureau, Population Estimates Program, county totals (public domain)",
+      "unit": "places per 10,000 residents",
+      "breaks": [
+       2000,
+       2010,
+       2012,
+       2020
+      ],
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "years": [
+       {
+        "year": 1998,
+        "value": 14.45,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 566715,
+        "estimate": "1990-1999"
+       },
+       {
+        "year": 1999,
+        "value": 13.93,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 561944,
+        "estimate": "1990-1999"
+       },
+       {
+        "year": 2000,
+        "value": 14.22,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 558522,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2001,
+        "value": 14.26,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 555536,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2002,
+        "value": 14.64,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 553170,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2003,
+        "value": 14.95,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 551742,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2004,
+        "value": 15.08,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 549713,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2005,
+        "value": 15.28,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 546979,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2006,
+        "value": 15.19,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 543620,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2007,
+        "value": 15.65,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 540667,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2008,
+        "value": 15.81,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 537664,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2009,
+        "value": 15.73,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 535294,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2010,
+        "value": 16.03,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 535751,
+        "estimate": "2010-2020"
+       },
+       {
+        "year": 2011,
+        "value": 16.29,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 535298,
+        "estimate": "2010-2020"
+       },
+       {
+        "year": 2012,
+        "value": 16.5,
+        "residents": 535653,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 16.49,
+        "residents": 536165,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 16.9,
+        "residents": 534953,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 16.66,
+        "residents": 534832,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 16.9,
+        "residents": 535576,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 16.44,
+        "residents": 535794,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 16.46,
+        "residents": 536312,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 16.54,
+        "residents": 537026,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 16.79,
+        "residents": 537139,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 16.8,
+        "residents": 536229,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 17.1,
+        "residents": 534355,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 17.32,
+        "residents": 535313,
+        "estimate": "2020-2024",
+        "note": ""
+       }
+      ]
+     }
+    ],
+    "not_held_items": [],
+    "full_profile": {
+     "tool": "county_profile",
+     "county": "39113",
+     "kind": "eating_places",
+     "words": "every other figure for this county (employees, payroll, QCEW, permits, population) is in its full county profile"
+    }
+   },
+   {
+    "county": "39057",
+    "name": "Greene County, Ohio",
+    "read_how": "per_county_extract",
+    "series": [
+     {
+      "measure": "establishments",
+      "title": "restaurants and other eating places: establishments",
+      "label": "Observed",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+      "unit": "places",
+      "breaks": [
+       2012
+      ],
+      "note": "a count of places, as published. A count of places, not of meals, customers or sales. Before 2012 no count was published for this group; the sum of the two older groups is shown as its own Calculated series.",
+      "years": [
+       {
+        "year": 1998,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 1999,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2000,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2001,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2002,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2003,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2004,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2005,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2006,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2007,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2008,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2009,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2010,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2011,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2012,
+        "value": 260,
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 258,
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 259,
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 254,
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 268,
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 289,
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 290,
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 293,
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 279,
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 301,
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 315,
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 320,
+        "note": ""
+       }
+      ]
+     },
+     {
+      "measure": "per_10k",
+      "title": "restaurants and other eating places: places per 10,000 residents",
+      "label": "Calculated",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain); U.S. Census Bureau, Population Estimates Program, county totals (public domain)",
+      "unit": "places per 10,000 residents",
+      "breaks": [
+       2000,
+       2010,
+       2012,
+       2020
+      ],
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "years": [
+       {
+        "year": 1998,
+        "value": 13.47,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 146266,
+        "estimate": "1990-1999"
+       },
+       {
+        "year": 1999,
+        "value": 13.09,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 147479,
+        "estimate": "1990-1999"
+       },
+       {
+        "year": 2000,
+        "value": 12.87,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 148401,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2001,
+        "value": 12.9,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 149643,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2002,
+        "value": 13.4,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 151537,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2003,
+        "value": 13.2,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 153064,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2004,
+        "value": 13.77,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 155442,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2005,
+        "value": 14.02,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 156223,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2006,
+        "value": 15.14,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 157850,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2007,
+        "value": 15.65,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 159055,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2008,
+        "value": 15.61,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 160115,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2009,
+        "value": 15.64,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 161075,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2010,
+        "value": 15.78,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 161548,
+        "estimate": "2010-2020"
+       },
+       {
+        "year": 2011,
+        "value": 15.37,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 163345,
+        "estimate": "2010-2020"
+       },
+       {
+        "year": 2012,
+        "value": 15.86,
+        "residents": 163943,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 15.8,
+        "residents": 163339,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 15.8,
+        "residents": 163927,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 15.55,
+        "residents": 163348,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 16.32,
+        "residents": 164215,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 17.49,
+        "residents": 165237,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 17.47,
+        "residents": 165955,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 17.5,
+        "residents": 167462,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 16.59,
+        "residents": 168130,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 17.89,
+        "residents": 168250,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 18.6,
+        "residents": 169380,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 18.79,
+        "residents": 170335,
+        "estimate": "2020-2024",
+        "note": ""
+       }
+      ]
+     }
+    ],
+    "not_held_items": [],
+    "full_profile": {
+     "tool": "county_profile",
+     "county": "39057",
+     "kind": "eating_places",
+     "words": "every other figure for this county (employees, payroll, QCEW, permits, population) is in its full county profile"
+    }
+   },
+   {
+    "county": "39023",
+    "name": "Clark County, Ohio",
+    "read_how": "per_county_extract",
+    "series": [
+     {
+      "measure": "establishments",
+      "title": "restaurants and other eating places: establishments",
+      "label": "Observed",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+      "unit": "places",
+      "breaks": [
+       2012
+      ],
+      "note": "a count of places, as published. A count of places, not of meals, customers or sales. Before 2012 no count was published for this group; the sum of the two older groups is shown as its own Calculated series.",
+      "years": [
+       {
+        "year": 1998,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 1999,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2000,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2001,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2002,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2003,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2004,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2005,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2006,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2007,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2008,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2009,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2010,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2011,
+        "value": null,
+        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+       },
+       {
+        "year": 2012,
+        "value": 180,
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 186,
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 189,
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 180,
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 182,
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 178,
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 174,
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 180,
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 175,
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 184,
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 198,
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 197,
+        "note": ""
+       }
+      ]
+     },
+     {
+      "measure": "per_10k",
+      "title": "restaurants and other eating places: places per 10,000 residents",
+      "label": "Calculated",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain); U.S. Census Bureau, Population Estimates Program, county totals (public domain)",
+      "unit": "places per 10,000 residents",
+      "breaks": [
+       2000,
+       2010,
+       2012,
+       2020
+      ],
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "years": [
+       {
+        "year": 1998,
+        "value": 12.01,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 145742,
+        "estimate": "1990-1999"
+       },
+       {
+        "year": 1999,
+        "value": 11.64,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 145159,
+        "estimate": "1990-1999"
+       },
+       {
+        "year": 2000,
+        "value": 12.31,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 144605,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2001,
+        "value": 12.03,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 143803,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2002,
+        "value": 11.66,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 143229,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2003,
+        "value": 11.64,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 141758,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2004,
+        "value": 11.53,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 141380,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2005,
+        "value": 11.46,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 141367,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2006,
+        "value": 11.09,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 140668,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2007,
+        "value": 11.66,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 139829,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2008,
+        "value": 11.69,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 139404,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2009,
+        "value": 12.03,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 138778,
+        "estimate": "2000-2010"
+       },
+       {
+        "year": 2010,
+        "value": 12.29,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 138325,
+        "estimate": "2010-2020"
+       },
+       {
+        "year": 2011,
+        "value": 12.67,
+        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "residents": 138086,
+        "estimate": "2010-2020"
+       },
+       {
+        "year": 2012,
+        "value": 13.07,
+        "residents": 137673,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 13.54,
+        "residents": 137368,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 13.77,
+        "residents": 137260,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 13.15,
+        "residents": 136917,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 13.37,
+        "residents": 136123,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 13.07,
+        "residents": 136165,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 12.75,
+        "residents": 136437,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 13.21,
+        "residents": 136265,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 12.88,
+        "residents": 135894,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 13.58,
+        "residents": 135490,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 14.7,
+        "residents": 134686,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 14.62,
+        "residents": 134735,
+        "estimate": "2020-2024",
+        "note": ""
+       }
+      ]
+     }
+    ],
+    "not_held_items": [
+     {
+      "source": "BLS QCEW",
+      "why": "not held for county 39023 (no file is held for this county; this tool never downloads)"
+     }
+    ],
+    "full_profile": {
+     "tool": "county_profile",
+     "county": "39023",
+     "kind": "eating_places",
+     "words": "every other figure for this county (employees, payroll, QCEW, permits, population) is in its full county profile"
+    }
+   }
+  ],
+  "say": [
+   "Ryagram counts places, jobs, wages paid, permits and people. It has no sales data, so it cannot say where a business would do well.",
+   "These are counts of places, not of sales or customers.",
+   "An order shown here follows the stated rule only; it is not a ranking of better places.",
+   "This order follows only the rule you stated. It is not a ranking, and it does not say where a restaurant would do well."
+  ],
+  "forecast": "none: this tool gives held figures only"
+ }
+}

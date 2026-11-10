@@ -4,13 +4,16 @@
 // no sentence holds a path on a computer or a banned claim, and an order follows only the stated rule. Pure functions, no dependencies.
 
 export const COUNTY_LIST: Readonly<Record<string, string>> = Object.freeze({ "39057": "Greene County, Ohio", "39113": "Montgomery County, Ohio" });
-export const COUNTY_KINDS = ["limited_service"] as const;
+export const COUNTY_KINDS = ["limited_service", "grocery", "pharmacy", "eating_places"] as const;
+export type CountyKind = (typeof COUNTY_KINDS)[number];
+/** The kinds' own words, GEO's (Ryan Q551): the title is OURS to show, never the answer's. */
+export const COUNTY_KIND_TITLES: Readonly<Record<string, string>> = Object.freeze({ limited_service: "limited-service restaurants", grocery: "supermarkets and other grocery stores", pharmacy: "pharmacies and drug stores", eating_places: "restaurants and other eating places" });
 export const COUNTY_RULES: Readonly<Record<string, string>> = Object.freeze({
   per_10k_low_first: "places per 10,000 residents, lowest first", per_10k_high_first: "places per 10,000 residents, highest first", count_high_first: "the count of places, highest first",
 });
 export const YEAR_MIN = 1998, YEAR_MAX = 2024;
 const COVERS = "Greene County, Ohio (39057) and Montgomery County, Ohio (39113)";
-const KINDS_WORDS = "Kinds: limited_service (limited-service restaurants)";
+const KINDS_WORDS = "Kinds: " + COUNTY_KINDS.map((k) => `${k} (${COUNTY_KIND_TITLES[k]})`).join(", ");
 
 /** GEO's descriptions for the connector manifest, word for word. */
 export const COUNTY_PROFILE_DESCRIPTION = "Every figure Ryagram already holds for one county and limited-service restaurants: counts of places and places per 10,000 residents, employees and payroll, QCEW jobs and wages paid where held, housing permits, and population. "
@@ -41,24 +44,22 @@ const hidden = (s: string) => { for (let i = 0; i < s.length; i++) { const c = s
 const echo = (v: unknown) => String(v ?? "").replace(/[^A-Za-z0-9 _.-]/g, "?").slice(0, 24);
 const isFips = (v: unknown): v is string => typeof v === "string" && /^[0-9]{5}$/.test(v);
 
-export interface CountyAsk { shape: "profile" | "compare"; counties: string[]; kind: "limited_service"; rule: string | null; year: number | null }
+export interface CountyAsk { shape: "profile" | "compare"; counties: string[]; kind: CountyKind; rule: string | null; year: number | null }
 
 /** GEO's refusals, exactly as their tool words them (and "not offered yet" for the two kinds that come later). Returns the sentence, or the closed request. */
 /** The most counties in one comparison: about 19.5 KB of answer a county, 64 KB an answer. Widening it needs a smaller answer first, never a bigger cap. */
 export const COMPARE_MAX = 3;
 export function checkCountyArgs(shape: "profile" | "compare", a: Record<string, unknown>): { refused: string } | { ask: CountyAsk } {
-  const kind = a.kind === undefined ? "limited_service" : a.kind;                       // a missing kind means the only kind there is
-  if (kind !== "limited_service") {
+  const kind = a.kind === undefined ? "limited_service" : a.kind;                       // a missing kind means restaurants, as before
+  if (typeof kind !== "string" || !(COUNTY_KINDS as readonly string[]).includes(kind)) {
     if (kind === "food_drink") return { refused: "kind 'food_drink' is not in version one: all of NAICS 722 also counts bars and drinking places (7224) and caterers and mobile food (7223), which are not restaurants. " + KINDS_WORDS };
-    if (kind === "grocery") return { refused: "kind 'grocery' is not in version one: grocery is not offered yet; version one covers restaurants only. " + KINDS_WORDS };
-    if (kind === "pharmacy") return { refused: "kind 'pharmacy' is not in version one: pharmacy is not offered yet; version one covers restaurants only. " + KINDS_WORDS };
     return { refused: `kind '${echo(kind)}' is not one this tool knows; it is not guessed. ${KINDS_WORDS}` };
   }
   if (shape === "profile") {
     const c = a.county;
     if (!isFips(c)) return { refused: `county '${echo(c)}': a county is its 5-digit FIPS code (state + county), for example 39057` };
     if (!(c in COUNTY_LIST)) return { refused: `county ${c}: version one covers only ${COVERS}; every other county comes once per-county extracts exist. Nothing is guessed for it.` };
-    return { ask: { shape, counties: [c], kind, rule: null, year: null } };
+    return { ask: { shape, counties: [c], kind: kind as CountyKind, rule: null, year: null } };
   }
   const cs = a.counties;
   if (!Array.isArray(cs) || cs.some((c) => !isFips(c))) return { refused: "counties: give a list of 5-digit FIPS codes, for example ['39057', '39113']" };
@@ -76,20 +77,31 @@ export function checkCountyArgs(shape: "profile" | "compare", a: Record<string, 
     if (rule === null) return { refused: "a year chooses the year a stated rule orders by; with no rule the counties are shown side by side, in the order asked" };
     if (typeof year !== "number" || !Number.isInteger(year) || year < YEAR_MIN || year > YEAR_MAX) return { refused: `year ${echo(year)}: a 4-digit year from ${YEAR_MIN} to ${YEAR_MAX}` };
   }
-  return { ask: { shape, counties: list, kind, rule: rule as string | null, year: year as number | null } };
+  return { ask: { shape, counties: list, kind: kind as CountyKind, rule: rule as string | null, year: year as number | null } };
 }
 
 export const PROFILE_SCHEMA = "ryagram.geo-county-profile/0";
-export const COMPARE_SCHEMA = "ryagram.geo-compare-counties/0";
+export const COMPARE_SCHEMA = "ryagram.geo-compare-counties/1";      // the slim comparison (GEO, CC1 09:06): county_figures, not whole profiles
+/** The lines a kind adds to the fixed ones (GEO's, word for word); the comparison's own closing line differs by kind. */
+const KIND_SAY: Readonly<Record<string, string>> = Object.freeze({
+  grocery: "Ryagram counts grocery stores and people. It does not measure how far anyone travels to buy food, what they buy, or whether an area has enough stores.",
+  pharmacy: "Ryagram counts pharmacies and people. It does not measure prescriptions, opening hours, or whether an area has enough pharmacies.",
+});
+const KIND_SAY_COMPARE: Readonly<Record<string, string>> = Object.freeze({
+  grocery: "This order follows only the rule you stated. It is not a ranking, and it does not say where a store would do well or whether an area has enough stores.",
+  pharmacy: "This order follows only the rule you stated. It is not a ranking, and it does not say where a pharmacy would do well or whether an area has enough pharmacies.",
+});
+/** The fixed lines for an answer of this kind and shape: never taken from the answer. */
+export const saysFor = (kind: string, shape: "profile" | "compare"): string[] => [...SAY_LINES, ...(KIND_SAY[kind] ? [KIND_SAY[kind]] : []), ...(shape === "compare" ? [KIND_SAY_COMPARE[kind] ?? SAY_COMPARE] : [])];
 const MEASURE_OF_RULE: Readonly<Record<string, string>> = Object.freeze({ per_10k_low_first: "per_10k", per_10k_high_first: "per_10k", count_high_first: "establishments" });
 const REVERSE_RULE: Readonly<Record<string, boolean>> = Object.freeze({ per_10k_low_first: false, per_10k_high_first: true, count_high_first: true });
 const READ_HOW: Readonly<Record<string, string>> = Object.freeze({ per_county_extract: "read from the per-county extract", national_files: "read from the national files" });
 
 export interface CountyYear { year: number; value: number | null; note: string | null }
 export interface CountySeries { measure: string; title: string; label: "Observed" | "Calculated"; source: string; unit: string; breaks: number[]; note: string | null; years: CountyYear[] }
-export interface CountyProfile { fips: string; name: string; series: CountySeries[]; not_held: { source: string; why: string }[]; withheld: number; read_from: string | null }
+export interface CountyProfile { fips: string; name: string; kind_title: string; series: CountySeries[]; not_held: { source: string; why: string }[]; withheld: number; read_from: string | null; more: string | null }
 export interface CountyTableRow { fips: string; year: number; value: number | null; label: "Observed" | "Calculated"; source: string; unit: string; note: string | null }
-export interface CountyRead { shape: "profile" | "compare"; profiles: CountyProfile[]; rule: string | null; rule_year: number | null; ordered: boolean; order_words: string | null; table: CountyTableRow[] }
+export interface CountyRead { shape: "profile" | "compare"; kind: string; say: string[]; profiles: CountyProfile[]; rule: string | null; rule_year: number | null; ordered: boolean; order_words: string | null; table: CountyTableRow[] }
 
 const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
 const intIn = (v: unknown, lo: number, hi: number): v is number => typeof v === "number" && Number.isInteger(v) && v >= lo && v <= hi;
@@ -126,11 +138,8 @@ function readSeries(v: unknown): CountySeries | null {
   return { measure, title, label: v.label, source, unit, breaks: breaks as number[], note, years };
 }
 
-/** One county's profile as GEO's tool gives it. `expect` = the county asked about; null = not that county. */
-export function readProfile(v: unknown, expect: string | null): CountyProfile | null {
-  if (!isObj(v) || v.schema !== PROFILE_SCHEMA || v.kind !== "limited_service") return null;
-  if (!isFips(v.county) || !(v.county in COUNTY_LIST) || (expect !== null && v.county !== expect)) return null;
-  if (typeof v.forecast !== "string" || !v.forecast.startsWith("none")) return null;             // this tool never forecasts: an answer that does is not shown
+/** The part a profile and a comparison's county figures share: the series, what is not held, how it was read. */
+function readBody(v: Record<string, unknown>, county: string, kind: string): CountyProfile | null {
   if (!Array.isArray(v.series) || v.series.length > 20) return null;
   const series: CountySeries[] = [];
   for (const s of v.series) { const r = readSeries(s); if (!r) return null; series.push(r); }
@@ -145,22 +154,43 @@ export function readProfile(v: unknown, expect: string | null): CountyProfile | 
   } else if (v.not_held !== undefined) return null;
   not_held = not_held.slice(0, 30);
   const read_from = typeof v.read_how === "string" && v.read_how in READ_HOW ? READ_HOW[v.read_how] : (plainWords(v.read_from, 300));   // a sentence that names a folder is left out; the how-it-was-read words stand in for it
-  return { fips: v.county, name: COUNTY_LIST[v.county], series, not_held, withheld, read_from };
+  return { fips: county, name: COUNTY_LIST[county], kind_title: COUNTY_KIND_TITLES[kind], series, not_held, withheld, read_from, more: null };
+}
+
+/** One county's profile as GEO's tool gives it, for the kind asked. `expect` = the county asked about; null = not that county. */
+export function readProfile(v: unknown, expect: string | null, kind: string = "limited_service"): CountyProfile | null {
+  if (!isObj(v) || v.schema !== PROFILE_SCHEMA || v.kind !== kind || !(kind in COUNTY_KIND_TITLES)) return null;
+  if (!isFips(v.county) || !(v.county in COUNTY_LIST) || (expect !== null && v.county !== expect)) return null;
+  if (typeof v.forecast !== "string" || !v.forecast.startsWith("none")) return null;             // this tool never forecasts: an answer that does is not shown
+  return readBody(v, v.county, kind);
+}
+
+/** One county's figures inside a slim comparison: only the series the rules order by, what is not held, and a pointer to the full profile (which must be for THIS county and kind). */
+function readFigures(v: unknown, county: string, kind: string): CountyProfile | null {
+  if (!isObj(v) || v.county !== county || !(county in COUNTY_LIST) || !(kind in COUNTY_KIND_TITLES)) return null;
+  const p = readBody(v, county, kind);
+  if (!p) return null;
+  const fp = v.full_profile;
+  if (!isObj(fp) || fp.tool !== "county_profile" || fp.county !== county || fp.kind !== kind) return null;
+  const words = plainWords(fp.words, 300);
+  if (!words) return null;
+  p.more = words;
+  return p;
 }
 
 const sameList = (a: string[], b: string[]) => a.length === b.length && a.every((x, i) => x === b[i]);
 /** The answer the house computer stored, read against the request. null = not in a shape this connection will show (and nothing of it is). */
-export function readCountyAnswer(ask: { shape: "profile" | "compare"; counties: string[]; rule: string | null; year: number | null }, answer: unknown): CountyRead | null {
+export function readCountyAnswer(ask: { shape: "profile" | "compare"; counties: string[]; kind: string; rule: string | null; year: number | null }, answer: unknown): CountyRead | null {
   if (!isObj(answer)) return null;
   if (ask.shape === "profile") {
-    const p = readProfile(answer, ask.counties[0]);
-    return p ? { shape: "profile", profiles: [p], rule: null, rule_year: null, ordered: false, order_words: null, table: [] } : null;
+    const p = readProfile(answer, ask.counties[0], ask.kind);
+    return p ? { shape: "profile", kind: ask.kind, say: saysFor(ask.kind, "profile"), profiles: [p], rule: null, rule_year: null, ordered: false, order_words: null, table: [] } : null;
   }
-  if (answer.schema !== COMPARE_SCHEMA || answer.kind !== "limited_service" || typeof answer.forecast !== "string" || !answer.forecast.startsWith("none")) return null;
-  if (!Array.isArray(answer.counties) || !Array.isArray(answer.profiles) || answer.counties.length !== ask.counties.length || answer.profiles.length !== ask.counties.length) return null;
+  if (answer.schema !== COMPARE_SCHEMA || answer.kind !== ask.kind || !(ask.kind in COUNTY_KIND_TITLES) || typeof answer.forecast !== "string" || !answer.forecast.startsWith("none")) return null;
+  if (!Array.isArray(answer.counties) || !Array.isArray(answer.county_figures) || answer.counties.length !== ask.counties.length || answer.county_figures.length !== ask.counties.length) return null;
   const shown = answer.counties.map((c) => (isObj(c) && isFips(c.county) ? c.county : ""));
   if ([...shown].sort().join() !== [...ask.counties].sort().join()) return null;            // exactly the counties asked about, once each
-  const profiles = answer.profiles.map((p, i) => readProfile(p, shown[i]));
+  const profiles = answer.county_figures.map((p, i) => readFigures(p, shown[i], ask.kind));
   if (profiles.some((p) => p === null)) return null;
   const got = profiles as CountyProfile[];
   // the rule: the one stated (or none), and the year the answer says it used
@@ -200,7 +230,7 @@ export function readCountyAnswer(ask: { shape: "profile" | "compare"; counties: 
       if (!s || !y || y.value !== r.value) return null;
     }
   } else if (!sameList(shown, ask.counties)) return null;                                            // no order made: the counties stay in the order asked
-  return { shape: "compare", profiles: got, rule, rule_year, ordered: answer.ordered, order_words, table };
+  return { shape: "compare", kind: ask.kind, say: saysFor(ask.kind, "compare"), profiles: got, rule, rule_year, ordered: answer.ordered, order_words, table };
 }
 
 const fmt = (x: number) => (Math.abs(x) >= 100 ? Math.round(x).toLocaleString("en-US") : String(Math.round(x * 100) / 100));
@@ -214,13 +244,14 @@ function seriesLine(s: CountySeries, wrap: (t: string) => string): string {
 }
 /** The text the AI reads: the fixed lines first, then each county's series (the latest year, with the years held and the breaks; every year is in the structured answer), what is not held, then the order (if a rule was stated). `wrap` marks free text as data. */
 export function countyLines(r: CountyRead, wrap: (s: string) => string): string[] {
-  const lines = [r.shape === "profile" ? "COUNTY PROFILE (figures are Observed or Calculated, never estimated)" : "COUNTY COMPARISON (figures are Observed or Calculated, never estimated)", ...SAY_LINES, ...(r.shape === "compare" ? [SAY_COMPARE] : [])];
+  const lines = [r.shape === "profile" ? "COUNTY PROFILE (figures are Observed or Calculated, never estimated)" : "COUNTY COMPARISON (figures are Observed or Calculated, never estimated)", ...r.say];
   for (const p of r.profiles) {
-    lines.push(`${p.name} (${p.fips}), limited-service restaurants:`);
+    lines.push(`${p.name} (${p.fips}), ${p.kind_title}:`);
     for (const s of p.series) lines.push(seriesLine(s, wrap));
     if (p.not_held.length) { lines.push("Not held:"); for (const n of p.not_held) lines.push(`  ${wrap(n.source)}: ${wrap(n.why)}`); }
     if (p.withheld) lines.push(`(${p.withheld} source line${p.withheld === 1 ? " was" : "s were"} left out because ${p.withheld === 1 ? "it" : "they"} named a place on a computer.)`);
     if (p.read_from) lines.push(`Read from: ${wrap(p.read_from)}`);
+    if (p.more) lines.push(`More: ${wrap(p.more)}`);
   }
   if (r.shape === "compare") {
     if (r.ordered && r.rule) lines.push(`Order (${COUNTY_RULES[r.rule]}${r.rule_year === null ? "" : `, ${r.rule_year}`}): ${r.table.map((t) => `${COUNTY_LIST[t.fips]} (${t.fips}) ${t.value === null ? "" : fmt(t.value)}`.trim()).join(", then ")}.${r.order_words ? " " + wrap(r.order_words) : ""}`);

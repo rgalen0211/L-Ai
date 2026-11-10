@@ -26,3 +26,4 @@ tests/fixtures/look-bundle-synthetic-stream.* text eol=lf
 tests/fixtures/why-clip-report.* text eol=lf
 # GEO's real county answers are pinned by hash (tests/connect-county.test.mjs): no line-ending conversion on any checkout.
 tests/fixtures/county-real/* -text
+tests/fixtures/county-real-1110/* -text

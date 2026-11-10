@@ -21,7 +21,7 @@ create table public.county_requests (
   owner_id uuid not null references auth.users (id) on delete cascade,
   shape text not null check (shape in ('profile', 'compare')),
   counties text[] not null check (ryagram_private.county_list_ok(counties)),
-  kind text not null default 'limited_service' check (kind = 'limited_service'),
+  kind text not null default 'limited_service' check (kind in ('limited_service', 'grocery', 'pharmacy', 'eating_places')),
   rule text check (rule is null or rule in ('per_10k_low_first', 'per_10k_high_first', 'count_high_first')),
   year int check (year is null or year between 1998 and 2024),
   state text not null default 'asked' check (state in ('asked', 'claimed', 'answered', 'failed')),
@@ -62,8 +62,8 @@ begin
   if (p_shape = 'profile' and cardinality(p_counties) <> 1) or (p_shape = 'compare' and cardinality(p_counties) < 2) then
     raise exception 'A profile is for one county and a comparison is for two or more.' using errcode = '22023';
   end if;
-  if p_kind is distinct from 'limited_service' then
-    raise exception 'The only kind in version one is limited_service (limited-service restaurants).' using errcode = '22023';
+  if p_kind is null or p_kind not in ('limited_service', 'grocery', 'pharmacy', 'eating_places') then
+    raise exception 'The kinds are limited_service (limited-service restaurants), grocery, pharmacy and eating_places (restaurants and other eating places).' using errcode = '22023';
   end if;
   if p_rule is not null and p_rule not in ('per_10k_low_first', 'per_10k_high_first', 'count_high_first') then
     raise exception 'That is not a rule this service knows; an order is never guessed.' using errcode = '22023';
@@ -131,7 +131,7 @@ begin
   select * into c from public.county_requests where id = p_id and state = 'claimed' for update;
   if not found then raise exception 'No such claimed request.' using errcode = 'PT404'; end if;
   if p_answer is null or jsonb_typeof(p_answer) <> 'object' or octet_length(p_answer::text) > 65536
-     or p_answer ->> 'schema' is distinct from (case when c.shape = 'profile' then 'ryagram.geo-county-profile/0' else 'ryagram.geo-compare-counties/0' end) then
+     or p_answer ->> 'schema' is distinct from (case when c.shape = 'profile' then 'ryagram.geo-county-profile/0' else 'ryagram.geo-compare-counties/1' end) then
     raise exception 'That is not a county answer.' using errcode = '22023';
   end if;
   update public.county_requests set state = 'answered', answer = p_answer, finished_at = now(), fail_code = null, fail_detail = null where id = p_id;
