@@ -29,7 +29,7 @@ export const SOURCES_NEVER_ADDED = "QCEW and County Business Patterns count diff
 
 /** What GEO's guard bans in the tools' own text (their section 6); the connector refuses an answer that holds any of it. */
 export const BANNED_WORDS: readonly RegExp[] = [
-  /will do well|would do well|do well|succeed|success/i, /\bprofit/i, /(?<!\b(?:no|not|never|without|cannot)\b[^.;,]{0,12})\bdemand\b/i, /(?<!\b(?:no|not|never|without|cannot)\b[^.;,]{0,12})\bsales\b(?! data)/i, /footfall|foot traffic/i, /best (location|spot|place)/i, /permitted|allowed to (open|build)|zoning allows/i,
+  /will do well|would do well|do well|succeed|success/i, /\bprofit/i, /(?<!\b(?:no|not|never|without|cannot)\b[^.;,]{0,12})\bdemand\b/i, /(?<!\b(?:no|not|never|without|cannot)\b[^.;,]{0,12})\bsales\b(?! data)/i, /footfall|foot traffic/i, /best (location|spot|place)/i, /\bpermitted to\b|\b(?:is|are|be|being) permitted\b|allowed to (open|build)|zoning allows/i,
   /food desert/i, /under-?served/i, /saturat/i, /lack(s|ing)? access/i, /too (many|few) /i, /not enough .{0,30}(places|restaurants|stores)/i, /room for (another|more)/i,
 ];
 /** A drive path, a UNC path or a user folder: never shown to a person. */
@@ -103,7 +103,7 @@ const optWords = (v: unknown, max: number): string | null | "bad" => (v === unde
 function readSeries(v: unknown): CountySeries | null {
   if (!isObj(v)) return null;
   const measure = typeof v.measure === "string" && /^[a-z0-9_]{2,40}$/.test(v.measure) ? v.measure : null;
-  const title = plainWords(v.title, 120), source = plainWords(v.source, 200), unit = v.unit === "" || v.unit === undefined || v.unit === null ? "" : plainWords(v.unit, 40);
+  const title = plainWords(v.title, 120), source = plainWords(v.source, 200), unit = v.unit === "" || v.unit === undefined || v.unit === null ? "" : plainWords(v.unit, 80);
   const note = optWords(v.note, 600);
   if (!measure || !title || !source || unit === null || note === "bad") return null;
   if (v.label !== "Observed" && v.label !== "Calculated") return null;                          // this tool has no estimates: an unlabelled or Estimated series is not shown
@@ -177,7 +177,7 @@ export function readCountyAnswer(ask: { shape: "profile" | "compare"; counties: 
     if (!isObj(r) || !isFips(r.county) || !(r.county in COUNTY_LIST) || !intIn(r.year, YEAR_MIN, YEAR_MAX) || (r.label !== "Observed" && r.label !== "Calculated")) return null;
     const value = r.value === null || r.value === undefined ? null : r.value;
     if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) return null;
-    const source = plainWords(r.source, 200), unit = r.unit === "" || r.unit === undefined || r.unit === null ? "" : plainWords(r.unit, 40), note = optWords(r.note, 300);
+    const source = plainWords(r.source, 200), unit = r.unit === "" || r.unit === undefined || r.unit === null ? "" : plainWords(r.unit, 80), note = optWords(r.note, 300);
     if (!source || unit === null || note === "bad" || (value === null && note === null)) return null;
     table.push({ fips: r.county, year: r.year, value, label: r.label, source, unit, note });
   }

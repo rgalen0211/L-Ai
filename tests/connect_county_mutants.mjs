@@ -12,6 +12,7 @@ const scratch = path.join(root, '.mut-county');
 const CT = 'supabase/functions/connect-core/county.ts', TL = 'supabase/functions/connect-core/tools.ts', FK = 'supabase/functions/connect-core/fake.ts', TY = 'supabase/functions/connect-core/types.ts', DB = 'supabase/functions/connect/db.ts';
 const SUITES = ['connect-county.test.mjs'];
 const BS = String.fromCharCode(92);
+const PERM = '/' + BS + 'bpermitted to' + BS + 'b|' + BS + 'b(?:is|are|be|being) permitted' + BS + 'b|allowed to (open|build)|zoning allows/i,';
 const mutants = [
   // ---- the closed request rules and GEO's words
   ['a third county is offered', CT, '"39113": "Montgomery County, Ohio" });', '"39113": "Montgomery County, Ohio", "39049": "Another County, Ohio" });'],
@@ -28,6 +29,12 @@ const mutants = [
   ['two sources may be added into one series', CT, 'if (/QCEW/i.test(source) && /County Business Patterns|' + BS + 'bCBP' + BS + 'b/i.test(source)) return null;', ''],
   ['a missing year need not say why (it may be read as zero)', CT, 'if (yn === "bad" || (value === null && yn === null)) return null;', 'if (yn === "bad") return null;'],
   ['a negative or non-numeric value is accepted', CT, 'if (value !== null && (typeof value !== "number" || !Number.isFinite(value) || value < 0)) return null;\n    const yn', 'const yn'],
+  ['a series unit may be any length', CT, 'plainWords(v.unit, 80)', 'plainWords(v.unit, 8000)'],
+  ['a table unit may be any length', CT, 'plainWords(r.unit, 80)', 'plainWords(r.unit, 8000)'],
+  ['a claim that a place is permitted to open is shown', CT, PERM, PERM.replace(BS + 'bpermitted to' + BS + 'b|', '')],
+  ['a claim that new places are permitted is shown', CT, PERM, PERM.replace(BS + 'b(?:is|are|be|being) permitted' + BS + 'b|', '')],
+  ['a claim that zoning allows it is shown', CT, PERM, PERM.replace('|zoning allows', '')],
+  ['a claim that something is allowed to be built is shown', CT, PERM, PERM.replace('allowed to (open|build)|', '')],
   ['a series with no source is accepted', CT, 'if (!measure || !title || !source || unit === null || note === "bad") return null;', 'if (!measure || !title || unit === null || note === "bad") return null;'],
   ['a series note with a path or a claim is accepted', CT, 'const note = optWords(v.note, 600);', 'const note = typeof v.note === "string" ? v.note : null;'],
   ['any number of series is accepted', CT, 'if (!Array.isArray(v.series) || v.series.length > 20) return null;', 'if (!Array.isArray(v.series)) return null;'],

@@ -425,3 +425,75 @@ test('the stand-in mirrors the database: 5 questions may wait at once, and a wor
   w.finish(job.request_id, compare());
   assert.throws(() => w.finish(job.request_id, compare()), (e) => e.code === 'PT404', 'a request is answered once');
 });
+
+// ------------------------------------------------------------------------------------------------ GEO's nine REAL answers (public Census and BLS figures; handed over 11-09 19:15 from geo-li-connect-fields-1109 74af1feb; the files and their hashes are exactly as GEO made them)
+import crypto from 'node:crypto';
+import fs from 'node:fs';
+const REAL = new URL('./fixtures/county-real/', import.meta.url);
+const realFiles = fs.readdirSync(REAL).filter((f) => f.endsWith('.json')).sort();
+const real = (f) => JSON.parse(fs.readFileSync(new URL(f, REAL), 'utf8'));
+
+test('the nine real answers are exactly the files GEO made (the hashes are pinned, so a change to GEO\'s tool shows up here as a fixture diff, not silently)', () => {
+  assert.equal(realFiles.length, 9);
+  const sums = Object.fromEntries(fs.readFileSync(new URL('SHA256SUMS.txt', REAL), 'utf8').split(/\r?\n/).filter(Boolean).map((l) => { const m = /^([0-9a-f]{64}) \*(.+)$/.exec(l); return [m[2], m[1]]; }));
+  assert.deepEqual(Object.keys(sums).sort(), realFiles);
+  for (const f of realFiles) assert.equal(crypto.createHash('sha256').update(fs.readFileSync(new URL(f, REAL))).digest('hex'), sums[f], f);
+  for (const f of realFiles) assert.ok(!/[^\x20-\x7e\r\n]/.test(fs.readFileSync(new URL(f, REAL), 'utf8')), `${f}: plain ASCII`);
+});
+
+test('EVERY real answer is shown by the reader (a real shape the reader withholds fails here), with nothing of a place on a computer in what the AI reads', () => {
+  for (const f of realFiles) {
+    const { ask, answer } = real(f);
+    const r = readCountyAnswer(ask, answer);
+    assert.ok(r, `${f} is withheld`);
+    assert.equal(r.shape, ask.shape, f);
+    const text = countyLines(r, wrap).join('\n');
+    assert.ok(!PATHISH.test(text), `${f}: a place on a computer in the words`);
+    for (const p of r.profiles) { assert.ok(p.series.length >= 5, `${f}: series`); assert.ok(p.series.every((s) => s.label === 'Observed' || s.label === 'Calculated')); }
+  }
+});
+
+test('the real answers say what they are: the names are ours, an order is only under a rule, the edge cases name what is not held without a folder', () => {
+  const g = readCountyAnswer(real('greene_profile.json').ask, real('greene_profile.json').answer);
+  assert.deepEqual([g.profiles[0].fips, g.profiles[0].name], [G, 'Greene County, Ohio']);
+  const m = readCountyAnswer(real('montgomery_profile.json').ask, real('montgomery_profile.json').answer);
+  assert.equal(m.profiles[0].name, 'Montgomery County, Ohio');
+  const c = real('compare_per10k_low.json'), cr = readCountyAnswer(c.ask, c.answer);
+  assert.equal(cr.ordered, true); assert.equal(cr.rule, 'per_10k_low_first'); assert.equal(cr.table.length, 2); assert.ok(cr.table[0].value <= cr.table[1].value);
+  const h = real('compare_count_high_2015.json'), hr = readCountyAnswer(h.ask, h.answer);
+  assert.deepEqual(hr.profiles.map((p) => p.fips).sort(), [G, M]); assert.equal(hr.rule_year, 2015); assert.ok(hr.table[0].value >= hr.table[1].value);
+  const n = real('compare_norule.json'), nr = readCountyAnswer(n.ask, n.answer);
+  assert.equal(nr.ordered, false); assert.deepEqual(nr.profiles.map((p) => p.fips), [G, M], 'the order asked');
+  const q = real('edge_no_qcew.json'), qr = readCountyAnswer(q.ask, q.answer);
+  assert.ok(qr.profiles[0].not_held.some((x) => /QCEW/.test(x.source)), 'BLS QCEW is named as not held');
+  const pm = real('edge_no_permits.json'), pr = readCountyAnswer(pm.ask, pm.answer);
+  assert.ok(pr.profiles[0].not_held.some((x) => /Building Permits/.test(x.source)));
+  const x = real('edge_no_extract.json'), xr = readCountyAnswer(x.ask, x.answer);
+  assert.equal(xr.profiles[0].read_from, 'read from the national files');
+  const by = real('edge_bad_cbp_year.json'), br = readCountyAnswer(by.ask, by.answer);
+  assert.ok(br.profiles[0].series.some((s) => s.years.some((y) => y.value === null && y.note)), 'a year that could not be read stays a missing year with its reason');
+  for (const f of realFiles) { const d = real(f); const r = readCountyAnswer(d.ask, d.answer); for (const p of r.profiles) assert.equal(p.withheld, 0, `${f}: nothing was left out`); }
+});
+
+test('a real answer asked about the wrong county or with the wrong rule is NOT shown (the real shapes are checked against the request too)', () => {
+  const { ask, answer } = real('greene_profile.json');
+  assert.equal(readCountyAnswer({ ...ask, counties: [M] }, answer), null);
+  const c = real('compare_per10k_low.json');
+  assert.equal(readCountyAnswer({ ...c.ask, rule: 'count_high_first' }, c.answer), null);
+  assert.equal(readCountyAnswer({ shape: 'compare', counties: [G, M], rule: null, year: null }, c.answer), null, 'a comparison with an order though no rule was asked');
+});
+
+test('a unit may be up to 80 characters (GEO\'s longest real unit is 50), and no longer', () => {
+  const long = (n) => 'u'.repeat(n);
+  const one = (n) => profile(G, { series: [series('establishments', 'Places', 'Observed', CBP, long(n), yrs([[2023, 5]]))] });
+  assert.ok(readCountyAnswer(PROFILE_ASK, one(80)));
+  assert.equal(readCountyAnswer(PROFILE_ASK, one(81)), null);
+  const row = (n) => compare({ rule_table: [rowOf(M, 'y', 5.1, { unit: long(n) }), rowOf(G, 'x', 7.4)] });
+  assert.ok(readCountyAnswer(COMPARE_ASK, row(80)));
+  assert.equal(readCountyAnswer(COMPARE_ASK, row(81)), null);
+});
+
+test('a count of permits passes (it is a count of what was permitted); a claim that something is permitted, allowed or zoned does not', () => {
+  for (const s of ['new housing units permitted', 'Housing units permitted per 1,000 residents', 'housing units (permits, not starts or completions)']) assert.equal(plainWords(s, 100), s, s);
+  for (const s of ['permitted to open', 'a restaurant is permitted here', 'new places are permitted', 'allowed to build', 'allowed to open a shop', 'zoning allows it']) assert.equal(plainWords(s, 100), null, s);
+});
