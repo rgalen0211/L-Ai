@@ -181,8 +181,8 @@ class Locks(core.Base):
         self.assertEqual(sorted(got), sorted(FUNCS))
         for name, (_, d, secdef, config, anon, auth, runner) in got.items():
             self.assertEqual(d.count("pg_advisory_xact_lock(hashtextextended('geo:' || me::text, 0))"), 1, name)
-            begin = d.index("\nbegin\n")
-            self.assertTrue(d[begin:].startswith("\nbegin\n  perform pg_advisory_xact_lock("), f"{name}: the lock is the first statement")
+            code = [ln for ln in d[d.index("\nbegin\n") + 7:].split("\n") if ln.strip() and not ln.strip().startswith("--")]
+            self.assertTrue(code[0].startswith("  perform pg_advisory_xact_lock("), f"{name}: the lock is the first statement")
             self.assertTrue(secdef, f"{name} is still security definer")
             self.assertEqual(config, ["search_path=\"\""], f"{name} keeps its search_path")
             self.assertEqual((anon, auth, runner), (False, False, True), f"{name} keeps its grants (the connector's runner only)")
@@ -193,6 +193,9 @@ class Locks(core.Base):
         except psycopg.Error as e:
             self.db.c.execute("rollback")
             self.fail(f"{what} failed: {e.diag.message_primary}")
+
+    def body_md5(self):
+        return {r[0]: r[1] for r in self.owner("select p.proname, md5(replace(p.prosrc, chr(13), '')) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.proname = any(%s)", list(FUNCS)).fetchall()}
 
     def test_the_migration_is_safe_to_run_twice_and_the_rollback_takes_the_lock_out_and_back(self):
         before = self.functions()
@@ -208,23 +211,67 @@ class Locks(core.Base):
         self.apply(mig, "putting the lock back")
         self.assertEqual({k: v[1] for k, v in self.functions().items()}, {k: v[1] for k, v in before.items()}, "putting it back gives exactly the text it had")
 
-    def test_a_function_that_is_not_as_expected_stops_the_migration_in_words_and_changes_nothing(self):
+    def test_a_live_function_that_has_drifted_stops_the_migration_in_words_and_changes_nothing(self):
         mig = (ROOT / "migrations" / "20261109000300_ask_locks.sql").read_text(encoding="utf-8")
         rb = (ROOT / "rollbacks" / "20261109000300_ask_locks_rollback.sql").read_text(encoding="utf-8")
         self.apply(rb, "the rollback")
-        before = {k: v[1] for k, v in self.functions().items()}
-        d = before["connect_geo_ask_shape"]
-        odd = d.replace("delete from public.geo_requests where asked_at < now() - interval '7 days';", "delete from public.geo_requests where asked_at < now() - interval '8 days';")
-        self.assertNotEqual(odd, d)
-        self.owner(odd)
+        original = {k: v[1] for k, v in self.functions().items()}
+        for name in FUNCS:                                                       # each of the three is checked on its own: a drift in ANY one of them stops the whole migration
+            odd = original[name].replace("delete from public.geo_requests where asked_at < now() - interval '7 days';", "delete from public.geo_requests where asked_at < now() - interval '8 days';")
+            self.assertNotEqual(odd, original[name], name)
+            self.owner(odd)
+            edited = {k: v[1] for k, v in self.functions().items()}
+            with self.assertRaises(psycopg.Error, msg=f"{name} drifted: the migration must stop") as cm:
+                self.owner(mig)
+            self.db.c.execute("rollback")                                        # the failed migration left its explicit transaction open: end it
+            self.assertIn("is not the one this change expects", cm.exception.diag.message_primary)
+            self.assertIn(name, cm.exception.diag.message_primary)
+            self.assertIn("Send this sentence to CONNECT", cm.exception.diag.message_primary)
+            self.assertEqual({k: v[1] for k, v in self.functions().items()}, edited, f"{name}: the migration changed nothing, not even the functions it could have handled")
+            self.owner(original[name])                                           # back to the original for the next one
+
+    def test_a_function_that_is_not_on_the_database_is_skipped_and_not_created(self):
+        mig = (ROOT / "migrations" / "20261109000300_ask_locks.sql").read_text(encoding="utf-8")
+        self.owner("drop function public.connect_forecast_ask(text, jsonb, integer, text, integer[], text)")
+        self.assertNotIn("connect_forecast_ask", self.functions())
+        self.apply(mig, "the migration on a database without the forecast ask")
+        got = self.functions()
+        self.assertNotIn("connect_forecast_ask", got, "a function that was not there is not created")
+        self.assertEqual(sorted(got), ["connect_geo_ask", "connect_geo_ask_shape"])
+
+    def test_a_function_that_is_neither_the_locked_text_nor_the_original_stops_the_rollback_in_words_and_changes_nothing(self):
+        rb = (ROOT / "rollbacks" / "20261109000300_ask_locks_rollback.sql").read_text(encoding="utf-8")
+        d = self.functions()["connect_geo_ask"][1]
+        self.owner(d.replace("hashtextextended('geo:' || me::text, 0)", "hashtextextended('geo:' || me::text, 1)"))
         edited = {k: v[1] for k, v in self.functions().items()}
         with self.assertRaises(psycopg.Error) as cm:
-            self.owner(mig)
-        self.assertIn("not as expected", cm.exception.diag.message_primary)
-        self.assertIn("connect_geo_ask_shape", cm.exception.diag.message_primary)
-        self.db.c.execute("rollback")                                            # the failed migration left its explicit transaction open: end it
-        after = {k: v[1] for k, v in self.functions().items()}
-        self.assertEqual(after, edited, "the migration changed nothing, not even the functions it could have handled")
+            self.owner(rb)
+        self.db.c.execute("rollback")
+        self.assertIn("is not the one this change expects", cm.exception.diag.message_primary)
+        self.assertIn("connect_geo_ask", cm.exception.diag.message_primary)
+        self.assertEqual({k: v[1] for k, v in self.functions().items()}, edited, "the rollback changed nothing")
+
+    def test_the_committed_files_are_what_the_generator_builds_and_each_new_function_is_the_repositorys_own_plus_the_lock(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("build_ask_locks", ROOT / "tests" / "build_ask_locks_migration.py")
+        bl = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(bl)
+        mig, rb, ps = bl.build()
+        self.assertEqual((ROOT / "migrations" / "20261109000300_ask_locks.sql").read_text(encoding="utf-8").replace("\r\n", "\n"), mig, "the migration is generated (run supabase/tests/build_ask_locks_migration.py --write)")
+        self.assertEqual((ROOT / "rollbacks" / "20261109000300_ask_locks_rollback.sql").read_text(encoding="utf-8").replace("\r\n", "\n"), rb)
+        self.assertEqual(sorted(p["name"] for p in ps), sorted(FUNCS))
+        live = self.body_md5()
+        for p in ps:
+            self.assertEqual(p["new"].count(bl.LOCK), 1, p["name"])
+            self.assertEqual(p["new"].replace(bl.LOCK, ""), p["old"], f"{p['name']}: the new text is the repository's own plus the lock and nothing else")
+            self.assertIn(p["old_md5"], mig)
+            self.assertIn(p["new_md5"], mig)
+            self.assertEqual(live[p["name"]], p["new_md5"], f"{p['name']}: the function in the database is exactly the new text")
+        # the original text the repository's own migrations created is what the rollback puts back (md5 of the body, so the drift check and the generator agree with the database)
+        self.owner(rb)
+        back = self.body_md5()
+        for p in ps:
+            self.assertEqual(back[p["name"]], p["old_md5"], f"{p['name']}: after the rollback the database holds exactly the repository's original")
 
     def test_the_migration_ends_with_the_waiting_list_gate_like_every_migration_after_it(self):
         sql = (ROOT / "migrations" / "20261109000300_ask_locks.sql").read_text(encoding="utf-8")
