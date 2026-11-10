@@ -8,11 +8,12 @@ import { downloadUrlProblem } from "./tools.ts";
 import type { CallLog, Data, DownloadRow, EditState, GeoRow, Grant, Link, Policy, Principal, ProjectRow, Quote, Scope } from "./types.ts";
 
 type FJob = Job & { version_id: string; project_id: string; params: Record<string, unknown>; steps: number; credits: number; progress: number | null; run_on?: string };
+interface FCounty { id: string; shape: "profile" | "compare"; counties: string[]; kind: string; rule: string | null; year: number | null; state: "asked" | "claimed" | "answered" | "failed"; answer: unknown; fail_code: string | null; fail_detail: string | null; asked: number; claimed: number | null; finished: number | null }
 interface FCard { id: string; project_id: string; version_id: string; sha: string; state: "asked" | "claimed" | "answered" | "failed"; answer: unknown; fail_code: string | null; fail_detail: string | null; asked: number; claimed: number | null; finished: number | null }
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { cards: Map<string, FCard>; geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
+interface FUser { counties: Map<string, FCounty>; cards: Map<string, FCard>; geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -36,11 +37,36 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { cards: new Map(), geo: new Map(), plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
+    const u: FUser = { counties: new Map(), cards: new Map(), geo: new Map(), plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
     this.users.set(userId, u);
     return u;
   }
   /** Make this person's jobs run on their own computer (owner_local), with the computer's last-seen time and name. */
+  /** The house worker's three calls for county questions, as the database has them (the answer must carry the schema of its shape and fit 64 KB). For tests of the connector. */
+  countyWorker(userId: string) {
+    const user = this.users.get(userId)!;
+    return {
+      claim: () => {
+        const c = [...user.counties.values()].find((x) => x.state === "asked" || (x.state === "claimed" && (x.claimed ?? 0) < Date.now() - 600000));
+        if (!c) return null;
+        c.state = "claimed"; c.claimed = Date.now();
+        return { request_id: c.id, shape: c.shape, counties: [...c.counties], kind: c.kind, rule: c.rule, year: c.year };
+      },
+      finish: (rid: string, answer: unknown) => {
+        const c = user.counties.get(rid);
+        if (!c || c.state !== "claimed") throw err("No such claimed request.", "PT404");
+        const o = answer as Record<string, unknown> | null;
+        if (!o || typeof o !== "object" || Array.isArray(o) || JSON.stringify(o).length > 65536 || o.schema !== (c.shape === "profile" ? "ryagram.geo-county-profile/0" : "ryagram.geo-compare-counties/0")) throw err("That is not a county answer.", "22023");
+        c.state = "answered"; c.answer = JSON.parse(JSON.stringify(answer)); c.finished = Date.now(); c.fail_code = null; c.fail_detail = null;
+      },
+      fail: (rid: string, code: string, detail = "") => {
+        if (!["request_rejected", "county_not_held", "engine_error", "answer_rejected"].includes(code)) throw err("Unknown failure code.", "22023");
+        const c = user.counties.get(rid);
+        if (!c || c.state !== "claimed") throw err("No such claimed request.", "PT404");
+        c.state = "failed"; c.fail_code = code; c.fail_detail = detail.trim().slice(0, 300); c.finished = Date.now();
+      },
+    };
+  }
   /** The house worker's three calls for the film card, as the database has them (claim hands out the saved story, finish stores a card drawn from THAT story, fail records a known code). For tests of the connector. */
   cardWorker(userId: string) {
     const user = this.users.get(userId)!;
@@ -282,6 +308,22 @@ export class FakeWorld {
         }
         if (name === "editor_heartbeat") { d.editor_seen_at = Date.now(); return null; }
         throw err("There is no such editor call.", "22023");
+      },
+      askCounty: async (q) => {
+        // mirrors connect_county_ask: the same question within 10 minutes is one request, 5 open at once, 100 a day (the shape rules are checked before this, by county.ts, in GEO's words)
+        const user = u();
+        const same = [...user.counties.values()].reverse().find((c) => c.shape === q.shape && c.counties.join() === q.counties.join() && c.kind === q.kind && c.rule === q.rule && c.year === q.year && c.state !== "failed" && c.asked > Date.now() - 600000);
+        if (same) return { id: same.id, state: same.state, repeat: true };
+        if ([...user.counties.values()].filter((c) => c.state === "asked" || c.state === "claimed").length >= 5) throw err("There are already 5 county questions waiting for an answer. Wait for those first.", "PT429");
+        if (user.counties.size >= 100) throw err("That is 100 county questions in a day. Try again tomorrow.", "PT429");
+        const row: FCounty = { id: id(), shape: q.shape, counties: [...q.counties], kind: q.kind, rule: q.rule, year: q.year, state: "asked", answer: null, fail_code: null, fail_detail: null, asked: Date.now(), claimed: null, finished: null };
+        user.counties.set(row.id, row);
+        return { id: row.id, state: "asked", repeat: false };
+      },
+      getCounty: async (cid) => {
+        const c = u().counties.get(cid);
+        if (!c) return null;
+        return JSON.parse(JSON.stringify({ id: c.id, state: c.state, shape: c.shape, counties: c.counties, kind: c.kind, rule: c.rule, year: c.year, answer: c.answer, fail_code: c.fail_code, fail_detail: c.fail_detail, waited_s: Math.floor(((c.finished ?? Date.now()) - c.asked) / 1000) }));
       },
       askFilmCard: async (pid) => {
         // mirrors connect_film_card_ask: the project's newest version's saved story is what is asked for (the caller never names a story); asking again for the same saved story is one request;

@@ -150,11 +150,13 @@ test('every SQL function the server names exists in the migration, and none take
     connect_geo_ask_shape: 'supabase/migrations/20261104000400_geo_questions.sql',
     connect_forecast_ask: 'supabase/migrations/20261104000500_forecast_requests.sql',
     connect_film_card_ask: 'supabase/migrations/20261109000100_film_cards.sql', connect_film_card_get: 'supabase/migrations/20261109000100_film_cards.sql',
+    connect_county_ask: 'supabase/migrations/20261109000200_county_requests.sql', connect_county_get: 'supabase/migrations/20261109000200_county_requests.sql',
     connect_editor_apply: CHAT, connect_editor_undo: CHAT, connect_editor_undo_ai: CHAT, connect_editor_since: CHAT, connect_editor_heartbeat: CHAT };
   const later = Object.fromEntries(Object.entries(LATER).map(([k, f]) => [k, fs.readFileSync(f, 'utf8')]));
   for (const fn of new Set(used)) assert.match(later[fn] ?? mig, new RegExp(`create function public\\.${fn}\\(`), fn);
   for (const text of [mig, ...Object.values(later)]) for (const m of text.matchAll(/create function public\.(connect_[a-z_]+)\(([^)]*)\)/g)) assert.doesNotMatch(m[2], /owner|user/i, m[1]);
   assert.match(later.connect_set_compilation_request, /grant execute on function public\.connect_set_compilation_request\(text, uuid, jsonb\) to connect_runner/);
+  assert.match(later.connect_county_ask, /grant execute on function public\.connect_county_ask\(text, text, text\[], text, text, int\), public\.connect_county_get\(text, uuid\) to connect_runner/);
   assert.match(later.connect_film_card_ask, /grant execute on function public\.connect_film_card_ask\(text, uuid\), public\.connect_film_card_get\(text, uuid\) to connect_runner/);
   assert.match(later.connect_geo_ask, /grant execute on function public\.connect_geo_ask\(text, double precision, double precision, int, text\[\]\), public\.connect_geo_get\(text, uuid\) to connect_runner/);
   assert.match(later.connect_edit_state, /grant execute on function public\.connect_edit_state\(text, uuid\), public\.connect_edit_ops\(text, uuid, text, bigint, jsonb\), public\.connect_edit_undo_ai\(text, uuid, text\) to connect_runner/);

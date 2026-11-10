@@ -4,6 +4,7 @@
 import storySchema from "../_shared/story_schema.ts";
 import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
+import { checkCountyArgs, COMPARE_COUNTIES_DESCRIPTION, COUNTY_PROFILE_DESCRIPTION, countyLines, plainWords, readCountyAnswer, SAY_COMPARE, SAY_LINES } from "./county.ts";
 import { textOk } from "./edit_state.ts";
 import { checkStoryStructured } from "./story_check.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
@@ -1291,5 +1292,76 @@ const geoAnswer: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError)];
+// ---------------------------------------------------------------------------------------------- the county tools (BACKLOG CONNECT-4; contract proposals/CONNECT-COUNTY-TOOLS-CONTRACT-1109.md; the words are GEO's, proposals/GEO-LI-TOOL-WORDS-1109.md)
+// county_profile and compare_counties ASK (they write a request the house computer answers with GEO's own county tools, on its own cached files); county_answer READS the answer back. UNLISTED and OFF behind `deps.county` (the real function wires none, so they
+// refuse and ask nothing). Nothing is looked up, downloaded, forecast, scored or ranked here. What may be shown, and what may not, is fixed in county.ts, not left to the answer.
+const COUNTY_FAILED: Record<string, string> = {
+  request_rejected: "The computer that answers county questions did not accept the question.",
+  county_not_held: "No figure is held for that county, so nothing is shown. Nothing is guessed.",
+  engine_error: "The computer that answers county questions had a problem. Nothing is shown.",
+  answer_rejected: "The answer was not one this connection will show.",
+};
+const COUNTY_OFF = "County questions are not available yet. Nothing was looked up.";
+async function askCountyTool(shape: "profile" | "compare", a: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult> {
+  const sw = ctx.deps.county;
+  if (!sw || !(await sw.enabled()) || !ctx.data.askCounty) return refuse(COUNTY_OFF, "not_available", { data: { ok: false, looked_up: false } });
+  const c = checkCountyArgs(shape, a);
+  if ("refused" in c) return refuse(c.refused, "args", { data: { ok: false, looked_up: false, asked: false } });             // GEO's words, as they are
+  if (!(await ctx.policy.hit(ctx.principal, "county", LIMITS.countyQuestionsPerHourPerUser, 3600))) {
+    return refuse(`The limit of ${LIMITS.countyQuestionsPerHourPerUser} county questions an hour is reached. Nothing was looked up.`, "rate", { data: { ok: false, looked_up: false, retry_after_seconds: 3600 } });
+  }
+  const asked = await ctx.data.askCounty(c.ask);
+  return ok(`Asked${asked.repeat ? " (the same question was already asked, so this is that one)" : ""}. The computer that answers county questions usually takes under a minute. Ask county_answer with id ${asked.id} to read the answer. `
+    + "Nothing was looked up here and nothing is saved but the question itself, which is deleted after 7 days." + GEO_STOP,
+    { asked: true, id: asked.id, state: asked.state, repeat: asked.repeat === true, looked_up: false, do_not_poll: false, poll_after_s: 20 });
+}
+const countyProfile: ToolDef = {
+  name: "county_profile", title: "A county's restaurant figures", scope: "read", readOnly: true, listed: false,
+  description: COUNTY_PROFILE_DESCRIPTION + " Read the answer with county_answer.",
+  inputSchema: obj({ county: { type: "string", description: "The county's 5-digit FIPS code: 39057 (Greene County, Ohio) or 39113 (Montgomery County, Ohio) in version one." },
+    kind: { type: "string", description: "limited_service (limited-service restaurants), the only kind in version one. Leave out to mean that." } }, ["county"]),
+  run: (a, ctx) => askCountyTool("profile", a, ctx),
+};
+const compareCounties: ToolDef = {
+  name: "compare_counties", title: "Compare counties' restaurant figures", scope: "read", readOnly: true, listed: false,
+  description: COMPARE_COUNTIES_DESCRIPTION + " Read the answer with county_answer.",
+  inputSchema: obj({ counties: { description: "A list of two or more different 5-digit FIPS codes, for example [\"39057\", \"39113\"]." },
+    kind: { type: "string", description: "limited_service, the only kind in version one. Leave out to mean that." },
+    rule: { type: "string", description: "Only if the person states one: per_10k_low_first, per_10k_high_first or count_high_first. With none, the counties stay in the order asked." },
+    year: { description: "A 4-digit year from 1998 to 2024, only with a rule." } }, ["counties"]),
+  run: (a, ctx) => askCountyTool("compare", a, ctx),
+};
+const countyAnswer: ToolDef = {
+  name: "county_answer", title: "Read the answer to a county question", scope: "read", readOnly: true, listed: false,
+  description: "Reads the answer to a county question asked with county_profile or compare_counties (its id). Read-only: it changes nothing. Every figure carries its label (Observed or Calculated), its source and its year. Repeat the fixed lines it opens with, word for word.",
+  inputSchema: obj({ id: uuid }, ["id"]),
+  async run(a, ctx) {
+    const sw = ctx.deps.county;
+    if (!sw || !(await sw.enabled()) || !ctx.data.getCounty) return refuse(COUNTY_OFF, "not_available", { data: { ok: false, looked_up: false } });
+    if (!(await ctx.policy.hit(ctx.principal, "county_read", LIMITS.geoReadsPerHourPerUser, 3600))) {
+      return refuse(`The limit of ${LIMITS.geoReadsPerHourPerUser} answer checks an hour is reached. Do not check again; tell the person.`, "rate", { data: { ok: false, retry_after_seconds: 3600 } });
+    }
+    const row = await ctx.data.getCounty(String(a.id));
+    if (!row) return refuse("That county question was not found among yours.", "not_found");
+    if (row.state === "asked" || row.state === "claimed") {
+      const stuck = row.waited_s >= 300;
+      return ok(stuck
+        ? "The computer that answers county questions has not picked this up for several minutes (it may be off or busy). The question is safe and will be answered when it is back, but I cannot say when. Do not check again; tell the person." + GEO_STOP
+        : "Not answered yet." + GEO_STOP, { id: row.id, state: row.state, looked_up: false, do_not_poll: stuck, poll_after_s: stuck ? null : 20 });
+    }
+    if (row.state === "failed") {
+      const words = COUNTY_FAILED[row.fail_code ?? ""] ?? "The county question could not be answered.";
+      const detail = row.fail_detail ? plainWords(row.fail_detail, 300) : null;                       // a worker's reason that names a folder or makes a claim is left out whole
+      return refuse(`${words}${detail ? " " + untrusted("report-sentence", detail) : ""} Nothing is shown.`, "bad_report", { data: { ok: false, id: row.id, state: "failed", fail_code: row.fail_code, looked_up: false } });
+    }
+    const rep = readCountyAnswer(row, row.answer);
+    if (!rep) return refuse("The answer was not in a shape this connection knows (a figure was not labelled, sourced and dated, a sentence held a place on a computer or a claim this service does not make, or an order did not follow the stated rule), so none of it is shown.", "bad_report", { data: { ok: false, looked_up: false } });
+    return ok(countyLines(rep, (s) => untrusted("report-sentence", s)).join("\n"), {
+      id: row.id, shape: rep.shape, looked_up: true, labels: ["Observed", "Calculated"], say: [...SAY_LINES, ...(rep.shape === "compare" ? [SAY_COMPARE] : [])],
+      profiles: rep.profiles, rule: rep.rule, rule_year: rep.rule_year, ordered: rep.ordered, order_words: rep.order_words, table: rep.table,
+    });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, countyProfile, compareCounties, countyAnswer, ...makeEditorTools(friendlyError)];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));
