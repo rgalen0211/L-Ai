@@ -189,6 +189,18 @@ class WaitlistJoin(core.Base):
         self.assertEqual(self.owner("select count(*) from public.ryagram_waitlist where invited_at is not null").fetchone()[0], 1, "nobody is invited by approving")
         self.assertEqual([r[0] for r in self.owner("select n from public.ryagram_waitlist_approvals order by id").fetchall()], [2, 2, 0], "every step is recorded as a number")
 
+    def test_an_admin_connected_through_an_ai_is_refused_by_both_admin_functions(self):
+        """The repository's rule for every admin function: an admin acts from the app, never through a connected AI (an OAuth token carries a client_id)."""
+        self.make_ryan_admin()
+        self.join("a@x.co", ip="1.2.3.4")
+        for sql in ("select * from public.admin_waitlist_counts()", "select public.admin_waitlist_approve(1)"):
+            d = self.db.as_(RYAN)
+            d.c.execute("select set_config('request.jwt.claims', %s, false)", ('{"sub": "%s", "role": "authenticated", "client_id": "x"}' % RYAN,))
+            with self.assertRaises(psycopg.Error, msg=sql) as cm:
+                d.c.execute(sql)
+            self.assertEqual(cm.exception.sqlstate, "42501", sql)
+        self.assertEqual(self.owner("select count(*) from public.ryagram_waitlist where approved_at is not null").fetchone()[0], 0)
+
     def test_approve_refuses_a_non_admin_and_a_count_outside_one_to_five_hundred(self):
         self.make_ryan_admin()
         self.join("a@x.co", ip="1.2.3.4")

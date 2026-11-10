@@ -72,10 +72,8 @@ grant execute on function public.join_waitlist(text, text, text) to anon;
 -- counts only: never an address, a reason or a name
 create function public.admin_waitlist_counts() returns table (waiting int, joined_24h int, approved int, invited int)
 language plpgsql stable security definer set search_path = '' as $$
+declare me uuid := ryagram_private.require_admin();           -- an admin acts from the app, never through a connected AI (the repository's one admin guard)
 begin
-  if not ryagram_private.is_app_admin() then
-    raise exception 'Only an admin can see the waiting list counts.' using errcode = '42501';
-  end if;
   return query select (count(*) filter (where w.approved_at is null and w.invited_at is null))::int,
                       (count(*) filter (where w.created_at > now() - interval '24 hours'))::int,
                       (count(*) filter (where w.approved_at is not null))::int,
@@ -86,11 +84,8 @@ end $$;
 -- Ryan's approve step: mark the oldest N waiting rows approved. It sends nothing, makes no account and invites nobody; a later, separate step may read the approved rows.
 create function public.admin_waitlist_approve(p_count int) returns int
 language plpgsql security definer set search_path = '' as $$
-declare me uuid := auth.uid(); n int;
+declare me uuid := ryagram_private.require_admin(); n int;     -- an admin acts from the app, never through a connected AI
 begin
-  if not ryagram_private.is_app_admin() then
-    raise exception 'Only an admin can approve from the waiting list.' using errcode = '42501';
-  end if;
   if coalesce(p_count, 0) not between 1 and 500 then
     raise exception 'Choose 1 to 500 people to approve.' using errcode = '22023';
   end if;
