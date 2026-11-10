@@ -75,6 +75,9 @@ test('every rule of the tool list has a planted fault that is caught, with its o
 const at = (t, tool, nth = 0) => t.filter((e) => e.kind === 'call' && e.tool === tool)[nth];
 const sc = (e) => e.result.structuredContent;
 const NIGHT_FAULTS = [
+  ['a player name longer than 24 characters', (t) => { sc(at(t, 'join_card')).players[0].name = 'A'.repeat(25); }, /name is longer than 24/],
+  ['a player name with a direction character', (t) => { sc(at(t, 'join_card')).players[0].name = 'An' + String.fromCharCode(0x202e) + 'a'; }, /name holds a control or direction character/],
+  ['a player name inside the tool\'s own sentence', (t) => { at(t, 'join_card').result.content[0].text = 'Join code KXQT. Ana and Ben are in.'; }, /name appears inside the tool's own sentence/],
   ['no structured result', (t) => { delete at(t, 'lock').result.structuredContent; }, /no structuredContent object/],
   ['no changed_at', (t) => { delete sc(at(t, 'lock')).changed_at; }, /changed_at must be a whole number/],
   ['a changed_at that is not a whole number', (t) => { sc(at(t, 'lock')).changed_at = 5.5; }, /changed_at must be a whole number/],

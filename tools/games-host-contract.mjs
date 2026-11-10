@@ -117,6 +117,14 @@ export function checkTranscript(entries) {
       if (typeof text === 'string' && text.replace(QUOTED_REMINDER, '').includes(t)) p.push(`${label}: a player's words appear inside the tool's own sentence.`);
       for (const w of walk({ ...sc, quoted: undefined })) if (!w.isKey && typeof w.value === 'string' && w.value.includes(t)) p.push(`${label}: a player's words appear outside quoted (${w.path}).`);
     }
+    // players' NAMES are typed by people too (CONNECT 11-10, GAMES' question): a plain name field is data and may stay, but short, cleaned, and never inside the tool's own sentence ('two players', not who)
+    for (const w of walk({ ...sc, quoted: undefined })) {
+      if (w.isKey && w.key === 'players' && Array.isArray(w.value)) for (const pl of w.value) if (isObj(pl) && typeof pl.name === 'string') {
+        if (pl.name.length > 24) p.push(`${label}: a player's name is longer than 24 characters.`);
+        if (HIDDEN.test(pl.name)) p.push(`${label}: a player's name holds a control or direction character.`);
+        if (pl.name.length >= 3 && typeof text === 'string' && text.replace(QUOTED_REMINDER, '').includes(pl.name)) p.push(`${label}: a player's name appears inside the tool's own sentence; say how many players, not who.`);
+      }
+    }
     // secrets and addresses, everywhere in the result
     const revealed = e.phase === 'revealed' || e.phase === 'between_rounds_after_reveal';
     for (const w of walk(sc)) {
