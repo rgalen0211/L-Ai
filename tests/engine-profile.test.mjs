@@ -266,11 +266,25 @@ test('an unknown tool is refused', async () => {
   assert.ok((await runProfileTool('delete_everything', {}, fakeData())).isError);
 });
 
-test('a vertical canvas is warned about (the engine has no vertical layout yet); 16:9 is not', () => {
+test('a vertical canvas is warned about only when a clip uses a view the engine has not laid out for it (paired, panel, shares); 16:9 never is', () => {
   const story = plain(par.samples.map);
   const tall = { profile_version: 1, name: 'tall', look: { canvas: [1080, 1920] } };
-  assert.ok(applyProfile(tall, story).report.warnings.some(w => /vertical/.test(w)));
   const wide = { profile_version: 1, name: 'wide', look: { canvas: [1920, 1080] } };
+  const NOT_LAID = /not laid out for a vertical frame yet, so a vertical version would fail its checks and could not be published\. Choose 16:9 for this film\./;
+  const withView = (view) => { const s = plain(par.samples.map); const c = s.sequence.clips.find(x => x.kind === 'render'); c.view = view; return s; };
+  // map, bars and line are laid out for vertical (compose.py LAYOUT_VIEWS): no warning, and never the old sentence
+  for (const v of ['map', 'bars', 'line']) {
+    const w = applyProfile(tall, withView(v)).report.warnings;
+    assert.ok(!w.some(x => /vertical/.test(x)), `${v}: no vertical warning`);
+    assert.ok(!w.some(x => /no vertical layout/.test(x)), `${v}: the old "no vertical layout yet" sentence is gone`);
+  }
+  // paired, panel and shares are not laid out: the warning says so and what to do (a clip of one of these with NO warning would be a silent unpublishable film)
+  for (const v of ['paired', 'panel', 'shares']) {
+    const w = applyProfile(tall, withView(v)).report.warnings;
+    assert.equal(w.filter(x => NOT_LAID.test(x)).length, 1, `${v}: exactly one not-laid-out warning`);
+    assert.ok(!w.some(x => /no vertical layout/.test(x)), `${v}: not the old sentence`);
+    assert.ok(!applyProfile(wide, withView(v)).report.warnings.some(x => /vertical/.test(x)), `${v} at 16:9: no vertical warning`);
+  }
   assert.ok(!applyProfile(wide, story).report.warnings.some(w => /vertical/.test(w)));
   assert.ok(Object.values(par.presets).every(p => p.look.canvas?.[1] <= p.look.canvas?.[0]), 'no preset ships vertical');
 });

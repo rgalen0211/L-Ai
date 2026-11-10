@@ -22,7 +22,7 @@ const mutants = [
   ['a third tool is given the card', A, 'list_projects: CARD_URI }', 'list_projects: CARD_URI, create_project: CARD_URI }'],
   ['resources are served without signing in', M, 'if (!principal) return json(401,', 'if (false) return json(401,'],
   // what is served
-  ['any page address is answered with the card', A, 'if (uri !== CARD_URI && !(uri === EDITOR_URI && cfg.chatEditor)) return null;', 'if (false) return null;'],
+  ['any page address is answered with the card', A, 'if (uri !== CARD_URI && !(editor && cfg.chatEditor)) return null;', 'if (false) return null;'],
   ['a missing page echoes the address it was asked for', M, '"That page does not exist."', '`That page does not exist: ${String(msg.params?.uri)}`'],
   ['the sandbox domain is used without checking its form', A, 'if (cfg.uiDomain && UI_DOMAIN.test(cfg.uiDomain))', 'if (cfg.uiDomain)'],
   ['the page address is used without checking it', A, 'appUrl && APP_URL.test(appUrl) ? appUrl : ""', 'appUrl ?? ""'],

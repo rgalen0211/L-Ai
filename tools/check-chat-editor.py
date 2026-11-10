@@ -8,6 +8,7 @@ Checks: nothing is drawn before the opening result; the editor opens on the film
 answer; the AI's change shows with the banner; a stale change is reported in words; the AI is told in ONE short line that carries no clip text; the final-build button cannot start anything; full screen only
 where the host offers it; no sideways scroll; no request leaves the page; no policy violation; no console error. Exit 1 on any failure."""
 import json
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -159,6 +160,16 @@ def main():
                     h.evaluate("document.getElementById('v').contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { displayMode: 'fullscreen' } }, '*')")
                     h.wait_for_timeout(200)
                     check(btn.inner_text() == 'Back to the chat', 'and the button then offers the way back')
+                    pad = fr.evaluate("parseFloat(getComputedStyle(document.body).paddingBottom)")
+                    check(pad >= 96, 'full screen leaves 96 px or more at the bottom for the chat reply box (%s px)' % pad)
+                    h.evaluate("document.getElementById('v').contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { displayMode: 'fullscreen', safeAreaInsets: { top: 0, right: 0, bottom: 20, left: 0 } } }, '*')")
+                    h.wait_for_timeout(200)
+                    pad2 = fr.evaluate("parseFloat(getComputedStyle(document.body).paddingBottom)")
+                    check(pad2 >= 116, 'and a safe area the host reports is added (%s px)' % pad2)
+                    h.evaluate("document.getElementById('v').contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/host-context-changed', params: { displayMode: 'inline' } }, '*')")
+                    h.wait_for_timeout(200)
+                    pad3 = fr.evaluate("parseFloat(getComputedStyle(document.body).paddingBottom)")
+                    check(pad3 < 96, 'back in the chat the room is gone (%s px)' % pad3)
                 sizes = h.evaluate("window.__log.filter(m => m.method === 'ui/notifications/size-changed').map(m => m.params.height)")
                 check(bool(sizes) and sizes[-1] > 300, 'the panel reports its height to the host (%s)' % sizes[-1:])
                 check(fr.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1'), 'no sideways scroll')
@@ -262,6 +273,9 @@ def main():
             check('could not draw' not in t11 and not any('toLowerCase' in e for e in errs11), 'the page draws and throws nothing when the film names no line colour, land colour or page colour')
             check(p11.frames[1].locator('h1').count() == 1 and p11.frames[1].inner_text('h1') == 'Older state map' and not any('colour' in w for w in p11.frames[1].locator('.le-warn').all_inner_texts()), 'it opens on the film, with no colour warning made up from keys that are missing')
             check('undefined' not in t11, 'and no word undefined reaches the person')
+            sw = p11.frames[1].evaluate("Array.from(document.querySelectorAll('input[type=color]')).map(i => i.value)")
+            check(len(sw) >= 5 and '#000000' not in sw, 'no look swatch is black when the film has set no colour (%s)' % sw)
+            check(p11.frames[1].locator('.le-defaults').count() == 1 and 'not shown here yet' in p11.frames[1].locator('.le-defaults').inner_text(), 'and the panel says these are the editor\'s starting colours, not the film\'s own')
             c11.close()
             print('a host that never says which film')
             c5, p5 = fresh()
@@ -283,7 +297,9 @@ def main():
                 if 'could not draw' in p6.frames[1].inner_text('body'):
                     break
                 p6.wait_for_timeout(200)
+            build = (re.search(r'data-build="([0-9a-f]{12})"', doc) or [None, ''])[1]
             check('boom in load' in p6.frames[1].inner_text('body'), 'the person reads that it could not draw, with the reason, not a placeholder that never changes')
+            check(len(build) == 12 and p6.frames[1].inner_text('body').rstrip().endswith('Panel build ' + build + '.'), 'the words end with the page\'s build id, so an old page (no id) is told from a new one')
             c6.close()
         finally:
             b.close()
