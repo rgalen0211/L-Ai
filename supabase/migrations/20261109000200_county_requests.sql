@@ -11,7 +11,7 @@ begin;
 
 create function ryagram_private.county_list_ok(p_counties text[]) returns boolean
 language sql immutable set search_path = '' as $$
-  select p_counties is not null and cardinality(p_counties) between 1 and 5
+  select p_counties is not null and cardinality(p_counties) between 1 and 3
      and not exists (select 1 from unnest(p_counties) c where c is null or c !~ '^[0-9]{5}$')
      and (select count(distinct c) from unnest(p_counties) c) = cardinality(p_counties)
 $$;
@@ -52,8 +52,12 @@ begin
   if p_shape is null or p_shape not in ('profile', 'compare') then
     raise exception 'Ask for a county profile or a comparison of counties.' using errcode = '22023';
   end if;
+  -- three is the most: a county costs about 19.5 KB of answer and an answer may not pass 64 KB (CC1 07:56 11-10); widening it needs a smaller answer first, never a bigger cap
+  if cardinality(p_counties) > 3 then
+    raise exception 'A comparison is for two or three counties at a time. More would make the answer longer than this connection can carry; ask again with three or fewer.' using errcode = '22023';
+  end if;
   if not ryagram_private.county_list_ok(p_counties) then
-    raise exception 'Give one to five different counties, each as its 5-digit code (state and county), for example 39057.' using errcode = '22023';
+    raise exception 'Give one to three different counties, each as its 5-digit code (state and county), for example 39057.' using errcode = '22023';
   end if;
   if (p_shape = 'profile' and cardinality(p_counties) <> 1) or (p_shape = 'compare' and cardinality(p_counties) < 2) then
     raise exception 'A profile is for one county and a comparison is for two or more.' using errcode = '22023';

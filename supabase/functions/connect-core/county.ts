@@ -44,6 +44,8 @@ const isFips = (v: unknown): v is string => typeof v === "string" && /^[0-9]{5}$
 export interface CountyAsk { shape: "profile" | "compare"; counties: string[]; kind: "limited_service"; rule: string | null; year: number | null }
 
 /** GEO's refusals, exactly as their tool words them (and "not offered yet" for the two kinds that come later). Returns the sentence, or the closed request. */
+/** The most counties in one comparison: about 19.5 KB of answer a county, 64 KB an answer. Widening it needs a smaller answer first, never a bigger cap. */
+export const COMPARE_MAX = 3;
 export function checkCountyArgs(shape: "profile" | "compare", a: Record<string, unknown>): { refused: string } | { ask: CountyAsk } {
   const kind = a.kind === undefined ? "limited_service" : a.kind;                       // a missing kind means the only kind there is
   if (kind !== "limited_service") {
@@ -61,6 +63,7 @@ export function checkCountyArgs(shape: "profile" | "compare", a: Record<string, 
   const cs = a.counties;
   if (!Array.isArray(cs) || cs.some((c) => !isFips(c))) return { refused: "counties: give a list of 5-digit FIPS codes, for example ['39057', '39113']" };
   const list = cs as string[];
+  if (list.length > COMPARE_MAX) return { refused: `counties: a comparison is for two or three counties at a time (${list.length} were given): more would make the answer longer than this connection can carry. Ask again with three or fewer.` };       // a county costs about 19.5 KB of answer and an answer may not pass 64 KB (CC1 07:56 11-10)
   const off = list.find((c) => !(c in COUNTY_LIST));
   if (off !== undefined) return { refused: `county ${off}: version one covers only ${COVERS}; every other county comes once per-county extracts exist. Nothing is guessed for it.` };
   if (list.length < 2 || new Set(list).size !== list.length) return { refused: `counties [${list.map((c) => `'${c}'`).join(", ")}]: a comparison needs two or more different counties; version one covers ${COVERS}` };

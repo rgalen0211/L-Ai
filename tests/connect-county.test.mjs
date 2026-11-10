@@ -90,6 +90,16 @@ const REFUSALS = [
   ['compare', { counties: [G, M], rule: 'count_high_first', year: 'x' }, 'year x: a 4-digit year from 1998 to 2024'],
   ['compare', { counties: [G, M], rule: 'count_high_first', year: 2025 }, 'year 2025: a 4-digit year from 1998 to 2024'],
 ];
+const CAP = (n) => `counties: a comparison is for two or three counties at a time (${n} were given): more would make the answer longer than this connection can carry. Ask again with three or fewer.`;
+test('a comparison is for two or three counties: a fourth is refused in words that say why, before the coverage check, and three are not refused for their number (CC1 07:56 11-10)', () => {
+  assert.equal(checkCountyArgs('compare', { counties: [G, M, '39049', '39051'] }).refused, CAP(4));
+  assert.equal(checkCountyArgs('compare', { counties: [G, M, '39049', '39051', '39053', '39055'] }).refused, CAP(6));
+  assert.equal(checkCountyArgs('compare', { counties: [G, G, G, G] }).refused, CAP(4), 'the number counts before repeats are looked at');
+  assert.equal(checkCountyArgs('compare', { counties: [G, M, '39049'] }).refused, OFFLIST('39049'), 'three is not refused for its number (it is refused for coverage, as before)');
+  assert.ok(checkCountyArgs('compare', { counties: [G, M] }).ask, 'two are asked');
+  assert.match(checkCountyArgs('compare', { counties: '39057' }).refused, /give a list of 5-digit FIPS codes/, 'a list that is not a list still says so first');
+});
+
 test('every refusal is GEO\'s sentence, exactly (and a value the person typed is echoed cleaned, never as it came)', () => {
   for (const [shape, args, want] of REFUSALS) assert.equal(checkCountyArgs(shape, args).refused, want, JSON.stringify(args));
   assert.equal(checkCountyArgs('profile', { county: "39057'; drop" }).refused, "county '39057?? drop': a county is its 5-digit FIPS code (state + county), for example 39057");

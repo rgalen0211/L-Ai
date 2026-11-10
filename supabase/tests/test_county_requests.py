@@ -126,6 +126,26 @@ class County(core.Base):
             self.assertTrue(e.diag.message_primary.endswith((".", ";")) and len(e.diag.message_primary) > 20, kw)
         self.assertEqual(self.count(), 0)
 
+    def test_a_comparison_is_for_two_or_three_counties_a_fourth_is_refused_in_words_that_say_why_and_nothing_is_stored(self):
+        """CC1 07:56 11-10: a county costs about 19.5 KB of answer and the answer may not pass 64 KB, so three is the most; widening it needs a smaller answer first, never a bigger cap."""
+        three = ("39001", "39003", "39005")
+        r = self.ask(self.a, "compare", three)
+        self.assertFalse(r["repeat"], "three counties are accepted")
+        self.assertEqual(self.owner("select counties from public.county_requests where id = %s", r["id"]).fetchone()[0], list(three))
+        for n in (4, 5, 6, 20):
+            e = self.fails("select connect_county_ask(%s, %s, %s, %s, %s, %s)", self.a, "compare", [f"3900{i}" if i < 10 else f"390{i}" for i in range(1, n + 1)], "limited_service", None, None, code="22023")
+            msg = e.diag.message_primary
+            self.assertIn("two or three counties", msg, n)
+            self.assertIn("longer than this connection can carry", msg, f"the words say WHY ({n} counties)")
+        self.assertEqual(self.count(), 1, "the refused asks stored nothing")
+        self.assertFalse(self.ask(self.a, "compare", (GREENE, MONT))["repeat"], "two counties still work")
+
+    def test_the_table_itself_holds_no_comparison_of_more_than_three_counties(self):
+        self.owner("insert into public.county_requests (owner_id, shape, counties) values (%s, 'compare', array['39001','39003','39005'])", ALICE)
+        with self.assertRaises(psycopg.Error) as cm:
+            self.owner("insert into public.county_requests (owner_id, shape, counties) values (%s, 'compare', array['39001','39003','39005','39007'])", ALICE)
+        self.assertEqual(cm.exception.sqlstate, "23514", "a check constraint, whoever writes the row")
+
     def test_five_open_at_once_and_one_hundred_a_day(self):
         for i in range(5):
             self.ask(self.a, "compare", (GREENE, f"3910{i}"))

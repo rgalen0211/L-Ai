@@ -1325,7 +1325,7 @@ const countyProfile: ToolDef = {
 const compareCounties: ToolDef = {
   name: "compare_counties", title: "Compare counties' restaurant figures", scope: "read", readOnly: true, listed: false,
   description: COMPARE_COUNTIES_DESCRIPTION + " Read the answer with county_answer.",
-  inputSchema: obj({ counties: { description: "A list of two or more different 5-digit FIPS codes, for example [\"39057\", \"39113\"]." },
+  inputSchema: obj({ counties: { description: "A list of two or three different 5-digit FIPS codes, for example [\"39057\", \"39113\"]. Three is the most." },
     kind: { type: "string", description: "limited_service, the only kind in version one. Leave out to mean that." },
     rule: { type: "string", description: "Only if the person states one: per_10k_low_first, per_10k_high_first or count_high_first. With none, the counties stay in the order asked." },
     year: { description: "A 4-digit year from 1998 to 2024, only with a rule." } }, ["counties"]),
