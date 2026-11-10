@@ -93,3 +93,38 @@ test('the sentences that tell the assistant what to do about OTHER tools or what
     assert.match(d, /^ONLY for the Ryagram editor panel/); assert.match(d, /which calls it/);
   }
 });
+
+// ------------------------------------------------------------------------------------------------ no generative media model, anywhere a reviewer or a person can read (Claude's directory rule, fold-in of NEXT-CONNECT's "generative-model lint")
+import fs from 'node:fs';
+import { GENERATIVE, lintGenerative } from '../tools/connect-description-lint.mjs';
+const GEN_BAD = [
+  ['an image model by name', 'Makes pictures with DALL-E for your film.'], ['another image model', 'Draws the cover with Midjourney.'], ['a diffusion model', 'Uses stable diffusion to fill the map.'],
+  ['a video model', 'Builds the intro with Sora.'], ['a voice model', 'Reads the title aloud with ElevenLabs.'], ['a song model', 'Writes the theme with Suno.'],
+  ['text to image', 'A text-to-image step for the cover.'], ['text to video', 'It turns the story into video with text to video.'], ['image generation', 'Image generation for each frame.'],
+  ['video synthesis', 'Video synthesis from a prompt.'], ['generates a film with a model', 'Generates a film using a model from your prompt.'], ['AI-generated', 'The AI-generated narration is added.'],
+  ['generative AI', 'Powered by generative AI.'], ['face swap', 'Face swap for the speakers.'], ['a deepfake', 'A deepfake of the host.'], ['a voice clone', 'A voice clone of the singer.'],
+];
+test('a name, title, description, listing sentence or source that names a generative media model, or says media is generated with one, is caught (Claude\'s directory does not accept such a connector)', () => {
+  for (const [name, text] of GEN_BAD) {
+    assert.ok(lintGenerative(text).length >= 1, `${name}: nothing was caught`);
+    assert.ok(lintTool({ name: 'make_thing', title: 'Make a thing', description: 'Starts a film project from data. ' + text }, ['make_thing']).some((x) => /generative media model/.test(x)), `${name}: not caught in a description`);
+  }
+  assert.ok(lintTool({ name: 'make_thing', title: 'Midjourney maker', description: 'Starts a film project from data.' }, []).some((x) => /generative media model/.test(x)), 'a title is checked too');
+  assert.ok(GENERATIVE.length >= 6);
+  for (const ok of ['Draws a bar chart race from the data with the engine\'s own renderer.', 'A map film of rent by county, built by Ryagram\'s own engine.', 'Compiles clips the person already has.', 'Queues a contact sheet of still frames.', 'The film runs on a flux of numbers.'.replace('flux', 'stream')]) assert.deepEqual(lintGenerative(ok), [], ok);
+});
+
+test('no source file of the connector, no directory listing file and no tool title or description names a generative media model (the strings a reviewer or a person reads)', () => {
+  const dirs = ['supabase/functions/connect-core', 'supabase/functions/connect', 'supabase/directory'];
+  const files = [];
+  for (const d of dirs) for (const f of fs.readdirSync(new URL(`../${d}/`, import.meta.url))) if (/\.(ts|json|md)$/.test(f)) files.push(`${d}/${f}`);
+  assert.ok(files.length >= 15, `${files.length} files checked`);
+  const hits = [];
+  // the ONE place that says in words what the connector does NOT do is the listing's own compliance statement (not_accepted_check, which Ryan reads before ticking Claude's acknowledgment); it is left out of the scan, everything else is scanned
+  const without = (f, t) => (f.endsWith('.json') ? JSON.stringify(JSON.parse(t, (k, v) => (k === 'not_accepted_check' ? undefined : v))) : t);
+  for (const f of files) { const t = fs.readFileSync(new URL(`../${f}`, import.meta.url), 'utf8'); const p = lintGenerative(without(f, t), f); if (p.length) hits.push(...p); }
+  const listing = fs.readFileSync(new URL('../supabase/directory/anthropic-listing.json', import.meta.url), 'utf8');
+  assert.match(JSON.parse(listing).not_accepted_check, /no image\/video\/audio generation through AI models/, 'the compliance statement is there for Ryan to read');
+  assert.deepEqual(hits, []);
+  for (const t of TOOLS) assert.deepEqual(lintGenerative(`${t.name} ${t.title} ${t.description}`, t.name), []);
+});

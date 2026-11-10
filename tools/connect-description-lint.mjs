@@ -16,6 +16,20 @@ export const ENCODED = [/[A-Za-z0-9+/]{60,}={0,2}/, /<!--/, /&#x?[0-9a-f]+;/i, /
 export const IMPERATIVE = /(?:^|[.;:!?] +)(Use|Read(?!-)|Pass|Call|Ask|Tell|Check|Make sure|Remember|Never|Always|Do not|Don't|Wait|Repeat|Say|Show|Avoid|Prefer|Try|Send|Open|Visit)\b[^.;]*[.;]?/gi;
 const VERB_NAME = /^(get|set|list|create|make|request|suggest|open|undo|edit|what|where|read|ask|county|compare|geo|forecast|editor|my|whoami|dataset|job|find|check|show|start|end|join|play|lock|reveal|skip|pause|resume|remove|let|scores|room|map)(_|$)/;
 
+/** Claude's directory does not accept a connector that "generates images, video, or audio through AI models" (their review criteria), and its portal has an acknowledgment for it. Ryagram compiles films with its OWN engine from data and the person's own clips: no tool, description, title,
+ *  listing text or result sentence may name a generative image, video, audio or voice model or say the connector generates media with one. (A sentence that says Ryagram does NOT use one would trip this too: say it in the listing prose, not in code.) */
+export const GENERATIVE = [
+  /\b(?:dall-?e|midjourney|stable[ -]diffusion|sora|veo|runway|pika|imagen|firefly|suno|udio|elevenlabs|heygen|synthesia|kling|luma dream machine|flux|gen-?[23])\b/i,
+  /text[ -]to[ -](?:image|video|speech|music|audio)/i, /(?:image|video|audio|voice|music|song|speech) (?:generat|synthes)/i, /generat(?:e|es|ed|ing) (?:an? |the |some )?(?:image|video|audio|voice|song|music|picture|film)s? (?:with|using|by|from) (?:an? )?(?:ai|model|prompt)/i,
+  /ai[- ]generated/i, /generative (?:ai|model|media|video|image)/i, /\b(?:deepfake|face[ -]?swap|voice clon\w*|lip[ -]?sync model|diffusion model)\b/i,
+];
+/** Problems with any text (a description, a title, a listing sentence, a source file) that names a generative media model. */
+export function lintGenerative(text, where = 'text') {
+  const p = [];
+  for (const re of GENERATIVE) { const m = re.exec(String(text)); if (m) p.push(`${where}: names a generative media model or says it generates media with one (${m[0].slice(0, 40)}).`); }
+  return p;
+}
+
 export function imperatives(description) {
   const out = [];
   for (const m of String(description).matchAll(IMPERATIVE)) out.push(m[0].replace(/^[.;:!?]\s*/, '').trim());
@@ -38,6 +52,7 @@ export function lintTool(t, knownTools = []) {
   for (const re of PROMOTION) if (re.test(d)) p.push(`${at}: the description promotes or compares (${String(re.exec(d)?.[0]).slice(0, 40)}).`);
   for (const re of EXTERNAL) if (re.test(d)) p.push(`${at}: the description points at an address or tells the assistant to fetch instructions from elsewhere (${String(re.exec(d)?.[0]).slice(0, 40)}).`);
   for (const re of ENCODED) if (re.test(d)) p.push(`${at}: the description holds encoded or hidden-looking text (${String(re.exec(d)?.[0]).slice(0, 20)}).`);
+  for (const x of lintGenerative(`${n} ${t?.title ?? ''} ${d}`, at)) p.push(x);
   // it may name only this server's own tools: a snake_case word used as a tool ("use X", "call X", "with X", "via X", "then X", "see X") must be one
   if (knownTools.length) for (const m of d.matchAll(/\b(?:use|call|with|via|then|see|using|calls)\s+([a-z]+(?:_[a-z]+)+)\b/gi)) {
     if (!knownTools.includes(m[1])) p.push(`${at}: the description names ${m[1]}, which is not a tool of this server.`);

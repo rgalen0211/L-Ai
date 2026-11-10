@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-desc');
+const BS = String.fromCharCode(92);
 const L = 'tools/connect-description-lint.mjs', ET = 'supabase/functions/connect-core/editor_tools.ts', TL = 'supabase/functions/connect-core/tools.ts';
 const mutants = [
   ['a name of any shape is accepted', L, "if (!/^[a-z][a-z0-9_]{0,63}$/.test(n))", 'if (false)'],
@@ -32,6 +33,11 @@ const mutants = [
   ['"do not call it yourself" is put back in a panel tool', ET, '"ONLY for the Ryagram editor panel, which calls it. Undoes one earlier', '"ONLY for the Ryagram editor panel; do not call it yourself. Undoes one earlier'],
   ['"Use list_my_downloads" is put back in a tool', TL, 'list_my_downloads shows what became of them.', 'Use list_my_downloads to see what became of them.'],
   ['"before you promise" is put back in dataset_info', TL, 'It tells what a map or a range of years can cover before a person is promised one.', 'Use it before you promise a person a map or a range of years.'],
+  ['a generative model is accepted anywhere', L, 'for (const re of GENERATIVE) { const m = re.exec(String(text));', 'for (const re of []) { const m = re.exec(String(text));'],
+  ['a title is not checked for generative models', L, 'lintGenerative(`${n} ${t?.title ?? ' + "''" + '} ${d}`, at)', 'lintGenerative(`${d}`, at)'],
+  ['a voice clone is accepted', L, 'voice clon' + BS + 'w*|', ''],
+  ['text to video is accepted', L, '/text[ -]to[ -](?:image|video|speech|music|audio)/i, ', ''],
+  ['image generation is put back in a real description', TL, 'Starts a new, empty film project. Free.', 'Starts a new, empty film project with image generation for the cover. Free.'],
   ['a promotion is added to a tool', TL, 'Starts a new, empty film project. Free.', 'Starts a new, empty film project. The best film tool. Free.'],
 ];
 
@@ -41,7 +47,7 @@ function run(cwd) {
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(scratch, { recursive: true });
-  for (const d of ['supabase/functions', 'tools', 'tests']) fs.cpSync(path.join(root, d), path.join(scratch, d), { recursive: true });
+  for (const d of ['supabase/functions', 'supabase/directory', 'tools', 'tests']) fs.cpSync(path.join(root, d), path.join(scratch, d), { recursive: true });
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
