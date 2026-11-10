@@ -13,11 +13,11 @@ import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { openApi } from '../supabase/functions/connect-core/rest.ts';
 import { BANNED_WORDS, COMPARE_COUNTIES_DESCRIPTION, COMPARE_SCHEMA, COUNTY_LIST, COUNTY_PROFILE_DESCRIPTION, COUNTY_RULES, PATHISH, PROFILE_SCHEMA, SAY_COMPARE, SAY_LINES, SOURCES_NEVER_ADDED, checkCountyArgs, countyLines, plainWords, readCountyAnswer } from '../supabase/functions/connect-core/county.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
+import { cases as sharedCases, G, M, series, yrs, CBP, SERIES, NOT_HELD_ITEMS, profile, rowOf, compare, PROFILE_ASK, COMPARE_ASK, mutate, BAD_PROFILES, cmp, BAD_COMPARES } from './fixtures/county/build-cases.mjs';
 
 const compile = makeCompile(Ajv2020);
 const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
 const B = { tokenHash: 'h-bob', userId: 'u-bob', clientId: 'client-claude' };
-const G = '39057', M = '39113';
 
 function server({ on = true, scopes = ['read'] } = {}) {
   const w = new FakeWorld();
@@ -32,28 +32,6 @@ function server({ on = true, scopes = ['read'] } = {}) {
 }
 
 // ---- answers in the real shape of GEO's tools, with invented numbers
-const series = (measure, title, label, source, unit, years, extra = {}) => ({ measure, title, label, source, unit, breaks: [], note: '', years, ...extra });
-const yrs = (pairs) => pairs.map(([year, value, note]) => ({ year, value, note: note ?? '' }));
-const CBP = 'U.S. Census Bureau, County Business Patterns, bulk county files (public domain)';
-const SERIES = (places = 123, per10k = 7.4) => [
-  series('establishments', 'Limited-service restaurants (places)', 'Observed', CBP, 'places', yrs([[2021, 110], [2022, 118], [2023, places]]), { breaks: [2012], note: 'Counts of places, not of sales.' }),
-  series('per_10k', 'Places per 10,000 residents', 'Calculated', CBP + ' and U.S. Census Bureau population estimates', 'places per 10,000 residents', yrs([[2021, 7.0], [2022, 7.2], [2023, per10k]]), { note: 'Arithmetic on the published count and the published population.' }),
-  series('payroll', 'Annual payroll', 'Observed', CBP, 'thousand dollars', yrs([[2021, 5000], [2022, null, 'not published for this county in 2022'], [2023, 5600]]), { note: 'Payroll, not sales.' }),
-];
-const NOT_HELD_ITEMS = [{ source: 'BLS QCEW', why: 'no county file is held for county 39057' }];
-const profile = (fips = G, over = {}) => ({ schema: PROFILE_SCHEMA, county: fips, kind: 'limited_service', kind_title: 'limited-service restaurants', series: SERIES(), not_held: ['BLS QCEW: no county file is held for county ' + fips],
-  say: [...SAY_LINES], labels: { Observed: 'as published by the source' }, forecast: 'none: this tool gives held figures only', read_from: 'read from the per-county extract made 2026-11-09',
-  county_name: 'Atlantis County', read_how: 'per_county_extract', not_held_items: NOT_HELD_ITEMS, ...over });
-const rowOf = (fips, name, value, over = {}) => ({ county: fips, name, year: 2023, value, label: 'Calculated', source: CBP, unit: 'places per 10,000 residents', note: '', ...over });
-// Greene 7.4, Montgomery 5.1 (per 10,000): lowest first = Montgomery then Greene
-const compare = (over = {}) => ({ schema: COMPARE_SCHEMA, kind: 'limited_service', kind_title: 'limited-service restaurants',
-  counties: [{ county: M, name: 'Montgomery County, Ohio' }, { county: G, name: 'Greene County, Ohio' }],
-  rule: { id: 'per_10k_low_first', words: 'places per 10,000 residents, lowest first', measure: 'per_10k', year: 2023 }, ordered: true,
-  order_words: 'ordered by places per 10,000 residents, lowest first, in 2023, as you asked; equal values keep the order you gave',
-  rule_table: [rowOf(M, 'Montgomery County, Ohio', 5.1), rowOf(G, 'Greene County, Ohio', 7.4)],
-  profiles: [profile(M, { series: SERIES(90, 5.1) }), profile(G)], say: [...SAY_LINES, SAY_COMPARE], forecast: 'none: this tool gives held figures only', ...over });
-const PROFILE_ASK = { shape: 'profile', counties: [G], rule: null, year: null };
-const COMPARE_ASK = { shape: 'compare', counties: [G, M], rule: 'per_10k_low_first', year: 2023 };
 const wrap = (s) => `<<${s}>>`;
 
 // ------------------------------------------------------------------------------------------------ GEO's words, as they are
@@ -208,38 +186,6 @@ test('GEO\'s own notes pass (they say "not sales" and "no sales data"); only a c
   assert.equal(plainWords('sales are rising', 100), null); assert.equal(plainWords('strong demand for chicken', 100), null);
 });
 
-const mutate = (f) => { const p = profile(); f(p); return p; };
-const BAD_PROFILES = {
-  'a series with no label': mutate((p) => { delete p.series[0].label; }),
-  'an Estimated series': mutate((p) => { p.series[0].label = 'Estimated'; }),
-  'a series with no source': mutate((p) => { p.series[0].source = ''; }),
-  'a missing year with no reason': mutate((p) => { p.series[2].years[1].note = ''; }),
-  'a negative value': mutate((p) => { p.series[0].years[0].value = -1; }),
-  'a value that is not a number': mutate((p) => { p.series[0].years[0].value = '12'; }),
-  'a year that is not a year': mutate((p) => { p.series[0].years[0].year = 'x'; }),
-  'two sources added into one series': mutate((p) => { p.series[0].source = 'BLS QCEW plus County Business Patterns'; }),
-  'a drive path in a source': mutate((p) => { p.series[0].source = 'D:\\Ryagram-cache\\cbp\\cbp23co.zip'; }),
-  'a drive path in a series note': mutate((p) => { p.series[0].note = 'from C:/Users/x/file.csv'; }),
-  'a drive path in a year note': mutate((p) => { p.series[2].years[1].note = 'file D:\\Ryagram-cache\\x is missing'; }),
-  'a web address in a note': mutate((p) => { p.series[0].note = 'see https://example.org/x'; }),
-  'a hidden character': mutate((p) => { p.series[0].note = 'a' + String.fromCharCode(0x202e) + 'b'; }),
-  'a banned claim: would do well': mutate((p) => { p.series[0].note = 'a restaurant here would do well'; }),
-  'a banned claim: food desert': mutate((p) => { p.series[0].note = 'this looks like a food desert'; }),
-  'a banned claim: too few': mutate((p) => { p.series[0].note = 'there are too few of them'; }),
-  'a banned claim: room for another': mutate((p) => { p.series[0].note = 'room for another one'; }),
-  'sales rising': mutate((p) => { p.series[0].note = 'sales are rising'; }),
-  'a forecast': mutate((p) => { p.forecast = 'a forecast for 2030: 150'; }),
-  'no forecast field': mutate((p) => { delete p.forecast; }),
-  'a county that was not asked about': profile(M),
-  'a county that is not on the list': profile('39049'),
-  'another schema': profile(G, { schema: COMPARE_SCHEMA }),
-  'the old flat schema': profile(G, { schema: 'ryagram.county-profile/0' }),
-  'another kind': profile(G, { kind: 'grocery' }),
-  'too many series': profile(G, { series: Array.from({ length: 21 }, () => SERIES()[0]) }),
-  'a measure that is not plain': mutate((p) => { p.series[0].measure = '<b>x</b>'; }),
-  'a break that is not a year': mutate((p) => { p.series[0].breaks = ['soon']; }),
-  'not_held that is not a list': profile(G, { not_held: 'none', not_held_items: undefined }),
-};
 test('the answer is read against the request: every one of these is NOT shown', () => {
   for (const [name, a] of Object.entries(BAD_PROFILES)) assert.equal(readCountyAnswer(PROFILE_ASK, a), null, name);
   assert.equal(readCountyAnswer(PROFILE_ASK, null), null); assert.equal(readCountyAnswer(PROFILE_ASK, []), null); assert.equal(readCountyAnswer(PROFILE_ASK, 'x'), null);
@@ -260,37 +206,6 @@ test('what is not held: the {source, why} items are used; a sentence that names 
   assert.equal(readCountyAnswer(PROFILE_ASK, profile(G, { read_how: undefined, read_from: 'read from D:\\Ryagram-cache\\national' })).profiles[0].read_from, null);
 });
 
-const cmp = (over) => [COMPARE_ASK, compare(over)];
-const BAD_COMPARES = {
-  'an order with no rule stated': [{ shape: 'compare', counties: [G, M], rule: null, year: null }, compare()],
-  'a rule that is not the one asked': cmp({ rule: { id: 'count_high_first', words: 'x', measure: 'establishments', year: 2023 } }),
-  'a year that is not the one asked': cmp({ rule: { id: 'per_10k_low_first', words: 'x', measure: 'per_10k', year: 2020 } }),
-  'no rule in the answer though one was asked': cmp({ rule: null }),
-  'an order that does not follow the rule': cmp({ counties: [{ county: G }, { county: M }], rule_table: [rowOf(G, 'x', 7.4), rowOf(M, 'y', 5.1)], profiles: [profile(G), profile(M, { series: SERIES(90, 5.1) })] }),
-  'the opposite rule order': cmp({ rule: { id: 'per_10k_high_first', words: 'x', measure: 'per_10k', year: 2023 } }),
-  'a table that does not match the profiles': cmp({ rule_table: [rowOf(M, 'y', 4.0), rowOf(G, 'x', 7.4)] }),
-  'an order with a county left out of the table': cmp({ rule_table: [rowOf(M, 'y', 5.1)] }),
-  'an order made with a missing figure': cmp({ rule_table: [rowOf(M, 'y', null, { note: 'not held' }), rowOf(G, 'x', 7.4)] }),
-  'a table in another year than the rule': cmp({ rule_table: [rowOf(M, 'y', 5.1, { year: 2022 }), rowOf(G, 'x', 7.4)] }),
-  'equal values out of the order asked': cmp({ rule_table: [rowOf(M, 'y', 5.1), rowOf(G, 'x', 5.1)], profiles: [profile(M, { series: SERIES(90, 5.1) }), profile(G, { series: SERIES(123, 5.1) })] }),
-  'the counties in a different order with no order made': cmp({ ordered: false, rule_table: [] }),
-  'a county left out': cmp({ counties: [{ county: G }], profiles: [profile(G)] }),
-  'a county added': cmp({ counties: [{ county: G }, { county: M }, { county: '39049' }], profiles: [profile(G), profile(M), profile('39049')] }),
-  'a county listed twice': cmp({ counties: [{ county: G }, { county: G }], profiles: [profile(G), profile(G)] }),
-  'a profile for another county than the one shown': cmp({ profiles: [profile(G), profile(G)] }),
-  'order words with a path': cmp({ order_words: 'read from D:\\x' }),
-  'order words with a banned claim': cmp({ order_words: 'Montgomery is the best location' }),
-  'a profile answer to a comparison': [COMPARE_ASK, profile()],
-  'a bad series inside a profile': cmp({ profiles: [profile(M, { series: [series('establishments', 't', 'Estimated', CBP, 'u', yrs([[2023, 1]]))] }), profile(G)] }),
-  'a forecast in a comparison': cmp({ forecast: 'a forecast' }),
-  'a rule table for another year than the one asked (all else consistent)': [COMPARE_ASK, compare({ rule: { id: 'per_10k_low_first', words: 'x', measure: 'per_10k', year: 2020 }, rule_table: [rowOf(M, 'y', 4.0, { year: 2020 }), rowOf(G, 'x', 6.0, { year: 2020 })],
-    profiles: [profile(M, { series: SERIES(90, 5.1).map((s, i) => (i === 1 ? { ...s, years: [{ year: 2020, value: 4.0, note: '' }, ...s.years] } : s)) }), profile(G, { series: SERIES().map((s, i) => (i === 1 ? { ...s, years: [{ year: 2020, value: 6.0, note: '' }, ...s.years] } : s)) })] })],
-  'no rule in the answer though one was asked, and no order made': cmp({ rule: null, ordered: false, rule_table: [], counties: [{ county: G }, { county: M }], profiles: [profile(G), profile(M)] }),
-  'an order though no rule was asked or given': [{ shape: 'compare', counties: [G, M], rule: null, year: null }, compare({ rule: null, ordered: true, counties: [{ county: G }, { county: M }], rule_table: [rowOf(G, 'x', 7.4), rowOf(M, 'y', 5.1)], profiles: [profile(G), profile(M)] })],
-  'a table figure that is missing with no reason': cmp({ ordered: false, counties: [{ county: G }, { county: M }], profiles: [profile(G), profile(M)], rule_table: [rowOf(G, 'x', 7.4), rowOf(M, 'y', null, { note: '' })] }),
-  'one county listed twice with a consistent-looking table': cmp({ counties: [{ county: G }, { county: G }], profiles: [profile(G), profile(G)], rule_table: [rowOf(G, 'x', 7.4), rowOf(G, 'x', 7.4)] }),
-  'a table row with no label': cmp({ rule_table: [{ ...rowOf(M, 'y', 5.1), label: undefined }, rowOf(G, 'x', 7.4)] }),
-};
 test('a comparison is read against the request: exactly the counties asked, an order only under the stated rule, and only when the table really follows it', () => {
   for (const [name, [ask, a]] of Object.entries(BAD_COMPARES)) assert.equal(readCountyAnswer(ask, a), null, name);
 });
@@ -506,4 +421,18 @@ test('a unit may be up to 80 characters (GEO\'s longest real unit is 50), and no
 test('a count of permits passes (it is a count of what was permitted); a claim that something is permitted, allowed or zoned does not', () => {
   for (const s of ['new housing units permitted', 'Housing units permitted per 1,000 residents', 'housing units (permits, not starts or completions)']) assert.equal(plainWords(s, 100), s, s);
   for (const s of ['permitted to open', 'a restaurant is permitted here', 'new places are permitted', 'allowed to build', 'allowed to open a shop', 'zoning allows it']) assert.equal(plainWords(s, 100), null, s);
+});
+
+// ------------------------------------------------------------------------------------------------ the SHARED answer cases (NEXT-CONNECT 203 finding 5)
+test('the committed cases.json is exactly what build-cases.mjs makes, in plain ASCII (so WORKER and GEO read the cases this reader is tested with)', () => {
+  const raw = fs.readFileSync(new URL('./fixtures/county/cases.json', import.meta.url), 'utf8');
+  assert.deepEqual(JSON.parse(raw), JSON.parse(JSON.stringify(sharedCases())));
+  assert.ok(!/[^\x20-\x7e\r\n]/.test(raw), 'the file holds plain ASCII only (a hostile character is written as an escape)');
+});
+
+test('the reader shows every good shared case for its own ask and refuses every bad one (the cases the worker answer check and the GEO tool are held to as well)', () => {
+  const cs = JSON.parse(fs.readFileSync(new URL('./fixtures/county/cases.json', import.meta.url), 'utf8'));
+  assert.ok(cs.length >= 60 && cs.filter((c) => c.ok).length >= 5 && cs.filter((c) => !c.ok).length >= 55, 'the cases are not an empty promise');
+  assert.equal(new Set(cs.map((c) => c.name)).size, cs.length, 'every case has its own name');
+  for (const c of cs) assert.equal(readCountyAnswer(c.ask, c.answer) !== null, c.ok, c.name);
 });
