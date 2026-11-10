@@ -149,6 +149,10 @@ export function checkTranscript(entries) {
     if (typeof text === 'string') for (const [re, what] of BAD_VALUE) if (re.test(text)) p.push(`${label}: the words hold ${what}.`);
     // the join card: the code and the players, never an address
     if (tool === 'join_card' && !(typeof sc.code === 'string' && /^[A-Z]{4}$/.test(sc.code))) p.push(`${label}: the card must carry the 4-letter code.`);
+    // the join card page (tools/games-host/join-card.mjs) draws the code and { name } entries only: a player entry carries nothing else
+    if ((tool === 'join_card' || tool === 'open_room') && Array.isArray(sc.players)) {
+      for (const pl of sc.players) if (!isObj(pl) || typeof pl.name !== 'string' || Object.keys(pl).some((k) => k !== 'name')) { p.push(`${label}: each player in the join card is exactly { name }.`); break; }
+    }
     // two steps: remove and end_night only ask
     if (DESTRUCTIVE.includes(tool)) {
       if (sc.state !== 'waiting' && !sc.refusal) p.push(`${label}: it must come back waiting for the host's Confirm on the TV, not finish by itself (state ${short(sc.state)}).`);

@@ -82,6 +82,8 @@ test('every rule of the tool list has a planted fault that is caught, with its o
 const at = (t, tool, nth = 0) => t.filter((e) => e.kind === 'call' && e.tool === tool)[nth];
 const sc = (e) => e.result.structuredContent;
 const NIGHT_FAULTS = [
+  ['a player in the join card with more than a name', (t) => { sc(at(t, 'join_card')).players[0].phone = 'seat-1'; }, /each player in the join card is exactly \{ name \}/],
+  ['a player in the join card that is not an object', (t) => { sc(at(t, 'join_card')).players[0] = 'Ana'; }, /each player in the join card is exactly \{ name \}/],
   ['a round with an answer the AI wrote, not marked written_by_ai', (t) => { const r = at(t, 'next_round', 1); r.args = { game: 'trivia', answer: 'square eggs', options: ['a', 'b', 'c', 'd'] }; delete sc(r).written_by_ai; }, /must say written_by_ai/],
   ['a player name longer than 24 characters', (t) => { sc(at(t, 'join_card')).players[0].name = 'A'.repeat(25); }, /name is longer than 24/],
   ['a player name with a direction character', (t) => { sc(at(t, 'join_card')).players[0].name = 'An' + String.fromCharCode(0x202e) + 'a'; }, /name holds a control or direction character/],
