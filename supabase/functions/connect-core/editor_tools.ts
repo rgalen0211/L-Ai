@@ -107,7 +107,8 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
         }
         return answer(shape(r, have));
       } catch (e) {
-        const code = typeof (e as { code?: unknown })?.code === "string" ? String((e as { code: string }).code).slice(0, 16) : null;
+        const raw = (e as { code?: unknown })?.code;
+        const code = typeof raw === "string" ? raw.slice(0, 16) : null;
         return answer({ code, message: friendly(e) }, true, code ?? "error");
       }
     },

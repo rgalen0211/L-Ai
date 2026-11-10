@@ -7,7 +7,8 @@ export const FILM_CARD_MAX_BYTES = 262144;
 export const SVG_MAX_CHARS = 200000;
 export const SVG_MAX_ELEMENTS = 30000;
 export const SVG_MAX_DEPTH = 30;
-export const LOOK_REQUIRED = ["network.color", "network.base_color", "network.context_color", "state.fill", "page.background"] as const;
+/** The ONE colour every card must carry. A view lists only the keys it has (a bar race has just the page background; a map has more); a key a view does not list is simply absent, and the panel keeps its own starting colour and says so. */
+export const LOOK_REQUIRED = ["page.background"] as const;
 
 /** The only elements a drawn still may hold. Never script, style, image, foreignObject, use, an animation element, or anything not listed. */
 export const SVG_ELEMENTS: ReadonlySet<string> = new Set(["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "linearGradient", "radialGradient", "stop", "clipPath", "title"]);
@@ -15,7 +16,7 @@ export const SVG_ELEMENTS: ReadonlySet<string> = new Set(["svg", "g", "path", "r
 export const SVG_ATTRS: ReadonlySet<string> = new Set([
   "id", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "width", "height", "d", "points", "transform", "viewBox", "preserveAspectRatio",
   "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset", "stroke-opacity", "fill-opacity", "opacity", "fill-rule", "clip-rule", "clip-path",
-  "font-family", "font-size", "font-weight", "font-style", "text-anchor", "dominant-baseline", "letter-spacing", "dx", "dy", "offset", "stop-color", "stop-opacity", "gradientUnits", "gradientTransform",
+  "font-family", "font-size", "font-weight", "font-style", "text-anchor", "dominant-baseline", "letter-spacing", "textLength", "dx", "dy", "offset", "stop-color", "stop-opacity", "gradientUnits", "gradientTransform",
   "xmlns",
 ]);
 const TEXT_ELEMENTS = new Set(["text", "tspan", "title"]);
@@ -85,6 +86,7 @@ export function checkSvg(svg: unknown): string[] {
       if (low.includes("url(") && !(["fill", "stroke", "clip-path"].includes(key) && URL_REF.test(val))) return ["The picture refers to something that is not on the picture."];
       if (/javascript:|data:|https?:|\/\/|@import|expression\(|&/i.test(low)) return ["The picture has an address or a script in an attribute."];
       if (key === "id" && !ID.test(val)) return ["An id is not plain."];
+      if (key === "textLength" && !/^\d{1,5}(?:\.\d{1,3})?$/.test(val)) return ["A text length is not a plain number."];
     }
     if (!selfClose) { stack.push(name); if (stack.length > SVG_MAX_DEPTH) return ["The picture is nested too deeply."]; }
     else if (!stack.length) closedRoot = true;

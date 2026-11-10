@@ -21,8 +21,8 @@
     },
     "look": {
       "type": "object",
-      "description": "Every look key the panel shows, RESOLVED: the film's saved look over the theme and view defaults. Colour values only, 6-digit hex.",
-      "required": ["network.color", "network.base_color", "network.context_color", "state.fill", "page.background"],
+      "description": "The look keys the VIEW has, RESOLVED: the film's saved look over the theme and view defaults. A view lists only the keys it has (a bar race has just page.background); page.background is the one key every card carries. Colour values only, 6-digit hex.",
+      "required": ["page.background"],
       "propertyNames": { "pattern": "^[a-z0-9_]{1,24}(\\.[a-z0-9_]{1,24}){0,2}$" },
       "additionalProperties": { "type": "string", "pattern": "^#[0-9a-fA-F]{6}$" },
       "maxProperties": 40
