@@ -98,7 +98,7 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
   };
   const filmCard: ToolDef = {
     name: FILM_CARD_TOOL, title: "Editor panel: the film's picture and colours", scope: "read", readOnly: false, idempotent: true, chatEditor: "app",
-    description: "ONLY for the Ryagram editor panel in this conversation; do not call it yourself. Asks for, and reads, the real colours and one real still picture of the person's film (drawn by the Ryagram computer). It changes nothing in the film.",
+    description: "ONLY for the Ryagram editor panel in this conversation, which calls it. Asks for, and reads, the real colours and one real still picture of the person's film (drawn by the Ryagram computer). It changes nothing in the film.",
     inputSchema: obj({ p_project: uuid, p_ask: { type: "boolean" }, p_have: { type: "string", pattern: "^[0-9a-f]{64}$" } }, ["p_project"]),
     async run(a, ctx: ToolCtx) {
       const get = ctx.data.getFilmCard, ask = ctx.data.askFilmCard;

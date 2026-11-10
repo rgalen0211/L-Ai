@@ -110,7 +110,7 @@ test('the tool is app-only, behind the chat-editor switch, scope read, and says 
   const t = list.find((x) => x.name === 'editor_film_card');
   assert.deepEqual(t._meta, { ui: { visibility: ['app'] } });
   assert.match(t.description, /ONLY for the Ryagram editor panel/);
-  assert.match(t.description, /do not call it yourself/);
+  assert.match(t.description, /ONLY for the Ryagram editor panel in this conversation, which calls it/);
   assert.equal(t.inputSchema.additionalProperties, false);
   assert.deepEqual(t.inputSchema.required, ['p_project']);
   for (const cfg of [{ enabled: true }, null, { enabled: false, chatEditor: true }]) {
