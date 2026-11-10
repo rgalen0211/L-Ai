@@ -131,7 +131,9 @@ export interface FilmCardRead {
   state: "none" | "asked" | "claimed" | "failed" | "ready";
   id?: string; card?: unknown; stale?: boolean; built_sha256?: string; current_sha256?: string;
   /** With a stale card: where the request for the CURRENT save stands (null = none asked yet). */
-  refresh?: { state: string; fail_code?: string | null } | null;
+  refresh?: { state: string; fail_code?: string | null; retry?: boolean } | null;
+  /** True when the newest request for the current save failed because the engine broke and 10 minutes have passed: asking again is then allowed (the database applies the same rule). */
+  retry?: boolean;
   fail_code?: string | null; fail_detail?: string | null; waited_s?: number;
 }
 

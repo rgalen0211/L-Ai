@@ -53,7 +53,7 @@ test('the committed cases.json is exactly what build-cases.mjs makes (so ENGINE 
 
 // why each refused case is refused: the REASON is pinned, so a checker that refuses for the wrong reason (or by accident) fails here
 const WHY = {
-  'wrong schema number': /not schema 1/, 'missing a required look key': /no page\.background/, 'a look with other colours but no page background': /no page\.background/, 'an empty look': /no page\.background/, 'a text length that is not a plain number': /text length is not a plain number/, 'a text length written as an expression': /text length is not a plain number/, 'a length adjustment that is not an allowed word': /length adjustment is not one of/, 'an xml:space that is not an allowed word': /xml:space is not preserve or default/, 'an xml attribute that is not on the list': /not allowed [(]xml[?]lang[)]/, 'a colour that is not hex': /not a 6-digit hex/, 'a short hex colour': /not a 6-digit hex/,
+  'wrong schema number': /not schema 1/, 'missing a required look key': /no page\.background/, 'a look with other colours but no page background': /no page\.background/, 'an empty look': /no page\.background/, 'a text length written in non-ASCII digits': /text length is not a plain number/, 'a label of 31 emoji': /label is not plain text/, 'an engine label of 21 emoji': /engine label is not plain text/, 'a note of 81 emoji': /notes are not up to 5 plain sentences/, 'a text length that is not a plain number': /text length is not a plain number/, 'a text length written as an expression': /text length is not a plain number/, 'a length adjustment that is not an allowed word': /length adjustment is not one of/, 'an xml:space that is not an allowed word': /xml:space is not preserve or default/, 'an xml attribute that is not on the list': /not allowed [(]xml[?]lang[)]/, 'a colour that is not hex': /not a 6-digit hex/, 'a short hex colour': /not a 6-digit hex/,
   'a look name that is not plain': /name that is not plain/, 'a story hash that is not 64 hex': /story hash is not a sha-256/, 'an extra top-level part': /part it may not have \(extra\)/,
   'a picture wider than the limit': /width is not a whole number/, 'a ramp of 13 stops': /ramp is not a list of at most 12/, 'six notes': /notes are not up to 5/,
   'a label with a direction character': /label is not plain/, 'no picture': /no picture/,
@@ -255,6 +255,63 @@ test('a database without the migration answers in words, not a crash; a film tha
   assert.equal(g.isError, true); assert.equal(g.body.error.message, 'That film was not found among your projects.');
   assert.equal((await t.call({ p_project: 'not-a-uuid' })).isError, true);
   assert.equal((await t.call({ p_project: '00000000-0000-4000-8000-000000000009', more: 1 })).isError, true);
+});
+
+test('a picture that failed because the engine broke is asked for again when the editor is opened ten minutes later, not before, and a film the engine cannot draw is never asked for again', async () => {
+  const s = server();
+  const f = await s.film();
+  await s.call({ p_project: f.id, p_ask: true });
+  const w = s.w.cardWorker(A.userId);
+  const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
+  const open = async () => (await s.call({ p_project: f.id, p_ask: true })).body.data;
+  const failed = await open();
+  assert.equal(failed.state, 'failed'); assert.equal(failed.code, 'engine_error');
+  assert.match(failed.message, /ten minutes/, 'the words say what to do, and it is true');
+  assert.equal(w.claim(), null, 'opening the editor again at once does not make a new request');
+  const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
+  row.finished = Date.now() - 9 * 60000;
+  assert.equal((await open()).state, 'failed', 'nine minutes is not ten');
+  assert.equal(w.claim(), null);
+  row.finished = Date.now() - 11 * 60000;
+  assert.deepEqual(await open(), { state: 'asked', waited_seconds: 0 }, 'ten minutes on, opening the editor asks again');
+  const job2 = w.claim();
+  assert.ok(job2 && job2.request_id !== job.request_id, 'a new request was written for the same saved film');
+  w.finish(job2.request_id, goodCard(f.ver.story_sha256));
+  assert.equal((await open()).state, 'ready');
+  // a film the engine cannot draw stays failed, however long ago
+  const g = await s.film(A, { title: 'invented unsupported' });
+  await s.call({ p_project: g.id, p_ask: true });
+  const jobG = w.claim(); w.fail(jobG.request_id, 'view_not_supported', '');
+  const rowG = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === jobG.request_id);
+  rowG.finished = Date.now() - 3 * 3600000;
+  const stays = (await s.call({ p_project: g.id, p_ask: true })).body.data;
+  assert.equal(stays.state, 'failed'); assert.equal(stays.code, 'view_not_supported');
+  assert.equal(w.claim(), null, 'nothing was asked for again');
+  // polling without asking never asks, however much time has passed
+  rowG.finished = Date.now() - 11 * 60000; row.state = 'failed'; row.fail_code = 'engine_error';
+  assert.equal((await s.call({ p_project: g.id })).body.data.state, 'failed');
+  assert.equal(w.claim(), null);
+});
+
+test('an older picture stays on show while a newer one that failed because the engine broke is asked for again after ten minutes, not before', async () => {
+  const s = server();
+  const f = await s.film();
+  await s.call({ p_project: f.id, p_ask: true });
+  const w = s.w.cardWorker(A.userId); w.finish(w.claim().request_id, goodCard(f.ver.story_sha256));
+  f.ver.story_spec = { title: 'invented two' }; f.ver.story_sha256 = sha({ title: 'invented two' });
+  await s.call({ p_project: f.id, p_ask: true });
+  const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
+  const open = async () => (await s.call({ p_project: f.id, p_ask: true })).body.data;
+  const soon = await open();
+  assert.equal(soon.state, 'ready'); assert.equal(soon.stale, true); assert.deepEqual(soon.refresh, { state: 'failed', code: 'engine_error' }); assert.ok(soon.card);
+  assert.equal(w.claim(), null, 'not before ten minutes');
+  const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
+  row.finished = Date.now() - 11 * 60000;
+  const later = await open();
+  assert.equal(later.state, 'ready'); assert.equal(later.stale, true); assert.deepEqual(later.refresh, { state: 'asked' }); assert.ok(later.card, 'the older picture is still shown');
+  const job2 = w.claim();
+  assert.ok(job2 && job2.request_id !== job.request_id);
+  assert.equal(job2.story_sha256, f.ver.story_sha256);
 });
 
 // ------------------------------------------------------------------------------------------------ 3. the stand-in world mirrors the database
