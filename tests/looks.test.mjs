@@ -41,7 +41,7 @@ test('CHECK: shape problems first (and only), then the engine\'s colour sentence
   assert.equal(c.errors[0].path, 'look.ramp');
   assert.deepEqual(plain(L.problemsFor(c.errors, 'look.ramp.low').map(p => p.path)), ['look.ramp']);        // a group problem shows at each control in the group
   assert.deepEqual(plain(L.problemsFor(c.errors, 'look.theme')), []);
-  assert.deepEqual(plain(L.check(L.setPath(ok, 'look.canvas', [1080, 1920])).warnings.length > 0), true);       // the engine's vertical warning
+  assert.deepEqual(plain(L.check(L.setPath(ok, 'look.canvas', [1080, 1920])).warnings.filter(w => /vertical/.test(w))), []);   // the sample film is map + bars + line, all laid out for vertical: no warning (a paired/panel/shares clip gets one: tests/engine-profile.test.mjs)
   assert.deepEqual(plain(L.check(L.setPath(ok, 'look.axis', 1)).warnings), []);                                   // not valid: no warnings, only errors
   assert.match(L.check(L.setPath(ok, 'look.axis', 1)).errors[0].text, /unknown key 'axis'/);
   assert.deepEqual(plain(L.toProblem('profile: expected an object')), { path: '', text: 'profile: expected an object' });

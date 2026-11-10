@@ -9,7 +9,7 @@
 
   const LOCKED_TEXT = 'A look changes how a film looks and moves. It can’t change the data, the scale, the sources, the notes, how “not published” or “estimated” is shown, or any of the checks.';
   const LATER_TEXT = 'Not applied yet: the engine doesn’t use these. They are stored with your look and will apply when the engine supports them; nothing needs re-saving.';
-  const VERTICAL_NOTE = 'The engine has no vertical layout yet: the 16:9 picture is fitted into the frame, not re-laid-out.';
+  const VERTICAL_NOTE = 'Vertical is laid out for the map, bar race, line and living map views. A film that uses the paired, panel or shares view is not laid out for it yet and could not be published: choose 16:9 for those.';
   const SAMPLE_TITLE = 'Profile preview (sample)';
   const SHEET_NOTE = 'About 4 minutes on the render PC. Keep editing: it shows the look you had when you pressed the button. It is free.';
   const QUICK_NOTE = 'Approximate: drawn here from your colours, not by the engine.';
