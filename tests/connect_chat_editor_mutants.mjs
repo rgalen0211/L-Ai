@@ -48,6 +48,7 @@ const mutants = [
   ['the policy lets the page run eval', B, "script-src 'unsafe-inline'", "script-src 'unsafe-inline' 'unsafe-eval'"],
   ['the footer about a final button is left in the chat', H, "    reword();\n    if (typeof MutationObserver", "    if (typeof MutationObserver"],
   ['the footer is reworded once and never again', H, "new MutationObserver(reword).observe(root, { childList: true, subtree: true, characterData: true });", ""],
+  ['writes are sent at once instead of one after the other (a second change made while a slow host holds the first is called stale)', DR, 'const run = tail.then(() => sendNow(ops));', 'const run = sendNow(ops);'],
   ['a panel click is read as the AI\'s change', DR, "if (o.actor === 'ai' && o.client === PANEL) {", 'if (false) {'],
   ['a panel click made on this page is applied a second time', DR, 'if (mine) mine.serverId = o.id;\n          else {', 'if (false) mine.serverId = o.id;\n          else {'],
   ['the build button is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-pill{display:none}'],

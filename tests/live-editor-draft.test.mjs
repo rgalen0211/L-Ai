@@ -183,3 +183,19 @@ test('the add_clip and unset_look ops are in the vocabulary; a project that is n
   assert.equal((await w.draft.heartbeat()).error, null);
   assert.equal(w.m.draft(P, 'data').revision, 0);
 });
+
+test('two changes made while a slow host still holds the first (an approval prompt): they go one after the other, the second against the revision the first produced, so neither is called stale', async () => {
+  const w = world('data');
+  await w.draft.open(look => ({ look: { 'network.color': '#6fd1bd', ...look } }));
+  const slow = async (name, args) => { if (name === 'editor_apply_ops') await new Promise(r => setTimeout(r, 40)); return w.m.rpcs[name](args); };
+  const draft = D.createDraft({ rpc: slow, project: P, mode: 'data', editor: w.editor });
+  await draft.open(look => ({ look: { 'network.color': '#6fd1bd', ...look } }));
+  const a = draft.send([{ op: 'set_look', key: 'network.color', value: RED }]);
+  const b = draft.send([{ op: 'set_look', key: 'network.color', value: GREEN }]);
+  const [ra, rb] = await Promise.all([a, b]);
+  assert.equal(ra.ok, true);
+  assert.equal(rb.ok, true, JSON.stringify(rb));
+  assert.equal(rb.stale, undefined);
+  assert.equal(draft.revision, 2);
+  assert.equal(w.editor.state.look['network.color'], GREEN);
+});
