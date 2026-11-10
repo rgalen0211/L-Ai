@@ -151,22 +151,26 @@
     button.disabled = true;
     button.textContent = 'Joining…';
     form.setAttribute('aria-busy', 'true');
-    const headers = { apikey: key, 'Content-Type': 'application/json', Prefer: 'return=minimal' };
+    const headers = { apikey: key, 'Content-Type': 'application/json' };
     // Legacy anon keys are JWTs and go in Authorization too; publishable keys must not.
     if (key.startsWith('eyJ')) headers.Authorization = `Bearer ${key}`;
-    const useCase = form.elements.use_case.value.trim();
+    // One line, 140 characters at most: the join call's own limit (CONNECT's join_waitlist).
+    const useCase = form.elements.use_case.value.replace(/\s*[\r\n]+\s*/g, ' ').trim().slice(0, 140);
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 30000);
     try {
-      const response = await fetch(`${baseUrl}/rest/v1/ryagram_waitlist`, {
+      // The page calls join_waitlist, never the table: a new and a repeat address get the SAME answer, so this page cannot be used to test who is on the list.
+      const response = await fetch(`${baseUrl}/rest/v1/rpc/join_waitlist`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ email: form.elements.email.value.trim(), use_case: useCase || null, source: landedFrom }),
+        body: JSON.stringify({ p_email: form.elements.email.value.trim(), p_reason: useCase || null, p_source: landedFrom }),
         signal: controller.signal
       });
-      // 409 is the unique-email rule: already on the list, which is the outcome they wanted.
-      // Same message either way, so the form can't be used to test who has signed up.
-      if (response.ok || response.status === 409) { joined(); return; }
+      if (response.ok) { joined(); return; }
+      // A refusal carries one plain sentence in the error's message. Show it only if it looks like that (short, no address, no database words); anything else gets the page's own line.
+      let sentence = '';
+      try { const body = await response.json(); if (body && typeof body.message === 'string') sentence = body.message.trim(); } catch { /* not JSON: the page's own line */ }
+      if (response.status >= 400 && response.status < 500 && sentence && sentence.length <= 160 && !/[@"{}]|violates|constraint|duplicate|key /i.test(sentence)) { say(sentence); return; }
       say(`We couldn’t add you just now. Please try again, or email ${CONTACT}.`);
     } catch {
       say(`The connection dropped before we could confirm. Your details are still here; try again, or email ${CONTACT}.`);
