@@ -72,6 +72,13 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
     engine_error: "Drawing the film's picture did not work this time. Open the editor again in about ten minutes to try again.",
     card_rejected: "The film's picture was drawn but could not be used.",
   };
+  /** A picture too big for the card (a county map): the worker says exactly 'too_big <characters> <limit>' (digits only), never free text; anything else is not shown as a size. */
+  const tooBig = (detail: unknown): { characters: number; limit: number } | null => {
+    const m = typeof detail === "string" ? /^too_big (\d{1,9}) (\d{1,9})$/.exec(detail) : null;
+    if (!m) return null;
+    const characters = Number(m[1]), limit = Number(m[2]);
+    return limit >= 1000 && characters > limit ? { characters, limit } : null;
+  };
   const shape = (r: FilmCardRead, have: string | null): Record<string, unknown> => {
     if (r.state === "ready") {
       const sha = (r.card as { basis?: { story_sha256?: unknown } } | null | undefined)?.basis?.story_sha256;
@@ -80,13 +87,18 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
       if (have && have === r.built_sha256) return { state: "ready", unchanged: true, stale: r.stale === true, built_sha256: r.built_sha256, ...refresh };
       return { state: "ready", stale: r.stale === true, built_sha256: r.built_sha256, ...refresh, card: r.card };
     }
-    if (r.state === "failed") { const code = r.fail_code && FAIL_WORDS[r.fail_code] ? r.fail_code : "engine_error"; return { state: "failed", code, message: FAIL_WORDS[code] }; }
+    if (r.state === "failed") {
+      const code = r.fail_code && FAIL_WORDS[r.fail_code] ? r.fail_code : "engine_error";
+      const size = code === "view_not_supported" ? tooBig(r.fail_detail) : null;
+      if (size) return { state: "failed", code, size, message: `This film's picture is too detailed to draw in the chat: it would be ${size.characters.toLocaleString("en-US")} characters and the limit is ${size.limit.toLocaleString("en-US")}. The editor keeps its stand-in picture.` };
+      return { state: "failed", code, message: FAIL_WORDS[code] };
+    }
     if (r.state === "asked" || r.state === "claimed") return { state: r.state, waited_seconds: Math.max(0, Math.floor(Number(r.waited_s) || 0)) };
     return { state: "none" };
   };
   const filmCard: ToolDef = {
     name: FILM_CARD_TOOL, title: "Editor panel: the film's picture and colours", scope: "read", readOnly: false, idempotent: true, chatEditor: "app",
-    description: "ONLY for the Ryagram editor panel in this conversation; do not call it yourself. Asks for, and reads, the real colours and one real still picture of the person's film (drawn by the Ryagram computer). It changes nothing in the film.",
+    description: "ONLY for the Ryagram editor panel in this conversation, which calls it. Asks for, and reads, the real colours and one real still picture of the person's film (drawn by the Ryagram computer). It changes nothing in the film.",
     inputSchema: obj({ p_project: uuid, p_ask: { type: "boolean" }, p_have: { type: "string", pattern: "^[0-9a-f]{64}$" } }, ["p_project"]),
     async run(a, ctx: ToolCtx) {
       const get = ctx.data.getFilmCard, ask = ctx.data.askFilmCard;

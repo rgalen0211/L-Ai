@@ -12,6 +12,12 @@ const scratch = path.join(root, '.mut-card');
 const FC = 'supabase/functions/connect-core/film_card.ts', ET = 'supabase/functions/connect-core/editor_tools.ts', FK = 'supabase/functions/connect-core/fake.ts', TY = 'supabase/functions/connect-core/types.ts', DB = 'supabase/functions/connect/db.ts';
 const SUITES = ['connect-film-card.test.mjs', 'connect-chat-editor-server.test.mjs'];
 const mutants = [
+  // ---- a county map the engine refused for its size
+  ['any detail is shown as a size', ET, '/^too_big (\\d{1,9}) (\\d{1,9})$/.exec(detail)', '/^too_big (\\d+) (\\d+)/.exec(detail)'],
+  ['a size whose picture is not over the limit is shown', ET, 'return limit >= 1000 && characters > limit ? { characters, limit } : null;', 'return { characters, limit };'],
+  ['a size detail on any code is shown as a size', ET, 'const size = code === "view_not_supported" ? tooBig(r.fail_detail) : null;', 'const size = tooBig(r.fail_detail);'],
+  ['the size sentence leaves out the numbers', ET, 'it would be ${size.characters.toLocaleString("en-US")} characters and the limit is ${size.limit.toLocaleString("en-US")}.', 'it would be too many characters.'],
+  ['the size is never reported', ET, 'return { state: "failed", code, size, message:', 'return { state: "failed", code, message:'],
   // ---- a failed picture is asked for again (only when the database says ten minutes have passed)
   ['a failed picture is never asked for again, whatever the words say', ET, ' || again) && a.p_ask === true) {', ') && a.p_ask === true) {'],
   ['a failed picture is asked for again whatever the reason it failed', ET, 'const again = (r.state === "failed" && r.retry === true)', 'const again = (r.state === "failed")'],
