@@ -4,10 +4,15 @@
 // A host that does not know MCP Apps ignores all of that and shows the tool's text, which is unchanged.
 // Spec: MCP Apps extension (modelcontextprotocol/ext-apps, 2026-01-26): tool `_meta.ui.resourceUri`, resource mimeType `text/html;profile=mcp-app`, resource `_meta.ui` { csp, domain, prefersBorder }.
 
-import { EDITOR_HTML } from "./editor_page.ts";
+import { EDITOR_BUILD, EDITOR_HTML } from "./editor_page.ts";
 
 export const CARD_URI = "ui://ryagram/card";
-export const EDITOR_URI = "ui://ryagram/editor";
+/** The editor page's address changes with every build of the page (EDITOR_BUILD is a hash of everything it is made from). A host that keeps pages by address (Claude fetches a connector's pages once, then reuses them) can then never show a stale page under the new address. */
+export const EDITOR_URI = "ui://ryagram/editor-" + EDITOR_BUILD;
+/** The address before 11-08, and any address of the same shape from an earlier build. A host that still holds an old tools list asks for one of them; it is answered with the CURRENT page (never an old one) under the address it asked for, and only they are not listed. */
+export const EDITOR_URI_LEGACY = "ui://ryagram/editor";
+const EDITOR_ADDRESS = /^ui:\/\/ryagram\/editor-[0-9a-f]{12}$/;
+export const isEditorUri = (u: unknown): boolean => u === EDITOR_URI_LEGACY || (typeof u === "string" && EDITOR_ADDRESS.test(u));
 export const MCP_APP_MIME = "text/html;profile=mcp-app";
 /** The most the card page may weigh. A test fails above it: the card is a glance, not an app. */
 export const CARD_MAX_BYTES = 12 * 1024;
@@ -123,8 +128,9 @@ export function resourceList(cfg?: McpAppConfig) {
 
 /** null = no such page. */
 export function readResource(uri: unknown, cfg: McpAppConfig) {
-  if (uri !== CARD_URI && !(uri === EDITOR_URI && cfg.chatEditor)) return null;
+  const editor = isEditorUri(uri);
+  if (uri !== CARD_URI && !(editor && cfg.chatEditor)) return null;
   const ui: Record<string, unknown> = { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false };
   if (cfg.uiDomain && UI_DOMAIN.test(cfg.uiDomain)) ui.domain = cfg.uiDomain;
-  return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: uri === EDITOR_URI ? EDITOR_HTML : cardHtml(cfg.appUrl), _meta: { ui } }] };
+  return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: editor ? EDITOR_HTML : cardHtml(cfg.appUrl), _meta: { ui } }] };
 }

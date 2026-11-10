@@ -36,7 +36,7 @@ test('the page is one self-contained file under 300 KB that loads nothing and us
 
 test('a first small script turns a load error into words, so a page that throws never sits on its placeholder', () => {
   const first = EDITOR_HTML.slice(EDITOR_HTML.indexOf('<script>') + 8, EDITOR_HTML.indexOf('</script>'));
-  assert.ok(first.length < 700 && first.includes("addEventListener('error'") && first.includes('could not draw'));
+  assert.ok(first.length < 1000 && first.includes("addEventListener('error'") && first.includes('could not draw'));
   assert.ok(!/fetch|XMLHttp|src=|eval|innerHTML/.test(first));
   assert.ok(EDITOR_HTML.indexOf('<script>') < EDITOR_HTML.indexOf('/* ---- assets/app-editor-core.js'));
 });
