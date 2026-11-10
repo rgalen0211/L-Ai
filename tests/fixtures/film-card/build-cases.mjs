@@ -30,6 +30,7 @@ export function cases() {
     ['good with extra look keys', 'a view that names more colours than the five', mod((c) => { c.look['network.glow'] = '#ffffff'; })],
     ['good bar race card with one look key', 'a view lists only the keys it has: page.background is the one key every card carries (the bar race view of the engine)', mod((c) => { c.basis.view = 'bars'; c.look = { 'page.background': '#14141a' }; })],
     ['good map card with all its keys', 'a map view lists its own keys, here the five and two map colours', mod((c) => { c.basis.view = 'choropleth'; c.look['choropleth.low'] = '#1b2a41'; c.look['choropleth.high'] = '#f2c14e'; })],
+    ['good text fitted to a length', 'lengthAdjust is spacing or spacingAndGlyphs and xml:space is preserve or default (the bar race still of the engine uses them)', withSvg(SVG('<text x="20" y="40" font-size="20" textLength="120.5" lengthAdjust="spacing" xml:space="preserve" fill="#ffffff">Rent  index</text><text x="20" y="80" textLength="90" lengthAdjust="spacingAndGlyphs" xml:space="default">Year</text>'))],
     ['good text with a text length', 'textLength is a plain presentation attribute: a number only', withSvg(SVG('<text x="20" y="40" font-size="20" textLength="120.5" fill="#ffffff">Rent</text>'))],
   ];
   const bad = [
@@ -37,6 +38,9 @@ export function cases() {
     ['missing a required look key', 'page.background is the one required look key', mod((c) => { delete c.look['page.background']; })],
     ['a look with other colours but no page background', 'the page background is required even when the view lists other keys', mod((c) => { c.look = { 'network.color': '#6fd1bd', 'state.fill': '#23232d' }; })],
     ['an empty look', 'a card must say at least its page background', mod((c) => { c.look = {}; })],
+    ['a length adjustment that is not an allowed word', 'lengthAdjust is only spacing or spacingAndGlyphs', withSvg(SVG('<text x="1" y="1" textLength="50" lengthAdjust="stretch">a</text>'))],
+    ['an xml:space that is not an allowed word', 'xml:space is only preserve or default', withSvg(SVG('<text x="1" y="1" xml:space="remove">a</text>'))],
+    ['an xml attribute that is not on the list', 'xml:lang is not allowed (only xml:space is)', withSvg(SVG('<text x="1" y="1" xml:lang="en">a</text>'))],
     ['a text length that is not a plain number', 'textLength is a number only', withSvg(SVG('<text x="1" y="1" textLength="abc">a</text>'))],
     ['a text length written as an expression', 'textLength is a plain number, never an expression or a unit', withSvg(SVG('<text x="1" y="1" textLength="1e3">a</text>'))],
     ['a colour that is not hex', 'colours are 6-digit hex only', mod((c) => { c.look['network.color'] = 'red'; })],

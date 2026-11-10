@@ -44,6 +44,9 @@ declare
   me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
   v public.versions; same public.film_card_requests; waiting int; today int; nid uuid;
 begin
+  -- One ask at a time per person: two asks in flight together (an AI making parallel tool calls) would both count the same open requests and both insert, passing the 5-open and 100-a-day limits and storing the same film twice.
+  -- The second waits here until the first has committed, then counts it. The lock is released at the end of the transaction; another person's ask is never held by it. (WORKER's finding for the county and place asks; the same lock there.)
+  perform pg_advisory_xact_lock(hashtextextended('film_card:' || me::text, 0));
   perform ryagram_private.film_card_sweep();
   select ver.* into v from public.versions ver join public.projects p on p.id = ver.project_id
     where ver.project_id = p_project and ver.owner_id = me and p.owner_id = me and p.archived_at is null order by ver.number desc limit 1;
