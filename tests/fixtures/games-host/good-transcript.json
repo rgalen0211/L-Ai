@@ -237,7 +237,14 @@
   "tool": "next_round",
   "args": {
    "game": "trivia",
-   "prompt": "Which made-up animal lays square eggs?"
+   "prompt": "Which made-up animal lays square eggs?",
+   "answer": "The glimmerfox",
+   "options": [
+    "The glimmerfox",
+    "The moss duck",
+    "The tin hen",
+    "The paper owl"
+   ]
   },
   "result": {
    "content": [

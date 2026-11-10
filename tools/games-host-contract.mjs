@@ -66,7 +66,20 @@ export function checkManifest(tools) {
       if (/url|address|path|file|^ip$|host|link/i.test(k)) p.push(`${at}: the input ${short(k)} would take an address or a file.`);
       if (isObj(v) && v.type === 'string' && !(Number.isInteger(v.maxLength) || Array.isArray(v.enum) || typeof v.pattern === 'string')) p.push(`${at}: the text input ${short(k)} needs a maximum length, a list of values or a pattern.`);
       if (isObj(v) && v.type === 'array' && !Number.isInteger(v.maxItems)) p.push(`${at}: the list input ${short(k)} needs a maximum size.`);
+      if (isObj(v) && v.type === 'array' && isObj(v.items) && v.items.type === 'string' && !(Number.isInteger(v.items.maxLength) || Array.isArray(v.items.enum) || typeof v.items.pattern === 'string')) p.push(`${at}: the items of the list input ${short(k)} need a maximum length.`);
       if (isObj(v) && v.format === 'uri') p.push(`${at}: the input ${short(k)} takes a web address.`);
+    }
+    // the AI-written round and the AI's own seat (GAMES 09:48, CONNECT 11-10): each input is bounded so nothing long or free-form can come in
+    if (n === 'next_round' && isObj(s) && isObj(s.properties)) {
+      const pr = s.properties;
+      if (isObj(pr.answer) && !(pr.answer.type === 'string' && Number.isInteger(pr.answer.maxLength) && pr.answer.maxLength <= 120)) p.push(`${at}: answer must be text of at most 120 characters.`);
+      if (isObj(pr.options) && !(pr.options.type === 'array' && Number.isInteger(pr.options.maxItems) && pr.options.maxItems <= 4 && isObj(pr.options.items) && pr.options.items.type === 'string' && Number.isInteger(pr.options.items.maxLength) && pr.options.items.maxLength <= 60)) p.push(`${at}: options must be a list of at most 4 texts of at most 60 characters each.`);
+    }
+    if (n === 'play' && isObj(s) && isObj(s.properties)) {
+      const pr = s.properties;
+      if ('move' in pr) p.push(`${at}: play takes a guess or a choice, not a free move.`);
+      if (isObj(pr.guess) && !(pr.guess.type === 'string' && Number.isInteger(pr.guess.maxLength) && pr.guess.maxLength <= 120)) p.push(`${at}: guess must be text of at most 120 characters.`);
+      if (isObj(pr.choice) && !(pr.choice.type === 'string' && (pr.choice.pattern === '^[A-Z]$' || (Array.isArray(pr.choice.enum) && pr.choice.enum.length <= 26 && pr.choice.enum.every((x) => /^[A-Z]$/.test(x)))))) p.push(`${at}: choice must be exactly one capital letter.`);
     }
     const ui = isObj(t._meta) && isObj(t._meta.ui) ? t._meta.ui : null;
     if (CARD_TOOLS.includes(n)) { if (!ui || ui.resourceUri !== CARD_URI) p.push(`${at}: it shows the join card, so _meta.ui.resourceUri must be ${CARD_URI}.`); }
@@ -158,8 +171,8 @@ export function checkTranscript(entries) {
     }
     if (tool === 'reveal' && Number.isInteger(sc.round) && !sc.refusal) lastRevealRound = sc.round;
     // a round the AI wrote: its own seat sits out
-    if (tool === 'next_round' && isObj(e.args) && typeof e.args.prompt === 'string' && !sc.refusal) {
-      if (sc.written_by_ai !== true) p.push(`${label}: a round with a prompt the AI wrote must say written_by_ai.`);
+    if (tool === 'next_round' && isObj(e.args) && (typeof e.args.prompt === 'string' || typeof e.args.answer === 'string' || Array.isArray(e.args.options)) && !sc.refusal) {
+      if (sc.written_by_ai !== true) p.push(`${label}: a round the AI wrote (a prompt, an answer or options) must say written_by_ai.`);
       if (sc.ai_seat_sits_out !== true) p.push(`${label}: the AI's own seat must sit out a round it wrote.`);
     }
     if (tool === 'play' && isObj(e.args) && e.args.round_written_by_ai === true && !sc.refusal) p.push(`${label}: the AI played a round it wrote.`);

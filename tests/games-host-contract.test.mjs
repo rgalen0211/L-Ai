@@ -59,6 +59,13 @@ const MANIFEST_FAULTS = [
   ['an input that is a web address', (m) => { by(m, 'let_back').inputSchema.properties.name = { type: 'string', maxLength: 40, format: 'uri' }; return m; }, /takes a web address/],
   ['the join card tool shows no page', (m) => { delete by(m, 'join_card')._meta; return m; }, /_meta\.ui\.resourceUri must be ui:\/\/ryagram-games\/join/],
   ['the join card tool shows another page', (m) => { by(m, 'open_room')._meta.ui.resourceUri = 'ui://ryagram-games/other'; return m; }, /_meta\.ui\.resourceUri must be/],
+  ['an answer longer than 120 characters', (m) => { by(m, 'next_round').inputSchema.properties.answer.maxLength = 500; return m; }, /answer must be text of at most 120 characters/],
+  ['options with no size limit on the list', (m) => { delete by(m, 'next_round').inputSchema.properties.options.maxItems; return m; }, /the list input options needs a maximum size|options must be a list of at most 4/],
+  ['options of any length', (m) => { delete by(m, 'next_round').inputSchema.properties.options.items.maxLength; return m; }, /items of the list input options need a maximum length|options must be a list of at most 4 texts/],
+  ['more than four options', (m) => { by(m, 'next_round').inputSchema.properties.options.maxItems = 10; return m; }, /options must be a list of at most 4 texts/],
+  ['a guess longer than 120 characters', (m) => { by(m, 'play').inputSchema.properties.guess.maxLength = 1000; return m; }, /guess must be text of at most 120 characters/],
+  ['a choice that is not one capital letter', (m) => { by(m, 'play').inputSchema.properties.choice.pattern = '^[A-Za-z0-9 ]+$'; return m; }, /choice must be exactly one capital letter/],
+  ['play with a free move again', (m) => { by(m, 'play').inputSchema.properties.move = { type: 'string', maxLength: 120 }; return m; }, /play takes a guess or a choice, not a free move/],
   ['another tool shows a page', (m) => { by(m, 'scores')._meta = { ui: { resourceUri: 'ui://ryagram-games/join' } }; return m; }, /only open_room and join_card show a page/],
 ];
 test('every rule of the tool list has a planted fault that is caught, with its own words', () => {
@@ -75,6 +82,7 @@ test('every rule of the tool list has a planted fault that is caught, with its o
 const at = (t, tool, nth = 0) => t.filter((e) => e.kind === 'call' && e.tool === tool)[nth];
 const sc = (e) => e.result.structuredContent;
 const NIGHT_FAULTS = [
+  ['a round with an answer the AI wrote, not marked written_by_ai', (t) => { const r = at(t, 'next_round', 1); r.args = { game: 'trivia', answer: 'square eggs', options: ['a', 'b', 'c', 'd'] }; delete sc(r).written_by_ai; }, /must say written_by_ai/],
   ['a player name longer than 24 characters', (t) => { sc(at(t, 'join_card')).players[0].name = 'A'.repeat(25); }, /name is longer than 24/],
   ['a player name with a direction character', (t) => { sc(at(t, 'join_card')).players[0].name = 'An' + String.fromCharCode(0x202e) + 'a'; }, /name holds a control or direction character/],
   ['a player name inside the tool\'s own sentence', (t) => { at(t, 'join_card').result.content[0].text = 'Join code KXQT. Ana and Ben are in.'; }, /name appears inside the tool's own sentence/],
@@ -122,7 +130,7 @@ const NIGHT_FAULTS = [
   ['scores in a round in play for the wrong round', (t) => { sc(at(t, 'scores', 1)).round = 2; }, /not the round in play/],
   ['a round the AI wrote that does not say so', (t) => { delete sc(at(t, 'next_round', 1)).written_by_ai; }, /must say written_by_ai/],
   ['a round the AI wrote that the AI plays', (t) => { delete sc(at(t, 'next_round', 1)).ai_seat_sits_out; }, /must sit out a round it wrote/],
-  ['the AI plays a round it wrote', (t) => { t.push({ kind: 'call', tool: 'play', args: { token: 'seat-token', move: 'a guess', round_written_by_ai: true }, result: { content: [{ type: 'text', text: 'Played.' }], structuredContent: { refusal: null, changed_at: 10 }, isError: false }, phase: 'round_in_play' }); }, /played a round it wrote/],
+  ['the AI plays a round it wrote', (t) => { t.push({ kind: 'call', tool: 'play', args: { token: 'seat-token', guess: 'a guess', round_written_by_ai: true }, result: { content: [{ type: 'text', text: 'Played.' }], structuredContent: { refusal: null, changed_at: 10 }, isError: false }, phase: 'round_in_play' }); }, /played a round it wrote/],
 ];
 test('every rule of a night has a planted fault that is caught, with its own words', () => {
   for (const [name, f, want] of NIGHT_FAULTS) {

@@ -101,6 +101,18 @@
     "prompt": {
      "type": "string",
      "maxLength": 200
+    },
+    "answer": {
+     "type": "string",
+     "maxLength": 120
+    },
+    "options": {
+     "type": "array",
+     "maxItems": 4,
+     "items": {
+      "type": "string",
+      "maxLength": 60
+     }
     }
    },
    "required": [],
@@ -350,14 +362,17 @@
      "type": "string",
      "maxLength": 64
     },
-    "move": {
+    "guess": {
      "type": "string",
      "maxLength": 120
+    },
+    "choice": {
+     "type": "string",
+     "pattern": "^[A-Z]$"
     }
    },
    "required": [
-    "token",
-    "move"
+    "token"
    ],
    "additionalProperties": false
   },

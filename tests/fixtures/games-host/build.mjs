@@ -14,7 +14,7 @@ export function goodManifest() {
     tool('open_room', 'Starts the game room on the host PC for tonight: how many rounds and which games are on. Returns the join code and which games are on, and why any is not.', obj({ rounds: { type: 'integer', minimum: 1, maximum: 30 }, seed: { type: 'integer', minimum: 0, maximum: 2147483647 }, practice: { type: 'boolean' } }, ['rounds']), ann(false, false, false), { _meta: CARD }),
     tool('join_card', 'Shows the join card: the 4-letter code and the players so far. It never holds the phone address.' + NOTE, obj(), ann(true), { _meta: CARD }),
     tool('room_status', 'Reads what the TV shows. Every result carries changed_at; look again only when the person asks or the timer ends, and pass since to get nothing back when nothing changed.' + NOTE, obj({ since: { type: 'integer', minimum: 0 } }), ann(true)),
-    tool('next_round', 'Starts the next round: the game and, for a text game, an optional prompt the AI wrote (it passes the house rules, and the AI sits that round out).', obj({ game: { type: 'string', enum: ['trivia', 'bluff', 'old_maid', 'guess_who', 'act_it_out'] }, prompt: { type: 'string', maxLength: 200 } }), ann(false, false, false)),
+    tool('next_round', 'Starts the next round: the game and, for a text game, an optional prompt the AI wrote (it passes the house rules, and the AI sits that round out).', obj({ game: { type: 'string', enum: ['trivia', 'bluff', 'old_maid', 'guess_who', 'act_it_out'] }, prompt: { type: 'string', maxLength: 200 }, answer: { type: 'string', maxLength: 120 }, options: { type: 'array', maxItems: 4, items: { type: 'string', maxLength: 60 } } }), ann(false, false, false)),
     tool('lock', 'Locks the round: no more answers.', obj(), ann(false, false, true)),
     tool('reveal', 'Reveals the round on the TV. Refused while a Bluff is still being written.', obj(), ann(false, false, false)),
     tool('skip', 'Skips the round in play and goes on to the next.', obj(), ann(false, false, false)),
@@ -26,7 +26,7 @@ export function goodManifest() {
     tool('house_rules', 'Sets the house rules: the timer, the difficulty, the keep-out list (a word count comes back, never the words).', obj({ timer_s: { type: 'integer', minimum: 10, maximum: 300 }, difficulty: { type: 'string', enum: ['easy', 'normal', 'hard'] } }), ann(false, false, true)),
     tool('scores', 'Reads the standings after the last reveal, for the AI to announce. Nothing from a round in play.' + NOTE, obj(), ann(true)),
     tool('join_as_player', 'Gives the AI its own seat (shown on the TV as AI). Returns a token for that seat only.', obj({ name: { type: 'string', maxLength: 40 } }, ['name']), ann(false, false, false)),
-    tool('play', 'Plays the AI\'s own seat: a guess, a vote, a card or a clue. Only for its own seat.' + NOTE, obj({ token: { type: 'string', maxLength: 64 }, move: { type: 'string', maxLength: 120 } }, ['token', 'move']), ann(false, false, false)),
+    tool('play', 'Plays the AI\'s own seat: a guess, a vote, a card or a clue. Only for its own seat.' + NOTE, obj({ token: { type: 'string', maxLength: 64 }, guess: { type: 'string', maxLength: 120 }, choice: { type: 'string', pattern: '^[A-Z]$' } }, ['token']), ann(false, false, false)),
   ];
 }
 
@@ -45,7 +45,7 @@ export function goodTranscript() {
     call('lock', {}, R('Locked.', { changed_at: 5, phase: 'locked' }), 'writing'),
     call('reveal', {}, R('Revealed round 1.', { changed_at: 6, round: 1, phase: 'revealed' }), 'locked'),
     call('scores', {}, R('After round 1: Ana 3, Ben 1.', { changed_at: 6, as_of: 'last_reveal', round: 1, standings: [{ name: 'Ana', points: 3 }, { name: 'Ben', points: 1 }] }), 'revealed'),
-    call('next_round', { game: 'trivia', prompt: 'Which made-up animal lays square eggs?' }, R('Round 2: Trivia, a question the AI wrote. The AI sits this round out.', { changed_at: 7, round: 2, game: 'trivia', written_by_ai: true, ai_seat_sits_out: true }), 'between_rounds'),
+    call('next_round', { game: 'trivia', prompt: 'Which made-up animal lays square eggs?', answer: 'The glimmerfox', options: ['The glimmerfox', 'The moss duck', 'The tin hen', 'The paper owl'] }, R('Round 2: Trivia, a question the AI wrote. The AI sits this round out.', { changed_at: 7, round: 2, game: 'trivia', written_by_ai: true, ai_seat_sits_out: true }), 'between_rounds'),
     call('scores', {}, R('After round 1 (round 2 is in play): Ana 3, Ben 1.', { changed_at: 7, as_of: 'last_reveal', round: 1, standings: [{ name: 'Ana', points: 3 }, { name: 'Ben', points: 1 }] }), 'round_in_play'),
     call('remove', { name: 'Ben' }, R('Waiting for the host to press Confirm on the TV.', { changed_at: 8, state: 'waiting', ask_id: 'ask-0001', expires_in_s: 60 }), 'round_in_play'),
     { kind: 'tv_confirm', ask_id: 'ask-0001' },
