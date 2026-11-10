@@ -93,7 +93,7 @@ const mutants = [
   ['a failed reason that names a folder is shown', TL, 'const detail = row.fail_detail ? plainWords(row.fail_detail, 300) : null;', 'const detail = row.fail_detail ? row.fail_detail : null;'],
   ['free text is not marked as data', TL, 'countyLines(rep, (s) => untrusted("report-sentence", s))', 'countyLines(rep, (s) => s)'],
   ['an unusable answer is shown', TL, 'if (!rep) return refuse("The answer was not in a shape this connection knows (a figure', 'if (false) return refuse("The answer was not in a shape this connection knows (a figure'],
-  ['the ask tool leaves the description unlike GEO\'s', TL, 'description: COUNTY_PROFILE_DESCRIPTION + " Read the answer with county_answer.",', 'description: "Looks up a county. Read the answer with county_answer.",'],
+  ['the ask tool leaves the description unlike GEO\'s', TL, 'description: COUNTY_PROFILE_DESCRIPTION + " The answer is read with county_answer.",', 'description: "Looks up a county. Read the answer with county_answer.",'],
   ['the hourly limit is far too high', TY, 'countyQuestionsPerHourPerUser: 30,', 'countyQuestionsPerHourPerUser: 3000,'],
   // ---- the database layer and the stand-in
   ['the ask goes to the read function', DB, 'askCounty: (q) => self.fn("connect_county_ask"', 'askCounty: (q) => self.fn("connect_county_get"'],

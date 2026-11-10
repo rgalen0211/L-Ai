@@ -1317,14 +1317,14 @@ async function askCountyTool(shape: "profile" | "compare", a: Record<string, unk
 }
 const countyProfile: ToolDef = {
   name: "county_profile", title: "A county's restaurant figures", scope: "read", readOnly: true, listed: false,
-  description: COUNTY_PROFILE_DESCRIPTION + " Read the answer with county_answer.",
+  description: COUNTY_PROFILE_DESCRIPTION + " The answer is read with county_answer.",
   inputSchema: obj({ county: { type: "string", description: "The county's 5-digit FIPS code: 39057 (Greene County, Ohio) or 39113 (Montgomery County, Ohio) in version one." },
     kind: { type: "string", description: "limited_service (limited-service restaurants), grocery (supermarkets and other grocery stores), pharmacy (pharmacies and drug stores) or eating_places (restaurants and other eating places). Leave out to mean limited_service." } }, ["county"]),
   run: (a, ctx) => askCountyTool("profile", a, ctx),
 };
 const compareCounties: ToolDef = {
   name: "compare_counties", title: "Compare counties' restaurant figures", scope: "read", readOnly: true, listed: false,
-  description: COMPARE_COUNTIES_DESCRIPTION + " Read the answer with county_answer.",
+  description: COMPARE_COUNTIES_DESCRIPTION + " The answer is read with county_answer.",
   inputSchema: obj({ counties: { description: "A list of two or three different 5-digit FIPS codes, for example [\"39057\", \"39113\"]. Three is the most." },
     kind: { type: "string", description: "limited_service, grocery, pharmacy or eating_places. Leave out to mean limited_service." },
     rule: { type: "string", description: "Only if the person states one: per_10k_low_first, per_10k_high_first or count_high_first. With none, the counties stay in the order asked." },
@@ -1333,7 +1333,7 @@ const compareCounties: ToolDef = {
 };
 const countyAnswer: ToolDef = {
   name: "county_answer", title: "Read the answer to a county question", scope: "read", readOnly: true, listed: false,
-  description: "Reads the answer to a county question asked with county_profile or compare_counties (its id). Read-only: it changes nothing. Every figure carries its label (Observed or Calculated), its source and its year. Repeat the fixed lines it opens with, word for word.",
+  description: "Reads the answer to a county question asked with county_profile or compare_counties (its id). Read-only: it changes nothing. Every figure carries its label (Observed or Calculated), its source and its year, and the answer opens with fixed lines that are part of it.",
   inputSchema: obj({ id: uuid }, ["id"]),
   async run(a, ctx) {
     const sw = ctx.deps.county;
