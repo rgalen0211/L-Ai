@@ -88,72 +88,72 @@
        {
         "year": 1998,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 1999,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2000,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2001,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2002,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2003,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2004,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2005,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2006,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2007,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2008,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2009,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2010,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2011,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2012,
@@ -229,103 +229,103 @@
        2012,
        2020
       ],
-      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change Before 2012 the count is the sum of the two older groups (7221 and 7222), not a published count; from 2012 it is the published count.",
       "years": [
        {
         "year": 1998,
         "value": 13.47,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 146266,
         "estimate": "1990-1999"
        },
        {
         "year": 1999,
         "value": 13.09,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 147479,
         "estimate": "1990-1999"
        },
        {
         "year": 2000,
         "value": 12.87,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 148401,
         "estimate": "2000-2010"
        },
        {
         "year": 2001,
         "value": 12.9,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 149643,
         "estimate": "2000-2010"
        },
        {
         "year": 2002,
         "value": 13.4,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 151537,
         "estimate": "2000-2010"
        },
        {
         "year": 2003,
         "value": 13.2,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 153064,
         "estimate": "2000-2010"
        },
        {
         "year": 2004,
         "value": 13.77,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 155442,
         "estimate": "2000-2010"
        },
        {
         "year": 2005,
         "value": 14.02,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 156223,
         "estimate": "2000-2010"
        },
        {
         "year": 2006,
         "value": 15.14,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 157850,
         "estimate": "2000-2010"
        },
        {
         "year": 2007,
         "value": 15.65,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 159055,
         "estimate": "2000-2010"
        },
        {
         "year": 2008,
         "value": 15.61,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 160115,
         "estimate": "2000-2010"
        },
        {
         "year": 2009,
         "value": 15.64,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 161075,
         "estimate": "2000-2010"
        },
        {
         "year": 2010,
         "value": 15.78,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 161548,
         "estimate": "2010-2020"
        },
        {
         "year": 2011,
         "value": 15.37,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 163345,
         "estimate": "2010-2020"
        },
@@ -443,72 +443,72 @@
        {
         "year": 1998,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 1999,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2000,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2001,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2002,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2003,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2004,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2005,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2006,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2007,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2008,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2009,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2010,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2011,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2012,
@@ -584,103 +584,103 @@
        2012,
        2020
       ],
-      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change Before 2012 the count is the sum of the two older groups (7221 and 7222), not a published count; from 2012 it is the published count.",
       "years": [
        {
         "year": 1998,
         "value": 14.45,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 566715,
         "estimate": "1990-1999"
        },
        {
         "year": 1999,
         "value": 13.93,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 561944,
         "estimate": "1990-1999"
        },
        {
         "year": 2000,
         "value": 14.22,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 558522,
         "estimate": "2000-2010"
        },
        {
         "year": 2001,
         "value": 14.26,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 555536,
         "estimate": "2000-2010"
        },
        {
         "year": 2002,
         "value": 14.64,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 553170,
         "estimate": "2000-2010"
        },
        {
         "year": 2003,
         "value": 14.95,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 551742,
         "estimate": "2000-2010"
        },
        {
         "year": 2004,
         "value": 15.08,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 549713,
         "estimate": "2000-2010"
        },
        {
         "year": 2005,
         "value": 15.28,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 546979,
         "estimate": "2000-2010"
        },
        {
         "year": 2006,
         "value": 15.19,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 543620,
         "estimate": "2000-2010"
        },
        {
         "year": 2007,
         "value": 15.65,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 540667,
         "estimate": "2000-2010"
        },
        {
         "year": 2008,
         "value": 15.81,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 537664,
         "estimate": "2000-2010"
        },
        {
         "year": 2009,
         "value": 15.73,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 535294,
         "estimate": "2000-2010"
        },
        {
         "year": 2010,
         "value": 16.03,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 535751,
         "estimate": "2010-2020"
        },
        {
         "year": 2011,
         "value": 16.29,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 535298,
         "estimate": "2010-2020"
        },
@@ -798,72 +798,72 @@
        {
         "year": 1998,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 1999,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2000,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2001,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2002,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2003,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2004,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2005,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2006,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2007,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2008,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2009,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2010,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2011,
         "value": null,
-        "note": "no figure: no count was published for this group before 2012 (the industry codes changed); the sum of the two older groups is its own Calculated series"
+        "note": "no figure before 2012: see the series note"
        },
        {
         "year": 2012,
@@ -939,103 +939,103 @@
        2012,
        2020
       ],
-      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change Before 2012 the count is the sum of the two older groups (7221 and 7222), not a published count; from 2012 it is the published count.",
       "years": [
        {
         "year": 1998,
         "value": 12.01,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 145742,
         "estimate": "1990-1999"
        },
        {
         "year": 1999,
         "value": 11.64,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 145159,
         "estimate": "1990-1999"
        },
        {
         "year": 2000,
         "value": 12.31,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 144605,
         "estimate": "2000-2010"
        },
        {
         "year": 2001,
         "value": 12.03,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 143803,
         "estimate": "2000-2010"
        },
        {
         "year": 2002,
         "value": 11.66,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 143229,
         "estimate": "2000-2010"
        },
        {
         "year": 2003,
         "value": 11.64,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 141758,
         "estimate": "2000-2010"
        },
        {
         "year": 2004,
         "value": 11.53,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 141380,
         "estimate": "2000-2010"
        },
        {
         "year": 2005,
         "value": 11.46,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 141367,
         "estimate": "2000-2010"
        },
        {
         "year": 2006,
         "value": 11.09,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 140668,
         "estimate": "2000-2010"
        },
        {
         "year": 2007,
         "value": 11.66,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 139829,
         "estimate": "2000-2010"
        },
        {
         "year": 2008,
         "value": 11.69,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 139404,
         "estimate": "2000-2010"
        },
        {
         "year": 2009,
         "value": 12.03,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 138778,
         "estimate": "2000-2010"
        },
        {
         "year": 2010,
         "value": 12.29,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 138325,
         "estimate": "2010-2020"
        },
        {
         "year": 2011,
         "value": 12.67,
-        "note": "Calculated from the sum of the two older groups (7221 and 7222), not from a published count",
+        "note": "",
         "residents": 138086,
         "estimate": "2010-2020"
        },

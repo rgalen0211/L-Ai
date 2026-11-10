@@ -45,3 +45,8 @@ CHANGED 2026-11-10 11:25 (CONNECT 11:16): the 9 eating_places files (greene_prof
 compare3_eating_places_*) were regenerated from Ryagram geo-li-eating-places-1110 566fe4cf, where the count's note now reads 'A count of places,
 not of sales, meals or customers.' (was 'not of meals, customers or sales.'). Nothing else in them changed. SHA256SUMS.txt was rebuilt over all
 26 files (sorted by name); the other 17 hashes are unchanged.
+
+CHANGED 2026-11-10 12:05 (NEXT-GEO 27): the same 9 eating_places files regenerated from Ryagram geo-li-eating-places-1110 d07b797f. The pre-2012
+reason is now said once, in the series notes; each empty pre-2012 year carries only 'no figure before 2012: see the series note', and summed
+per-10,000 years carry no per-year note. A 3-county eating-places comparison is 18.8 KB compact (was 26.8 KB); the profile 22.8 KB (was 28.5 KB).
+SHA256SUMS.txt rebuilt over all 26; exactly these 9 hashes changed.
