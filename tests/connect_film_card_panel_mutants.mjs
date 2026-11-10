@@ -17,6 +17,8 @@ const browserOnly = process.argv.includes('--no-browser');
 
 // [name, file, from, to, kind]
 const mutants = [
+  ['the panel drops the text length attribute the connector allows', H, "'letter-spacing', 'textLength', 'dx',", "'letter-spacing', 'dx',", 'source'],
+  ['a text length may be any text', H, "if (a.name === 'textLength' && !", "if (false && !", 'source'],
   ['the chat host does not offer the card', H, 'filmCard: true, drawCard };', 'drawCard };', 'source'],
   ['the editor runs the card code on any host', AE, 'host.filmCard === true && ', '', 'source'],
   ['the picture may hold a script element', H, "const CARD_ELEMENTS = new Set(['svg', 'g',", "const CARD_ELEMENTS = new Set(['script', 'svg', 'g',", 'both'],

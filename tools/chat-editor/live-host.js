@@ -109,7 +109,7 @@
   const CARD_TEXT = new Set(['text', 'tspan', 'title']);
   const CARD_ATTRS = new Set(['id', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'd', 'points', 'transform', 'viewBox', 'preserveAspectRatio', 'fill', 'stroke', 'stroke-width',
     'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity', 'fill-opacity', 'opacity', 'fill-rule', 'clip-rule', 'clip-path', 'font-family', 'font-size', 'font-weight', 'font-style',
-    'text-anchor', 'dominant-baseline', 'letter-spacing', 'dx', 'dy', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform']);
+    'text-anchor', 'dominant-baseline', 'letter-spacing', 'textLength', 'dx', 'dy', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform']);
   const URL_REF = /^url\(#([A-Za-z0-9_-]{1,40})\)$/;
   function drawCard(svg) {
     try {
@@ -125,6 +125,7 @@
           if (!CARD_ATTRS.has(a.name)) continue;
           const v = String(a.value);
           if (v.length > 60000) continue;
+          if (a.name === 'textLength' && !/^\d{1,5}(?:\.\d{1,3})?$/.test(v)) continue;                // a plain number only (the connector refuses anything else; this is the second lock)
           if (/url\(/i.test(v)) {
             const m = URL_REF.exec(v);
             if (!m || !['fill', 'stroke', 'clip-path'].includes(a.name)) continue;
