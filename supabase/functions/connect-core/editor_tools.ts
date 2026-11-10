@@ -46,7 +46,7 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
     name: "open_editor", title: "Open the Ryagram editor", scope: "edit", readOnly: true, idempotent: true, chatEditor: "model",
     description: "Opens the Ryagram live editor for ONE of the person's own films, inside this conversation where the assistant can show it. The person can then move through the film, change its look or its clips and see it at once; "
       + "every change they make there is a draft they save or build in the Ryagram app, and you are told in one line when they change something. It changes nothing by itself, costs nothing and starts nothing. "
-      + "For a clip film the person must first have shared their track list with you (a tick in the Ryagram app). Read get_edit_state before you change anything yourself.",
+      + "For a clip film the person must first have shared their track list with you (a tick in the Ryagram app). get_edit_state shows the draft before any change of the assistant's own.",
     inputSchema: obj({ project_id: uuid, mode: MODE }, ["project_id", "mode"]),
     async run(a, ctx) {
       const id = String(a.project_id), mode = a.mode === "compilation" ? "compilation" : "data";
@@ -64,15 +64,15 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
 
   return [
     openEditor,
-    panel("editor_apply_ops", "Editor panel: make changes", "ONLY for the Ryagram editor panel in this conversation; do not call it yourself (use set_look or edit_tracks). Applies the person's changes to the shared draft.",
+    panel("editor_apply_ops", "Editor panel: make changes", "ONLY for the Ryagram editor panel in this conversation, which calls it; the assistant's own tools for this are set_look and edit_tracks. Applies the person's changes to the shared draft.",
       { p_project: uuid, p_mode: MODE, p_base_revision: { type: "integer", minimum: 0, maximum: 1_000_000_000 }, p_ops: { type: "array", minItems: 1, maxItems: 20, items: { type: "object" } } }, false),
-    panel("editor_undo", "Editor panel: undo one change", "ONLY for the Ryagram editor panel; do not call it yourself. Undoes one earlier change made from the panel or by the AI.",
+    panel("editor_undo", "Editor panel: undo one change", "ONLY for the Ryagram editor panel, which calls it. Undoes one earlier change made from the panel or by the AI.",
       { p_project: uuid, p_mode: MODE, p_op_id: { type: "integer", minimum: 1, maximum: 9_007_199_254_740_991 } }, false),
-    panel("editor_undo_all_ai", "Editor panel: undo all AI changes", "ONLY for the Ryagram editor panel; do not call it yourself. Takes back everything the AI side has changed and not had undone.",
+    panel("editor_undo_all_ai", "Editor panel: undo all AI changes", "ONLY for the Ryagram editor panel, which calls it. Takes back everything the AI side has changed and not had undone.",
       { p_project: uuid, p_mode: MODE }, false),
-    panel("my_edit_ops_since", "Editor panel: read the changes", "ONLY for the Ryagram editor panel; do not call it yourself (use get_edit_state). Reads the draft and the changes since a revision.",
+    panel("my_edit_ops_since", "Editor panel: read the changes", "ONLY for the Ryagram editor panel, which calls it; the assistant's own tool for this is get_edit_state. Reads the draft and the changes since a revision.",
       { p_project: uuid, p_mode: MODE, p_revision: { type: "integer", minimum: 0, maximum: 1_000_000_000 } }, true),
-    panel("editor_heartbeat", "Editor panel: still open", "ONLY for the Ryagram editor panel; do not call it yourself. Says an editor is open; changes nothing else.",
+    panel("editor_heartbeat", "Editor panel: still open", "ONLY for the Ryagram editor panel, which calls it. Says an editor is open; changes nothing else.",
       { p_project: uuid, p_mode: MODE }, false),
   ];
 }
