@@ -284,7 +284,9 @@ def main():
                     '<rect width="960" height="540" fill="url(#g1)" style="fill:red" onclick="window.__pwned=2"/>'
                     '<script>window.__pwned=3</script><image href="https://evil.example/x.png" width="10" height="10"/>'
                     '<foreignObject><div>hi</div></foreignObject><use href="#g1"/><path d="M0 0L9 9" stroke="https://evil.example/s" fill="#ffffff"/>'
-                    '<text x="20" y="40" fill="#ffffff" font-size="20">Greene &amp; Montgomery</text></svg>')
+                    '<text x="20" y="40" fill="#ffffff" font-size="20">Greene &amp; Montgomery</text>'
+                    '<text x="20" y="80" textLength="120.5" lengthAdjust="spacing" xml:space="preserve" fill="#ffffff">Fitted</text>'
+                    '<text x="20" y="120" textLength="1e3" lengthAdjust="evil" xml:space="remove" fill="#ffffff">Bad</text></svg>')
             LOOK = {'network.color': '#aa1111', 'network.base_color': '#11aa11', 'network.context_color': '#1111aa', 'state.fill': '#aaaa11', 'page.background': '#11aaaa'}
             CARD = {'schema': 1, 'basis': {'story_sha256': 'a' * 64, 'view': 'network', 'theme': 'dark3'}, 'look': LOOK, 'frame': {'label': '2024', 'width': 960, 'height': 540, 'svg': EVIL}}
 
@@ -324,6 +326,9 @@ def main():
             check(set(tags) <= {'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'title'} and 'rect' in tags and 'text' in tags, 'the picture was rebuilt from the allowed elements only (%s)' % tags)
             attrs = fr12.eval_on_selector_all('.le-cardpic svg, .le-cardpic svg *', 'els => els.flatMap(e => Array.from(e.attributes).map(a => a.name + "=" + a.value))')
             check(not any(a.startswith(('on', 'style', 'href', 'xlink')) for a in attrs) and not any('evil.example' in a for a in attrs), 'no event handler, style, href or outside address survived (%d attributes)' % len(attrs))
+            check('textLength=120.5' in attrs and 'lengthAdjust=spacing' in attrs and 'xml:space=preserve' in attrs, 'a plain text length, a length adjustment and xml:space survive the rebuild')
+            check(not any(a in attrs for a in ('textLength=1e3', 'lengthAdjust=evil', 'xml:space=remove')), 'and the same three with a value that is not allowed are dropped')
+            check(fr12.eval_on_selector_all('.le-cardpic svg text', 'els => els.flatMap(e => Array.from(e.attributes).filter(a => a.name === "xml:space").map(a => a.namespaceURI))') == ['http://www.w3.org/XML/1998/namespace'], 'xml:space is written in the xml namespace')
             ids = fr12.eval_on_selector_all('.le-cardpic svg [id]', 'els => els.map(e => e.id)')
             check(ids and all(i.startswith('lecard-') for i in ids) and any('url(#lecard-g1)' in a for a in attrs), 'every id inside the picture is renamed, and a paint reference follows it (%s)' % ids)
             check('Greene & Montgomery' in fr12.locator('.le-cardpic svg text').first.text_content(), 'text in the picture is text')

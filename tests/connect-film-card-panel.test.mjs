@@ -36,6 +36,8 @@ test('the rebuild keeps no address and no outside reference, renames every id, c
   assert.ok(draw.includes("a.name === 'id' ? 'lecard-' + v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : v"), 'ids are renamed');
   assert.ok(draw.includes("'ur' + 'l(#lecard-' + m[1] + ')'"), 'a paint reference follows the renamed id');
   assert.ok(draw.includes("['fill', 'stroke', 'clip-path'].includes(a.name)"), 'a reference only in the three paint attributes');
+  assert.ok(draw.includes("a.name === 'lengthAdjust' && v !== 'spacing' && v !== 'spacingAndGlyphs') continue;"), 'a length adjustment is one of its two words or it is dropped');
+  assert.ok(draw.includes("if (v === 'preserve' || v === 'default') el.setAttributeNS(XML_NS, 'xml:space', v)"), 'xml:space is kept only as one of its two words, in the xml namespace');
   assert.ok(draw.includes("a.name === 'textLength' && !/^\\d{1,5}(?:\\.\\d{1,3})?$/.test(v)) continue;"), 'a text length is a plain number or it is dropped');
   assert.ok(draw.includes('/javascript:|data:|https?:|\\/\\/|expression\\(/i.test(v)) continue;'), 'no address or script in a value');
   assert.ok(draw.includes("n.namespaceURI === SVG_NS && CARD_ELEMENTS.has(n.localName)"), 'only elements of the SVG namespace on the list');

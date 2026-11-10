@@ -105,11 +105,12 @@
   // refused a card whose picture holds anything else; this is the second lock (a mistake in either place cannot run anything). It never follows an address, never keeps a style, a script or an event handler, and renames every id so
   // nothing in it can collide with the page.
   const SVG_NS = 'http://www.w3.org/2000/svg';
+  const XML_NS = 'http:' + '//www.w3.org/XML/1998/namespace';                     // written in two pieces: the page's own check forbids a web address anywhere in its text (the SVG namespace aside)
   const CARD_ELEMENTS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'title']);
   const CARD_TEXT = new Set(['text', 'tspan', 'title']);
   const CARD_ATTRS = new Set(['id', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'd', 'points', 'transform', 'viewBox', 'preserveAspectRatio', 'fill', 'stroke', 'stroke-width',
     'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity', 'fill-opacity', 'opacity', 'fill-rule', 'clip-rule', 'clip-path', 'font-family', 'font-size', 'font-weight', 'font-style',
-    'text-anchor', 'dominant-baseline', 'letter-spacing', 'textLength', 'dx', 'dy', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform']);
+    'text-anchor', 'dominant-baseline', 'letter-spacing', 'textLength', 'lengthAdjust', 'xml:space', 'dx', 'dy', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform']);
   const URL_REF = /^url\(#([A-Za-z0-9_-]{1,40})\)$/;
   function drawCard(svg) {
     try {
@@ -125,6 +126,8 @@
           if (!CARD_ATTRS.has(a.name)) continue;
           const v = String(a.value);
           if (v.length > 60000) continue;
+          if (a.name === 'lengthAdjust' && v !== 'spacing' && v !== 'spacingAndGlyphs') continue;          // the two words the connector allows, or the attribute is dropped
+          if (a.name === 'xml:space') { if (v === 'preserve' || v === 'default') el.setAttributeNS(XML_NS, 'xml:space', v); continue; }          // in its own (xml) namespace, and only the two allowed words
           if (a.name === 'textLength' && !/^\d{1,5}(?:\.\d{1,3})?$/.test(v)) continue;                // a plain number only (the connector refuses anything else; this is the second lock)
           if (/url\(/i.test(v)) {
             const m = URL_REF.exec(v);

@@ -17,7 +17,12 @@ const browserOnly = process.argv.includes('--no-browser');
 
 // [name, file, from, to, kind]
 const mutants = [
-  ['the panel drops the text length attribute the connector allows', H, "'letter-spacing', 'textLength', 'dx',", "'letter-spacing', 'dx',", 'source'],
+  ['the panel drops the length adjustment the connector allows', H, "'textLength', 'lengthAdjust', 'xml:space', 'dx',", "'textLength', 'xml:space', 'dx',", 'source'],
+  ['the panel drops xml:space the connector allows', H, "'textLength', 'lengthAdjust', 'xml:space', 'dx',", "'textLength', 'lengthAdjust', 'dx',", 'source'],
+  ['a length adjustment may be any word', H, "if (a.name === 'lengthAdjust' && v !== 'spacing'", "if (false && v !== 'spacing'", 'source'],
+  ['xml:space may be any word', H, "if (v === 'preserve' || v === 'default') el.setAttributeNS(", "if (true) el.setAttributeNS(", 'source'],
+  ['xml:space is written outside its namespace', H, "el.setAttributeNS(XML_NS, 'xml:space', v)", "el.setAttribute('xml:space', v)", 'source'],
+  ['the panel drops the text length attribute the connector allows', H, "'letter-spacing', 'textLength', 'lengthAdjust',", "'letter-spacing', 'lengthAdjust',", 'source'],
   ['a text length may be any text', H, "if (a.name === 'textLength' && !", "if (false && !", 'source'],
   ['the chat host does not offer the card', H, 'filmCard: true, drawCard };', 'drawCard };', 'source'],
   ['the editor runs the card code on any host', AE, 'host.filmCard === true && ', '', 'source'],
