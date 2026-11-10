@@ -135,7 +135,7 @@ test('ConnectDb can only call connect_* functions, passes the token hash first, 
 });
 
 test('every SQL function the server names exists in the migration, and none takes an owner', () => {
-  const mig = fs.readFileSync('supabase/migrations/20261018000100_connect_ai.sql', 'utf8');
+  const mig = ['20261018000100_connect_ai.sql', '20261110000100_connect_cimd.sql'].map((f) => fs.readFileSync('supabase/migrations/' + f, 'utf8')).join('\n');
   const src = fs.readFileSync('supabase/functions/connect/db.ts', 'utf8');
   const used = [...src.matchAll(/"(connect_[a-z_]+)"/g)].map((m) => m[1]);
   assert.ok(used.length >= 20);
@@ -166,7 +166,7 @@ test('the function entry holds no Supabase key and reads only its own settings',
   const src = fs.readFileSync('supabase/functions/connect/index.ts', 'utf8');
   assert.doesNotMatch(src, /SERVICE_ROLE|service_role|ANON_KEY|getUser|createClient/);
   // SUPABASE_URL is the project's public address (used only to build the issuer address), not a key
-  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CHAT_EDITOR', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_MCP_APP', 'CONNECT_PUBLIC_URL', 'CONNECT_UI_DOMAIN', 'SUPABASE_URL']);
+  assert.deepEqual([...src.matchAll(/Deno\.env\.get\("([A-Z_]+)"\)/g)].map((m) => m[1]).sort(), ['CONNECT_APP_URL', 'CONNECT_CHAT_EDITOR', 'CONNECT_CIMD', 'CONNECT_CONSENT_URL', 'CONNECT_DB_URL', 'CONNECT_MCP_APP', 'CONNECT_PUBLIC_URL', 'CONNECT_UI_DOMAIN', 'SUPABASE_URL']);
   // the two MCP App settings (inline Ryagram card, off unless CONNECT_MCP_APP is "on") are switches and a public sandbox address: no key, no secret
   assert.match(src, /projectUrl\)\s*\?\s*`\$\{projectUrl\}\/functions\/v1\/connect`/);          // and only ever turned into the issuer address
   assert.equal([...src.matchAll(/projectUrl/g)].length, 3);
