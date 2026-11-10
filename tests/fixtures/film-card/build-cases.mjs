@@ -28,10 +28,17 @@ export function cases() {
           + '<text x="20" y="40" font-family="sans-serif" font-size="20" fill="#ffffff">A &amp; B &lt; C</text></g>');
       })],
     ['good with extra look keys', 'a view that names more colours than the five', mod((c) => { c.look['network.glow'] = '#ffffff'; })],
+    ['good bar race card with one look key', 'a view lists only the keys it has: page.background is the one key every card carries (the bar race view of the engine)', mod((c) => { c.basis.view = 'bars'; c.look = { 'page.background': '#14141a' }; })],
+    ['good map card with all its keys', 'a map view lists its own keys, here the five and two map colours', mod((c) => { c.basis.view = 'choropleth'; c.look['choropleth.low'] = '#1b2a41'; c.look['choropleth.high'] = '#f2c14e'; })],
+    ['good text with a text length', 'textLength is a plain presentation attribute: a number only', withSvg(SVG('<text x="20" y="40" font-size="20" textLength="120.5" fill="#ffffff">Rent</text>'))],
   ];
   const bad = [
     ['wrong schema number', 'schema must be exactly 1', mod((c) => { c.schema = 2; })],
-    ['missing a required look key', 'all five look keys are required', mod((c) => { delete c.look['state.fill']; })],
+    ['missing a required look key', 'page.background is the one required look key', mod((c) => { delete c.look['page.background']; })],
+    ['a look with other colours but no page background', 'the page background is required even when the view lists other keys', mod((c) => { c.look = { 'network.color': '#6fd1bd', 'state.fill': '#23232d' }; })],
+    ['an empty look', 'a card must say at least its page background', mod((c) => { c.look = {}; })],
+    ['a text length that is not a plain number', 'textLength is a number only', withSvg(SVG('<text x="1" y="1" textLength="abc">a</text>'))],
+    ['a text length written as an expression', 'textLength is a plain number, never an expression or a unit', withSvg(SVG('<text x="1" y="1" textLength="1e3">a</text>'))],
     ['a colour that is not hex', 'colours are 6-digit hex only', mod((c) => { c.look['network.color'] = 'red'; })],
     ['a short hex colour', 'colours are 6-digit hex only (not #fff)', mod((c) => { c.look['network.color'] = '#fff'; })],
     ['a look name that is not plain', 'look names are short lowercase dotted names', mod((c) => { c.look['Network Color'] = '#ffffff'; })],

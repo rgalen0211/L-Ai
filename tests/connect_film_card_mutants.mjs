@@ -36,6 +36,10 @@ const mutants = [
   // ---- the checker: the card
   ['a card of any size is accepted', FC, 'if (bytes > FILM_CARD_MAX_BYTES) return', 'if (false) return'],
   ['any schema number is accepted', FC, 'if (card.schema !== 1) p.push(', 'if (false) p.push('],
+  ['the page background is no longer required', FC, 'export const LOOK_REQUIRED = ["page.background"] as const;', 'export const LOOK_REQUIRED = [] as const;'],
+  ['all five look keys are required again (a bar race is refused)', FC, 'export const LOOK_REQUIRED = ["page.background"] as const;', 'export const LOOK_REQUIRED = ["network.color", "network.base_color", "network.context_color", "state.fill", "page.background"] as const;'],
+  ['textLength is no longer an allowed attribute', FC, '"letter-spacing", "textLength", "dx"', '"letter-spacing", "dx"'],
+  ['a text length may be any text', FC, 'if (key === "textLength" && !', 'if (false && !'],
   ['a look may lack a required colour', FC, 'for (const k of LOOK_REQUIRED) if (!(k in look)) p.push(', 'for (const k of LOOK_REQUIRED) if (false) p.push('],
   ['a look colour need not be hex', FC, 'else if (typeof look[k] !== "string" || !HEX.test(look[k] as string)) p.push(', 'else if (false) p.push('],
   ['a look name need not be plain', FC, 'if (!LOOK_KEY.test(k)) p.push(', 'if (false) p.push('],
