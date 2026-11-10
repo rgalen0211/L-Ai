@@ -7,6 +7,7 @@ const SHA = 'a'.repeat(64);
 const NS = ' xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540"';
 const SVG = (inner = '<rect width="960" height="540" fill="#0d0d11"/>', attrs = NS) => `<svg${attrs}>${inner}</svg>`;
 const RLO = String.fromCharCode(0x202e);
+const EMOJI = String.fromCodePoint(0x1f3ac);                                  // one code point, TWO UTF-16 units
 const base = () => ({
   schema: 1,
   basis: { story_sha256: SHA, view: 'network', theme: 'dark3', dataset: 'invented_set', engine: 'test-1' },
@@ -32,6 +33,7 @@ export function cases() {
     ['good map card with all its keys', 'a map view lists its own keys, here the five and two map colours', mod((c) => { c.basis.view = 'choropleth'; c.look['choropleth.low'] = '#1b2a41'; c.look['choropleth.high'] = '#f2c14e'; })],
     ['good text fitted to a length', 'lengthAdjust is spacing or spacingAndGlyphs and xml:space is preserve or default (the bar race still of the engine uses them)', withSvg(SVG('<text x="20" y="40" font-size="20" textLength="120.5" lengthAdjust="spacing" xml:space="preserve" fill="#ffffff">Rent  index</text><text x="20" y="80" textLength="90" lengthAdjust="spacingAndGlyphs" xml:space="default">Year</text>'))],
     ['good text with a text length', 'textLength is a plain presentation attribute: a number only', withSvg(SVG('<text x="20" y="40" font-size="20" textLength="120.5" fill="#ffffff">Rent</text>'))],
+    ['good label of 30 emoji', 'exactly at the 60-unit label cap (30 emoji are 60 UTF-16 units), with an engine label of 20 emoji (40 units) and a note of 80 emoji (160 units): the edge passes', mod((c) => { c.frame.label = EMOJI.repeat(30); c.basis.engine = EMOJI.repeat(20); c.notes = [EMOJI.repeat(80)]; })],
   ];
   const bad = [
     ['wrong schema number', 'schema must be exactly 1', mod((c) => { c.schema = 2; })],
@@ -43,6 +45,10 @@ export function cases() {
     ['an xml attribute that is not on the list', 'xml:lang is not allowed (only xml:space is)', withSvg(SVG('<text x="1" y="1" xml:lang="en">a</text>'))],
     ['a text length that is not a plain number', 'textLength is a number only', withSvg(SVG('<text x="1" y="1" textLength="abc">a</text>'))],
     ['a text length written as an expression', 'textLength is a plain number, never an expression or a unit', withSvg(SVG('<text x="1" y="1" textLength="1e3">a</text>'))],
+    ['a text length written in non-ASCII digits', 'textLength is the ASCII digits 0-9 only: a script that has its own digits (Arabic-Indic here) is refused, so a checker whose digit class is Unicode (Python re without ASCII) must not pass it', withSvg(SVG('<text x="1" y="1" textLength="' + String.fromCharCode(0x661, 0x660) + '">a</text>'))],
+    ['a label of 31 emoji', 'lengths count UTF-16 units, as JavaScript does: 31 emoji are 62 units, over the 60 a label may have (a checker that counts code points sees 31)', mod((c) => { c.frame.label = EMOJI.repeat(31); })],
+    ['an engine label of 21 emoji', 'the engine label is at most 40 UTF-16 units: 21 emoji are 42', mod((c) => { c.basis.engine = EMOJI.repeat(21); })],
+    ['a note of 81 emoji', 'a note is at most 160 UTF-16 units: 81 emoji are 162', mod((c) => { c.notes = [EMOJI.repeat(81)]; })],
     ['a colour that is not hex', 'colours are 6-digit hex only', mod((c) => { c.look['network.color'] = 'red'; })],
     ['a short hex colour', 'colours are 6-digit hex only (not #fff)', mod((c) => { c.look['network.color'] = '#fff'; })],
     ['a look name that is not plain', 'look names are short lowercase dotted names', mod((c) => { c.look['Network Color'] = '#ffffff'; })],
