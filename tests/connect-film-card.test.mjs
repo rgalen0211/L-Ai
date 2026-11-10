@@ -314,6 +314,45 @@ test('an older picture stays on show while a newer one that failed because the e
   assert.equal(job2.story_sha256, f.ver.story_sha256);
 });
 
+test('a county map the engine refuses for size reaches the person as ONE plain sentence with the two numbers; any other detail is never shown; the next film\'s card still shows (Ryan Q567 a)', async () => {
+  const s = server();
+  const w = s.w.cardWorker(A.userId);
+  const county = await s.film(A, { title: 'invented county map' });
+  await s.call({ p_project: county.id, p_ask: true });
+  const job = w.claim(); w.fail(job.request_id, 'view_not_supported', 'too_big 359069 200000');
+  const r = (await s.call({ p_project: county.id, p_ask: true })).body.data;
+  assert.deepEqual(r, { state: 'failed', code: 'view_not_supported', size: { characters: 359069, limit: 200000 },
+    message: "This film's picture is too detailed to draw in the chat: it would be 359,069 characters and the limit is 200,000. The editor keeps its stand-in picture." });
+  assert.ok(!/engine|retry|try again|ten minutes|Error|D:|path/i.test(r.message.replace('The editor keeps', '')), 'one plain sentence: no engine talk, no retry promise, no path');
+  // never asked for again, however long ago, and polling asks nothing
+  const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
+  row.finished = Date.now() - 3 * 3600000;
+  assert.equal((await s.call({ p_project: county.id, p_ask: true })).body.data.code, 'view_not_supported');
+  assert.equal(w.claim(), null, 'a map that can never fit is not drawn again');
+  // a detail that is anything but the strict digits is NOT shown (the worker's own words stay the fixed ones)
+  for (const [i, bad] of ['too_big 5 1', 'too_big 359069 200000 and more', 'too_big 12345678901 200000', 'too_big 100 500', 'too_big 500000 999', 'too_big a b',
+    'the still is 359,069 characters drawn faithfully; the cap is 200,000', 'D:\\Ryagram-cache\\x', ''].entries()) {
+    const f = await s.film(A, { title: 'invented bad detail ' + i });
+    await s.call({ p_project: f.id, p_ask: true });
+    const j = w.claim(); w.fail(j.request_id, 'view_not_supported', bad);
+    const d = (await s.call({ p_project: f.id })).body.data;
+    assert.deepEqual(d, { state: 'failed', code: 'view_not_supported', message: 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.' }, JSON.stringify(bad));
+  }
+  // a size detail on any other code is not a size sentence
+  const g = await s.film(A, { title: 'invented engine error with a size' });
+  await s.call({ p_project: g.id, p_ask: true });
+  const jg = w.claim(); w.fail(jg.request_id, 'engine_error', 'too_big 359069 200000');
+  const dg = (await s.call({ p_project: g.id })).body.data;
+  assert.equal(dg.code, 'engine_error'); assert.ok(!('size' in dg)); assert.match(dg.message, /did not work this time/);
+  // and another film's card still shows
+  const bars = await s.film(A, { title: 'invented bar race' });
+  await s.call({ p_project: bars.id, p_ask: true });
+  const jb = w.claim(); w.finish(jb.request_id, goodCard(bars.ver.story_sha256));
+  const ok = (await s.call({ p_project: bars.id })).body.data;
+  assert.equal(ok.state, 'ready'); assert.ok(ok.card);
+  assert.equal((await s.call({ p_project: county.id })).body.data.code, 'view_not_supported', 'and the county map still says why');
+});
+
 // ------------------------------------------------------------------------------------------------ 3. the stand-in world mirrors the database
 test('the stand-in: 5 open at once, a worker cannot store a card for another story, an engine error is retried after 10 minutes and a card nobody drew is not made up', async () => {
   const s = server();
