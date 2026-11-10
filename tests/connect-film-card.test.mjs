@@ -53,7 +53,7 @@ test('the committed cases.json is exactly what build-cases.mjs makes (so ENGINE 
 
 // why each refused case is refused: the REASON is pinned, so a checker that refuses for the wrong reason (or by accident) fails here
 const WHY = {
-  'wrong schema number': /not schema 1/, 'missing a required look key': /no page\.background/, 'a look with other colours but no page background': /no page\.background/, 'an empty look': /no page\.background/, 'a text length that is not a plain number': /text length is not a plain number/, 'a text length written as an expression': /text length is not a plain number/, 'a colour that is not hex': /not a 6-digit hex/, 'a short hex colour': /not a 6-digit hex/,
+  'wrong schema number': /not schema 1/, 'missing a required look key': /no page\.background/, 'a look with other colours but no page background': /no page\.background/, 'an empty look': /no page\.background/, 'a text length that is not a plain number': /text length is not a plain number/, 'a text length written as an expression': /text length is not a plain number/, 'a length adjustment that is not an allowed word': /length adjustment is not one of/, 'an xml:space that is not an allowed word': /xml:space is not preserve or default/, 'an xml attribute that is not on the list': /not allowed [(]xml[?]lang[)]/, 'a colour that is not hex': /not a 6-digit hex/, 'a short hex colour': /not a 6-digit hex/,
   'a look name that is not plain': /name that is not plain/, 'a story hash that is not 64 hex': /story hash is not a sha-256/, 'an extra top-level part': /part it may not have \(extra\)/,
   'a picture wider than the limit': /width is not a whole number/, 'a ramp of 13 stops': /ramp is not a list of at most 12/, 'six notes': /notes are not up to 5/,
   'a label with a direction character': /label is not plain/, 'no picture': /no picture/,
@@ -94,6 +94,7 @@ test('the allowed lists are exactly the ones the contract names, and nothing dan
   assert.ok([...SVG_ATTRS].every((a) => !a.startsWith('on')));
   assert.deepEqual([...LOOK_REQUIRED], ['page.background']);
   assert.ok(SVG_ATTRS.has('textLength'));
+  assert.ok(SVG_ATTRS.has('lengthAdjust') && SVG_ATTRS.has('xml:space') && !SVG_ATTRS.has('xml:lang') && !SVG_ATTRS.has('xlink:href'));
   assert.equal(FILM_CARD_MAX_BYTES, 262144);
 });
 

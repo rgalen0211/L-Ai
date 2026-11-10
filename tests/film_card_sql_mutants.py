@@ -19,6 +19,8 @@ OWN_ASK = "select ver.* into v from public.versions ver join public.projects p o
 OWN_GET = "select ver.story_sha256 into cur from public.versions ver join public.projects p on p.id = ver.project_id\n    where ver.project_id = p_project and ver.owner_id = me and p.owner_id = me and p.archived_at is null order by ver.number desc limit 1;\n  if not found then return null; end if;"
 
 W.MUTANTS[:] = [
+    ("two asks in flight together are not made to take turns (the limits and the repeat check can both be passed)", "  perform pg_advisory_xact_lock(hashtextextended('film_card:' || me::text, 0));\n", ""),
+    ("one lock for everybody: another person's ask waits behind this one", "hashtextextended('film_card:' || me::text, 0)", "hashtextextended('film_card:', 0)"),
     ("a film that is not yours can be asked about", OWN_ASK, OWN_ASK.replace(" and ver.owner_id = me and p.owner_id = me", "")),
     ("a film that is not yours can be read", OWN_GET, OWN_GET.replace(" and ver.owner_id = me and p.owner_id = me", "")),
     ("an archived film can be asked about", OWN_ASK, OWN_ASK.replace(" and p.archived_at is null", "")),
