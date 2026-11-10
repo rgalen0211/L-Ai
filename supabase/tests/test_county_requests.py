@@ -11,6 +11,8 @@ import base64
 import hashlib
 import json
 import sys
+import threading
+import time
 import unittest
 import uuid
 from pathlib import Path
@@ -136,6 +138,95 @@ class County(core.Base):
         except psycopg.Error as e:
             self.fail(f"another person was held up by Alice's limits (sqlstate {e.sqlstate})")
         self.assertTrue(got["id"])
+
+    # ------------------------------------------------------------------------------------------------ two asks in flight at once (WORKER's finding, CC1 19:37): the limits must hold when an AI asks twice in parallel
+    def other(self):
+        c = psycopg.connect(self.db.c.info.dsn, autocommit=False)
+        c.execute("set role connect_runner")
+        return c
+
+    def race(self, args1, args2):
+        """Ask twice at the same moment on two connections. The first ask is held open (uncommitted) until the second is waiting behind it (or has finished: no lock), so the two really overlap.
+        Returns (first, second, waited): each answer or database error, and whether the second ask had to wait behind the first (a per-person lock)."""
+        sql = "select connect_county_ask(%s, %s, %s, 'limited_service', null, null)"
+        # a token's last-used time is written by the first call of each minute, and that write would queue a second ask behind the first all by itself; a warm token (the usual case) leaves the per-person lock as the ONLY thing that can hold the second ask
+        self.owner("update public.connect_tokens set last_used_at = now()")
+        c1, c2, c3 = self.other(), self.other(), psycopg.connect(self.db.c.info.dsn, autocommit=True)
+        out = {}
+        waited = False
+
+        def second():
+            try:
+                out["b"] = c2.execute(sql, args2).fetchone()[0]
+            except psycopg.Error as e:
+                out["b"] = e
+        try:
+            try:
+                first = c1.execute(sql, args1).fetchone()[0]
+            except psycopg.Error as e:
+                first = e
+            t = threading.Thread(target=second)
+            t.start()
+            end = time.time() + 5
+            while t.is_alive() and time.time() < end:
+                if c3.execute("select count(*) from pg_locks where locktype = 'advisory' and not granted").fetchone()[0]:
+                    waited = True
+                    break
+                time.sleep(0.05)
+            if isinstance(first, psycopg.Error):
+                c1.rollback()
+            else:
+                c1.commit()
+            t.join(10)
+            self.assertFalse(t.is_alive(), "the second ask never finished")
+            if isinstance(out["b"], psycopg.Error):
+                c2.rollback()
+            else:
+                c2.commit()
+        finally:
+            for c in (c1, c2, c3):
+                c.close()
+        return first, out["b"], waited
+
+    def counts(self):
+        row = self.db.as_(None).c.execute("select count(*) filter (where state in ('asked','claimed')), count(*) from public.county_requests where owner_id = %s", (ALICE,)).fetchone()
+        return row
+
+    def test_two_asks_in_flight_at_four_open_leave_at_most_five_and_the_second_is_told_in_words(self):
+        for i in range(4):
+            self.ask(self.a, "compare", (GREENE, f"3910{i}"))
+        first, second, waited = self.race((self.a, "profile", ["39001"]), (self.a, "profile", ["39003"]))
+        self.assertTrue(waited, "the second ask waits behind the first (a lock per person)")
+        self.assertIsInstance(first, dict, "the first ask is accepted")
+        self.assertIsInstance(second, psycopg.Error, "the second ask is refused (limit 5), not accepted")
+        self.assertEqual(second.sqlstate, "PT429")
+        self.assertIn("5 county questions waiting", second.diag.message_primary)
+        self.assertEqual(self.counts()[0], 5)
+
+    def test_two_asks_in_flight_at_ninety_nine_in_a_day_leave_at_most_one_hundred(self):
+        self.owner("insert into public.county_requests (owner_id, shape, counties, state, finished_at) select %s, 'profile', array[lpad(g::text, 5, '0')], 'failed', now() from generate_series(1, 99) g", ALICE)
+        first, second, waited = self.race((self.a, "profile", ["39001"]), (self.a, "profile", ["39003"]))
+        self.assertTrue(waited, "the second ask waits behind the first (a lock per person)")
+        self.assertIsInstance(first, dict, "the first ask is accepted")
+        self.assertIsInstance(second, psycopg.Error, "the second ask is refused (limit 100 a day)")
+        self.assertEqual(second.sqlstate, "PT429")
+        self.assertEqual(self.counts()[1], 100)
+
+    def test_the_same_question_asked_twice_at_once_is_one_request(self):
+        first, second, waited = self.race((self.a, "profile", ["39001"]), (self.a, "profile", ["39001"]))
+        self.assertTrue(waited)
+        self.assertIsInstance(first, dict)
+        self.assertIsInstance(second, dict, "the repeat is answered, not refused")
+        self.assertEqual(first["id"], second["id"])
+        self.assertTrue(second.get("repeat"))
+        self.assertEqual(self.counts()[1], 1)
+
+    def test_two_people_asking_at_once_do_not_wait_for_each_other(self):
+        first, second, waited = self.race((self.a, "profile", ["39001"]), (self.b, "profile", ["39001"]))
+        self.assertFalse(waited, "another person's ask does not wait for Alice's")
+        self.assertIsInstance(first, dict)
+        self.assertIsInstance(second, dict, "Bob's ask is not held up by Alice's lock")
+        self.assertNotEqual(first["id"], second["id"])
 
     # ------------------------------------------------------------------------------------------------ privacy
     def test_the_table_is_closed_to_every_api_role_and_a_request_looks_absent_to_anyone_else(self):

@@ -45,6 +45,9 @@ declare
   me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
   waiting int; today int; same public.county_requests; nid uuid;
 begin
+  -- One ask at a time per person: two asks in flight together (an AI making parallel tool calls) would both count the same open requests and both insert, passing the 5-open and 100-a-day limits (WORKER's finding, CC1 19:37).
+  -- The second waits here until the first has committed, then counts it; a repeat of the same question is then seen as a repeat. The lock is released at the end of the transaction; another person's ask is never held by it.
+  perform pg_advisory_xact_lock(hashtextextended('county:' || me::text, 0));
   delete from public.county_requests where asked_at < now() - interval '7 days';
   if p_shape is null or p_shape not in ('profile', 'compare') then
     raise exception 'Ask for a county profile or a comparison of counties.' using errcode = '22023';

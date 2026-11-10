@@ -16,6 +16,8 @@ W.SCRATCH = W.ROOT / ".mut_county"
 W.RUN_TMP = W.base.BASE_TEMP / f"county-mut-{os.getpid()}"
 
 W.MUTANTS[:] = [
+    ("two asks in flight together are not made to take turns (the limits and the repeat check can both be passed)", "  perform pg_advisory_xact_lock(hashtextextended('county:' || me::text, 0));\n", ""),
+    ("one lock for everybody: another person's ask waits behind this one", "hashtextextended('county:' || me::text, 0)", "hashtextextended('county:', 0)"),
     ("any shape is accepted", "  if p_shape is null or p_shape not in ('profile', 'compare') then", "  if false then"),
     ("a county code need not be five digits", "or c !~ '^[0-9]{5}$')", "or false)"),
     ("a county may be listed twice", "     and (select count(distinct c) from unnest(p_counties) c) = cardinality(p_counties)\n", ""),
