@@ -69,7 +69,7 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
   const FAIL_WORDS: Record<string, string> = {
     view_not_supported: "The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.",
     story_not_found: "The saved film could not be read to draw its picture.",
-    engine_error: "Drawing the film's picture did not work this time. It will be tried again later.",
+    engine_error: "Drawing the film's picture did not work this time. Open the editor again in about ten minutes to try again.",
     card_rejected: "The film's picture was drawn but could not be used.",
   };
   const shape = (r: FilmCardRead, have: string | null): Record<string, unknown> => {
@@ -97,7 +97,9 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
         const r = await get.call(ctx.data, id);
         if (!r) return answer({ code: "PT404", message: "That film was not found among your projects." }, true, "not_found");
         // ask when there is no card at all, or only a stale one and nothing has been asked for the current save yet; one ask per save, so a panel that keeps polling never asks twice
-        if ((r.state === "none" || (r.state === "ready" && r.stale === true && !r.refresh)) && a.p_ask === true) {
+        // and again, once, for a picture that failed because the engine broke, when the database says ten minutes have passed (r.retry): a failed picture is otherwise never asked for again, however long ago
+        const again = (r.state === "failed" && r.retry === true) || (r.state === "ready" && r.stale === true && r.refresh?.state === "failed" && r.refresh.retry === true);
+        if ((r.state === "none" || (r.state === "ready" && r.stale === true && !r.refresh) || again) && a.p_ask === true) {
           if (!(await ctx.policy.hit(ctx.principal, "film_card", LIMITS.filmCardsPerHourPerUser, 3600))) {
             return answer({ code: "PT429", message: `The limit of ${LIMITS.filmCardsPerHourPerUser} film pictures an hour is reached.` }, true, "rate");
           }
