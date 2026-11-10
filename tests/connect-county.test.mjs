@@ -413,14 +413,11 @@ test('GEO\'s real answers of 11-10 are exactly the files GEO made (the hashes ar
   }
 });
 
-// the one string GEO is asked to reword (CONNECT 10:40): the sales rule lets a negation stand only close to the word, and 'not of meals, customers or sales' is a comma list
-const EP_OLD = 'not of meals, customers or sales', EP_NEW = 'not of sales, meals or customers';
-const readReal2 = (f, swap = false) => { const d = JSON.parse((swap ? fs.readFileSync(new URL(f, REAL2), 'utf8').replaceAll(EP_OLD, EP_NEW) : fs.readFileSync(new URL(f, REAL2), 'utf8'))); return [d, readCountyAnswer(d.ask, d.answer)]; };
+const readReal2 = (f) => { const d = JSON.parse(fs.readFileSync(new URL(f, REAL2), 'utf8')); return [d, readCountyAnswer(d.ask, d.answer)]; };
 test('GEO\'s real answers of 11-10 are shown by the reader, each of the kind it was asked for, with GEO\'s own closing lines for grocery and pharmacy and a pointer to the full profile', () => {
   let shown = 0;
   for (const f of real2Files) {
     if (f.startsWith('compare3_')) continue;                                                   // Clark (39023) is off the county list: refused below
-    if (f.includes('eating_places')) continue;                                                 // the note string: below
     const [d, r] = readReal2(f);
     assert.ok(r, `${f} is withheld`);
     assert.equal(r.kind, d.ask.kind, f); assert.equal(r.shape, d.ask.shape, f);
@@ -433,20 +430,19 @@ test('GEO\'s real answers of 11-10 are shown by the reader, each of the kind it 
     if (d.ask.shape === 'compare' && d.ask.kind !== 'limited_service' && d.ask.kind !== 'eating_places') assert.equal(r.say[r.say.length - 1], d.answer.say[d.answer.say.length - 1], `${f}: the closing line is GEO's own, word for word`);
     shown++;
   }
-  assert.equal(shown, 13);
+  assert.equal(shown, 18);
 });
 
-test('the eating places answers: refused as GEO made them (the note trips the sales rule), shown once that one string is reworded; the three-county ones are refused only for Clark', () => {
-  for (const f of real2Files.filter((x) => x.includes('eating_places') && !x.startsWith('compare3_'))) {
-    assert.equal(readReal2(f)[1], null, `${f}: as GEO made it`);
-    const [d, r] = readReal2(f, true);
-    assert.ok(r, `${f}: with the note reworded`); assert.equal(r.kind, 'eating_places');
-  }
+test('the three-county answers are refused only for Clark (39023 is off the list); and no real answer carries the comma-list note that tripped the sales rule', () => {
   for (const f of real2Files.filter((x) => x.startsWith('compare3_'))) {
     assert.equal(readReal2(f)[1], null, `${f}: Clark County is not on the list`);
     const d = JSON.parse(fs.readFileSync(new URL(f, REAL2), 'utf8'));
     assert.ok(d.ask.counties.includes('39023') && !('39023' in COUNTY_LIST));
   }
+  for (const f of real2Files) assert.ok(!fs.readFileSync(new URL(f, REAL2), 'utf8').includes('not of meals, customers or sales'), `${f}: the old wording is back`);
+  // and the rule itself: a negation stands only close to the word, so a comma list that puts 'sales' last is a claim as far as the reader can tell
+  assert.equal(plainWords('A count of places, not of meals, customers or sales.', 200), null);
+  assert.equal(plainWords('A count of places, not of sales, meals or customers.', 200), 'A count of places, not of sales, meals or customers.');
 });
 
 test('a real answer asked about the wrong county or with the wrong rule is NOT shown (the real shapes are checked against the request too)', () => {

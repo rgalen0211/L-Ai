@@ -40,3 +40,8 @@ ADDED 2026-11-10 10:35 (CC1 10:29), from Ryagram geo-li-eating-places-1110 cda4c
       Comparisons carry only establishments and per_10k, but those per-year notes make a 3-county eating-places comparison 26.8 KB compact
       (41% of 64 KB); pharmacy 16.7 KB (25%). Measured.
   SHA256SUMS.txt now has 26 lines (8 earlier + 18 new); all verify.
+
+CHANGED 2026-11-10 11:25 (CONNECT 11:16): the 9 eating_places files (greene_profile_eating_places, the four compare_eating_places_*, the four
+compare3_eating_places_*) were regenerated from Ryagram geo-li-eating-places-1110 566fe4cf, where the count's note now reads 'A count of places,
+not of sales, meals or customers.' (was 'not of meals, customers or sales.'). Nothing else in them changed. SHA256SUMS.txt was rebuilt over all
+26 files (sorted by name); the other 17 hashes are unchanged.
