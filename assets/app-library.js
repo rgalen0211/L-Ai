@@ -53,7 +53,7 @@
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
   // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
   const intakeOn = () => window.ryagramConfig?.intake === true;
-  const myFilmsOn = () => window.ryagramConfig?.myFilms === true;
+  const myFilmsOn = () => window.ryagramSwitches?.featureOn('myFilms') === true;
   const waitingOn = () => window.ryagramWaiting?.on() === true;
   const wizardOn = () => window.ryagramTesterWizard?.flagOn() === true;
   const builderOn = () => window.ryagramConfig?.guidedBuilder === true || !!window.ryagramMock;
@@ -128,6 +128,7 @@
       const hash = location.hash;
       const stops = [];
       const onStop = fn => stops.push(fn);
+      await window.ryagramSwitches?.load(data);                                  // reads the person's own switch list only when some switch is 'account'; a failure leaves it empty (all those features off)
       if (!root.childElementCount) root.replaceChildren(h('p', { class: 'form-intro loading', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), 'Loading…'));
       let view;
       try {

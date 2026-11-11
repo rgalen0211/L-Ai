@@ -373,6 +373,11 @@
       // Mock of CONNECT's Option B contract (connect-waiting-gate-1104, proposals\CONNECT-WAITING-GATE-BUILD-1104.md): my_access() -> {status, is_admin, gate_on}, 'waiting' for the signed-in
       // mock when the address has ?waiting (until approved or a code is used); admin_waiting_list() -> user_id, email, joined_at, confirmed (admin only); approving goes through the approve-waiting
       // function (below, with the join and claim-invite functions); ?accesserr makes my_access fail (the page must fall back to the waiting page).
+      // Mock of my_switches() (Q576): the signed-in person's OWN per-account switch names; ?switcherr makes it fail (every 'account' switch must then stay off), ?noswitches returns an empty list.
+      my_switches() {
+        if (typeof location !== 'undefined' && /[?&]switcherr/.test(location.search || '')) return fail('no');
+        return { data: typeof location !== 'undefined' && /[?&]noswitches/.test(location.search || '') ? [] : ['myFilms'], error: null };
+      },
       my_access() {
         if (typeof location !== 'undefined' && /[?&]accesserr/.test(location.search || '')) return fail('no');
         const id = session && session.user && session.user.id;
