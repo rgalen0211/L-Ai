@@ -9,7 +9,7 @@ class H(http.server.SimpleHTTPRequestHandler):
     def end_headers(self): self.send_header('Cache-Control', 'no-store'); super().end_headers()
 srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H); threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-def cfg(v): return re.sub(r'\bmyFilms:\s*false', 'myFilms: ' + v, base)
+def cfg(v): return re.sub(r"\bmyFilms:\s*(false|'account')", 'myFilms: ' + v, base)
 ok = True
 def check(c, w):
     global ok

@@ -73,8 +73,8 @@ test('the person cannot grant themselves a switch from the page: the helper only
   assert.ok(!/admin_set_account_switch/.test(data + read('assets/app-library.js')), 'no page code calls the admin writer');
 });
 
-test("the shipping config holds no 'account' value yet, and the pilot (myFilms) reads through featureOn at every site", () => {
-  assert.ok(!/:\s*'account'/.test(read('assets/ryagram-config.js').replace(/\/\/.*$/gm, '')));
+test("the shipping config holds 'account' for myFilms ONLY (Q577), and it reads through featureOn at every site", () => {
+  assert.deepEqual([...read('assets/ryagram-config.js').replace(/\/\/.*$/gm, '').matchAll(/^\s*(\w+):\s*'account'/gm)].map(m => m[1]), ['myFilms']);
   for (const f of ['assets/app-library.js', 'assets/app-departments.js']) assert.ok(!/ryagramConfig[^\n]{0,12}\.myFilms/.test(read(f)), f);
   assert.match(read('assets/app-library.js'), /featureOn\('myFilms'\)/); assert.match(read('assets/app-departments.js'), /featureOn\('myFilms'\)/);
 });

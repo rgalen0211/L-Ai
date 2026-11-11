@@ -82,7 +82,8 @@ window.ryagramConfig = Object.freeze({
   songHelp: false,
   // The two DRAFT landing pages for song films and for compilations (/landing-drafts/song-films/ and /compilations/; NEXT-WEB 193): noindex, linked from nowhere, every sentence marked for Ryan's wording, text shown only when this is true. OFF until Ryan has read them.
   landingDrafts: false,
-  myFilms: false,
+  // My films is ON FOR ACCOUNTS NAMED ON AN ADMIN'S LIST ONLY (Ryan's Q576/Q577 yes, 2026-11-11): the string 'account' is read by featureOn() in assets/app-switches.js; everyone else sees it OFF. Undo: set this back to false (or remove the account from its list).
+  myFilms: 'account',
   // The tester first-run wizard (#/tester-start; NEXT-WEB 192): signed in, your computer, room on your drive, your first film, in plain words. Needs the tester flag on the account. OFF until Ryan has seen it and set its words.
   testerWizard: false,
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.

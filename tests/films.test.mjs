@@ -62,7 +62,7 @@ test('films that need a person come first: failed, waiting, being made, stopped,
 
 test('wiring: behind a switch that is OFF; three reads; the page builds nothing from the server except text', () => {
   const cfg = read('assets/ryagram-config.js'), lib = read('assets/app-library.js'), html = read('app/index.html'), src = read('assets/app-films.js'), data = read('assets/app-data.js');
-  assert.match(cfg, /\n  myFilms: false,/);
+  assert.match(cfg, /\n  myFilms: 'account',/);
   assert.match(lib, /const myFilmsOn = \(\) => window\.ryagramSwitches\?\.featureOn\('myFilms'\) === true;/);
   assert.match(lib, /myFilmsOn\(\) && window\.ryagramFilms && hash === '#\/films'/);
   assert.match(lib, /const filmsLink = myFilmsOn\(\) && window\.ryagramFilms/);

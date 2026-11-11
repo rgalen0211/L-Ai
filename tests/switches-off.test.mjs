@@ -18,6 +18,8 @@ const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '
 const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'stripeTestMode', 'accountTools', 'passwordReset', 'inviteSignup', 'opsTools', 'filmRequests', 'guidedBuilder',
   'lookEditor', 'renderOrders', 'connectAi', 'aiFirst', 'departments', 'desktopApp'];
 // Permanently off and read by nothing (the config says so; tests/app-catalog.test.cjs fails if either turns true).
+// Switches that hold the string 'account' (on only for accounts an admin named; assets/app-switches.js featureOn). Each must be read through featureOn, and nothing else may be a string.
+const ACCOUNT_SWITCHES = ['myFilms'];
 const UNREAD_ON_PURPOSE = ['catalog', 'catalogComingSoon'];
 
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1').replace(/<!--[\s\S]*?-->/g, ' ');
@@ -27,7 +29,12 @@ test('SWITCHES: every switch defaults OFF unless Ryan turned it on, every OFF sw
   const cfg = win.ryagramConfig;
   const switches = Object.entries(cfg).filter(([, v]) => typeof v === 'boolean');
   assert.ok(switches.length > 30, 'the config has its switches');
-  for (const [k, v] of Object.entries(cfg)) if (!['supabaseUrl', 'supabaseKey'].includes(k)) assert.equal(typeof v, 'boolean', `${k} must be true or false, never a string or a number`);
+  for (const [k, v] of Object.entries(cfg)) if (!['supabaseUrl', 'supabaseKey'].includes(k)) {
+    if (ACCOUNT_SWITCHES.includes(k)) assert.equal(v, 'account', `${k} must be exactly 'account' (or false to undo)`);
+    else assert.equal(typeof v, 'boolean', `${k} must be true or false, never a string or a number`);
+  }
+  const allAssets = execFileSync('git', ['ls-files', 'assets/*.js'], { cwd: root, encoding: 'utf8' }).split(String.fromCharCode(10)).filter(f => f && f !== 'assets/ryagram-config.js').map(f => read(f)).join(String.fromCharCode(10));
+  for (const k of ACCOUNT_SWITCHES) assert.ok(allAssets.includes(`featureOn('${k}')`), `${k} is 'account' but nothing reads it through featureOn`);
 
   // 1. OFF by default
   for (const [k, v] of switches) if (v === true) assert.ok(ON_BY_RYAN.includes(k), `${k} is ON in the config but is not one Ryan turned on: a new switch ships false`);
