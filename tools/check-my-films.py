@@ -20,7 +20,14 @@ srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own po
 PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-on_cfg = re.sub(r'myFilms:\s*false', 'myFilms: true', base)
+def _set(cfg, v):
+    out, n = re.subn(r"\bmyFilms:\s*(?:false|'account')", 'myFilms: ' + v, cfg)
+    assert n == 1, f'myFilms line matched {n} times (expected exactly 1): the config changed shape'
+    return out
+
+
+on_cfg = _set(base, 'true')
+off_cfg = _set(base, 'false')          # OFF is false on purpose: the shipped value is the word account, which is ON for an account an admin named
 ok = True
 
 
@@ -80,7 +87,7 @@ with sync_playwright() as pw:
         check(not errs, 'no console errors' + (f': {errs[:2]}' if errs else ''))
     print('switch off')
     errs = []
-    p = page(b, base, dict(viewport={'width': 1200, 'height': 900}), errs)
+    p = page(b, off_cfg, dict(viewport={'width': 1200, 'height': 900}), errs)
     p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/', wait_until='load'); p.wait_for_selector('h1:has-text("Your projects")')
     check(p.locator('a[href="#/films"]').count() == 0, 'no link with the switch off')
     p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/films', wait_until='load'); p.wait_for_timeout(1200)
