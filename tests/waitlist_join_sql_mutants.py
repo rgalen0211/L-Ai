@@ -46,7 +46,8 @@ W.MUTANTS[:] = [
     ("approve also takes people already invited", "where approved_at is null and invited_at is null order by", "where approved_at is null order by"),
     ("approve is not recorded", "  insert into public.ryagram_waitlist_approvals (by_user, n) values (me, n);\n", ""),
     ("approve does not say who approved", "set approved_at = now(), approved_by = me from pick", "set approved_at = now() from pick"),
-    ("the waiting-list gate is not applied after it", "select ryagram_private.gate_apply();", "select 1;"),
+    ("the waiting-list gate is not applied after it", "perform ryagram_private.gate_apply(); end if; end $g$;", "null; end if; end $g$;"),
+    ("the gate is run even where it is not there (step 1 would stop)", "if to_regprocedure('ryagram_private.gate_apply()') is not null then perform", "if true then perform"),
 ]
 
 if __name__ == "__main__":

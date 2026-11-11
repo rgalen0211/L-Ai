@@ -9,6 +9,6 @@ begin;
 drop policy if exists "Visitors can join the waitlist" on public.ryagram_waitlist;
 revoke insert on table public.ryagram_waitlist from anon, authenticated;       -- a table-level revoke also removes the three column-level insert grants the old form used
 
-select ryagram_private.gate_apply();                       -- like every migration after the waiting list
+do $g$ begin if to_regprocedure('ryagram_private.gate_apply()') is not null then perform ryagram_private.gate_apply(); end if; end $g$;      -- like every migration after the waiting list; where the gate is not applied yet this line does nothing
 
 commit;

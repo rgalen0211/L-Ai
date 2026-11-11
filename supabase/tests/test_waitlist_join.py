@@ -22,6 +22,7 @@ import test_2a_core as core  # noqa: E402
 RYAN, OTHER = core.RYAN, core.OTHER
 setUpModule = core.setUpModule
 ROOT = Path(__file__).resolve().parent.parent
+GUARDED = "do $g$ begin if to_regprocedure('ryagram_private.gate_apply()') is not null then perform ryagram_private.gate_apply(); end if; end $g$;"
 WORDS_OK = "You are on the list. Nothing is sent to you now; if you are invited, the invitation comes by email."
 
 
@@ -252,7 +253,7 @@ class WaitlistJoin(core.Base):
     def test_the_closing_file_ends_with_the_gate_and_says_it_goes_live_only_with_the_page(self):
         text = self.CLOSE.read_text(encoding="utf-8")
         lines = [ln.strip() for ln in text.splitlines() if ln.strip() and not ln.strip().startswith("--")]
-        self.assertTrue(lines[-2].startswith("select ryagram_private.gate_apply();"), lines[-2:])
+        self.assertTrue(lines[-2].startswith(GUARDED), lines[-2:])
         self.assertIn("ONLY TOGETHER WITH WEB", text)
         self.assertFalse((ROOT / "migrations" / "20261110000300_waitlist_close_direct_insert.sql").exists(), "it must not be a migration that any lane applies by itself")
 
@@ -271,8 +272,34 @@ class WaitlistJoin(core.Base):
 
     def test_the_migration_ends_with_the_waiting_list_gate_like_every_migration_after_it(self):
         lines = [ln.strip() for ln in (ROOT / "migrations" / "20261110000200_waitlist_join.sql").read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.strip().startswith("--")]
-        self.assertTrue(lines[-2].startswith("select ryagram_private.gate_apply();"), lines[-2:])
+        self.assertTrue(lines[-2].startswith(GUARDED), lines[-2:])
         self.assertEqual(lines[-1], "commit;")
+
+    # ---------------------------------------------------------------------------------------------- with and without the waiting-accounts gate (Ryan's live database may not have it yet)
+    def without_the_gate(self):
+        """a database where the gate file was never applied: the new objects rolled back, then gate_apply() dropped"""
+        self.owner((ROOT / "rollbacks" / "20261110000200_waitlist_join_rollback.sql").read_text(encoding="utf-8"))
+        self.owner("drop function ryagram_private.gate_apply()")
+        self.assertIsNone(self.owner("select to_regprocedure('ryagram_private.gate_apply()')").fetchone()[0])
+
+    def test_with_the_gate_the_migration_guards_the_two_admin_functions_and_without_it_the_whole_file_still_applies(self):
+        for sig in ("admin_waitlist_counts", "admin_waitlist_approve"):
+            self.assertTrue(self.owner("select prosrc like '%%require_active%%' from pg_proc where proname = %s", sig).fetchone()[0], f"{sig} is gated when the gate is there")
+        self.without_the_gate()
+        self.owner((ROOT / "migrations" / "20261110000200_waitlist_join.sql").read_text(encoding="utf-8"))          # no error, nothing left half done
+        for sig in ("public.join_waitlist(text, text, text)", "public.admin_waitlist_counts()", "public.admin_waitlist_approve(integer)"):
+            self.assertIsNotNone(self.owner("select to_regprocedure(%s)", sig).fetchone()[0], sig)
+        self.assertEqual(self.join("late.gate@x.co", ip="1.1.1.1"), {"ok": True, "message": WORDS_OK})
+        self.assertFalse(self.owner("select prosrc like '%%require_active%%' from pg_proc where proname = 'admin_waitlist_counts'").fetchone()[0], "no gate, no gate guard (it is added by the gate's own gate_apply later)")
+
+    def test_without_the_gate_the_closing_file_still_closes_the_old_door(self):
+        self.without_the_gate()
+        self.owner((ROOT / "migrations" / "20261110000200_waitlist_join.sql").read_text(encoding="utf-8"))
+        self.owner(self.CLOSE.read_text(encoding="utf-8"))
+        self.assertTrue(self.owner(self.CHECK).fetchone()[0], "closed, with no gate in the database")
+        with self.assertRaises(psycopg.Error):
+            self.direct_insert("anon", "old.door@x.co")
+        self.assertEqual(self.join("through@x.co", ip="1.1.1.1"), {"ok": True, "message": WORDS_OK})
 
 
 if __name__ == "__main__":

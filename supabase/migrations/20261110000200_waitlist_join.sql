@@ -5,7 +5,7 @@
 -- Limits: one visitor (a hash of the caller's address and the day, never the address) may join 5 times an hour; the list takes at most 1000 new rows in 24 hours (the check comes before the repeat check, so a full list never tells a prober who is on it).
 -- Ryan sees only COUNTS (admin_waitlist_counts) and has his own approve step (admin_waitlist_approve: the oldest N waiting rows are MARKED approved; it sends nothing, creates no account and invites nobody).
 -- The table keeps its insert-only grants (ryagram-waitlist.sql); the direct insert stays open until WEB's page switches to this function, and one later row closes it. join_waitlist is for visitors (anon) only: a signed-in person does not need it.
--- Needs ryagram-waitlist.sql, 20261003000300_admin_waitlist_by_film.sql (is_app_admin) and 20261104000100_waiting_accounts.sql (the gate). Undo: supabase/rollbacks/20261110000200_waitlist_join_rollback.sql.
+-- Needs ryagram-waitlist.sql and 20261017000600_pipe1_orders.sql (require_admin, used by the two admin functions when they are CALLED). The waiting-accounts gate (20261104000100) is NOT needed to apply this file: the last line runs the gate only if it is there. Undo: supabase/rollbacks/20261110000200_waitlist_join_rollback.sql.
 
 begin;
 
@@ -100,6 +100,6 @@ end $$;
 revoke all on function public.admin_waitlist_counts(), public.admin_waitlist_approve(int) from public, anon, authenticated;
 grant execute on function public.admin_waitlist_counts(), public.admin_waitlist_approve(int) to authenticated;
 
-select ryagram_private.gate_apply();                       -- like every migration after the waiting list: the gate covers what a signed-in account can run
+do $g$ begin if to_regprocedure('ryagram_private.gate_apply()') is not null then perform ryagram_private.gate_apply(); end if; end $g$;      -- like every migration after the waiting list the gate covers what a signed-in account can run; where the gate is NOT applied yet this line does nothing (join_waitlist is for visitors and needs no gate) and the gate's own later gate_apply() covers the two admin functions
 
 commit;

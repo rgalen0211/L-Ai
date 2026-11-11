@@ -19,7 +19,8 @@ W.MUTANTS[:] = [
     ("the insert policy is left in place", 'drop policy if exists "Visitors can join the waitlist" on public.ryagram_waitlist;', "select 1;"),
     ("the insert grant is left in place", "revoke insert on table public.ryagram_waitlist from anon, authenticated;", "select 1;"),
     ("only visitors are shut out, not signed-in people", "revoke insert on table public.ryagram_waitlist from anon, authenticated;", "revoke insert on table public.ryagram_waitlist from anon;"),
-    ("the waiting-list gate is not applied after it", "select ryagram_private.gate_apply();", "select 1;"),
+    ("the waiting-list gate is not applied after it", "perform ryagram_private.gate_apply(); end if; end $g$;", "null; end if; end $g$;"),
+    ("the gate is run even where it is not there (the closing file would stop)", "if to_regprocedure('ryagram_private.gate_apply()') is not null then perform", "if true then perform"),
 ]
 
 if __name__ == "__main__":
