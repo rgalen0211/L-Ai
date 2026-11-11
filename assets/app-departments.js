@@ -100,7 +100,7 @@
         items.push(h('li', { class: 'dept-soon' }, h('details', { class: 'soon-group' }, h('summary', {}, WORDS.soonGroup),
           h('ul', {}, m.soon.map(id => h('li', {}, link(pathOf(id), KNOWN[id].label), h('span', { class: 'soon-tag' }, WORDS.soonMark)))))));
       }
-      items.push(h('li', {}, link(window.ryagramConfig && window.ryagramConfig.myFilms === true ? '#/films' : '#/', 'My films')));
+      items.push(h('li', {}, link(window.ryagramSwitches && window.ryagramSwitches.featureOn('myFilms') ? '#/films' : '#/', 'My films')));
       if (window.ryagramConfig?.credits === true) items.push(h('li', {}, link('#/credits', 'Credits')));
       items.push(h('li', { class: 'dept-extra' }, link('/help/', 'Help')), h('li', { class: 'dept-extra' }, link('#/account', 'Account')));      // on a phone the header's own Help and Account links move into the Menu
       const toggle = h('button', { class: 'button secondary dept-menu', type: 'button', 'aria-expanded': 'false', 'aria-controls': 'dept-list' }, 'Menu');

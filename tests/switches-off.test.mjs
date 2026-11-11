@@ -42,6 +42,7 @@ test('SWITCHES: every switch defaults OFF unless Ryan turned it on, every OFF sw
   // 2. strict reads only, for every OFF switch, in every served file
   const loose = [];
   for (const [f, src] of Object.entries(bare)) {
+    if (f === 'assets/app-switches.js') continue;            // the one helper that reads a switch by name: tests/account-switch.test.mjs holds it to === true / === 'account' plus a list check
     for (const k of off) {
       for (const m of src.matchAll(new RegExp(`(?:ryagramConfig|\\bcfg|\\bconfig)\\s*(?:\\?\\.|\\.)\\s*${k}\\b([^\\n]{0,12})`, 'g'))) if (!/^\s*[!=]==\s*true\b/.test(m[1])) loose.push(`${f}: .${k}${m[1]}`);
     }
@@ -53,7 +54,7 @@ test('SWITCHES: every switch defaults OFF unless Ryan turned it on, every OFF sw
   const all = Object.values(bare).join('\n'), html = files.filter(f => f.endsWith('.html')).map(f => code[f]).join('\n');
   for (const k of off) {
     if (UNREAD_ON_PURPOSE.includes(k)) { assert.ok(!new RegExp(`\\.${k}\\s*===\\s*true`).test(all), `${k} is meant to be read by nothing`); continue; }
-    const wired = new RegExp(`\\.${k}\\s*[!=]==\\s*true`).test(all) || new RegExp(`flag:\\s*'${k}'`).test(all) || new RegExp(`data-flag="[^"]*\\b${k}\\b`).test(html);
+    const wired = new RegExp(`\\.${k}\\s*[!=]==\\s*true`).test(all) || new RegExp(`featureOn\\('${k}'\\)`).test(all) || new RegExp(`flag:\\s*'${k}'`).test(all) || new RegExp(`data-flag="[^"]*\\b${k}\\b`).test(html);
     assert.ok(wired, `${k} is in the config but nothing reads it: a switch that does nothing`);
   }
 
