@@ -43,10 +43,12 @@ export function withSwitches(text, names) {
 
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.svg': 'image/svg+xml', '.png': 'image/png', '.jpg': 'image/jpeg', '.ico': 'image/x-icon', '.webp': 'image/webp', '.txt': 'text/plain; charset=utf-8', '.mp4': 'video/mp4', '.woff2': 'font/woff2' };
 
-export function startServer(names, { root = ROOT, port = 0 } = {}) {
+// The address it listens on: this PC only. Exported so a test can pin it WITHOUT opening any socket (createServer can be replaced).
+export const BIND_HOST = '127.0.0.1';
+export function startServer(names, { root = ROOT, port = 0, createServer = http.createServer } = {}) {
   const real = fs.readFileSync(path.join(root, CONFIG), 'utf8');
   const cfg = withSwitches(real, names);
-  const server = http.createServer((req, res) => {
+  const server = createServer((req, res) => {
     let rel; try { rel = decodeURIComponent(new URL(req.url, 'http://x').pathname); } catch { res.writeHead(400).end('bad address'); return; }
     if (rel === '/' + CONFIG) { res.writeHead(200, { 'Content-Type': TYPES['.js'], 'Cache-Control': 'no-store' }).end(cfg.text); return; }
     let file = path.resolve(root, '.' + rel);
@@ -56,7 +58,7 @@ export function startServer(names, { root = ROOT, port = 0 } = {}) {
     res.writeHead(200, { 'Content-Type': TYPES[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-store' });
     fs.createReadStream(file).pipe(res);
   });
-  return new Promise(resolve => server.listen(port, '127.0.0.1', () => resolve({ server, port: server.address().port, ...cfg })));
+  return new Promise(resolve => server.listen(port, BIND_HOST, () => resolve({ server, port: server.address().port, ...cfg })));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

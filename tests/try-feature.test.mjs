@@ -4,7 +4,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import http from 'node:http';
-import { readSwitches, withSwitches, startServer, NEEDS } from '../tools/try-feature.mjs';
+import { readSwitches, withSwitches, startServer, NEEDS, BIND_HOST } from '../tools/try-feature.mjs';
 
 const root = path.resolve(new URL('..', import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1'));
 const real = fs.readFileSync(path.join(root, 'assets/ryagram-config.js'), 'utf8');
@@ -54,4 +54,14 @@ test('it will not serve a file outside the folder or inside .git', async () => {
   try {
     for (const p of ['/..%2fpackage.json', '/..%2f..%2fWindows%2fwin.ini', '/assets%2f..%2f..%2fpackage.json', '/.git/config']) { const r = await get(s.port, p); assert.ok([403, 404].includes(r.status), `${p} gave ${r.status}`); }
   } finally { s.server.close(); }
+});
+
+// No socket is opened here: createServer is replaced by a stub that only records what listen() is asked. (A planted "listen on all addresses" fault must be run against THIS test only: a real socket on all addresses triggers the firewall prompt.)
+test('it asks to listen on exactly 127.0.0.1 (a stub server: no socket is opened)', async () => {
+  const calls = [];
+  const stub = () => ({ listen: (...a) => { calls.push(a); const cb = a.find(x => typeof x === 'function'); cb && cb(); }, address: () => ({ address: '127.0.0.1', port: 1 }) });
+  await startServer(['myFilms'], { createServer: stub });
+  assert.equal(calls.length, 1);
+  assert.equal(calls[0][1], '127.0.0.1', 'the host argument must be exactly 127.0.0.1');
+  assert.equal(BIND_HOST, '127.0.0.1');
 });
