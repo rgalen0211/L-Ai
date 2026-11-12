@@ -71,12 +71,12 @@ test('ON: the AI sees open_editor (with the editor page), the five panel tools c
   const off = server({ enabled: true }), on = server(ON);
   const a = (await off.rpc('tools/list', {})).result.tools, b = (await on.rpc('tools/list', {})).result.tools;
   const added = b.filter((t) => !a.some((x) => x.name === t.name)).map((t) => t.name).sort();
-  assert.deepEqual(added, ['editor_apply_ops', 'editor_heartbeat', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'open_editor']);
+  assert.deepEqual(added, ['editor_apply_ops', 'editor_film_card', 'editor_heartbeat', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'open_editor']);
   assert.deepEqual(strip(b.filter((t) => a.some((x) => x.name === t.name))), strip(a));
   assert.deepEqual(b.find((t) => t.name === 'open_editor')._meta, { ui: { resourceUri: EDITOR_URI }, 'openai/outputTemplate': EDITOR_URI });
-  for (const n of NAMES) assert.deepEqual(b.find((t) => t.name === n)._meta, { ui: { visibility: ['app'] } }, n);
+  for (const n of [...NAMES, 'editor_film_card']) assert.deepEqual(b.find((t) => t.name === n)._meta, { ui: { visibility: ['app'] } }, n);
   assert.ok(b.filter((t) => t._meta && t._meta.ui.resourceUri === CARD_URI).length === 2, 'the card tools are as before');
-  for (const t of b.filter((x) => x.name === 'open_editor' || NAMES.includes(x.name))) {
+  for (const t of b.filter((x) => x.name === 'open_editor' || x.name === 'editor_film_card' || NAMES.includes(x.name))) {
     assert.ok(t.inputSchema.additionalProperties === false); assert.match(t.description, t.name === 'open_editor' ? /ONE of the person's own films/ : /ONLY for the Ryagram editor panel/);
   }
 });
@@ -291,9 +291,9 @@ test('the AI running out of its own calls does not stop the panel', async () => 
 
 test('the panel tools exist once each, have the five names and the edit scope, and the model-visible one is not hidden', () => {
   const panel = TOOLS.filter((t) => t.chatEditor === 'app'), model = TOOLS.filter((t) => t.chatEditor === 'model');
-  assert.deepEqual(panel.map((t) => t.name).sort(), [...NAMES].sort());
+  assert.deepEqual(panel.map((t) => t.name).sort(), [...NAMES, 'editor_film_card'].sort());   // the five editor calls and Step A's film card (scope read, its own file: tests/connect-film-card.test.mjs)
   assert.deepEqual(model.map((t) => t.name), ['open_editor']);
-  for (const t of [...panel, ...model]) assert.equal(t.scope, 'edit', t.name);
+  for (const t of [...panel, ...model]) assert.equal(t.scope, t.name === 'editor_film_card' ? 'read' : 'edit', t.name);
   assert.equal(new Set(TOOLS.map((t) => t.name)).size, TOOLS.length);
   assert.ok(panel.every((t) => t.name.length <= 64 && /^[a-z0-9_]+$/.test(t.name)));
 });

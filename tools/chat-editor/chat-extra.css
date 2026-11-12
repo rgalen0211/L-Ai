@@ -6,3 +6,9 @@
 .le-pill,.le-top .button.primary{display:none}
 /* full screen: the chat's reply box covers the bottom ~90 px of the panel, so the page ends 96 px higher (plus whatever safe area the host reports) and the last control can be scrolled above it */
 .le-fullscreen body{padding-bottom:calc(96px + var(--le-safe-bottom,0px))}
+
+/* Editor Step A: the film's own look card, drawn beside the stand-in (the chat editor only) */
+.le-card{margin-top:12px;padding:12px;border:1px solid var(--line,#3a3a44);border-radius:10px;background:#15151b;min-width:0}
+.le-card h2{margin:0 0 8px;font-size:15px}
+.le-cardpic{background:#0d0d11;border-radius:8px;overflow:hidden;aspect-ratio:16/9;margin:0 0 8px}
+.le-cardpic svg{display:block;width:100%;height:100%}
