@@ -342,15 +342,16 @@ const setCompilationRequest: ToolDef = {
 const STOP_CHECKING = " Do not keep checking: every check uses the person's own AI allowance. Tell the person it is under way, and that they can ask you again later or watch their Ryagram projects page.";
 const MACHINE_OFFLINE = " The Ryagram render machine is not responding right now (it may be offline or very busy). The job is safe and is not failed: it will start when the machine is back, and I cannot say when that will be.";
 const SLOW_CHECK = " If the person is waiting, check again in about a minute at the earliest; there is no time estimate to give yet.";
+const SLOW_CHECK_TIMED = " If the person is waiting, check again in about a minute at the earliest.";   // the answer already gave the worker's time left (stepView), so it does not also say there is none
 
 export interface Waiting { text: string; data: { rendering: string; do_not_poll: boolean; poll_after_s: number | null } }
-/** The words and the fields for a job that is not finished. null for a finished, failed or cancelled job (nothing to wait for). */
-export function waitAdvice(state: string, rendering: string, local: boolean): Waiting | null {
+/** The words and the fields for a job that is not finished. null for a finished, failed or cancelled job (nothing to wait for). timed: the same answer already states a time left. */
+export function waitAdvice(state: string, rendering: string, local: boolean, timed = false): Waiting | null {
   if (!IN_PROGRESS.has(state)) return null;
   const offline = !local && state === "queued" && rendering === "delayed";
   if (offline) return { text: MACHINE_OFFLINE + STOP_CHECKING, data: { rendering, do_not_poll: true, poll_after_s: null } };
   if (local && state === "queued") return { text: STOP_CHECKING, data: { rendering, do_not_poll: true, poll_after_s: null } };
-  return { text: SLOW_CHECK + STOP_CHECKING, data: { rendering, do_not_poll: false, poll_after_s: 60 } };
+  return { text: (timed ? SLOW_CHECK_TIMED : SLOW_CHECK) + STOP_CHECKING, data: { rendering, do_not_poll: false, poll_after_s: 60 } };
 }
 
 const FAILED_JOB = new Set(["failed", "editorial_action_required"]);
@@ -504,7 +505,7 @@ export function durationWords(seconds: number): string {
 }
 export interface StepView { text: string; data: { step: string | null; step_done: number | null; step_total: number | null; step_unit: string | null; time_left_s: number | null } }
 /** The step words and the time left for a job, or null when the job is not at a step (queued, finished, failed or cancelled). */
-export function stepView(state: string, detail: unknown): StepView | null {
+export function stepView(state: string, detail: unknown, local = false): StepView | null {
   if (!STEP_STATES.has(state)) return null;
   const d = detail && typeof detail === "object" && !Array.isArray(detail) ? detail as Record<string, unknown> : null;
   const stage = d && typeof d.stage === "string" && Object.hasOwn(STEP_WORDS, d.stage) ? d.stage : null;
@@ -514,7 +515,9 @@ export function stepView(state: string, detail: unknown): StepView | null {
   const eta = stage !== null ? realNum(d!.eta_s) : null;
   const group = (n: number) => Math.round(n).toLocaleString("en-US");
   let step: string;
-  if (stage === null) step = " Step: not reported yet (the render machine has not said which step it is on).";
+  // A job made on the person's own computer is never said to be on the house render machine (r9, tests/connect-local-jobs.test.mjs).
+  if (stage === null) step = local ? " Step: not reported yet (your Ryagram app on your computer has not said which step it is on)."
+    : " Step: not reported yet (the render machine has not said which step it is on).";
   else if (counted) step = ` Step: ${STEP_WORDS[stage]}, ${unit === "clips" ? "Clips" : "Frames"} ${group(Math.min(done!, total!))} / ${group(total!)}.`;
   else step = ` Step: ${STEP_WORDS[stage]} (this step reports no count).`;
   // The website marks every time left with "~" and never says less than a minute (app-jobs.js:171).
@@ -535,12 +538,12 @@ const jobStatus: ToolDef = {
     if (!local && j.state === "queued" && j.queue_position != null) bits.push(`position ${j.queue_position} in the queue`);
     if (j.progress != null && IN_PROGRESS.has(j.state)) bits.push(`${Math.round(Number(j.progress) * 100)}% done`);
     let text = bits.join(", ") + ".";
-    const step = stepView(j.state, j.progress_detail);
+    const step = stepView(j.state, j.progress_detail, j.run_on === "owner_local");
     if (step) text += step.text;
     const waiting = !!local && j.state === "queued";
     if (waiting) text += localSeen(j.node) + " It has not failed: it waits for that computer.";
     const rendering = local ? "ok" : await ctx.data.renderingState().catch(() => "unknown" as const);
-    const adv = waitAdvice(j.state, rendering, !!local);
+    const adv = waitAdvice(j.state, rendering, !!local, step?.data.time_left_s != null);
     if (adv) text += adv.text;
     if (j.error_detail) text += `\nWhat Ryagram said:\n${untrusted("job-error", j.error_detail.slice(0, 1500))}`;
     if (j.state === "complete") text += " Use get_film_link to open the results.";

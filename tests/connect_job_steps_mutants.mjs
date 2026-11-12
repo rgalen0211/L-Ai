@@ -30,6 +30,10 @@ const mutants = [
   ['an unknown unit is passed through', T, 'const unit = d && d.unit === "clips" ? "clips" : "frames";', 'const unit = d && typeof d.unit === "string" ? d.unit : "frames";'],
   ['a queued job shows a step', T, 'const STEP_STATES = new Set(["claimed",', 'const STEP_STATES = new Set(["queued", "claimed",'],
   ['the minutes are rounded down unlike the website', T, 'const m = Math.round(seconds / 60);\n  if (m < 60) return `${m} min`;', 'const m = Math.floor(seconds / 60);\n  if (m < 60) return `${m} min`;'],
+  ['a job on the person\'s computer is said to wait for the render machine', T, '" Step: not reported yet (your Ryagram app on your computer has not said which step it is on)."', MISSING_STEP],
+  ['the tool does not say where the job is made', T, 'stepView(j.state, j.progress_detail, j.run_on === "owner_local")', 'stepView(j.state, j.progress_detail)'],
+  ['a timed answer still says there is no estimate', T, 'waitAdvice(j.state, rendering, !!local, step?.data.time_left_s != null)', 'waitAdvice(j.state, rendering, !!local)'],
+  ['an untimed answer drops the no-estimate words', T, 'waitAdvice(j.state, rendering, !!local, step?.data.time_left_s != null)', 'waitAdvice(j.state, rendering, !!local, true)'],
   ['the description does not tell the AI about the step', T, 'While it runs: the step it is on, that step\'s count and the time left,', 'While it runs:'],
 ];
 

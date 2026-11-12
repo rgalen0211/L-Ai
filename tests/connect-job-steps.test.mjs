@@ -27,9 +27,10 @@ function world() {
   return { w, call: (p, name, args) => callTool(name, args, p, env(p)) };
 }
 const goodStory = () => { const t = TEMPLATES[0]; return build(t.id, t.datasets[0], 'Invented headline'); };
-/** A queued contact sheet whose next look moves it to running, carrying the given heartbeat. */
-async function sheetWith(detail) {
+/** A queued contact sheet whose next look moves it to running, carrying the given heartbeat. local: made on the person's own (awake) computer. */
+async function sheetWith(detail, local = false) {
   const { w, call } = world();
+  if (local) w.setLocal(A.userId, { lastSeenAt: new Date().toISOString(), computerName: 'Invented-PC', awake: true });
   const id = (await call(A, 'create_project', { title: 'Invented film' })).data.project_id;
   await call(A, 'set_story', { project_id: id, story: goodStory() });
   const started = await call(A, 'make_contact_sheet', { project_id: id });
@@ -83,6 +84,35 @@ test('MISSING FIELDS ARE SAID IN WORDS, never a blank and never an invented valu
     assert.match(s.text, /^ Step: not reported yet .* Time left: not known yet .*\.$/, JSON.stringify(v));
     assert.doesNotMatch(s.text, /undefined|null|NaN|—|: \./);
   }
+});
+
+test('ONE ANSWER, NO CONTRADICTION: with a time left it does not also say there is no estimate; without one it still says so', async () => {
+  const timed = await sheetWith(DRAWING);
+  const t = await timed.call(A, 'job_status', { job_id: timed.jobId });
+  assert.match(t.text, /Time left: ~6 min left in this step\./);
+  assert.match(t.text, /If the person is waiting, check again in about a minute at the earliest\. Do not keep checking/);
+  assert.doesNotMatch(t.text, /no time estimate/);
+  assert.equal(t.data.poll_after_s, 60); assert.equal(t.data.do_not_poll, false);                 // the waiting advice itself is unchanged
+  const untimed = await sheetWith({ stage: 'drawing', done: 10, total: 100 });
+  const u = await untimed.call(A, 'job_status', { job_id: untimed.jobId });
+  assert.match(u.text, /Time left: not known yet/);
+  assert.match(u.text, /at the earliest; there is no time estimate to give yet\./);
+});
+
+test('ON THE PERSON\'S OWN COMPUTER: a missing step names their Ryagram app, never the house render machine', () => {
+  const mine = stepView('running', null, true);
+  assert.match(mine.text, /Step: not reported yet \(your Ryagram app on your computer has not said which step it is on\)\./);
+  assert.doesNotMatch(mine.text, /render machine/);
+  assert.match(stepView('running', null).text, /the render machine has not said/);                 // the house job keeps its own words
+  assert.equal(stepView('running', DRAWING, true).text, stepView('running', DRAWING).text);         // a reported step reads the same wherever it is made
+});
+
+test('THE TOOL TELLS THE STEP WHERE THE JOB IS MADE: a running job on the person\'s own computer, with no step yet, names their app', async () => {
+  const { call, jobId } = await sheetWith(undefined, true);
+  const r = await call(A, 'job_status', { job_id: jobId });
+  assert.equal(r.data.run_on, 'owner_local'); assert.equal(r.data.state, 'running');
+  assert.match(r.text, /Step: not reported yet \(your Ryagram app on your computer has not said which step it is on\)\./);
+  assert.doesNotMatch(r.text, /render machine/);
 });
 
 test('ONLY AT A STEP: a queued, finished, failed or cancelled job shows no step line (the queue place, the result or the reason instead)', async () => {
