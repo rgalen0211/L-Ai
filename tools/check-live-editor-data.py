@@ -58,7 +58,7 @@ def main():
         ok = ok and bool(cond)
 
     cfg = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-    flipped = re.sub(r'liveEditor:\s*false', 'liveEditor: true', cfg)
+    flipped = re.sub(r"liveEditor:\s*(?:false|'account')", 'liveEditor: true', cfg)
     assert 'liveEditor: true' in flipped
     draft_look = "window.ryagramMockEditor.draft(window.RYAGRAM_MOCK_EDITOR_PROJECT, 'data').state.look"
     try:

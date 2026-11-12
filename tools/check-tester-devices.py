@@ -20,7 +20,7 @@ srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own po
 PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-on_cfg = re.sub(r'adminTesterDevices:\s*false', 'adminTesterDevices: true', base)
+on_cfg = re.sub(r"adminTesterDevices:\s*(?:false|'account')", 'adminTesterDevices: true', base)
 ok = True
 
 

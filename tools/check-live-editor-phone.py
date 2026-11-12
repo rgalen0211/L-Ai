@@ -50,7 +50,7 @@ sp = load('sp', 'check-signin-phone.py')
 def main():
     OUT.mkdir(parents=True, exist_ok=True)
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf-8')
-    flipped = re.sub(r'liveEditor:\s*false', 'liveEditor: true', cfg)
+    flipped = re.sub(r"liveEditor:\s*(?:false|'account')", 'liveEditor: true', cfg)
     assert 'liveEditor: true' in flipped
     srv = aa.serve(); port = srv.server_address[1]          # its OWN port: the shared 8185 can be bound by a second run at once on Windows, which served this page its files from the wrong server
     found, states = [], 0

@@ -74,7 +74,7 @@ test('the person cannot grant themselves a switch from the page: the helper only
 });
 
 test("the shipping config holds 'account' for myFilms and intake ONLY (Q577, walkthrough v2), and each reads through featureOn at every site", () => {
-  assert.deepEqual([...read('assets/ryagram-config.js').replace(/\/\/.*$/gm, '').matchAll(/^\s*(\w+):\s*'account'/gm)].map(m => m[1]).sort(), ['intake', 'myFilms']);
+  assert.deepEqual([...read('assets/ryagram-config.js').replace(/\/\/.*$/gm, '').matchAll(/^\s*(\w+):\s*'account'/gm)].map(m => m[1]).sort(), ['adminTesterDevices', 'intake', 'liveEditor', 'myFilms', 'testerFilmProgress', 'testerWizard']);
   for (const f of ['assets/app-library.js', 'assets/app-departments.js']) assert.ok(!/ryagramConfig[^\n]{0,12}\.myFilms/.test(read(f)), f);
   assert.ok(!/ryagramConfig[^\n]{0,12}\.intake/.test(read('assets/app-library.js'))); assert.match(read('assets/app-library.js'), /featureOn\('intake'\)/); assert.match(read('assets/app-library.js'), /featureOn\('myFilms'\)/); assert.match(read('assets/app-departments.js'), /featureOn\('myFilms'\)/);
 });

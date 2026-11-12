@@ -22,7 +22,7 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
 films_cfg, _n = re.subn(r"\bmyFilms:\s*(?:false|'account')", 'myFilms: true', base)
 assert _n == 1, f'myFilms line matched {_n} times (expected exactly 1)'
-on_cfg = re.sub(r'testerFilmProgress:\s*false', 'testerFilmProgress: true', films_cfg)
+on_cfg = re.sub(r"testerFilmProgress:\s*(?:false|'account')", 'testerFilmProgress: true', films_cfg)
 ok = True
 
 

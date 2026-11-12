@@ -109,8 +109,8 @@ test('TESTER: no claim without a tester account or a readable computer list; a r
 
 test('TESTER wiring: behind its own switch (off), read only when the account is a tester, failing reads make no claim', () => {
   const cfg = read('assets/ryagram-config.js'), src = read('assets/app-films.js');
-  assert.match(cfg, /\n  testerFilmProgress: false,/);
-  assert.match(src, /window\.ryagramConfig\.testerFilmProgress === true && data\.myLocalCompute/);
+  assert.match(cfg, /\n  testerFilmProgress: 'account',/);
+  assert.match(src, /window\.ryagramSwitches\.featureOn\('testerFilmProgress'\) === true && data\.myLocalCompute/);
   assert.match(src, /catch \{ own = null; \}/);
   assert.ok(!/innerHTML|insertAdjacentHTML|eval\(|fetch\(|localStorage/.test(src));
 });
