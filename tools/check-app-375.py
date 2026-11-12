@@ -50,7 +50,8 @@ PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 cfg = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
 for _k in ('liveEditor', 'whyClip', 'songIntake', 'adminTesterDevices', 'testerFilmProgress', 'myFilms', 'intake', 'testerWizard'):
-    cfg = re.sub(rf'\b{_k}:\s*false', f'{_k}: true', cfg)
+    cfg, _n = re.subn(rf"\b{_k}:\s*(?:false|'account')", f'{_k}: true', cfg)
+    assert _n == 1, f'{_k} matched {_n} times (expected exactly 1)'
 OUT.mkdir(parents=True, exist_ok=True)
 bad = 0
 with sync_playwright() as pw:

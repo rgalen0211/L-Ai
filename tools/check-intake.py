@@ -20,7 +20,14 @@ srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own po
 PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-on_cfg = re.sub(r'intake:\s*false', 'intake: true', base)
+def _set(v):
+    out, n = re.subn(r"\bintake:\s*(?:false|'account')", 'intake: ' + v, base)
+    assert n == 1, f'intake line matched {n} times'
+    return out
+
+
+on_cfg = _set('true')
+off_cfg = _set('false')          # OFF is false on purpose: the shipped value is the word account
 song_cfg = re.sub(r'songIntake:\s*false', 'songIntake: true', on_cfg)
 ok = True
 
@@ -98,7 +105,7 @@ with sync_playwright() as pw:
     p.context.close()
     print('switch off')
     errs = []
-    p = open_page(b, base, dict(viewport={'width': 1200, 'height': 900}), errs)
+    p = open_page(b, off_cfg, dict(viewport={'width': 1200, 'height': 900}), errs)
     p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/', wait_until='load'); p.wait_for_selector('h1:has-text("Your projects")')
     check(p.locator('a:has-text("What do you want to make?")').count() == 0, 'no link with the switch off')
     p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/new', wait_until='load'); p.wait_for_timeout(1200)

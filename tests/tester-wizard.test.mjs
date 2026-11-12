@@ -62,7 +62,7 @@ test('a hostile computer name cannot break the sentence; the name is cut', () =>
 });
 
 test('wiring: behind testerWizard (off), its own route, loaded before the library, the mock has the two wizard computers, no other file names it', () => {
-  assert.match(read('assets/ryagram-config.js'), /\n  testerWizard: false,/);
+  assert.match(read('assets/ryagram-config.js'), /\n  testerWizard: 'account',/);
   assert.match(read('assets/app-library.js'), /wizardOn\(\) && hash === '#\/tester-start'/);
   const html = read('app/index.html'); assert.ok(html.indexOf('app-tester-wizard.js') > 0 && html.indexOf('app-tester-wizard.js') < html.indexOf('app-library.js'));
   assert.match(read('tests/fake-supabase.js'), /wz\(awake\|quiet\)/);

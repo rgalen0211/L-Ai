@@ -33,7 +33,7 @@ def main(only):
     global BASE; BASE = aa.BASE
     cfg = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf8')
     for k in SWITCHES:
-        cfg = re.sub(rf'\b{k}:\s*false', f'{k}: true', cfg)
+        cfg = re.sub(rf"\b{k}:\s*(?:false|'account')", f'{k}: true', cfg)
     findings, skipped = [], []
 
     def scan(p, where):

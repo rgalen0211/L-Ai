@@ -114,6 +114,6 @@ test('wiring: the editor paints through keepFocus, the wizard draws through keep
   assert.match(ed, /class: 'le-itemtext', 'data-id': c\.id/);
   assert.match(wz, /function draw\(r\) \{ keepFocus\(body, document, \(\) => drawNow\(r\)\); \}/);
   for (const k of ["'data-wiz': 'disk'", "'data-wiz': `go-${s.id}`", "'data-wiz': 'again'"]) assert.ok(wz.includes(k), k);
-  assert.match(app, /app-editor\.js\?v=20261108a/); assert.match(app, /app-tester-wizard\.js\?v=20261103a/);
+  assert.match(app, /app-editor\.js\?v=20261109a/); assert.match(app, /app-tester-wizard\.js\?v=20261112a/);
   assert.ok(read('tools/maker-live/live.js').includes('function keepFocus(root, doc, repaint)'), 'the maker\'s copy is rebuilt from the site\'s file');
 });

@@ -30,8 +30,8 @@ def check(c, w):
 with sync_playwright() as pw:
     b = pw.chromium.launch(channel='chrome')
     on_cfg = base.replace('uploads: false', 'uploads: true')
-    if re.search(r'liveEditor:\s*false', on_cfg):                                # the editor branches add this switch to the config; main has no such key yet
-        on_cfg = re.sub(r'liveEditor:\s*false', 'liveEditor: true', on_cfg)
+    if re.search(r"liveEditor:\s*(?:false|'account')", on_cfg):                                # the editor branches add this switch to the config; main has no such key yet
+        on_cfg = re.sub(r"liveEditor:\s*(?:false|'account')", 'liveEditor: true', on_cfg)
     else:
         on_cfg = on_cfg.replace('window.ryagramConfig = Object.freeze({', 'window.ryagramConfig = Object.freeze({ liveEditor: true,', 1)
     SONG = ['What is a song film', 'stand-in', 'sped up', 'lyric cards', 'internal only']

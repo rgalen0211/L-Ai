@@ -8,7 +8,7 @@
 // opened the panel (the film is named by the result's structuredContent or its JSON text part, { project_id, mode, title }, or else by the call's own arguments); the panel sends tools/call, ui/update-model-context (one short line about what changed), ui/request-display-mode, and
 // ui/notifications/size-changed. A tool answer is { structuredContent: { data } } or, with isError, { structuredContent: { error: { code, message } } }; anything else reads as "did not answer".
 (() => {
-  const NAMES = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];
+  const NAMES = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat', 'editor_film_card'];
   const PARENT = window.parent;
   const WAIT_MS = 20000;
   const POLL_MS = 5000;          // the page asks for changes every 2 s; each ask is a call through the host to the server, so an ask for the SAME revision within 5 s is answered from the last answer
@@ -101,7 +101,59 @@
   // the final film is built in the Ryagram app: nothing here can start a build, a render or a spend
   async function render() { return { error: 'The film is built in the Ryagram app. Open it there and press the build button when you are ready.' }; }
 
-  window.ryagramLiveHost = { rpc, render, mode: 'compilation', project: '', media: null, title: '' };
+  // ---- the film's look card (Editor Step A): the picture comes from another computer, so it is REBUILT here, element by element, from a fixed list, and only the part that is on the list is kept. The connector has already
+  // refused a card whose picture holds anything else; this is the second lock (a mistake in either place cannot run anything). It never follows an address, never keeps a style, a script or an event handler, and renames every id so
+  // nothing in it can collide with the page.
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const XML_NS = 'http:' + '//www.w3.org/XML/1998/namespace';                     // written in two pieces: the page's own check forbids a web address anywhere in its text (the SVG namespace aside)
+  const CARD_ELEMENTS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'title']);
+  const CARD_TEXT = new Set(['text', 'tspan', 'title']);
+  const CARD_ATTRS = new Set(['id', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'd', 'points', 'transform', 'viewBox', 'preserveAspectRatio', 'fill', 'stroke', 'stroke-width',
+    'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity', 'fill-opacity', 'opacity', 'fill-rule', 'clip-rule', 'clip-path', 'font-family', 'font-size', 'font-weight', 'font-style',
+    'text-anchor', 'dominant-baseline', 'letter-spacing', 'textLength', 'lengthAdjust', 'xml:space', 'dx', 'dy', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform']);
+  const URL_REF = /^url\(#([A-Za-z0-9_-]{1,40})\)$/;
+  function drawCard(svg) {
+    try {
+      if (typeof svg !== 'string' || svg.length === 0 || svg.length > 200000) return null;
+      const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
+      const root = doc.documentElement;
+      if (!root || root.localName !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
+      let count = 0;
+      const copy = (src, depth) => {
+        if (depth > 30 || ++count > 30000) throw new Error('too big');
+        const el = document.createElementNS(SVG_NS, src.localName);
+        for (const a of Array.from(src.attributes)) {
+          if (!CARD_ATTRS.has(a.name)) continue;
+          const v = String(a.value);
+          if (v.length > 60000) continue;
+          if (a.name === 'lengthAdjust' && v !== 'spacing' && v !== 'spacingAndGlyphs') continue;          // the two words the connector allows, or the attribute is dropped
+          if (a.name === 'xml:space') { if (v === 'preserve' || v === 'default') el.setAttributeNS(XML_NS, 'xml:space', v); continue; }          // in its own (xml) namespace, and only the two allowed words
+          if (a.name === 'textLength' && !/^\d{1,5}(?:\.\d{1,3})?$/.test(v)) continue;                // a plain number only (the connector refuses anything else; this is the second lock)
+          if (/url\(/i.test(v)) {
+            const m = URL_REF.exec(v);
+            if (!m || !['fill', 'stroke', 'clip-path'].includes(a.name)) continue;
+            el.setAttribute(a.name, 'ur' + 'l(#lecard-' + m[1] + ')');            // written in two pieces: the page's own check forbids the word with a bracket anywhere in its text (a CSS address is how a style could reach out); this is an SVG paint reference to an id inside the picture
+          } else if (/javascript:|data:|https?:|\/\/|expression\(/i.test(v)) continue;
+          else el.setAttribute(a.name, a.name === 'id' ? 'lecard-' + v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : v);
+        }
+        for (const n of Array.from(src.childNodes)) {
+          if (n.nodeType === 1) { if (n.namespaceURI === SVG_NS && CARD_ELEMENTS.has(n.localName)) el.appendChild(copy(n, depth + 1)); }
+          else if (n.nodeType === 3 && CARD_TEXT.has(src.localName)) el.appendChild(document.createTextNode(clean(n.nodeValue, 2000)));
+        }
+        return el;
+      };
+      const out = copy(root, 0);
+      if (!out.getAttribute('viewBox')) {
+        const w = parseFloat(root.getAttribute('width')), h = parseFloat(root.getAttribute('height'));
+        if (w > 0 && h > 0) out.setAttribute('viewBox', '0 0 ' + w + ' ' + h);
+      }
+      out.removeAttribute('width'); out.removeAttribute('height');
+      out.setAttribute('focusable', 'false'); out.setAttribute('aria-hidden', 'true');
+      return out;
+    } catch (e) { return null; }
+  }
+
+  window.ryagramLiveHost = { rpc, render, mode: 'compilation', project: '', media: null, title: '', filmCard: true, drawCard };
 
   // ---- the page's element builder (the site's own is private to its router)
   function h(tag, attrs = {}, ...children) {

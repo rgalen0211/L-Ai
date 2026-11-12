@@ -20,7 +20,7 @@ srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own po
 PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-on_cfg = re.sub(r'testerWizard:\s*false', 'testerWizard: true', base)
+on_cfg = re.sub(r"testerWizard:\s*(?:false|'account')", 'testerWizard: true', base)
 ok = True
 
 
@@ -72,7 +72,7 @@ with sync_playwright() as pw:
         p = page(b, on_cfg, opts, errs)
         go(p, '&tester&wzawake')
         p.get_by_role('button', name='I checked: the drive has room').click(); p.wait_for_timeout(400)
-        check('All four steps are done' in txt(p) and p.locator('.wiz-now').count() == 0 and p.locator('a[href="#/films"]').count() == 1, 'with a film already made and the yes given, all four are done and My films is linked')
+        check('All four steps are done' in txt(p) and p.locator('.wiz-now').count() == 0 and p.locator('.wiz-body a[href="#/films"]').count() == 1, 'with a film already made and the yes given, all four are done and My films is linked')
         p.reload(wait_until='load'); p.wait_for_selector('.wiz-body *'); p.wait_for_timeout(400)
         check('All four steps are done' in txt(p), 'the yes is remembered in this browser')
         check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll')
