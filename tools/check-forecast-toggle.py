@@ -39,8 +39,8 @@ def context(b, opts, errs, switch_on):
         def cfg(route, _req):
             body = (ROOT / 'assets' / 'ryagram-config.js').read_text(encoding='utf-8')
             assert 'forecastToggle: false,' in body
-            assert '  liveEditor: false,' in body
-            route.fulfill(status=200, content_type='application/javascript', body=body.replace('forecastToggle: false,', 'forecastToggle: true,', 1).replace('  liveEditor: false,', '  liveEditor: true,', 1))
+            assert "  liveEditor: 'account'," in body
+            route.fulfill(status=200, content_type='application/javascript', body=body.replace('forecastToggle: false,', 'forecastToggle: true,', 1).replace("  liveEditor: 'account',", '  liveEditor: true,', 1))
         ctx.route(re.compile(r'.*/assets/ryagram-config\.js.*'), cfg)
     p = ctx.new_page()
     p.on('pageerror', lambda e: errs.append(str(e))); p.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)

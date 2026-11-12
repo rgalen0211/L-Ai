@@ -62,8 +62,8 @@ test('films that need a person come first: failed, waiting, being made, stopped,
 
 test('wiring: behind a switch that is OFF; three reads; the page builds nothing from the server except text', () => {
   const cfg = read('assets/ryagram-config.js'), lib = read('assets/app-library.js'), html = read('app/index.html'), src = read('assets/app-films.js'), data = read('assets/app-data.js');
-  assert.match(cfg, /\n  myFilms: false,/);
-  assert.match(lib, /const myFilmsOn = \(\) => window\.ryagramConfig\?\.myFilms === true;/);
+  assert.match(cfg, /\n  myFilms: 'account',/);
+  assert.match(lib, /const myFilmsOn = \(\) => window\.ryagramSwitches\?\.featureOn\('myFilms'\) === true;/);
   assert.match(lib, /myFilmsOn\(\) && window\.ryagramFilms && hash === '#\/films'/);
   assert.match(lib, /const filmsLink = myFilmsOn\(\) && window\.ryagramFilms/);
   assert.ok(html.indexOf('/assets/app-jobs.js') < html.indexOf('/assets/app-films.js') && html.indexOf('/assets/app-films.js') < html.indexOf('/assets/app-library.js'));
@@ -109,8 +109,8 @@ test('TESTER: no claim without a tester account or a readable computer list; a r
 
 test('TESTER wiring: behind its own switch (off), read only when the account is a tester, failing reads make no claim', () => {
   const cfg = read('assets/ryagram-config.js'), src = read('assets/app-films.js');
-  assert.match(cfg, /\n  testerFilmProgress: false,/);
-  assert.match(src, /window\.ryagramConfig\.testerFilmProgress === true && data\.myLocalCompute/);
+  assert.match(cfg, /\n  testerFilmProgress: 'account',/);
+  assert.match(src, /window\.ryagramSwitches\.featureOn\('testerFilmProgress'\) === true && data\.myLocalCompute/);
   assert.match(src, /catch \{ own = null; \}/);
   assert.ok(!/innerHTML|insertAdjacentHTML|eval\(|fetch\(|localStorage/.test(src));
 });

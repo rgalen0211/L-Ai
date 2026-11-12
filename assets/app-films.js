@@ -83,7 +83,7 @@
         let films;
         try { films = await data.listFilms(); } catch (err) { list.replaceChildren(h('li', {}, h('p', { class: 'app-error', role: 'alert' }, WORDS.loadError))); return; }
         let own = null;                                                                // a tester account (behind its own switch): where its films are on ITS computer; unreadable = no claim
-        if (window.ryagramConfig && window.ryagramConfig.testerFilmProgress === true && data.myLocalCompute) {
+        if (window.ryagramSwitches && window.ryagramSwitches.featureOn('testerFilmProgress') === true && data.myLocalCompute) {
           try { if (await data.myLocalCompute()) own = { tester: true, computers: await data.myComputers(), now: Date.now() }; } catch { own = null; }
         }
         const rows = sorted(rowsFor(films, J, own));

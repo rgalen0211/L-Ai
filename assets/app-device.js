@@ -302,7 +302,7 @@
       // ---- each tester's computers (NEXT-WEB 187; behind adminTesterDevices, off; needs SQL 20261031000100)
       const devicesBox = h('div', { class: 'tester-devices' });
       async function drawDevices() {
-        if (!(window.ryagramConfig && window.ryagramConfig.adminTesterDevices === true)) { devicesBox.hidden = true; return; }
+        if (!(window.ryagramSwitches && window.ryagramSwitches.featureOn('adminTesterDevices') === true)) { devicesBox.hidden = true; return; }
         let rows;
         try { rows = window.ryagramDevice.deviceRows(await data.adminTesterDevices()); } catch (err) { devicesBox.replaceChildren(h('h2', {}, 'Their computers'), h('p', { class: 'form-note', role: 'alert' }, err.message)); return; }
         devicesBox.replaceChildren(h('h2', {}, 'Their computers'),

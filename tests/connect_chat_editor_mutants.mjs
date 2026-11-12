@@ -11,7 +11,7 @@ const scratch = path.join(root, '.mut-chated');
 const AE = 'assets/app-editor.js', H = 'tools/chat-editor/live-host.js', CSS = 'tools/chat-editor/chat-extra.css', B = 'tools/build-chat-editor.mjs', DR = 'assets/app-editor-draft.js';
 const SUITES = ['connect-chat-editor.test.mjs', 'live-editor-draft.test.mjs'];
 const mutants = [
-  ['a sixth name is allowed', H, "'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];", "'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat', 'set_look'];"],
+  ['a further name is allowed', H, "'my_edit_ops_since', 'editor_heartbeat', 'editor_film_card'];", "'my_edit_ops_since', 'editor_heartbeat', 'editor_film_card', 'set_look'];"],
   ['the name guard is gone', H, "if (!NAMES.includes(name)) throw new Error('Not an editor call.');", ''],
   ['messages from any window are believed', H, 'if (ev.source !== PARENT) return;', ''],
   ['the protocol version is not checked', H, "typeof m !== 'object' || m.jsonrpc !== '2.0') return;", "typeof m !== 'object') return;"],
