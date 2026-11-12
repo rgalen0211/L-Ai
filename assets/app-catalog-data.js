@@ -101,7 +101,11 @@ window.ryagramCatalogData = {
   "cbp_accommodation_food_share": "measured 2026-10-04 at main 82e7564: 0 files fetched",
   "cbp_admin_support_employment": "measured 2026-10-04 at main 82e7564: 0 files fetched",
   "cbp_admin_support_establishments": "measured 2026-10-04 at main 82e7564: 0 files fetched",
-  "cbp_admin_support_share": "measured 2026-10-04 at main 82e7564: 0 files fetched"
+  "cbp_admin_support_share": "measured 2026-10-04 at main 82e7564: 0 files fetched",
+  "county_population_1990s": "measured 2026-11-09 17:10 (Q552): 0 files fetched",
+  "county_population_2000s": "measured 2026-11-09 17:10 (Q552): 0 files fetched",
+  "county_population_2010s": "measured 2026-11-09 17:10 (Q552): 0 files fetched",
+  "county_population_2020s": "measured 2026-11-09 17:10 (Q552): 0 files fetched"
  },
  "entries": [
   {
@@ -626,7 +630,7 @@ window.ryagramCatalogData = {
    "url": "https://www.census.gov/programs-surveys/popest.html",
    "group": "population",
    "family": "county-population",
-   "status": "later",
+   "status": "next",
    "level": "U.S. counties",
    "cadence": "annual",
    "from": "1990",
@@ -652,7 +656,7 @@ window.ryagramCatalogData = {
    "url": "https://www.census.gov/programs-surveys/popest.html",
    "group": "population",
    "family": "county-population",
-   "status": "later",
+   "status": "next",
    "level": "U.S. counties",
    "cadence": "annual",
    "from": "2000",
@@ -678,7 +682,7 @@ window.ryagramCatalogData = {
    "url": "https://www.census.gov/programs-surveys/popest.html",
    "group": "population",
    "family": "county-population",
-   "status": "later",
+   "status": "next",
    "level": "U.S. counties",
    "cadence": "annual",
    "from": "2010",
@@ -704,7 +708,7 @@ window.ryagramCatalogData = {
    "url": "https://www.census.gov/programs-surveys/popest.html",
    "group": "population",
    "family": "county-population",
-   "status": "later",
+   "status": "next",
    "level": "U.S. counties",
    "cadence": "annual",
    "from": "2020",
