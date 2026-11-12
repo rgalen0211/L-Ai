@@ -107,6 +107,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   getGeo(id: string): Promise<GeoRow | null>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
   jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null;
+    /** The worker's heartbeat (jobs.progress_detail): stage, done, total, unit, eta_s, ... Untrusted; absent when the database call does not return it. */
+    progress_detail?: unknown;
     /** r9: where the job runs. 'owner_local' = on the person's own computer, made by their Ryagram desktop app. Absent = the house. */
     run_on?: string; node?: LocalNode | null }) | null>;
   links(versionId: string, jobId: string | null): Promise<Link[]>;
