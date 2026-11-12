@@ -19,7 +19,7 @@ const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'stripeTestMode', 'a
   'lookEditor', 'renderOrders', 'connectAi', 'aiFirst', 'departments', 'desktopApp'];
 // Permanently off and read by nothing (the config says so; tests/app-catalog.test.cjs fails if either turns true).
 // Switches that hold the string 'account' (on only for accounts an admin named; assets/app-switches.js featureOn). Each must be read through featureOn, and nothing else may be a string.
-const ACCOUNT_SWITCHES = ['myFilms'];
+const ACCOUNT_SWITCHES = ['myFilms', 'intake'];
 const UNREAD_ON_PURPOSE = ['catalog', 'catalogComingSoon'];
 
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1').replace(/<!--[\s\S]*?-->/g, ' ');

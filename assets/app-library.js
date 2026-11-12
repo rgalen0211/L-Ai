@@ -52,7 +52,7 @@
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
   // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
-  const intakeOn = () => window.ryagramConfig?.intake === true;
+  const intakeOn = () => window.ryagramSwitches?.featureOn('intake') === true;
   const myFilmsOn = () => window.ryagramSwitches?.featureOn('myFilms') === true;
   const waitingOn = () => window.ryagramWaiting?.on() === true;
   const wizardOn = () => window.ryagramTesterWizard?.flagOn() === true;
