@@ -484,9 +484,48 @@ export function localSeen(node: LocalNode | null | undefined, now: number = Date
   return ` Your Ryagram app${name} was last seen ${ago.words}.${hint}`;
 }
 
+// ---------------------------------------------------------------------------------------------- the step and the time left (launch slice IN 1, WORKER's walkthrough row A10)
+// The website's jobs page shows a running job's step, its count and a time left (assets/app-jobs.js:99-178), read from jobs.progress_detail, the worker's heartbeat
+// (supabase/migrations/20261003000100_job_progress_detail.sql). The chat shows the SAME words from the SAME field. It is untrusted data: only a stage from the fixed list,
+// whole numbers and a known unit are used, and no text from it is ever shown. Nothing is invented: a missing step, count or time left is said in words, never left blank.
+const STEP_WORDS: Record<string, string> = {
+  starting: "Building the data", drawing: "Drawing frames", encoding: "Encoding the film",
+  checks: "Checking the film against its data", uploading: "Uploading the files", done: "Finishing",
+};
+const STEP_STATES = new Set(["claimed", "running", "validating", "uploading"]);   // the website's ACTIVE_STATES: a queued job shows its place in line instead
+const realNum = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : null);
+/** The website's duration(): "under a minute", "6 min", "1 h 5 min". */
+export function durationWords(seconds: number): string {
+  if (seconds < 60) return "under a minute";
+  const m = Math.round(seconds / 60);
+  if (m < 60) return `${m} min`;
+  const h = Math.floor(m / 60), rest = m % 60;
+  return rest ? `${h} h ${rest} min` : `${h} h`;
+}
+export interface StepView { text: string; data: { step: string | null; step_done: number | null; step_total: number | null; step_unit: string | null; time_left_s: number | null } }
+/** The step words and the time left for a job, or null when the job is not at a step (queued, finished, failed or cancelled). */
+export function stepView(state: string, detail: unknown): StepView | null {
+  if (!STEP_STATES.has(state)) return null;
+  const d = detail && typeof detail === "object" && !Array.isArray(detail) ? detail as Record<string, unknown> : null;
+  const stage = d && typeof d.stage === "string" && Object.hasOwn(STEP_WORDS, d.stage) ? d.stage : null;
+  const done = d ? realNum(d.done) : null, total = d ? realNum(d.total) : null;
+  const counted = stage !== null && done !== null && total !== null && total > 0;
+  const unit = d && d.unit === "clips" ? "clips" : "frames";
+  const eta = stage !== null ? realNum(d!.eta_s) : null;
+  const group = (n: number) => Math.round(n).toLocaleString("en-US");
+  let step: string;
+  if (stage === null) step = " Step: not reported yet (the render machine has not said which step it is on).";
+  else if (counted) step = ` Step: ${STEP_WORDS[stage]}, ${unit === "clips" ? "Clips" : "Frames"} ${group(Math.min(done!, total!))} / ${group(total!)}.`;
+  else step = ` Step: ${STEP_WORDS[stage]} (this step reports no count).`;
+  // The website marks every time left with "~" and never says less than a minute (app-jobs.js:171).
+  const left = eta !== null ? ` Time left: ~${durationWords(Math.max(60, eta))} left in this step.` : " Time left: not known yet (no estimate has been reported for this step).";
+  return { text: step + left, data: { step: stage === null ? null : STEP_WORDS[stage], step_done: counted ? Math.min(done!, total!) : null, step_total: counted ? total : null,
+    step_unit: counted ? unit : null, time_left_s: eta } };
+}
+
 const jobStatus: ToolDef = {
   name: "job_status", title: "Job status", scope: "read", readOnly: true,
-  description: "The state of a job (a contact sheet, preview or render): queued, running, finished, or why it stopped. Jobs can take minutes, and asking more often than every 15 seconds only repeats the same answer.",
+  description: "The state of a job (a contact sheet, preview or render): queued, running, finished, or why it stopped. While it runs: the step it is on, that step's count and the time left, the same words the person's Ryagram projects page shows. Jobs can take minutes, and asking more often than every 15 seconds only repeats the same answer.",
   inputSchema: obj({ job_id: uuid }, ["job_id"]),
   async run(a, ctx) {
     const j = await ctx.data.jobById(String(a.job_id));
@@ -496,6 +535,8 @@ const jobStatus: ToolDef = {
     if (!local && j.state === "queued" && j.queue_position != null) bits.push(`position ${j.queue_position} in the queue`);
     if (j.progress != null && IN_PROGRESS.has(j.state)) bits.push(`${Math.round(Number(j.progress) * 100)}% done`);
     let text = bits.join(", ") + ".";
+    const step = stepView(j.state, j.progress_detail);
+    if (step) text += step.text;
     const waiting = !!local && j.state === "queued";
     if (waiting) text += localSeen(j.node) + " It has not failed: it waits for that computer.";
     const rendering = local ? "ok" : await ctx.data.renderingState().catch(() => "unknown" as const);
@@ -504,7 +545,7 @@ const jobStatus: ToolDef = {
     if (j.error_detail) text += `\nWhat Ryagram said:\n${untrusted("job-error", j.error_detail.slice(0, 1500))}`;
     if (j.state === "complete") text += " Use get_film_link to open the results.";
     return ok(text, { job_id: j.id, job_type: j.job_type, state: j.state, progress: j.progress ?? null, queue_position: local ? null : (j.queue_position ?? null), error_code: j.error_code,
-      ...(adv ? adv.data : {}), ...(j.run_on === "owner_local" ? { run_on: "owner_local", waiting_for: waiting ? "your_computer" : null, last_seen_at: j.node?.last_seen_at ?? null } : {}) });
+      ...(step ? step.data : {}), ...(adv ? adv.data : {}), ...(j.run_on === "owner_local" ? { run_on: "owner_local", waiting_for: waiting ? "your_computer" : null, last_seen_at: j.node?.last_seen_at ?? null } : {}) });
   },
 };
 
