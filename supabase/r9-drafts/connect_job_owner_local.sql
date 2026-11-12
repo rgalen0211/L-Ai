@@ -1,3 +1,6 @@
+-- 2026-11-12 NOTE (CONNECT): public.connect_job now also returns 'progress_detail' (migration 20261112000100_connect_job_progress_detail.sql, GAMES; the step words and time left in the chat).
+-- This draft replaces connect_job from the ORIGINAL body, so applying it as it stands would silently drop that key and the chat would say 'Step: not reported yet' again.
+-- Before this draft is ever promoted, rebase it onto the current connect_job: keep 'progress_detail', j.progress_detail and add the r9 lines on top.
 -- NEXT-CONNECT 101 (r9 M5, connector part). DRAFT, NEVER APPLIED, NOT TESTED AGAINST POSTGRES by CONNECT. For CC1 and WORKER.
 -- Needs WORKER's r9_node_draft (jobs.run_on, public.node_tokens with user_id / computer_name / last_used_at / revoked_at / expires_at) to exist first.
 -- Two CREATE OR REPLACE of the connector's own functions; each is the live body (20261018000100_connect_ai.sql) plus the lines marked r9.
