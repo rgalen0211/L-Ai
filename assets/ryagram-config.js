@@ -70,13 +70,13 @@ window.ryagramConfig = Object.freeze({
   // The Why this clip panel in the live editor's compilation mode (NEXT-WEB 185; BUILDER 48's report): draws the cut's own explanation of each clip. Needs a maker that can give the report. OFF until Ryan has seen it.
   whyClip: false,
   // On #/admin/tester, each tester's computers (signed in, last seen, films waiting and held), read with admin_tester_devices() (NEXT-WEB 187). Needs SQL 20261031000100 applied. OFF until then.
-  adminTesterDevices: false,
+  adminTesterDevices: 'account',
   // On My films, a tester account's films say where they are on THEIR computer: waiting for it, picked up by it, being made on it, done, or failed and why (NEXT-WEB 186). Needs myFilms. OFF until Ryan has seen it.
-  testerFilmProgress: false,
+  testerFilmProgress: 'account',
   // 'A song film with real voices' in the intake (#/new; NEXT-WEB 188): a real choice when true, shown as Coming soon when false. Needs the intake. OFF until Ryan has seen it.
   songIntake: false,
-  // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). OFF until Ryan has seen it.
-  intake: false,
+  // The intake (#/new): one basic question (a data film, a compilation, or something coming soon), then only the questions that fit, landing on the right first screen (NEXT-WEB 173). ON FOR ACCOUNTS NAMED ON AN ADMIN'S LIST ONLY (walkthrough v2, 2026-11-12): the string 'account' is read by featureOn(); everyone else sees it OFF. Undo: set this back to false.
+  intake: 'account',
   // My films (#/films): one page listing every film with where it stands (waiting, being made, ready, did not finish and why) and Try again where it is free and allowed (NEXT-WEB 174). OFF until Ryan has seen it.
   // The song film entries on the Help page (NEXT-WEB 194): what a song film is, stand-ins, the speed limit, lyric cards, what internal only means. Draft words for Ryan. OFF until he has read them; entries about a site screen also need that screen's own switch.
   songHelp: false,
@@ -85,7 +85,7 @@ window.ryagramConfig = Object.freeze({
   // My films is ON FOR ACCOUNTS NAMED ON AN ADMIN'S LIST ONLY (Ryan's Q576/Q577 yes, 2026-11-11): the string 'account' is read by featureOn() in assets/app-switches.js; everyone else sees it OFF. Undo: set this back to false (or remove the account from its list).
   myFilms: 'account',
   // The tester first-run wizard (#/tester-start; NEXT-WEB 192): signed in, your computer, room on your drive, your first film, in plain words. Needs the tester flag on the account. OFF until Ryan has seen it and set its words.
-  testerWizard: false,
+  testerWizard: 'account',
   // Show "Your look" (the profile editor) in /app/. Turn on only once SQL 20261017000300 (engine profiles) is applied and the engine-profiles branch is merged.
   lookEditor: true,
   // First-party funnel tracking (our own database, no cookies, no third-party pixels): the source of a visit, kept once in the browser until sign-up. Turn on only once
@@ -100,7 +100,7 @@ window.ryagramConfig = Object.freeze({
   // Needs connectAi: true. ON (Ryan's typed yes 2026-10-28 10:59, Q303): live for INVITED accounts only (the server's connect_access decides; anyone else sees nothing new).
   aiFirst: true,
   // The live editor (#/editor/data and #/editor/compilation): scrub, change the look, edit tracks, ask your AI; NEXT-WEB 152, proposals/WEB-LIVE-EDITOR.md. Off until Ryan has seen it; this first version runs on a stand-in drawing and clip list.
-  liveEditor: false,
+  liveEditor: 'account',
   // The lyric card choice (three designs) in the live editor's Look panel (NEXT-WEB 189). Needs liveEditor and SQL 20261031000200_lyric_card_look.sql. OFF until Ryan has seen it; the song film does not draw the cards yet.
   lyricCards: false,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.

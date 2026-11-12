@@ -19,7 +19,7 @@ const ON_BY_RYAN = ['visitCounting', 'credits', 'payments', 'stripeTestMode', 'a
   'lookEditor', 'renderOrders', 'connectAi', 'aiFirst', 'departments', 'desktopApp'];
 // Permanently off and read by nothing (the config says so; tests/app-catalog.test.cjs fails if either turns true).
 // Switches that hold the string 'account' (on only for accounts an admin named; assets/app-switches.js featureOn). Each must be read through featureOn, and nothing else may be a string.
-const ACCOUNT_SWITCHES = ['myFilms'];
+const ACCOUNT_SWITCHES = ['myFilms', 'intake', 'testerFilmProgress', 'testerWizard', 'adminTesterDevices', 'liveEditor'];
 const UNREAD_ON_PURPOSE = ['catalog', 'catalogComingSoon'];
 
 const stripComments = src => src.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:\\'"`])\/\/[^\n]*/g, '$1').replace(/<!--[\s\S]*?-->/g, ' ');
@@ -66,7 +66,7 @@ test('SWITCHES: every switch defaults OFF unless Ryan turned it on, every OFF sw
   }
 
   // 4. the HTML keeps OFF things hidden without any script
-  const known = new Set(switches.map(([k]) => k));
+  const known = new Set([...switches.map(([k]) => k), ...ACCOUNT_SWITCHES]);
   for (const f of files.filter(x => x.endsWith('.html'))) {
     for (const m of code[f].matchAll(/<([a-z]+)\b([^>]*\bdata-flag="([^"]*)"[^>]*)>/g)) {
       assert.match(m[2], /\bhidden\b/, `${f}: <${m[1]} data-flag="${m[3]}"> must carry hidden in the HTML`);

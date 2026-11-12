@@ -52,7 +52,7 @@
   const accountToolsOn = () => window.ryagramConfig?.accountTools === true || !!window.ryagramMock;
   // The delayed-rendering notice and the help form show once SQL 20261010000100 is applied (opsTools: true), or in mock mode.
   // The guided builder (#/build) shows once the guided-builder function is deployed (guidedBuilder: true), or in mock mode.
-  const intakeOn = () => window.ryagramConfig?.intake === true;
+  const intakeOn = () => window.ryagramSwitches?.featureOn('intake') === true;
   const myFilmsOn = () => window.ryagramSwitches?.featureOn('myFilms') === true;
   const waitingOn = () => window.ryagramWaiting?.on() === true;
   const wizardOn = () => window.ryagramTesterWizard?.flagOn() === true;
@@ -68,7 +68,7 @@
   // The AI-first front door (#/start), needs connectAi too (app-start.js). Off by default; in mock mode it follows the flag so the mock walk can show both.
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
   // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
-  const liveEditorOn = () => window.ryagramConfig?.liveEditor === true;
+  const liveEditorOn = () => window.ryagramSwitches?.featureOn('liveEditor') === true;
   // Departments in the top bar and their pages (#/d/<id>): behind `departments`, which needs the door (app-departments.js). Off by default.
   const departmentsOn = () => window.ryagramDepartments?.flagOn() === true;
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,

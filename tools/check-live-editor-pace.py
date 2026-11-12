@@ -20,8 +20,8 @@ srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own po
 PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
 base = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
-on_cfg = re.sub(r'clipPace:\s*false', 'clipPace: true', re.sub(r'liveEditor:\s*false', 'liveEditor: true', base))
-off_cfg = re.sub(r'liveEditor:\s*false', 'liveEditor: true', base)
+on_cfg = re.sub(r'clipPace:\s*false', 'clipPace: true', re.sub(r"liveEditor:\s*(?:false|'account')", 'liveEditor: true', base))
+off_cfg = re.sub(r"liveEditor:\s*(?:false|'account')", 'liveEditor: true', base)
 ok = True
 
 

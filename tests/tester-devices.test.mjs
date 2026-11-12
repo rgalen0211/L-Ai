@@ -40,9 +40,9 @@ test('anything that is not a row is ignored and nothing throws; an email is cut 
 });
 
 test('wiring: behind adminTesterDevices (off), one read through the admin function, the SQL is a new admin-only read-only function with its rollback and after-check', () => {
-  assert.match(read('assets/ryagram-config.js'), /\n  adminTesterDevices: false,/);
+  assert.match(read('assets/ryagram-config.js'), /\n  adminTesterDevices: 'account',/);
   assert.match(read('assets/app-data.js'), /adminTesterDevices\(\) \{ return run\(client\.rpc\('admin_tester_devices'\)/);
-  assert.match(read('assets/app-device.js'), /window\.ryagramConfig\.adminTesterDevices === true/);
+  assert.match(read('assets/app-device.js'), /window\.ryagramSwitches\.featureOn\('adminTesterDevices'\) === true/);
   const sql = read('supabase/migrations/20261031000100_admin_tester_devices.sql');
   assert.match(sql, /ryagram_private\.require_admin\(\)/); assert.match(sql, /language plpgsql stable security definer set search_path = ''/);
   assert.match(sql, /revoke execute on function public\.admin_tester_devices\(\) from public, anon, node_runner;/); assert.match(sql, /grant execute on function public\.admin_tester_devices\(\) to authenticated;/);
