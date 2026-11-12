@@ -97,9 +97,9 @@ const calls = (p) => p.sent.filter((s) => s.method === 'tools/call');
 const ok = (data) => ({ result: { content: [{ type: 'text', text: 'ok' }], structuredContent: { data } } });
 const bad = (error) => ({ result: { isError: true, content: [{ type: 'text', text: 'no' }], structuredContent: { error } } });
 
-test('the host seam offers exactly the five editor names and asks for nothing else', () => {
+test('the host seam offers exactly the five editor names and the film card, and asks for nothing else', () => {
   const m = /const NAMES = (\[[^\]]*\])/.exec(HOST_SRC);
-  assert.deepEqual(JSON.parse(m[1].replace(/'/g, '"')), NAMES);
+  assert.deepEqual(JSON.parse(m[1].replace(/'/g, '"')), [...NAMES, 'editor_film_card']);
 });
 
 test('an unknown name is refused before anything is sent', async () => {

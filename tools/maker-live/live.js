@@ -626,7 +626,8 @@
     ['network.color', 'Line colour'], ['network.base_color', 'Base lines'], ['network.context_color', 'Background lines'], ['state.fill', 'Land colour'], ['page.background', 'Page colour']
   ];
   const WAITING = ['Theme', 'Marker shape', 'Border width', 'Glow', 'Labels'];   // ENGINE 35 names these keys; shown, not offered, until then
-  const DATA_BASE = () => ({ look: { 'network.color': '#6fd1bd', 'network.base_color': '#c9a66b', 'network.context_color': '#5a5a66', 'state.fill': '#23232d', 'page.background': '#0d0d11' }, clips: [], duration: 0 });
+  let CARD_LOOK = {};                                                          // the film's own colours from its look card (the chat editor only), over the editor's starting colours
+  const DATA_BASE = () => ({ look: { 'network.color': '#6fd1bd', 'network.base_color': '#c9a66b', 'network.context_color': '#5a5a66', 'state.fill': '#23232d', 'page.background': '#0d0d11', ...CARD_LOOK }, clips: [], duration: 0 });
   const CLIPS_BASE = () => ({ look: {}, duration: 12, clips: [
     { id: 'v1', track: 'video', start: 0, len: 2, label: 'great news everyone' }, { id: 'v2', track: 'video', start: 2, len: 2, label: 'we built a thing' },
     { id: 'v3', track: 'video', start: 4, len: 3, label: 'great news for the weekend' }, { id: 'v4', track: 'video', start: 7, len: 2.5, label: 'great news again', ai_altered: true, ai_altered_by: 'face tool' },
@@ -688,6 +689,55 @@
       let saved = true, message = '';
       const status = h('p', { class: 'form-note', role: 'status' });
       const say = t => { message = t; status.textContent = t; };
+
+      // ---- the film's own look card (Editor Step A, CONNECT 11-09; contract proposals/CONNECT-EDITOR-STEP-A-CONTRACT-1109.md). In the AI chat the Ryagram computer draws the film's REAL colours and one real still from its SAVED story; the connector checks the
+      // card and the chat host rebuilds the picture element by element (host.drawCard) before anything is shown. The panel asks once, then asks again while it waits (never faster than every 15 s, at most 40 times). The person's own changes always win.
+      // Only the chat host sets host.filmCard, so the website's editor and the maker's page never run any of this.
+      const cardOn = isData && !!host && host.filmCard === true && typeof hostRpc === 'function' && typeof host.drawCard === 'function' && !bundleMode;
+      let card = null, cardState = '', cardWait = 0, cardMsg = '', cardStale = false, cardRefresh = '', cardHave = '', cardTimer = 0, cardPolls = 0;
+      const cardBox = h('section', { class: 'le-card', 'aria-labelledby': 'le-card-h', hidden: true });
+      const cardLook = key => (card && card.look && typeof card.look[key] === 'string' ? card.look[key] : undefined);
+      const cardWaiting = s => s === 'asked' || s === 'claimed';
+      // the words under the swatches: the film's own colours when a card has come, else the starting-colour sentence the editor has always said
+      const lookNote = fallback => (!card ? fallback : cardStale ? 'These colours are from an earlier version of the film.'
+        : LOOK_ROWS.every(([k]) => cardLook(k) !== undefined) ? "These are the film's own colours, as saved. A colour you change here is yours." : "A colour the picture did not name is shown in the editor's own starting colour.");
+      function paintCard() {
+        if (!cardOn) return;
+        if (!card && !cardWaiting(cardState) && cardState !== 'failed') { cardBox.hidden = true; return; }
+        cardBox.hidden = false;
+        const kids = [h('h2', { id: 'le-card-h' }, 'How your film looks')];
+        if (card) {
+          const label = card.frame && typeof card.frame.label === 'string' ? card.frame.label : '';
+          const el = host.drawCard(card.frame && card.frame.svg);
+          if (el) kids.push(h('div', { class: 'le-cardpic', role: 'img', 'aria-label': `Your film as saved${label ? ', ' + label : ''}` }, el));
+          else kids.push(h('p', { class: 'meta', role: 'status' }, 'The picture of your film could not be shown here.'));
+          kids.push(h('p', { class: 'meta' }, `This is your film as saved${label ? ' (' + label + ')' : ''}. It does not move when you change a colour here.`));
+          if (cardStale) kids.push(h('p', { class: 'meta', role: 'status' }, 'This picture is from an earlier version of the film.'));
+          if (cardWaiting(cardRefresh)) kids.push(h('p', { class: 'meta', role: 'status' }, 'A newer picture is being drawn.'));
+          else if (cardRefresh === 'failed') kids.push(h('p', { class: 'meta', role: 'status' }, 'A newer picture could not be drawn.'));
+        } else if (cardWaiting(cardState)) {
+          kids.push(h('p', { class: 'meta', role: 'status' }, "Your film's own colours and picture are being drawn by the Ryagram computer. Until then the editor shows a simple stand-in." + (cardWait >= 120 ? ' It is taking a while: the Ryagram computer may be switched off.' : '')));
+        } else kids.push(h('p', { class: 'meta', role: 'status' }, cardMsg || "The film's picture is not available."));
+        cardBox.replaceChildren(...kids);
+      }
+      async function loadCard(ask) {
+        if (!cardOn || !project) return;
+        let r = null;
+        try { r = await hostRpc('editor_film_card', { p_project: project, ...(ask ? { p_ask: true } : {}), ...(cardHave ? { p_have: cardHave } : {}) }); } catch (e) { r = null; }
+        const d = r && !r.error && r.data && typeof r.data === 'object' ? r.data : null;
+        if (!d) return;                                                           // not available (an older database, a refusal): the stand-in stays, nothing is said that was not said before
+        cardState = typeof d.state === 'string' ? d.state : ''; cardWait = Number(d.waited_seconds) || 0; cardMsg = typeof d.message === 'string' ? d.message : '';
+        if (cardState === 'ready') {
+          if (d.card && typeof d.card === 'object') {
+            card = d.card; cardHave = typeof d.built_sha256 === 'string' ? d.built_sha256 : '';
+            CARD_LOOK = {};
+            for (const [k] of LOOK_ROWS) { const v = cardLook(k); if (v !== undefined) CARD_LOOK[k] = v; }
+          }
+          cardStale = d.stale === true; cardRefresh = d.refresh && typeof d.refresh.state === 'string' ? d.refresh.state : '';
+        } else if (cardState === 'failed' && card) cardRefresh = 'failed';
+        paintCard(); paint();
+        if ((cardWaiting(cardState) || (cardState === 'ready' && cardWaiting(cardRefresh))) && ++cardPolls < 40) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 15000); }
+      }
 
       // ---- the preview: a stand-in drawing (ENGINE 35's drawer replaces it); it redraws from the state at once
       const view = h('div', { class: 'le-view', role: 'img' });
@@ -1011,7 +1061,7 @@
             input.addEventListener('change', () => { preview = null; apply({ op: 'set_look', key, value: input.value }); });
             return h('div', { class: 'le-row' }, h('label', { for: input.id }, label, touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null), input);
           }),
-          ...(LOOK_ROWS.some(([k]) => ed.state.look[k] === undefined) ? [h('p', { class: 'meta le-defaults' }, "A colour this film has not changed is shown in the editor's own starting colour. The film's own colours are not shown here yet.")] : []),
+          ...(LOOK_ROWS.some(([k]) => ed.state.look[k] === undefined) ? [h('p', { class: 'meta le-defaults' }, lookNote("A colour this film has not changed is shown in the editor's own starting colour. The film's own colours are not shown here yet."))] : []),
           ...WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the engine'))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }
@@ -1286,12 +1336,13 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, scrub, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
+          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
       paintForecast();
+      if (cardOn) setTimeout(() => loadCard(true), 0);
       if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
         const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
         Promise.resolve().then(() => lookLoader(project)).then(b => {

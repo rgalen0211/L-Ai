@@ -104,6 +104,6 @@
     }
     return { wizardView };
   }
-  const flagOn = () => !!(window.ryagramConfig && window.ryagramConfig.testerWizard === true);
+  const flagOn = () => !!(window.ryagramSwitches && window.ryagramSwitches.featureOn('testerWizard') === true);
   window.ryagramTesterWizard = { WORDS, SEEN_MS, DISK_KEY, computerFacts, steps, create, flagOn, isMac, MAC_LINES, keepFocus };
 })();

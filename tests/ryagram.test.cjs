@@ -216,23 +216,32 @@ test('the page policy lets YouTube thumbnails and the nocookie frame through, an
   assert.ok(!csp['connect-src'].some(source => /youtube|ytimg/.test(source)));
 });
 
-test('a signup posts insert-only JSON to the waitlist table and shows success', async () => {
+test('a signup calls join_waitlist (never the table) with email, reason and source, and shows success', async () => {
   const h = harness();
   await h.submit();
   assert.equal(h.requests.length, 1);
   const { url, options } = h.requests[0];
-  assert.equal(url, 'https://proj.supabase.co/rest/v1/ryagram_waitlist');
+  assert.equal(url, 'https://proj.supabase.co/rest/v1/rpc/join_waitlist');
+  assert.ok(!/ryagram_waitlist/.test(url), 'the page never touches the table directly');
   assert.equal(options.method, 'POST');
   assert.equal(options.headers.apikey, 'sb_publishable_test');
   assert.equal(options.headers.Authorization, undefined);
-  assert.equal(options.headers.Prefer, 'return=minimal');
-  assert.deepEqual(JSON.parse(options.body), { email: 'person@example.com', use_case: null, source: 'uselai.com/ryagram' });
+  assert.equal(options.headers.Prefer, undefined, 'the call returns its answer, nothing to minimise');
+  assert.deepEqual(JSON.parse(options.body), { p_email: 'person@example.com', p_reason: null, p_source: 'uselai.com/ryagram' });
   assert.equal(h.fields.hidden, true);
   assert.match(h.status.textContent, /on the list/);
 });
 
+test('the reason is one line of at most 140 characters', async () => {
+  const send = async useCase => { const h = harness({ useCase }); await h.submit(); return JSON.parse(h.requests[0].options.body).p_reason; };
+  assert.equal(await send('  teacher  '), 'teacher');
+  assert.equal(await send('a\r\nb\n\nc'), 'a b c');
+  assert.equal((await send('x'.repeat(500))).length, 140);
+  assert.equal(await send('\n \r\n'), null);
+});
+
 test('a signup records which film link brought the visitor (utm tags), cleaned and within 100 characters', async () => {
-  const sourceFor = async search => { const h = harness({ search }); await h.submit(); return JSON.parse(h.requests[0].options.body).source; };
+  const sourceFor = async search => { const h = harness({ search }); await h.submit(); return JSON.parse(h.requests[0].options.body).p_source; };
   assert.equal(await sourceFor('?utm_source=youtube&utm_campaign=r002-industry-story'),
                'uselai.com/ryagram?utm_source=youtube&utm_campaign=r002-industry-story');
   assert.equal(await sourceFor('?utm_source=film_page&utm_medium=referral&utm_campaign=AbCdEfGhIjKlMnOpQrStUv'),
@@ -250,11 +259,28 @@ test('a legacy anon JWT key is also sent as a bearer token', async () => {
   assert.equal(h.requests[0].options.headers.Authorization, 'Bearer eyJhbGciOi.test');
 });
 
-test('an email already on the list looks the same as a new signup', async () => {
-  const h = harness({ fetch: async () => ({ ok: false, status: 409 }) });
+test('a new and a repeat address get the same answer, and the page no longer reads a 409', async () => {
+  const h = harness({ fetch: async () => ({ ok: true, status: 200, json: async () => ({ ok: true, message: 'whatever the server says' }) }) });
   await h.submit();
   assert.equal(h.fields.hidden, true);
-  assert.match(h.status.textContent, /on the list/);
+  assert.match(h.status.textContent, /You’re on the list/);
+  assert.ok(!/whatever the server says/.test(h.status.textContent), 'the page owns the success words');
+  assert.ok(!/status === 409|409/.test(code), 'no 409 branch: a repeat address is an ordinary success');
+});
+
+test('a refusal shows the plain sentence from the server; anything odd shows the own line of the page and never an address', async () => {
+  const refuse = async (status, body) => { const h = harness({ fetch: async () => ({ ok: false, status, json: async () => body }) }); await h.submit(); return h; };
+  const bad = await refuse(400, { message: 'That does not look like an email address.' });
+  assert.match(bad.status.textContent, /does not look like an email address/); assert.notEqual(bad.fields.hidden, true);
+  const busy = await refuse(400, { message: 'Too many sign-ups just now. Please try again later.' });
+  assert.match(busy.status.textContent, /try again later/);
+  for (const body of [{ message: 'duplicate key value violates unique constraint "x" for person@example.com' }, { message: 'x'.repeat(400) }, { message: 42 }, {}, null]) {
+    const h = await refuse(400, body);
+    assert.match(h.status.textContent, /ryagram@uselai\.com/, JSON.stringify(body));
+    assert.ok(!/person@example\.com|duplicate key|violates/.test(h.status.textContent));
+  }
+  const noJson = harness({ fetch: async () => ({ ok: false, status: 502, json: async () => { throw new Error('not json'); } }) });
+  await noJson.submit(); assert.match(noJson.status.textContent, /ryagram@uselai\.com/);
 });
 
 test('failures keep the form and allow retry', async () => {
@@ -296,13 +322,13 @@ test('repeated submits while waiting create only one request', async () => {
 test('?ref= is kept with the signup, last, cleaned and short', async () => {
   const h = harness({ search: '?utm_source=youtube&utm_campaign=r002&ref=YouTube%20Desc!' });
   await h.submit();
-  assert.equal(JSON.parse(h.requests[0].options.body).source, 'uselai.com/ryagram?utm_source=youtube&utm_campaign=r002&ref=YouTubeDesc');
+  assert.equal(JSON.parse(h.requests[0].options.body).p_source, 'uselai.com/ryagram?utm_source=youtube&utm_campaign=r002&ref=YouTubeDesc');
   const only = harness({ search: '?ref=' + 'z'.repeat(40) });
   await only.submit();
-  assert.equal(JSON.parse(only.requests[0].options.body).source, 'uselai.com/ryagram?ref=' + 'z'.repeat(24));
+  assert.equal(JSON.parse(only.requests[0].options.body).p_source, 'uselai.com/ryagram?ref=' + 'z'.repeat(24));
   const none = harness({ search: '?other=1' });
   await none.submit();
-  assert.equal(JSON.parse(none.requests[0].options.body).source, 'uselai.com/ryagram');
+  assert.equal(JSON.parse(none.requests[0].options.body).p_source, 'uselai.com/ryagram');
 });
 
 const COUNTING = { supabaseUrl: 'https://proj.supabase.co/', supabaseKey: 'sb_publishable_test', visitCounting: true };
@@ -471,6 +497,7 @@ test('the waitlist form keeps its fields: required email, optional "What do you 
   assert.match(pageHtml, /id="wl-email" name="email" type="email"[^>]*required/);
   assert.match(pageHtml, /<label for="wl-use">What do you do\? <span>\(optional\)<\/span><\/label>/);
   assert.match(pageHtml, /id="wl-use" name="use_case"(?![^>]*required)/);
+  assert.match(pageHtml, /id="wl-use" name="use_case"[^>]*maxlength="140"/);            // the join call's own limit; one line
   assert.match(pageHtml, /name="website"/);
   assert.ok([...pageHtml.matchAll(/href="#waitlist"/g)].length >= 3);        // header, hero, skip link
   assert.match(pageHtml, /<section id="waitlist"[^>]*>[\s\S]*Want to make one\?/);

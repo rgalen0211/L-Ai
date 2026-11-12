@@ -361,12 +361,20 @@ class Ops(core.Base):
                            "admin_creator_beta()", "admin_decide_creator(bigint,text)",
                            # waiting accounts (20261104000100): how a WAITING person learns their state, the row policies' own check, Ryan's list and approve (admin-only inside)
                            "my_access()", "account_gate_ok()", "admin_waiting_list()", "admin_approve_waiting(uuid,text)",
+                           # the waiting list (20261110000200): Ryan's counts and approve step, each starting with require_admin()
+                           "admin_waitlist_counts()", "admin_waitlist_approve(integer)",
+                           # the per-account switch list (20261110000400): Ryan's writer, list and history (each starting with require_admin()) and a person's own list (my_switches(): their row only, empty when none)
+                           "admin_account_switch_set(text,text,boolean,text)", "admin_account_switch_list()", "admin_account_switch_audit()", "my_switches()",
+                           # and the visitors' door, join_waitlist: executable by anon ON PURPOSE (the same answer for a new and a repeat address; limits and fixed words inside), never by a signed-in person
+                           "join_waitlist(text,text,text)",
                            # geo requests (20261104000300): the house worker's three functions, each starting with require_worker()
                            "claim_next_geo()", "finish_geo(uuid,jsonb)", "fail_geo(uuid,text,text)",
                            # geo question shapes (20261104000400): the house worker's claim for the three new shapes, starting with require_worker()
                            "claim_next_geo_question()",
                            # forecast requests (20261104000500): the house worker's claim for a forecast, starting with require_worker()
                            "claim_next_forecast()",
+                           # film look cards (20261109000100): the house worker's three functions, each starting with require_worker()
+                           "claim_next_film_card()", "finish_film_card(uuid,jsonb)", "fail_film_card(uuid,text,text)",
                            # tester computers: the admin list (NEXT-WEB 187; starts with require_admin(), revokes public, anon and node_runner)
                            "admin_tester_devices()",
                            # cost ledger: Ryan's screen and settings (same rule)

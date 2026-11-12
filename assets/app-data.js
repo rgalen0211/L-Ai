@@ -298,7 +298,7 @@
         }
         return data;
       },
-      signOut() { return client.auth.signOut(); },
+      signOut() { window.ryagramSwitches?.forget(); return client.auth.signOut(); },
 
       // What a film is made from (SQL 20261004000100): the database makes the version's sources match its story
       // and fills each card's facts from its internal catalog. Null when that SQL isn't applied yet.
@@ -389,6 +389,12 @@
         return !error && data === true;
       },
       // Option B (CONNECT's contract, NEXT-WEB waiting pages): who am I (active or waiting), use an invite code on a waiting account, and Ryan's list with an approve button.
+      // The person's OWN per-account switch list (Q576): the server returns only the names an admin turned on for this account; an error is thrown and the page treats it as an empty list.
+      async mySwitches() {
+        const { data, error } = await client.rpc('my_switches');
+        if (error) throw new Error('Couldn’t read your switches.');
+        return data;
+      },
       async myAccess() {
         const { data, error } = await client.rpc('my_access');
         if (error) throw new Error('Couldn’t check your access.');

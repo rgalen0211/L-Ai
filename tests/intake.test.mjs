@@ -46,8 +46,8 @@ test('the builder reads only a known type and a short plain search word from the
 
 test('wiring: behind a switch that is OFF, the route and the link exist only when it is on, the script loads before the library, and the page builds nothing from a person', () => {
   const cfg = read('assets/ryagram-config.js'), lib = read('assets/app-library.js'), html = read('app/index.html'), src = read('assets/app-intake.js');
-  assert.match(cfg, /\n  intake: false,/);
-  assert.match(lib, /const intakeOn = \(\) => window\.ryagramConfig\?\.intake === true;/);
+  assert.match(cfg, /\n  intake: 'account',/);
+  assert.match(lib, /const intakeOn = \(\) => window\.ryagramSwitches\?\.featureOn\('intake'\) === true;/);
   assert.match(lib, /intakeOn\(\) && window\.ryagramIntake && hash === '#\/new'/);
   assert.match(lib, /const intakeLink = intakeOn\(\) && window\.ryagramIntake/);
   assert.ok(html.indexOf('/assets/app-intake.js') > html.indexOf('/assets/app-builder.js') && html.indexOf('/assets/app-intake.js') < html.indexOf('/assets/app-library.js'));

@@ -277,6 +277,96 @@ def main():
             check(len(sw) >= 5 and '#000000' not in sw, 'no look swatch is black when the film has set no colour (%s)' % sw)
             check(p11.frames[1].locator('.le-defaults').count() == 1 and 'not shown here yet' in p11.frames[1].locator('.le-defaults').inner_text(), 'and the panel says these are the editor\'s starting colours, not the film\'s own')
             c11.close()
+            print('the film look card (Editor Step A): the film\'s real colours and one real still, rebuilt safely')
+            CARD_NAMES = NAMES + ['editor_film_card']
+            EVIL = ('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540" onload="window.top.__pwned=1">'
+                    '<defs><linearGradient id="g1"><stop offset="0" stop-color="#112233"/><stop offset="1" stop-color="#ddeeff"/></linearGradient></defs>'
+                    '<rect width="960" height="540" fill="url(#g1)" style="fill:red" onclick="window.__pwned=2"/>'
+                    '<script>window.__pwned=3</script><image href="https://evil.example/x.png" width="10" height="10"/>'
+                    '<foreignObject><div>hi</div></foreignObject><use href="#g1"/><path d="M0 0L9 9" stroke="https://evil.example/s" fill="#ffffff"/>'
+                    '<text x="20" y="40" fill="#ffffff" font-size="20">Greene &amp; Montgomery</text>'
+                    '<text x="20" y="80" textLength="120.5" lengthAdjust="spacing" xml:space="preserve" fill="#ffffff">Fitted</text>'
+                    '<text x="20" y="120" textLength="1e3" lengthAdjust="evil" xml:space="remove" fill="#ffffff">Bad</text></svg>')
+            LOOK = {'network.color': '#aa1111', 'network.base_color': '#11aa11', 'network.context_color': '#1111aa', 'state.fill': '#aaaa11', 'page.background': '#11aaaa'}
+            CARD = {'schema': 1, 'basis': {'story_sha256': 'a' * 64, 'view': 'network', 'theme': 'dark3'}, 'look': LOOK, 'frame': {'label': '2024', 'width': 960, 'height': 540, 'svg': EVIL}}
+
+            def card_page(answers):
+                cc = b.new_context(viewport={'width': 1280, 'height': 900})
+                pp = cc.new_page()
+                errs, out = [], []
+                pp.on('pageerror', lambda e: errs.append(str(e)))
+                pp.on('console', lambda m: errs.append(m.text) if m.type == 'error' else None)
+                pp.on('request', lambda r: out.append(r.url) if not r.url.startswith(('data:', 'about:', 'blob:')) else None)
+                pp.set_content(HOST.replace('__DOC__', json.dumps(doc).replace('</', '<' + chr(92) + '/')).replace('__NAMES__', json.dumps(CARD_NAMES)).replace('__CTX__', '{}'))
+                pp.add_script_tag(content=fake_js)
+                pp.evaluate(INIT, [PROJECT, SUMMARY])
+                pp.evaluate("""(ans) => { const old = window.hostCall; window.__cardAnswers = ans.slice();
+                    window.hostCall = async (n, a) => { if (n !== 'editor_film_card') return old(n, a); window.__calls.push([n, a]);
+                      const r = window.__cardAnswers.length > 1 ? window.__cardAnswers.shift() : window.__cardAnswers[0];
+                      return r.error ? { isError: true, content: [{ type: 'text', text: 'no' }], structuredContent: r } : { content: [{ type: 'text', text: 'ok' }], structuredContent: { data: r } }; }; }""", answers)
+                pp.wait_for_function("window.__log.some(m => m.method === 'ui/notifications/initialized')", timeout=8000)
+                pp.evaluate("(sc) => openWith(sc)", {'project_id': PROJECT, 'mode': 'data', 'title': 'Card film'})
+                for _ in range(40):
+                    if pp.frames[1].locator('.le-panel').count():
+                        break
+                    pp.wait_for_timeout(200)
+                pp.wait_for_timeout(1200)
+                return cc, pp, errs, out
+
+            swatches = lambda pg: pg.frames[1].evaluate("Array.from(document.querySelectorAll('input[type=color]')).map(i => i.value)")
+            c12, p12, e12, o12 = card_page([{'state': 'ready', 'stale': False, 'built_sha256': 'a' * 64, 'card': CARD}])
+            fr12 = p12.frames[1]
+            cc12 = [(t, a) for t, a in p12.evaluate('window.__calls') if t == 'editor_film_card']
+            check(len(cc12) >= 1 and cc12[0][1] == {'p_project': PROJECT, 'p_ask': True}, 'the panel asks for the film\'s card once, for that film, with p_ask (%s)' % cc12[:1])
+            check(swatches(p12)[:5] == [LOOK['network.color'], LOOK['network.base_color'], LOOK['network.context_color'], LOOK['state.fill'], LOOK['page.background']], 'the Look swatches show the film\'s real colours (%s)' % swatches(p12))
+            check('the film\'s own colours, as saved' in fr12.locator('.le-defaults').inner_text(), 'and the sentence under them says they are the film\'s own')
+            check(fr12.locator('.le-view svg rect').first.get_attribute('fill') == LOOK['page.background'], 'the stand-in drawing uses the film\'s real colours too')
+            check(fr12.locator('.le-cardpic svg').count() == 1, 'one real still is drawn beside the stand-in')
+            tags = fr12.eval_on_selector_all('.le-cardpic svg, .le-cardpic svg *', 'els => els.map(e => e.localName)')
+            check(set(tags) <= {'svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'title'} and 'rect' in tags and 'text' in tags, 'the picture was rebuilt from the allowed elements only (%s)' % tags)
+            attrs = fr12.eval_on_selector_all('.le-cardpic svg, .le-cardpic svg *', 'els => els.flatMap(e => Array.from(e.attributes).map(a => a.name + "=" + a.value))')
+            check(not any(a.startswith(('on', 'style', 'href', 'xlink')) for a in attrs) and not any('evil.example' in a for a in attrs), 'no event handler, style, href or outside address survived (%d attributes)' % len(attrs))
+            check('textLength=120.5' in attrs and 'lengthAdjust=spacing' in attrs and 'xml:space=preserve' in attrs, 'a plain text length, a length adjustment and xml:space survive the rebuild')
+            check(not any(a in attrs for a in ('textLength=1e3', 'lengthAdjust=evil', 'xml:space=remove')), 'and the same three with a value that is not allowed are dropped')
+            check(fr12.eval_on_selector_all('.le-cardpic svg text', 'els => els.flatMap(e => Array.from(e.attributes).filter(a => a.name === "xml:space").map(a => a.namespaceURI))') == ['http://www.w3.org/XML/1998/namespace'], 'xml:space is written in the xml namespace')
+            ids = fr12.eval_on_selector_all('.le-cardpic svg [id]', 'els => els.map(e => e.id)')
+            check(ids and all(i.startswith('lecard-') for i in ids) and any('url(#lecard-g1)' in a for a in attrs), 'every id inside the picture is renamed, and a paint reference follows it (%s)' % ids)
+            check('Greene & Montgomery' in fr12.locator('.le-cardpic svg text').first.text_content(), 'text in the picture is text')
+            check(p12.evaluate('window.__pwned') is None and fr12.evaluate('window.__pwned') is None, 'no script in the picture ran')
+            check(not o12 and not e12, 'no request left the page and nothing threw (%s %s)' % (o12[:2], e12[:2]))
+            check('This is your film as saved (2024)' in fr12.locator('.le-card').inner_text() and 'does not move' in fr12.locator('.le-card').inner_text(), 'the caption says what the picture is and that it does not move')
+            c12.close()
+            c13, p13, e13, o13 = card_page([{'state': 'asked', 'waited_seconds': 200}])
+            t13 = p13.frames[1].locator('.le-card').inner_text()
+            check('being drawn by the Ryagram computer' in t13 and 'may be switched off' in t13, 'while the card is waiting the panel says so, and that the computer may be off after two minutes')
+            check(p13.frames[1].locator('.le-defaults').count() == 1 and 'not shown here yet' in p13.frames[1].locator('.le-defaults').inner_text() and '#000000' not in swatches(p13), 'and the swatches keep the starting colours with the old sentence')
+            check(not o13 and not e13, 'nothing left the page and nothing threw while waiting')
+            c13.close()
+            c14, p14, e14, o14 = card_page([{'state': 'failed', 'code': 'view_not_supported', 'message': 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.'}])
+            check('cannot draw a picture of this kind of film yet' in p14.frames[1].locator('.le-card').inner_text() and not e14, 'a film the engine cannot draw says why in words and keeps the stand-in')
+            c14.close()
+            c14b, p14b, e14b, o14b = card_page([{'state': 'failed', 'code': 'view_not_supported', 'size': {'characters': 359069, 'limit': 200000},
+                'message': "This film's picture is too detailed to draw in the chat: it would be 359,069 characters and the limit is 200,000. The editor keeps its stand-in picture."}])
+            f14b = p14b.frames[1]
+            t14b = f14b.locator('.le-card').inner_text()
+            check("too detailed to draw in the chat: it would be 359,069 characters and the limit is 200,000" in t14b and not e14b, 'a county map the engine refused for size says so in ONE plain sentence with its two numbers, and nothing threw')
+            check(f14b.locator('.le-cardpic').count() == 0 and not f14b.locator('.le-card svg').count(), 'no picture box and no broken or empty picture in its place')
+            check(f14b.locator('.le-view').count() >= 1 and len(swatches(p14b)) >= 5, 'the film\'s other parts still work: the stand-in preview and the colour controls are there')
+            check('D:' not in t14b and 'Error' not in t14b and 'engine' not in t14b.lower(), 'no path, no engine talk in the words')
+            c14b.close()
+            c15, p15, e15, o15 = card_page([{'error': {'code': None, 'message': 'The film picture is not available yet.'}}])
+            check(p15.frames[1].locator('.le-card').count() == 0 or p15.frames[1].locator('.le-card').is_hidden(), 'a database without the card says nothing new: no card box')
+            check(p15.frames[1].locator('.le-defaults').count() == 1 and not e15, 'the editor still works and still says the colours are starting colours')
+            c15.close()
+            c16, p16, e16, o16 = card_page([{'state': 'ready', 'stale': True, 'built_sha256': 'a' * 64, 'refresh': {'state': 'asked'}, 'card': CARD}])
+            t16 = p16.frames[1].locator('.le-card').inner_text()
+            check('earlier version of the film' in t16 and 'A newer picture is being drawn' in t16, 'a stale card is shown and called stale, and says a newer one is being drawn')
+            check('earlier version of the film' in p16.frames[1].locator('.le-defaults').inner_text() and swatches(p16)[0] == LOOK['network.color'], 'and the swatch note says so too')
+            c16.close()
+            BADCARD = dict(CARD, frame={'label': '2024', 'width': 960, 'height': 540, 'svg': '<svg><g></svg>'})
+            c17, p17, e17, o17 = card_page([{'state': 'ready', 'stale': False, 'built_sha256': 'a' * 64, 'card': BADCARD}])
+            check('could not be shown here' in p17.frames[1].locator('.le-card').inner_text() and swatches(p17)[1] == LOOK['network.base_color'] and not e17, 'a picture that will not parse is said not to be shown, the colours still come from the card, nothing throws')
+            c17.close()
             print('a host that never says which film')
             c5, p5 = fresh()
             for _ in range(80):

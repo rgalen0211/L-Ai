@@ -23,7 +23,7 @@ class H(http.server.SimpleHTTPRequestHandler):
 srv = socketserver.ThreadingTCPServer(('127.0.0.1', 0), H)          # its own port: a fixed one can be bound twice at once on Windows (11-06)
 PORT = srv.server_address[1]
 threading.Thread(target=srv.serve_forever, daemon=True).start()
-cfg = re.sub(r'liveEditor:\s*false', 'liveEditor: true', (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8'))
+cfg = re.sub(r"liveEditor:\s*(?:false|'account')", 'liveEditor: true', (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8'))
 ok = True
 
 

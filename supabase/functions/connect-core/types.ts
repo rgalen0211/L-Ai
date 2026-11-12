@@ -120,6 +120,21 @@ export interface Data extends Omit<UserData, "submitJob"> {
   /** The chat panel's five calls (migrations/20261105000100_chat_editor.sql, NOT APPLIED): `name` is one of the website editor's names (editor_apply_ops, editor_undo, editor_undo_all_ai, my_edit_ops_since,
    *  editor_heartbeat); the answer is the database's own JSON; a refusal throws its { code, message }. Optional: a database without the migration has none, and the tools say so. */
   editorCall?(name: string, args: Record<string, unknown>): Promise<unknown>;
+  /** Editor Step A (migrations/20261109000100_film_cards.sql, NOT APPLIED): the film's look card. askFilmCard writes a request for the film's CURRENT saved story (asking twice is one request; throws the database's sentences, 22023 not found, PT429 too many);
+   *  getFilmCard reads the newest card or where the request stands (null = not the person's film). Optional: a database without the migration has none, and the tool says so. */
+  askFilmCard?(projectId: string): Promise<{ id: string; state: string; repeat?: boolean }>;
+  getFilmCard?(projectId: string): Promise<FilmCardRead | null>;
+}
+
+/** What connect_film_card_get answers. `card` is whatever the engine stored: it is checked (film_card.ts) before anything shows it. */
+export interface FilmCardRead {
+  state: "none" | "asked" | "claimed" | "failed" | "ready";
+  id?: string; card?: unknown; stale?: boolean; built_sha256?: string; current_sha256?: string;
+  /** With a stale card: where the request for the CURRENT save stands (null = none asked yet). */
+  refresh?: { state: string; fail_code?: string | null; retry?: boolean } | null;
+  /** True when the newest request for the current save failed because the engine broke and 10 minutes have passed: asking again is then allowed (the database applies the same rule). */
+  retry?: boolean;
+  fail_code?: string | null; fail_detail?: string | null; waited_s?: number;
 }
 
 /** NEXT-CONNECT 168: public-domain footage plans. NOT wired in the real function: with no `footage` here the tool refuses and writes nothing (the switch is OFF). The plan table is the next piece. */
@@ -198,6 +213,7 @@ export const LIMITS = Object.freeze({
   failedJobsPerStory: 3,                // NEXT-CONNECT 169: after this many failed contact sheets (or previews) of the SAME story, another is refused until the story changes
   ladderPerHourPerUser: 30,             // the editor's number
   linksPerDayPerUser: 50,
+  filmCardsPerHourPerUser: 20,           // Editor Step A: asks for a film's look card (reads are the panel's own bucket)
   projectsPerDayPerUser: 20,
   compilationRequestsPerDayPerUser: 50,
   footagePlansPerDayPerUser: 20,
