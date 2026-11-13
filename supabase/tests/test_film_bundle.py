@@ -137,7 +137,12 @@ class Bundles(core.Base):
         self.assertEqual(self.request(vid, window="12:20")[0], "building", "12 is before 12.4: the window starts inside the film")
         self.admin("update jobs set state = 'cancelled', ended_at = now() where version_id = %s and job_type = 'film_bundle' returning 1", vid)
         self.admin("update artifacts set deleted_at = now() where job_id = %s and kind = 'final_video' returning 1", final)
-        self.assertEqual(self.request(vid, window="100:110")[0], "building", "a deleted video tells nothing about the length")
+        try:
+            got = self.request(vid, window="100:110")[0]
+        except psycopg.Error as e:
+            self.db.c.execute("rollback") if self.db.c.info.transaction_status != 0 else None
+            self.fail(f"a deleted video must tell nothing about the length, but the request stopped: {e}")
+        self.assertEqual(got, "building", "a deleted video tells nothing about the length")
 
     def test_the_length_of_an_older_story_is_not_the_length_of_this_one(self):
         _, vid, sheet, prev = self.ladder()
