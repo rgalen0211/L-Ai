@@ -54,6 +54,13 @@ class MyFilmCards(core.Base):
     def my_get(self, project, who=ALICE):
         return self.site(who).one("select my_film_card_get(%s)", project)
 
+    def my_ask_answer(self, project, who=ALICE):
+        """The ask's answer, or the refusal's words as a string: a planted fault must FAIL an assertion on this, not error."""
+        try:
+            return self.my_ask(project, who)
+        except psycopg.Error as e:
+            return "refused: " + str(e)
+
     def site_fails(self, who, sql, *args, code=None):
         with self.assertRaises(psycopg.Error) as cm:
             self.site(who).one(sql, *args)
@@ -212,7 +219,9 @@ class MyFilmCards(core.Base):
                 "select %s, %s, v.id, lpad(to_hex(g), 64, '0'), 'failed', 'view_not_supported', now() - %s::interval, now() - %s::interval "
                 "from generate_series(1, 100) g, public.versions v where v.project_id = %s limit 100")
         self.owner(fill, ALICE, films[0], "30 hours", "30 hours", films[0])
-        self.assertTrue(self.my_ask(films[1])["id"], "a hundred requests from 30 hours ago are not today's")
+        got = self.my_ask_answer(films[1])
+        self.assertIsInstance(got, dict, "a hundred requests from 30 hours ago are not today's: " + str(got))
+        self.assertTrue(got["id"])
         self.owner("delete from public.film_card_requests")
         self.owner(fill, ALICE, films[0], "23 hours", "23 hours", films[0])
         e = self.site_fails(ALICE, "select my_film_card_ask(%s)", films[1], code="PT429")
@@ -224,12 +233,16 @@ class MyFilmCards(core.Base):
             self.my_ask(p, BOB)
         self.assertEqual(self.owner("select count(*) from public.film_card_requests where state = 'asked'").fetchone()[0], 5)
         mine = self.film(self.a)[0]
-        self.assertTrue(self.my_ask(mine)["id"], "Bob has five open: Alice is not held up")
+        got = self.my_ask_answer(mine)
+        self.assertIsInstance(got, dict, "Bob has five open: Alice is not held up: " + str(got))
+        self.assertTrue(got["id"])
         self.owner("update public.film_card_requests set state = 'failed', fail_code = 'view_not_supported', finished_at = now() where owner_id = %s", BOB)
         self.owner("insert into public.film_card_requests (owner_id, project_id, version_id, story_sha256, state, fail_code, finished_at) "
                    "select %s, %s, v.id, lpad(to_hex(g), 64, '0'), 'failed', 'view_not_supported', now() from generate_series(1, 100) g, public.versions v where v.project_id = %s limit 100", BOB, bobs[0], bobs[0])
         again = self.film(self.a, "Invented film again", {"title": "second of Alice"})[0]
-        self.assertTrue(self.my_ask(again)["id"], "Bob has over a hundred today: Alice is not held up")
+        got = self.my_ask_answer(again)
+        self.assertIsInstance(got, dict, "Bob has over a hundred today: Alice is not held up: " + str(got))
+        self.assertTrue(got["id"])
 
     def test_the_limits_count_the_chat_and_the_site_together(self):
         films = [self.film(self.a, f"Invented film {i}", {"title": f"s{i}"})[0] for i in range(6)]
