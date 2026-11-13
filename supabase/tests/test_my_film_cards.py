@@ -206,6 +206,31 @@ class MyFilmCards(core.Base):
         e = self.site_fails(ALICE, "select my_film_card_ask(%s)", films[5], code="PT429")
         self.assertIn("5 film pictures waiting", e.diag.message_primary)
 
+    def test_a_day_is_twenty_four_hours(self):
+        films = [self.film(self.a, f"Invented film {i}", {"title": f"s{i}"})[0] for i in range(2)]
+        fill = ("insert into public.film_card_requests (owner_id, project_id, version_id, story_sha256, state, fail_code, asked_at, finished_at) "
+                "select %s, %s, v.id, lpad(to_hex(g), 64, '0'), 'failed', 'view_not_supported', now() - %s::interval, now() - %s::interval "
+                "from generate_series(1, 100) g, public.versions v where v.project_id = %s limit 100")
+        self.owner(fill, ALICE, films[0], "30 hours", "30 hours", films[0])
+        self.assertTrue(self.my_ask(films[1])["id"], "a hundred requests from 30 hours ago are not today's")
+        self.owner("delete from public.film_card_requests")
+        self.owner(fill, ALICE, films[0], "23 hours", "23 hours", films[0])
+        e = self.site_fails(ALICE, "select my_film_card_ask(%s)", films[1], code="PT429")
+        self.assertIn("100 film pictures in a day", e.diag.message_primary)
+
+    def test_another_persons_requests_do_not_count_against_mine(self):
+        bobs = [self.film(self.b, f"Invented film {i}", {"title": f"b{i}"})[0] for i in range(5)]
+        for p in bobs:
+            self.my_ask(p, BOB)
+        self.assertEqual(self.owner("select count(*) from public.film_card_requests where state = 'asked'").fetchone()[0], 5)
+        mine = self.film(self.a)[0]
+        self.assertTrue(self.my_ask(mine)["id"], "Bob has five open: Alice is not held up")
+        self.owner("update public.film_card_requests set state = 'failed', fail_code = 'view_not_supported', finished_at = now() where owner_id = %s", BOB)
+        self.owner("insert into public.film_card_requests (owner_id, project_id, version_id, story_sha256, state, fail_code, finished_at) "
+                   "select %s, %s, v.id, lpad(to_hex(g), 64, '0'), 'failed', 'view_not_supported', now() from generate_series(1, 100) g, public.versions v where v.project_id = %s limit 100", BOB, bobs[0], bobs[0])
+        again = self.film(self.a, "Invented film again", {"title": "second of Alice"})[0]
+        self.assertTrue(self.my_ask(again)["id"], "Bob has over a hundred today: Alice is not held up")
+
     def test_the_limits_count_the_chat_and_the_site_together(self):
         films = [self.film(self.a, f"Invented film {i}", {"title": f"s{i}"})[0] for i in range(6)]
         for p in films[:3]:
