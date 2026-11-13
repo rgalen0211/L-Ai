@@ -85,6 +85,8 @@ export class ConnectDb {
       askGeoShape: (q) => self.fn("connect_geo_ask_shape", ["text", "text", "float8", "float8", "float8", "float8", "text", "text"],
         [h, q.shape, q.a?.lat ?? null, q.a?.lon ?? null, q.b?.lat ?? null, q.b?.lon ?? null, q.category ?? null, q.town ?? null]),
       getGeo: (id) => self.fn("connect_geo_get", ["text", "uuid"], [h, id]),
+      // migrations/20261113000200_connect_departments.sql (NOT APPLIED): the person's departments, the same rule as the site's top bar
+      departments: () => self.fn("connect_my_departments", ["text"], [h]),
       // migrations/20261109000100_film_cards.sql (NOT APPLIED): the editor's film look card (Step A)
       askFilmCard: (projectId) => self.fn("connect_film_card_ask", ["text", "uuid"], [h, projectId]),
       getFilmCard: (projectId) => self.fn("connect_film_card_get", ["text", "uuid"], [h, projectId]),

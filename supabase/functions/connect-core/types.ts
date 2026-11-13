@@ -105,6 +105,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   askGeoShape(q: { shape: GeoShape; a?: { lat: number; lon: number }; b?: { lat: number; lon: number }; category?: string; town?: string }): Promise<{ id: string; state: string; repeat?: boolean }>;
   /** One of the person's own place questions, or null. */
   getGeo(id: string): Promise<GeoRow | null>;
+  /** The person's departments, the database's own rule (migration 20261113000200: connect_my_departments, a token-checked twin of the site's my_departments()). Rows {id, label, status}. */
+  departments(): Promise<DepartmentRow[]>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
   jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null;
     /** The worker's heartbeat (jobs.progress_detail): stage, done, total, unit, eta_s, ... Untrusted; absent when the database call does not return it. */
@@ -189,6 +191,9 @@ export interface ToolResult {
   failedChecks?: number;
 }
 
+/** One row of the site's departments list as the database reports it for the connected person. */
+export interface DepartmentRow { id: string; label: string; status: "working" | "soon" }
+
 export interface ToolDef {
   name: string;                         // a-z, 0-9, underscore only (the strictest assistant's rule)
   title: string;
@@ -205,6 +210,8 @@ export interface ToolDef {
   ladder?: boolean;
   /** The chat editor (second switch, off by default): "model" = a tool the AI sees; "app" = a tool only the chat panel calls (listed with visibility app). Absent = a normal tool. When the switch is off such a tool is "no such tool". */
   chatEditor?: "app" | "model";
+  /** The Ryagram home panel (a third switch, CONNECT_HOME_PANEL, off by default): a tool that exists only when it is on; otherwise "no such tool" and not in tools/list. */
+  homePanel?: boolean;
   inputSchema: Record<string, unknown>; // JSON Schema; additionalProperties:false always
   run(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult>;
 }
