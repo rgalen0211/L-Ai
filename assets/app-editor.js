@@ -516,7 +516,7 @@
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
       let rulerPaint = null;                                                     // the time ruler above the compilation's tracks (assets/app-editor-timeline.js)
-      function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(1, ed.state.duration))); if (strip) strip.paint(TLM.fractionOf(position, FIRST, LAST)); if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
+      function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(1, ed.state.duration))); if (strip) strip.paint(position); if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
       const pct = t => `${(t / Math.max(1, ed.state.duration)) * 100}%`;
       async function apply(op) {
         stopPlay();

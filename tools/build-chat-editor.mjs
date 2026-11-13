@@ -11,7 +11,7 @@ import crypto from 'node:crypto';
 
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
-export const JS = ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor.js', 'tools/chat-editor/live-host.js'];
+export const JS = ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor-timeline.js', 'assets/app-editor.js', 'tools/chat-editor/live-host.js'];
 export const CSS = ['tools/maker-live/live-base.css', 'tools/chat-editor/chat-extra.css', 'assets/app-editor.css'];
 export const OUT = 'supabase/functions/connect-core/editor_page.ts';
 export const POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";

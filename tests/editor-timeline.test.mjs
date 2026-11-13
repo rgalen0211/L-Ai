@@ -50,11 +50,11 @@ test('build: tiles, a playhead that follows the value, pointer down and drag see
   assert.equal(s.tileCount, 6); assert.equal(s.el.props['aria-hidden'], 'true');
   const strip = find(s.el, n => /le-tl-strip/.test(n.props.class || ''))[0];
   fire(strip, 'pointerdown', { clientX: 100, pointerId: 1 });
-  assert.deepEqual(seeks, [1998]);                                             // the middle of 1985..2010 (rounded to a whole year)
+  assert.deepEqual(seeks, [2000]);                                             // the 4th of 6 tiles holds the middle of the strip: its year, not a linear guess
   fire(strip, 'pointermove', { clientX: 200 }); assert.equal(seeks.at(-1), 2010);
   fire(strip, 'pointerup', {}); fire(strip, 'pointermove', { clientX: 0 }); assert.equal(seeks.at(-1), 2010, 'no seek after release');
-  value = 1990; s.paint(0.2);
-  const head = find(s.el, n => /le-tl-head/.test(n.props.class || ''))[0]; assert.equal(head.style.left, '20%');
+  value = 1990; s.paint(1990);
+  const head = find(s.el, n => /le-tl-head/.test(n.props.class || ''))[0]; assert.ok(Math.abs(parseFloat(head.style.left) - 25) < 1e-9, head.style.left);      // the centre of the second of six tiles
   const on = find(s.el, n => n.classList.contains('le-tl-on')); assert.equal(on.length, 1);
   assert.match(find(s.el, n => /le-tl-note/.test(n.props.class || ''))[0].children.join(''), /Plain tiles for now/);
 });
@@ -68,7 +68,7 @@ test('build: a picture shows only when the page hands one over, and the note the
 test('wiring: the strip is built only for the stand-in data editor, follows the slider and stops playback on a seek; the script is stamped and loaded before the editor', () => {
   const ed = read('assets/app-editor.js'), html = read('app/index.html');
   assert.match(ed, /const strip = isData && !bundleMode && TLM \? TLM\.build\(/);
-  assert.match(ed, /if \(strip\) strip\.paint\(TLM\.fractionOf\(position, FIRST, LAST\)\); if \(!isData\) head\.style\.left/);
+  assert.match(ed, /if \(strip\) strip\.paint\(position\); if \(!isData\) head\.style\.left/);
   assert.match(ed, /seek: v => \{ stopPlay\(\); range\.value = String\(v\); range\.dispatchEvent\(new Event\('input'/);
   assert.match(ed, /scrub, strip \? strip\.el : null, ticks/);
   assert.ok(html.indexOf('app-editor-timeline.js?v=20261113a') > 0 && html.indexOf('app-editor-timeline.js') < html.indexOf('app-editor.js?v='));
@@ -104,4 +104,34 @@ test('wiring: the page builds a ruler above the tracks and moves its playhead wi
   assert.match(ed, /const rl = TLM \? TLM\.ruler\(\{ h, duration: ed\.state\.duration, seek: s => \{ stopPlay\(\); range\.value = String\(Math\.round\(s \* 10\)\)/);
   assert.match(ed, /lanes\.replaceChildren\(\.\.\.\(rl \? \[rl\.lane\] : \[\]\), \.\.\.E\.TRACKS\.map/);
   assert.match(ed, /function paintHead\(\) \{ if \(rulerPaint\) rulerPaint\(Math\.min\(1, position \/ Math\.max\(1, ed\.state\.duration\)\)\);/);
+});
+
+// ---- CC1 07:23: a click lands on the tile under the pointer, never a neighbour; the playhead sits where the tiles are; every built page carries the script ----
+test('every tile\'s 10, 50 and 90 percent points pick that tile\'s own year, for several strip sizes', () => {
+  for (const [first, last, max] of [[1985, 2010, 12], [1985, 2010, 6], [1990, 1995, 12], [1998, 2023, 12], [2000, 2002, 12], [1900, 2023, 7]]) {
+    const years = plain(T.tilesFor(first, last, max)), n = years.length;
+    const seeks = [];
+    const s = T.build({ first, last, max, h: el, get: () => ({ min: first, max: last, step: 1, value: first }), seek: v => seeks.push(v) });
+    const strip = find(s.el, x => /le-tl-strip/.test(x.props.class || ''))[0]; strip.getBoundingClientRect = () => ({ left: 0, width: 1000 });
+    for (let k = 0; k < n; k++) for (const p of [0.1, 0.5, 0.9]) {
+      fire(strip, 'pointerdown', { clientX: ((k + p) / n) * 1000, pointerId: 1 }); fire(strip, 'pointerup', {});
+      assert.equal(seeks.at(-1), years[k], `${first}-${last}/${max} tile ${k} at ${p}`);
+    }
+  }
+});
+
+test('the playhead sits on the tile of the year: at the centre of a sampled year\'s tile, between centres in between, and stays on the end tiles', () => {
+  const ys = [1985, 1990, 1995, 2000];
+  const near = (a, b) => Math.abs(a - b) < 1e-9;
+  assert.ok(near(T.headFraction(ys, 1985), 0.125)); assert.ok(near(T.headFraction(ys, 1990), 0.375)); assert.ok(near(T.headFraction(ys, 2000), 0.875));
+  assert.ok(near(T.headFraction(ys, 1992.5), 0.5)); assert.ok(near(T.headFraction(ys, 1900), 0.125)); assert.ok(near(T.headFraction(ys, 3000), 0.875));
+  assert.equal(T.tileAt(4, 0), 0); assert.equal(T.tileAt(4, 0.999), 3); assert.equal(T.tileAt(4, 1), 3); assert.equal(T.tileAt(4, -2), 0);
+});
+
+test('the chat editor page and the PC maker page each DEFINE the timeline script before the editor, and the generators list it', () => {
+  for (const f of ['supabase/functions/connect-core/editor_page.ts', 'tools/maker-live/live.js']) {
+    const src = read(f), def = src.indexOf('window.ryagramEditorTimeline = {'), use = src.indexOf('const TLM = window.ryagramEditorTimeline');
+    assert.ok(def > 0 && use > 0 && def < use, f);
+  }
+  for (const g of ['tools/build-chat-editor.mjs', 'tools/build-maker-live.mjs']) assert.match(read(g), /'assets\/app-editor-timeline\.js', 'assets\/app-editor\.js'/, g);
 });

@@ -29,7 +29,18 @@
     return at;
   }
 
-  // build({ first, last, h, get, seek, thumb }) -> { el, paint(fraction), tileCount }
+  // The tile under a pointer (fraction 0..1 across the strip) and where the playhead sits for a year: tiles are equal width, so both are worked out in tiles, not in years. A year between two
+  // sampled years sits between the two tile centres; before the first and after the last it stays on that tile's centre.
+  const tileAt = (count, fraction) => (count > 0 ? clamp(Math.floor(clamp(Number(fraction) || 0, 0, 1) * count), 0, count - 1) : 0);
+  function headFraction(years, year) {
+    const n = years.length; if (!n) return 0;
+    const y = Number(year); if (!Number.isFinite(y) || y <= years[0]) return 0.5 / n;
+    if (y >= years[n - 1]) return (n - 0.5) / n;
+    const k = tileIndexFor(years, y), within = (y - years[k]) / (years[k + 1] - years[k]);
+    return (k + 0.5 + within) / n;
+  }
+
+  // build({ first, last, h, get, seek, thumb }) -> { el, paint(year), tileCount }
   //   get(): { min, max, step, value } of the slider; seek(value): move the slider (the page sets it and fires its own input event); thumb(year): a canvas/img node or null.
   function build(o) {
     const h = o.h, years = tilesFor(o.first, o.last, o.max || 12);
@@ -46,18 +57,15 @@
     let down = false;
     const at = ev => {
       const r = strip.getBoundingClientRect(); if (!r.width) return;
-      const s = o.get();
-      o.seek(valueAt((ev.clientX - r.left) / r.width, s.min, s.max, s.step));
+      o.seek(years[tileAt(years.length, (ev.clientX - r.left) / r.width)]);
     };
     strip.addEventListener('pointerdown', ev => { down = true; try { strip.setPointerCapture(ev.pointerId); } catch (e) { /* not every pointer can be captured */ } at(ev); });
     strip.addEventListener('pointermove', ev => { if (down) at(ev); });
     const up = () => { down = false; };
     strip.addEventListener('pointerup', up); strip.addEventListener('pointercancel', up);
-    function paint(fraction) {
-      const f = clamp(Number(fraction) || 0, 0, 1);
-      head.style.left = `${f * 100}%`;
-      const s = o.get(), year = Math.round(s.value);
-      const k = tileIndexFor(years, year);
+    function paint(value) {
+      head.style.left = `${headFraction(years, value) * 100}%`;
+      const k = tileIndexFor(years, Math.round(Number(value)));
       tiles.forEach((t, i) => t.classList.toggle('le-tl-on', i === k));
     }
     return { el, paint, tileCount: years.length };
@@ -91,5 +99,5 @@
     return { lane, paint: f => { head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount: ticks.length };
   }
 
-  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, build, rulerTicks, ruler, clock };
+  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, build, rulerTicks, ruler, clock };
 })();
