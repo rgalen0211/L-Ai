@@ -102,7 +102,10 @@ test('ruler: a lane with a blank name cell, labelled ticks, a playhead that foll
 test('wiring: the page builds a ruler above the tracks and moves its playhead with the slider', () => {
   const ed = read('assets/app-editor.js');
   assert.match(ed, /const rl = TLM \? TLM\.ruler\(\{ h, duration: ed\.state\.duration, seek: s => \{ stopPlay\(\); range\.value = String\(Math\.round\(s \* 10\)\)/);
-  assert.match(ed, /lanes\.replaceChildren\(\.\.\.\(rl \? \[rl\.lane\] : \[\]\), \.\.\.E\.TRACKS\.map/);
+  assert.match(ed, /rulerHolder\.replaceChildren\(\.\.\.\(rl \? \[rl\.lane\] : \[\]\)\);/);
+  assert.match(ed, /lanes\.replaceChildren\(\.\.\.E\.TRACKS\.map/, 'the tracks box holds only the tracks');
+  assert.match(ed, /isData \? null : \[rulerHolder, lanes, list,/);
+  assert.ok(!/class: 'le-lane le-ruler-lane'/.test(read('assets/app-editor-timeline.js')), 'the ruler is not a lane: the tracks box counts and orders its lanes (check-live-editor, check-chat-editor)');
   assert.match(ed, /function paintHead\(\) \{ if \(rulerPaint\) rulerPaint\(Math\.min\(1, position \/ Math\.max\(1, ed\.state\.duration\)\)\);/);
 });
 

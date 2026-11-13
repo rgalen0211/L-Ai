@@ -98,7 +98,7 @@
     bar.addEventListener('pointermove', ev => { if (down) at(ev); });
     const up = () => { down = false; };
     bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
-    const lane = h('div', { class: 'le-lane le-ruler-lane' }, h('b', { 'aria-hidden': 'true' }, ''), bar);
+    const lane = h('div', { class: 'le-ruler-lane' }, h('b', { 'aria-hidden': 'true' }, ''), bar);      // NOT a le-lane: the tracks box counts and orders its lanes
     return { lane, paint: f => { head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount: ticks.length };
   }
 

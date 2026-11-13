@@ -460,6 +460,7 @@
       // ---- the tracks (compilation): lanes on a wide screen, a list on a phone; both from the same state, both make the same ops
       const open = track => !ed.state.lanes || ed.state.lanes.includes(track);          // the lanes the maker can build today (the track summary says); the others are shown, not editable
       const lanes = h('div', { class: 'le-lanes', role: 'group', 'aria-label': 'Tracks' });
+      const rulerHolder = h('div', { class: 'le-ruler-holder' });
 
       // ---- the film's own settings (CONNECT 13:12): the phrase rules ("every time a word is said, show a picture") and the look of the film's text and cards
       const rulesPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-rules-h', hidden: true });
@@ -602,7 +603,8 @@
         const touched = new Set(ed.aiTouched());
         const rl = TLM ? TLM.ruler({ h, duration: ed.state.duration, seek: s => { stopPlay(); range.value = String(Math.round(s * 10)); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null;
         rulerPaint = rl ? rl.paint : null; if (rl) rl.paint(Math.min(1, position / Math.max(1, ed.state.duration)));
-        lanes.replaceChildren(...(rl ? [rl.lane] : []), ...E.TRACKS.map(track => {
+        rulerHolder.replaceChildren(...(rl ? [rl.lane] : []));        // the ruler sits ABOVE the tracks box, not inside it: the tracks keep their own count and order
+        lanes.replaceChildren(...E.TRACKS.map(track => {
           const bar = h('div', { class: 'le-bar' });
           if (!open(track)) return h('div', { class: 'le-lane' }, h('b', {}, TRACK_NAMES[track]), h('div', { class: 'le-bar le-off' }, h('span', { class: 'meta' }, 'Not available yet')));
           for (const c of ed.state.clips.filter(x => x.track === track)) {
@@ -730,7 +732,7 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, strip ? strip.el : null, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
+          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, strip ? strip.el : null, ticks, warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
