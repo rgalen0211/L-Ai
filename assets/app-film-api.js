@@ -19,7 +19,7 @@
     constructor(message, props = {}) { super(message); this.name = 'FilmApiError'; Object.assign(this, { final: false, retryLater: false, code: null }, props); }
   }
 
-  /** ENGINE's manifest.film (any window carries it) as the plan WEB's checkPlan reads. The film's clips are not in the manifest, so the timeline has none (the title block and the film are drawn as one lane). */
+  /** (A short clip's plan names its windows by the clip's length, e.g. '0:4', so the store's first window then differs from the '0:10' asked here: that case costs one extra window, cached after.) ENGINE's manifest.film (any window carries it) as the plan WEB's checkPlan reads. The film's clips are not in the manifest, so the timeline has none (the title block and the film are drawn as one lane). */
   function planFromManifest(manifest) {
     const film = isObj(manifest) ? manifest.film : null;
     const fail = () => { throw new FilmApiError('The plan of your film is not valid.', { final: true }); };
@@ -42,9 +42,10 @@
 
   /**
    * request(versionId, 'A:B') -> { status, job_id, storage_path, engine_commit, error_detail }  (the database call; it throws an Error with .code = the SQLSTATE and .message = the sentence)
+   * jobProgress(jobId) -> Promise<number 0..1|null> (OPTIONAL: the owner's own job row's progress, which the worker writes while it draws; without it, or when it answers nothing, onProgress gets null: no number is invented).
    * fileUrl(path) -> Promise<string> (the storage signed link), fetchBytes(url) -> Promise<Uint8Array|ArrayBuffer>, readManifest(bytes) -> manifest object (WEB's zip reader), sleep(ms).
    */
-  function makeFilmApi({ versionId, request, fileUrl, fetchBytes, readManifest, sleep = ms => new Promise(r => setTimeout(r, ms)), now = () => Date.now(), pollMs = POLL_MS, maxWaitMs = MAX_WAIT_MS }) {
+  function makeFilmApi({ versionId, request, fileUrl, fetchBytes, readManifest, jobProgress, sleep = ms => new Promise(r => setTimeout(r, ms)), now = () => Date.now(), pollMs = POLL_MS, maxWaitMs = MAX_WAIT_MS }) {
     if (typeof request !== 'function' || typeof fileUrl !== 'function' || typeof fetchBytes !== 'function') throw new FilmApiError('The film API needs a request, a link and a download.', { final: true });
     const poll = Math.max(POLL_MS, Number(pollMs) || POLL_MS);                                   // never faster than every 3 seconds, whatever the caller says
     const ask = async text => {
@@ -75,7 +76,11 @@
         if (r.status === 'failed') throw new FilmApiError(clean(r.error_detail) || 'The engine could not draw this part of your film.', { final: true });
         if (r.status !== 'building') throw new FilmApiError('The answer about your film was not understood.');
         if (now() - t0 > maxWaitMs) throw new FilmApiError('This part of your film is taking longer than expected. Try again in a few minutes.', { retryLater: true });
-        onProgress(null);                                                                          // the database does not say how far a build is: no number is invented
+        let fraction = null;                                                                       // only a number the worker really wrote, 0 to 1
+        if (typeof jobProgress === 'function' && typeof r.job_id === 'string' && r.job_id) {
+          try { const v = await jobProgress(r.job_id); if (typeof v === 'number' && v >= 0 && v < 1) fraction = v; } catch (e) { fraction = null; }   // a failed look is not a failed build
+        }
+        onProgress(fraction);
         await sleep(poll);
       }
     }

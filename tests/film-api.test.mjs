@@ -40,6 +40,23 @@ test('a window is asked for, waited for without polling faster than every 3 seco
   assert.deepEqual(progress, [null, null, 1], 'no percentage is invented while it builds');
 });
 
+test('while it builds, the progress the worker wrote is passed on when there is one; a missing, odd or failing look gives null, never an invented number', async () => {
+  const seq = [0.25, 0.5];
+  const { api } = harness([building, building, building, ready], { jobProgress: async (id) => { assert.equal(id, 'j1'); return seq.length ? seq.shift() : null; } });
+  const progress = [];
+  await api.window('0:10', { onProgress: (p) => progress.push(p) });
+  assert.deepEqual(progress, [0.25, 0.5, null, 1]);
+  for (const odd of [async () => 7, async () => -1, async () => '0.5', async () => NaN, async () => { throw new Error('rls'); }]) {
+    const got = [];
+    await harness([building, ready], { jobProgress: odd }).api.window('0:10', { onProgress: (p) => got.push(p) });
+    assert.deepEqual(got, [null, 1]);
+  }
+  const noId = []; let asked = 0;
+  await harness([{ ...building, job_id: null }, ready], { jobProgress: async () => { asked += 1; return 0.5; } }).api.window('0:10', { onProgress: (p) => noId.push(p) });
+  assert.deepEqual(noId, [null, 1]);
+  assert.equal(asked, 0, 'no job id, no look');
+});
+
 test('a window that failed on its input is final, with the engine\'s own words, and nothing is fetched', async () => {
   const { api, calls } = harness([{ ...building, status: 'failed', error_detail: 'No such view: x.' }]);
   await assert.rejects(api.window('0:10'), (e) => e instanceof FilmApiError && e.final === true && e.retryLater === false && e.message === 'No such view: x.');
