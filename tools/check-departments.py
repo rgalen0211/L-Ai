@@ -87,7 +87,7 @@ def main():
                 if not phone:
                     p.locator('.soon-group summary').click()          # a desktop list opens on a click; on a phone the items sit open under their heading in the Menu
                 soon = p.locator('.soon-group ul li')
-                check(soon.count() == 4 and all(x in p.locator('.soon-group ul').inner_text() for x in ('Compilations', 'Geographic Intelligence', 'Games', 'Animation Studio')), 'the Coming soon group lists the four not-built departments')
+                check(soon.count() == 4 and all(x in p.locator('.soon-group ul').inner_text() for x in ('Compilations', 'Opportunity Map', 'Games', 'Animation Studio')), 'the Coming soon group lists the four not-built departments')
                 check(p.locator('.soon-group .soon-tag').count() == 4, 'each one is marked "soon"')
                 p.screenshot(path=str(OUT / f'bar-soon-open-{name}.png'), full_page=False)
                 # 2. the Data films page
@@ -175,7 +175,7 @@ def main():
                     p.on('pageerror', lambda e: errors.append(str(e)))
                     p.goto(f'{BASE}/app/?mock&aiconnected#/', wait_until='load')
                     p.wait_for_selector('.dept-bar', timeout=20000)
-                    for dept, want in (('data_films', 'Data films'), ('games', 'Games'), ('geo_intelligence', 'Geographic Intelligence')):
+                    for dept, want in (('data_films', 'Data films'), ('games', 'Games'), ('geo_intelligence', 'Opportunity Map')):
                         p.evaluate(f"location.hash = '#/d/{dept}'")
                         p.wait_for_selector(f'h1:has-text("{want}")', timeout=10000)
                         p.wait_for_timeout(500)

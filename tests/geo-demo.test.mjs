@@ -1,4 +1,4 @@
-// NEXT-WEB 198 and 199: the Geographic Intelligence demo page (/geo-demo/, behind geoDemo, OFF) on SYNTHETIC data: the catchment maths, the labels on every number, and the page wiring.
+// NEXT-WEB 198 and 199: the Opportunity Map demo page (/geo-demo/, behind geoDemo, OFF) on SYNTHETIC data: the catchment maths, the labels on every number, and the page wiring.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
