@@ -476,14 +476,27 @@ class BundlesAreFree(core.Base):
         super().setUp()
         self.db.as_(None).one("update control set disabled_job_types = '{}' where id returning 1")
 
-    def quote(self, vid, jt="film_bundle"):
+    def bundle_request(self, vid):
+        try:
+            status, job, *_ = self.db.as_(RYAN).one("select status, job_id from request_film_bundle(%s, '0:10')", vid)
+            return status, job
+        except psycopg.Error as e:                                                   # a refusal is an answer to compare (a planted fault must FAIL here, not error)
+            return "refused: " + str(e), None
+
+    def quote_raw(self, vid, jt="film_bundle"):
         return self.db.as_(RYAN).one("select price_code, credits from credit_quote(%s, %s::job_type)", vid, jt)
+
+    def quote(self, vid, jt="film_bundle"):
+        try:
+            return self.db.as_(RYAN).one("select price_code, credits from credit_quote(%s, %s::job_type)", vid, jt)
+        except psycopg.Error as e:                                                   # a refusal is an answer to compare (a planted fault must FAIL here, not error)
+            return ("refused", str(e))
 
     def test_a_bundle_costs_nothing_with_no_credits_when_the_ledger_is_loaded_after_the_migration(self):
         self.db.as_(None).c.execute(LEDGER.read_text(encoding="utf-8"))
         _, vid = self.project_with_version()                                         # RYAN has no credits at all
         self.assertEqual(self.quote(vid), ("film_bundle", 0))
-        status, job, *_ = self.db.as_(RYAN).one("select status, job_id from request_film_bundle(%s, '0:10')", vid)
+        status, job = self.bundle_request(vid)
         self.assertEqual(status, "building")
         self.assertEqual(self.db.as_(None).one("select price_code, credits_quoted, hold_id from jobs where id = %s", job), ("film_bundle", 0, None))
         self.assertEqual(self.db.as_(None).one("select count(*) from credit_ledger"), 0)
@@ -499,11 +512,11 @@ class BundlesAreFree(core.Base):
         self.db.as_(None).c.execute(orig)
         _, vid = self.project_with_version()
         with self.assertRaisesRegex(psycopg.Error, "price"):                           # before: the old ledger prices an unknown type at the FILM's price path (which has no price for this story)
-            self.quote(vid)
+            self.quote_raw(vid)
         self.db.as_(None).c.execute(MIG.read_text(encoding="utf-8"))
         self.db.as_(None).one("update control set disabled_job_types = '{}' where id returning 1")           # the migration switches bundles off: on again for this test
         self.assertEqual(self.quote(vid), ("film_bundle", 0))
-        status, job, *_ = self.db.as_(RYAN).one("select status, job_id from request_film_bundle(%s, '0:10')", vid)
+        status, job = self.bundle_request(vid)
         self.assertEqual(self.db.as_(None).one("select price_code, credits_quoted, hold_id from jobs where id = %s", job), ("film_bundle", 0, None))
         before = self.db.as_(None).one("select pg_get_functiondef(to_regprocedure('ryagram_private.jobs_quote()'))")
         self.db.as_(None).c.execute(MIG.read_text(encoding="utf-8"))               # a second run changes nothing (and leaves bundles switched off, as the first did)
