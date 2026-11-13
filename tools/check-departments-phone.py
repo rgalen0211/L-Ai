@@ -1,5 +1,5 @@
 """Phone-width check (Claude's night note 11-06, item 2) of the department pages in mock mode (`departments` and `aiFirst` on, as committed): Data films and the four Coming soon pages
-(Compilations, Geographic Intelligence, Games, Animation Studio) at 320, 360, 375 and 390 px, in three switch settings: all picture and detail switches OFF (today), `deptStills` ON with test
+(Compilations, Opportunity Map, Games, Animation Studio) at 320, 360, 375 and 390 px, in three switch settings: all picture and detail switches OFF (today), `deptStills` ON with test
 pictures, and `departmentDetails` + `locationPreview` ON (the longest pages). For each: no sideways scroll, nothing wider than the screen, no text cut off in its own box, every visible control
 at least 44 px, no button wrapped to more than two lines, the accessibility scan, and (with deptStills on) every picture inside the screen. Writes screenshots. Exit 1 on any finding.
 Needs Chrome, so it is not part of the node suite. Reuses the probe of tools/check-signin-phone.py.
@@ -21,7 +21,7 @@ def load(name, file):
 aa = load('aa', 'audit-a11y.py')
 sp = load('sp', 'check-signin-phone.py')
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><rect width="1920" height="1080" fill="#445"/></svg>'
-PAGES = (('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Geographic Intelligence'), ('games', 'Games'), ('animation_studio', 'Animation Studio'))
+PAGES = (('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Opportunity Map'), ('games', 'Games'), ('animation_studio', 'Animation Studio'))
 
 
 def main():

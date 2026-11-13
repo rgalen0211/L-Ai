@@ -31,3 +31,9 @@ test('My films is always shown; where it goes follows the per-account switch (th
   assert.equal(fixture.my_films.link_when_on, '#/films'); assert.equal(fixture.my_films.link_when_off, '#/');
   assert.match(read('assets/app-departments.js'), /featureOn\('myFilms'\) \? '#\/films' : '#\/', 'My films'/);
 });
+
+test('Opportunity Map (Ryan Q601, 2026-11-13): one name on the site and in the panel fixture, and the old name is not shown to a person', () => {
+  assert.equal(D.KNOWN.geo_intelligence.label, 'Opportunity Map'); assert.equal(fixture.labels.geo_intelligence, 'Opportunity Map');
+  for (const f of ['assets/app-departments.js', 'geo-demo/index.html']) assert.ok(!/Geographic Intelligence/.test(read(f)), f);
+  assert.match(read('geo-demo/index.html'), /<title>Opportunity Map demo/);
+});

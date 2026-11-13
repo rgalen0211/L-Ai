@@ -542,7 +542,7 @@
       // ?deptextra adds an id the page does not know and a 'working' one it has no page for (both must be ignored). Interest is one row per person per department, and nothing is ever sent.
       my_departments() {
         if (typeof location !== 'undefined' && /[?&]nodept/.test(location.search || '')) return fail('my_departments is not available');
-        const rows = [{ id: 'data_films', label: 'Data films', status: 'working' }, { id: 'compilations', label: 'Compilations', status: 'soon' }, { id: 'geo_intelligence', label: 'Geographic Intelligence', status: 'soon' },
+        const rows = [{ id: 'data_films', label: 'Data films', status: 'working' }, { id: 'compilations', label: 'Compilations', status: 'soon' }, { id: 'geo_intelligence', label: 'Opportunity Map', status: 'soon' },
                       { id: 'games', label: 'Games', status: 'soon' }, { id: 'animation_studio', label: 'Animation Studio', status: 'soon' }];
         if (typeof location !== 'undefined' && /[?&]deptextra/.test(location.search || '')) rows.push({ id: 'time_machine', label: 'Time machine', status: 'working' }, { id: 'games', label: 'Games again', status: 'working' });
         return { data: rows, error: null };

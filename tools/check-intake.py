@@ -73,7 +73,7 @@ with sync_playwright() as pw:
         p.click('[data-choice="data"]'); p.wait_for_selector('h2:has-text("What is your film about?")')
         check(p.locator('.intake-choice').count() == 4 and 'Coming soon' in p.inner_text('[data-choice="globe"]'), 'a data film asks what it is about; the globe is marked coming soon')
         p.click('[data-choice="globe"]'); p.wait_for_selector('h2:has-text("not built yet")')
-        check('Geographic Intelligence' in p.inner_text('.intake-soon-list') and p.locator('a.button.primary').count() == 0, 'the globe is a coming-soon page with no dead link')
+        check('Opportunity Map' in p.inner_text('.intake-soon-list') and p.locator('a.button.primary').count() == 0, 'the globe is a coming-soon page with no dead link')
         p.click('.intake >> button:has-text("Back")'); p.wait_for_selector('h2:has-text("What is your film about?")')
         p.click('[data-choice="map"]'); p.wait_for_selector('a:has-text("Open the builder")')
         href = p.get_attribute('a:has-text("Open the builder")', 'href')

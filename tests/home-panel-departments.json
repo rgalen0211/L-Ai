@@ -10,7 +10,7 @@
   "labels": {
     "data_films": "Data films",
     "compilations": "Compilations",
-    "geo_intelligence": "Geographic Intelligence",
+    "geo_intelligence": "Opportunity Map",
     "games": "Games",
     "animation_studio": "Animation Studio"
   },
@@ -21,9 +21,6 @@
     "link_when_off": "#/",
     "on_means": "featureOn('myFilms') is true for the account (its own my_switches() list names myFilms)"
   },
-  "ryan_names_awaiting_choice": {
-    "geo_intelligence": "Opportunity Map (Ryan's 07:05 list) or Geographic Intelligence (the site): one name in both places, Ryan's call (GEO-HOME-PANEL-ENTRY-1113 question 1)"
-  },
   "status": "Which departments WORK for an account and which are Coming soon is the server's my_departments() answer; the panel never decides it. The words below are what a Coming soon card says.",
   "lines": {
     "compilations": "Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.",
@@ -31,5 +28,6 @@
     "games": "Play with your own data and footage in small games you can share.",
     "animation_studio": "Simple cartoons you direct: characters you can pose, with mouths that move to your voice."
   },
-  "data_films_sentence": "Questions answered with public data, drawn as a short animated film, with every source shown."
+  "data_films_sentence": "Questions answered with public data, drawn as a short animated film, with every source shown.",
+  "name_note": "Ryan's Q601 answer (2026-11-13): the department is called Opportunity Map, shown as Coming soon, with GEO's line. One name on the site and in the panel."
 }

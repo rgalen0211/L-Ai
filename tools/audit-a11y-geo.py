@@ -1,4 +1,4 @@
-"""Accessibility scan of the Geographic Intelligence demo page (NEXT-WEB 198) with geoDemo ON in a local config copy and a site chosen, desktop and 320 px: names, headings, contrast, tap targets, alt text (the same scan as
+"""Accessibility scan of the Opportunity Map demo page (NEXT-WEB 198) with geoDemo ON in a local config copy and a site chosen, desktop and 320 px: names, headings, contrast, tap targets, alt text (the same scan as
 tools/audit-a11y.py). Exit 1 on any finding. Needs Chrome.   python tools/audit-a11y-geo.py"""
 import importlib.util, re, sys
 from pathlib import Path
