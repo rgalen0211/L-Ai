@@ -56,7 +56,8 @@ test('the list follows the site\'s rule: only ids with words, only the two statu
   assert.deepEqual(e.map((d) => d.id + ':' + d.status), ['data_films:working', 'my_films:working', 'games:soon']);
   assert.deepEqual(homeEntries(null).map((d) => d.id), ['my_films'], 'a failed read still shows the person\'s own films');
   assert.deepEqual(HOME_ORDER, ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio']);
-  assert.equal(homeEntries([{ id: 'data_films', status: 'working', label: 'x'.repeat(61) }])[0].label, 'Data films', 'a label over 60 characters is replaced by ours');
+  assert.equal(homeEntries([{ id: 'data_films', status: 'working', label: 'x'.repeat(61) }])[0].label, 'Data films', 'the panel says its own word, whatever the database row says');
+  assert.equal(homeEntries([{ id: 'geo_intelligence', status: 'soon', label: 'Geographic Intelligence' }]).find((d) => d.id === 'geo_intelligence').label, 'Opportunity Map', 'ONE name everywhere (Ryan 2026-11-13, Q601), even while the database row still holds the old one');
 });
 
 test('My films opens the site\'s page by the site\'s own rule: #/films when the account\'s myFilms switch is on, the projects page otherwise (and when the list could not be read)', async () => {
@@ -90,8 +91,8 @@ test('the words equal the site\'s where the site has them (assets/app-department
   for (const id of HOME_ORDER) {
     const site = KNOWN[id], ours = HOME_WORDS[id];
     assert.ok(site, `${id} is a department the site knows`);
-    assert.equal(ours.label, site.label, `${id}: the label`);
-    if (id === 'geo_intelligence') { assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line (proposals/GEO-HOME-PANEL-ENTRY-1113.md), whatever the site says now: the test holds in either landing order with the site\'s change'); continue; }
+    if (id !== 'geo_intelligence') assert.equal(ours.label, site.label, `${id}: the label`);
+    if (id === 'geo_intelligence') { assert.equal(ours.label, 'Opportunity Map', 'the department is called Opportunity Map (Q601); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line (proposals/GEO-HOME-PANEL-ENTRY-1113.md), whatever the site says now: the test holds in either landing order with the site\'s change'); continue; }
     assert.equal(ours.line, site.line ?? site.sentence, `${id}: the line`);
   }
 });

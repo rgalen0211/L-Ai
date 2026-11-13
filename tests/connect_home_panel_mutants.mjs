@@ -18,7 +18,7 @@ const mutants = [
   ['a department listed twice is taken twice (the last wins)', H, `!byId.has(r.id)`, `true`],
   ['the site order is not kept', H, `export const HOME_ORDER = ["data_films", "compilations", "geo_intelligence", "games", "animation_studio"] as const;`, `export const HOME_ORDER = ["games", "compilations", "geo_intelligence", "data_films", "animation_studio"] as const;`],
   ['my films is missing', H, `out.push(...working, mine, ...soon);`, `out.push(...working, ...soon);`],
-  ['a label over 60 characters is accepted', H, `r.label.length <= 60`, `r.label.length <= 6000`],
+  ['the panel takes the database label', H, `const label = w.label;`, `const label = r.label;`],
   ['the geographic line promises where a business would do well', H, `so it does not say where a business would do well.`, `so it says where a business would do well.`],
   ['a date is promised', H, `No price and no date.`, `No price, due 2027.`],
   ['the compilations line differs from the site', H, `Say a phrase. Ryagram finds every time it is said in your own footage`, `Say a phrase. Ryagram finds the best time it is said in your own footage`],

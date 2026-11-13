@@ -18,7 +18,7 @@ export const HOME_WORDS: Readonly<Record<string, HomeWords>> = Object.freeze({
   data_films: { label: "Data films", line: "Questions answered with public data, drawn as a short animated film, with every source shown.",
     starts: ["Make me a short film from public data: how adult obesity changed in each state."], page: "#/d/data_films" },
   compilations: { label: "Compilations", line: "Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too." },
-  geo_intelligence: { label: "Geographic Intelligence", line: "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
+  geo_intelligence: { label: "Opportunity Map", line: "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
     rules: ["Every number is labelled: observed, calculated, estimated or simulated.", "It counts places, jobs, wages, permits and people. It has no sales data, so it does not say where a business would do well.", "No score and no ranking of places."],
     notYet: ["Not part of Ryagram's first release. Testers are trying an early version. No price and no date."] },
   games: { label: "Games", line: "Play with your own data and footage in small games you can share." },
@@ -44,7 +44,7 @@ export function homeEntries(rows: unknown, switches: unknown = []): HomeEntry[] 
   for (const id of HOME_ORDER) {
     const r = byId.get(id), w = HOME_WORDS[id];
     if (!r || !w) continue;
-    const label = typeof r.label === "string" && r.label.trim() && r.label.length <= 60 ? r.label.trim() : w.label;
+    const label = w.label;                                   // ONE name everywhere (Ryan 2026-11-13, Q601: Opportunity Map): the panel says its own word, whatever the database row still says
     if (r.status === "working" && w.page && PAGE.test(w.page)) working.push({ id, label, status: "working", line: w.line, rules: [...(w.rules ?? [])], not_yet: [...(w.notYet ?? [])], starts: [...(w.starts ?? [])], page: w.page });
     else if (r.status === "soon") soon.push({ id, label, status: "soon", line: w.line, rules: [...(w.rules ?? [])], not_yet: [...(w.notYet ?? [])], starts: [], page: null });
   }

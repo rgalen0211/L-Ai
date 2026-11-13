@@ -69,7 +69,7 @@ with sync_playwright() as pw:
     check(heads == ['Works today', 'Coming soon'], 'two groups: Works today and Coming soon (%s)' % heads)
     works = fr.eval_on_selector_all('.dept', 'els => els.map(e => ({ h: e.querySelector("h3").childNodes[0].textContent, tag: !!e.querySelector(".tag"), buttons: Array.from(e.querySelectorAll("button")).map(x => x.textContent) }))')
     names = [w['h'] for w in works]
-    check(names == ['Data films', 'My films', 'Compilations', 'Geographic Intelligence', 'Games', 'Animation Studio'], 'six entries in order (%s)' % names)
+    check(names == ['Data films', 'My films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio'], 'six entries in order (%s)' % names)
     check(works[0]['buttons'] == ['Start this in the chat', 'Open on the site'] and works[1]['buttons'] == ['Start this in the chat', 'Open on the site'], 'Data films and My films each have a start button and an open button')
     check(all(w['tag'] and not w['buttons'] for w in works[2:]), 'every coming-soon entry carries the tag and has NOTHING to press')
     geo = fr.locator('.dept').nth(3).inner_text()
