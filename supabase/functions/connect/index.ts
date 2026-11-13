@@ -9,6 +9,7 @@
 //   CONNECT_MCP_APP       (optional) "on" shows the inline Ryagram card in assistants that render MCP Apps. Anything else = off, the connector exactly as it was.
 //   CONNECT_CHAT_EDITOR   (optional, needs CONNECT_MCP_APP) "on" opens the live editor inside the chat (the panel and its tools). Anything else = off.
 //   CONNECT_UI_DOMAIN     (optional, with CONNECT_MCP_APP) Claude's sandbox origin for this server: 32 hex characters + .claudemcpcontent.com (sha256 of the server URL; see proposals/CONNECT-MCP-APP-PLAN-1105.md)
+//   CONNECT_CIMD          (optional, default off) "on" = accept Claude's published identity; ONLY after the cimd migration is applied to that project
 //   CONNECT_PUBLIC_URL    (recommended) https://<ref>.supabase.co/functions/v1/connect  pins the issuer address; if absent the platform's SUPABASE_URL is used
 // There is NO Supabase key here: not the service role, not the anon key. The function never reads a Supabase JWT.
 import postgres from "npm:postgres@3.4.5";
@@ -16,11 +17,15 @@ import Ajv2020 from "npm:ajv@8.17.1/dist/2020.js";
 import { makeCompile } from "../connect-core/ajv_adapter.ts";
 import { sha256hex, json } from "../connect-core/oauth.ts";
 import { handleRequest } from "../connect-core/router.ts";
+import { CIMD_ALLOWED, defaultCimdFetcher } from "../connect-core/cimd.ts";
 import { ConnectDb } from "./db.ts";
 
 const dbUrl = Deno.env.get("CONNECT_DB_URL") ?? "";
 const consentUrl = Deno.env.get("CONNECT_CONSENT_URL") ?? "";
 const appUrl = Deno.env.get("CONNECT_APP_URL") ?? "https://uselai.com/app/";
+// "Use Claude's published identity" (client ID metadata documents) is OFF unless this setting is exactly "on". It must stay off wherever the SQL
+// migration 20261110000100_connect_cimd.sql has not been applied: with it on, the metadata tells Claude to use that method and every sign-in would fail.
+const cimdOn = (Deno.env.get("CONNECT_CIMD") ?? "").trim().toLowerCase() === "on";
 // The address clients are told to use. Inside the platform the request's own Host is an internal name (edge-runtime.supabase.com, found by the
 // pre-flight), so it must not be derived from the request. CONNECT_PUBLIC_URL pins it; without that, the platform's own project address
 // (SUPABASE_URL, a public address and NOT a key) plus /functions/v1/connect. Never the request headers on the platform.
@@ -44,6 +49,7 @@ Deno.serve(async (req) => {
     if (!sql || !consentUrl) return json(503, { error: "This connection is not set up yet." });
     return await handleRequest(req, {
       store: db.authStore(), consentUrl, publicBase,
+      cimd: cimdOn ? { fetch: defaultCimdFetcher, allowed: CIMD_ALLOWED } : undefined,
       mcp: {
         data: null as never, policy: db.policy(), deps: { compile }, mcpApp,
         async verifyToken(token: string) { return await db.verify(await sha256hex(token)); },

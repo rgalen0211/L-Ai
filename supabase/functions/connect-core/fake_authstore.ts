@@ -26,6 +26,7 @@ export class FakeAuthStore {
         for (const u of uris) if (!this.allowed.has(u) && !/^http:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(u)) throw dberr("invalid_redirect_uri");
         const id = "rgc_" + ++this.n; this.clients.set(id, { name, uris }); return id;
       },
+      registerCimdClient: async (clientId, uris) => { this.clients.set(clientId, { name: new URL(clientId).host, uris }); },
       beginAuthorization: async (a) => {
         const c = this.clients.get(a.clientId);
         if (!c) throw dberr("invalid_client");

@@ -853,6 +853,7 @@ EXPECTED_CALLABLE += ['connect_editor_apply(text, uuid, text, bigint, jsonb)', '
 EXPECTED_CALLABLE += ['connect_geo_ask(text, double precision, double precision, integer, text[])', 'connect_geo_get(text, uuid)']      # NEXT-CONNECT 196: geo requests (migration 20261104000300; its own line so it does not conflict)
 EXPECTED_CALLABLE += ['connect_geo_ask_shape(text, text, double precision, double precision, double precision, double precision, text, text)']      # GEO question shapes (migration 20261104000400; its own line so it does not conflict)
 EXPECTED_CALLABLE += ['connect_forecast_ask(text, jsonb, integer, text, integer[], text)']      # forecast requests (migration 20261104000500; its own line so it does not conflict)
+EXPECTED_CALLABLE += ['connect_cimd_client(text, text[])']      # client ID metadata documents (migration 20261110000100; its own line so it does not conflict)
 EXPECTED_CALLABLE += ['connect_list_footage(text)', 'connect_request_footage(text, text, text, text)']      # NEXT-CONNECT 168 P1b: footage plans (migration 20261030000200; a separate line so it conflicts with no other branch that edits the list above)
 EXPECTED_CALLABLE += ['connect_film_card_ask(text, uuid)', 'connect_film_card_get(text, uuid)']      # Step A film look cards (migration 20261109000100; its own line)
 
