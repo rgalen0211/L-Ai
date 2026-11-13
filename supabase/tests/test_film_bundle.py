@@ -420,7 +420,10 @@ class Bundles(core.Base):
         self.apply(RB.read_text(encoding="utf-8"), "the rollback")
         self.assertIsNone(self.admin("select to_regprocedure('public.request_film_bundle(uuid,text)')"))
         self.assertEqual(self.admin("select count(*) from pg_trigger where tgname = 'jobs_film_bundle_by_request'"), 0)
-        self.assertFalse(self.admin("select 'film_bundle' = any (disabled_job_types) from control where id"))
+        self.assertTrue(self.admin("select 'film_bundle' = any (disabled_job_types) and 'scene_bundle' = any (disabled_job_types) from control where id"), "after the undo both types stay switched OFF: nothing can run them")
+        self.admin("update control set disabled_job_types = '{}' where id returning 1")                     # a switched-on database undone: the undo must switch them off
+        self.apply(RB.read_text(encoding="utf-8"), "the rollback on a switched-on database")
+        self.assertTrue(self.admin("select 'film_bundle' = any (disabled_job_types) and 'scene_bundle' = any (disabled_job_types) from control where id"), "even when they had been switched on")
         self.apply(RB.read_text(encoding="utf-8"), "a second rollback")             # nothing to do
         self.apply(MIG.read_text(encoding="utf-8"), "the migration again")
         self.assertTrue(all(ok for _, ok in self.apply(CHECK.read_text(encoding="utf-8"), "the after-check").fetchall()))

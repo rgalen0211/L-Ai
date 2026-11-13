@@ -1,7 +1,7 @@
 -- Ryagram: film bundles: the exact undo of migrations/20261113000400_film_bundles.sql. NOT a migration: it lives outside migrations/ so nothing applies it by accident.
 -- It is for the time BEFORE any bundle was built: if a film_bundle job exists it stops in words and changes nothing (a job of that type could not be read or priced without this file's functions). The enum values from
--- 20261113000300 stay (a value cannot be removed; nothing uses it). It removes the request function and the guard trigger, puts the three artifact helpers back to the 2A core's own text, takes the type out of the
--- control row's disabled list and the bucket's mime list is left as it is (a harmless extra type), removes the free price row and the two ledger branches when the ledger is on this database.
+-- 20261113000300 stay (a value cannot be removed; nothing uses it). It removes the request function and the guard trigger, puts the three artifact helpers back to the 2A core's own text, KEEPS both types in the
+-- control row's disabled list (they stay switched OFF) and the bucket's mime list is left as it is (a harmless extra type), removes the free price row and the two ledger branches when the ledger is on this database.
 -- Files already stored under film_bundle artifacts are not touched here (there are none before a first build).
 
 begin;
@@ -49,7 +49,8 @@ language sql immutable set search_path = '' as $$
   end
 $$;
 
-update public.control set disabled_job_types = array(select t from unnest(disabled_job_types) t where t not in ('film_bundle', 'scene_bundle')) where id;
+-- The two enum values stay (a value cannot be removed) and the types stay SWITCHED OFF: after this undo nothing can run them (no request function, no price, no helper rows), so they must never be claimable.
+update public.control set disabled_job_types = array(select distinct t from unnest(disabled_job_types || array['film_bundle', 'scene_bundle']::public.job_type[]) t) where id;
 
 do $do$
 declare
