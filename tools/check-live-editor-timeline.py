@@ -63,6 +63,12 @@ with sync_playwright() as pw:
         check(v2 >= 2005, f'dragging to the right end moves the slider there ({v2})')
         p.locator('#le-range').focus(); p.keyboard.press('Home'); p.wait_for_timeout(200)
         check(int(p.locator('#le-range').input_value()) == 1985 and abs(p.evaluate("parseFloat(document.querySelector('.le-tl-head').style.left)") - 50 / tiles.count()) < 0.01 and p.locator('.le-tl-on i').inner_text() == '1985', 'the slider keyboard still works and the playhead follows it (first tile centre)')
+        # the strip follows the width: a wide window shrunk to a phone gets fewer tiles, and back
+        if name == 'desktop':
+            p.set_viewport_size({'width': 390, 'height': 800}); p.wait_for_timeout(400)
+            check(p.locator('.le-tl-tile').count() == 6, f"shrunk to 390 px the strip has 6 tiles ({p.locator('.le-tl-tile').count()})")
+            p.set_viewport_size({'width': 1200, 'height': 900}); p.wait_for_timeout(400)
+            check(p.locator('.le-tl-tile').count() == 12 and p.locator('.le-tl-head').count() == 1, f"and back to 12 with one playhead ({p.locator('.le-tl-tile').count()})")
         # video-editor keys on the slider
         p.locator('#le-range').focus(); p.keyboard.press('Home'); p.wait_for_timeout(100); a0 = int(p.locator('#le-range').input_value())
         p.keyboard.press('Shift+ArrowRight'); p.wait_for_timeout(100); a1 = int(p.locator('#le-range').input_value())
