@@ -66,6 +66,11 @@ export function extraProblems(story: unknown): string[] {
       if (typeof c.start === "string" && typeof c.end === "string" && c.start > c.end) {
         out.push(`Clip ${n} starts (${c.start}) after it ends (${c.end}).`);
       }
+      // The engine refuses a paired or panel view whose settings do not say how many pictures a year it draws (Ryan's ruling 2026-09-28, ryagram/sequence/compose.py): that number is MEASURED for the film,
+      // which takes minutes of drawing, so it is never defaulted. Saying it here means a story set_story accepts is one the engine accepts, instead of a job that fails and is retried.
+      if ((c.view === "paired" || c.view === "panel") && !(isObj(c.settings) && Number.isInteger(c.settings.keyframes_per_year))) {
+        out.push(`Clip ${n} is a ${c.view} view, which needs "keyframes_per_year" in its settings: how many pictures a year it draws (2 to 24), measured for this film. A connection cannot measure it, so use a map, bars or line view, or make this film in the Ryagram app.`);
+      }
     }
     if (c.kind === "title") {
       const empty = (v: unknown) => typeof v !== "string" || v.trim() === "";
@@ -198,6 +203,7 @@ function structureExtra(messages: string[]): StructuredProblem[] {
     const mm = /^(?:Clips? |Title card )(\d+)/.exec(m);
     const clip = mm ? `/sequence/clips/${Number(mm[1]) - 1}` : "";
     const mk = (path: string, code: string, fix: string): StructuredProblem => ({ path: path || "/", where: fieldWords(path), code, message: m, fix });
+    if (/^Clip \d+ is a (paired|panel) view, which needs "keyframes_per_year"/.test(m)) return mk(`${clip}/settings/keyframes_per_year`, "missing_field", "Use a map, bars or line view, or put a measured keyframes_per_year (2 to 24) in the settings of that clip.");
     if (/^Title card /.test(m)) {
       const f = /: the (headline|subhead|credit line)\b/.exec(m);
       const field = f ? (f[1] === "credit line" ? "credit" : f[1]) : "";
