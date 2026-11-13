@@ -375,6 +375,8 @@ class Ops(core.Base):
                            "claim_next_forecast()",
                            # film look cards (20261109000100): the house worker's three functions, each starting with require_worker()
                            "claim_next_film_card()", "finish_film_card(uuid,jsonb)", "fail_film_card(uuid,text,text)",
+                           # the site's own film look card (20261113000500): the signed-in person's own film only, resolved from their session and checked inside (the connector has its own token-checked twins)
+                           "my_film_card_ask(uuid)", "my_film_card_get(uuid)",
                            # tester computers: the admin list (NEXT-WEB 187; starts with require_admin(), revokes public, anon and node_runner)
                            "admin_tester_devices()",
                            # cost ledger: Ryan's screen and settings (same rule)
