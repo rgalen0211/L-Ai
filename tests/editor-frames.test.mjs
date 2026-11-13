@@ -177,3 +177,29 @@ test('the film editor: it mounts only for a film API, shows labels as text, and 
   assert.ok(at('frames-draw.min.js') > 0 && at('frames-draw.min.js') < at('app-editor-frames.js') && at('app-editor-frames.js') < at('scene-draw-rules.min.js'), 'the frames drawer is captured before the rules drawer overwrites window.RyagramScene');
   assert.ok(at('preview-zip.js') < at('app-editor-frames.js') && at('app-editor-timeline.js') < at('app-editor-film.js') && at('app-editor-film.js') < at('app-editor.js?v='));
 });
+
+test('try colours: the palette of a ready window, a preview-only swap that redraws, never touches the window, ignores unknown colours, and puts the film colours back', async () => {
+  const store = new F.FrameStore({ fetchWindow: async () => BUNDLE, drawer: D });
+  assert.equal(store.paletteAt(2.5).length, 0, 'nothing for a window nobody asked for');
+  store.want(2); assert.equal(store.paletteAt(2.5).length, 0, 'nothing while the window is still being made'); await settle(store);
+  const pal = store.paletteAt(2.5); assert.ok(pal.length >= 3); assert.ok(pal.every(c => /^#[0-9a-f]{6}$/.test(c.colour) && c.uses >= 0 && c.elements >= 0));
+  assert.ok(pal[0].uses >= pal.at(-1).uses, 'most used first');
+  const before = store.frameAt(2.5).svg, sceneBefore = JSON.stringify(store.wins.get('0:10').win.scene.items.slice(0, 50));
+  const target = pal.find(c => c.elements > 0).colour;
+  store.setColours({ [target]: '#ff00aa' });
+  const after = store.frameAt(2.5).svg;
+  assert.notEqual(after, before, 'the picture changes'); assert.ok(after.toLowerCase().includes('#ff00aa') || after.includes('255,0,170') , 'the new colour is in the drawing');
+  assert.equal(JSON.stringify(store.wins.get('0:10').win.scene.items.slice(0, 50)), sceneBefore, 'the window itself is not changed');
+  store.setColours({ '#123456': '#ff00aa', 'not a colour': '#ff00aa', [target]: 'red' });                      // an unknown colour and bad values are dropped, not thrown
+  assert.equal(Object.keys(store.colours).length, 1, 'only the well-formed pair is kept (the unknown colour waits, the bad value is gone)');
+  assert.equal(store.colours['#123456'], '#ff00aa');
+  assert.equal(store.frameAt(2.5).svg, before, "no valid swap is the film own picture");
+  store.setColours({ [target]: '#ff00aa' }); assert.notEqual(store.frameAt(2.5).svg, before);
+  store.setColours({ '#123456': '#00ffaa', [target]: '#ff00aa' }); assert.notEqual(store.frameAt(2.5).svg, before, 'a colour this window does not use is skipped, the rest still applies');
+  store.setColours({}); assert.equal(store.frameAt(2.5).svg, before, 'put back');
+  store.setColours({ [target]: target }); assert.equal(store.frameAt(2.5).svg, before, 'a colour swapped for itself changes nothing');
+});
+
+test('the colour panel says plainly that a change is not saved', () => {
+  assert.match(read('assets/app-editor-film.js'), /This changes the picture you see here only\. It is not saved to your film yet\./);
+});

@@ -34,6 +34,13 @@ const mutants = [
   ['a control character stays in a label', FR, 'label: clean(c.label)', 'label: String(c.label)'],
   ['the film editor sets any HTML', 'assets/app-editor-film.js', 'view.innerHTML = r.svg;', 'view.innerHTML = r.svg + String(r.reason);'],
   ['the page loads the film editor without an API', 'assets/app-editor.js', "typeof window.ryagramFilmApi === 'function' ? window.ryagramFilmApi(routeProject || null) : null;", "true ? (window.ryagramFilmApi || (() => ({})))(routeProject || null) : null;"],
+  ['a colour swap is never applied', FR, "svg: this.drawer.draw(this._sceneFor(e), f, { parts: 'all' })", "svg: this.drawer.draw(e.win.scene, f, { parts: 'all' })"],
+  ['a bad colour value is let through', FR, 'if (HEX.test(from) && HEX.test(to) && from !== to) out[from] = to;', 'out[from] = to;'],
+  ['reset does not put the film colours back', FR, 'this.colours = out; this.cver++;', 'this.colours = Object.assign(this.colours, out); this.cver++;'],
+  ['a stale recoloured copy is reused', FR, 'if (e.rc && e.rc.ver === this.cver) return e.rc.scene;', 'if (e.rc) return e.rc.scene;'],
+  ['a colour the window does not use is passed to the drawer', FR, 'if (have.has(from)) pairs[from] = to;', 'pairs[from] = to;'],
+  ['the colours are offered before the window is ready', FR, "if (!e || e.state !== 'ready' || typeof this.drawer.palette !== 'function') return [];", "if (!e) return [];"],
+  ['the page does not say the colours are not saved', 'assets/app-editor-film.js', 'It is not saved to your film yet.', 'It is saved.'],
 ];
 
 function run(cwd) {

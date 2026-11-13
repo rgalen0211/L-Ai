@@ -104,6 +104,7 @@
       if (!drawer) fail('The drawing code for your film is not loaded.');
       this.fetchWindow = fetchWindow; this.drawer = drawer; this.onChange = onChange; this.keep = Math.max(2, keep);
       this.plan = plan ? checkPlan(plan) : null; this.maxInFlight = Math.max(1, maxInFlight);
+      this.colours = {}; this.cver = 0;           // a preview-only colour swap {from: to} in #rrggbb, applied to every window as it is drawn (ENGINE's recolour)
       this.wins = new Map();                       // text -> { state, reason, win, at, progress }
       this.clock = 0;
     }
@@ -143,6 +144,27 @@
         e.win = win; e.state = 'ready'; e.progress = 1; this._evict(); this.onChange(text, e);
       }).catch(err => { e.state = 'failed'; e.reason = clean(err && err.message) || 'This part of your film could not be drawn.'; if (!quiet || true) this.onChange(text, e); });
     }
+    // Try colours (preview only): map is { '#rrggbb': '#rrggbb' }; anything else is dropped; {} puts the film's own colours back. The window's own scene is never changed: a recoloured copy is drawn.
+    setColours(map) {
+      const out = {}; const HEX = /^#[0-9a-f]{6}$/;
+      for (const k of Object.keys(map || {})) { const from = String(k).toLowerCase(), to = String(map[k]).toLowerCase(); if (HEX.test(from) && HEX.test(to) && from !== to) out[from] = to; }
+      this.colours = out; this.cver++;
+    }
+    // The colours a moment's window uses, most used first: [{ colour, uses, elements, fixed, spellings }], or [] when its window is not ready.
+    paletteAt(second) {
+      const w = this._where(second); const e = w.text && this.wins.get(w.text);
+      if (!e || e.state !== 'ready' || typeof this.drawer.palette !== 'function') return [];
+      return this.drawer.palette(e.win.scene).map(c => ({ colour: c.colour, uses: c.uses, elements: c.elements, fixed: c.fixed, spellings: c.spellings.slice(0, 4) }));
+    }
+    _sceneFor(e) {
+      if (!Object.keys(this.colours).length || typeof this.drawer.recolour !== 'function') return e.win.scene;
+      if (e.rc && e.rc.ver === this.cver) return e.rc.scene;
+      const have = new Set(this.drawer.palette(e.win.scene).map(c => c.colour)), pairs = {};
+      for (const [from, to] of Object.entries(this.colours)) if (have.has(from)) pairs[from] = to;
+      let scene = e.win.scene;
+      if (Object.keys(pairs).length) { try { scene = this.drawer.recolour(e.win.scene, pairs); } catch { scene = e.win.scene; } }
+      e.rc = { ver: this.cver, scene }; return scene;
+    }
     states() { return Object.fromEntries([...this.wins.entries()].map(([k, e]) => [k, e.state])); }
     stateOf(second) { const w = this._where(second); return w.text ? this._entry(w.text).state : 'outside'; }
     reasonOf(second) { const w = this._where(second); return w.text ? this._entry(w.text).reason : ''; }
@@ -155,7 +177,7 @@
       const f = frameIn(e.win, w.sec);
       if (f === null) return { state: 'idle', svg: null, reason: '' };
       e.at = ++this.clock;
-      return { state: 'ready', frame: f, svg: this.drawer.draw(e.win.scene, f, { parts: 'all' }), reason: '' };
+      return { state: 'ready', frame: f, svg: this.drawer.draw(this._sceneFor(e), f, { parts: 'all' }), reason: '' };
     }
     // A small picture of a moment as a data: address for an <img>, drawn on demand (one at a time by the caller), or null when the window is not ready.
     thumbUri(second, width = 160) {

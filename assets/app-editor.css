@@ -80,3 +80,4 @@
 .le-film-drawn{background:#6fd1bd;color:#0a1a17}
 .le-film .le-ruler-holder{margin-top:6px;padding:0}
 @media (hover:none),(pointer:coarse){.le-keys{display:none}}      /* a phone has no keyboard for the slider keys (GEO LOW 09:25) */
+.le-film-colours{margin-top:12px}.le-film-col-list{list-style:none;margin:8px 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 14px}.le-film-col-list li{display:flex;gap:10px;align-items:center}.le-film-col-list input[type=color]{width:44px;height:36px;padding:0;border:1px solid var(--line,#3a3a44);border-radius:6px;background:none}

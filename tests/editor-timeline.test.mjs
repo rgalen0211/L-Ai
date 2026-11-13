@@ -180,5 +180,5 @@ test('wiring: the strip is rebuilt when the width crosses a tile-count breakpoin
 
 test('the keys line is hidden where there is no keyboard (touch devices), and the stylesheet carries a new stamp', () => {
   assert.match(read('assets/app-editor.css'), /@media \(hover:none\),\(pointer:coarse\)\{\.le-keys\{display:none\}\}/);
-  assert.match(read('app/index.html'), /app-editor\.css\?v=20261113b/);
+  assert.match(read('app/index.html'), /app-editor\.css\?v=20261113c/);
 });

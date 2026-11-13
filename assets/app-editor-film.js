@@ -25,7 +25,8 @@
     const playBtn = h('button', { type: 'button', class: 'button secondary', disabled: true }, 'Play');
     const tracks = h('div', { class: 'le-film-tracks' });
     const keys = h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.');
-    const el = h('div', { class: 'le-film' }, view, status, h('div', { class: 'le-scrub' }, playBtn, range, posText), tracks, keys);
+    const colourBox = h('section', { class: 'le-film-colours', 'aria-labelledby': 'le-film-col-h' });
+    const el = h('div', { class: 'le-film' }, view, status, h('div', { class: 'le-scrub' }, playBtn, range, posText), tracks, keys, colourBox);
     let store = null, plan = null, position = 0, timer = null, destroyed = false, lastSvg = false, rulerPaint = null, headBar = null;
     const fontsDone = new Set();
 
@@ -33,6 +34,26 @@
     const say = (text, alert) => { status.textContent = text; status.setAttribute('role', alert ? 'alert' : 'status'); };
     const inRender = s => plan && s >= plan.renderStart && s <= plan.renderStart + plan.renderSeconds;
 
+    // Try colours: the colours the picture under the playhead uses, each a picker; a change redraws at once (ENGINE's recolour, no engine run). Preview only: the words say so.
+    let colourSig = '';
+    const swatches = new Map();
+    function paintColours() {
+      const pal = store ? store.paletteAt(position).slice(0, 8) : [];
+      const sig = pal.map(c => c.colour).join(',');
+      if (sig === colourSig) return;
+      colourSig = sig; swatches.clear();
+      if (!pal.length) { colourBox.replaceChildren(); return; }
+      const rows = pal.map(c => {
+        const id = 'le-film-col-' + c.colour.slice(1);
+        const input = h('input', { type: 'color', id, value: (store.colours[c.colour] || c.colour), 'aria-label': `Colour ${c.colour}, used in ${c.elements} places` });
+        input.addEventListener('input', () => { const next = { ...store.colours, [c.colour]: input.value }; store.setColours(next); draw(); });
+        swatches.set(c.colour, input);
+        return h('li', {}, input, h('label', { for: id }, `Used in ${c.elements} places${c.fixed ? `, and ${c.fixed} more in patterns` : ''}`));
+      });
+      const reset = h('button', { type: 'button', class: 'button secondary small' }, 'Put the film’s colours back');
+      reset.addEventListener('click', () => { store.setColours({}); for (const [col, input] of swatches) input.value = col; draw(); });
+      colourBox.replaceChildren(h('h2', { id: 'le-film-col-h' }, 'Try colours'), h('p', { class: 'meta' }, 'This changes the picture you see here only. It is not saved to your film yet.'), h('ul', { class: 'le-film-col-list' }, rows), reset);
+    }
     function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(0.001, total()))); }
     function draw() {
       if (!store) return;
@@ -42,7 +63,7 @@
       if (!inRender(position)) { view.replaceChildren(h('p', { class: 'meta le-film-block' }, 'This part of your film is a title or a clip that is drawn when the film is made.')); lastSvg = false; say(''); return; }
       store.want(position);
       const r = store.frameAt(position);
-      if (r.state === 'ready') { view.innerHTML = r.svg; lastSvg = true; say(''); }
+      if (r.state === 'ready') { view.innerHTML = r.svg; lastSvg = true; say(''); paintColours(); }
       else if (r.state === 'failed') say(r.reason || 'This part of your film could not be drawn.', true);
       else say(progressLine(store.progressOf(position)));                       // the worker's own heartbeat 0..1, or a plain line: never a number it did not send
       if (r.state !== 'ready' && !lastSvg) view.replaceChildren(h('p', { class: 'meta le-film-block' }, 'Drawing this part of your film.'));
