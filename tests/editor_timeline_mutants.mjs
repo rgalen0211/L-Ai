@@ -17,9 +17,16 @@ const mutants = [
   ['dragging goes on after release', TLJS, 'const up = () => { down = false; };', 'const up = () => { };'],
   ['pointer down does not seek', TLJS, 'try { strip.setPointerCapture(ev.pointerId); } catch (e) { /* not every pointer can be captured */ } at(ev); });', 'try { strip.setPointerCapture(ev.pointerId); } catch (e) { /* not every pointer can be captured */ } });'],
   ['the note claims pictures that are not there', TLJS, "anyReal ? 'Pictures from your film. Click or drag to move the playhead.'", "true ? 'Pictures from your film. Click or drag to move the playhead.'"],
-  ['the page never moves the playhead', ED, 'function paintHead() { if (strip) strip.paint(TLM.fractionOf(position, FIRST, LAST)); ', 'function paintHead() { '],
+  ['the page never moves the strip playhead', ED, 'if (strip) strip.paint(TLM.fractionOf(position, FIRST, LAST)); if (!isData) head.style.left', 'if (!isData) head.style.left'],
   ['a seek does not stop playback', ED, 'seek: v => { stopPlay(); range.value', 'seek: v => { range.value'],
   ['the strip is built for the film with real drawing data too', ED, 'const strip = isData && !bundleMode && TLM ?', 'const strip = isData && TLM ?'],
+  ['the ruler has too many labels', TLJS, 'const step = STEPS.find(s => d / s <= max) || STEPS[STEPS.length - 1];', 'const step = 1;'],
+  ['the ruler does not start at zero', TLJS, 'for (let t = 0; t <= d + 1e-9; t += step) ticks.push(t);', 'for (let t = step; t <= d + 1e-9; t += step) ticks.push(t);'],
+  ['a ruler click seeks in the wrong unit', TLJS, "o.seek(clamp(((ev.clientX - r.left) / r.width), 0, 1) * dur);", "o.seek(clamp(((ev.clientX - r.left) / r.width), 0, 1));"],
+  ['the ruler is announced to assistive tech', TLJS, "h('div', { class: 'le-ruler-bar', 'aria-hidden': 'true' }, marks, head)", "h('div', { class: 'le-ruler-bar' }, marks, head)"],
+  ['the ruler playhead is not clamped', TLJS, 'head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount', 'head.style.left = `${(Number(f) || 0) * 100}%`; }, tickCount'],
+  ['the page never moves the ruler playhead', ED, 'function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(1, ed.state.duration))); ', 'function paintHead() { '],
+  ['the page leaves the ruler out of the lanes', ED, 'lanes.replaceChildren(...(rl ? [rl.lane] : []), ...E.TRACKS.map', 'lanes.replaceChildren(...E.TRACKS.map'],
 ];
 
 function run(cwd) {

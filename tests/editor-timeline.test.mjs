@@ -68,10 +68,40 @@ test('build: a picture shows only when the page hands one over, and the note the
 test('wiring: the strip is built only for the stand-in data editor, follows the slider and stops playback on a seek; the script is stamped and loaded before the editor', () => {
   const ed = read('assets/app-editor.js'), html = read('app/index.html');
   assert.match(ed, /const strip = isData && !bundleMode && TLM \? TLM\.build\(/);
-  assert.match(ed, /function paintHead\(\) \{ if \(strip\) strip\.paint\(TLM\.fractionOf\(position, FIRST, LAST\)\);/);
+  assert.match(ed, /if \(strip\) strip\.paint\(TLM\.fractionOf\(position, FIRST, LAST\)\); if \(!isData\) head\.style\.left/);
   assert.match(ed, /seek: v => \{ stopPlay\(\); range\.value = String\(v\); range\.dispatchEvent\(new Event\('input'/);
   assert.match(ed, /scrub, strip \? strip\.el : null, ticks/);
   assert.ok(html.indexOf('app-editor-timeline.js?v=20261113a') > 0 && html.indexOf('app-editor-timeline.js') < html.indexOf('app-editor.js?v='));
   assert.match(html, /app-editor\.js\?v=20261113a/);
   assert.ok(!/innerHTML/.test(read('assets/app-editor-timeline.js')), 'no HTML from strings');
+});
+
+// ---- the time ruler above the compilation's tracks ----
+test('rulerTicks: a round step with at most max labels, from zero, and safe on bad input', () => {
+  assert.deepEqual(plain(T.rulerTicks(12, 10)), { step: 2, ticks: [0, 2, 4, 6, 8, 10, 12] });
+  assert.equal(T.rulerTicks(9, 10).step, 1); assert.equal(T.rulerTicks(95, 10).step, 10); assert.equal(T.rulerTicks(600, 10).step, 60);
+  for (const d of [3, 12, 47, 95, 300, 4000]) { const r = T.rulerTicks(d, 10); assert.ok(r.ticks.length <= 11, d); assert.equal(r.ticks[0], 0); assert.ok(r.ticks.at(-1) <= d + 1e-6); }
+  assert.deepEqual(plain(T.rulerTicks(0)), { step: 1, ticks: [0] }); assert.deepEqual(plain(T.rulerTicks('x')), { step: 1, ticks: [0] });
+  assert.equal(T.clock(75), '1:15'); assert.equal(T.clock(5), '0:05');
+});
+
+test('ruler: a lane with a blank name cell, labelled ticks, a playhead that follows, click and drag seek in seconds, hidden from assistive tech', () => {
+  const seeks = [];
+  const r = T.ruler({ h: el, duration: 12, seek: s => seeks.push(s) });
+  const bar = find(r.lane, n => /le-ruler-bar/.test(n.props.class || ''))[0];
+  assert.equal(bar.props['aria-hidden'], 'true'); assert.equal(r.tickCount, 7);
+  const labels = find(bar, n => n.tag === 'i').map(n => n.children.join('')); assert.deepEqual(labels, ['0:00', '0:02', '0:04', '0:06', '0:08', '0:10', '0:12']);
+  assert.equal(find(bar, n => /le-ruler-tick/.test(n.props.class || ''))[3].style.left, '50%');
+  fire(bar, 'pointerdown', { clientX: 100, pointerId: 1 }); assert.deepEqual(seeks, [6]);
+  fire(bar, 'pointermove', { clientX: 400 }); assert.equal(seeks.at(-1), 12, 'clamped at the end');
+  fire(bar, 'pointerup', {}); fire(bar, 'pointermove', { clientX: 0 }); assert.equal(seeks.at(-1), 12, 'no seek after release');
+  r.paint(0.25); assert.equal(find(bar, n => /le-ruler-head/.test(n.props.class || ''))[0].style.left, '25%');
+  r.paint(9); assert.equal(find(bar, n => /le-ruler-head/.test(n.props.class || ''))[0].style.left, '100%');
+});
+
+test('wiring: the page builds a ruler above the tracks and moves its playhead with the slider', () => {
+  const ed = read('assets/app-editor.js');
+  assert.match(ed, /const rl = TLM \? TLM\.ruler\(\{ h, duration: ed\.state\.duration, seek: s => \{ stopPlay\(\); range\.value = String\(Math\.round\(s \* 10\)\)/);
+  assert.match(ed, /lanes\.replaceChildren\(\.\.\.\(rl \? \[rl\.lane\] : \[\]\), \.\.\.E\.TRACKS\.map/);
+  assert.match(ed, /function paintHead\(\) \{ if \(rulerPaint\) rulerPaint\(Math\.min\(1, position \/ Math\.max\(1, ed\.state\.duration\)\)\);/);
 });

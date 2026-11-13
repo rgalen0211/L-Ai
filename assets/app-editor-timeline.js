@@ -63,5 +63,33 @@
     return { el, paint, tileCount: years.length };
   }
 
-  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, build };
+  // Ruler ticks for a film of `duration` seconds: a round step (1, 2, 5, 10, 15, 30, 60 ... seconds) so there are at most `max` labels, always from 0.
+  const STEPS = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600];
+  function rulerTicks(duration, max = 10) {
+    const d = Number(duration); max = Math.max(2, Math.floor(Number(max) || 10));
+    if (!Number.isFinite(d) || d <= 0) return { step: 1, ticks: [0] };
+    const step = STEPS.find(s => d / s <= max) || STEPS[STEPS.length - 1];
+    const ticks = []; for (let t = 0; t <= d + 1e-9; t += step) ticks.push(t);
+    return { step, ticks };
+  }
+  const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+  // ruler({ h, duration, seek(seconds) }) -> { lane, paint(fraction) }: the row above the tracks, same columns as a lane (a blank name cell, then the bar). Click or drag on it moves the playhead
+  // (the page's slider stays the accessible control, so the ruler is hidden from assistive tech).
+  function ruler(o) {
+    const h = o.h, dur = Math.max(1, Number(o.duration) || 1), { ticks } = rulerTicks(dur, o.max || 10);
+    const head = h('span', { class: 'le-ruler-head', 'aria-hidden': 'true' });
+    const marks = ticks.map(t => { const m = h('span', { class: 'le-ruler-tick' }, h('i', {}, clock(t))); m.style.left = `${(t / dur) * 100}%`; return m; });
+    const bar = h('div', { class: 'le-ruler-bar', 'aria-hidden': 'true' }, marks, head);
+    let down = false;
+    const at = ev => { const r = bar.getBoundingClientRect(); if (!r.width) return; o.seek(clamp(((ev.clientX - r.left) / r.width), 0, 1) * dur); };
+    bar.addEventListener('pointerdown', ev => { down = true; try { bar.setPointerCapture(ev.pointerId); } catch (e) { /* not every pointer can be captured */ } at(ev); });
+    bar.addEventListener('pointermove', ev => { if (down) at(ev); });
+    const up = () => { down = false; };
+    bar.addEventListener('pointerup', up); bar.addEventListener('pointercancel', up);
+    const lane = h('div', { class: 'le-lane le-ruler-lane' }, h('b', { 'aria-hidden': 'true' }, ''), bar);
+    return { lane, paint: f => { head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount: ticks.length };
+  }
+
+  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, build, rulerTicks, ruler, clock };
 })();

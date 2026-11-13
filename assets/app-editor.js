@@ -515,7 +515,8 @@
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
-      function paintHead() { if (strip) strip.paint(TLM.fractionOf(position, FIRST, LAST)); if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
+      let rulerPaint = null;                                                     // the time ruler above the compilation's tracks (assets/app-editor-timeline.js)
+      function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(1, ed.state.duration))); if (strip) strip.paint(TLM.fractionOf(position, FIRST, LAST)); if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
       const pct = t => `${(t / Math.max(1, ed.state.duration)) * 100}%`;
       async function apply(op) {
         stopPlay();
@@ -599,7 +600,9 @@
       }
       function paintLanes() {
         const touched = new Set(ed.aiTouched());
-        lanes.replaceChildren(...E.TRACKS.map(track => {
+        const rl = TLM ? TLM.ruler({ h, duration: ed.state.duration, seek: s => { stopPlay(); range.value = String(Math.round(s * 10)); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null;
+        rulerPaint = rl ? rl.paint : null; if (rl) rl.paint(Math.min(1, position / Math.max(1, ed.state.duration)));
+        lanes.replaceChildren(...(rl ? [rl.lane] : []), ...E.TRACKS.map(track => {
           const bar = h('div', { class: 'le-bar' });
           if (!open(track)) return h('div', { class: 'le-lane' }, h('b', {}, TRACK_NAMES[track]), h('div', { class: 'le-bar le-off' }, h('span', { class: 'meta' }, 'Not available yet')));
           for (const c of ed.state.clips.filter(x => x.track === track)) {
