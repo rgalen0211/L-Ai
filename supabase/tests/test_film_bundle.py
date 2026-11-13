@@ -132,9 +132,14 @@ class Bundles(core.Base):
             self.assertEqual(e.exception.sqlstate, "22023", window)
             self.assertIn("past its end: the film is 12.4 seconds long", str(e.exception), window)
             self.assertEqual(self.jobs(vid), before, "no job for " + window)
-        self.assertEqual(self.request(vid, window="5:15")[0], "building", "a window that starts inside the film is fine even when it runs past the end")
-        self.assertEqual(self.request(vid, window="11:21")[0], "building")
-        self.assertEqual(self.request(vid, window="12:20")[0], "building", "12 is before 12.4: the window starts inside the film")
+        def answer(w):                                                               # a refusal is an ANSWER to compare, not an error of the test (a planted fault must FAIL here)
+            try:
+                return self.request(vid, window=w)[0]
+            except psycopg.Error as e:
+                return "refused: " + str(e)
+        self.assertEqual(answer("5:15"), "building", "a window that starts inside the film is fine even when it runs past the end")
+        self.assertEqual(answer("11:21"), "building")
+        self.assertEqual(answer("12:20"), "building", "12 is before 12.4: the window starts inside the film")
         self.admin("update jobs set state = 'cancelled', ended_at = now() where version_id = %s and job_type = 'film_bundle' returning 1", vid)
         self.admin("update artifacts set deleted_at = now() where job_id = %s and kind = 'final_video' returning 1", final)
         try:
@@ -151,7 +156,11 @@ class Bundles(core.Base):
         self.run_job(final, ["final_video", "thumbnail", "receipt"])
         self.admin("update artifacts set duration_s = 12.4 where job_id = %s and kind = 'final_video' returning 1", final)
         self.admin("update jobs set story_sha256 = %s where id = %s returning 1", "f" * 64, final)          # as if the film had been rendered from another story
-        self.assertEqual(self.request(vid, window="100:110")[0], "building")
+        try:
+            got = self.request(vid, window="100:110")[0]
+        except psycopg.Error as e:                                                  # a refusal is an answer to compare (a planted fault must FAIL here, not error)
+            got = "refused: " + str(e)
+        self.assertEqual(got, "building", "the length of another story's render is not this film's length")
 
     # -- access
     def test_owner_request_queues_one_job_per_window(self):
