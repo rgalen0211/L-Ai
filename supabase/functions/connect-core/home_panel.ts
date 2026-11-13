@@ -25,17 +25,19 @@ export const HOME_WORDS: Readonly<Record<string, HomeWords>> = Object.freeze({
   animation_studio: { label: "Animation Studio", line: "Simple cartoons you direct: characters you can pose, with mouths that move to your voice." },
 });
 /** "My films" is not a department row: it is the person's own films, always there. */
-export const MY_FILMS = Object.freeze({ id: "my_films", label: "My films", line: "Your films, and where each one stands.", starts: ["Show me my films."], page: "#/" });
+export const MY_FILMS = Object.freeze({ id: "my_films", label: "My films", line: "Your films, and where each one stands.", starts: ["Show me my films."], page: "#/", pageOn: "#/films" });
 
 export interface HomeEntry { id: string; label: string; status: "working" | "soon"; line: string; rules: string[]; not_yet: string[]; starts: string[]; page: string | null }
 export interface HomeView { text: string; data: { departments: HomeEntry[]; coming_soon: string[]; note: string } }
 
 const PAGE = /^#\/[A-Za-z0-9_\/-]{0,40}$/;
 
-/** The database's rows become what the panel shows: only ids this file has words for, only the two statuses, each once, the site's order. */
-export function homeEntries(rows: unknown): HomeEntry[] {
+/** The database's rows become what the panel shows: only ids this file has words for, only the two statuses, each once, the site's order. `switches` is the person's own switch list: the My films link follows the site's rule
+ *  (assets/app-departments.js: #/films when the account's myFilms switch is on, #/ when not); a list that could not be read is an empty one. */
+export function homeEntries(rows: unknown, switches: unknown = []): HomeEntry[] {
   const out: HomeEntry[] = [];
-  const mine: HomeEntry = { id: MY_FILMS.id, label: MY_FILMS.label, status: "working", line: MY_FILMS.line, rules: [], not_yet: [], starts: [...MY_FILMS.starts], page: MY_FILMS.page };
+  const filmsOn = Array.isArray(switches) && switches.includes("myFilms");
+  const mine: HomeEntry = { id: MY_FILMS.id, label: MY_FILMS.label, status: "working", line: MY_FILMS.line, rules: [], not_yet: [], starts: [...MY_FILMS.starts], page: filmsOn ? MY_FILMS.pageOn : MY_FILMS.page };
   const byId = new Map<string, DepartmentRow>();
   if (Array.isArray(rows)) for (const r of rows as DepartmentRow[]) { if (r && typeof r.id === "string" && !byId.has(r.id)) byId.set(r.id, r); }
   const working: HomeEntry[] = [], soon: HomeEntry[] = [];
@@ -51,8 +53,8 @@ export function homeEntries(rows: unknown): HomeEntry[] {
 }
 
 /** The result of open_ryagram_home: the words for a host with no panel, and the same list as data for the panel. */
-export function homeView(rows: unknown): HomeView {
-  const deps = homeEntries(rows);
+export function homeView(rows: unknown, switches: unknown = []): HomeView {
+  const deps = homeEntries(rows, switches);
   const works = deps.filter((d) => d.status === "working"), soon = deps.filter((d) => d.status === "soon");
   const text = ["Ryagram's departments for this person.",
     ...works.map((d) => `- ${d.label} (works today): ${d.line}${d.starts[0] ? ` To start: say "${d.starts[0]}"` : ""}`),

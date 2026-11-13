@@ -31,6 +31,12 @@ const mutants = [
   ['the tool runs with its switch off', DI, `(found.homePanel && !env.homePanel)`, `false`],
   ['the page is served with its switch off', MA, `!(home && cfg.homePanel)`, `!(home)`],
   ['the tool carries no page', MC, `: t.homePanel ? toolUiMeta(HOME_URI) :`, `:`],
+  ['my films always opens the projects page', H, `page: filmsOn ? MY_FILMS.pageOn : MY_FILMS.page };`, `page: MY_FILMS.page };`],
+  ['my films always opens the films page', H, `page: filmsOn ? MY_FILMS.pageOn : MY_FILMS.page };`, `page: MY_FILMS.pageOn };`],
+  ['any switch turns the films page on', H, `switches.includes("myFilms")`, `switches.length > 0`],
+  ['a switch list that cannot be read throws', TL, `await ctx.data.switches().catch(() => [] as string[]);`, `await ctx.data.switches();`],
+  ['the geographic line is not GEO\'s', H, `Ask about places with free public data: who lives near a spot`, `Ask a map a question: where would a new shop do well, who lives near a spot`],
+  ['a score is promised', H, `No score and no ranking of places.`, `A score for every place.`],
   ['a database that cannot answer throws', TL, `const rows = await ctx.data.departments().catch(() => null);`, `const rows = await ctx.data.departments();`],
   ['the tool is not read-only', TL, `scope: "read", readOnly: true, idempotent: true, homePanel: true,`, `scope: "read", readOnly: false, idempotent: true, homePanel: true,`],
 ];

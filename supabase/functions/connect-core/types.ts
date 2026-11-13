@@ -107,6 +107,8 @@ export interface Data extends Omit<UserData, "submitJob"> {
   getGeo(id: string): Promise<GeoRow | null>;
   /** The person's departments, the database's own rule (migration 20261113000200: connect_my_departments, a token-checked twin of the site's my_departments()). Rows {id, label, status}. */
   departments(): Promise<DepartmentRow[]>;
+  /** The person's OWN list of site switches (migration 20261113000200: connect_my_switches, the token-checked twin of my_switches()); empty on any problem. */
+  switches(): Promise<string[]>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
   jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null;
     /** The worker's heartbeat (jobs.progress_detail): stage, done, total, unit, eta_s, ... Untrusted; absent when the database call does not return it. */

@@ -14,6 +14,7 @@ import { handleMcp, toolList } from '../supabase/functions/connect-core/mcp.ts';
 import { HOME_BUILD, HOME_MAX_BYTES, HOME_ORDER, HOME_URI, HOME_WORDS, homeEntries, homeHtml, homeView, isHomeUri } from '../supabase/functions/connect-core/home_panel.ts';
 import { readResource, resourceList } from '../supabase/functions/connect-core/mcp_app.ts';
 
+const GEO_LINE = 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.';
 const compile = makeCompile(Ajv2020);
 const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
 function world() {
@@ -58,6 +59,22 @@ test('the list follows the site\'s rule: only ids with words, only the two statu
   assert.equal(homeEntries([{ id: 'data_films', status: 'working', label: 'x'.repeat(61) }])[0].label, 'Data films', 'a label over 60 characters is replaced by ours');
 });
 
+test('My films opens the site\'s page by the site\'s own rule: #/films when the account\'s myFilms switch is on, the projects page otherwise (and when the list could not be read)', async () => {
+  const films = (sw) => homeEntries(rows(['data_films', 'working']), sw).find((x) => x.id === 'my_films').page;
+  assert.equal(films(['myFilms']), '#/films'); assert.equal(films(['other', 'myFilms']), '#/films');
+  for (const off of [[], ['otherSwitch'], undefined, null, 'myFilms', { myFilms: true }]) assert.equal(films(off), '#/', JSON.stringify(off));
+  const cfg = fs.readFileSync(new URL('../assets/ryagram-config.js', import.meta.url), 'utf8');
+  assert.match(cfg, /\bmyFilms: 'account'/, 'the site reads My films from the account\'s own list only while its setting is the word account: if that setting changes, this rule must be rethought');
+  const { w, call } = world();
+  w.users.get(A.userId).switches = ['myFilms'];
+  assert.equal((await call('open_ryagram_home', {})).data.departments.find((d) => d.id === 'my_films').page, '#/films');
+  w.users.get(A.userId).switches = [];
+  assert.equal((await call('open_ryagram_home', {})).data.departments.find((d) => d.id === 'my_films').page, '#/');
+  const data = w.data(A.userId); data.switches = async () => { throw new Error('boom'); };
+  const r = await callTool('open_ryagram_home', {}, A, { data, policy: w.policy(), deps: { compile }, homePanel: true });
+  assert.equal(r.data.departments.find((d) => d.id === 'my_films').page, '#/', 'a switch list that cannot be read fails closed: the projects page');
+});
+
 test('a coming-soon department has nothing to start and nothing to open; a working one has one starting line and one page', () => {
   const e = homeEntries(rows(['data_films', 'working'], ['geo_intelligence', 'soon'], ['games', 'soon']));
   for (const d of e.filter((x) => x.status === 'soon')) { assert.deepEqual(d.starts, [], d.id); assert.equal(d.page, null, d.id); }
@@ -74,16 +91,17 @@ test('the words equal the site\'s where the site has them (assets/app-department
     const site = KNOWN[id], ours = HOME_WORDS[id];
     assert.ok(site, `${id} is a department the site knows`);
     assert.equal(ours.label, site.label, `${id}: the label`);
-    if (id === 'geo_intelligence') { assert.notEqual(ours.line, site.line, 'GEO replaced the site\'s line (it promised where a shop would do well)'); continue; }
+    if (id === 'geo_intelligence') { assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line (proposals/GEO-HOME-PANEL-ENTRY-1113.md), whatever the site says now: the test holds in either landing order with the site\'s change'); continue; }
     assert.equal(ours.line, site.line ?? site.sentence, `${id}: the line`);
   }
 });
 
 test('nothing the panel says is a price, a date, a score, a ranking, or a promise of where a business would do well', () => {
   const all = [...Object.values(HOME_WORDS).flatMap((w) => [w.line, ...(w.rules ?? []), ...(w.notYet ?? []), ...(w.starts ?? [])])].join('\n');
-  const said = all.replace('so it does not say where a business would do well', '');                  // the one sentence that REFUSES the claim
-  for (const bad of [/\$\s?\d/, /\b20\d\d\b/, /\b(best|top|ideal|optimal|winner)\b/i, /do well/i, /succeed|success/i]) assert.ok(!bad.test(said), String(bad));
-  assert.ok(!/\brank/i.test(all.replace('No score and no ranking of places.', '')), 'ranking only in the rule that refuses it');
+  const said = all.replace('so it does not say where a business would do well', '').replace('No score and no ranking of places.', '');          // the two sentences that REFUSE the claims
+  for (const bad of [/\$\s?\d/, /\b20\d\d\b/, /\b(best|top|ideal|optimal|winner)\b/i, /do well/i, /succeed|success/i, /\bscore/i]) assert.ok(!bad.test(said), String(bad));
+  assert.ok(!/\brank/i.test(said), 'ranking only in the rule that refuses it');
+  assert.match(all, /No score and no ranking of places\./, 'the rule that refuses a score and a ranking is there');
   assert.match(HOME_WORDS.geo_intelligence.rules.join(' '), /no sales data, so it does not say where a business would do well/);
   assert.match(HOME_WORDS.geo_intelligence.notYet.join(' '), /No price and no date/);
 });

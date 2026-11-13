@@ -12,7 +12,7 @@ interface FCard { id: string; project_id: string; version_id: string; sha: strin
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { departments?: { id: string; label: string; status: "working" | "soon" }[]; cards: Map<string, FCard>; geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
+interface FUser { switches?: string[]; departments?: { id: string; label: string; status: "working" | "soon" }[]; cards: Map<string, FCard>; geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -205,6 +205,7 @@ export class FakeWorld {
       getGeo: async (gid) => { const g = u().geo.get(gid); return g ? JSON.parse(JSON.stringify(g)) : null; },
       // mirrors connect_my_departments: the site's list in its order; a test may set a person's own list
       departments: async () => JSON.parse(JSON.stringify(u().departments ?? this.departments)),
+      switches: async () => [...(u().switches ?? [])],
       saveCompilationRequest: async (pid, request) => {
         const user = u();
         if (!user.projects.some((p) => p.id === pid)) return null;

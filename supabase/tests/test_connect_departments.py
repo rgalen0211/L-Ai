@@ -71,28 +71,41 @@ class ConnectDepartments(core.Base):
             self.runner().one("select public.connect_my_departments(%s)", "0" * 64)
         self.assertEqual(self.owner("select pronargs from pg_proc where oid = to_regprocedure('public.connect_my_departments(text)')").fetchone()[0], 1)
 
-    def test_only_the_connector_login_can_run_it_and_the_table_stays_closed(self):
+    def test_only_the_connector_login_can_run_either_function_and_the_tables_stay_closed(self):
         for who in (ALICE, "anon"):
-            with self.assertRaises(psycopg.Error, msg=who):
-                self.db.as_(who).one("select public.connect_my_departments(%s)", self.a)
+            for fn in ("connect_my_departments", "connect_my_switches"):
+                with self.assertRaises(psycopg.Error, msg=who + fn):
+                    self.db.as_(who).one(f"select public.{fn}(%s)", self.a)
         for role in ("anon", "authenticated", "service_role", "connect_runner"):
             self.assertFalse(self.owner("select has_table_privilege(%s, 'public.departments', 'select, insert, update, delete')", role).fetchone()[0], role)
+        self.assertFalse(self.owner("select has_table_privilege('connect_runner', 'public.account_settings', 'select, insert, update, delete')").fetchone()[0], "the switch list is read only through the twin")
 
-    def test_the_migration_adds_one_function_and_ends_with_the_gate(self):
+    def test_the_switch_twin_answers_exactly_what_the_site_answers_for_the_same_person_and_nothing_for_nobody_else(self):
+        self.assertEqual(self.runner().one("select public.connect_my_switches(%s)", self.a), [], "no row, no switches")
+        self.owner("insert into public.account_settings (owner_id, switches_on) values (%s, '{myFilms}') on conflict (owner_id) do update set switches_on = '{myFilms}'", ALICE)
+        mine = self.runner().one("select public.connect_my_switches(%s)", self.a)
+        self.assertEqual(mine, ["myFilms"])
+        self.assertEqual(mine, self.app(ALICE).one("select public.my_switches()"))
+        self.assertEqual(self.runner().one("select public.connect_my_switches(%s)", self.b), [], "another person's list is not shared")
+        with self.assertRaises(psycopg.Error):
+            self.runner().one("select public.connect_my_switches(%s)", "0" * 64)
+
+    def test_the_migration_adds_two_functions_and_ends_with_the_gate(self):
         sql = MIG.read_text(encoding="utf-8")
         lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
         self.assertEqual(lines[-2:], ["select ryagram_private.gate_apply();", "commit;"])
-        self.assertEqual(len([ln for ln in lines if ln.startswith("create ")]), 1)
+        self.assertEqual(len([ln for ln in lines if ln.startswith("create ")]), 2)
         self.assertEqual(self.owner("select prosecdef from pg_proc where oid = to_regprocedure('public.connect_my_departments(text)')").fetchone()[0], True)
 
-    def test_the_after_check_is_all_true_and_the_rollback_removes_exactly_this_function(self):
+    def test_the_after_check_is_all_true_and_the_rollback_removes_exactly_these_two_functions(self):
         rows = self.owner(CHECK.read_text(encoding="utf-8")).fetchall()
-        self.assertEqual(len(rows), 5)
+        self.assertEqual(len(rows), 8)
         self.assertTrue(all(ok for _, ok in rows), rows)
         before = self.owner("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'ryagram_private')").fetchone()[0]
         self.owner(RB.read_text(encoding="utf-8"))
         self.assertIsNone(self.owner("select to_regprocedure('public.connect_my_departments(text)')").fetchone()[0])
-        self.assertEqual(self.owner("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'ryagram_private')").fetchone()[0], before - 1)
+        self.assertIsNone(self.owner("select to_regprocedure('public.connect_my_switches(text)')").fetchone()[0])
+        self.assertEqual(self.owner("select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public', 'ryagram_private')").fetchone()[0], before - 2)
         self.assertIsNotNone(self.owner("select to_regprocedure('public.my_departments()')").fetchone()[0], "the site's own function is untouched")
         self.owner(RB.read_text(encoding="utf-8"))                                                       # a second undo: nothing to do, no error
         self.owner(MIG.read_text(encoding="utf-8"))                                                      # and the migration puts it back

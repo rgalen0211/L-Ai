@@ -1345,8 +1345,9 @@ const openRyagramHome: ToolDef = {
   inputSchema: obj(),
   async run(_a, ctx) {
     const rows = await ctx.data.departments().catch(() => null);
+    const switches = await ctx.data.switches().catch(() => [] as string[]);                        // not readable = none on: the projects page, never a page that may not be there
     if (!rows) return refuse("The list of Ryagram departments is not available just now. Try again in a minute, or ask the person what they would like to make.", "unavailable");
-    const v = homeView(rows);
+    const v = homeView(rows, switches);
     return ok(v.text, v.data as unknown as Record<string, unknown>);
   },
 };
