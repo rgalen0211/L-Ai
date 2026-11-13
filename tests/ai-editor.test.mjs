@@ -92,13 +92,13 @@ test('the Edge Function builds exactly the templates the app builds', () => {
   vm.runInNewContext(fs.readFileSync(new URL('../assets/app-templates.js', import.meta.url), 'utf8'), { window });
   const app = window.ryagramTemplates;
   let count = 0;
-  for (const t of app.TEMPLATES) for (const d of t.datasets) {
+  for (const t of app.TEMPLATES.filter(x => !x.unmeasured)) for (const d of t.datasets) {      // the paired template is refused by the page and the AI editor (tests/paired-guard.test.mjs)
     for (const h of ['Obesity & fast food', '', 'Evil\u202e x\u0007 ' + 'y'.repeat(300), 'Ünïcödé café']) {
       assert.deepEqual(plain(shared.build(t.id, d, h)), plain(app.build(t.id, d, h)), `${t.id}/${d}/${h.slice(0, 10)}`);
       count++;
     }
   }
-  assert.equal(count, 96);
+  assert.equal(count, 92);
 });
 
 test('only signed-in people, from our pages, with the switch on and under the daily cap', async () => {
@@ -141,14 +141,14 @@ test('a routine turn runs on Haiku, uses a tool, caches the stable prefix and re
 
 test('a blank story starts on Sonnet with the 8k cap and medium effort; draft_story saves a valid template', async () => {
   const w = fakeWorld({ story: {} });
-  const c = fakeClaude([msg([use('draft_story', { template: 'paired', dataset_id: 'state_obesity_fastfood', headline: 'Obesity and fast food' })], 'tool_use', 'claude-sonnet-5'),
+  const c = fakeClaude([msg([use('draft_story', { template: 'map', dataset_id: 'state_obesity_fastfood', headline: 'Obesity and fast food' })], 'tool_use', 'claude-sonnet-5'),
                         msg([text('Drafted. Make a contact sheet next.')], 'end_turn', 'claude-sonnet-5')]);
   const body = await (await handle(ask('Start me a film about obesity'), deps(w, c))).json();
   assert.equal(c.calls[0].model, 'claude-sonnet-5');
   assert.equal(c.calls[0].max_tokens, 8000);
   assert.deepEqual(c.calls[0].output_config, { effort: 'medium' });
   assert.equal(w.saved.length, 1);
-  assert.deepEqual(plain(w.saved[0]), plain(shared.build('paired', 'state_obesity_fastfood', 'Obesity and fast food')));
+  assert.deepEqual(plain(w.saved[0]), plain(shared.build('map', 'state_obesity_fastfood', 'Obesity and fast food')));
   assert.deepEqual(body.actions, [{ type: 'story_changed' }]);
   assert.equal(body.escalated, true);
 });
@@ -333,4 +333,35 @@ test('DARK BY DEFAULT (Ryan 15:50 2026-10-19): the AI editor\'s instructions mak
   const src = fs.readFileSync(new URL('../supabase/functions/ai-editor/prompt.ts', import.meta.url), 'utf8');
   assert.match(src, /theme: "dark" \(the default: leave it dark unless the user asks for a light page\) or "light"/);
   assert.doesNotMatch(src, /theme: "light" or "dark"\./, 'the old wording that named light first with no default is gone');
+});
+
+// ---- launch slice IN 2 (CC1 22:13): the website AI editor never saves a paired or panel view with no keyframes_per_year (the engine refuses it at render, Ryan 2026-09-28) ----
+const pairedStory = (view, settings) => ({ schema: 1, engine: 'sequence', name: 'x', sequence: { clips: [
+  { kind: 'render', view, dataset: 'state_obesity_fastfood', start: '2011', end: '2023', ...(settings ? { settings } : {}) }] } });
+async function oneTool(name, input, world) {
+  const w = world || fakeWorld({ story: {} });
+  const c = fakeClaude([msg([use(name, input)], 'tool_use'), msg([text('ok')])]);
+  await (await handle(ask('go'), deps(w, c))).json();
+  return { w, result: c.calls[1].messages.at(-1).content[0] };
+}
+test('AI editor: draft_story with the paired template is refused in words and saves nothing', async () => {
+  const { w, result } = await oneTool('draft_story', { template: 'paired', dataset_id: 'state_obesity_fastfood', headline: 'Invented headline' });
+  assert.equal(result.is_error, true); assert.match(result.content, /keyframes_per_year/); assert.match(result.content, /map, bars or line/);
+  assert.equal(w.saved.length, 0);
+});
+test('AI editor: set_mapping to paired or panel is refused in words and saves nothing', async () => {
+  for (const view of ['paired', 'panel']) {
+    const { w, result } = await oneTool('set_mapping', { dataset_id: 'state_obesity_fastfood', view, start: null, end: null }, fakeWorld());
+    assert.equal(result.is_error, true, view); assert.match(result.content, /keyframes_per_year/, view); assert.equal(w.saved.length, 0, view);
+  }
+});
+test('AI editor: edit_story refuses a paired view without keyframes_per_year, accepts it with one, and a map is untouched', async () => {
+  let r = await oneTool('edit_story', { story_json: JSON.stringify(pairedStory('paired')) });
+  assert.equal(r.result.is_error, true); assert.match(r.result.content, /keyframes_per_year/); assert.equal(r.w.saved.length, 0);
+  r = await oneTool('edit_story', { story_json: JSON.stringify(pairedStory('panel', { top_n: 10 })) });
+  assert.equal(r.result.is_error, true); assert.equal(r.w.saved.length, 0);
+  r = await oneTool('edit_story', { story_json: JSON.stringify(pairedStory('paired', { keyframes_per_year: 6 })) });
+  assert.notEqual(r.result.is_error, true); assert.equal(r.w.saved.length, 1);
+  r = await oneTool('edit_story', { story_json: JSON.stringify(pairedStory('map')) });
+  assert.notEqual(r.result.is_error, true); assert.equal(r.w.saved.length, 1);
 });

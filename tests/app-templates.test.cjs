@@ -31,7 +31,7 @@ function assertSchemaShape(s) {
 
 test('every template on every offered dataset builds a story in the worker schema', () => {
   const views = new Set();
-  for (const t of T.TEMPLATES) {
+  for (const t of T.TEMPLATES.filter(x => !x.unmeasured)) {
     for (const d of t.datasets) {
       const s = T.build(t.id, d, 'Obesity and fast food, 2011–2023');
       assertSchemaShape(s);
@@ -39,7 +39,7 @@ test('every template on every offered dataset builds a story in the worker schem
       views.add(s.sequence.clips[1].view);
     }
   }
-  assert.deepEqual([...views].sort(), ['bars', 'line', 'map', 'paired']);
+  assert.deepEqual([...views].sort(), ['bars', 'line', 'map']);              // paired is not built: it needs keyframes_per_year measured (tests/paired-guard.test.mjs)
 });
 
 test('county permits draw in continuous colour (too small to hatch); state maps keep hatching', () => {
@@ -79,7 +79,7 @@ test('headlines are cleaned: control and direction-override characters removed, 
   assertSchemaShape(s);
   assert.ok(s.sequence.clips[0].headline.startsWith('Evil headline'));
   assert.equal(s.sequence.clips[0].headline.length, 160);
-  const empty = T.build('paired', 'state_obesity_fastfood', '   ');
+  const empty = T.build('map', 'state_obesity_fastfood', '   ');
   assert.equal(empty.sequence.clips[0].headline, T.DATASETS.state_obesity_fastfood.label);   // falls back
 });
 
@@ -92,7 +92,7 @@ test('story names are safe slugs, whatever the title', () => {
 
 test('only offered template/dataset pairs build', () => {
   assert.throws(() => T.build('globe', 'state_obesity_fastfood', 'x'), /Unknown template/);
-  assert.throws(() => T.build('paired', 'bls_state_unemployment', 'x'), /isn’t offered/);
+  assert.throws(() => T.build('line', 'state_obesity_fastfood', 'x'), /isn’t offered/);
 });
 
 test('blank means nothing to lose', () => {
