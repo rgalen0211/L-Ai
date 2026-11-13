@@ -642,6 +642,9 @@
     return at;
   }
 
+  // How many tiles fit a screen so no year label is ever cut: a four-digit label needs about 40 px of tile. Narrow phones get 6, wide phones 8, the rest 12.
+  const maxTilesFor = width => { const w = Number(width); return !Number.isFinite(w) || w <= 0 ? 12 : w <= 430 ? 6 : w <= 700 ? 8 : 12; };
+
   // The tile under a pointer (fraction 0..1 across the strip) and where the playhead sits for a year: tiles are equal width, so both are worked out in tiles, not in years. A year between two
   // sampled years sits between the two tile centres; before the first and after the last it stays on that tile's centre.
   const tileAt = (count, fraction) => (count > 0 ? clamp(Math.floor(clamp(Number(fraction) || 0, 0, 1) * count), 0, count - 1) : 0);
@@ -712,7 +715,7 @@
     return { lane, paint: f => { head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount: ticks.length };
   }
 
-  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, build, rulerTicks, ruler, clock };
+  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, maxTilesFor, build, rulerTicks, ruler, clock };
 })();
 
 /* ---- assets/app-editor.js ---- */
@@ -979,7 +982,7 @@
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
       // The film strip (tiles, ruler, playhead) under the stand-in data editor; a film with real drawing data keeps its own slider until the strip can draw its pictures (assets/app-editor-timeline.js).
       const TLM = window.ryagramEditorTimeline;
-      const strip = isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
+      const strip = isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, max: TLM.maxTilesFor(window.innerWidth), h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
         seek: v => { stopPlay(); range.value = String(v); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null;
       const ticks = isData ? h('div', { class: bundleMode ? 'le-ticks' : 'le-ticks le-ticks-flat', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;      // the stand-in's years have no position of their own: they sit in a row, not piled at the left
 

@@ -142,3 +142,10 @@ test("the ruler last label sits left of its tick so it cannot overhang the bar",
   assert.ok(/le-ruler-last/.test(ticks.at(-1).props.class)); assert.ok(!ticks.slice(0, -1).some(n => /le-ruler-last/.test(n.props.class)));
   assert.match(read('assets/app-editor.css'), /\.le-ruler-last i\{left:auto;right:3px\}/);
 });
+
+test('maxTilesFor: fewer tiles on narrow screens so a year label always fits, and the page asks for it', () => {
+  assert.equal(T.maxTilesFor(320), 6); assert.equal(T.maxTilesFor(390), 6); assert.equal(T.maxTilesFor(430), 6); assert.equal(T.maxTilesFor(600), 8); assert.equal(T.maxTilesFor(1280), 12);
+  assert.equal(T.maxTilesFor(0), 12); assert.equal(T.maxTilesFor('x'), 12);
+  for (const w of [320, 360, 390, 430, 600, 700]) assert.ok((w - 40) / T.maxTilesFor(w) >= 40, `${w}px: about 40 px of tile per label`);
+  assert.match(read('assets/app-editor.js'), /max: TLM\.maxTilesFor\(window\.innerWidth\), h,/);
+});

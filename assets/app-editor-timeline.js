@@ -29,6 +29,9 @@
     return at;
   }
 
+  // How many tiles fit a screen so no year label is ever cut: a four-digit label needs about 40 px of tile. Narrow phones get 6, wide phones 8, the rest 12.
+  const maxTilesFor = width => { const w = Number(width); return !Number.isFinite(w) || w <= 0 ? 12 : w <= 430 ? 6 : w <= 700 ? 8 : 12; };
+
   // The tile under a pointer (fraction 0..1 across the strip) and where the playhead sits for a year: tiles are equal width, so both are worked out in tiles, not in years. A year between two
   // sampled years sits between the two tile centres; before the first and after the last it stays on that tile's centre.
   const tileAt = (count, fraction) => (count > 0 ? clamp(Math.floor(clamp(Number(fraction) || 0, 0, 1) * count), 0, count - 1) : 0);
@@ -99,5 +102,5 @@
     return { lane, paint: f => { head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount: ticks.length };
   }
 
-  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, build, rulerTicks, ruler, clock };
+  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, maxTilesFor, build, rulerTicks, ruler, clock };
 })();

@@ -261,7 +261,7 @@
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
       // The film strip (tiles, ruler, playhead) under the stand-in data editor; a film with real drawing data keeps its own slider until the strip can draw its pictures (assets/app-editor-timeline.js).
       const TLM = window.ryagramEditorTimeline;
-      const strip = isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
+      const strip = isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, max: TLM.maxTilesFor(window.innerWidth), h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
         seek: v => { stopPlay(); range.value = String(v); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null;
       const ticks = isData ? h('div', { class: bundleMode ? 'le-ticks' : 'le-ticks le-ticks-flat', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;      // the stand-in's years have no position of their own: they sit in a row, not piled at the left
 

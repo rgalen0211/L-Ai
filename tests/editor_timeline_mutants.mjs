@@ -32,6 +32,9 @@ const mutants = [
   ['the playhead ignores the tile centres', TLJS, 'return (k + 0.5 + within) / n;', 'return (k + within) / n;'],
   ['the playhead does not stay on the last tile', TLJS, 'if (y >= years[n - 1]) return (n - 0.5) / n;', 'if (y >= years[n - 1]) return 1;'],
   ['the chat page generator leaves the timeline script out', 'tools/build-chat-editor.mjs', "'assets/app-editor-timeline.js', 'assets/app-editor.js',", "'assets/app-editor.js',"],
+  ['every screen gets twelve tiles', TLJS, 'w <= 430 ? 6 : w <= 700 ? 8 : 12;', 'w <= 430 ? 12 : w <= 700 ? 12 : 12;'],
+  ['a wide phone gets too many tiles', TLJS, 'w <= 430 ? 6 : w <= 700 ? 8 : 12;', 'w <= 430 ? 6 : w <= 700 ? 12 : 12;'],
+  ['the page does not ask for fewer tiles', ED, 'max: TLM.maxTilesFor(window.innerWidth), h,', 'h,'],
 ];
 
 function run(cwd) {
