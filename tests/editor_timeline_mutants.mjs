@@ -19,7 +19,7 @@ const mutants = [
   ['the note claims pictures that are not there', TLJS, "anyReal ? 'Pictures from your film. Click or drag to move the playhead.'", "true ? 'Pictures from your film. Click or drag to move the playhead.'"],
   ['the page never moves the strip playhead', ED, 'if (strip) strip.paint(position); if (!isData) head.style.left', 'if (!isData) head.style.left'],
   ['a seek does not stop playback', ED, 'seek: v => { stopPlay(); range.value', 'seek: v => { range.value'],
-  ['the strip is built for the film with real drawing data too', ED, 'const strip = isData && !bundleMode && TLM ?', 'const strip = isData && TLM ?'],
+  ['the strip is built for the film with real drawing data too', ED, 'const makeStrip = () => (isData && !bundleMode && TLM ?', 'const makeStrip = () => (isData && TLM ?'],
   ['the ruler has too many labels', TLJS, 'const step = STEPS.find(s => d / s <= max) || STEPS[STEPS.length - 1];', 'const step = 1;'],
   ['the ruler does not start at zero', TLJS, 'for (let t = 0; t <= d + 1e-9; t += step) ticks.push(t);', 'for (let t = step; t <= d + 1e-9; t += step) ticks.push(t);'],
   ['a ruler click seeks in the wrong unit', TLJS, "o.seek(clamp(((ev.clientX - r.left) / r.width), 0, 1) * dur);", "o.seek(clamp(((ev.clientX - r.left) / r.width), 0, 1));"],
@@ -36,13 +36,16 @@ const mutants = [
   ['the chat page generator leaves the timeline script out', 'tools/build-chat-editor.mjs', "'assets/app-editor-timeline.js', 'assets/app-editor.js',", "'assets/app-editor.js',"],
   ['every screen gets twelve tiles', TLJS, 'w <= 430 ? 6 : w <= 700 ? 8 : 12;', 'w <= 430 ? 12 : w <= 700 ? 12 : 12;'],
   ['a wide phone gets too many tiles', TLJS, 'w <= 430 ? 6 : w <= 700 ? 8 : 12;', 'w <= 430 ? 6 : w <= 700 ? 12 : 12;'],
-  ['the page does not ask for fewer tiles', ED, 'max: TLM.maxTilesFor(window.innerWidth), h,', 'h,'],
+  ['the page does not ask for fewer tiles', ED, 'let stripMax = TLM ? TLM.maxTilesFor(window.innerWidth) : 12;', 'let stripMax = 12;'],
   ['Space no longer plays and pauses', TLJS, "if (key === ' ' || key === 'Spacebar' || lower === 'k') return { toggle: true };", "if (lower === 'k') return { toggle: true };"],
   ['a modified key is taken', TLJS, 'if (!ev || ev.ctrlKey || ev.altKey || ev.metaKey) return null;', 'if (!ev) return null;'],
   ['the big jump is a single step', TLJS, 'const big = Math.max(step, Math.round((max - min) / 10 / step) * step);', 'const big = step;'],
   ['the jump goes past the end', TLJS, 'return dir ? { value: clamp(v + dir * big, min, max) } : null;', 'return dir ? { value: v + dir * big } : null;'],
   ['the plain arrows are taken from the native slider', TLJS, "(ev.shiftKey && key === 'ArrowRight')) dir = 1;", "key === 'ArrowRight') dir = 1;"],
   ['the slider has no video-editor keys', ED, 'const kt = window.ryagramEditorTimeline && window.ryagramEditorTimeline.keyTarget(ev,', 'const kt = null && window.ryagramEditorTimeline.keyTarget(ev,'],
+  ['the strip is never rebuilt on resize', ED, "if (!strip || next === stripMax) return;", "return;"],
+  ['the strip is rebuilt on every resize', ED, "if (!strip || next === stripMax) return;", "if (!strip) return;"],
+  ['the resize listener is never removed', ED, "onStop(() => window.removeEventListener('resize', onResize));", ""],
 ];
 
 function run(cwd) {

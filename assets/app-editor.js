@@ -269,8 +269,18 @@
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
       // The film strip (tiles, ruler, playhead) under the stand-in data editor; a film with real drawing data keeps its own slider until the strip can draw its pictures (assets/app-editor-timeline.js).
       const TLM = window.ryagramEditorTimeline;
-      const strip = isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, max: TLM.maxTilesFor(window.innerWidth), h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
-        seek: v => { stopPlay(); range.value = String(v); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null;
+      let stripMax = TLM ? TLM.maxTilesFor(window.innerWidth) : 12;
+      const makeStrip = () => (isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, max: stripMax, h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
+        seek: v => { stopPlay(); range.value = String(v); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null);
+      let strip = makeStrip();
+      const stripHolder = h('div', { class: 'le-tl-holder' }, strip ? strip.el : null);
+      // Rotating a phone or widening the panel changes how many tiles fit: rebuild the strip when the width crosses a tile-count breakpoint (GEO's LOW, 08:13).
+      const onResize = () => {
+        const next = TLM ? TLM.maxTilesFor(window.innerWidth) : stripMax;
+        if (!strip || next === stripMax) return;
+        stripMax = next; strip = makeStrip(); stripHolder.replaceChildren(strip.el); strip.paint(position);
+      };
+      window.addEventListener('resize', onResize); onStop(() => window.removeEventListener('resize', onResize));
       const ticks = isData ? h('div', { class: bundleMode ? 'le-ticks' : 'le-ticks le-ticks-flat', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;      // the stand-in's years have no position of their own: they sit in a row, not piled at the left
 
       // ---- the controls
@@ -740,7 +750,7 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, strip ? strip.el : null, ticks, h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.'), warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
+          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, stripHolder, ticks, h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.'), warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));

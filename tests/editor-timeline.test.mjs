@@ -67,10 +67,10 @@ test('build: a picture shows only when the page hands one over, and the note the
 
 test('wiring: the strip is built only for the stand-in data editor, follows the slider and stops playback on a seek; the script is stamped and loaded before the editor', () => {
   const ed = read('assets/app-editor.js'), html = read('app/index.html');
-  assert.match(ed, /const strip = isData && !bundleMode && TLM \? TLM\.build\(/);
+  assert.match(ed, /const makeStrip = \(\) => \(isData && !bundleMode && TLM \? TLM\.build\(/);
   assert.match(ed, /if \(strip\) strip\.paint\(position\); if \(!isData\) head\.style\.left/);
   assert.match(ed, /seek: v => \{ stopPlay\(\); range\.value = String\(v\); range\.dispatchEvent\(new Event\('input'/);
-  assert.match(ed, /scrub, strip \? strip\.el : null, ticks/);
+  assert.match(ed, /scrub, stripHolder, ticks/);
   assert.ok(html.indexOf('app-editor-timeline.js?v=20261113a') > 0 && html.indexOf('app-editor-timeline.js') < html.indexOf('app-editor.js?v='));
   assert.match(html, /app-editor\.js\?v=20261113a/);
   assert.ok(!/innerHTML/.test(read('assets/app-editor-timeline.js')), 'no HTML from strings');
@@ -150,7 +150,7 @@ test('maxTilesFor: fewer tiles on narrow screens so a year label always fits, an
   assert.equal(T.maxTilesFor(320), 6); assert.equal(T.maxTilesFor(390), 6); assert.equal(T.maxTilesFor(430), 6); assert.equal(T.maxTilesFor(600), 8); assert.equal(T.maxTilesFor(1280), 12);
   assert.equal(T.maxTilesFor(0), 12); assert.equal(T.maxTilesFor('x'), 12);
   for (const w of [320, 360, 390, 430, 600, 700]) assert.ok((w - 40) / T.maxTilesFor(w) >= 40, `${w}px: about 40 px of tile per label`);
-  assert.match(read('assets/app-editor.js'), /max: TLM\.maxTilesFor\(window\.innerWidth\), h,/);
+  assert.match(read('assets/app-editor.js'), /let stripMax = TLM \? TLM\.maxTilesFor\(window\.innerWidth\) : 12;/); assert.match(read('assets/app-editor.js'), /TLM\.build\(\{ first: FIRST, last: LAST, max: stripMax, h,/);
 });
 
 test('keyTarget: Space and K toggle play, Shift+arrows and J and L jump a tenth of the film, plain arrows and modified keys are left alone, and the ends clamp', () => {
@@ -170,4 +170,10 @@ test('wiring: the slider has the video-editor keys and the page says which keys'
   assert.match(ed, /range\.addEventListener\('keydown', ev => \{\s*const kt = window\.ryagramEditorTimeline && window\.ryagramEditorTimeline\.keyTarget\(ev,/);
   assert.match(ed, /if \(kt\.toggle\) \{ playBtn\.click\(\); return; \}\s*stopPlay\(\); range\.value = String\(kt\.value\)/);
   assert.match(ed, /Keys on the slider: arrows step, Shift\+arrows or J and L jump a tenth of the film, Space or K plays and pauses/);
+});
+
+test('wiring: the strip is rebuilt when the width crosses a tile-count breakpoint, and the listener goes when the editor stops', () => {
+  const ed = read('assets/app-editor.js');
+  assert.match(ed, /const onResize = \(\) => \{\s*const next = TLM \? TLM\.maxTilesFor\(window\.innerWidth\) : stripMax;\s*if \(!strip \|\| next === stripMax\) return;\s*stripMax = next; strip = makeStrip\(\); stripHolder\.replaceChildren\(strip\.el\); strip\.paint\(position\);/);
+  assert.match(ed, /window\.addEventListener\('resize', onResize\); onStop\(\(\) => window\.removeEventListener\('resize', onResize\)\);/);
 });
