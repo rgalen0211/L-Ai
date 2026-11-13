@@ -60,7 +60,9 @@ insert into public.credit_prices (price_version, code, credits, price_cents, mon
   ('2026-09', 'final_paired', 10, null, false, '2026-09-01'),
   ('2026-09', 'rebuild_line', 2, null, false, '2026-09-01'),
   ('2026-09', 'rebuild_map', 3, null, false, '2026-09-01'),
-  ('2026-09', 'rebuild_paired', 4, null, false, '2026-09-01');
+  ('2026-09', 'rebuild_paired', 4, null, false, '2026-09-01'),
+  -- The editor's real-frame bundles (request_film_bundle, migration 20261113000400): always free.
+  ('2026-09', 'film_bundle', 0, null, false, '2026-09-01');
 
 -- Which film price each engine view belongs to. Names confirmed by CC1 from Session.frame_for
 -- (2026-09-28): map, bars, line, paired, panel, split, globe; plus "river", which the engine
@@ -323,6 +325,8 @@ begin
     else
       new.price_code := 'preview_extra';
     end if;
+  elsif new.job_type = 'film_bundle' then
+    new.price_code := 'film_bundle';                     -- film bundles are free (20261113000400)
   else
     new.price_code := ryagram_private.film_price_code(new.story);
   end if;
@@ -545,6 +549,7 @@ begin
     free := ryagram_private.free_previews_used(me, v.project_id, null) < rules.free_previews_per_project
         and ryagram_private.free_previews_used(me, null, now() - interval '24 hours') < rules.free_previews_per_24h;
     code := case when free then 'preview_free' else 'preview_extra' end;
+  elsif p_job_type = 'film_bundle' then code := 'film_bundle';
   else code := ryagram_private.film_price_code(v.story_spec);
   end if;
   return query select code, ryagram_private.price(pv, code), free,
