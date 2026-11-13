@@ -154,7 +154,7 @@ declare
   j public.jobs;
   hit uuid;
   path text;
-  a int; b int;
+  a int; b int; dur numeric;
 begin
   -- the window: whole seconds, ASCII digits only, no sign, no leading zero, A < B, at most 10 s (the worker refuses anything else, so a bad one is never a job)
   if p_seconds is null or p_seconds !~ '^(0|[1-9][0-9]{0,5}):[1-9][0-9]{0,5}$' then
@@ -173,6 +173,13 @@ begin
   end if;
   if (v.story_spec->>'schema' = '1' and v.story_spec->>'engine' = 'sequence') is not true then
     raise exception 'The story is not a schema-1 sequence yet.' using errcode = '22023';
+  end if;
+  -- A window that starts at or after the film's end holds no frame: said in words before a job exists. The database knows a film's length only from a finished render of this exact story (its video's duration);
+  -- for any other film the length is not here and ENGINE's own refusal answers.
+  select max(a3.duration_s) into dur from public.jobs j3 join public.artifacts a3 on a3.job_id = j3.id and a3.kind = 'final_video'
+    where j3.version_id = v.id and j3.job_type = 'final_render' and j3.state = 'complete' and j3.story_sha256 = v.story_sha256 and a3.deleted_at is null;
+  if dur is not null and a >= dur then
+    raise exception 'That part of the film is past its end: the film is % seconds long.', round(dur, 1) using errcode = '22023';
   end if;
 
   -- 1. The cache: a finished bundle of this window of this exact story, from the engine running now.

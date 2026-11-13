@@ -32,6 +32,8 @@ W = "0:10"
 class Bundles(core.Base):
     project_with_version = core.Core.project_with_version
     claim = core.Core.claim
+    ladder = core.Core.ladder
+    run_job = core.Core.run_job
 
     def setUp(self):
         super().setUp()
@@ -114,6 +116,37 @@ class Bundles(core.Base):
             self.db.as_(RYAN).one("select id from submit_job(%s, 'scene_bundle')", vid)
         with self.assertRaisesRegex(psycopg.Error, "Scene bundles are not available"):
             self.admin("insert into jobs (owner_id, project_id, version_id, job_type, story, story_sha256) select owner_id, project_id, id, 'scene_bundle', story_spec, story_sha256 from versions where id = %s returning id", vid)
+
+    def test_a_window_wholly_past_the_end_of_a_film_whose_length_is_known_is_refused_in_words_before_a_job_exists(self):
+        _, vid, sheet, prev = self.ladder()
+        final = self.db.as_(RYAN).one("select id from submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.assertEqual(self.claim(), final)
+        self.run_job(final, ["final_video", "thumbnail", "receipt"])
+        self.assertEqual(self.request(vid, window="500:510")[0], "building", "the length is not known yet (the video has no duration): the window is accepted")
+        self.admin("update jobs set state = 'cancelled', ended_at = now() where version_id = %s and job_type = 'film_bundle' returning 1", vid)
+        self.admin("update artifacts set duration_s = 12.4 where job_id = %s and kind = 'final_video' returning 1", final)
+        for window in ("13:20", "100:110"):
+            before = self.jobs(vid)
+            with self.assertRaises(psycopg.Error, msg=window) as e:
+                self.request(vid, window=window)
+            self.assertEqual(e.exception.sqlstate, "22023", window)
+            self.assertIn("past its end: the film is 12.4 seconds long", str(e.exception), window)
+            self.assertEqual(self.jobs(vid), before, "no job for " + window)
+        self.assertEqual(self.request(vid, window="5:15")[0], "building", "a window that starts inside the film is fine even when it runs past the end")
+        self.assertEqual(self.request(vid, window="11:21")[0], "building")
+        self.assertEqual(self.request(vid, window="12:20")[0], "building", "12 is before 12.4: the window starts inside the film")
+        self.admin("update jobs set state = 'cancelled', ended_at = now() where version_id = %s and job_type = 'film_bundle' returning 1", vid)
+        self.admin("update artifacts set deleted_at = now() where job_id = %s and kind = 'final_video' returning 1", final)
+        self.assertEqual(self.request(vid, window="100:110")[0], "building", "a deleted video tells nothing about the length")
+
+    def test_the_length_of_an_older_story_is_not_the_length_of_this_one(self):
+        _, vid, sheet, prev = self.ladder()
+        final = self.db.as_(RYAN).one("select id from submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        self.assertEqual(self.claim(), final)
+        self.run_job(final, ["final_video", "thumbnail", "receipt"])
+        self.admin("update artifacts set duration_s = 12.4 where job_id = %s and kind = 'final_video' returning 1", final)
+        self.admin("update jobs set story_sha256 = %s where id = %s returning 1", "f" * 64, final)          # as if the film had been rendered from another story
+        self.assertEqual(self.request(vid, window="100:110")[0], "building")
 
     # -- access
     def test_owner_request_queues_one_job_per_window(self):
