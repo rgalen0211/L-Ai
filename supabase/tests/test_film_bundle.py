@@ -476,6 +476,9 @@ class BundlesAreFree(core.Base):
         super().setUp()
         self.db.as_(None).one("update control set disabled_job_types = '{}' where id returning 1")
 
+    def quote_raw(self, vid, jt="film_bundle"):
+        return self.db.as_(RYAN).one("select price_code, credits from credit_quote(%s, %s::job_type)", vid, jt)
+
     def quote(self, vid, jt="film_bundle"):
         try:
             return self.db.as_(RYAN).one("select price_code, credits from credit_quote(%s, %s::job_type)", vid, jt)
@@ -502,7 +505,7 @@ class BundlesAreFree(core.Base):
         self.db.as_(None).c.execute(orig)
         _, vid = self.project_with_version()
         with self.assertRaisesRegex(psycopg.Error, "price"):                           # before: the old ledger prices an unknown type at the FILM's price path (which has no price for this story)
-            self.quote(vid)
+            self.quote_raw(vid)
         self.db.as_(None).c.execute(MIG.read_text(encoding="utf-8"))
         self.db.as_(None).one("update control set disabled_job_types = '{}' where id returning 1")           # the migration switches bundles off: on again for this test
         self.assertEqual(self.quote(vid), ("film_bundle", 0))
