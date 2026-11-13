@@ -1,0 +1,13 @@
+{
+  "note": "The departments the in-chat home panel must show, in order, with the same ids and labels as the website (assets/app-departments.js). Status is the server's my_departments() answer, not decided here: 'working' opens it, 'soon' shows Coming soon. My films is not a department; it is a link that appears only when featureOn('myFilms') is true for the account. CONNECT builds the panel from this list; the test tests/home-panel-departments.test.mjs fails if the site and this file drift.",
+  "order": ["data_films", "compilations", "geo_intelligence", "games", "animation_studio"],
+  "labels": {
+    "data_films": "Data films",
+    "compilations": "Compilations",
+    "geo_intelligence": "Geographic Intelligence",
+    "games": "Games",
+    "animation_studio": "Animation Studio"
+  },
+  "my_films": { "label": "My films", "link": "#/films", "shownOnlyWhen": "featureOn('myFilms')" },
+  "ryan_names_awaiting_choice": { "geo_intelligence": "Opportunity Map (Ryan's 07:05 list) or Geographic Intelligence (the site): one name in both places, Ryan's call (GEO-HOME-PANEL-ENTRY-1113 question 1)" }
+}
