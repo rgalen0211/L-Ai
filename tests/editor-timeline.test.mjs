@@ -135,3 +135,10 @@ test('the chat editor page and the PC maker page each DEFINE the timeline script
   }
   for (const g of ['tools/build-chat-editor.mjs', 'tools/build-maker-live.mjs']) assert.match(read(g), /'assets\/app-editor-timeline\.js', 'assets\/app-editor\.js'/, g);
 });
+
+test("the ruler last label sits left of its tick so it cannot overhang the bar", () => {
+  const r = T.ruler({ h: el, duration: 12, seek() {} });
+  const ticks = find(r.lane, n => /le-ruler-tick/.test(n.props.class || ''));
+  assert.ok(/le-ruler-last/.test(ticks.at(-1).props.class)); assert.ok(!ticks.slice(0, -1).some(n => /le-ruler-last/.test(n.props.class)));
+  assert.match(read('assets/app-editor.css'), /\.le-ruler-last i\{left:auto;right:3px\}/);
+});

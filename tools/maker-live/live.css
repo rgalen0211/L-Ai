@@ -89,3 +89,4 @@ input[type=text],input[type=number],textarea{background:#101015;color:var(--ink)
 .le-ruler-tick{position:absolute;top:0;bottom:0;border-left:1px solid #55555f}.le-ruler-tick i{position:absolute;top:2px;left:3px;font-style:normal;font-size:.72rem;color:var(--muted,#b6b5ae);white-space:nowrap}
 .le-ruler-head{position:absolute;top:0;bottom:-6px;width:2px;margin-left:-1px;background:#ff8a7a;pointer-events:none;z-index:2}
 .le-ruler-head::before{content:'';position:absolute;top:0;left:-4px;border:5px solid transparent;border-top-color:#ff8a7a;border-bottom:0}
+.le-ruler-last i{left:auto;right:3px}

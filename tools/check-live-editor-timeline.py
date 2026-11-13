@@ -77,6 +77,8 @@ with sync_playwright() as pw:
         p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/editor/compilation', wait_until='load'); p.wait_for_selector('.le-lanes', state='attached', timeout=15000); p.wait_for_timeout(400)
         check(p.locator('.le-tl-strip').count() == 0, 'the compilation editor has no film strip (it has tracks and a ruler)')
         if name == 'desktop':                                      # on a phone the tracks give way to a plain clip list, so there is no ruler to use
+            over = p.evaluate("(() => { const b = document.querySelector('.le-ruler-bar').getBoundingClientRect(); return Math.max(...[...document.querySelectorAll('.le-ruler-tick i')].map(i => i.getBoundingClientRect().right - b.right)); })()")
+            check(over <= 0.5, f'no ruler label overhangs the bar ({over:.1f}px)')
             rb = p.locator('.le-ruler-bar').bounding_box()
             check(p.locator('.le-ruler-tick').count() >= 5 and p.locator('.le-ruler-tick i').first.inner_text() == '0:00', 'the compilation editor has a time ruler above its tracks')
             p.mouse.click(rb['x'] + rb['width'] * 0.5, rb['y'] + rb['height'] / 2); p.wait_for_timeout(250)

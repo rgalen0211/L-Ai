@@ -700,7 +700,7 @@
   function ruler(o) {
     const h = o.h, dur = Math.max(1, Number(o.duration) || 1), { ticks } = rulerTicks(dur, o.max || 10);
     const head = h('span', { class: 'le-ruler-head', 'aria-hidden': 'true' });
-    const marks = ticks.map(t => { const m = h('span', { class: 'le-ruler-tick' }, h('i', {}, clock(t))); m.style.left = `${(t / dur) * 100}%`; return m; });
+    const marks = ticks.map((t, i) => { const m = h('span', { class: i === ticks.length - 1 ? 'le-ruler-tick le-ruler-last' : 'le-ruler-tick' }, h('i', {}, clock(t))); m.style.left = `${(t / dur) * 100}%`; return m; });      // the last label sits to the left of its tick, so it never overhangs the bar
     const bar = h('div', { class: 'le-ruler-bar', 'aria-hidden': 'true' }, marks, head);
     let down = false;
     const at = ev => { const r = bar.getBoundingClientRect(); if (!r.width) return; o.seek(clamp(((ev.clientX - r.left) / r.width), 0, 1) * dur); };
