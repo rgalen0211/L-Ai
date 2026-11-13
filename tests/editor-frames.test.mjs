@@ -120,3 +120,60 @@ test('FrameStore: a bundle that is not the window asked for is refused in words,
 test('wiring: the module and the drawer are not on a page until a page asks; the zip reader names manifest.json', () => {
   assert.match(read('assets/preview/preview-zip.js'), /scene\\\.json\\\.gz\|manifest\\\.json\|fonts/);
 });
+
+// ---- ENGINE's --plan: windows in the render clip's own seconds, the timeline in film seconds ----
+const PLAN = { fps: 30, frames: 120, seconds: 4, windows: [{ seconds: [0, 2], window: '0:2' }, { seconds: [2, 4], window: '2:4' }],
+  timeline: { clips: [{ id: 't', kind: 'title', label: 'Invented title', start: 0, seconds: 1, drawn: false }, { id: 'main', kind: 'render', label: 'Invented film', start: 1, seconds: 4, drawn: true }], render_clip: 'main', render_start: 1, total_seconds: 5, total_frames: 150 } };
+const bad = fn => { const p = JSON.parse(JSON.stringify(PLAN)); fn(p); return p; };
+
+test('checkPlan: a good plan is read, a bad one is refused in words', () => {
+  const p = F.checkPlan(PLAN);
+  assert.equal(p.fps, 30); assert.equal(p.renderStart, 1); assert.equal(p.renderSeconds, 4); assert.equal(p.totalSeconds, 5); assert.equal(p.totalFrames, 150); assert.equal(p.clips.length, 2); assert.equal(p.clips[1].drawn, true);
+  for (const [label, plan] of [
+    ['no windows', bad(p => { p.windows = []; })], ['a gap', bad(p => { p.windows[1].seconds = [3, 5]; p.windows[1].window = '3:5'; })], ['a window over ten seconds', bad(p => { p.windows = [{ seconds: [0, 11], window: '0:11' }]; })],
+    ['a window name that is not its seconds', bad(p => { p.windows[0].window = '0:3'; })], ['no timeline', bad(p => { delete p.timeline; })], ['no total', bad(p => { p.timeline.total_seconds = 0; })],
+    ['a negative render start', bad(p => { p.timeline.render_start = -1; })], ['a bad fps', bad(p => { p.fps = 0; })], ['a clip with no start', bad(p => { p.timeline.clips[0].start = 'x'; })], ['not an object', null]]) {
+    assert.throws(() => F.checkPlan(plan), F.FramesError, label);
+  }
+  const tricky = bad(p => { p.timeline.clips[0].label = 'a' + String.fromCharCode(0) + 'b' + String.fromCharCode(0x202e) + '<script>'; });
+  const got = F.checkPlan(tricky).clips[0].label; assert.ok(![...got].some(c => c.charCodeAt(0) < 32 || c.charCodeAt(0) > 126), 'control and invisible characters are dropped from a label');
+});
+
+test('windowIndex: the window holding a render-clip second, the very end in the last, outside is -1', () => {
+  const w = F.checkPlan(PLAN).windows;
+  assert.equal(F.windowIndex(w, 0), 0); assert.equal(F.windowIndex(w, 1.99), 0); assert.equal(F.windowIndex(w, 2), 1); assert.equal(F.windowIndex(w, 4), 1); assert.equal(F.windowIndex(w, 4.01), -1); assert.equal(F.windowIndex(w, -0.1), -1); assert.equal(F.windowIndex(w, NaN), -1);
+});
+
+test('FrameStore with a plan: film seconds map to window seconds through render_start, the playhead window is asked first then ahead, and a moment in the title has no window', async () => {
+  const asked = [];
+  const store = new F.FrameStore({ plan: PLAN, drawer: D, fetchWindow: async text => { asked.push(text); return text === '2:4' ? BUNDLE : bin('tests/fixtures/film-bundle-synthetic-0-2.zip'); } });
+  assert.equal(store.want(0.5), 'outside'); assert.equal(store.stateOf(0.5), 'outside'); assert.deepEqual(plain(store.frameAt(0.5)), { state: 'outside', svg: null, reason: '' });
+  assert.equal(store.want(3.5), 'building');                                        // film second 3.5 = window second 2.5, in window 2:4
+  await settle(store); assert.deepEqual(asked, ['2:4', '0:2'], 'the playhead window, then the one behind');
+  const a = store.frameAt(3.5); assert.equal(a.state, 'ready'); assert.equal(a.frame, 15, 'window second 2.5 is frame 15 of 2:4');
+  const first = store.frameAt(1); assert.equal(first.state, 'ready'); assert.equal(first.frame, 0, "film second 1 is the render clip first frame");
+  assert.notEqual(a.svg, first.svg);
+  assert.equal(store.frameAt(5).state, 'ready', 'the very end of the film holds the last frame');
+  assert.equal(store.frameAt(5.5).state, 'outside');
+});
+
+test('FrameStore with a plan never has more than maxInFlight windows building', async () => {
+  let live = 0, peak = 0;
+  const wide = { ...PLAN, windows: [0, 1, 2, 3].map(i => ({ seconds: [i * 2, i * 2 + 2], window: `${i * 2}:${i * 2 + 2}` })) };
+  const store = new F.FrameStore({ plan: wide, drawer: D, maxInFlight: 2, fetchWindow: async () => { live++; peak = Math.max(peak, live); await new Promise(r => setTimeout(r, 30)); live--; return BUNDLE; } });
+  store.want(1); assert.ok(store.building() <= 2); await settle(store); store.want(1); await settle(store);
+  assert.ok(peak <= 2, `peak ${peak}`);
+});
+
+test('the film editor: it mounts only for a film API, shows labels as text, and says what it is doing', () => {
+  const src = read('assets/app-editor-film.js'), ed = read('assets/app-editor.js');
+  assert.equal((src.match(/innerHTML/g) || []).length, 1, 'the only HTML set is the engine drawing');
+  assert.match(src, /view\.innerHTML = r\.svg;/);
+  assert.match(src, /Drawing this part of your film: \$\{Math\.floor\(p \* 100\)\}%/);
+  assert.match(ed, /typeof window\.ryagramFilmApi === 'function' \? window\.ryagramFilmApi\(routeProject \|\| null\) : null;/);
+  assert.match(ed, /\.\.\.\(filmEd \? \[filmEd\.el\] : \[view,/);
+  const html = read('app/index.html');
+  const at = n => html.indexOf(n);
+  assert.ok(at('frames-draw.min.js') > 0 && at('frames-draw.min.js') < at('app-editor-frames.js') && at('app-editor-frames.js') < at('scene-draw-rules.min.js'), 'the frames drawer is captured before the rules drawer overwrites window.RyagramScene');
+  assert.ok(at('preview-zip.js') < at('app-editor-frames.js') && at('app-editor-timeline.js') < at('app-editor-film.js') && at('app-editor-film.js') < at('app-editor.js?v='));
+});

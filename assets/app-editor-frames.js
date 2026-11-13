@@ -9,6 +9,8 @@
 //
 // A window's state is one of: 'idle', 'building' (asked for, not here yet), 'ready', 'failed' (with a reason in words). Nothing is invented: a moment whose window is not ready has no picture.
 (() => {
+  // The engine's frames drawer, captured NOW: this file loads right after frames-draw.min.js and BEFORE scene-draw-rules.min.js, which writes window.RyagramScene again for the look editor.
+  const DRAWER = window.RyagramScene && typeof window.RyagramScene.thumbUri === 'function' && typeof window.RyagramScene.draw === 'function' ? window.RyagramScene : null;
   const WINDOW = 10;
   const clean = v => String(v == null ? '' : v).replace(/[^\x20-\x7e]/g, ' ').slice(0, 200);
   const fail = msg => { throw new FramesError(msg); };
@@ -19,6 +21,33 @@
     const s = Number(second); const t = Number.isFinite(s) && s > 0 ? Math.floor(s) : 0;
     const a = Math.floor(t / WINDOW) * WINDOW;
     return { a, b: a + WINDOW, text: `${a}:${a + WINDOW}` };
+  }
+
+  // ENGINE's --plan (python -m ryagram.preview.frames --plan): { fps, frames, seconds, windows: [{ seconds: [A, B], window: 'A:B' }], timeline: { clips: [{ id, kind, label, start, seconds, drawn }], render_clip,
+  // render_start, total_seconds, total_frames } }. Window seconds count from the render clip's OWN first frame; the timeline is in FILM seconds; film second = window second + render_start (GEO 09:20).
+  // Checked before it is trusted: the windows tile the render clip from 0 with no gap, each at most 10 s; the timeline is consistent with them. The labels are the story's own text: draw with textContent.
+  function checkPlan(plan) {
+    if (!isObj(plan) || !Array.isArray(plan.windows) || !plan.windows.length || !isObj(plan.timeline)) fail('The plan of your film is not valid.');
+    let at = 0; const windows = [];
+    for (const w of plan.windows) {
+      if (!isObj(w) || !Array.isArray(w.seconds) || w.seconds.length !== 2 || !isInt(w.seconds[0]) || !isInt(w.seconds[1]) || w.seconds[0] !== at || w.seconds[1] <= w.seconds[0] || w.seconds[1] - w.seconds[0] > WINDOW
+          || w.window !== `${w.seconds[0]}:${w.seconds[1]}`) fail('The windows in the plan of your film are not valid.');
+      windows.push({ seconds: [w.seconds[0], w.seconds[1]], window: w.window }); at = w.seconds[1];
+    }
+    const tl = plan.timeline, fps = Number(plan.fps);
+    if (!Number.isFinite(fps) || fps < 1 || fps > 240 || !Array.isArray(tl.clips) || !Number.isFinite(Number(tl.render_start)) || Number(tl.render_start) < 0
+        || !(Number(tl.total_seconds) > 0) || !isInt(tl.total_frames) || tl.total_frames < 1) fail('The timeline in the plan of your film is not valid.');
+    const clips = tl.clips.map(c => {
+      if (!isObj(c) || !Number.isFinite(Number(c.start)) || Number(c.start) < 0 || !(Number(c.seconds) >= 0)) fail('A clip in the plan of your film is not valid.');
+      return { id: clean(c.id), kind: clean(c.kind), label: clean(c.label), start: Number(c.start), seconds: Number(c.seconds), drawn: c.drawn === true };
+    });
+    return { fps, windows, renderStart: Number(tl.render_start), renderSeconds: at, totalSeconds: Number(tl.total_seconds), totalFrames: tl.total_frames, clips };
+  }
+  // The index of the plan window holding a render-clip second (A <= t < B; the very end belongs to the last), or -1.
+  function windowIndex(windows, t) {
+    if (!Array.isArray(windows) || !windows.length || !Number.isFinite(t)) return -1;
+    for (let i = 0; i < windows.length; i++) if (t >= windows[i].seconds[0] && t < windows[i].seconds[1]) return i;
+    return t === windows[windows.length - 1].seconds[1] ? windows.length - 1 : -1;
   }
 
   async function sha256Hex(bytes) {
@@ -70,9 +99,11 @@
 
   class FrameStore {
     // fetchWindow(text, { onProgress }) -> Promise<Uint8Array | ArrayBuffer>: the page's own way to get one window (request, wait, signed link, download); it may reject with an Error whose message is the reason.
-    constructor({ fetchWindow, drawer = window.RyagramScene, onChange = () => {}, keep = 6 } = {}) {
+    constructor({ fetchWindow, drawer = DRAWER, onChange = () => {}, keep = 6, plan = null, maxInFlight = 2 } = {}) {
       if (typeof fetchWindow !== 'function') fail('A film store needs a way to get a window.');
+      if (!drawer) fail('The drawing code for your film is not loaded.');
       this.fetchWindow = fetchWindow; this.drawer = drawer; this.onChange = onChange; this.keep = Math.max(2, keep);
+      this.plan = plan ? checkPlan(plan) : null; this.maxInFlight = Math.max(1, maxInFlight);
       this.wins = new Map();                       // text -> { state, reason, win, at, progress }
       this.clock = 0;
     }
@@ -81,12 +112,26 @@
       const ready = [...this.wins.entries()].filter(([, e]) => e.state === 'ready').sort((a, b) => a[1].at - b[1].at);
       while (ready.length > this.keep) this.wins.delete(ready.shift()[0]);        // the oldest windows go first: a thumbnail of a hatched map is about a million characters
     }
-    // Ask for the window that holds this moment, then the next one. Returns the state of the first.
+    // Which window holds a moment, and the second to read inside it: with a plan the moment is a FILM second (window second = film second - render_start) and the plan's windows are used;
+    // without one the moment is a window second and the windows are the 10-second grid.
+    _where(second) {
+      if (!this.plan) { const w = windowFor(second); return { text: w.text, sec: Number(second), idx: -1 }; }
+      const t = Number(second) - this.plan.renderStart, i = windowIndex(this.plan.windows, t);
+      return i < 0 ? { text: null, sec: t, idx: -1 } : { text: this.plan.windows[i].window, sec: t, idx: i };
+    }
+    building() { return [...this.wins.values()].filter(e => e.state === 'building').length; }
+    // Ask for the window under the playhead first, then the ones ahead, then one behind, never more than maxInFlight building at once (the worker builds one at a time). Returns the state of the first.
     want(second) {
-      const w = windowFor(second);
-      this._start(w.text);
-      this._start(windowFor(w.b).text, true);
-      return this._entry(w.text).state;
+      if (!this.plan) { const w = windowFor(second); this._start(w.text); this._start(windowFor(w.b).text, true); return this._entry(w.text).state; }
+      const here = this._where(second); if (here.idx < 0) return 'outside';
+      const order = [here.idx]; for (let k = 1; k <= 2; k++) if (here.idx + k < this.plan.windows.length) order.push(here.idx + k); if (here.idx > 0) order.push(here.idx - 1);
+      for (const i of order) {
+        const text = this.plan.windows[i].window, e = this._entry(text);
+        if (e.state === 'ready' || e.state === 'building' || e.state === 'failed') { e.at = ++this.clock; continue; }
+        if (this.building() >= this.maxInFlight) break;
+        this._start(text, i !== here.idx);
+      }
+      return this._entry(this.plan.windows[here.idx].window).state;
     }
     _start(text, quiet = false) {
       const e = this._entry(text); e.at = ++this.clock;
@@ -95,30 +140,32 @@
       e.state = 'building'; e.reason = '';
       const progress = p => { e.progress = p; this.onChange(text, e); };
       Promise.resolve().then(() => this.fetchWindow(text, { onProgress: progress })).then(bytes => open(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), { drawer: this.drawer })).then(win => {
-        e.win = win; e.state = 'ready'; e.progress = 100; this._evict(); this.onChange(text, e);
+        e.win = win; e.state = 'ready'; e.progress = 1; this._evict(); this.onChange(text, e);
       }).catch(err => { e.state = 'failed'; e.reason = clean(err && err.message) || 'This part of your film could not be drawn.'; if (!quiet || true) this.onChange(text, e); });
     }
     states() { return Object.fromEntries([...this.wins.entries()].map(([k, e]) => [k, e.state])); }
-    stateOf(second) { return this._entry(windowFor(second).text).state; }
-    reasonOf(second) { return this._entry(windowFor(second).text).reason; }
-    progressOf(second) { return this._entry(windowFor(second).text).progress; }
+    stateOf(second) { const w = this._where(second); return w.text ? this._entry(w.text).state : 'outside'; }
+    reasonOf(second) { const w = this._where(second); return w.text ? this._entry(w.text).reason : ''; }
+    progressOf(second) { const w = this._where(second); return w.text ? this._entry(w.text).progress : null; }
     // The drawing of a moment, or { state } alone when its window is not ready. The picture is the engine's own SVG.
     frameAt(second) {
-      const e = this._entry(windowFor(second).text);
+      const w = this._where(second); if (!w.text) return { state: 'outside', svg: null, reason: '' };
+      const e = this._entry(w.text);
       if (e.state !== 'ready') return { state: e.state, svg: null, reason: e.reason };
-      const f = frameIn(e.win, second);
+      const f = frameIn(e.win, w.sec);
       if (f === null) return { state: 'idle', svg: null, reason: '' };
       e.at = ++this.clock;
       return { state: 'ready', frame: f, svg: this.drawer.draw(e.win.scene, f, { parts: 'all' }), reason: '' };
     }
     // A small picture of a moment as a data: address for an <img>, drawn on demand (one at a time by the caller), or null when the window is not ready.
     thumbUri(second, width = 160) {
-      const e = this._entry(windowFor(second).text);
+      const w = this._where(second); if (!w.text) return null;
+      const e = this._entry(w.text);
       if (e.state !== 'ready') return null;
-      const f = frameIn(e.win, second); if (f === null || typeof this.drawer.thumbUri !== 'function') return null;
+      const f = frameIn(e.win, w.sec); if (f === null || typeof this.drawer.thumbUri !== 'function') return null;
       return this.drawer.thumbUri(e.win.scene, f, Math.min(4096, Math.max(16, Math.floor(width))));
     }
   }
 
-  window.ryagramEditorFrames = { WINDOW, windowFor, open, frameIn, FrameStore, FramesError };
+  window.ryagramEditorFrames = { drawer: DRAWER, WINDOW, windowFor, windowIndex, checkPlan, open, frameIn, FrameStore, FramesError };
 })();

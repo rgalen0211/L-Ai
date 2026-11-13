@@ -24,6 +24,16 @@ const mutants = [
   ['windows are never evicted', FR, 'this._evict(); this.onChange(text, e);', 'this.onChange(text, e);'],
   ['a picture is drawn before its window is ready', FR, "if (e.state !== 'ready') return { state: e.state, svg: null, reason: e.reason };", ''],
   ['the thumbnail width is not bounded', FR, 'Math.min(4096, Math.max(16, Math.floor(width)))', 'width'],
+  ['the plan may have a gap', FR, 'w.seconds[0] !== at || ', ''],
+  ['the plan windows may be over ten seconds', FR, 'w.seconds[1] - w.seconds[0] > WINDOW\n          || w.window !==', 'false\n          || w.window !=='],
+  ['film seconds are used as window seconds', FR, 'const t = Number(second) - this.plan.renderStart, i = windowIndex(this.plan.windows, t);', 'const t = Number(second), i = windowIndex(this.plan.windows, t);'],
+  ['a moment in the title block gets a window', FR, 'return i < 0 ? { text: null, sec: t, idx: -1 } : { text: this.plan.windows[i].window, sec: t, idx: i };', 'return { text: this.plan.windows[Math.max(0, i)].window, sec: t, idx: Math.max(0, i) };'],
+  ['the film end is not in the last window', FR, 'return t === windows[windows.length - 1].seconds[1] ? windows.length - 1 : -1;', 'return -1;'],
+  ['any number of windows may build at once', FR, 'if (this.building() >= this.maxInFlight) break;', ''],
+  ['the window behind is never asked', FR, 'if (here.idx > 0) order.push(here.idx - 1);', ''],
+  ['a control character stays in a label', FR, 'label: clean(c.label)', 'label: String(c.label)'],
+  ['the film editor sets any HTML', 'assets/app-editor-film.js', 'view.innerHTML = r.svg;', 'view.innerHTML = r.svg + String(r.reason);'],
+  ['the page loads the film editor without an API', 'assets/app-editor.js', "typeof window.ryagramFilmApi === 'function' ? window.ryagramFilmApi(routeProject || null) : null;", "true ? (window.ryagramFilmApi || (() => ({})))(routeProject || null) : null;"],
 ];
 
 function run(cwd) {
