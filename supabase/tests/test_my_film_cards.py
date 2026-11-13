@@ -197,6 +197,15 @@ class MyFilmCards(core.Base):
         pb = self.film(self.b)[0]
         self.assertTrue(self.my_ask(pb, BOB)["id"], "another person is not held up by Alice's limits")
 
+    def test_a_request_the_worker_has_claimed_still_counts_as_open(self):
+        films = [self.film(self.a, f"Invented film {i}", {"title": f"s{i}"})[0] for i in range(6)]
+        for p in films[:5]:
+            self.my_ask(p)
+        self.assertEqual(len(self.claim()), 1, "the worker claims one of the five")
+        self.assertEqual(self.owner("select count(*) from public.film_card_requests where state = 'claimed'").fetchone()[0], 1)
+        e = self.site_fails(ALICE, "select my_film_card_ask(%s)", films[5], code="PT429")
+        self.assertIn("5 film pictures waiting", e.diag.message_primary)
+
     def test_the_limits_count_the_chat_and_the_site_together(self):
         films = [self.film(self.a, f"Invented film {i}", {"title": f"s{i}"})[0] for i in range(6)]
         for p in films[:3]:
