@@ -234,6 +234,54 @@ class Bundles(core.Base):
         with self.assertRaisesRegex(psycopg.Error, "does not produce"):
             w.one("select register_artifact(%s, 'film_bundle', 100, %s)", job, "a" * 64)
 
+    # -- the claim order: a window someone is scrubbing jumps the queue, but never starves a film
+    def queued_final(self):
+        _, vid, sheet, prev = self.ladder()
+        final = self.db.as_(RYAN).one("select id from submit_job(%s, 'final_render', '{}', %s, %s)", vid, sheet, prev)
+        return final
+
+    def test_a_queued_window_is_claimed_before_an_earlier_queued_render(self):
+        final = self.queued_final()
+        _, vid = self.project_with_version()
+        window = self.request(vid)[1]
+        self.assertEqual(self.admin("select state::text from jobs where id = %s", final), "queued")
+        self.assertEqual(self.claim(), window, "the window jumps the queue")
+        self.admin("update jobs set state = 'cancelled', ended_at = now() where id = %s returning 1", window)
+        self.assertEqual(self.claim(), final, "and the render is next")
+
+    def test_a_render_that_has_waited_two_minutes_goes_before_a_later_window(self):
+        final = self.queued_final()
+        self.admin("update jobs set created_at = now() - interval '3 minutes' where id = %s returning 1", final)
+        _, vid = self.project_with_version()
+        window = self.request(vid)[1]
+        self.assertEqual(self.claim(), final, "a film that has waited two minutes is not overtaken by editing")
+        self.admin("update jobs set state = 'cancelled', ended_at = now() where id = %s returning 1", final)
+        self.assertEqual(self.claim(), window)
+
+    def test_a_render_that_has_waited_a_minute_is_still_overtaken_and_windows_keep_their_own_order(self):
+        final = self.queued_final()
+        self.admin("update jobs set created_at = now() - interval '110 seconds' where id = %s returning 1", final)
+        _, v1 = self.project_with_version()
+        _, v2 = self.project_with_version()
+        w1 = self.request(v1)[1]
+        w2 = self.request(v2)[1]
+        self.assertEqual(self.claim(), w1, "oldest window first")
+        self.admin("update jobs set state = 'cancelled', ended_at = now() where id = %s returning 1", w1)
+        self.assertEqual(self.claim(), w2)
+        self.admin("update jobs set state = 'cancelled', ended_at = now() where id = %s returning 1", w2)
+        self.assertEqual(self.claim(), final)
+
+    def test_a_waiting_job_of_a_disabled_type_does_not_hold_windows_back(self):
+        final = self.queued_final()
+        self.admin("update jobs set created_at = now() - interval '5 minutes' where id = %s returning 1", final)
+        _, vx = self.project_with_version()
+        x = self.db.as_(RYAN).one("select id from submit_job(%s, 'contact_sheet', '{\"periods\": [\"2016\", \"2018\", \"2020\"]}')", vx)       # an enabled job, older than the window
+        _, vid = self.project_with_version()
+        window = self.request(vid)[1]
+        self.admin("update control set disabled_job_types = '{final_render}' where id returning 1")           # the house may not run renders: the old one is not 'waiting'
+        self.assertEqual(self.claim(), window, "a render the house is not allowed to run does not count as waiting")
+        self.assertNotEqual(window, x)
+
     # -- the cache, per window
     def test_cache_hit_reuses_the_bundle_for_the_same_window_only(self):
         vid, job, path = self.ready()
@@ -357,7 +405,7 @@ class Bundles(core.Base):
     def test_the_after_check_is_all_true_and_the_rollback_undoes_part_two_before_any_job_and_refuses_after_one(self):
         self.admin("update control set disabled_job_types = '{film_bundle,scene_bundle}' where id returning 1")           # the state the migration leaves it in
         rows = self.apply(CHECK.read_text(encoding="utf-8"), "the after-check").fetchall()
-        self.assertEqual(len(rows), 8)
+        self.assertEqual(len(rows), 9)
         self.assertTrue(all(ok for _, ok in rows), rows)
         self.admin("update control set disabled_job_types = '{}' where id returning 1")                      # turned on again for the rest
         _, vid = self.project_with_version()

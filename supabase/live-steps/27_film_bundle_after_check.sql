@@ -23,6 +23,9 @@ union all select 'request_film_bundle(uuid, text) exists, is security definer, r
                  from pg_proc p where p.oid = to_regprocedure('public.request_film_bundle(uuid,text)')), false)
 union all select 'the window rule is in the function (whole seconds, A < B, at most 10)',
        coalesce((select p.prosrc like '%b - a > 10%' and p.prosrc like '%a >= b%' from pg_proc p where p.oid = to_regprocedure('public.request_film_bundle(uuid,text)')), false)
+union all select 'the house claim takes a queued film bundle first, unless another house job has waited 2 minutes (and the render node''s claim, which takes only a tester''s own jobs, is untouched)',
+       coalesce((select p.prosrc like '%job_type = ''film_bundle'' and not exists%' and p.prosrc like '%interval ''2 minutes'') then 0 else 1 end, created_at, id%' from pg_proc p where p.oid = to_regprocedure('public.claim_next_job()')), false)
+       and coalesce((select p.prosrc not like '%film_bundle%' from pg_proc p where p.oid = to_regprocedure('public.node_claim(text)')), true)
 union all select 'the credits ledger (when it is on this database) prices a film bundle at 0 in both its functions and has the price row; where it is not on this database this row is true',
        case when to_regprocedure('ryagram_private.jobs_quote()') is null then true
             else coalesce((select p.prosrc like '%film_bundle%' from pg_proc p where p.oid = to_regprocedure('ryagram_private.jobs_quote()')), false)

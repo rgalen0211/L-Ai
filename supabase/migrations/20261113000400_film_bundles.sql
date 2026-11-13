@@ -134,6 +134,30 @@ begin
   end if;
 end $do$;
 
+-- ---------------------------------------------------------------- the claim order: a window someone is scrubbing jumps the queue, but never starves a film
+
+-- The house worker runs ONE job at a time and the claim is first in, first out, so a film bundle window the person is waiting on in the editor (20 to 40 seconds of work) would queue behind every earlier job, a running
+-- final render's whole length included. So the HOUSE claim (public.claim_next_job) takes a queued film_bundle job FIRST, with one guard: while any other house job of an enabled type has been queued for 2 minutes or more,
+-- the order is the old one (oldest first), so editing can never starve a film. The render node's claim (node_claim) takes only run_on = 'owner_local' jobs and a film bundle is a house job: it is untouched.
+-- Like the ledger above, it reads the LIVE function text and changes exactly the one ordering line (anything else stops with a plain sentence and changes nothing; already done, it is left alone).
+do $do$
+declare
+  def text; neu text;
+  a3 constant text := E'    order by created_at, id\n    for update skip locked\n    limit 1;';
+  b3 constant text := E'    order by case when job_type = ''film_bundle'' and not exists (select 1 from public.jobs o where o.state = ''queued'' and o.run_on = ''house'' and o.job_type <> ''film_bundle'' and o.job_type <> all (ctl.disabled_job_types)\n                                                                  and o.created_at < now() - interval ''2 minutes'') then 0 else 1 end, created_at, id\n    for update skip locked\n    limit 1;';
+  n int;
+begin
+  select pg_get_functiondef(f.oid) into def from pg_proc f where f.oid = to_regprocedure('public.claim_next_job()');
+  if def is null then raise notice 'claim_next_job is not on this database: nothing to change.'; return; end if;
+  def := replace(def, chr(13), '');
+  if position('film_bundle' in def) > 0 then raise notice 'claim_next_job: nothing to do (already in the wanted order).'; return; end if;
+  n := (length(def) - length(replace(def, a3, ''))) / length(a3);
+  if n <> 1 then
+    raise exception 'The live function claim_next_job is not the one this change expects (its queue ordering line differs from the repository''s 20261026000200_trust_ack_and_claim.sql); nothing was changed. Send this sentence to CONNECT.';
+  end if;
+  execute replace(def, a3, b3);
+end $do$;
+
 -- ---------------------------------------------------------------- the request
 
 -- status:

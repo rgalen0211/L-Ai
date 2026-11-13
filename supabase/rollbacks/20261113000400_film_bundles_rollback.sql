@@ -72,4 +72,17 @@ begin
   if to_regclass('public.credit_prices') is not null then delete from public.credit_prices where code = 'film_bundle'; end if;
 end $do$;
 
+do $do$
+declare
+  def text;
+  a3 constant text := E'    order by created_at, id\n    for update skip locked\n    limit 1;';
+  b3 constant text := E'    order by case when job_type = ''film_bundle'' and not exists (select 1 from public.jobs o where o.state = ''queued'' and o.run_on = ''house'' and o.job_type <> ''film_bundle'' and o.job_type <> all (ctl.disabled_job_types)\n                                                                  and o.created_at < now() - interval ''2 minutes'') then 0 else 1 end, created_at, id\n    for update skip locked\n    limit 1;';
+begin
+  select pg_get_functiondef(f.oid) into def from pg_proc f where f.oid = to_regprocedure('public.claim_next_job()');
+  if def is not null then
+    def := replace(def, chr(13), '');
+    if position(b3 in def) > 0 then execute replace(def, b3, a3); end if;
+  end if;
+end $do$;
+
 commit;
