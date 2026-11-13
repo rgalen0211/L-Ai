@@ -91,7 +91,7 @@ do $do$
 declare
   def text; neu text;
   a1 constant text := E'  else\n    new.price_code := ryagram_private.film_price_code(new.story);';
-  b1 constant text := E'  elsif new.job_type = ''film_bundle'' then\n    new.price_code := ''film_bundle'';                     -- film bundles are free (20261113000400)\n' || a1;
+  b1 constant text := E'  elsif new.job_type::text = ''film_bundle'' then\n    new.price_code := ''film_bundle'';                     -- film bundles are free (20261113000400)\n' || a1;
   n int;
 begin
   select pg_get_functiondef(f.oid) into def from pg_proc f where f.oid = to_regprocedure('ryagram_private.jobs_quote()');
@@ -110,7 +110,7 @@ do $do$
 declare
   def text; neu text;
   a2 constant text := E'  else code := ryagram_private.film_price_code(v.story_spec);';
-  b2 constant text := E'  elsif p_job_type = ''film_bundle'' then code := ''film_bundle'';\n' || a2;
+  b2 constant text := E'  elsif p_job_type::text = ''film_bundle'' then code := ''film_bundle'';\n' || a2;
   n int;
 begin
   select pg_get_functiondef(f.oid) into def from pg_proc f where f.oid = to_regprocedure('public.credit_quote(uuid,public.job_type)');

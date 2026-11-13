@@ -325,7 +325,7 @@ begin
     else
       new.price_code := 'preview_extra';
     end if;
-  elsif new.job_type = 'film_bundle' then
+  elsif new.job_type::text = 'film_bundle' then
     new.price_code := 'film_bundle';                     -- film bundles are free (20261113000400)
   else
     new.price_code := ryagram_private.film_price_code(new.story);
@@ -549,7 +549,7 @@ begin
     free := ryagram_private.free_previews_used(me, v.project_id, null) < rules.free_previews_per_project
         and ryagram_private.free_previews_used(me, null, now() - interval '24 hours') < rules.free_previews_per_24h;
     code := case when free then 'preview_free' else 'preview_extra' end;
-  elsif p_job_type = 'film_bundle' then code := 'film_bundle';
+  elsif p_job_type::text = 'film_bundle' then code := 'film_bundle';
   else code := ryagram_private.film_price_code(v.story_spec);
   end if;
   return query select code, ryagram_private.price(pv, code), free,

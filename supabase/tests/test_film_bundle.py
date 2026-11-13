@@ -441,8 +441,8 @@ class Bundles(core.Base):
 # The 2B ledger: a bundle is priced at 0, holds nothing, writes no rows; and a ledger loaded BEFORE the migration is taught by it.
 class BundlesAreFree(core.Base):
     project_with_version = core.Core.project_with_version
-    ADDED = ("  elsif new.job_type = 'film_bundle' then\n    new.price_code := 'film_bundle';                     -- film bundles are free (20261113000400)\n",
-             "  elsif p_job_type = 'film_bundle' then code := 'film_bundle';\n",
+    ADDED = ("  elsif new.job_type::text = 'film_bundle' then\n    new.price_code := 'film_bundle';                     -- film bundles are free (20261113000400)\n",
+             "  elsif p_job_type::text = 'film_bundle' then code := 'film_bundle';\n",
              "  -- The editor's real-frame bundles (request_film_bundle, migration 20261113000400): always free.\n  ('2026-09', 'film_bundle', 0, null, false, '2026-09-01')")
 
     def original_ledger(self):
