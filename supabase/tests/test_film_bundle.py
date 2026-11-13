@@ -73,7 +73,9 @@ class Bundles(core.Base):
     # -- switched off until the worker builds bundles
     def test_off_by_default(self):
         with psycopg.connect(core._server.get_uri(database="tmpl")) as c:
-            self.assertIn("film_bundle", c.execute("select disabled_job_types::text from control").fetchone()[0])
+            off = c.execute("select disabled_job_types::text from control").fetchone()[0]
+            self.assertIn("film_bundle", off)
+            self.assertIn("scene_bundle", off)
         self.admin("update control set disabled_job_types = '{film_bundle}' where id returning 1")
         _, vid = self.project_with_version()
         with self.assertRaisesRegex(psycopg.Error, "paused"):
@@ -95,6 +97,23 @@ class Bundles(core.Base):
         for window in ("0:10", "7:12", "100:110", "3:4", "59990:60000"):
             self.assertEqual(self.request(vid, window=window)[0], "building", window)
             self.admin("update jobs set state = 'cancelled', ended_at = now() where version_id = %s and job_type = 'film_bundle' returning 1", vid)
+
+    # -- the worker's contract names both bundle types (ryagram/worker/contract.py, read by tests/worker_contract.py): the SQL must agree byte for byte
+    def test_the_artifact_helpers_agree_with_the_workers_contract_for_both_bundle_types(self):
+        got = {k: self.admin("select filename, mime, max_bytes from ryagram_private.artifact_file(%s::public.artifact_kind)", k) for k in ("scene_bundle", "film_bundle")}
+        self.assertEqual(got, {"scene_bundle": ("scene.bundle.zip", "application/zip", 50000000), "film_bundle": ("film.bundle.zip", "application/zip", 50000000)})
+        for t in ("scene_bundle", "film_bundle"):
+            allowed = {k for (k,) in self.db.as_(None).all("select unnest(enum_range(null::public.artifact_kind))::text") if self.admin("select ryagram_private.kind_allowed(%s::public.job_type, %s::public.artifact_kind)", t, k)}
+            self.assertEqual(allowed, {t, "metering"}, t)
+            self.assertEqual(self.admin("select ryagram_private.required_kinds(%s::public.job_type)::text[]", t), [t])
+        self.assertEqual(self.admin("select count(*) from unnest(enum_range(null::public.job_type)) t where t::text in ('scene_bundle', 'film_bundle')"), 2)
+
+    def test_a_scene_bundle_job_cannot_be_made_by_anyone(self):
+        _, vid = self.project_with_version()
+        with self.assertRaisesRegex(psycopg.Error, "Scene bundles are not available"):
+            self.db.as_(RYAN).one("select id from submit_job(%s, 'scene_bundle')", vid)
+        with self.assertRaisesRegex(psycopg.Error, "Scene bundles are not available"):
+            self.admin("insert into jobs (owner_id, project_id, version_id, job_type, story, story_sha256) select owner_id, project_id, id, 'scene_bundle', story_spec, story_sha256 from versions where id = %s returning id", vid)
 
     # -- access
     def test_owner_request_queues_one_job_per_window(self):
@@ -303,7 +322,7 @@ class Bundles(core.Base):
 
     # -- the migration's own files
     def test_the_after_check_is_all_true_and_the_rollback_undoes_part_two_before_any_job_and_refuses_after_one(self):
-        self.admin("update control set disabled_job_types = '{film_bundle}' where id returning 1")           # the state the migration leaves it in
+        self.admin("update control set disabled_job_types = '{film_bundle,scene_bundle}' where id returning 1")           # the state the migration leaves it in
         rows = self.apply(CHECK.read_text(encoding="utf-8"), "the after-check").fetchall()
         self.assertEqual(len(rows), 8)
         self.assertTrue(all(ok for _, ok in rows), rows)

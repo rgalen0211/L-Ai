@@ -49,7 +49,7 @@ language sql immutable set search_path = '' as $$
   end
 $$;
 
-update public.control set disabled_job_types = array(select t from unnest(disabled_job_types) t where t <> 'film_bundle') where id;
+update public.control set disabled_job_types = array(select t from unnest(disabled_job_types) t where t not in ('film_bundle', 'scene_bundle')) where id;
 
 do $do$
 declare

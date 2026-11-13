@@ -28,6 +28,7 @@ language sql immutable set search_path = '' as $$
     ('receipt', 'receipt.sequence.json', 'application/json', 5000000),
     ('receipt_text', 'receipt.txt', 'text/plain', 5000000),
     ('metering', 'metering.json', 'application/json', 5000000),
+    ('scene_bundle', 'scene.bundle.zip', 'application/zip', 50000000),
     ('film_bundle', 'film.bundle.zip', 'application/zip', 50000000)
   ) as t(kind, filename, mime, max_bytes)
   where t.kind = k
@@ -39,6 +40,7 @@ language sql immutable set search_path = '' as $$
     when 'contact_sheet' then k in ('contact_sheet', 'receipt', 'receipt_text', 'metering')
     when 'preview' then k in ('preview', 'thumbnail', 'receipt', 'receipt_text', 'metering')
     when 'final_render' then k in ('final_video', 'thumbnail', 'receipt', 'receipt_text', 'metering')
+    when 'scene_bundle' then k in ('scene_bundle', 'metering')
     when 'film_bundle' then k in ('film_bundle', 'metering')
   end
 $$;
@@ -49,6 +51,7 @@ language sql immutable set search_path = '' as $$
     when 'contact_sheet' then array['contact_sheet']::public.artifact_kind[]
     when 'preview' then array['preview']::public.artifact_kind[]
     when 'final_render' then array['final_video', 'thumbnail', 'receipt']::public.artifact_kind[]
+    when 'scene_bundle' then array['scene_bundle']::public.artifact_kind[]
     when 'film_bundle' then array['film_bundle']::public.artifact_kind[]
   end
 $$;
@@ -57,9 +60,9 @@ update storage.buckets
   set allowed_mime_types = array(select distinct m from unnest(allowed_mime_types || array['application/zip']) m order by 1)
   where id = 'ryagram-artifacts';
 
--- Off until the worker builds bundles.
+-- Off until the worker builds bundles (scene_bundle: the older design, named by the worker's contract, never switched on).
 update public.control set disabled_job_types = array(
-    select distinct t from unnest(disabled_job_types || array['film_bundle']::public.job_type[]) t)
+    select distinct t from unnest(disabled_job_types || array['film_bundle', 'scene_bundle']::public.job_type[]) t)
   where id;
 
 -- ---------------------------------------------------------------- only through the request
@@ -68,6 +71,9 @@ update public.control set disabled_job_types = array(
 create or replace function ryagram_private.film_bundle_by_request() returns trigger
 language plpgsql set search_path = '' as $$
 begin
+  if new.job_type = 'scene_bundle' then
+    raise exception 'Scene bundles are not available yet.' using errcode = '42501';
+  end if;
   if new.job_type = 'film_bundle'
      and coalesce(current_setting('ryagram.film_bundle_request', true), '') <> 'on' then
     raise exception 'Film bundles are made through request_film_bundle.' using errcode = '42501';
