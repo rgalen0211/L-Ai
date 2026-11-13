@@ -27,7 +27,7 @@ const mutants = [
   ['the chat host does not offer the card', H, 'filmCard: true, drawCard };', 'drawCard };', 'source'],
   ['the editor runs the card code on any host', AE, 'host.filmCard === true && ', '', 'source'],
   ['the picture may hold a script element', H, "const CARD_ELEMENTS = new Set(['svg', 'g',", "const CARD_ELEMENTS = new Set(['script', 'svg', 'g',", 'both'],
-  ['the picture may carry a style attribute', H, "'gradientUnits', 'gradientTransform']);", "'gradientUnits', 'gradientTransform', 'style']);", 'both'],
+  ['the picture may carry a style attribute', H, "'gradientUnits', 'gradientTransform', 'patternUnits', 'patternTransform']);", "'gradientUnits', 'gradientTransform', 'patternUnits', 'patternTransform', 'style']);", 'both'],
   ['ids inside the picture are not renamed', H, "a.name === 'id' ? 'lecard-' + v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : v", 'v', 'both'],
   ['an address may stay in an attribute', H, ADDRESS, '} else if (false) continue;', 'both'],
   ['a pattern may hold a circle in the panel', H, "const PATTERN_CHILDREN = new Set(['line', 'path', 'rect']);", "const PATTERN_CHILDREN = new Set(['line', 'path', 'rect', 'circle']);", 'both'],
