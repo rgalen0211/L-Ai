@@ -211,8 +211,11 @@ test('the film editor: it mounts only for a film API, shows labels as text, and 
   assert.equal((src.match(/innerHTML/g) || []).length, 1, 'the only HTML set is the engine drawing');
   assert.match(src, /view\.innerHTML = r\.svg;/);
   assert.match(src, /Drawing this part of your film: \$\{Math\.floor\(p \* 100\)\}%/);
-  assert.match(ed, /typeof window\.ryagramFilmApi === 'function' \? window\.ryagramFilmApi\(routeProject \|\| null\) : null;/);
-  assert.match(ed, /\.\.\.\(filmEd \? \[filmEd\.el\] : \[view,/);
+  assert.match(ed, /const filmApi = filmReady && typeof window\.ryagramFilmApi === 'function' \? window\.ryagramFilmApi\(routeProject \|\| null\)/);
+  assert.match(ed, /filmReady && routeProject && !window\.ryagramMock && data && typeof data\.filmApi === 'function' && window\.ryagramFilmGlue && window\.ryagramFilmApiTools \? data\.filmApi\(routeProject\) : null;/);
+  assert.match(ed, /if \(filmEd\) filmEd\.el\.hidden = true;/);
+  assert.match(ed, /filmEd\.ready\.then\(ok => \{ if \(ok && !destroyedEditor\) \{ standin\.hidden = true; filmEd\.el\.hidden = false; \} \}\);/);
+  assert.match(ed, /h\('div', \{ class: 'le-main' \}, \.\.\.\(filmEd \? \[filmEd\.el\] : \[\]\), standin, warns,/);
   const html = read('app/index.html');
   const at = n => html.indexOf(n);
   assert.ok(at('frames-draw.min.js') > 0 && at('frames-draw.min.js') < at('app-editor-frames.js') && at('app-editor-frames.js') < at('scene-draw-rules.min.js'), 'the frames drawer is captured before the rules drawer overwrites window.RyagramScene');
@@ -251,4 +254,75 @@ test('FrameStore with a plan asks ahead of the playhead too, and never more than
   const store = new F.FrameStore({ plan: wide, drawer: D, maxInFlight: 3, fetchWindow: async text => { asked.push(text); throw new Error('wait'); } });
   store.want(2.5); await settle(store);
   assert.deepEqual(asked, ['2:4', '4:6', '6:8'], 'the playhead window, then two ahead (the one behind waits for a free slot)');
+});
+
+// ---- the page side of the film API (assets/app-film-glue.js) with CONNECT adapter (assets/app-film-api.js) ----
+const gwin = { crypto: globalThis.crypto };
+const gctx = { window: gwin, TextDecoder, Uint8Array, DataView, Promise, setTimeout, console, fetch: async () => { throw new Error('no network in tests'); } };
+for (const f of ['assets/app-film-api.js', 'assets/app-film-glue.js']) vm.runInNewContext(fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8'), gctx);
+const G = gwin.ryagramFilmGlue, TOOLS = gwin.ryagramFilmApiTools;
+const UUID_V = '11111111-1111-4111-8111-111111111111', UUID_P = '22222222-2222-4222-8222-222222222222';
+
+test('glue manifestOf: reads manifest.json out of a stored zip without inflating, and refuses what it cannot read in words', async () => {
+  const m = G.manifestOf(BUNDLE); assert.equal(m.kind, 'frames'); assert.equal(m.version, 4); assert.deepEqual(plain(m.window.seconds), [2, 4]);
+  assert.throws(() => G.manifestOf(new Uint8Array([1, 2, 3])), /not a part of a film/);
+  const noManifest = zipOf((await entriesOf(BUNDLE)).filter(([n]) => n !== 'manifest.json')); assert.throws(() => G.manifestOf(noManifest), /no manifest/);
+  assert.throws(() => G.manifestOf(zipOf([['manifest.json', new TextEncoder().encode('{nope')]])), /damaged/);
+});
+
+function fakeClient({ versions = [], rpc = async () => ({ data: [], error: null }), jobs = [] } = {}) {
+  const calls = [];
+  const q = (table) => { const f = { table, filters: {} }; const chain = { select: () => chain, eq: (k, v) => { f.filters[k] = v; return chain; }, order: (col, o) => { f.asc = !!(o && o.ascending); return chain; }, limit: async () => {
+    calls.push(['from', table, f.filters]); if (table === 'versions') return { data: f.filters.id ? versions.filter(v => v.id === f.filters.id).map(v => ({ id: v.id })) : versions.filter(v => v.project_id === f.filters.project_id).sort((a, b) => (f.asc ? a.number - b.number : b.number - a.number)).map(v => ({ id: v.id, number: v.number })), error: null };
+    if (table === 'jobs') return { data: jobs.filter(j => j.id === f.filters.id), error: null }; return { data: [], error: null }; } }; return chain; };
+  return { calls, from: q, rpc: async (name, args) => { calls.push(['rpc', name, args]); return rpc(name, args); } };
+}
+
+test('glue build: asks request_film_bundle for the right version and window, signs and downloads the file, reads the plan from the first window manifest, and passes the worker own progress', async () => {
+  const first = G.manifestOf(BUNDLE);
+  // a first window whose manifest carries ENGINE film info (what makeFilmApi builds the plan from)
+  const withFilm = await withChange(m => ({ manifest: { ...m, window: { ...m.window, seconds: [0, 10] }, film: { film_seconds: 12.4, film_frames: 372, render_start: 1, windows: ['0:10', '10:13'] } } }));
+  let asks = 0; const progress = [];
+  const client = fakeClient({ versions: [{ id: UUID_V, project_id: UUID_P, number: 1 }, { id: '33333333-3333-4333-8333-333333333333', project_id: UUID_P, number: 2 }],
+    jobs: [{ id: 'job-1', progress: 0.4 }],
+    rpc: async (name, args) => { asks++; return asks === 1 ? { data: [{ status: 'building', job_id: 'job-1', storage_path: null, engine_commit: null, error_detail: null }], error: null } : { data: [{ status: 'ready', job_id: 'job-1', storage_path: 'a/b/film.bundle.zip', engine_commit: 'x', error_detail: null }], error: null }; } });
+  const api = G.build({ client, fileUrl: async p => `https://files.example.test/${p}`, project: UUID_P, tools: TOOLS, fetchImpl: async () => ({ ok: true, arrayBuffer: async () => withFilm.buffer.slice(withFilm.byteOffset, withFilm.byteOffset + withFilm.byteLength) }) });
+  const bytes = await api.window('0:10', { onProgress: p => progress.push(p) });
+  assert.equal(bytes.length, withFilm.length);
+  const rpcCall = client.calls.find(c => c[0] === 'rpc'); assert.deepEqual(plain(rpcCall.slice(1)), ['request_film_bundle', { p_version_id: '33333333-3333-4333-8333-333333333333', p_seconds: '0:10' }], 'the newest version of the project');
+  assert.deepEqual(progress, [0.4, 1], 'the worker own number while building, then done');
+  assert.equal(first.kind, 'frames');
+});
+
+test('glue build: a version id is used as it is; a bad address is refused in words; a database refusal keeps its SQLSTATE', async () => {
+  const client = fakeClient({ versions: [{ id: UUID_V, project_id: UUID_P, number: 1 }], rpc: async () => ({ data: null, error: { code: '22023', message: 'That part of the film is past its end.' } }) });
+  const api = G.build({ client, fileUrl: async () => 'x', project: UUID_V, tools: TOOLS });
+  await assert.rejects(api.window('0:10', {}), e => e.final === true && /past its end/.test(e.message));
+  assert.equal(client.calls.find(c => c[0] === 'rpc')[2].p_version_id, UUID_V);
+  const bad = G.build({ client, fileUrl: async () => 'x', project: 'not-an-id', tools: TOOLS });
+  await assert.rejects(bad.plan(), /could not be found/);
+  const none = G.build({ client: fakeClient({ versions: [] }), fileUrl: async () => 'x', project: UUID_P, tools: TOOLS });
+  await assert.rejects(none.plan(), /could not be found/);
+  assert.throws(() => G.build({ client: {}, fileUrl: async () => 'x', project: UUID_V, tools: TOOLS }), /needs a database client/);
+});
+
+test('wiring: the data layer offers filmApi, and the page loads CONNECT adapter and the glue before the film editor', () => {
+  assert.match(read('assets/app-data.js'), /filmApi\(project\) \{\s*return window\.ryagramFilmGlue\.build\(\{ client, fileUrl: path => api\.fileUrl\(path\), project \}\);/);
+  const html = read('app/index.html'), at = n => html.indexOf(n);
+  assert.ok(at('app-film-api.js') > 0 && at('app-film-api.js') < at('app-film-glue.js') && at('app-film-glue.js') < at('app-editor-film.js'));
+});
+
+test('glue build: every window asked is the window the editor wants, a missing progress is null, a packed manifest and an address that is not an id are refused', async () => {
+  const client = fakeClient({ versions: [{ id: UUID_V, project_id: UUID_P, number: 1 }, { id: 'not-an-id', project_id: 'x', number: 1 }], jobs: [],
+    rpc: async () => ({ data: [{ status: 'building', job_id: 'job-9', storage_path: null }], error: null }) });
+  let sleeps = 0;
+  const api = G.build({ client, fileUrl: async () => 'x', project: UUID_V, tools: { ...TOOLS, makeFilmApi: o => TOOLS.makeFilmApi({ ...o, sleep: async () => { if (++sleeps > 1) throw new Error('stop'); } }) } });
+  const seen = []; await assert.rejects(api.window('10:13', { onProgress: p => seen.push(p) }), /stop/);
+  assert.equal(client.calls.find(c => c[0] === 'rpc')[2].p_seconds, '10:13'); assert.ok(seen.length >= 1 && seen.every(x => x === null), 'no job row, no number: null, never an invented one');
+  const bad = G.build({ client, fileUrl: async () => 'x', project: 'not-an-id', tools: TOOLS });
+  await assert.rejects(bad.plan(), /could not be found/);
+  assert.equal(client.calls.some(c => c[0] === 'from' && c[2].id === 'not-an-id'), false, 'an address that is not an id is never looked up');
+  const packed = new Uint8Array(BUNDLE); const dv = new DataView(packed.buffer); let hit = false;
+  for (let i = 0; i < packed.length - 46; i++) if (dv.getUint32(i, true) === 0x02014b50 && new TextDecoder().decode(packed.subarray(i + 46, i + 46 + 13)) === 'manifest.json') { dv.setUint16(i + 10, 8, true); hit = true; }
+  assert.ok(hit); assert.throws(() => G.manifestOf(packed), /packed in a way/);
 });

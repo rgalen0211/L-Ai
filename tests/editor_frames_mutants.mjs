@@ -33,7 +33,6 @@ const mutants = [
   ['the window behind is never asked', FR, 'if (here.idx > 0) order.push(here.idx - 1);', ''],
   ['a control character stays in a label', FR, 'label: clean(c.label)', 'label: String(c.label)'],
   ['the film editor sets any HTML', 'assets/app-editor-film.js', 'view.innerHTML = r.svg;', 'view.innerHTML = r.svg + String(r.reason);'],
-  ['the page loads the film editor without an API', 'assets/app-editor.js', "typeof window.ryagramFilmApi === 'function' ? window.ryagramFilmApi(routeProject || null) : null;", "true ? (window.ryagramFilmApi || (() => ({})))(routeProject || null) : null;"],
   ['a colour swap is never applied', FR, "svg: this.drawer.draw(this._sceneFor(e), f, { parts: 'all' })", "svg: this.drawer.draw(e.win.scene, f, { parts: 'all' })"],
   ['a bad colour value is let through', FR, 'if (HEX.test(from) && HEX.test(to) && from !== to) out[from] = to;', 'out[from] = to;'],
   ['reset does not put the film colours back', FR, 'this.colours = out; this.cver++;', 'this.colours = Object.assign(this.colours, out); this.cver++;'],
@@ -48,6 +47,16 @@ const mutants = [
   ['a limit waits no longer than a drop', FR, "(err && err.code === '42501' ? 15000 : 3000)", '3000'],
   ['the engine commit is not compared', FR, 'if (scene.engine_commit !== manifest.engine_commit) fail(', 'if (false) fail('],
   ['the frame rate is not compared', FR, 'if (Number(scene.fps) !== Number(manifest.fps)) fail(', 'if (false) fail('],
+  ['the page loads the film editor without an API', 'assets/app-editor.js', "const filmApi = filmReady && typeof window.ryagramFilmApi === 'function' ?", "const filmApi = filmReady && true ?"],
+  ['the live film API runs in the mock too', 'assets/app-editor.js', 'filmReady && routeProject && !window.ryagramMock && data', 'filmReady && routeProject && data'],
+  ['the stand-in is dropped before the film opens', 'assets/app-editor.js', 'if (ok && !destroyedEditor) { standin.hidden = true; filmEd.el.hidden = false; }', 'standin.hidden = true; filmEd.el.hidden = false;'],
+  ['the film editor shows before the film opens', 'assets/app-editor.js', 'if (filmEd) filmEd.el.hidden = true;', ''],
+  ['the glue asks the oldest version', 'assets/app-film-glue.js', "order('number', { ascending: false })", "order('number', { ascending: true })"],
+  ['the glue asks for another window than it was given', 'assets/app-film-glue.js', "p_seconds: text", "p_seconds: '0:10'"],
+  ['the glue loses the SQLSTATE', 'assets/app-film-glue.js', "e.code = r.error.code || null;", ""],
+  ['the glue invents a progress number', 'assets/app-film-glue.js', "return typeof v === 'number' ? v : null;", "return typeof v === 'number' ? v : 0.5;"],
+  ['the glue reads a packed manifest', 'assets/app-film-glue.js', "if (method !== 0) fail(", "if (false) fail("],
+  ['the glue accepts any address', 'assets/app-film-glue.js', "if (typeof project !== 'string' || !UUID.test(project)) fail(", "if (false) fail("],
 ];
 
 function run(cwd) {
