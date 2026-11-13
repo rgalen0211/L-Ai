@@ -7,7 +7,7 @@
 -- finds the project's CURRENT saved story itself). The advisory lock has the SAME key as the connector's ask, so a chat ask and a site ask at the same instant still count one after the other.
 -- Differences from the connector twins, and only these: the person is the signed-in session (auth.uid() through require_signed_in()), not a token; and a waiting-list account is refused by the gate (gate_apply at the end),
 -- the same way it refuses every other function a signed-in account can run. The two functions are runnable by a signed-in session only (not public, not anon).
--- Needs 20261109000100_film_cards.sql and 20261104000100_waiting_accounts.sql. Undo: supabase/rollbacks/20261113000500_my_film_cards_rollback.sql. After: supabase/live-steps/28_my_film_cards_after_check.sql.
+-- Needs 20261109000100_film_cards.sql and 20261104000100_waiting_accounts.sql. Undo: supabase/rollbacks/20261113000500_my_film_cards_rollback.sql. (Undo this BEFORE 20261109000100_film_cards_rollback.sql: the reverse of the order applied.) After: supabase/live-steps/28_my_film_cards_after_check.sql.
 
 begin;
 
