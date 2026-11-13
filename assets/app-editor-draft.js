@@ -31,7 +31,10 @@
     }
 
     // Send the person's changes (1 to 20 ops). Accepted: applied on screen. Refused: nothing changes on screen, and the reason is a sentence.
-    async function send(ops) {
+    // One write at a time: a host may hold a write for seconds (ChatGPT asks the person first), and a second change made meanwhile must be sent against the revision the first one produces, not the old one (it would be refused as stale with a wrong reason).
+    let tail = Promise.resolve();
+    function send(ops) { const run = tail.then(() => sendNow(ops)); tail = run.then(() => {}, () => {}); return run; }
+    async function sendNow(ops) {
       if (ready) await ready;
       for (const op of ops) { const why = window.ryagramEditor.check(editor.state, op, editor.lookKeys); if (why) return { ok: false, reason: why }; }
       const r = await rpc('editor_apply_ops', { p_project: project, p_mode: mode, p_base_revision: state.revision, p_ops: ops });
