@@ -17,8 +17,8 @@ const mutants = [
   ['a window longer than ten seconds is used', FR, 'w.seconds[1] - w.seconds[0] > WINDOW', 'false'],
   ['another story is drawn', FR, 'scene.story_sha256 !== manifest.story_sha256', 'false'],
   ['the wrong format version is drawn', FR, 'manifest.version !== 4', 'false'],
-  ['a failed window is asked again', FR, "if (e.state === 'failed') return;", ''],
-  ['the next window is not asked for', FR, 'this._start(windowFor(w.b).text, true);', ''],
+  ['a failed window is asked again', FR, "_settled(e) { return e.state === 'ready' || e.state === 'building' || e.state === 'failed'; }", "_settled(e) { return e.state === 'ready' || e.state === 'building'; }"],
+  ['no window ahead is asked for', FR, 'for (let k = 1; k <= 2; k++) if (here.idx + k < this.plan.windows.length) order.push(here.idx + k);', ''],
   ['a moment outside the window gets the last frame', FR, 'return f < win.frames ? f : (Number(second) <= win.seconds[1] ? win.frames - 1 : null);', 'return win.frames - 1;'],
   ['a moment before the window gets a frame', FR, 'if (!Number.isFinite(rel) || rel < 0) return null;', 'if (!Number.isFinite(rel)) return null;'],
   ['windows are never evicted', FR, 'this._evict(); this.onChange(text, e);', 'this.onChange(text, e);'],
@@ -41,6 +41,13 @@ const mutants = [
   ['a colour the window does not use is passed to the drawer', FR, 'if (have.has(from)) pairs[from] = to;', 'pairs[from] = to;'],
   ['the colours are offered before the window is ready', FR, "if (!e || e.state !== 'ready' || typeof this.drawer.palette !== 'function') return [];", "if (!e) return [];"],
   ['the page does not say the colours are not saved', 'assets/app-editor-film.js', 'It is not saved to your film yet.', 'It is saved.'],
+  ['a bundle for another window is accepted', FR, "if (win.seconds[0] !== a || win.seconds[1] !== b) fail(", "if (false) fail("],
+  ['a dropped connection is final', FR, "if (err instanceof FramesError || (window.ryagramZip && err instanceof window.ryagramZip.BundleError) || (err && err.final === true)) e.state = 'failed';", "e.state = 'failed'; if (false) {"],
+  ['a refusal of the bundle is not final', FR, "if (err instanceof FramesError || (window.ryagramZip && err instanceof window.ryagramZip.BundleError) || (err && err.final === true)) e.state = 'failed';\n        else {", "if (err && err.final === true) e.state = 'failed';\n        else {"],
+  ['a window is asked again without waiting', FR, 'if (e.retryAt && this.now() < e.retryAt) return;\n      e.state', 'e.state'],
+  ['a limit waits no longer than a drop', FR, "(err && err.code === '42501' ? 15000 : 3000)", '3000'],
+  ['the engine commit is not compared', FR, 'if (scene.engine_commit !== manifest.engine_commit) fail(', 'if (false) fail('],
+  ['the frame rate is not compared', FR, 'if (Number(scene.fps) !== Number(manifest.fps)) fail(', 'if (false) fail('],
 ];
 
 function run(cwd) {

@@ -27,7 +27,7 @@
     const keys = h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.');
     const colourBox = h('section', { class: 'le-film-colours', 'aria-labelledby': 'le-film-col-h' });
     const el = h('div', { class: 'le-film' }, view, status, h('div', { class: 'le-scrub' }, playBtn, range, posText), tracks, keys, colourBox);
-    let store = null, plan = null, position = 0, timer = null, destroyed = false, lastSvg = false, rulerPaint = null, headBar = null;
+    let retry = null, store = null, plan = null, position = 0, timer = null, destroyed = false, lastSvg = false, rulerPaint = null, headBar = null;
     const fontsDone = new Set();
 
     const total = () => plan.totalSeconds;
@@ -65,12 +65,13 @@
       const r = store.frameAt(position);
       if (r.state === 'ready') { view.innerHTML = r.svg; lastSvg = true; say(''); paintColours(); }
       else if (r.state === 'failed') say(r.reason || 'This part of your film could not be drawn.', true);
+      else if (r.state === 'idle' && r.reason) { say(`${r.reason} Trying again in a moment.`); if (!retry && !destroyed) retry = setTimeout(() => { retry = null; if (!destroyed) draw(); }, 3000); }
       else say(progressLine(store.progressOf(position)));                       // the worker's own heartbeat 0..1, or a plain line: never a number it did not send
       if (r.state !== 'ready' && !lastSvg) view.replaceChildren(h('p', { class: 'meta le-film-block' }, 'Drawing this part of your film.'));
     }
     const seekSeconds = s => { stop(); position = Math.max(0, Math.min(total(), s)); range.value = String(Math.min(plan.totalFrames - 1, Math.round(position * plan.fps))); draw(); };
     function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; }
-    onStop(() => { destroyed = true; stop(); });
+    onStop(() => { destroyed = true; stop(); if (retry) clearTimeout(retry); });
 
     range.addEventListener('input', () => { stop(); position = Math.min(total(), Number(range.value) / plan.fps); draw(); });
     range.addEventListener('keydown', ev => {

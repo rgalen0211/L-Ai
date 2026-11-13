@@ -29,6 +29,8 @@ window.ryagramFilmApi = () => ({
       render_clip: 'main', render_start: 1, total_seconds: 5, total_frames: 150 } }),
   window: async (text, o) => {
     const [a, b] = text.split(':'); o.onProgress(0.25); await new Promise(r => setTimeout(r, a === '2' ? 1200 : 300)); o.onProgress(0.6);
+    window.__asks = window.__asks || {}; window.__asks[text] = (window.__asks[text] || 0) + 1;
+    if (a === '2' && window.__asks[text] === 1) throw new Error('the network dropped');          // the first ask of the second window fails once: the page says so and asks again
     const data = window.__fixtures[a + '-' + b]; if (!data) throw new Error('that part of your film is not here');          // the page's own connect-src allows only Supabase, so the fixtures are handed in
     const bin = atob(data), out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out;
   }
@@ -77,6 +79,8 @@ with sync_playwright() as pw:
         for _ in range(80):                                                  # (the page's CSP forbids wait_for_function's eval)
             if p.locator('.le-film-status').inner_text() == '': break
             p.wait_for_timeout(250)
+        asks = p.evaluate("window.__asks['2:4']")
+        check(asks >= 2, f'a dropped connection is asked again after a pause, not given up on ({asks} asks)')
         a1 = p.evaluate("document.querySelector('.le-film-view').innerHTML.length")
         check(a1 > 100000, 'then the picture of that moment is drawn')
         # try colours: preview only, redraws at once, and puts the film's colours back

@@ -5,7 +5,8 @@
 //
 //   open(bytes, { drawer }) -> { scene, manifest, fonts, first, frames, fps, seconds: [a, b] }       checked: manifest, window, every file's size and sha256
 //   windowFor(second) -> { a, b, text }                                                                the 10-second window that holds a moment
-//   new FrameStore({ fetchWindow, drawer, onChange }): want(second) -> state, frameAt(second) -> { state, svg } , thumbUri(second, width), states()
+//   new FrameStore({ fetchWindow, drawer, onChange, plan }): SECONDS: with a plan, want/frameAt/thumbUri take FILM seconds (the window second is the film second minus plan.timeline.render_start); without one they take
+//   window seconds on the 10-second grid (tests only). want(second) -> state, frameAt(second) -> { state, svg } , thumbUri(second, width), states()
 //
 // A window's state is one of: 'idle', 'building' (asked for, not here yet), 'ready', 'failed' (with a reason in words). Nothing is invented: a moment whose window is not ready has no picture.
 (() => {
@@ -84,6 +85,8 @@
     }
     const scene = await Z.sceneJson(files['scene.json.gz']);
     if (!isObj(scene) || scene.kind !== 'frames' || scene.frames !== w.frames || scene.first_frame !== w.first_frame || scene.story_sha256 !== manifest.story_sha256) fail('The picture data of this part of your film does not match its manifest.');
+    if (scene.engine_commit !== manifest.engine_commit) fail('The picture data of this part of your film was drawn by another version of the engine than its manifest names.');
+    if (Number(scene.fps) !== Number(manifest.fps)) fail('The picture data of this part of your film has another frame rate than its manifest.');
     if (drawer && typeof drawer.draw !== 'function') fail('The drawing code is not loaded.');
     const fonts = {}; for (const n of inside) if (n.startsWith('fonts/')) fonts[n] = files[n];
     return { scene, manifest, fonts, first: w.first_frame, frames: w.frames, fps: Number(manifest.fps) || Number(scene.fps) || 30, seconds: [w.seconds[0], w.seconds[1]] };
@@ -99,10 +102,10 @@
 
   class FrameStore {
     // fetchWindow(text, { onProgress }) -> Promise<Uint8Array | ArrayBuffer>: the page's own way to get one window (request, wait, signed link, download); it may reject with an Error whose message is the reason.
-    constructor({ fetchWindow, drawer = DRAWER, onChange = () => {}, keep = 6, plan = null, maxInFlight = 2 } = {}) {
+    constructor({ fetchWindow, drawer = DRAWER, onChange = () => {}, keep = 6, plan = null, maxInFlight = 2, now = () => Date.now() } = {}) {
       if (typeof fetchWindow !== 'function') fail('A film store needs a way to get a window.');
       if (!drawer) fail('The drawing code for your film is not loaded.');
-      this.fetchWindow = fetchWindow; this.drawer = drawer; this.onChange = onChange; this.keep = Math.max(2, keep);
+      this.now = now; this.fetchWindow = fetchWindow; this.drawer = drawer; this.onChange = onChange; this.keep = Math.max(2, keep);
       this.plan = plan ? checkPlan(plan) : null; this.maxInFlight = Math.max(1, maxInFlight);
       this.colours = {}; this.cver = 0;           // a preview-only colour swap {from: to} in #rrggbb, applied to every window as it is drawn (ENGINE's recolour)
       this.wins = new Map();                       // text -> { state, reason, win, at, progress }
@@ -120,29 +123,39 @@
       const t = Number(second) - this.plan.renderStart, i = windowIndex(this.plan.windows, t);
       return i < 0 ? { text: null, sec: t, idx: -1 } : { text: this.plan.windows[i].window, sec: t, idx: i };
     }
+    _settled(e) { return e.state === 'ready' || e.state === 'building' || e.state === 'failed'; }   // nothing more to ask for: here, on its way, or refused for good
     building() { return [...this.wins.values()].filter(e => e.state === 'building').length; }
     // Ask for the window under the playhead first, then the ones ahead, then one behind, never more than maxInFlight building at once (the worker builds one at a time). Returns the state of the first.
     want(second) {
-      if (!this.plan) { const w = windowFor(second); this._start(w.text); this._start(windowFor(w.b).text, true); return this._entry(w.text).state; }
+      if (!this.plan) { const w = windowFor(second); this._start(w.text); this._start(windowFor(w.b).text); return this._entry(w.text).state; }
       const here = this._where(second); if (here.idx < 0) return 'outside';
       const order = [here.idx]; for (let k = 1; k <= 2; k++) if (here.idx + k < this.plan.windows.length) order.push(here.idx + k); if (here.idx > 0) order.push(here.idx - 1);
       for (const i of order) {
         const text = this.plan.windows[i].window, e = this._entry(text);
-        if (e.state === 'ready' || e.state === 'building' || e.state === 'failed') { e.at = ++this.clock; continue; }
+        if (this._settled(e)) { e.at = ++this.clock; continue; }
         if (this.building() >= this.maxInFlight) break;
-        this._start(text, i !== here.idx);
+        this._start(text);
       }
       return this._entry(this.plan.windows[here.idx].window).state;
     }
-    _start(text, quiet = false) {
+    // Starts a window. A failure is FINAL only when the bundle itself is refused (open() throws a FramesError, or it is not the window asked for) or the fetch says its job failed on its input (err.final === true):
+    // that is what the database remembers too. Anything else (a dropped connection, a timeout, a limit or a pause: SQLSTATE 42501) puts the window back to 'idle' with the words and a pause before it is asked again.
+    _start(text) {
       const e = this._entry(text); e.at = ++this.clock;
-      if (e.state === 'ready' || e.state === 'building') return;
-      if (e.state === 'failed') return;                                          // a failure is final for this story (the database says so too): it is not asked again until the store is replaced
-      e.state = 'building'; e.reason = '';
+      if (this._settled(e)) return;
+      if (e.retryAt && this.now() < e.retryAt) return;
+      e.state = 'building'; e.reason = ''; e.retryAt = 0;
       const progress = p => { e.progress = p; this.onChange(text, e); };
       Promise.resolve().then(() => this.fetchWindow(text, { onProgress: progress })).then(bytes => open(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes), { drawer: this.drawer })).then(win => {
+        const [a, b] = String(text).split(':').map(Number);
+        if (win.seconds[0] !== a || win.seconds[1] !== b) fail('This part of your film is not the part that was asked for.');
         e.win = win; e.state = 'ready'; e.progress = 1; this._evict(); this.onChange(text, e);
-      }).catch(err => { e.state = 'failed'; e.reason = clean(err && err.message) || 'This part of your film could not be drawn.'; if (!quiet || true) this.onChange(text, e); });
+      }).catch(err => {
+        e.reason = clean(err && err.message) || 'This part of your film could not be drawn.';
+        if (err instanceof FramesError || (window.ryagramZip && err instanceof window.ryagramZip.BundleError) || (err && err.final === true)) e.state = 'failed';
+        else { e.state = 'idle'; e.progress = null; e.retryAt = this.now() + (Number(err && err.retryAfterMs) > 0 ? Number(err.retryAfterMs) : (err && err.code === '42501' ? 15000 : 3000)); }
+        this.onChange(text, e);
+      });
     }
     // Try colours (preview only): map is { '#rrggbb': '#rrggbb' }; anything else is dropped; {} puts the film's own colours back. The window's own scene is never changed: a recoloured copy is drawn.
     setColours(map) {

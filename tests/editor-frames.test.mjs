@@ -87,34 +87,75 @@ test('frameIn: the 0-based frame of a moment inside a window, or null outside it
 
 // wait until no window of the store is still building (opening a real bundle takes a moment)
 const settle = async store => { await new Promise(r => setTimeout(r, 5)); for (let i = 0; i < 400 && store && [...store.wins.values()].some(e => e.state === 'building'); i++) await new Promise(r => setTimeout(r, 25)); };
-test('FrameStore: asks for the window under the playhead first, then the next; says nothing before it is ready; a failure keeps its reason and is final', async () => {
+const FIX = { '0:2': bin('tests/fixtures/film-bundle-synthetic-0-2.zip'), '2:4': BUNDLE };
+const PLAN0 = { fps: 30, frames: 120, seconds: 4, windows: [{ seconds: [0, 2], window: '0:2' }, { seconds: [2, 4], window: '2:4' }],
+  timeline: { clips: [{ id: 'main', kind: 'render', label: 'Invented film', start: 0, seconds: 4, drawn: true }], render_clip: 'main', render_start: 0, total_seconds: 4, total_frames: 120 } };
+const serve = async text => { if (!FIX[text]) throw new Error('not built yet'); return FIX[text]; };
+
+test('FrameStore: asks for the window under the playhead first, then the next; says nothing before it is ready', async () => {
   const asked = []; const changes = [];
-  const store = new F.FrameStore({ fetchWindow: async text => { asked.push(text); if (text === '0:10') return BUNDLE; throw new Error('not built yet'); }, drawer: D, onChange: (t, e) => changes.push([t, e.state]) });
+  const store = new F.FrameStore({ plan: PLAN0, drawer: D, fetchWindow: async text => { asked.push(text); return FIX[text]; }, onChange: (t, e) => changes.push([t, e.state]) });
   assert.equal(store.want(2.5), 'building');
   assert.deepEqual(plain(store.frameAt(2.5)), { state: 'building', svg: null, reason: '' });
-  await settle(store); assert.deepEqual(asked, ['0:10', '10:20'], 'the playhead window first, then the next');
-  assert.equal(store.stateOf(2.5), 'ready'); assert.equal(store.stateOf(12), 'failed'); assert.equal(store.reasonOf(12), 'not built yet');
-  assert.ok(changes.some(([t, s]) => t === '0:10' && s === 'ready'));
-  store.want(12); await settle(store); assert.deepEqual(asked, ['0:10', '10:20', '20:30'], 'a failed window is not asked again; the next one is');
+  await settle(store); assert.deepEqual(asked, ['2:4', '0:2'], 'the playhead window first, then the one behind');
+  assert.equal(store.stateOf(2.5), 'ready'); assert.ok(changes.some(([t, s]) => t === '2:4' && s === 'ready'));
 });
 
 test('FrameStore: a ready window draws the engine\'s own SVG for a moment, a thumbnail on request, and nothing for a moment outside it', async () => {
-  const store = new F.FrameStore({ fetchWindow: async () => BUNDLE, drawer: D });
+  const store = new F.FrameStore({ plan: PLAN0, drawer: D, fetchWindow: serve });
   store.want(2); await settle(store);
   const a = store.frameAt(2.5); assert.equal(a.state, 'ready'); assert.equal(a.frame, 15); assert.match(a.svg, /^<svg /); assert.ok(a.svg.length > 100000);
   const b = store.frameAt(3.5); assert.notEqual(a.svg, b.svg, 'a different moment is a different picture');
-  assert.equal(a.svg, D.draw(store.wins.get('0:10').win.scene, 15, { parts: 'all' }), 'the very drawing the engine drawer makes');
-  const u = store.thumbUri(2.5, 160); assert.match(u, /^data:image\/svg\+xml/);
+  assert.equal(a.svg, D.draw(store.wins.get('2:4').win.scene, 15, { parts: 'all' }), 'the very drawing the engine drawer makes');
+  assert.match(store.thumbUri(2.5, 160), /^data:image\/svg\+xml/);
   assert.equal(store.thumbUri(2.5, 5) !== null, true, 'a tiny width is raised to the drawer minimum, not refused');
+  assert.equal(store.frameAt(4.5).state, 'outside');
 });
 
-test('FrameStore: a bundle that is not the window asked for is refused in words, and windows leave the store oldest first', async () => {
-  const bad = new F.FrameStore({ fetchWindow: async () => new Uint8Array([9, 9, 9]), drawer: D });
+test('FrameStore: a bundle that is not the window asked for is refused in words (a server mix-up leaves no silent hole), and windows leave the store oldest first', async () => {
+  const wrong = new F.FrameStore({ plan: { ...PLAN0, windows: [{ seconds: [0, 2], window: '0:2' }, { seconds: [2, 4], window: '2:4' }] }, drawer: D, fetchWindow: async () => BUNDLE });   // the 2:4 bundle served for 0:2 too
+  wrong.want(0.5); await settle(wrong);
+  assert.equal(wrong.stateOf(0.5), 'failed'); assert.match(wrong.reasonOf(0.5), /not the part that was asked for/);
+  assert.equal(wrong.stateOf(2.5), 'ready', 'the right bundle for its own window is fine');
+  const grid = new F.FrameStore({ drawer: D, fetchWindow: async () => BUNDLE });                                       // the 10-second grid asks for 20:30 and gets 2:4
+  grid.want(25); await settle(grid); assert.equal(grid.stateOf(25), 'failed'); assert.match(grid.reasonOf(25), /not the part that was asked for/);
+  const bad = new F.FrameStore({ plan: PLAN0, fetchWindow: async () => new Uint8Array([9, 9, 9]), drawer: D });
   bad.want(0); await settle(bad); assert.equal(bad.stateOf(0), 'failed'); assert.ok(bad.reasonOf(0).length > 5);
-  const seen = []; const store = new F.FrameStore({ fetchWindow: async text => { seen.push(text); return BUNDLE; }, drawer: D, keep: 2 });
-  for (const s of [0, 10, 20, 30]) { store.want(s); await settle(store); }
-  assert.ok([...store.wins.values()].filter(e => e.state === 'ready').length <= 2, 'at most keep windows stay');
+  const third = await withChange(m => ({ manifest: { ...m, window: { ...m.window, seconds: [4, 6] } } }));                // a third real window (the 2:4 scene named 4:6) so there is more than the store keeps
+  const three = { ...PLAN0, windows: [0, 2, 4].map(a => ({ seconds: [a, a + 2], window: `${a}:${a + 2}` })), timeline: { ...PLAN0.timeline, total_seconds: 6, total_frames: 180 } };
+  const many = new F.FrameStore({ plan: three, drawer: D, keep: 2, fetchWindow: async text => (text === '4:6' ? third : FIX[text]) });
+  for (const s of [0.5, 2.5, 4.5]) { many.want(s); await settle(many); }
+  assert.equal([...many.wins.values()].filter(e => e.state === 'ready').length, 2, 'only keep windows stay, the oldest left');
+  assert.equal(many.stateOf(4.5), 'ready'); assert.equal(many.wins.has('0:2'), false, 'the oldest is the one that went');
   assert.throws(() => new F.FrameStore({}), /needs a way to get a window/);
+});
+
+test('FrameStore: only a refusal of the bundle or a job that failed on its input is final; a dropped connection, a limit or a pause waits and is asked again, with the words', async () => {
+  let now = 1000; const calls = {}; const script = [() => { throw new Error('the network dropped'); }, () => { const e = new Error('Six parts of your film are already being drawn. Try again when one is ready.'); e.code = '42501'; throw e; }, () => FIX['0:2']];
+  const store = new F.FrameStore({ plan: { ...PLAN0, windows: [{ seconds: [0, 2], window: '0:2' }] }, drawer: D, now: () => now, fetchWindow: async text => script[Math.min(calls[text] = (calls[text] || 0) + 1, 3) - 1]() });
+  store.want(0.5); await settle(store);
+  assert.equal(store.stateOf(0.5), 'idle'); assert.equal(store.reasonOf(0.5), 'the network dropped');
+  store.want(0.5); await settle(store); assert.equal(calls['0:2'], 1, 'not asked again before its pause is over');
+  now += 3100; store.want(0.5); await settle(store);
+  assert.equal(calls['0:2'], 2); assert.equal(store.stateOf(0.5), 'idle'); assert.match(store.reasonOf(0.5), /Six parts/);
+  now += 5000; store.want(0.5); await settle(store); assert.equal(calls['0:2'], 2, 'a limit waits longer (15 s)');
+  now += 11000; store.want(0.5); await settle(store); assert.equal(calls['0:2'], 3); assert.equal(store.stateOf(0.5), 'ready');
+  let finalCalls = 0;
+  const final = new F.FrameStore({ plan: { ...PLAN0, windows: [{ seconds: [0, 2], window: '0:2' }] }, drawer: D, now: () => now, fetchWindow: async () => { finalCalls++; const e = new Error('This part of the film failed for its own input.'); e.final = true; throw e; } });
+  final.want(0.5); await settle(final); assert.equal(final.stateOf(0.5), 'failed'); now += 100000; final.want(0.5); await settle(final); assert.equal(final.stateOf(0.5), 'failed', 'final stays final'); assert.equal(finalCalls, 1, 'and is never asked again');
+});
+
+test('FrameStore with a render_start of 3: film second 3.5 is window second 0.5, and a moment in the 3 s title has no window', async () => {
+  const store = new F.FrameStore({ plan: { ...PLAN0, timeline: { ...PLAN0.timeline, render_start: 3, total_seconds: 7, total_frames: 210, clips: [{ id: 't', kind: 'title', label: 'Invented', start: 0, seconds: 3, drawn: false }, { ...PLAN0.timeline.clips[0], start: 3 }] } }, drawer: D, fetchWindow: serve });
+  assert.equal(store.want(1), 'outside'); assert.equal(store.frameAt(2.9).state, 'outside');
+  store.want(3.5); await settle(store); const a = store.frameAt(3.5); assert.equal(a.state, 'ready'); assert.equal(a.frame, 15, 'film 3.5 = window 0.5 = frame 15 of 0:2');
+  assert.equal(store.frameAt(5.5).frame, 15, 'film 5.5 = window 2.5 = frame 15 of 2:4'); assert.equal(store.frameAt(7).state, 'ready', 'the end of the film'); assert.equal(store.frameAt(7.1).state, 'outside');
+});
+
+test('open also refuses a scene drawn by another engine version, or at another frame rate, than its manifest says', async () => {
+  const refused = async (fn, re, label) => assert.rejects(async () => F.open(await withChange(fn), { drawer: D }), re, label);
+  await refused(m => ({ manifest: { ...m, engine_commit: '0'.repeat(40) } }), /another version of the engine/, 'engine commit');
+  await refused(m => ({ manifest: { ...m, fps: 24 } }), /another frame rate/, 'frame rate');
 });
 
 test('wiring: the module and the drawer are not on a page until a page asks; the zip reader names manifest.json', () => {
@@ -179,17 +220,17 @@ test('the film editor: it mounts only for a film API, shows labels as text, and 
 });
 
 test('try colours: the palette of a ready window, a preview-only swap that redraws, never touches the window, ignores unknown colours, and puts the film colours back', async () => {
-  const store = new F.FrameStore({ fetchWindow: async () => BUNDLE, drawer: D });
+  const store = new F.FrameStore({ plan: PLAN0, fetchWindow: serve, drawer: D });
   assert.equal(store.paletteAt(2.5).length, 0, 'nothing for a window nobody asked for');
   store.want(2); assert.equal(store.paletteAt(2.5).length, 0, 'nothing while the window is still being made'); await settle(store);
   const pal = store.paletteAt(2.5); assert.ok(pal.length >= 3); assert.ok(pal.every(c => /^#[0-9a-f]{6}$/.test(c.colour) && c.uses >= 0 && c.elements >= 0));
   assert.ok(pal[0].uses >= pal.at(-1).uses, 'most used first');
-  const before = store.frameAt(2.5).svg, sceneBefore = JSON.stringify(store.wins.get('0:10').win.scene.items.slice(0, 50));
+  const before = store.frameAt(2.5).svg, sceneBefore = JSON.stringify(store.wins.get('2:4').win.scene.items.slice(0, 50));
   const target = pal.find(c => c.elements > 0).colour;
   store.setColours({ [target]: '#ff00aa' });
   const after = store.frameAt(2.5).svg;
   assert.notEqual(after, before, 'the picture changes'); assert.ok(after.toLowerCase().includes('#ff00aa') || after.includes('255,0,170') , 'the new colour is in the drawing');
-  assert.equal(JSON.stringify(store.wins.get('0:10').win.scene.items.slice(0, 50)), sceneBefore, 'the window itself is not changed');
+  assert.equal(JSON.stringify(store.wins.get('2:4').win.scene.items.slice(0, 50)), sceneBefore, 'the window itself is not changed');
   store.setColours({ '#123456': '#ff00aa', 'not a colour': '#ff00aa', [target]: 'red' });                      // an unknown colour and bad values are dropped, not thrown
   assert.equal(Object.keys(store.colours).length, 1, 'only the well-formed pair is kept (the unknown colour waits, the bad value is gone)');
   assert.equal(store.colours['#123456'], '#ff00aa');
@@ -202,4 +243,12 @@ test('try colours: the palette of a ready window, a preview-only swap that redra
 
 test('the colour panel says plainly that a change is not saved', () => {
   assert.match(read('assets/app-editor-film.js'), /This changes the picture you see here only\. It is not saved to your film yet\./);
+});
+
+test('FrameStore with a plan asks ahead of the playhead too, and never more than maxInFlight at once', async () => {
+  const asked = [];
+  const wide = { ...PLAN0, windows: [0, 2, 4, 6].map(a => ({ seconds: [a, a + 2], window: `${a}:${a + 2}` })), timeline: { ...PLAN0.timeline, total_seconds: 8, total_frames: 240 } };
+  const store = new F.FrameStore({ plan: wide, drawer: D, maxInFlight: 3, fetchWindow: async text => { asked.push(text); throw new Error('wait'); } });
+  store.want(2.5); await settle(store);
+  assert.deepEqual(asked, ['2:4', '4:6', '6:8'], 'the playhead window, then two ahead (the one behind waits for a free slot)');
 });
