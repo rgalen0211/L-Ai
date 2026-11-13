@@ -677,6 +677,11 @@
         const data = await run(client.storage.from(ARTIFACT_BUCKET).createSignedUrl(path, SIGNED_URL_SECONDS),
           'Couldn’t open the file.');
         return data.signedUrl;
+      },
+
+      // The editor's film API (the real frames): request_film_bundle, the signed link and the job's own progress, through assets/app-film-glue.js and CONNECT's assets/app-film-api.js. Nothing is asked until the editor asks.
+      filmApi(project) {
+        return window.ryagramFilmGlue.build({ client, fileUrl: path => api.fileUrl(path), project });
       }
     };
     return api;
