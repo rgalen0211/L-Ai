@@ -106,26 +106,36 @@
   // nothing in it can collide with the page.
   const SVG_NS = 'http://www.w3.org/2000/svg';
   const XML_NS = 'http:' + '//www.w3.org/XML/1998/namespace';                     // written in two pieces: the page's own check forbids a web address anywhere in its text (the SVG namespace aside)
-  const CARD_ELEMENTS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'title']);
+  const CARD_ELEMENTS = new Set(['svg', 'g', 'path', 'rect', 'circle', 'ellipse', 'line', 'polyline', 'polygon', 'text', 'tspan', 'defs', 'linearGradient', 'radialGradient', 'stop', 'clipPath', 'title', 'pattern']);
+  const PATTERN_CHILDREN = new Set(['line', 'path', 'rect']);                 // what a pattern (the film's hatch tile) may hold: direct children of these kinds, with nothing inside them
   const CARD_TEXT = new Set(['text', 'tspan', 'title']);
   const CARD_ATTRS = new Set(['id', 'x', 'y', 'x1', 'y1', 'x2', 'y2', 'cx', 'cy', 'r', 'rx', 'ry', 'width', 'height', 'd', 'points', 'transform', 'viewBox', 'preserveAspectRatio', 'fill', 'stroke', 'stroke-width',
     'stroke-linecap', 'stroke-linejoin', 'stroke-dasharray', 'stroke-dashoffset', 'stroke-opacity', 'fill-opacity', 'opacity', 'fill-rule', 'clip-rule', 'clip-path', 'font-family', 'font-size', 'font-weight', 'font-style',
-    'text-anchor', 'dominant-baseline', 'letter-spacing', 'textLength', 'lengthAdjust', 'xml:space', 'dx', 'dy', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform']);
+    'text-anchor', 'dominant-baseline', 'letter-spacing', 'textLength', 'lengthAdjust', 'xml:space', 'dx', 'dy', 'offset', 'stop-color', 'stop-opacity', 'gradientUnits', 'gradientTransform', 'patternUnits', 'patternTransform']);
   const URL_REF = /^url\(#([A-Za-z0-9_-]{1,40})\)$/;
   function drawCard(svg) {
     try {
-      if (typeof svg !== 'string' || svg.length === 0 || svg.length > 200000) return null;
+      if (typeof svg !== 'string' || svg.length === 0 || svg.length > 300000) return null;
       const doc = new DOMParser().parseFromString(svg, 'image/svg+xml');
       const root = doc.documentElement;
       if (!root || root.localName !== 'svg' || doc.getElementsByTagName('parsererror').length) return null;
-      let count = 0;
-      const copy = (src, depth) => {
+      let count = 0, patterns = 0;
+      const copy = (src, depth, inPattern) => {
         if (depth > 30 || ++count > 30000) throw new Error('too big');
+        if (src.localName === 'pattern' && ++patterns > 100) throw new Error('too many patterns');
+        if (src.localName === 'pattern') {                              // the tile is 2 to 64 wide and high, plain numbers, or the whole pattern is left out (what is filled by it then paints nothing)
+          const tile = (k) => { const v = src.getAttribute(k); return v !== null && /^\d{1,2}(?:\.\d{1,3})?$/.test(v) && +v >= 2 && +v <= 64; };
+          if (!tile('width') || !tile('height')) return null;
+        }
+        const patternish = inPattern || src.localName === 'pattern';
         const el = document.createElementNS(SVG_NS, src.localName);
         for (const a of Array.from(src.attributes)) {
           if (!CARD_ATTRS.has(a.name)) continue;
           const v = String(a.value);
           if (v.length > 60000) continue;
+          if ((a.name === 'patternUnits' || a.name === 'patternTransform') && src.localName !== 'pattern') continue;                // a pattern's own attributes, on a pattern only
+          if (patternish && /url\(/i.test(v)) continue;                      // a pattern, and what is inside it, refers to nothing
+          if (a.name === 'patternUnits' && v !== 'userSpaceOnUse' && v !== 'objectBoundingBox') continue;
           if (a.name === 'lengthAdjust' && v !== 'spacing' && v !== 'spacingAndGlyphs') continue;          // the two words the connector allows, or the attribute is dropped
           if (a.name === 'xml:space') { if (v === 'preserve' || v === 'default') el.setAttributeNS(XML_NS, 'xml:space', v); continue; }          // in its own (xml) namespace, and only the two allowed words
           if (a.name === 'textLength' && !/^\d{1,5}(?:\.\d{1,3})?$/.test(v)) continue;                // a plain number only (the connector refuses anything else; this is the second lock)
@@ -137,12 +147,12 @@
           else el.setAttribute(a.name, a.name === 'id' ? 'lecard-' + v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : v);
         }
         for (const n of Array.from(src.childNodes)) {
-          if (n.nodeType === 1) { if (n.namespaceURI === SVG_NS && CARD_ELEMENTS.has(n.localName)) el.appendChild(copy(n, depth + 1)); }
+          if (n.nodeType === 1) { if (n.namespaceURI === SVG_NS && CARD_ELEMENTS.has(n.localName) && (!inPattern && !(src.localName === 'pattern') || (src.localName === 'pattern' && PATTERN_CHILDREN.has(n.localName)))) { const kid = copy(n, depth + 1, patternish); if (kid) el.appendChild(kid); } }
           else if (n.nodeType === 3 && CARD_TEXT.has(src.localName)) el.appendChild(document.createTextNode(clean(n.nodeValue, 2000)));
         }
         return el;
       };
-      const out = copy(root, 0);
+      const out = copy(root, 0, false);
       if (!out.getAttribute('viewBox')) {
         const w = parseFloat(root.getAttribute('width')), h = parseFloat(root.getAttribute('height'));
         if (w > 0 && h > 0) out.setAttribute('viewBox', '0 0 ' + w + ' ' + h);

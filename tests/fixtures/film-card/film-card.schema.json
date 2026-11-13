@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ryagram.invalid/film-card.schema.json",
   "title": "Ryagram film look card, v1 (CONNECT contract for editor Step A, 2026-11-09)",
-  "description": "What the engine writes for one saved film so the chat editor can show the film's REAL colours and one REAL still frame. Total size at most 262144 bytes of JSON text (typical 20 to 200 KB).",
+  "description": "What the engine writes for one saved film so the chat editor can show the film's REAL colours and one REAL still frame. Total size at most 320000 bytes of JSON text (typical 20 to 300 KB).",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema", "basis", "look", "frame"],
@@ -39,7 +39,7 @@
         "label": { "type": "string", "maxLength": 60, "description": "Which moment of the film this still is (a year or a date), in plain words." },
         "width": { "type": "integer", "minimum": 64, "maximum": 4096 },
         "height": { "type": "integer", "minimum": 64, "maximum": 4096 },
-        "svg": { "type": "string", "maxLength": 200000, "description": "ONE plain SVG document string: only g, path, rect, circle, ellipse, line, polyline, polygon, text, tspan, defs, linearGradient, radialGradient, stop, clipPath, title; presentation attributes only; no script, style, image, foreignObject, use, animation, event handler or address other than a #fragment. The panel rebuilds it element by element and drops anything else." }
+        "svg": { "type": "string", "maxLength": 300000, "description": "ONE plain SVG document string: only g, path, rect, circle, ellipse, line, polyline, polygon, text, tspan, defs, linearGradient, radialGradient, stop, clipPath, pattern, title; a pattern (the film's hatch tile) holds only line, path and rect, direct children with nothing inside them, 2 to 64 wide and high, at most 100, and refers to nothing; presentation attributes only; no script, style, image, foreignObject, use, animation, event handler or address other than a #fragment. The panel rebuilds it element by element and drops anything else." }
       }
     },
     "notes": {

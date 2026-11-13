@@ -307,7 +307,7 @@ class FilmCards(core.Base):
             ("no frame", {k: v for k, v in good.items() if k != "frame"}), ("a frame with no svg", card(sha, frame={"label": "x", "width": 100, "height": 100})),
             ("an svg that is a number", card(sha, frame={"label": "x", "width": 100, "height": 100, "svg": 5})),
             ("another story's card", card("a" * 64)), ("no basis", {k: v for k, v in good.items() if k != "basis"}),
-            ("over the cap", card(sha, notes=["x" * 100] * 3000)),
+            ("over the cap", card(sha, notes=["x" * 100] * 4000)),
         ]
         for name, bad in bads:
             with self.assertRaises(psycopg.Error, msg=name) as cm:
@@ -533,6 +533,138 @@ class FilmCards(core.Base):
         sql = (core.ROOT / "migrations" / "20261109000100_film_cards.sql").read_text(encoding="utf-8")
         lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
         self.assertEqual(lines[-2:], ["select ryagram_private.gate_apply();", "commit;"])
+
+
+    # ------------------------------------------------------------------------------------------------ the caps (20261113000100_film_card_caps.sql): 320000 bytes, the newest 20 cards per person
+    CAPS_MIG = core.ROOT / "migrations" / "20261113000100_film_card_caps.sql"
+    CAPS_RB = core.ROOT / "rollbacks" / "20261113000100_film_card_caps_rollback.sql"
+    CAPS_CHECK = core.ROOT / "live-steps" / "25_film_card_caps_after_check.sql"
+
+    @staticmethod
+    def big_card(sha, svg_chars):
+        """a card whose picture is svg_chars characters (one long path: the database checks the card's size, not its picture)"""
+        pad = max(0, svg_chars - 60)
+        return card(sha, frame={"label": "2024", "width": 960, "height": 540, "svg": "<svg xmlns='http://www.w3.org/2000/svg'><path d='M" + "0" * pad + "'/></svg>"})
+
+    def apply_sql(self, text, what):
+        """run a migration, rollback or check as the owner; an error is a FAILED assertion with the database's words (so a planted fault is CAUGHT by assertion, not an error)"""
+        try:
+            return self.owner(text)
+        except psycopg.Error as e:
+            self.db.c.execute("rollback")
+            self.fail(f"{what} stopped: {e}")
+
+    def finish_error(self, rid, c):
+        with self.assertRaises(psycopg.Error) as cm:
+            self.worker().one("select public.finish_film_card(%s, %s::jsonb)", rid, json.dumps(c))
+        return cm.exception
+
+    def test_a_card_of_about_300000_bytes_is_stored_and_read_back_and_one_over_320000_is_refused(self):
+        p, _, sha = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        e = self.finish_error(r["id"], self.big_card(sha, 321000))
+        self.assertEqual(e.sqlstate, "22023", "over 320000 bytes is not a film look card")
+        self.assertEqual(self.owner("select state from public.film_card_requests").fetchone()[0], "claimed", "nothing refused changed the request")
+        self.finish(r["id"], self.big_card(sha, 310000))
+        got = self.get(self.a, p)
+        self.assertEqual(got["state"], "ready")
+        self.assertGreater(len(got["card"]["frame"]["svg"]), 309000)
+
+    def test_the_stored_answer_column_holds_the_same_320000_for_everyone_even_the_owner(self):
+        p, _, sha = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        self.finish(r["id"], card(sha))
+        ok = json.dumps(self.big_card(sha, 300000))
+        self.owner("update public.film_card_requests set answer = %s::jsonb", ok)                    # 300000: allowed
+        with self.assertRaises(psycopg.Error) as cm:
+            self.owner("update public.film_card_requests set answer = %s::jsonb", json.dumps(self.big_card(sha, 330000)))
+        self.assertEqual(cm.exception.sqlstate, "23514", "the column check, not only the function, holds the number")
+
+    def test_after_a_card_is_stored_only_the_newest_20_of_that_person_stay_and_nobody_elses_are_touched(self):
+        ids = []
+        for i in range(22):
+            p, _, sha = self.film(self.a, title=f"Invented film {i}", story={"title": f"invented story {i}", "look": {"network.color": "#112233"}})
+            r = self.ask(self.a, p)
+            self.assertEqual(len(self.claim()), 1)
+            self.finish(r["id"], card(sha))
+            ids.append((p, r["id"]))
+        pb, _, shab = self.film(self.b, title="Invented film of Bob", story=STORY2)
+        rb = self.ask(self.b, pb)
+        self.claim()
+        self.finish(rb["id"], card(shab))
+        mine = [str(x[0]) for x in self.owner("select id from public.film_card_requests where owner_id = %s and state = 'answered' order by finished_at", ALICE).fetchall()]
+        self.assertEqual(len(mine), 20, "Alice keeps 20")
+        self.assertEqual(mine, [r for _, r in ids[2:]], "the two OLDEST are gone, the newest 20 stay in order")
+        self.assertEqual(self.owner("select count(*) from public.film_card_requests where owner_id = %s", BOB).fetchone()[0], 1, "Bob's card is not touched")
+        self.assertEqual(self.get(self.a, ids[0][0])["state"], "none", "the oldest film's card is gone: it is drawn again when asked for")
+        self.assertEqual(self.get(self.a, ids[21][0])["state"], "ready")
+
+    def test_a_failed_request_is_not_counted_among_the_twenty_and_is_not_deleted_by_it(self):
+        pf, _, _ = self.film(self.a, title="Invented film that fails", story=STORY2)
+        rf = self.ask(self.a, pf)
+        self.claim()
+        self.worker().one("select public.fail_film_card(%s, 'view_not_supported', 'too_big 1 1')", rf["id"])
+        for i in range(21):
+            p, _, sha = self.film(self.a, title=f"Invented film {i}", story={"title": f"invented story {i}", "look": {"network.color": "#112233"}})
+            r = self.ask(self.a, p)
+            self.claim()
+            self.finish(r["id"], card(sha))
+        self.assertEqual(self.owner("select count(*) from public.film_card_requests where state = 'answered'").fetchone()[0], 20)
+        self.assertEqual(self.owner("select count(*) from public.film_card_requests where state = 'failed'").fetchone()[0], 1)
+
+    def test_the_caps_migration_is_safe_to_run_twice_and_stops_in_words_on_a_function_that_is_not_the_expected_one(self):
+        before = self.owner("select pg_get_functiondef(to_regprocedure('public.finish_film_card(uuid,jsonb)'))").fetchone()[0]
+        self.apply_sql(self.CAPS_MIG.read_text(encoding="utf-8"), "a second run of the migration")      # a second run: nothing to do, no error
+        self.assertEqual(self.owner("select pg_get_functiondef(to_regprocedure('public.finish_film_card(uuid,jsonb)'))").fetchone()[0], before)
+        # a drifted function: the original text with another cap, as if someone had changed it by hand
+        self.apply_sql(self.CAPS_RB.read_text(encoding="utf-8"), "the rollback")
+        drifted = self.owner("select pg_get_functiondef(to_regprocedure('public.finish_film_card(uuid,jsonb)'))").fetchone()[0].replace("> 262144", "> 262143")
+        self.owner(drifted)
+        with self.assertRaises(psycopg.Error) as cm:
+            self.owner(self.CAPS_MIG.read_text(encoding="utf-8"))
+        self.assertIn("is not the one this change expects", str(cm.exception))
+        self.db.c.execute("rollback")                                                                       # the failed migration left its explicit transaction open: end it
+        self.assertIn("> 262143", self.owner("select prosrc from pg_proc where oid = to_regprocedure('public.finish_film_card(uuid,jsonb)')").fetchone()[0], "nothing was changed")
+        self.assertIn("262144", self.owner("select pg_get_constraintdef(oid) from pg_constraint where conrelid = 'public.film_card_requests'::regclass and contype = 'c' and pg_get_constraintdef(oid) like '%octet_length%'").fetchone()[0], "and the column check was rolled back with it")
+
+    def test_the_after_check_is_all_true_after_the_migration_and_false_in_the_rows_that_matter_before_it(self):
+        rows = self.apply_sql(self.CAPS_CHECK.read_text(encoding="utf-8"), "the after-check").fetchall()
+        self.assertEqual(len(rows), 8)
+        self.assertTrue(all(ok for _, ok in rows), rows)
+        self.apply_sql(self.CAPS_RB.read_text(encoding="utf-8"), "the rollback")
+        after_rb = dict(self.apply_sql(self.CAPS_CHECK.read_text(encoding="utf-8"), "the after-check").fetchall())
+        self.assertEqual(sorted(k for k, v in after_rb.items() if not v), sorted(k for k in after_rb if k.startswith(("the stored answer may", "and no older", "finish_film_card refuses", "finish_film_card keeps"))), after_rb)
+        self.assertTrue(after_rb["finish_film_card still carries the waiting-list check (the gate)"], "the guard stays through both directions")
+
+    def test_the_caps_rollback_puts_both_numbers_back_deletes_only_the_cards_that_no_longer_fit_and_the_migration_restores_them(self):
+        p, _, sha = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        self.finish(r["id"], self.big_card(sha, 300000))
+        pb, _, shb = self.film(self.b, title="Invented small film", story=STORY2)
+        rb = self.ask(self.b, pb)
+        self.claim()
+        self.finish(rb["id"], card(shb))
+        self.apply_sql(self.CAPS_RB.read_text(encoding="utf-8"), "the rollback")
+        self.assertEqual(self.owner("select count(*) from public.film_card_requests where state = 'answered'").fetchone()[0], 1, "the card over 262144 bytes went, the small one stayed")
+        self.assertEqual(self.owner("select owner_id::text from public.film_card_requests where state = 'answered'").fetchone()[0], BOB)
+        src = self.owner("select prosrc from pg_proc where oid = to_regprocedure('public.finish_film_card(uuid,jsonb)')").fetchone()[0]
+        self.assertIn("> 262144", src)
+        self.assertNotIn("limit 20", src)
+        self.apply_sql(self.CAPS_RB.read_text(encoding="utf-8"), "a second rollback")                  # a second undo: nothing to do
+        self.apply_sql(self.CAPS_MIG.read_text(encoding="utf-8"), "the migration again")
+        src = self.owner("select prosrc from pg_proc where oid = to_regprocedure('public.finish_film_card(uuid,jsonb)')").fetchone()[0]
+        self.assertIn("> 320000", src)
+        self.assertIn("limit 20", src)
+        self.assertIn("require_active", src)
+
+    def test_the_caps_migration_ends_with_the_waiting_list_gate_and_names_no_new_function(self):
+        sql = self.CAPS_MIG.read_text(encoding="utf-8")
+        lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
+        self.assertEqual(lines[-2:], ["select ryagram_private.gate_apply();", "commit;"])
+        self.assertNotRegex(sql, r"(?i)create\s+(or\s+replace\s+)?function")
 
 
 if __name__ == "__main__":

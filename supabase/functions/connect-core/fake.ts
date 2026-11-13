@@ -55,7 +55,7 @@ export class FakeWorld {
       finish: (rid: string, card: unknown) => {
         const c = user.cards.get(rid);
         const o = card as Record<string, unknown> | null;
-        const bad = !o || typeof o !== "object" || Array.isArray(o) || JSON.stringify(o).length > 262144 || o.schema !== 1 || typeof o.look !== "object" || o.look === null || Array.isArray(o.look)
+        const bad = !o || typeof o !== "object" || Array.isArray(o) || JSON.stringify(o).length > 320000 || o.schema !== 1 || typeof o.look !== "object" || o.look === null || Array.isArray(o.look)
           || typeof (o.frame as { svg?: unknown } | undefined)?.svg !== "string";
         if (bad) throw err("That is not a film look card.", "22023");
         if (!c || c.state !== "claimed") throw err("No such claimed request.", "PT404");

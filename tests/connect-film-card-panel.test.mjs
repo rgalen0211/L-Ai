@@ -31,8 +31,16 @@ test('the chat host rebuilds the picture from EXACTLY the connector checker\'s a
 test('the rebuild keeps no address and no outside reference, renames every id, caps its size and depth, and never throws', () => {
   const from = HOST.indexOf('function drawCard(svg) {');
   const draw = HOST.slice(from, HOST.indexOf('window.ryagramLiveHost = {', from));
-  assert.ok(draw.includes('svg.length > 200000) return null'), 'the size cap');
+  assert.ok(draw.includes('svg.length > 300000) return null'), 'the size cap');
   assert.ok(draw.includes('depth > 30 || ++count > 30000'), 'the depth and element caps');
+  // the film's hatch: a pattern keeps only direct line, path and rect children with nothing inside them, refers to nothing, has a tile of 2 to 64, and there are at most 100
+  assert.deepEqual(list(HOST, 'PATTERN_CHILDREN').sort(), ['line', 'path', 'rect']);
+  assert.ok(draw.includes("if (src.localName === 'pattern' && ++patterns > 100) throw new Error('too many patterns');"), 'at most 100 patterns');
+  assert.ok(draw.includes("if (!tile('width') || !tile('height')) return null;"), 'a tile that is not 2 to 64 leaves the whole pattern out');
+  assert.ok(draw.includes("if (patternish && /url\\(/i.test(v)) continue;"), 'a pattern and what is inside it refer to nothing');
+  assert.ok(draw.includes("a.name === 'patternUnits' && v !== 'userSpaceOnUse' && v !== 'objectBoundingBox') continue;"), 'the units are one of two words');
+  assert.ok(draw.includes("a.name === 'patternTransform') && src.localName !== 'pattern') continue;"), 'a pattern attribute only on a pattern');
+  assert.ok(draw.includes("(!inPattern && !(src.localName === 'pattern') || (src.localName === 'pattern' && PATTERN_CHILDREN.has(n.localName)))"), 'a pattern holds its three kinds of child and nothing deeper');
   assert.ok(draw.includes("a.name === 'id' ? 'lecard-' + v.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 40) : v"), 'ids are renamed');
   assert.ok(draw.includes("'ur' + 'l(#lecard-' + m[1] + ')'"), 'a paint reference follows the renamed id');
   assert.ok(draw.includes("['fill', 'stroke', 'clip-path'].includes(a.name)"), 'a reference only in the three paint attributes');

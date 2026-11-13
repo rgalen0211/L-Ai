@@ -11,7 +11,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { handleMcp } from '../supabase/functions/connect-core/mcp.ts';
 import { cases } from './fixtures/film-card/build-cases.mjs';
-import { FILM_CARD_MAX_BYTES, LOOK_REQUIRED, SVG_ATTRS, SVG_ELEMENTS, checkFilmCard, checkSvg, hasHiddenChars } from '../supabase/functions/connect-core/film_card.ts';
+import { FILM_CARD_MAX_BYTES, SVG_MAX_CHARS, LOOK_REQUIRED, SVG_ATTRS, SVG_ELEMENTS, checkFilmCard, checkSvg, hasHiddenChars } from '../supabase/functions/connect-core/film_card.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
 
 const compile = makeCompile(Ajv2020);
@@ -64,8 +64,14 @@ const WHY = {
   'a comment': /not a plain element/, 'a CDATA section': /not a plain element/, 'a doctype': /not a plain element/, 'a processing instruction': /not a plain element/,
   'an entity that is not one of the five': /entity it may not have/, 'text outside a text element': /text outside a text element/, 'tags that are not closed': /tags are not closed/,
   'tags that do not match': /tags do not match/, 'two top elements': /more than one top element/, 'no svg at all': /must be one svg element/, 'a repeated attribute': /repeats an attribute/,
-  'an id that is not plain': /id is not plain/, 'a picture over the character limit': /over 200000 characters/, 'too many elements': /more than 30000 elements/, 'nested too deeply': /nested too deeply/,
-  'a card over the byte limit': /over 262144 bytes/, 'a hidden character in the picture': /control or direction characters/,
+  'an id that is not plain': /id is not plain/, 'a picture over the character limit': /over 300000 characters/, 'too many elements': /more than 30000 elements/, 'nested too deeply': /nested too deeply/,
+  'a card over the byte limit': /over 320000 bytes/,
+  'a pattern child that is not a line, path or rect': /pattern may hold only lines, paths and rectangles/, 'a text in a pattern': /pattern may hold only lines, paths and rectangles/, 'a pattern child with something inside it': /pattern may hold only lines, paths and rectangles/, 'a pattern inside a pattern': /pattern may hold only lines, paths and rectangles/,
+  'a pattern child that refers to a paint': /pattern may not refer to anything/, 'a pattern that is itself filled by a reference': /pattern may not refer to anything/, 'a pattern transform that refers to something': /pattern may not refer to anything/,
+  'a pattern with an href': /\(href\)/, 'a pattern with an attribute that is not on the list': /\(patternContentUnits\)/, 'a pattern units word that is not allowed': /pattern's units are not one of the two allowed words/,
+  'a pattern with no width': /pattern needs a width and a height/, 'a pattern with no height': /pattern needs a width and a height/, 'a pattern tile of 1 pixel': /pattern needs a width and a height/, 'a pattern tile of 65 pixels': /pattern needs a width and a height/,
+  'a pattern tile with a unit': /pattern needs a width and a height/, 'a pattern tile as a percentage': /pattern needs a width and a height/, 'a pattern tile of 1.5 pixels': /pattern needs a width and a height/, 'a pattern tile with four decimals': /pattern needs a width and a height/,
+  'a hundred and one patterns': /more than 100 patterns/, 'a pattern attribute on a rectangle': /pattern attribute is on an element that is not a pattern/, 'a pattern transform on a path': /pattern attribute is on an element that is not a pattern/, 'a hidden character in the picture': /control or direction characters/,
 };
 test('every shared case: the good ones pass, every refused one is refused for ITS reason', () => {
   const all = cases();
@@ -88,14 +94,16 @@ test('the checker never throws, whatever it is handed', () => {
 });
 
 test('the allowed lists are exactly the ones the contract names, and nothing dangerous is on them', () => {
-  assert.deepEqual([...SVG_ELEMENTS].sort(), ['circle', 'clipPath', 'defs', 'ellipse', 'g', 'line', 'linearGradient', 'path', 'polygon', 'polyline', 'radialGradient', 'rect', 'stop', 'svg', 'text', 'title', 'tspan']);
-  for (const bad of ['script', 'style', 'image', 'foreignObject', 'use', 'animate', 'set', 'a', 'iframe', 'link', 'pattern', 'mask', 'filter', 'switch', 'symbol', 'marker']) assert.ok(!SVG_ELEMENTS.has(bad), bad);
+  assert.deepEqual([...SVG_ELEMENTS].sort(), ['circle', 'clipPath', 'defs', 'ellipse', 'g', 'line', 'linearGradient', 'path', 'pattern', 'polygon', 'polyline', 'radialGradient', 'rect', 'stop', 'svg', 'text', 'title', 'tspan']);
+  for (const bad of ['script', 'style', 'image', 'foreignObject', 'use', 'animate', 'set', 'a', 'iframe', 'link', 'mask', 'filter', 'switch', 'symbol', 'marker']) assert.ok(!SVG_ELEMENTS.has(bad), bad);
   for (const bad of ['style', 'href', 'xlink:href', 'class', 'onclick', 'onload', 'src', 'filter', 'mask', 'marker-start', 'content']) assert.ok(!SVG_ATTRS.has(bad), bad);
   assert.ok([...SVG_ATTRS].every((a) => !a.startsWith('on')));
   assert.deepEqual([...LOOK_REQUIRED], ['page.background']);
   assert.ok(SVG_ATTRS.has('textLength'));
   assert.ok(SVG_ATTRS.has('lengthAdjust') && SVG_ATTRS.has('xml:space') && !SVG_ATTRS.has('xml:lang') && !SVG_ATTRS.has('xlink:href'));
-  assert.equal(FILM_CARD_MAX_BYTES, 262144);
+  assert.equal(FILM_CARD_MAX_BYTES, 320000);
+  assert.equal(SVG_MAX_CHARS, 300000);
+  assert.ok(SVG_ATTRS.has('patternUnits') && SVG_ATTRS.has('patternTransform') && !SVG_ATTRS.has('patternContentUnits') && !SVG_ATTRS.has('href'));
 });
 
 test('hidden characters are found: control, direction, zero-width and byte-order marks; plain text, tabs and newlines are not', () => {

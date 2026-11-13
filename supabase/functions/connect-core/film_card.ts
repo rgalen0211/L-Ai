@@ -3,22 +3,28 @@
 // "the card was not usable" and never passed through. The panel then rebuilds the picture element by element from the same allowed list (defence in depth: a mistake in either place cannot run anything).
 // Pure functions, no dependencies. Returns a list of plain-words problems; an empty list means the card is good.
 
-export const FILM_CARD_MAX_BYTES = 262144;
-export const SVG_MAX_CHARS = 200000;
+export const FILM_CARD_MAX_BYTES = 320000;                 // was 262144; the picture cap rose to 300000 (the film's hatch), so the card (the picture plus about 6000 for the look, the notes and the basis) rose with it
+export const SVG_MAX_CHARS = 300000;                        // was 200000 (Ryan 2026-11-12: the hatch is the film's main measure and must show)
+export const SVG_MAX_PATTERNS = 100;
 export const SVG_MAX_ELEMENTS = 30000;
 export const SVG_MAX_DEPTH = 30;
 /** The ONE colour every card must carry. A view lists only the keys it has (a bar race has just the page background; a map has more); a key a view does not list is simply absent, and the panel keeps its own starting colour and says so. */
 export const LOOK_REQUIRED = ["page.background"] as const;
 
 /** The only elements a drawn still may hold. Never script, style, image, foreignObject, use, an animation element, or anything not listed. */
-export const SVG_ELEMENTS: ReadonlySet<string> = new Set(["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "linearGradient", "radialGradient", "stop", "clipPath", "title"]);
+export const SVG_ELEMENTS: ReadonlySet<string> = new Set(["svg", "g", "path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan", "defs", "linearGradient", "radialGradient", "stop", "clipPath", "title", "pattern"]);
 /** The only attributes: presentation and geometry. Never style, href, class, an event handler or anything that names an address (the one xmlns on the root is checked on its own). */
 export const SVG_ATTRS: ReadonlySet<string> = new Set([
   "id", "x", "y", "x1", "y1", "x2", "y2", "cx", "cy", "r", "rx", "ry", "width", "height", "d", "points", "transform", "viewBox", "preserveAspectRatio",
   "fill", "stroke", "stroke-width", "stroke-linecap", "stroke-linejoin", "stroke-dasharray", "stroke-dashoffset", "stroke-opacity", "fill-opacity", "opacity", "fill-rule", "clip-rule", "clip-path",
   "font-family", "font-size", "font-weight", "font-style", "text-anchor", "dominant-baseline", "letter-spacing", "textLength", "lengthAdjust", "xml:space", "dx", "dy", "offset", "stop-color", "stop-opacity", "gradientUnits", "gradientTransform",
+  "patternUnits", "patternTransform",                                 // a pattern's own (checked below: only on a pattern)
   "xmlns",
 ]);
+const PATTERN_ONLY = new Set(["patternUnits", "patternTransform"]);
+/** What a pattern (the film's hatch tile) may hold: direct children of these three kinds, with nothing inside them. */
+const PATTERN_CHILDREN = new Set(["line", "path", "rect"]);
+const TILE = /^\d{1,2}(?:\.\d{1,3})?$/;                     // a plain number: the tile's width and height, 2 to 64
 const TEXT_ELEMENTS = new Set(["text", "tspan", "title"]);
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const SHA = /^[0-9a-f]{64}$/;
@@ -49,7 +55,7 @@ export function checkSvg(svg: unknown): string[] {
   if (svg.length > SVG_MAX_CHARS) return [`The picture is over ${SVG_MAX_CHARS} characters.`];
   if (hasHiddenChars(svg)) return ["The picture has control or direction characters."];
   const stack: string[] = [];
-  let pos = 0, elements = 0, roots = 0, closedRoot = false;
+  let pos = 0, elements = 0, roots = 0, closedRoot = false, patterns = 0;
   while (pos < svg.length) {
     const lt = svg.indexOf("<", pos);
     const text = svg.slice(pos, lt === -1 ? svg.length : lt);
@@ -74,6 +80,13 @@ export function checkSvg(svg: unknown): string[] {
     if (closedRoot) return ["The picture has more than one top element."];
     if (!stack.length) { roots++; if (name !== "svg" || roots > 1) return ["The picture must be one svg element."]; }
     if (++elements > SVG_MAX_ELEMENTS) return [`The picture has more than ${SVG_MAX_ELEMENTS} elements.`];
+    // The film's hatch is a <pattern>: a tile of lines, paths and rectangles used as a fill. It may hold ONLY direct children of those three kinds with nothing inside them, no pattern inside it, and it may refer to nothing
+    // (no url() on it or in it), so a pattern can never chain to another paint or loop. At most 100 to a picture, each tile 2 to 64 wide and high.
+    const inPattern = stack.includes("pattern");
+    if (inPattern && (stack[stack.length - 1] !== "pattern" || !PATTERN_CHILDREN.has(name))) return ["A pattern may hold only lines, paths and rectangles, with nothing inside them."];
+    if (name === "pattern" && ++patterns > SVG_MAX_PATTERNS) return [`The picture has more than ${SVG_MAX_PATTERNS} patterns.`];
+    const patternish = inPattern || name === "pattern";
+    const vals = new Map<string, string>();
     const seen = new Set<string>();
     for (const a of attrs.matchAll(ATTR)) {
       const key = a[1], val = a[2] ?? a[3] ?? "";
@@ -83,12 +96,20 @@ export function checkSvg(svg: unknown): string[] {
       if (key === "xmlns") { if (stack.length || val !== XMLNS) return ["The picture names an address it may not."]; continue; }
       if (val.length > 60000) return ["An attribute is too long."];
       const low = val.toLowerCase();
+      vals.set(key, val);
+      if (PATTERN_ONLY.has(key) && name !== "pattern") return ["A pattern attribute is on an element that is not a pattern."];
+      if (patternish && low.includes("url(")) return ["A pattern may not refer to anything (no url) in itself or inside it."];
+      if (key === "patternUnits" && val !== "userSpaceOnUse" && val !== "objectBoundingBox") return ["A pattern's units are not one of the two allowed words."];
       if (low.includes("url(") && !(["fill", "stroke", "clip-path"].includes(key) && URL_REF.test(val))) return ["The picture refers to something that is not on the picture."];
       if (/javascript:|data:|https?:|\/\/|@import|expression\(|&/i.test(low)) return ["The picture has an address or a script in an attribute."];
       if (key === "id" && !ID.test(val)) return ["An id is not plain."];
       if (key === "lengthAdjust" && val !== "spacing" && val !== "spacingAndGlyphs") return ["A length adjustment is not one of the two allowed words."];
       if (key === "xml:space" && val !== "preserve" && val !== "default") return ["An xml:space is not preserve or default."];
       if (key === "textLength" && !/^\d{1,5}(?:\.\d{1,3})?$/.test(val)) return ["A text length is not a plain number."];
+    }
+    if (name === "pattern") {
+      const ok = (k: string) => { const v = vals.get(k); return v !== undefined && TILE.test(v) && Number(v) >= 2 && Number(v) <= 64; };
+      if (!ok("width") || !ok("height")) return ["A pattern needs a width and a height, plain numbers from 2 to 64."];
     }
     if (!selfClose) { stack.push(name); if (stack.length > SVG_MAX_DEPTH) return ["The picture is nested too deeply."]; }
     else if (!stack.length) closedRoot = true;

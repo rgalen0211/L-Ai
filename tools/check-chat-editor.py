@@ -336,6 +336,50 @@ def main():
             check(not o12 and not e12, 'no request left the page and nothing threw (%s %s)' % (o12[:2], e12[:2]))
             check('This is your film as saved (2024)' in fr12.locator('.le-card').inner_text() and 'does not move' in fr12.locator('.le-card').inner_text(), 'the caption says what the picture is and that it does not move')
             c12.close()
+            # the film's HATCH (a pattern of lines used as a fill): kept, with its ids renamed, and only what a pattern may hold; a hostile pattern is rebuilt without the bad parts; the size cap is 300000
+            HATCH = ('<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540" viewBox="0 0 960 540"><defs>'
+                     '<pattern id="p0" patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)">'
+                     '<line x1="0" y1="0" x2="0" y2="8" stroke="#ffffff" stroke-width="3"/><circle cx="1" cy="1" r="1" fill="#ff0000"/>'
+                     '<path d="M0 0" stroke="#00ff00"><rect width="1" height="1"/></path><rect width="3" height="3" fill="url(#g9)"/><pattern id="p9" width="8" height="8"/></pattern>'
+                     '<pattern id="p1" width="1" height="8"><line x1="0" y1="0" x2="0" y2="8" stroke="#ffffff"/></pattern></defs>'
+                     '<rect width="960" height="540" fill="#101018"/><path d="M100 100L860 100L860 440L100 440Z" fill="url(#p0)"/></svg>')
+            HCARD = dict(CARD, frame={'label': '2024', 'width': 960, 'height': 540, 'svg': HATCH})
+            c15, p15, e15, o15 = card_page([{'state': 'ready', 'stale': False, 'built_sha256': 'a' * 64, 'card': HCARD}])
+            fr15 = p15.frames[1]
+            pats = fr15.eval_on_selector_all('.le-cardpic svg pattern', 'els => els.map(e => ({id: e.id, units: e.getAttribute("patternUnits"), tr: e.getAttribute("patternTransform"), kids: Array.from(e.children).map(k => k.localName + ":" + Array.from(k.attributes).map(a => a.name).join(",")), nested: e.querySelectorAll("pattern").length}))')
+            check(len(pats) == 1 and pats[0]['id'] == 'lecard-p0' and pats[0]['units'] == 'userSpaceOnUse' and pats[0]['tr'] == 'rotate(45)', 'the hatch pattern is kept, its id renamed and its two pattern attributes kept (%s)' % pats)
+            check(len(pats) == 1 and [k.split(':')[0] for k in pats[0]['kids']] == ['line', 'path', 'rect'] and pats[0]['nested'] == 0, 'a pattern keeps its lines, paths and rectangles only: the circle and the pattern inside it are gone (%s)' % (pats[0]['kids'] if pats else None))
+            check(len(pats) == 1 and not any('fill' in k.split(':')[1] for k in pats[0]['kids'] if k.startswith('rect')), 'a reference inside a pattern is dropped')
+            check(fr15.eval_on_selector_all('.le-cardpic svg pattern path *', 'els => els.length') == 0, 'and what was inside a pattern child is gone')
+            check(fr15.eval_on_selector_all('.le-cardpic svg path[fill]', 'els => els.map(e => e.getAttribute("fill"))') == ['url(#lecard-p0)'], 'the shape is filled by the renamed pattern')
+            try:
+                from PIL import Image
+                import io
+                png = fr15.locator('.le-cardpic svg').screenshot()
+                im = Image.open(io.BytesIO(png)).convert('RGB')
+                px = list(im.getdata())
+                light = sum(1 for r, g, bl in px if r > 200 and g > 200 and bl > 200)
+                check(light > 200, 'and the hatch is really painted: stripes of the tile colour show inside the shape (%d light pixels)' % light)
+            except ImportError:
+                print('  (no Pillow here: the painted-stripes check was skipped)')
+            check(p15.evaluate('window.__pwned') is None and not o15 and not e15, 'no script ran, no request left the page and nothing threw with a hatch')
+            c15.close()
+            rest = 300000 - len(HATCH)
+            fill = ''
+            while rest > 0:
+                n = min(rest, 40012)
+                if rest - n > 0 and rest - n < 14:
+                    n -= 14
+                fill += '<path d="M' + '0' * (n - 13) + '"/>'
+                rest -= n
+            BIG = HATCH.replace('</svg>', fill + '</svg>')
+            check(len(BIG) == 300000, 'the test picture is exactly 300000 characters (%d)' % len(BIG))
+            c16, p16, e16, o16 = card_page([{'state': 'ready', 'stale': False, 'built_sha256': 'a' * 64, 'card': dict(CARD, frame={'label': '2024', 'width': 960, 'height': 540, 'svg': BIG})}])
+            check(p16.frames[1].locator('.le-cardpic svg').count() == 1, 'a picture AT the 300000 cap is drawn')
+            c16.close()
+            c17, p17, e17, o17 = card_page([{'state': 'ready', 'stale': False, 'built_sha256': 'a' * 64, 'card': dict(CARD, frame={'label': '2024', 'width': 960, 'height': 540, 'svg': BIG.replace('</svg>', '0</svg>')})}])
+            check(p17.frames[1].locator('.le-cardpic svg').count() == 0 and not e17, 'a picture one character over the cap is no picture, and nothing threw')
+            c17.close()
             c13, p13, e13, o13 = card_page([{'state': 'asked', 'waited_seconds': 200}])
             t13 = p13.frames[1].locator('.le-card').inner_text()
             check('being drawn by the Ryagram computer' in t13 and 'may be switched off' in t13, 'while the card is waiting the panel says so, and that the computer may be off after two minutes')

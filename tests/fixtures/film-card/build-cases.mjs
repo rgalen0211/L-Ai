@@ -15,6 +15,16 @@ const base = () => ({
   frame: { label: '2024', width: 960, height: 540, svg: SVG() },
 });
 const withSvg = (svg) => { const c = base(); c.frame.svg = svg; return c; };
+// a picture of EXACTLY `total` characters made of a few long paths (few elements, no attribute over 60000 characters)
+const sized = (total) => {
+  let rest = total - SVG('').length;
+  let inner = '';
+  while (rest > 0) { let n = Math.min(rest, 40012); if (rest - n > 0 && rest - n < 14) n -= 14; inner += '<path d="M' + '0'.repeat(n - 13) + '"/>'; rest -= n; }
+  return SVG(inner);
+};
+const PATTERN = (attrs, inner) => '<pattern id="p0" ' + attrs + '>' + inner + '</pattern>';
+const TILE = '<line x1="0" y1="0" x2="0" y2="8" stroke="#e8e0c8" stroke-width="1.2"/>';
+const HATCHED = (pat) => SVG('<defs>' + pat + '</defs><path d="M0 0L100 0L100 100Z" fill="url(#p0)" stroke="#ffffff"/>');
 const mod = (f) => { const c = base(); f(c); return c; };
 
 export function cases() {
@@ -33,6 +43,12 @@ export function cases() {
     ['good map card with all its keys', 'a map view lists its own keys, here the five and two map colours', mod((c) => { c.basis.view = 'choropleth'; c.look['choropleth.low'] = '#1b2a41'; c.look['choropleth.high'] = '#f2c14e'; })],
     ['good text fitted to a length', 'lengthAdjust is spacing or spacingAndGlyphs and xml:space is preserve or default (the bar race still of the engine uses them)', withSvg(SVG('<text x="20" y="40" font-size="20" textLength="120.5" lengthAdjust="spacing" xml:space="preserve" fill="#ffffff">Rent  index</text><text x="20" y="80" textLength="90" lengthAdjust="spacingAndGlyphs" xml:space="default">Year</text>'))],
     ['good text with a text length', 'textLength is a plain presentation attribute: a number only', withSvg(SVG('<text x="20" y="40" font-size="20" textLength="120.5" fill="#ffffff">Rent</text>'))],
+    ['good hatch: a pattern of two lines, filled by a reference to it', 'the film\'s hatch: a pattern (userSpaceOnUse, a transform) holding lines, used as the fill of a shape',
+      withSvg(HATCHED(PATTERN('patternUnits="userSpaceOnUse" width="8" height="8" patternTransform="rotate(45)"', TILE + '<line x1="4" y1="0" x2="4" y2="8" stroke="#7a6f9b"/>')))],
+    ['good pattern holding a path and a rectangle', 'a pattern may hold line, path and rect (direct children, nothing inside them); x and y are allowed; the other units word is allowed',
+      withSvg(HATCHED(PATTERN('patternUnits="objectBoundingBox" x="1" y="1.5" width="2" height="64"', '<path d="M0 0L8 8" stroke="#ffffff"/><rect width="3" height="3" fill="#112233"/>')))],
+    ['good pattern at the edges of its limits', 'width 2 and height 64 are the smallest and largest tile; a tile of 12.125 has three decimals at most', withSvg(HATCHED(PATTERN('width="2" height="64"', TILE)).replace('</defs>', '<pattern id="p1" width="12.125" height="2.5">' + TILE + '</pattern></defs>'))],
+    ['good picture of exactly 300000 characters', 'the picture cap is 300000 characters (it was 200000): a picture AT the cap passes, and its card is about 301000 bytes, under the card cap', withSvg(sized(300000))],
     ['good label of 30 emoji', 'exactly at the 60-unit label cap (30 emoji are 60 UTF-16 units), with an engine label of 20 emoji (40 units) and a note of 80 emoji (160 units): the edge passes', mod((c) => { c.frame.label = EMOJI.repeat(30); c.basis.engine = EMOJI.repeat(20); c.notes = [EMOJI.repeat(80)]; })],
   ];
   const bad = [
@@ -87,10 +103,31 @@ export function cases() {
     ['no svg at all', 'the picture is one svg', withSvg('<g/>')],
     ['a repeated attribute', 'no repeated attributes', withSvg(SVG('<rect width="1" width="2" height="1"/>'))],
     ['an id that is not plain', 'ids are plain', withSvg(SVG('<g id="a b"/>'))],
-    ['a picture over the character limit', 'at most 200000 characters', withSvg(SVG('<g/>'.repeat(50001)))],
+    ['a picture over the character limit', 'at most 300000 characters', withSvg(sized(300001))],
+    ['a pattern child that is not a line, path or rect', 'a pattern holds only line, path and rect', withSvg(HATCHED(PATTERN('width="8" height="8"', '<circle cx="1" cy="1" r="1"/>')))],
+    ['a text in a pattern', 'a pattern holds no text', withSvg(HATCHED(PATTERN('width="8" height="8"', '<text x="1" y="1">a</text>')))],
+    ['a pattern child with something inside it', 'the children of a pattern hold nothing', withSvg(HATCHED(PATTERN('width="8" height="8"', '<path d="M0 0"><rect width="1" height="1"/></path>')))],
+    ['a pattern inside a pattern', 'no pattern in a pattern', withSvg(HATCHED(PATTERN('width="8" height="8"', '<pattern id="p1" width="8" height="8"/>')))],
+    ['a pattern child that refers to a paint', 'no url() anywhere inside a pattern, even the one form allowed elsewhere', withSvg(HATCHED(PATTERN('width="8" height="8"', '<line x1="0" y1="0" x2="0" y2="8" stroke="url(#p0)"/>')))],
+    ['a pattern that is itself filled by a reference', 'no url() on the pattern itself', withSvg(HATCHED(PATTERN('width="8" height="8" fill="url(#p0)"', TILE)))],
+    ['a pattern transform that refers to something', 'patternTransform may not hold url()', withSvg(HATCHED(PATTERN('width="8" height="8" patternTransform="url(#p0)"', TILE)))],
+    ['a pattern with an href', 'a pattern never inherits from another (no href)', withSvg(HATCHED(PATTERN('width="8" height="8" href="#p9"', TILE)))],
+    ['a pattern with an attribute that is not on the list', 'patternContentUnits is not allowed', withSvg(HATCHED(PATTERN('width="8" height="8" patternContentUnits="objectBoundingBox"', TILE)))],
+    ['a pattern units word that is not allowed', 'patternUnits is userSpaceOnUse or objectBoundingBox', withSvg(HATCHED(PATTERN('patternUnits="evil" width="8" height="8"', TILE)))],
+    ['a pattern with no width', 'a pattern needs a width', withSvg(HATCHED(PATTERN('height="8"', TILE)))],
+    ['a pattern with no height', 'a pattern needs a height', withSvg(HATCHED(PATTERN('width="8"', TILE)))],
+    ['a pattern tile of 1 pixel', 'a tile under 2 is refused', withSvg(HATCHED(PATTERN('width="1" height="8"', TILE)))],
+    ['a pattern tile of 65 pixels', 'a tile over 64 is refused', withSvg(HATCHED(PATTERN('width="65" height="8"', TILE)))],
+    ['a pattern tile with a unit', 'a plain number only', withSvg(HATCHED(PATTERN('width="10px" height="8"', TILE)))],
+    ['a pattern tile as a percentage', 'a plain number only', withSvg(HATCHED(PATTERN('width="50%" height="8"', TILE)))],
+    ['a pattern tile of 1.5 pixels', 'a height under 2 is refused', withSvg(HATCHED(PATTERN('width="8" height="1.5"', TILE)))],
+    ['a pattern tile with four decimals', 'at most three decimals', withSvg(HATCHED(PATTERN('width="8.1234" height="8"', TILE)))],
+    ['a hundred and one patterns', 'at most 100 patterns in one picture', withSvg(SVG('<defs>' + Array.from({ length: 101 }, (_, i) => '<pattern id="q' + i + '" width="8" height="8"/>').join('') + '</defs>'))],
+    ['a pattern attribute on a rectangle', 'patternUnits belongs to a pattern only', withSvg(SVG('<rect width="1" height="1" patternUnits="userSpaceOnUse"/>'))],
+    ['a pattern transform on a path', 'patternTransform belongs to a pattern only', withSvg(SVG('<path d="M0 0" patternTransform="rotate(45)"/>'))],
     ['too many elements', 'at most 30000 elements', withSvg(SVG('<g/>'.repeat(30001)))],
     ['nested too deeply', 'at most 30 levels', withSvg(SVG('<g>'.repeat(31) + '</g>'.repeat(31)))],
-    ['a card over the byte limit', 'at most 262144 bytes of JSON', mod((c) => { c.frame.svg = SVG('<text x="1" y="1">' + 'ab'.repeat(65000) + '</text>'); c.notes = Array.from({ length: 5 }, () => 'x'.repeat(160)); c.engine_pad = 'z'.repeat(140000); })],
+    ['a card over the byte limit', 'at most 320000 bytes of JSON', mod((c) => { c.frame.svg = SVG('<text x="1" y="1">' + 'ab'.repeat(130000) + '</text>'); c.notes = Array.from({ length: 5 }, () => 'x'.repeat(160)); c.engine_pad = 'z'.repeat(80000); })],
     ['a hidden character in the picture', 'no control or direction characters', withSvg(SVG('<text x="1" y="1">a' + RLO + 'b</text>'))],
   ];
   return [...good.map(([name, why, card]) => ({ name, ok: true, why, card })), ...bad.map(([name, why, card]) => ({ name, ok: false, why, card }))];
