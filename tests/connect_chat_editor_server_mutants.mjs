@@ -12,9 +12,9 @@ const D = C + 'dispatch.ts', E = C + 'editor_tools.ts', M = C + 'mcp.ts', A = C 
 const SUITES = ['connect-chat-editor-server.test.mjs'];
 const mutants = [
   // the switch
-  ['the editor tools exist when the switch is off', D, 'const tool = found && found.chatEditor && !env.chatEditor ? undefined : found;', 'const tool = found;'],
+  ['the editor tools exist when the switch is off', D, 'const tool = found && ((found.chatEditor && !env.chatEditor) || (found.homePanel && !env.homePanel)) ? undefined : found;', 'const tool = found;'],
   ['the list ignores the switch', M, '(!t.chatEditor || chatEditor)', 'true'],
-  ['every call is told the switch is on', M, 'chatEditor: chatEditorOn(deps.mcpApp) };', 'chatEditor: true };'],
+  ['every call is told the switch is on', M, 'chatEditor: chatEditorOn(deps.mcpApp), homePanel: homePanelOn(deps.mcpApp) };', 'chatEditor: true, homePanel: homePanelOn(deps.mcpApp) };'],
   ['the editor switch works without the app face', M, 'export const chatEditorOn = (a?: McpAppConfig) => !!(a?.enabled && a.chatEditor);', 'export const chatEditorOn = (a?: McpAppConfig) => !!a?.chatEditor;'],
   ['the editor page is served when the switch is off', A, '!(editor && cfg.chatEditor)', '!(editor)'],
   ['the editor page is listed when the switch is off', A, '...(cfg?.chatEditor ? [', '...(true ? ['],
