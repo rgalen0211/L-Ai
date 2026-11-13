@@ -47,6 +47,10 @@ W.MUTANTS[:] = [
     ("a signed-in person may run the forecast ask directly", "grant execute on function " + SIG + " to connect_runner;", "grant execute on function " + SIG + " to connect_runner, authenticated;"),
 ]
 
+# The ask-locks migration (20261109000300) replaces the ask function(s) and refuses a drifted one, so the BODY mutants are made in that migration (tests/ask_locks_retarget.py).
+from ask_locks_retarget import retarget  # noqa: E402
+retarget(W, "connect_forecast_ask")
+
 if __name__ == "__main__":
     if "--check-targets" in sys.argv:
         b = W.targets_bad()

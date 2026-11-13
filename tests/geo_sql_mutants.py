@@ -45,6 +45,10 @@ W.MUTANTS[:] = [
     ("a visitor may run the purge", "grant execute on function public.geo_purge() to service_role;", "grant execute on function public.geo_purge() to service_role, anon;"),
 ]
 
+# The ask-locks migration (20261109000300) replaces the ask function(s) and refuses a drifted one, so the BODY mutants are made in that migration (tests/ask_locks_retarget.py).
+from ask_locks_retarget import retarget  # noqa: E402
+retarget(W, "connect_geo_ask")
+
 if __name__ == "__main__":
     if "--check-targets" in sys.argv:
         b = W.targets_bad()
