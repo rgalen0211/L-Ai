@@ -856,6 +856,7 @@ EXPECTED_CALLABLE += ['connect_forecast_ask(text, jsonb, integer, text, integer[
 EXPECTED_CALLABLE += ['connect_cimd_client(text, text[])']      # client ID metadata documents (migration 20261110000100; its own line so it does not conflict)
 EXPECTED_CALLABLE += ['connect_list_footage(text)', 'connect_request_footage(text, text, text, text)']      # NEXT-CONNECT 168 P1b: footage plans (migration 20261030000200; a separate line so it conflicts with no other branch that edits the list above)
 EXPECTED_CALLABLE += ['connect_film_card_ask(text, uuid)', 'connect_film_card_get(text, uuid)']      # Step A film look cards (migration 20261109000100; its own line)
+EXPECTED_CALLABLE += ['connect_my_departments(text)']      # the person's departments for the AI's home panel (migration 20261113000200; its own line)
 
 
 def callable_by_runner(d):
