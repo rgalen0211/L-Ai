@@ -247,3 +247,9 @@ button,input,select,textarea{font-family:inherit}
 /* Option B: a WAITING account sees one page; the nav shows only the account and sign-out (NEXT-WEB waiting pages) */
 body.is-waiting .dept-slot,body.is-waiting .admin-menu,body.is-waiting .app-account .app-nav-link:not([href="#/account"]){display:none!important}
 .wl-list{list-style:none;margin:12px 0;padding:0}.wl-row{display:flex;flex-wrap:wrap;gap:8px 16px;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--line,#3a3a44)}.wl-who{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}.wl-row .button{min-height:44px}
+/* #/new and My films polish (WEB 2026-11-13) */
+.intake .builder-card.intake-choice{text-align:left;align-items:start;gap:4px;padding:16px 18px;font:inherit;color:inherit;width:100%}
+.intake .intake-choice strong{font-size:1.1rem}.intake .intake-choice .meta{font-size:.95rem}
+.intake .intake-choice:hover,.intake .intake-choice:focus-visible{border-color:var(--brand-deep,#0a6);background:color-mix(in srgb,var(--paper) 92%,var(--brand-deep,#0a6))}
+.intake .intake-choice .intake-soon{justify-self:start;margin-top:4px;padding:1px 10px;border:1px solid var(--line);border-radius:999px;font-size:.8rem}
+.film-row .meta{margin-left:.5em}.film-row{padding:14px 0}

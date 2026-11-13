@@ -90,7 +90,7 @@
         if (!rows.length) { list.replaceChildren(h('li', {}, h('p', { class: 'form-intro' }, WORDS.noFilms))); return; }
         list.replaceChildren(...rows.map(r => h('li', { class: `film-row film-${r.status}` },
           h('a', { href: r.href }, h('strong', {}, r.title)),
-          h('span', { class: 'meta' }, r.version ? ` · Version ${r.version}` : '', r.updated ? ` · updated ${date(r.updated)}` : ''),
+          h('span', { class: 'meta' }, [r.version ? `Version ${r.version}` : '', r.updated ? `updated ${date(r.updated)}` : ''].filter(Boolean).join(' · ')),
           h('p', { class: `state film-state-${r.status}` }, h('b', {}, r.word), r.why ? ` ${r.why}` : ''),
           r.again ? h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
             await busy(event.currentTarget, 'Submitting…', async () => { try { await data.submitJob(r.again.versionId, r.again.jobType, {}); await load(); } catch (err) { showError(error, err); } });
