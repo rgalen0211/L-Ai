@@ -99,3 +99,4 @@ input[type=text],input[type=number],textarea{background:#101015;color:var(--ink)
 .le-film-clip{position:absolute;top:3px;bottom:3px;box-sizing:border-box;padding:0 8px;border-radius:6px;background:#8fa0e8;color:#10131f;font-size:.8rem;font-weight:600;line-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 .le-film-drawn{background:#6fd1bd;color:#0a1a17}
 .le-film .le-ruler-holder{margin-top:6px;padding:0}
+@media (hover:none),(pointer:coarse){.le-keys{display:none}}      /* a phone has no keyboard for the slider keys (GEO LOW 09:25) */

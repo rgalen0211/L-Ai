@@ -177,3 +177,8 @@ test('wiring: the strip is rebuilt when the width crosses a tile-count breakpoin
   assert.match(ed, /const onResize = \(\) => \{\s*const next = TLM \? TLM\.maxTilesFor\(window\.innerWidth\) : stripMax;\s*if \(!strip \|\| next === stripMax\) return;\s*stripMax = next; strip = makeStrip\(\); stripHolder\.replaceChildren\(strip\.el\); strip\.paint\(position\);/);
   assert.match(ed, /window\.addEventListener\('resize', onResize\); onStop\(\(\) => window\.removeEventListener\('resize', onResize\)\);/);
 });
+
+test('the keys line is hidden where there is no keyboard (touch devices), and the stylesheet carries a new stamp', () => {
+  assert.match(read('assets/app-editor.css'), /@media \(hover:none\),\(pointer:coarse\)\{\.le-keys\{display:none\}\}/);
+  assert.match(read('app/index.html'), /app-editor\.css\?v=20261113b/);
+});
