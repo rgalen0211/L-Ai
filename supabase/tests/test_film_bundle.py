@@ -477,7 +477,10 @@ class BundlesAreFree(core.Base):
         self.db.as_(None).one("update control set disabled_job_types = '{}' where id returning 1")
 
     def quote(self, vid, jt="film_bundle"):
-        return self.db.as_(RYAN).one("select price_code, credits from credit_quote(%s, %s::job_type)", vid, jt)
+        try:
+            return self.db.as_(RYAN).one("select price_code, credits from credit_quote(%s, %s::job_type)", vid, jt)
+        except psycopg.Error as e:                                                   # a refusal is an answer to compare (a planted fault must FAIL here, not error)
+            return ("refused", str(e))
 
     def test_a_bundle_costs_nothing_with_no_credits_when_the_ledger_is_loaded_after_the_migration(self):
         self.db.as_(None).c.execute(LEDGER.read_text(encoding="utf-8"))
