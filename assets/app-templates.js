@@ -53,7 +53,8 @@
     { id: 'bars', view: 'bars', label: 'Bars', blurb: 'A ranked bar race: who leads, year by year.',
       datasets: ['bls_state_unemployment'], settings: { top_n: 10, axis: 'fixed' }, confirmed: true },
     { id: 'paired', view: 'paired', label: 'Paired', blurb: 'A map and a bar race side by side, one timeline.',
-      datasets: ['state_obesity_fastfood'], confirmed: true },
+      datasets: ['state_obesity_fastfood'], confirmed: true,
+      unmeasured: true },        // a paired film needs keyframes_per_year MEASURED for its own story (Ryan 2026-09-28): never offered, never built here
     // Rendered on engine main ca449be (2026-10-03): passes every check, motion 180/180, sheet 21 s.
     { id: 'highest', view: 'line', label: 'Highest', blurb: 'The six states with the highest values, year by year.',
       headline: 'The states with the highest adult obesity',
@@ -107,6 +108,7 @@
   function build(templateId, datasetId, headline) {
     const t = TEMPLATES.find(x => x.id === templateId);
     if (!t) throw new Error('Unknown template.');
+    if (t.unmeasured) throw new Error('A paired or panel view needs keyframes_per_year: how many pictures a year it draws, measured for this film. That takes minutes of drawing and cannot be chosen here, so use a map, bars or line view, or make this film in the Ryagram app.');
     if (!t.datasets.includes(datasetId)) throw new Error('That dataset isn’t offered for this template.');
     const d = DATASETS[datasetId];
     const title = cleanText(headline, 160) || cleanText(t.headline, 160) || cleanText(d.headline, 160) || cleanText(d.label, 160);
@@ -118,7 +120,8 @@
   // A story for a dataset chosen from the catalog (assets/app-catalog.js storyInfo()).
   function buildFor(info, headline) {
     if (!info || !/^[a-z0-9_]{1,64}$/.test(info.id || '')) throw new Error('Unknown dataset.');
-    if (!['map', 'bars', 'line', 'paired'].includes(info.view)) throw new Error('That view isn’t available here.');
+    if (info.view === 'paired' || info.view === 'panel') throw new Error('A paired or panel view needs keyframes_per_year: how many pictures a year it draws, measured for this film. That takes minutes of drawing and cannot be chosen here, so use a map, bars or line view, or make this film in the Ryagram app.');
+    if (!['map', 'bars', 'line'].includes(info.view)) throw new Error('That view isn’t available here.');
     const title = cleanText(headline, 160) || cleanText(info.headline, 160) || cleanText(info.label, 160);
     return assemble({ datasetId: info.id, label: info.label, start: info.start, end: info.end, view: info.view,
                       settings: info.settings, style: info.style, hold: info.hold, title,

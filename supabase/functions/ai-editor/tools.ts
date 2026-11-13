@@ -2,7 +2,7 @@
 // token, so it can do only what they could do by hand (RLS). Tools are pinned to the
 // conversation's version: no tool takes a version or project id from the model.
 // Starting a render counts against the hourly cap; the final render is never started here.
-import { build, DATASETS, RENDER_VIEWS, TEMPLATES } from "../_shared/templates.ts";
+import { build, DATASETS, RENDER_VIEWS, TEMPLATES, UNMEASURED_WORDS } from "../_shared/templates.ts";
 import { untrusted } from "./prompt.ts";
 import { titleProblems } from "../_shared/title_limits.ts";
 
@@ -50,7 +50,7 @@ export const TOOLS = [
   tool("fetch_dataset", "Check that a catalog dataset is available to the render worker (it fetches and caches data itself).",
        { dataset_id: { type: "string", maxLength: 64 } }),
   tool("draft_story", "Replace this version's story with a template: a title card and one data view.", {
-    template: { type: "string", enum: TEMPLATES.map((t) => t.id) },
+    template: { type: "string", enum: TEMPLATES.filter((t) => !(t as { unmeasured?: boolean }).unmeasured).map((t) => t.id) },
     dataset_id: { type: "string", maxLength: 64 },
     headline: { type: "string", maxLength: 160 },
   }),
@@ -117,6 +117,11 @@ function checkStory(story: unknown): string | null {
   const clips = (s.sequence as { clips?: unknown[] } | undefined)?.clips;
   if (!Array.isArray(clips) || clips.length < 1 || clips.length > 40) return "The story needs 1 to 40 clips.";
   if (JSON.stringify(story).length > 256 * 1024) return "The story is too large.";
+  for (const c of clips as Record<string, unknown>[]) {                                // a paired or panel view needs keyframes_per_year measured for the film (engine rule, 2026-09-28)
+    const st = c && typeof c === "object" ? (c as { settings?: unknown }).settings : undefined;
+    if (c && typeof c === "object" && ((c as { view?: unknown }).view === "paired" || (c as { view?: unknown }).view === "panel")
+        && !(st && typeof st === "object" && Number.isInteger((st as { keyframes_per_year?: unknown }).keyframes_per_year))) return UNMEASURED_WORDS;
+  }
   const cards = titleProblems(story);                                  // the worker's title-card limits, refused here with the reason
   if (cards.length) return `The story was not saved. ${cards.join(" ")}`;
   return null;
@@ -173,10 +178,11 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
     case "fetch_dataset": {
       const id = String(input.dataset_id ?? "");
       if (!DATASETS[id]) return { text: `"${id}" is not in the catalog. Use search_dataset.`, isError: true };
-      const views = TEMPLATES.filter((t) => t.datasets.includes(id)).map((t) => t.view);
+      const views = TEMPLATES.filter((t) => t.datasets.includes(id) && !(t as { unmeasured?: boolean }).unmeasured).map((t) => t.view);
       return { text: `${catalogLine(id)}. Tried and tested views: ${views.join(", ") || "none yet"}.${name === "fetch_dataset" ? " The render worker fetches and caches it; nothing to download." : ""}` };
     }
     case "draft_story": {
+      if ((TEMPLATES.find((t) => t.id === String(input.template)) as { unmeasured?: boolean } | undefined)?.unmeasured) return { text: UNMEASURED_WORDS, isError: true };
       try {
         return await save(ctx, build(String(input.template), String(input.dataset_id), input.headline), `Drafted a ${input.template} story on ${input.dataset_id}.`);
       } catch (e) {
