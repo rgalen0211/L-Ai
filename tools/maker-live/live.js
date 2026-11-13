@@ -872,6 +872,10 @@
       const stopPlay = () => { const was = !!timer; if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; if (was && bundleMode && bundleState === 'ready') paintPreview(); };
       onStop(stopPlay);
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
+      // The film strip (tiles, ruler, playhead) under the stand-in data editor; a film with real drawing data keeps its own slider until the strip can draw its pictures (assets/app-editor-timeline.js).
+      const TLM = window.ryagramEditorTimeline;
+      const strip = isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
+        seek: v => { stopPlay(); range.value = String(v); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null;
       const ticks = isData ? h('div', { class: bundleMode ? 'le-ticks' : 'le-ticks le-ticks-flat', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;      // the stand-in's years have no position of their own: they sit in a row, not piled at the left
 
       // ---- the controls
@@ -1124,7 +1128,7 @@
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
-      function paintHead() { if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
+      function paintHead() { if (strip) strip.paint(TLM.fractionOf(position, FIRST, LAST)); if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
       const pct = t => `${(t / Math.max(1, ed.state.duration)) * 100}%`;
       async function apply(op) {
         stopPlay();
@@ -1336,7 +1340,7 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
+          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, strip ? strip.el : null, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));

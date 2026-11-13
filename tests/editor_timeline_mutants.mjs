@@ -1,0 +1,54 @@
+// Must-fail proof for tests/editor-timeline.test.mjs (WEB item 1): each mutant breaks ONE thing in a scratch copy and the suite must then FAIL. Baseline must PASS first. Run: node tests/editor_timeline_mutants.mjs
+import fs from 'node:fs';
+import path from 'node:path';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const scratch = path.join(root, '.mut-tl');
+const SUITES = ['editor-timeline.test.mjs'];
+const TLJS = 'assets/app-editor-timeline.js', ED = 'assets/app-editor.js';
+const mutants = [
+  ['the last year gets no tile', TLJS, 'for (let i = 0; i < max; i++) out.push', 'for (let i = 0; i < max - 1; i++) out.push'],
+  ['the slider value is not clamped at the ends', TLJS, 'const raw = min + clamp(fraction, 0, 1) * (max - min);', 'const raw = min + fraction * (max - min);'],
+  ['the fraction is not clamped', TLJS, 'max > min ? clamp((Number(value) - min) / (max - min), 0, 1) : 0', 'max > min ? (Number(value) - min) / (max - min) : 0'],
+  ['the playhead is painted at the wrong place', TLJS, 'head.style.left = `${f * 100}%`;', 'head.style.left = `${f * 50}%`;'],
+  ['the strip is announced to assistive tech', TLJS, "'aria-hidden': 'true', 'data-tiles'", "'data-tiles'"],
+  ['dragging goes on after release', TLJS, 'const up = () => { down = false; };', 'const up = () => { };'],
+  ['pointer down does not seek', TLJS, 'try { strip.setPointerCapture(ev.pointerId); } catch (e) { /* not every pointer can be captured */ } at(ev); });', 'try { strip.setPointerCapture(ev.pointerId); } catch (e) { /* not every pointer can be captured */ } });'],
+  ['the note claims pictures that are not there', TLJS, "anyReal ? 'Pictures from your film. Click or drag to move the playhead.'", "true ? 'Pictures from your film. Click or drag to move the playhead.'"],
+  ['the page never moves the playhead', ED, 'function paintHead() { if (strip) strip.paint(TLM.fractionOf(position, FIRST, LAST)); ', 'function paintHead() { '],
+  ['a seek does not stop playback', ED, 'seek: v => { stopPlay(); range.value', 'seek: v => { range.value'],
+  ['the strip is built for the film with real drawing data too', ED, 'const strip = isData && !bundleMode && TLM ?', 'const strip = isData && TLM ?'],
+];
+
+function run(cwd) {
+  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
+}
+function fresh() {
+  fs.rmSync(scratch, { recursive: true, force: true });
+  fs.mkdirSync(path.join(scratch, 'supabase'), { recursive: true });
+  fs.cpSync(path.join(root, 'supabase/functions'), path.join(scratch, 'supabase/functions'), { recursive: true });
+  fs.cpSync(path.join(root, 'tests'), path.join(scratch, 'tests'), { recursive: true });
+  fs.cpSync(path.join(root, 'assets'), path.join(scratch, 'assets'), { recursive: true });
+  fs.cpSync(path.join(root, 'app'), path.join(scratch, 'app'), { recursive: true });
+  if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
+}
+fresh();
+const base = run(scratch).status;
+if (base) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
+console.log('baseline passes');
+let missed = 0;
+for (const [name, file, from, to] of mutants) {
+  fresh();
+  const target = path.join(scratch, file);
+  const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
+  if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
+  fs.writeFileSync(target, src.replace(from, () => to));
+  const caught = run(scratch).status !== 0;
+  console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
+  if (!caught) missed++;
+}
+fs.rmSync(scratch, { recursive: true, force: true });
+console.log(missed ? `${missed} mutant(s) not caught` : `all ${mutants.length} mutants caught`);
+process.exit(missed ? 1 : 0);
