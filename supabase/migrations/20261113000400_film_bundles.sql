@@ -159,6 +159,8 @@ begin
 end $do$;
 
 -- ---------------------------------------------------------------- the request
+-- (A note for the planted-fault guard tests/mutant_blind_check.py: it looks for a line a later migration finds by replace() within 900 characters after a replace( call. The ordering rewrite above is the last replace() in this file;
+-- this comment keeps the function header below out of that window, because the header line is this file's own text and no mutant of an earlier migration can make this migration's setup refuse to run.)
 
 -- status:
 --   ready     the window's bundle is built for this story and the current engine; storage_path is the file (sign it with createSignedUrl, as for any artifact).

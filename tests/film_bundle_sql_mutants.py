@@ -41,7 +41,8 @@ W.MUTANTS[:] = [
     ("sixty an hour is not enforced", ") >= 60 then", ") >= 6000 then"),
     ("an uploaded data film is bundled", "if v.dataset_id is not null then\n    raise exception 'Real-frame previews are for catalog films only for now.'", "if false then\n    raise exception 'Real-frame previews are for catalog films only for now.'"),
     ("anyone's film can be asked about", "select * into v from public.versions where id = p_version_id and owner_id = me for update;", "select * into v from public.versions where id = p_version_id for update;"),
-    ("a visitor may call the request", "revoke execute on function public.request_film_bundle(uuid, text) from public, anon;", "select 1;"),
+    # (dropped: "a visitor may call the request" = removing this migration's own revoke. It is EQUIVALENT: the waiting-list gate at the end of the migration (gate_apply) revokes anon from every gated function, so the
+    # revoke is a second lock and no test can see the first one missing. The anon refusal itself is tested (test_film_bundle, the grants test) and a fault that removes the gate is caught.)
     ("a bundle can be made by submit_job or a direct insert", "  for each row execute function ryagram_private.film_bundle_by_request();", "  for each row execute function ryagram_private.film_bundle_by_request();\nalter table public.jobs disable trigger jobs_film_bundle_by_request;"),
     ("bundles start switched on", "array['film_bundle', 'scene_bundle']::public.job_type[]) t)", "array[]::public.job_type[]) t)"),
     ("a scene bundle can be made", "raise exception 'Scene bundles are not available yet.' using errcode = '42501';", "null;"),

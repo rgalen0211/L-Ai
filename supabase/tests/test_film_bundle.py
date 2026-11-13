@@ -502,6 +502,18 @@ class BundlesAreFree(core.Base):
         self.assertEqual(self.db.as_(None).one("select pg_get_functiondef(to_regprocedure('ryagram_private.jobs_quote()'))"), before)
         self.assertEqual(self.db.as_(None).one("select count(*) from credit_prices where code = 'film_bundle'"), 1)
 
+    def test_a_claim_function_that_is_not_the_expected_one_is_refused_in_words_and_nothing_is_changed(self):
+        self.db.as_(None).c.execute(RB.read_text(encoding="utf-8"))                   # the claim as it was before this change
+        drifted = self.db.as_(None).one("select replace(pg_get_functiondef(to_regprocedure('public.claim_next_job()')), E'order by created_at, id\n    for update skip locked', E'order by created_at desc, id\n    for update skip locked')")
+        self.assertIn("created_at desc", drifted)
+        self.db.as_(None).c.execute(drifted)                                          # as if someone had changed it by hand
+        before = self.db.as_(None).one("select prosrc from pg_proc where oid = to_regprocedure('public.claim_next_job()')")
+        with self.assertRaises(psycopg.Error) as cm:
+            self.db.as_(None).c.execute(MIG.read_text(encoding="utf-8"))
+        self.assertIn("claim_next_job is not the one this change expects", str(cm.exception))
+        self.db.c.execute("rollback")
+        self.assertEqual(self.db.as_(None).one("select prosrc from pg_proc where oid = to_regprocedure('public.claim_next_job()')"), before, "nothing was changed")
+
     def test_a_ledger_that_is_not_the_expected_one_is_refused_in_words_and_nothing_is_changed(self):
         self.db.as_(None).c.execute(self.original_ledger())
         drifted = self.db.as_(None).one("select replace(pg_get_functiondef(to_regprocedure('ryagram_private.jobs_quote()')), E'  else\n    new.price_code', E'  else\n    new.price_code2')")
