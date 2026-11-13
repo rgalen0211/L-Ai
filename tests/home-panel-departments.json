@@ -1,6 +1,12 @@
 {
   "note": "The departments the in-chat home panel must show, in order, with the same ids and labels as the website (assets/app-departments.js). Status is the server's my_departments() answer, not decided here: 'working' opens it, 'soon' shows Coming soon. My films is not a department; it is a link that appears only when featureOn('myFilms') is true for the account. CONNECT builds the panel from this list; the test tests/home-panel-departments.test.mjs fails if the site and this file drift.",
-  "order": ["data_films", "compilations", "geo_intelligence", "games", "animation_studio"],
+  "order": [
+    "data_films",
+    "compilations",
+    "geo_intelligence",
+    "games",
+    "animation_studio"
+  ],
   "labels": {
     "data_films": "Data films",
     "compilations": "Compilations",
@@ -8,6 +14,22 @@
     "games": "Games",
     "animation_studio": "Animation Studio"
   },
-  "my_films": { "label": "My films", "link": "#/films", "shownOnlyWhen": "featureOn('myFilms')" },
-  "ryan_names_awaiting_choice": { "geo_intelligence": "Opportunity Map (Ryan's 07:05 list) or Geographic Intelligence (the site): one name in both places, Ryan's call (GEO-HOME-PANEL-ENTRY-1113 question 1)" }
+  "my_films": {
+    "label": "My films",
+    "always_shown": true,
+    "link_when_on": "#/films",
+    "link_when_off": "#/",
+    "on_means": "featureOn('myFilms') is true for the account (its own my_switches() list names myFilms)"
+  },
+  "ryan_names_awaiting_choice": {
+    "geo_intelligence": "Opportunity Map (Ryan's 07:05 list) or Geographic Intelligence (the site): one name in both places, Ryan's call (GEO-HOME-PANEL-ENTRY-1113 question 1)"
+  },
+  "status": "Which departments WORK for an account and which are Coming soon is the server's my_departments() answer; the panel never decides it. The words below are what a Coming soon card says.",
+  "lines": {
+    "compilations": "Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.",
+    "geo_intelligence": "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
+    "games": "Play with your own data and footage in small games you can share.",
+    "animation_studio": "Simple cartoons you direct: characters you can pose, with mouths that move to your voice."
+  },
+  "data_films_sentence": "Questions answered with public data, drawn as a short animated film, with every source shown."
 }

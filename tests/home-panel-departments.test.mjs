@@ -17,8 +17,17 @@ test('the home panel list has the same ids, order and labels as the site departm
   assert.deepEqual(Object.keys(fixture.labels).sort(), Object.keys(D.KNOWN).sort());
 });
 
-test('My films is a link that follows the per-account switch, not a department', () => {
+test("the words: every Coming soon card line in the fixture is the site's own line, and the refused wording is gone", () => {
+  for (const [id, line] of Object.entries(fixture.lines)) assert.equal(D.KNOWN[id].line, line, id);
+  assert.equal(D.KNOWN.data_films.sentence, fixture.data_films_sentence);
+  for (const id of D.ORDER) if (id !== 'data_films') assert.ok(fixture.lines[id], `${id} has a line in the fixture`);
+  const all = read('assets/app-departments.js');
+  assert.ok(!/where would a new shop do well/i.test(all) && !/chicken restaurant might do well/i.test(all), 'no line asks where a business would do well');
+});
+
+test('My films is always shown; where it goes follows the per-account switch (the fixture says what the site does, the real-Chrome check tools/check-home-panel-fixture.py reads the bar)', () => {
   assert.ok(!D.ORDER.includes('my_films'));
-  assert.equal(fixture.my_films.shownOnlyWhen, "featureOn('myFilms')");
-  assert.match(read('assets/app-departments.js'), /featureOn\('myFilms'\)/);
+  assert.equal(fixture.my_films.always_shown, true);
+  assert.equal(fixture.my_films.link_when_on, '#/films'); assert.equal(fixture.my_films.link_when_off, '#/');
+  assert.match(read('assets/app-departments.js'), /featureOn\('myFilms'\) \? '#\/films' : '#\/', 'My films'/);
 });
