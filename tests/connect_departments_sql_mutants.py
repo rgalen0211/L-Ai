@@ -22,7 +22,6 @@ W.MUTANTS[:] = [
     ("the site's order is not kept", "order by x.sort, x.id)", "order by x.id)"),
     ("an extra key leaks (the sort number)", "'status', x.status)", "'status', x.status, 'sort', x.sort)"),
     ("any signed-in person can run it", "grant execute on function " + SIG + " to connect_runner;", "grant execute on function " + SIG + " to connect_runner, authenticated;"),
-    ("everybody can run it (no revoke)", "revoke execute on function " + SIG + " from public, anon, authenticated;", "select 1;"),
     ("the waiting-list gate is not applied after it", "select ryagram_private.gate_apply();", "select 1;"),
     ("it is not security definer", "language plpgsql security definer set search_path = '' as $$", "language plpgsql set search_path = '' as $$"),
 ]

@@ -16,7 +16,7 @@ begin
             from ryagram_private.departments_for(me) x);
 end $$;
 
-revoke execute on function public.connect_my_departments(text) from public, anon, authenticated;
+revoke execute on function public.connect_my_departments(text) from public, anon, authenticated, service_role;
 grant execute on function public.connect_my_departments(text) to connect_runner;
 
 select ryagram_private.gate_apply();                       -- like every migration after the waiting list (the function is the connector login's only, so the gate leaves it as it is)
