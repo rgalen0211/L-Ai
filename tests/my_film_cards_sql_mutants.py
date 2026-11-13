@@ -27,7 +27,7 @@ W.MUTANTS[:] = [
     ("the read shows an archived film", OWN_GET, OWN_GET.replace(" and p.archived_at is null", "")),
     ("the ask takes no lock", "  perform pg_advisory_xact_lock(hashtextextended('film_card:' || me::text, 0));\n", ""),
     ("the ask takes a different lock from the connector's", "hashtextextended('film_card:' || me::text, 0)", "hashtextextended('my_film_card:' || me::text, 0)"),
-    ("asking again for the same story makes a second request", "      return jsonb_build_object('id', same.id, 'state', same.state, 'repeat', true);", "      null;"),
+    ("asking again for the same story is not said to be a repeat", "      return jsonb_build_object('id', same.id, 'state', same.state, 'repeat', true);", "      return jsonb_build_object('id', same.id, 'state', same.state, 'repeat', false);"),
     ("any failure is tried again, not only an engine error", "if same.state = 'failed' and same.fail_code = 'engine_error' and same.finished_at", "if same.state = 'failed' and same.finished_at"),
     ("an engine failure is tried again at once", "and same.finished_at < now() - interval '10 minutes' then", "then"),
     ("six open at once", "if waiting >= 5 then", "if waiting >= 6 then"),
@@ -39,9 +39,11 @@ W.MUTANTS[:] = [
     ("the card of the current story is not preferred", "order by (story_sha256 = cur) desc, finished_at desc limit 1;", "order by finished_at desc limit 1;"),
     ("a refresh is reported for the card that is current", "case when ok.story_sha256 = cur or r.id is null then null", "case when r.id is null then null"),
     ("a failed card may always be asked again", "retry := r.id is not null and r.state = 'failed' and r.fail_code = 'engine_error' and r.finished_at < now() - interval '10 minutes';", "retry := r.id is not null and r.state = 'failed';"),
-    ("the read shows the card of any story to another person", "select * into ok from public.film_card_requests where owner_id = me and project_id", "select * into ok from public.film_card_requests where project_id"),
+    # (dropped as EQUIVALENT: "the read shows the card of any story to another person" removes owner_id = me from the card lookup. The project was already found as the caller's own just before, a project has one owner and a request row
+    # carries its project's owner, so no other person's row can match; the guard that matters is the project check above, and it has its own faults.)
     ("the migration forgets the waiting-list gate", "select ryagram_private.gate_apply();                       -- a waiting-list account is refused here like everywhere else\n", ""),
-    ("the functions are left runnable by everyone", "revoke execute on function public.my_film_card_ask(uuid), public.my_film_card_get(uuid) from public, anon;\n", ""),
+    # (dropped as EQUIVALENT: "the functions are left runnable by everyone" removes this migration's own revoke. The waiting-list gate at the end (gate_apply) revokes public and anon from every gated function, so the revoke is a
+    # second lock; the grants test and the after-check read the result, and the fault that removes the gate is caught.)
     ("the functions are not granted to a signed-in session", "to authenticated;\n\nselect ryagram", "to service_role;\n\nselect ryagram"),
     ("the person is taken from the caller's own words", "me uuid := ryagram_private.require_signed_in();\n  v public.versions;", "me uuid := auth.uid();\n  v public.versions;"),
     ("the rollback leaves the ask in place", [(R, "drop function if exists public.my_film_card_ask(uuid);\n", "")]),
