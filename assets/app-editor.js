@@ -243,6 +243,14 @@
       const endDrag = () => { if (!dragging) return; dragging = false; if (bundleMode && bundleState === 'ready') paintPreview(); };
       range.addEventListener('pointerdown', () => { dragging = true; }); range.addEventListener('keydown', () => { dragging = true; }); range.addEventListener('keyup', endDrag); range.addEventListener('change', endDrag); range.addEventListener('blur', endDrag);
       window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
+      // Video-editor keys on the slider: Space or K play and pause, Shift+arrows or J and L jump a tenth of the film (assets/app-editor-timeline.js keyTarget).
+      range.addEventListener('keydown', ev => {
+        const kt = window.ryagramEditorTimeline && window.ryagramEditorTimeline.keyTarget(ev, { value: Number(range.value), min: Number(range.min), max: Number(range.max), step: Number(range.step) || 1 });
+        if (!kt) return;
+        ev.preventDefault();
+        if (kt.toggle) { playBtn.click(); return; }
+        stopPlay(); range.value = String(kt.value); range.dispatchEvent(new Event('input', { bubbles: true }));
+      });
       range.addEventListener('input', () => setPos(bundleMode ? (tl ? tl.seconds(Number(range.value)) : 0) : isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
         if (timer) { stopPlay(); return; }
@@ -732,7 +740,7 @@
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, strip ? strip.el : null, ticks, warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
+          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, strip ? strip.el : null, ticks, h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.'), warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));

@@ -29,6 +29,21 @@
     return at;
   }
 
+  // Video-editor keys on the slider (the native slider keeps the plain arrows, Home, End, PageUp and PageDown): Space or K plays and pauses, Shift+Left/Right or J/L jump a tenth of the film.
+  // keyTarget(event, { value, min, max, step }) -> { toggle: true } | { value } | null (null: leave the key alone). Never touches a key with Ctrl, Alt or Meta held.
+  function keyTarget(ev, s) {
+    if (!ev || ev.ctrlKey || ev.altKey || ev.metaKey) return null;
+    const key = String(ev.key || ''), lower = key.toLowerCase();
+    if (key === ' ' || key === 'Spacebar' || lower === 'k') return { toggle: true };
+    const min = Number(s.min), max = Number(s.max), step = Number(s.step) > 0 ? Number(s.step) : 1, v = Number(s.value);
+    if (!Number.isFinite(min) || !Number.isFinite(max) || !Number.isFinite(v) || max < min) return null;
+    const big = Math.max(step, Math.round((max - min) / 10 / step) * step);
+    let dir = 0;
+    if (lower === 'j' || (ev.shiftKey && key === 'ArrowLeft')) dir = -1;
+    else if (lower === 'l' || (ev.shiftKey && key === 'ArrowRight')) dir = 1;
+    return dir ? { value: clamp(v + dir * big, min, max) } : null;
+  }
+
   // How many tiles fit a screen so no year label is ever cut: a four-digit label needs about 40 px of tile. Narrow phones get 6, wide phones 8, the rest 12.
   const maxTilesFor = width => { const w = Number(width); return !Number.isFinite(w) || w <= 0 ? 12 : w <= 430 ? 6 : w <= 700 ? 8 : 12; };
 
@@ -102,5 +117,5 @@
     return { lane, paint: f => { head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount: ticks.length };
   }
 
-  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, maxTilesFor, build, rulerTicks, ruler, clock };
+  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, maxTilesFor, keyTarget, build, rulerTicks, ruler, clock };
 })();

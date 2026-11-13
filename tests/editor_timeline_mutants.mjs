@@ -37,6 +37,12 @@ const mutants = [
   ['every screen gets twelve tiles', TLJS, 'w <= 430 ? 6 : w <= 700 ? 8 : 12;', 'w <= 430 ? 12 : w <= 700 ? 12 : 12;'],
   ['a wide phone gets too many tiles', TLJS, 'w <= 430 ? 6 : w <= 700 ? 8 : 12;', 'w <= 430 ? 6 : w <= 700 ? 12 : 12;'],
   ['the page does not ask for fewer tiles', ED, 'max: TLM.maxTilesFor(window.innerWidth), h,', 'h,'],
+  ['Space no longer plays and pauses', TLJS, "if (key === ' ' || key === 'Spacebar' || lower === 'k') return { toggle: true };", "if (lower === 'k') return { toggle: true };"],
+  ['a modified key is taken', TLJS, 'if (!ev || ev.ctrlKey || ev.altKey || ev.metaKey) return null;', 'if (!ev) return null;'],
+  ['the big jump is a single step', TLJS, 'const big = Math.max(step, Math.round((max - min) / 10 / step) * step);', 'const big = step;'],
+  ['the jump goes past the end', TLJS, 'return dir ? { value: clamp(v + dir * big, min, max) } : null;', 'return dir ? { value: v + dir * big } : null;'],
+  ['the plain arrows are taken from the native slider', TLJS, "(ev.shiftKey && key === 'ArrowRight')) dir = 1;", "key === 'ArrowRight') dir = 1;"],
+  ['the slider has no video-editor keys', ED, 'const kt = window.ryagramEditorTimeline && window.ryagramEditorTimeline.keyTarget(ev,', 'const kt = null && window.ryagramEditorTimeline.keyTarget(ev,'],
 ];
 
 function run(cwd) {

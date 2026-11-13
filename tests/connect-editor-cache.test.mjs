@@ -89,7 +89,7 @@ const REVIEWED = {
   'assets/app-editor-progress.js': {},
   'assets/app-editor-draft.js': {},
   'assets/preview/text-layout.js': {},
-  'assets/app-editor-timeline.js': { padStart: 1 },          // reviewed 2026-11-13 (WEB): padStart is called on String(Math.floor(...)), always a string
+  'assets/app-editor-timeline.js': { padStart: 1, toLowerCase: 1 },          // reviewed 2026-11-13 (WEB): padStart is called on String(Math.floor(...)) and toLowerCase on String(ev.key || ''), both always strings
   'assets/app-editor.js': { padStart: 2, split: 1, trim: 2, toLowerCase: 2 },
   'tools/chat-editor/live-host.js': { trimStart: 1, startsWith: 3, trim: 2 },
 };

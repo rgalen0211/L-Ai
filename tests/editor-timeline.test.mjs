@@ -152,3 +152,22 @@ test('maxTilesFor: fewer tiles on narrow screens so a year label always fits, an
   for (const w of [320, 360, 390, 430, 600, 700]) assert.ok((w - 40) / T.maxTilesFor(w) >= 40, `${w}px: about 40 px of tile per label`);
   assert.match(read('assets/app-editor.js'), /max: TLM\.maxTilesFor\(window\.innerWidth\), h,/);
 });
+
+test('keyTarget: Space and K toggle play, Shift+arrows and J and L jump a tenth of the film, plain arrows and modified keys are left alone, and the ends clamp', () => {
+  const S = { value: 1990, min: 1985, max: 2010, step: 1 };
+  assert.deepEqual(plain(T.keyTarget({ key: ' ' }, S)), { toggle: true }); assert.deepEqual(plain(T.keyTarget({ key: 'k' }, S)), { toggle: true }); assert.deepEqual(plain(T.keyTarget({ key: 'K' }, S)), { toggle: true });
+  assert.deepEqual(plain(T.keyTarget({ key: 'ArrowRight', shiftKey: true }, S)), { value: 1993 }); assert.deepEqual(plain(T.keyTarget({ key: 'ArrowLeft', shiftKey: true }, S)), { value: 1987 });
+  assert.deepEqual(plain(T.keyTarget({ key: 'l' }, S)), { value: 1993 }); assert.deepEqual(plain(T.keyTarget({ key: 'j' }, S)), { value: 1987 });
+  assert.equal(T.keyTarget({ key: 'ArrowRight' }, S), null, 'the native slider keeps the plain arrows'); assert.equal(T.keyTarget({ key: 'Home' }, S), null); assert.equal(T.keyTarget({ key: 'a' }, S), null);
+  for (const m of ['ctrlKey', 'altKey', 'metaKey']) { assert.equal(T.keyTarget({ key: ' ', [m]: true }, S), null, m); assert.equal(T.keyTarget({ key: 'l', [m]: true }, S), null, m); }
+  assert.deepEqual(plain(T.keyTarget({ key: 'l' }, { ...S, value: 2009 })), { value: 2010 }); assert.deepEqual(plain(T.keyTarget({ key: 'j' }, { ...S, value: 1986 })), { value: 1985 });
+  assert.deepEqual(plain(T.keyTarget({ key: 'l' }, { value: 0, min: 0, max: 120, step: 1 })), { value: 12 });
+  assert.equal(T.keyTarget({ key: 'l' }, { value: 'x', min: 0, max: 10, step: 1 }), null); assert.equal(T.keyTarget(null, S), null);
+});
+
+test('wiring: the slider has the video-editor keys and the page says which keys', () => {
+  const ed = read('assets/app-editor.js');
+  assert.match(ed, /range\.addEventListener\('keydown', ev => \{\s*const kt = window\.ryagramEditorTimeline && window\.ryagramEditorTimeline\.keyTarget\(ev,/);
+  assert.match(ed, /if \(kt\.toggle\) \{ playBtn\.click\(\); return; \}\s*stopPlay\(\); range\.value = String\(kt\.value\)/);
+  assert.match(ed, /Keys on the slider: arrows step, Shift\+arrows or J and L jump a tenth of the film, Space or K plays and pauses/);
+});
