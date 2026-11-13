@@ -71,3 +71,13 @@
 .le-ruler-head::before{content:'';position:absolute;top:0;left:-4px;border:5px solid transparent;border-top-color:#ff8a7a;border-bottom:0}
 .le-ruler-last i{left:auto;right:3px}
 @media (max-width:760px){.le-ruler-holder{display:none}}
+/* the film's real frames (assets/app-editor-film.js) */
+.le-film-view{display:flex;align-items:center;justify-content:center;min-height:160px;overflow:hidden}.le-film-view svg{width:100%;height:auto;display:block}.le-film-block{margin:0;padding:20px;text-align:center}
+.le-film-status{min-height:1.3em;margin:6px 0}
+.le-film-lane{display:grid;grid-template-columns:78px minmax(0,1fr);gap:8px;align-items:center;margin:6px 0}.le-film-lane b{font-size:.85rem;color:var(--muted,#b6b5ae);font-weight:600}
+.le-film-bar{position:relative;height:34px;border-radius:8px;background:#101015;overflow:hidden}
+.le-film-clip{position:absolute;top:3px;bottom:3px;box-sizing:border-box;padding:0 8px;border-radius:6px;background:#8fa0e8;color:#10131f;font-size:.8rem;font-weight:600;line-height:28px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.le-film-drawn{background:#6fd1bd;color:#0a1a17}
+.le-film .le-ruler-holder{margin-top:6px;padding:0}
+@media (hover:none),(pointer:coarse){.le-keys{display:none}}      /* a phone has no keyboard for the slider keys (GEO LOW 09:25) */
+.le-film-colours{margin-top:12px}.le-film-col-list{list-style:none;margin:8px 0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:6px 14px}.le-film-col-list li{display:flex;gap:10px;align-items:center}.le-film-col-list input[type=color]{width:44px;height:36px;padding:0;border:1px solid var(--line,#3a3a44);border-radius:6px;background:none}
