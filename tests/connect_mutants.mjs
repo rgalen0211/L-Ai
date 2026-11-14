@@ -38,7 +38,7 @@ const mutants = [
   ['story size cap removed', D + 'story_check.ts', 'if (size > LIMITS.maxStoryBytes)', 'if (false)'],
   ['unknown dataset allowed', D + 'story_check.ts', 'typeof c.dataset === "string" && !DATASETS[c.dataset]', 'false'],
   ['calls are not logged', D + 'dispatch.ts', 'await policy.log(principal, {', 'void ({'],
-  ['the refusing render tool is listed again', D + 'mcp.ts', 'TOOLS.filter((t) => t.listed !== false && (!t.chatEditor || chatEditor)).map', 'TOOLS.map'],
+  ['the refusing render tool is listed again', D + 'mcp.ts', 'TOOLS.filter((t) => t.listed !== false && (!t.chatEditor || chatEditor) && (!t.homePanel || homePanel)).map', 'TOOLS.map'],
   ['every tool says it is not destructive', D + 'mcp.ts', 'destructiveHint: t.destructive === true', 'destructiveHint: false'],
   ['every tool says it is idempotent', D + 'mcp.ts', 'idempotentHint: t.idempotent ?? t.readOnly', 'idempotentHint: true'],
   ['set_story is not marked as replacing', D + 'tools.ts', 'title: "Save the story", scope: "write", readOnly: false, destructive: true,', 'title: "Save the story", scope: "write", readOnly: false,'],

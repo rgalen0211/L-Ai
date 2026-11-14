@@ -5,14 +5,14 @@ import { friendlyError, TOOL_BY_NAME } from "./tools.ts";
 import { LIMITS, type CallLog, type Data, type Deps, type Policy, type Principal, type ToolResult } from "./types.ts";
 
 /** chatEditor: the chat editor's tools exist only when this is true (the connector's second switch); otherwise they are "no such tool". */
-export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean }
+export interface Env { data: Data; policy: Policy; deps: Deps; chatEditor?: boolean; homePanel?: boolean }
 
 const NO_GRANT = "This Ryagram account is not enabled for AI connections (it is invite-only for now), or the connection was revoked. The person can ask Ryan for an invite or reconnect.";
 
 export async function callTool(name: string, rawArgs: unknown, principal: Principal, env: Env): Promise<ToolResult> {
   const { policy, data, deps } = env;
   const found = TOOL_BY_NAME.get(name);
-  const tool = found && found.chatEditor && !env.chatEditor ? undefined : found;
+  const tool = found && ((found.chatEditor && !env.chatEditor) || (found.homePanel && !env.homePanel)) ? undefined : found;
   const finish = async (r: ToolResult, result: CallLog["result"], code: string): Promise<ToolResult> => {
     try {
       await policy.log(principal, { tool: tool ? name : "unknown",

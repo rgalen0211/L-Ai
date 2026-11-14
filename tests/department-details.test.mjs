@@ -1,4 +1,4 @@
-// NEXT-WEB 200: more honest words on the Geographic Intelligence and Games Coming soon pages, behind departmentDetails (OFF). Only those two departments, only when the switch is exactly true,
+// NEXT-WEB 200: more honest words on the Opportunity Map and Games Coming soon pages, behind departmentDetails (OFF). Only those two departments, only when the switch is exactly true,
 // and the words say what is coming, how numbers and people are treated, and what is NOT built yet, with no price, no date and no promise.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

@@ -243,6 +243,14 @@
       const endDrag = () => { if (!dragging) return; dragging = false; if (bundleMode && bundleState === 'ready') paintPreview(); };
       range.addEventListener('pointerdown', () => { dragging = true; }); range.addEventListener('keydown', () => { dragging = true; }); range.addEventListener('keyup', endDrag); range.addEventListener('change', endDrag); range.addEventListener('blur', endDrag);
       window.addEventListener('pointerup', endDrag); window.addEventListener('pointercancel', endDrag);
+      // Video-editor keys on the slider: Space or K play and pause, Shift+arrows or J and L jump a tenth of the film (assets/app-editor-timeline.js keyTarget).
+      range.addEventListener('keydown', ev => {
+        const kt = window.ryagramEditorTimeline && window.ryagramEditorTimeline.keyTarget(ev, { value: Number(range.value), min: Number(range.min), max: Number(range.max), step: Number(range.step) || 1 });
+        if (!kt) return;
+        ev.preventDefault();
+        if (kt.toggle) { playBtn.click(); return; }
+        stopPlay(); range.value = String(kt.value); range.dispatchEvent(new Event('input', { bubbles: true }));
+      });
       range.addEventListener('input', () => setPos(bundleMode ? (tl ? tl.seconds(Number(range.value)) : 0) : isData ? Number(range.value) : Number(range.value) / 10));
       const playBtn = btn('Play', 'secondary', () => {
         if (timer) { stopPlay(); return; }
@@ -259,6 +267,28 @@
       const stopPlay = () => { const was = !!timer; if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; if (was && bundleMode && bundleState === 'ready') paintPreview(); };
       onStop(stopPlay);
       const scrub = h('div', { class: 'le-scrub' }, playBtn, range, posText);
+      // The film strip (tiles, ruler, playhead) under the stand-in data editor; a film with real drawing data keeps its own slider until the strip can draw its pictures (assets/app-editor-timeline.js).
+      const TLM = window.ryagramEditorTimeline;
+      // The film's REAL frames (assets/app-editor-film.js): only when the page has a film API for this project (CONNECT's request_film_bundle on the live site, a fixture in the tests) and the editor is the
+      // website's own stand-in data editor. Then the picture, slider, ruler and film lane are the film's; without one nothing here changes.
+      const filmReady = isData && !bundleMode && !host && TLM && window.ryagramEditorFilm && window.ryagramEditorFrames;
+      const filmApi = filmReady && typeof window.ryagramFilmApi === 'function' ? window.ryagramFilmApi(routeProject || null)
+        : filmReady && routeProject && !window.ryagramMock && data && typeof data.filmApi === 'function' && window.ryagramFilmGlue && window.ryagramFilmApiTools ? data.filmApi(routeProject) : null;
+      let destroyedEditor = false; onStop(() => { destroyedEditor = true; });
+      const filmEd = filmApi ? window.ryagramEditorFilm.mount({ h, api: filmApi, onStop }) : null;
+      if (filmEd) filmEd.el.hidden = true;                                       // the stand-in stays on screen until the film's own plan and first window have really opened
+      let stripMax = TLM ? TLM.maxTilesFor(window.innerWidth) : 12;
+      const makeStrip = () => (isData && !bundleMode && TLM ? TLM.build({ first: FIRST, last: LAST, max: stripMax, h, get: () => ({ min: FIRST, max: LAST, step: 1, value: position }),
+        seek: v => { stopPlay(); range.value = String(v); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null);
+      let strip = makeStrip();
+      const stripHolder = h('div', { class: 'le-tl-holder' }, strip ? strip.el : null);
+      // Rotating a phone or widening the panel changes how many tiles fit: rebuild the strip when the width crosses a tile-count breakpoint (GEO's LOW, 08:13).
+      const onResize = () => {
+        const next = TLM ? TLM.maxTilesFor(window.innerWidth) : stripMax;
+        if (!strip || next === stripMax) return;
+        stripMax = next; strip = makeStrip(); stripHolder.replaceChildren(strip.el); strip.paint(position);
+      };
+      window.addEventListener('resize', onResize); onStop(() => window.removeEventListener('resize', onResize));
       const ticks = isData ? h('div', { class: bundleMode ? 'le-ticks' : 'le-ticks le-ticks-flat', 'aria-hidden': 'true' }, bundleMode ? [] : YEARS.map(y => h('span', {}, String(y)))) : null;      // the stand-in's years have no position of their own: they sit in a row, not piled at the left
 
       // ---- the controls
@@ -456,6 +486,7 @@
       // ---- the tracks (compilation): lanes on a wide screen, a list on a phone; both from the same state, both make the same ops
       const open = track => !ed.state.lanes || ed.state.lanes.includes(track);          // the lanes the maker can build today (the track summary says); the others are shown, not editable
       const lanes = h('div', { class: 'le-lanes', role: 'group', 'aria-label': 'Tracks' });
+      const rulerHolder = h('div', { class: 'le-ruler-holder' });
 
       // ---- the film's own settings (CONNECT 13:12): the phrase rules ("every time a word is said, show a picture") and the look of the film's text and cards
       const rulesPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-rules-h', hidden: true });
@@ -511,7 +542,8 @@
       const list = h('div', { class: 'le-list', role: 'group', 'aria-label': 'Clips' });
       const clipPanel = h('section', { class: 'le-panel', 'aria-labelledby': 'le-clip-h' });
       const head = h('span', { class: 'le-head', 'aria-hidden': 'true' });
-      function paintHead() { if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
+      let rulerPaint = null;                                                     // the time ruler above the compilation's tracks (assets/app-editor-timeline.js)
+      function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(1, ed.state.duration))); if (strip) strip.paint(position); if (!isData) head.style.left = `${Math.min(100, (position / Math.max(1, ed.state.duration)) * 100)}%`; }
       const pct = t => `${(t / Math.max(1, ed.state.duration)) * 100}%`;
       async function apply(op) {
         stopPlay();
@@ -595,6 +627,9 @@
       }
       function paintLanes() {
         const touched = new Set(ed.aiTouched());
+        const rl = TLM ? TLM.ruler({ h, duration: ed.state.duration, seek: s => { stopPlay(); range.value = String(Math.round(s * 10)); range.dispatchEvent(new Event('input', { bubbles: true })); } }) : null;
+        rulerPaint = rl ? rl.paint : null; if (rl) rl.paint(Math.min(1, position / Math.max(1, ed.state.duration)));
+        rulerHolder.replaceChildren(...(rl ? [rl.lane] : []));        // the ruler sits ABOVE the tracks box, not inside it: the tracks keep their own count and order
         lanes.replaceChildren(...E.TRACKS.map(track => {
           const bar = h('div', { class: 'le-bar' });
           if (!open(track)) return h('div', { class: 'le-lane' }, h('b', {}, TRACK_NAMES[track]), h('div', { class: 'le-bar le-off' }, h('span', { class: 'meta' }, 'Not available yet')));
@@ -718,12 +753,14 @@
 
       const title = h('h1', { tabindex: '-1' }, host ? String(host.title || 'Edit your film').slice(0, 80) : isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
       const emptyNote = h('p', { class: 'le-warn', role: 'status', hidden: true }, 'There is no film to edit yet. In the Ryagram app, choose your clips and press Plan, then open this page again.');
+      const standin = h('div', { class: 'le-standin' }, view, cardOn ? cardBox : null, scrub, stripHolder, ticks, h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.'));
+      if (filmEd) filmEd.ready.then(ok => { if (ok && !destroyedEditor) { standin.hidden = true; filmEd.el.hidden = false; } });         // the film opened for real: its own picture takes the place of the stand-in; if it did not, the stand-in stays
       const root = h('div', { class: 'le' },
         host ? null : h('p', {}, h('a', { href: '#/' }, '← All projects')),
         h('div', { class: 'le-top' }, title, pill, undoBtn, revertBtn, aiBtn, saveBtn, finalBtn),
         status, emptyNote, aiBox, banner, renderBox,
         h('div', { class: 'le-cols' },
-          h('div', { class: 'le-main' }, view, cardOn ? cardBox : null, scrub, ticks, warns, fcOn ? fcHolder : null, isData ? null : [lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
+          h('div', { class: 'le-main' }, ...(filmEd ? [filmEd.el] : []), standin, warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
         host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));

@@ -1,4 +1,4 @@
-"""The Geographic Intelligence demo page (/geo-demo/, NEXT-WEB 198) in real Chrome, LOCAL server only, `geoDemo` ON in a local config copy, desktop and phone (375 and 320 px): switch off shows only the plain line;
+"""The Opportunity Map demo page (/geo-demo/, NEXT-WEB 198) in real Chrome, LOCAL server only, `geoDemo` ON in a local config copy, desktop and phone (375 and 320 px): switch off shows only the plain line;
 on shows the synthetic banner, the map with its three marker kinds, a preset site draws a ring and fills the five labelled rows, a click on the map moves the site, the ring radius changes the numbers, a bigger ring never
 holds fewer residents, every number has a label, the page makes no outside request, no sideways scroll, no console errors. Needs Chrome.   python tools/check-geo-demo.py"""
 import http.server, json, re, socketserver, sys, threading

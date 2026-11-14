@@ -8,6 +8,7 @@
 //   CONNECT_APP_URL       e.g. https://uselai.com/app/
 //   CONNECT_MCP_APP       (optional) "on" shows the inline Ryagram card in assistants that render MCP Apps. Anything else = off, the connector exactly as it was.
 //   CONNECT_CHAT_EDITOR   (optional, needs CONNECT_MCP_APP) "on" opens the live editor inside the chat (the panel and its tools). Anything else = off.
+//   CONNECT_HOME_PANEL    (optional, needs CONNECT_MCP_APP) "on" lists open_ryagram_home and serves the Ryagram home panel (the person's departments). Anything else = off.
 //   CONNECT_UI_DOMAIN     (optional, with CONNECT_MCP_APP) Claude's sandbox origin for this server: 32 hex characters + .claudemcpcontent.com (sha256 of the server URL; see proposals/CONNECT-MCP-APP-PLAN-1105.md)
 //   CONNECT_CIMD          (optional, default off) "on" = accept Claude's published identity; ONLY after the cimd migration is applied to that project
 //   CONNECT_PUBLIC_URL    (recommended) https://<ref>.supabase.co/functions/v1/connect  pins the issuer address; if absent the platform's SUPABASE_URL is used
@@ -42,7 +43,7 @@ const db = new ConnectDb(async (text, params) => {
   return await sql.unsafe(text, params as unknown[]) as unknown as Record<string, unknown>[];
 }, appUrl);
 const compile = makeCompile(Ajv2020);
-const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", chatEditor: Deno.env.get("CONNECT_CHAT_EDITOR") === "on", uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
+const mcpApp = { enabled: Deno.env.get("CONNECT_MCP_APP") === "on", chatEditor: Deno.env.get("CONNECT_CHAT_EDITOR") === "on", homePanel: Deno.env.get("CONNECT_HOME_PANEL") === "on", uiDomain: Deno.env.get("CONNECT_UI_DOMAIN") || undefined, appUrl };
 
 Deno.serve(async (req) => {
   try {

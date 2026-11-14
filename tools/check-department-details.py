@@ -1,4 +1,4 @@
-"""The honest words on the Geographic Intelligence and Games Coming soon pages (NEXT-WEB 200) in real Chrome, mock mode, LOCAL server only, desktop and phone (375 and 320 px): with `departmentDetails` ON each page
+"""The honest words on the Opportunity Map and Games Coming soon pages (NEXT-WEB 200) in real Chrome, mock mode, LOCAL server only, desktop and phone (375 and 320 px): with `departmentDetails` ON each page
 shows the draft note, the three sections and the not-built-yet list, with the button still working; with it OFF the pages are exactly as before; Compilations is never changed; no sideways scroll; no console errors.
 Needs Chrome.   python tools/check-department-details.py"""
 import http.server, re, socketserver, sys, threading
@@ -48,7 +48,7 @@ with sync_playwright() as pw:
                        ('phone320', dict(viewport={'width': 320, 'height': 700}, device_scale_factor=2, is_mobile=True, has_touch=True))):
         print(name)
         errs = []
-        for dept, title, must in (('geo_intelligence', 'Geographic Intelligence', ['one Ohio county', 'No made-up points', 'straight-line rings']), ('games', 'Games', ['Guess the next line', 'consent', 'No game can be played yet'])):
+        for dept, title, must in (('geo_intelligence', 'Opportunity Map', ['one Ohio county', 'No made-up points', 'straight-line rings']), ('games', 'Games', ['Guess the next line', 'consent', 'No game can be played yet'])):
             p = page(b, on_cfg, opts, errs); go(p, dept, title)
             t = p.inner_text('main')
             check('Draft wording, not yet approved.' in t and all(x in t for x in must), f'{title}: the draft note and the words show')
@@ -63,7 +63,7 @@ with sync_playwright() as pw:
         check(not errs, 'no console errors' + (f': {errs[:2]}' if errs else ''))
     print('switch off')
     errs = []
-    for dept, title in (('geo_intelligence', 'Geographic Intelligence'), ('games', 'Games')):
+    for dept, title in (('geo_intelligence', 'Opportunity Map'), ('games', 'Games')):
         p = page(b, base, dict(viewport={'width': 1200, 'height': 900}), errs); go(p, dept, title)
         check('Draft wording' not in p.inner_text('main') and p.locator('main h2').count() == 0 and p.locator('#soon-notify').count() == 1, f'{title}: exactly as before with the switch off')
         p.context.close()

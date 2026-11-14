@@ -1518,7 +1518,7 @@
       const error = errorLine();
       // One card per template x dataset it was drawn on. A template with a default dataset (Industry,
       // behind its flag) shows only that one: the other sectors are for the sourcing step, not a list here.
-      const offered = T.TEMPLATES.filter(t => !t.flag || window.ryagramConfig?.[t.flag] === true || window.ryagramMock)
+      const offered = T.TEMPLATES.filter(t => !t.unmeasured).filter(t => !t.flag || window.ryagramConfig?.[t.flag] === true || window.ryagramMock)
         .flatMap(t => (t.defaultDataset ? [t.defaultDataset] : t.datasets).map(id => ({ t, id, key: `${t.id}:${id}` })));
       const short = id => String((T.DATASETS[id] || {}).label || id).replace(/\s*\(.*$/, '');
       let chosen = offered.find(o => o.t.id === 'map' && o.id === 'state_obesity_fastfood') || offered[0];
