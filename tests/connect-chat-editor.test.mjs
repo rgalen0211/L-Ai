@@ -17,7 +17,7 @@ test('the committed page is exactly what the generator writes from the website\'
   const have = fs.readFileSync(new URL('../' + OUT, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
   assert.equal(have, build());
   assert.equal(EDITOR_HTML, html());
-  assert.deepEqual(JS.slice(0, -1), ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor.js'], 'the same editor files as the maker\'s page');
+  assert.deepEqual(JS.slice(0, -1), ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor-timeline.js', 'assets/app-editor.js'], 'the same editor files as the maker\'s page');
   assert.equal(JS.at(-1), 'tools/chat-editor/live-host.js');
 });
 

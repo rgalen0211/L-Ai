@@ -5,6 +5,7 @@
 // Spec: MCP Apps extension (modelcontextprotocol/ext-apps, 2026-01-26): tool `_meta.ui.resourceUri`, resource mimeType `text/html;profile=mcp-app`, resource `_meta.ui` { csp, domain, prefersBorder }.
 
 import { EDITOR_BUILD, EDITOR_HTML } from "./editor_page.ts";
+import { HOME_URI, homeHtml, isHomeUri } from "./home_panel.ts";
 
 export const CARD_URI = "ui://ryagram/card";
 /** The editor page's address changes with every build of the page (EDITOR_BUILD is a hash of everything it is made from). A host that keeps pages by address (Claude fetches a connector's pages once, then reuses them) can then never show a stale page under the new address. */
@@ -25,6 +26,8 @@ export interface McpAppConfig {
   appUrl?: string;
   /** The live editor inside the chat (a second switch, with enabled): serves ui://ryagram/editor and lists its tools. Absent or false = none of it exists. */
   chatEditor?: boolean;
+  /** The Ryagram home panel (a third switch, with enabled): serves ui://ryagram/home-<build> and lists its tool. Absent or false = none of it exists. */
+  homePanel?: boolean;
 }
 
 /** Which tools show which page. The tool's text and structured data are exactly what they were. */
@@ -123,14 +126,16 @@ export function cardHtml(appUrl?: string): string {
 
 export function resourceList(cfg?: McpAppConfig) {
   return [{ uri: CARD_URI, name: "Ryagram card", description: "A small card showing the Ryagram account and projects the AI is working with.", mimeType: MCP_APP_MIME },
-    ...(cfg?.chatEditor ? [{ uri: EDITOR_URI, name: "Ryagram editor", description: "The Ryagram live editor for one of the person's films.", mimeType: MCP_APP_MIME }] : [])];
+    ...(cfg?.chatEditor ? [{ uri: EDITOR_URI, name: "Ryagram editor", description: "The Ryagram live editor for one of the person's films.", mimeType: MCP_APP_MIME }] : []),
+    ...(cfg?.homePanel ? [{ uri: HOME_URI, name: "Ryagram home", description: "The person's Ryagram departments, with what works today and what is coming soon.", mimeType: MCP_APP_MIME }] : [])];
 }
 
 /** null = no such page. */
 export function readResource(uri: unknown, cfg: McpAppConfig) {
   const editor = isEditorUri(uri);
-  if (uri !== CARD_URI && !(editor && cfg.chatEditor)) return null;
+  const home = isHomeUri(uri);
+  if (uri !== CARD_URI && !(editor && cfg.chatEditor) && !(home && cfg.homePanel)) return null;
   const ui: Record<string, unknown> = { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false };
   if (cfg.uiDomain && UI_DOMAIN.test(cfg.uiDomain)) ui.domain = cfg.uiDomain;
-  return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: editor ? EDITOR_HTML : cardHtml(cfg.appUrl), _meta: { ui } }] };
+  return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: editor ? EDITOR_HTML : home ? homeHtml(cfg.appUrl) : cardHtml(cfg.appUrl), _meta: { ui } }] };
 }

@@ -51,7 +51,7 @@ test('the bundle calls nothing but the host\'s own rpc: four fetches (the rpc, t
 test('the bundle carries the site\'s editor files in order and nothing else from the site', () => {
   const js = read('tools/maker-live/live.js');
   const marks = [...js.matchAll(/\/\* ---- ([^ ]+) ---- \*\//g)].map(m => m[1]);
-  assert.deepEqual(marks, ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor.js', 'tools/maker-live/live-host.js']);
+  assert.deepEqual(marks, ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor-timeline.js', 'assets/app-editor.js', 'tools/maker-live/live-host.js']);
   assert.ok(!js.includes('ryagramData') && !js.includes('ryagramLibrary') && !js.includes('ryagramConfig'));
   const css = read('tools/maker-live/live.css');
   assert.doesNotMatch(css, /@import|url\(/i, 'the stylesheet loads nothing');

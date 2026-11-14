@@ -9,6 +9,7 @@ import { checkStoryStructured } from "./story_check.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
+import { homeView } from "./home_panel.ts";
 import { LIMITS, type ChecklistItem, type CompilationRequest, type Data, type GeoRow, type LocalNode, type ToolCtx, type ToolDef, type ToolResult } from "./types.ts";
 
 const UUID = "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$";
@@ -1336,5 +1337,20 @@ const geoAnswer: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError)];
+// ---------------------------------------------------------------------------------------------- the Ryagram home panel (a third switch, CONNECT_HOME_PANEL, off by default)
+const openRyagramHome: ToolDef = {
+  name: "open_ryagram_home", title: "Open Ryagram home", scope: "read", readOnly: true, idempotent: true, homePanel: true,
+  description: "Shows the person's Ryagram departments: what works for them today (Data films, their own films) and what is coming soon, with a line about each. In an assistant that shows panels it opens a small page with a button for each; "
+    + "otherwise the answer lists them in words. Read-only, free, nothing is started. Use it when the person asks what Ryagram can do, wants to browse, or says \"home\" or \"menu\". A coming-soon department has nothing to start: say so, never promise a date or a price.",
+  inputSchema: obj(),
+  async run(_a, ctx) {
+    const rows = await ctx.data.departments().catch(() => null);
+    const switches = await ctx.data.switches().catch(() => [] as string[]);                        // not readable = none on: the projects page, never a page that may not be there
+    if (!rows) return refuse("The list of Ryagram departments is not available just now. Try again in a minute, or ask the person what they would like to make.", "unavailable");
+    const v = homeView(rows, switches);
+    return ok(v.text, v.data as unknown as Record<string, unknown>);
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

@@ -1,4 +1,4 @@
-// The made-up site-check picture on the Geographic Intelligence Coming soon page (CC1 for Claude 15:30 item 3, 11-04; draft words in proposals\CC1-LOCATION-PAGE-WORDS-DRAFT.md).
+// The made-up site-check picture on the Opportunity Map Coming soon page (CC1 for Claude 15:30 item 3, 11-04; draft words in proposals\CC1-LOCATION-PAGE-WORDS-DRAFT.md).
 // The real Dayton demo is OpenStreetMap data, private until attorney row G11, so the page may only ever show MADE-UP places and numbers, behind a switch that is OFF.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';

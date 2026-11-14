@@ -1,0 +1,3 @@
+ryagram/preview/scene-draw.min.js from the engine (Ryagram branch engine-frames-windows-1113 @ 20645348: frames windows, thumbnails, palette and recolour), vendored as frames-draw.min.js because scene-draw.min.js here still draws the older scene bundle v2 (this one reads version 3 and frames 4 only)
+sha256 eb969b1339f43499db9b35c5869c7699fa922b2a5d0aa6b3b48c048b5b3cf153
+47616 bytes, LF. Drawing only. Replace it by copying the engine's file and changing this pin in the same commit.

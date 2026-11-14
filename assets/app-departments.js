@@ -8,7 +8,7 @@
   const KNOWN = {
     data_films: { label: 'Data films', page: true, sentence: 'Questions answered with public data, drawn as a short animated film, with every source shown.' },
     compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
-    geo_intelligence: { label: 'Geographic Intelligence', line: 'Ask a map a question: where would a new shop do well, how well is a city laid out, how do places connect. Every number is labelled observed, calculated, estimated or simulated, so you always know what is a fact and what is a guess.' },
+    geo_intelligence: { label: 'Opportunity Map', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
     games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' }
   };
@@ -17,7 +17,7 @@
   // how numbers and people will be treated, and what is not built yet, said without a price or a date. Nothing here promises a feature the brief does not list.
   const DETAILS = {
     geo_intelligence: {
-      building: ['We are building a map you can ask questions of. The first demo asks where a new chicken restaurant might do well in one Ohio county, using free public data.',
+      building: ['We are building a map you can ask questions of. The first demo shows where the restaurants are in one Ohio county, and who lives around them, using free public data.',
         'You drop a candidate site on the map and see who lives around it, which competitors are near it and what sits next door. You can place a second site and compare the two.'],
       rules: ['Every number is labelled observed, calculated, estimated or simulated.', 'No made-up points on a map.', 'No success score unless real data stands behind it. Where a stand-in has to be used, it is labelled as one.', 'No conclusions about people from their background.'],
       notYet: ['The real map and the real data are not built. A demo on made-up data exists for testing only.', 'Drive times need a routing service we do not have yet, so the first version draws straight-line rings and says so.', 'There is no price and no date.']
@@ -29,7 +29,7 @@
       notYet: ['No game can be played yet.', 'There is no price and no date.']
     }
   };
-  // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Geographic Intelligence Coming soon pages and a Forecasts group on the Data films page,
+  // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Opportunity Map Coming soon pages and a Forecasts group on the Data films page,
   // shown only when the site switch deptStills is exactly true (OFF). The files are NOT in the repo: each frame asks for /assets/dept-stills/<name>-<n>.svg, then .png, and stays hidden if neither
   // exists, so with no files nothing shows. Alt text is the draft in proposals/DEPT-PAGES-STILLS-1105.md (made-up lines, a made-up county, SAMPLE numbers).
   const STILLS = {
@@ -186,7 +186,7 @@
         h('p', { class: 'meta' }, 'An illustration with public-domain words (Lincoln, 1863) and made-up timestamps, not a screenshot.'));
     }
 
-    // The Geographic Intelligence picture (CC1 for Claude 15:30 item 3, behind locationPreview, OFF): text only like the phrase picture, and EVERY place and number in it is MADE UP. The real Dayton
+    // The Opportunity Map picture (CC1 for Claude 15:30 item 3, behind locationPreview, OFF): text only like the phrase picture, and EVERY place and number in it is MADE UP. The real Dayton
     // demo stills are not used here: they are OpenStreetMap data that stays private until attorney row G11. Each line carries the label the real page will use. DRAFT WORDS (proposals\CC1-LOCATION-PAGE-WORDS-DRAFT.md).
     function locationPicture() {
       return h('div', { class: 'soon-picture', role: 'img', 'aria-label': 'An illustration of a site check on a made-up map' },

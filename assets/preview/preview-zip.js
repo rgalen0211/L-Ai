@@ -6,7 +6,7 @@
   const MAX_ENTRIES = 64;
   const MAX_TOTAL = 120 * 1024 * 1024;           // all entries together, after decompression
   const MAX_SCENE = 200 * 1024 * 1024;           // the scene JSON after gunzip (a gzip bomb stops here)
-  const NAME_OK = /^(scene\.json\.gz|fonts\/[A-Za-z0-9._-]{1,80}\.woff2)$/;
+  const NAME_OK = /^(scene\.json\.gz|manifest\.json|fonts\/[A-Za-z0-9._-]{1,80}\.woff2)$/;      // manifest.json: the film bundle's list of what is inside (assets/app-editor-frames.js checks it)
 
   class BundleError extends Error {}
   const fail = msg => { throw new BundleError(msg); };

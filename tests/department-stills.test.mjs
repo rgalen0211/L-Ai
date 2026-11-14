@@ -1,4 +1,4 @@
-// Department picture slots (CC1 11-05): up to four frames on the Games and Geographic Intelligence Coming soon pages and a Forecasts group on the Data films page, behind deptStills (OFF).
+// Department picture slots (CC1 11-05): up to four frames on the Games and Opportunity Map Coming soon pages and a Forecasts group on the Data films page, behind deptStills (OFF).
 // The files are not in the repo; a missing file means no frame. Alt text is the draft in proposals/DEPT-PAGES-STILLS-1105.md.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
