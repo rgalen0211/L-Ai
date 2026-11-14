@@ -118,6 +118,8 @@ window.ryagramConfig = Object.freeze({
   geoRealData: false,
   // More honest words on the Geographic Intelligence and Games Coming soon pages (NEXT-WEB 200, from the departments brief): what is coming, how numbers and people are treated, what is not built yet. Draft words for Ryan. OFF until he has read them.
   departmentDetails: false,
+  // 'Try it on your computer' on the Games Coming soon page (WEB-8, 2026-11-13): the practice-night steps as text, for testers. Nothing on the site starts a night. OFF until Ryan says testers should see it on the site (GEO's question 2).
+  gameNightSteps: false,
   // Picture slots on the Games and Geographic Intelligence Coming soon pages and a Forecasts group on the Data films page (CC1 11-05). Each frame asks for /assets/dept-stills/<name>-<n>.svg (then .png) and stays
   // hidden if the file is not there; the stills are not in the repo until Ryan decides. Alt text is the draft in proposals\DEPT-PAGES-STILLS-1105.md. OFF.
   deptStills: false,

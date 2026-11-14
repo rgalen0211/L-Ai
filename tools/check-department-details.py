@@ -48,7 +48,7 @@ with sync_playwright() as pw:
                        ('phone320', dict(viewport={'width': 320, 'height': 700}, device_scale_factor=2, is_mobile=True, has_touch=True))):
         print(name)
         errs = []
-        for dept, title, must in (('geo_intelligence', 'Opportunity Map', ['one Ohio county', 'No made-up points', 'straight-line rings']), ('games', 'Games', ['Guess the next line', 'consent', 'No game can be played yet'])):
+        for dept, title, must in (('geo_intelligence', 'Opportunity Map', ['one Ohio county', 'No made-up points', 'straight-line rings']), ('games', 'Games', ['Guess the next line', 'consent', 'Testers are playing an early version'])):
             p = page(b, on_cfg, opts, errs); go(p, dept, title)
             t = p.inner_text('main')
             check('Draft wording, not yet approved.' in t and all(x in t for x in must), f'{title}: the draft note and the words show')

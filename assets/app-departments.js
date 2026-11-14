@@ -9,9 +9,18 @@
     data_films: { label: 'Data films', page: true, sentence: 'Questions answered with public data, drawn as a short animated film, with every source shown.' },
     compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
     geo_intelligence: { label: 'Opportunity Map', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
-    games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
+    games: { label: 'Games', line: 'Game night on your own TV: phones are the controllers, and the clips come from videos you own. Guess the next line, Bluff, Trivia, Guess Who and more.' },
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' }
   };
+  // The games a night deals today, by their ids in ryagram/games/room_server.py GAMES (tests/games-night.test.mjs compares this list with that file when the engine checkout is there), with the words a person reads.
+  const GAME_LIST = [['guess_line', 'Guess the next line'], ['bluff', 'Bluff'], ['guess_who', 'Guess Who'], ['old_maid', 'Old Maid'], ['trivia', 'Trivia'], ['act_it_out', 'Act it out'], ['dub', 'Dub it'], ['who_said', 'Who said it?']];
+  const NUMBER_WORD = ['No', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve'];
+  const gameNames = GAME_LIST.map(g => g[1]);
+  const lastGame = gameNames[gameNames.length - 1];
+  const GAMES_BUILDING = `${NUMBER_WORD[GAME_LIST.length]} games work today in the early version: ${gameNames.slice(0, -1).join(', ')} and ${lastGame}${/[?!.]$/.test(lastGame) ? '' : '.'} Your own AI can host the night from the chat on the same computer.`;
+  // The practice night only (made-up clips; the library is never opened): the steps a tester copies onto their own computer. Nothing on the site runs them.
+  const GAME_NIGHT_STEPS = ['Open PowerShell in your Ryagram folder.', '$env:RYAGRAM_GAME_ROOM="1"; python -m ryagram.games.room_server --practice', 'The window prints the TV address. Open it on the TV or on a laptop screen. On a one-screen night you type each player\u2019s answer at the screen.'];
+  const gameNightOn = cfg => !!cfg && cfg.gameNightSteps === true;
   const ORDER = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio'];
   // More words on two Coming soon pages (NEXT-WEB 200, from proposals/DEPARTMENTS-BRIEF-1102.md), shown only when the site switch departmentDetails is exactly true (OFF). DRAFT WORDS FOR RYAN: what is coming,
   // how numbers and people will be treated, and what is not built yet, said without a price or a date. Nothing here promises a feature the brief does not list.
@@ -23,10 +32,9 @@
       notYet: ['The real map and the real data are not built. A demo on made-up data exists for testing only.', 'Drive times need a routing service we do not have yet, so the first version draws straight-line rings and says so.', 'There is no price and no date.']
     },
     games: {
-      building: ['Point Ryagram at footage you own or have the right to use, pick a game, and play with friends. Phones are the controllers and a laptop or TV is the shared screen.',
-        'The first idea is Guess the next line: a clip plays and stops, and players guess what is said next. Others we are considering: guessing who someone is from yes or no questions, a voice-only Old Maid, matching a line to a face, trivia with exact counts, bluffing with fake lines, and a speed buzzer.'],
-      rules: ['Only your own clips, or clips you have the right to use. No TV shows or films come with Ryagram.', 'A face is swapped only with that person’s consent, and the result is labelled as AI-altered.', 'Answers are checked against the transcripts, not guessed.', 'The games borrow how classic games work, but not anyone’s names, art or characters.'],
-      notYet: ['No game can be played yet.', 'There is no price and no date.']
+      building: [GAMES_BUILDING],
+      rules: ['Only your own clips, or clips you have the right to use. No TV shows or films come with Ryagram.', 'A face is swapped only with that person’s consent, and the result is labelled as AI-altered.', 'Answers are checked against the transcripts, not guessed.', 'The games borrow how classic games work, but not anyone’s names, art or characters.', 'It runs on your own computer and home Wi-Fi: no clip, voice or file goes to the internet or to Ryagram.'],
+      notYet: ['Not part of Ryagram’s first release. Testers are playing an early version on their own computers.', 'There is no price and no date.']
     }
   };
   // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Opportunity Map Coming soon pages and a Forecasts group on the Data films page,
@@ -178,6 +186,13 @@
               h('h2', {}, WORDS.yourFilms), list, h('p', { class: 'meta' }, h('a', { href: '#/build' }, WORDS.noAi))];
     }
 
+    // 'Try it on your computer' (behind gameNightSteps, OFF): the practice-night steps as plain text for a tester to copy. No button, no link, nothing here starts a night: the room is on the person's own computer.
+    function gameNightBox() {
+      return h('section', { class: 'soon-night', 'aria-labelledby': 'soon-night-h' }, h('h2', { id: 'soon-night-h' }, 'Try it on your computer'),
+        h('p', { class: 'form-note' }, 'This page cannot start a night. A night runs on your own computer, with made-up clips, and your library is never opened.'),
+        h('ol', {}, h('li', {}, GAME_NIGHT_STEPS[0]), h('li', {}, 'Paste this line: ', h('code', { class: 'soon-night-cmd' }, GAME_NIGHT_STEPS[1])), h('li', {}, GAME_NIGHT_STEPS[2])));
+    }
+
     // The small picture a Coming soon page may carry: text only, drawn here, never an image from the server.
     function phrasePicture() {
       return h('div', { class: 'soon-picture', role: 'img', 'aria-label': 'An illustration of a phrase found in a person’s own videos' },
@@ -221,7 +236,7 @@
       const more = detailsFor(id, window.ryagramConfig);
       const moreEls = more ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), ...SECTIONS.flatMap(([key, title]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, more[key].map(t => h('li', {}, t)))])] : [];
       return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
-              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...moreEls, area, msg];
+              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...moreEls, id === 'games' && gameNightOn(window.ryagramConfig) ? gameNightBox() : null, area, msg];
     }
 
     // #/d/<id>. An id this account's list does not include, or any failure, is the plain "not available" page with a way home: never a blank page.
@@ -236,5 +251,5 @@
     return { mountBar, unmountBar, pageView, load };
   }
 
-  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
+  window.ryagramDepartments = { KNOWN, GAME_LIST, GAME_NIGHT_STEPS, gameNightOn, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
 })();

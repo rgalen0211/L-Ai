@@ -21,10 +21,10 @@ test('shown only for geo_intelligence and games, and only when the switch is exa
 test('every section is filled for both departments, and the not-built-yet part says so plainly with no price and no date', () => {
   for (const id of ['geo_intelligence', 'games']) {
     const d = Dp.detailsFor(id, { departmentDetails: true });
-    for (const [key] of Dp.SECTIONS) assert.ok(Array.isArray(d[key]) && d[key].length >= 2 || key === 'notYet' && d[key].length >= 2, `${id}.${key}`);
+    for (const [key] of Dp.SECTIONS) assert.ok(Array.isArray(d[key]) && d[key].length >= (id === 'games' && key === 'building' ? 1 : 2), `${id}.${key}`);      // Games' building part is ONE sentence now (the games it lists exist, WEB-8)
     assert.ok(d.notYet.some(t => /no price and no date/i.test(t)), `${id}: says there is no price and no date`);
   }
-  assert.ok(Dp.DETAILS.games.notYet.some(t => /No game can be played yet/.test(t)));
+  assert.ok(Dp.DETAILS.games.notYet.some(t => /Testers are playing an early version on their own computers/.test(t)) && !Dp.DETAILS.games.notYet.some(t => /No game can be played yet/.test(t)), 'the games exist now (WEB-8): said as existing, for testers');
   assert.ok(Dp.DETAILS.geo_intelligence.notYet.some(t => /not built/.test(t)) && Dp.DETAILS.geo_intelligence.notYet.some(t => /straight-line rings/.test(t)));
 });
 
@@ -38,12 +38,12 @@ test('nothing is promised: no price, no date, no absolute or boasting word, no o
   const all = Object.values(Dp.DETAILS).flatMap(d => Object.values(d).flat()).join('\n');
   assert.ok(!/[$\u00a3\u20ac]\s?\d|\b(20\d\d|Q[1-4]|January|February|March|April|June|July|August|September|October|November|December)\b/.test(all), 'no price or date');
   assert.ok(!/\b(guarantee|always|never|best|fastest|perfect|revolutionary|will definitely)\b/i.test(all), 'no absolute or boasting word');
-  assert.ok(!/https?:|@/.test(all)); assert.ok(!/(Mafia|Pictionary|Guess Who|Old Maid)\b/.test(all.replace(/a voice-only Old Maid/, '')), 'only the generic descriptions the brief allows, no other company\'s game names beyond the one the brief lists');
+  assert.ok(!/https?:|@/.test(all)); assert.ok(!/(Mafia|Pictionary)\b/.test(all), 'no other company game names'); const named = all.match(/(Guess Who|Old Maid)/g) || []; assert.ok(named.length <= 2, 'Guess Who and Old Maid are named only in the one sentence that lists the games Ryagram deals today (a trademark row is with the attorney: LEGAL-QUESTIONS-FOR-ATTORNEY)');
 });
 
 test('the page code shows the draft note and the three sections only through detailsFor, and the other Coming soon pages are untouched', () => {
   const code = read('assets/app-departments.js');
   assert.match(code, /const more = detailsFor\(id, window\.ryagramConfig\)/); assert.match(code, /Draft wording, not yet approved\./);
-  assert.match(code, /k\.picture === 'phrase' \? phrasePicture\(\) : null, id === 'geo_intelligence' && locationPreviewOn\(window\.ryagramConfig\) \? locationPicture\(\) : null, stillsBlock\(id\), \.\.\.moreEls, area, msg/);      // (the made-up location picture, behind locationPreview OFF: tests/location-preview.test.mjs)
-  assert.equal(J(Dp.KNOWN.compilations).line.startsWith('Say a phrase.'), true); assert.equal(J(Dp.KNOWN.games).line, 'Play with your own data and footage in small games you can share.');
+  assert.match(code, /k\.picture === 'phrase' \? phrasePicture\(\) : null, id === 'geo_intelligence' && locationPreviewOn\(window\.ryagramConfig\) \? locationPicture\(\) : null, stillsBlock\(id\), \.\.\.moreEls, id === 'games' && gameNightOn\(window\.ryagramConfig\) \? gameNightBox\(\) : null, area, msg/);      // (the made-up location picture, behind locationPreview OFF: tests/location-preview.test.mjs)
+  assert.equal(J(Dp.KNOWN.compilations).line.startsWith('Say a phrase.'), true); assert.ok(J(Dp.KNOWN.games).line.startsWith('Game night on your own TV:'));      // the 10-26 placeholder line is gone (WEB-8, GEO's reviewed line)
 });

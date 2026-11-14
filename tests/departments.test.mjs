@@ -53,7 +53,7 @@ test('APPROVED WORDING (Ryan 2026-10-28 10:59, Q244): the draft note is gone fro
   assert.equal(Dp.DRAFT_NOTE, undefined);
   assert.doesNotMatch(read('assets/app-departments.js'), /DRAFT WORDING|DRAFT_NOTE|soon-draft/);
   assert.deepEqual(Object.keys(Dp.KNOWN), ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio']);
-  assert.equal(Dp.KNOWN.games.placeholder, true);
+  assert.equal(Dp.KNOWN.games.placeholder, undefined);      // the games exist now (WEB-8): the 10-26 placeholder question has its answer
   const lines = Object.values(Dp.KNOWN).filter(k => k.line).map(k => k.line).join(' ');
   assert.doesNotMatch(lines, /\$|\bprice|\bplan\b|\b20\d\d\b|\bsoon\b.*\b(by|in)\b \d|\bwill be (ready|available) (on|by)\b/i);
   assert.equal(Dp.WORDS.button, 'Tell me when it’s ready');
@@ -147,7 +147,7 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261113b/);
+  assert.match(html, /app-departments\.js\?v=20261113c/);
   assert.match(html, /app-data\.js\?v=20261113a/);
   assert.match(html, /app-library\.js\?v=20261113a/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });

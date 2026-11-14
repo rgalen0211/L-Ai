@@ -21,7 +21,7 @@ export const HOME_WORDS: Readonly<Record<string, HomeWords>> = Object.freeze({
   geo_intelligence: { label: "Opportunity Map", line: "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
     rules: ["Every number is labelled: observed, calculated, estimated or simulated.", "It counts places, jobs, wages, permits and people. It has no sales data, so it does not say where a business would do well.", "No score and no ranking of places."],
     notYet: ["Not part of Ryagram's first release. Testers are trying an early version. No price and no date."] },
-  games: { label: "Games", line: "Play with your own data and footage in small games you can share." },
+  games: { label: "Games", line: "Game night on your own TV: phones are the controllers, and the clips come from videos you own. Guess the next line, Bluff, Trivia, Guess Who and more." },
   animation_studio: { label: "Animation Studio", line: "Simple cartoons you direct: characters you can pose, with mouths that move to your voice." },
 });
 /** "My films" is not a department row: it is the person's own films, always there. */
@@ -157,7 +157,7 @@ export function homeHtml(appUrl?: string): string {
 function buildId(): string {
   const s = homeHtml("") + JSON.stringify(HOME_WORDS) + JSON.stringify(MY_FILMS);
   let a = 0x811c9dc5, b = 0x01000193 ^ 0x5bd1e995;
-  for (let i = 0; i < s.length; i++) { a = Math.imul(a ^ s.charCodeAt(i), 0x01000193) >>> 0; b = Math.imul(b + s.charCodeAt(i) + i, 0x85ebca6b) >>> 0; b ^= b >>> 13; }
+  for (let i = 0; i < s.length; i++) { a = Math.imul(a ^ s.charCodeAt(i), 0x01000193) >>> 0; b = Math.imul(b + s.charCodeAt(i) + i, 0x85ebca6b) >>> 0; b = (b ^ (b >>> 13)) >>> 0; }      // unsigned: a signed b printed as '-45f...' and the address no longer matched its own shape (found by WEB-8's words change)
   return (a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0")).slice(0, 12);
 }
 export const HOME_BUILD = buildId();
