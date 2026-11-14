@@ -338,6 +338,17 @@ class MyFilmCards(core.Base):
         self.assertEqual(self.owner("select count(*) from public.film_card_requests").fetchone()[0], 1, "the request stays: no data is touched")
         self.assertEqual(self.ask(self.a, p)["repeat"], True, "the connector still works")
 
+    def test_the_after_check_can_say_false_on_a_database_without_the_migration(self):
+        # BUILDER's suggestion (16:46): a check that always answered true would pass the test below. Undo the migration, run the same file: every FUNCTION row must say false (never an error),
+        # and the one row about the table (it is closed to every API role, before and after) must stay true.
+        self.owner((core.ROOT / "rollbacks" / "20261113000500_my_film_cards_rollback.sql").read_text(encoding="utf-8"))
+        rows = self.owner((core.ROOT / "live-steps" / "28_my_film_cards_after_check.sql").read_text(encoding="utf-8")).fetchall()
+        saying = {r[0]: r[1] for r in rows}
+        table_row = "the film card table is still closed to every API role"
+        self.assertEqual(sorted(n for n, ok in saying.items() if ok is not False), [table_row], "only the table row is true without the migration")
+        self.assertEqual(len([n for n, ok in saying.items() if ok is False]), len(rows) - 1, "every function row says false, not null and not an error")
+        self.assertGreaterEqual(len(rows), 8)
+
     def test_the_migration_ends_with_the_waiting_list_gate(self):
         sql = (core.ROOT / "migrations" / "20261113000500_my_film_cards.sql").read_text(encoding="utf-8")
         lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]

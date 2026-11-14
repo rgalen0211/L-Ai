@@ -1,5 +1,5 @@
 -- AFTER 20261113000500_my_film_cards.sql (the site's own film look card: my_film_card_ask and my_film_card_get): one SELECT, read-only, changes nothing. Every ok must be true.
--- Run it on the same project right after the migration. Before the migration every row answers false, never an error. Every column is named.
+-- Run it on the same project right after the migration. Before the migration every FUNCTION row answers false, never an error (the last row, that the film card table is closed to every API role, answers true before and after). Every column is named.
 select 'my_film_card_ask(uuid) exists' as check_name,
        to_regprocedure('public.my_film_card_ask(uuid)') is not null as ok
 union all select 'my_film_card_get(uuid) exists',
