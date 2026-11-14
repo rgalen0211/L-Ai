@@ -83,6 +83,18 @@ with sync_playwright() as pw:
         check(asks >= 2, f'a dropped connection is asked again after a pause, not given up on ({asks} asks)')
         a1 = p.evaluate("document.querySelector('.le-film-view').innerHTML.length")
         check(a1 > 100000, 'then the picture of that moment is drawn')
+        # thumbnails: tiles under the film lane, drawn only from windows already loaded
+        want = 6 if opts['viewport']['width'] <= 430 else 12
+        check(p.locator('.le-film-thumb').count() == want, f'the Moments row has {want} tiles for this width')
+        for _ in range(40):
+            if p.locator('.le-film-thumb-on').count() >= 2: break
+            p.wait_for_timeout(250)
+        on = p.locator('.le-film-thumb-on').count()
+        check(on >= 2 and p.evaluate("[...document.querySelectorAll('.le-film-thumb-on img')].every(i => i.src.startsWith('data:image/'))"), f'tiles in loaded windows show a small picture ({on} of {want})')
+        check(p.locator('.le-film-thumb').first.evaluate("e => !e.classList.contains('le-film-thumb-on')"), 'a tile in the title block stays a plain block with its time')
+        check(p.evaluate("Object.keys(window.__asks).sort().join()") == '0:2,2:4', 'thumbnails never asked for a window of their own')
+        p.locator('.le-film-thumb').nth(want - 1).click(); p.wait_for_timeout(300)
+        check(int(p.locator('#le-film-range').input_value()) > 100, 'clicking a tile moves the playhead there')
         # try colours: preview only, redraws at once, and puts the film's colours back
         p.locator('#le-film-range').focus(); p.keyboard.press('Home')
         for _ in range(3): p.keyboard.press('l')

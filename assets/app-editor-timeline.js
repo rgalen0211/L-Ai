@@ -49,6 +49,8 @@
 
   // The tile under a pointer (fraction 0..1 across the strip) and where the playhead sits for a year: tiles are equal width, so both are worked out in tiles, not in years. A year between two
   // sampled years sits between the two tile centres; before the first and after the last it stays on that tile's centre.
+  // Film thumbnails (WEB 2026-11-14): the film second each of `count` equal tiles shows (the middle of its share of the film), whole tenths, always inside the film. A bad count or length gives none.
+  const thumbSeconds = (count, duration) => { const n = Math.floor(Number(count)), d = Number(duration); if (!(n > 0) || n > 64 || !(d > 0) || !Number.isFinite(d)) return []; return Array.from({ length: n }, (_, i) => Math.round(((i + 0.5) / n) * d * 10) / 10); };
   const tileAt = (count, fraction) => (count > 0 ? clamp(Math.floor(clamp(Number(fraction) || 0, 0, 1) * count), 0, count - 1) : 0);
   function headFraction(years, year) {
     const n = years.length; if (!n) return 0;
@@ -117,5 +119,5 @@
     return { lane, paint: f => { head.style.left = `${clamp(Number(f) || 0, 0, 1) * 100}%`; }, tickCount: ticks.length };
   }
 
-  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, headFraction, maxTilesFor, keyTarget, build, rulerTicks, ruler, clock };
+  window.ryagramEditorTimeline = { tilesFor, fractionOf, valueAt, tileIndexFor, tileAt, thumbSeconds, headFraction, maxTilesFor, keyTarget, build, rulerTicks, ruler, clock };
 })();

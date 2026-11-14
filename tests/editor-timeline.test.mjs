@@ -71,7 +71,7 @@ test('wiring: the strip is built only for the stand-in data editor, follows the 
   assert.match(ed, /if \(strip\) strip\.paint\(position\); if \(!isData\) head\.style\.left/);
   assert.match(ed, /seek: v => \{ stopPlay\(\); range\.value = String\(v\); range\.dispatchEvent\(new Event\('input'/);
   assert.match(ed, /scrub, stripHolder, ticks/);
-  assert.ok(html.indexOf('app-editor-timeline.js?v=20261113a') > 0 && html.indexOf('app-editor-timeline.js') < html.indexOf('app-editor.js?v='));
+  assert.ok(html.indexOf('app-editor-timeline.js?v=20261114a') > 0 && html.indexOf('app-editor-timeline.js') < html.indexOf('app-editor.js?v='));
   assert.match(html, /app-editor\.js\?v=20261113a/);
   assert.ok(!/innerHTML/.test(read('assets/app-editor-timeline.js')), 'no HTML from strings');
 });
@@ -180,5 +180,21 @@ test('wiring: the strip is rebuilt when the width crosses a tile-count breakpoin
 
 test('the keys line is hidden where there is no keyboard (touch devices), and the stylesheet carries a new stamp', () => {
   assert.match(read('assets/app-editor.css'), /@media \(hover:none\),\(pointer:coarse\)\{\.le-keys\{display:none\}\}/);
-  assert.match(read('app/index.html'), /app-editor\.css\?v=20261113c/);
+  assert.match(read('app/index.html'), /app-editor\.css\?v=20261114a/);
+});
+
+test('thumbSeconds: the middle of each equal share of the film, in tenths, never past the end; bad input gives none', () => {
+  const T = win.ryagramEditorTimeline;
+  assert.deepEqual(plain(T.thumbSeconds(4, 10)), [1.3, 3.8, 6.3, 8.8].map((v, i) => Math.round(((i + 0.5) / 4) * 100) / 10));
+  assert.deepEqual(plain(T.thumbSeconds(1, 5)), [2.5]);
+  const s = plain(T.thumbSeconds(12, 37.3)); assert.equal(s.length, 12); assert.ok(s.every((v, i) => v > 0 && v <= 37.3 && (i === 0 || v > s[i - 1])));
+  for (const bad of [[0, 10], [-1, 10], [4, 0], [4, -2], [4, NaN], [4, Infinity], [65, 10], ['x', 10], [4, 'y']]) assert.deepEqual(plain(T.thumbSeconds(...bad)), [], String(bad));
+});
+
+test('the film editor draws thumbnails only from windows already loaded, only pictures, and stops its timer', () => {
+  const src = read('assets/app-editor-film.js'), i = src.indexOf('function fillThumbs()'), body = src.slice(i, src.indexOf('function paintHead()'));
+  assert.ok(i > 0 && !/\.want\(/.test(body), 'a thumbnail never asks for a window');
+  assert.match(body, /store\.stateOf\(t\.second\) === 'ready'/); assert.ok(body.includes('data:image'), 'only a picture address is used');
+  assert.match(src, /onStop\(\(\) => \{[^}]*clearTimeout\(thumbTimer\)/);
+  assert.ok(!/innerHTML/.test(body), 'a thumbnail is an img src, never markup');
 });
