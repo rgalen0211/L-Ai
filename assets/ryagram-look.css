@@ -74,6 +74,13 @@ body.ryagram-look .admin-links{display:flex;flex-wrap:wrap;gap:8px;font-size:0;m
 body.ryagram-look .admin-links a{display:inline-flex;align-items:center;min-height:44px;padding:6px 16px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:.95rem;font-weight:600;text-decoration:none}
 body.ryagram-look .admin-links a:hover{border-color:var(--muted);background:var(--soft)}
 
+/* credits: pack and plan rows are cards with room inside; the guided builder's steps are a row of pills, the current one orange */
+body.ryagram-look .offer-list{border-top:0;display:grid;gap:12px}
+body.ryagram-look .offer{padding:12px 18px}
+body.ryagram-look .builder-steps li{padding:4px 14px;border:1px solid var(--line);border-radius:999px}
+body.ryagram-look .builder-steps .is-current{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+body.ryagram-look .builder-steps .is-done{color:var(--ink)}
+
 /* the Help page's questions: each one a card */
 body.ryagram-look .faq details{margin:10px 0;padding:0 18px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--paper)}
 body.ryagram-look .faq summary{min-height:52px;display:flex;align-items:center;cursor:pointer;font-weight:700}
