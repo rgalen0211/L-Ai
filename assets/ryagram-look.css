@@ -1,17 +1,81 @@
-/* THE SHARED RYAGRAM LOOK: dark by default (Ryan, 2026-10-23, via Claude 10:41). Everything Ryagram (/app/, /help/, /connect-ai/, the film pages, the report form) wears it;
-   the L'Ai consulting pages (home, services, contact) and the legal pages stay light. It lives in its OWN file so that Ryagram can be lifted to another domain later without
-   touching L'Ai's styles. It only redefines the colour tokens the other sheets already use, plus the few components that carry a literal light colour, and only on body.ryagram-look. */
+/* THE SHARED RYAGRAM LOOK (WEB, 2026-11-15, Ryan's order: every page at the level of the Ryagram waiting page, /ryagram/).
+   Dark by default (Ryan, 2026-10-23). Everything Ryagram (/app/, /help/, /connect-ai/, the film pages, the report form, the games, the legal pages) wears it by putting class ryagram-look on <body>.
+   It is the ONE place the look's tokens live: the page colours, the accent, the type scale, the radius, the buttons, the cards and the form fields. The other sheets (workflow-audit.css, help.css, app.css) keep their
+   layout and only read the tokens below. It lives in its OWN file so that Ryagram can be lifted to another domain later without touching L'Ai's styles. Look only: no word, no layout switch, no behaviour. */
 body.ryagram-look{
-  --bg:#14141a;--paper:#1b1b23;--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--dark:#0e0e13;
-  --brand:#6fd1bd;--brand-deep:#8fe0cf;--wheat:#c9a66b;--wheat-soft:#33291a;--danger:#ff9b9b;--border:#3a3a44;
+  /* the tokens (the waiting page's own: assets/ryagram.css) */
+  --bg:#14141a;--paper:#1b1b23;--soft:#23232d;--line:#3a3a44;--ink:#f2f2ef;--muted:#b6b5ae;--dark:#0e0e13;
+  --accent:#ff8a3d;--accent-ink:#14141a;--link:#8fb6ea;--danger:#ff9b9b;--border:#3a3a44;
+  --brand:#ff8a3d;--brand-deep:#ff8a3d;--wheat:#c9a66b;--wheat-soft:#33291a;
+  --radius:18px;--radius-sm:12px;--shadow:0 24px 70px rgba(0,0,0,.5);
   background:var(--bg);color:var(--ink);color-scheme:dark;
+  font:400 1.0625rem/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;
 }
-body.ryagram-look a{color:var(--brand-deep)}
-body.ryagram-look input,body.ryagram-look select,body.ryagram-look textarea{background:var(--soft);color:var(--ink);border-color:var(--line)}
+body.ryagram-look a{color:var(--link)}
+body.ryagram-look :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 body.ryagram-look ::placeholder{color:var(--muted)}
-body.ryagram-look .button.primary,body.ryagram-look .look-presets-row .button.is-chosen{color:#0b1412}
+@media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
+
+/* type: big, tight, heavy headings and a calm muted lead */
+body.ryagram-look h1,body.ryagram-look h2,body.ryagram-look h3{letter-spacing:-.03em;line-height:1.1;text-wrap:balance}
+body.ryagram-look h1{font-size:clamp(2.1rem,7vw,3.4rem);font-weight:800;margin-bottom:12px}
+body.ryagram-look h2{font-size:clamp(1.4rem,4vw,1.9rem);font-weight:800}
+body.ryagram-look h3{font-size:1.1rem;font-weight:700;letter-spacing:-.01em}
+body.ryagram-look .form-intro,body.ryagram-look .hero-copy,body.ryagram-look h1+p{color:var(--muted)}
+body.ryagram-look .eyebrow{color:var(--accent);letter-spacing:.14em}
+
+/* header: sticky, a soft blur, the wordmark in plain white and the word Ryagram small in capitals */
+body.ryagram-look>header{position:sticky;top:0;z-index:5;background:rgba(20,20,26,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+body.ryagram-look .nav{min-height:64px}
+body.ryagram-look .wordmark{color:var(--ink);font-size:2rem;line-height:1;letter-spacing:.01em}
+body.ryagram-look .brand-copy,body.ryagram-look .header-note{color:var(--muted);font-weight:700;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase}
+body.ryagram-look .app-nav-link,body.ryagram-look .nav a:not(.brand):not(.button){color:var(--ink);font-weight:600;text-decoration:none}
+body.ryagram-look .app-nav-link:hover,body.ryagram-look .nav a:not(.brand):not(.button):hover{text-decoration:underline}
+body.ryagram-look .app-account #account-email{color:var(--muted);font-weight:400}
+
+/* buttons: pills, 48 px and more, one orange main button; the rest outlined */
+body.ryagram-look .button{min-height:48px;padding:11px 24px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);font-weight:800;text-decoration:none;touch-action:manipulation}
+body.ryagram-look .button:hover{border-color:var(--muted);filter:none;background:var(--soft)}
+body.ryagram-look .button.primary,body.ryagram-look .look-presets-row .button.is-chosen{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
+body.ryagram-look .button.primary:hover{background:var(--accent);filter:brightness(1.08)}
+body.ryagram-look .button:active{transform:translateY(1px)}
+body.ryagram-look .button.small{min-height:44px;padding:8px 18px;font-size:.95rem}
 body.ryagram-look .button.danger{background:#a83a3a;border-color:#a83a3a;color:#fff}
-/* components that carried a literal light colour */
+body.ryagram-look .button:disabled,body.ryagram-look .button[disabled]{opacity:.6}
+body.ryagram-look .link-button{color:var(--link)}
+
+/* fields: 52 px, 12 px corners, on the page colour inside a card */
+body.ryagram-look input,body.ryagram-look select,body.ryagram-look textarea{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);min-height:52px;font-size:1rem}
+body.ryagram-look input[type=checkbox],body.ryagram-look input[type=radio],body.ryagram-look input[type=range],body.ryagram-look input[type=color]{min-height:0;accent-color:var(--accent)}
+body.ryagram-look input:focus-visible,body.ryagram-look select:focus-visible,body.ryagram-look textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+body.ryagram-look label,body.ryagram-look legend{font-weight:700;color:var(--ink)}
+body.ryagram-look label span,body.ryagram-look legend span{color:var(--muted)}
+
+/* cards: a panel colour, a thin line, 18 px corners; the sign-in form and every grouped block */
+body.ryagram-look .contact-form,body.ryagram-look .ops-section,body.ryagram-look .account-section,body.ryagram-look .offer,body.ryagram-look .template-card,body.ryagram-look .builder-card,
+body.ryagram-look .source-card,body.ryagram-look .jobs-panel,body.ryagram-look .chat-panel,body.ryagram-look .invite-panel,body.ryagram-look .look-section,body.ryagram-look .advanced-panel,
+body.ryagram-look .prov-card,body.ryagram-look .windows-card,body.ryagram-look .share-panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius)}
+body.ryagram-look .contact-form{border-top:1px solid var(--line);box-shadow:var(--shadow)}
+body.ryagram-look .contact-form .button{width:100%}
+body.ryagram-look .template-card.is-chosen,body.ryagram-look .builder-card.is-chosen{border-color:var(--accent);background:#2a2018}
+body.ryagram-look .invite-panel{background:#2a2018}
+body.ryagram-look .app-panel{max-width:520px}
+body.ryagram-look .project-list{border-top:0;display:grid;gap:12px}
+body.ryagram-look .project-list li{padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper)}
+body.ryagram-look .project-list li:hover{border-color:var(--muted)}
+body.ryagram-look .project-list a{color:var(--ink)}
+body.ryagram-look .version-list,body.ryagram-look .file-list,body.ryagram-look .job-list{border-top:1px solid var(--line)}
+
+/* chips, tables, the footer */
+body.ryagram-look .state{border-radius:999px;font-weight:700;letter-spacing:.02em}
+body.ryagram-look .admin-table th{color:var(--muted);font-size:.78rem;font-weight:800;letter-spacing:.1em;text-transform:uppercase}
+body.ryagram-look .admin-table th,body.ryagram-look .admin-table td{border-bottom-color:var(--line)}
+body.ryagram-look .app-foot,body.ryagram-look>footer{border-top:1px solid var(--line);color:var(--muted)}
+body.ryagram-look .app-foot a,body.ryagram-look>footer a{color:var(--muted)}
+body.ryagram-look .app-foot a:hover,body.ryagram-look>footer a:hover{color:var(--ink)}
+body.ryagram-look .admin-menu-panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow)}
+
+/* components that carried a literal light colour (kept from the first look) */
 body.ryagram-look .app-error,body.ryagram-look .job-problem,body.ryagram-look .builder-problems,body.ryagram-look .look-problems{color:#ffb4a8}
 body.ryagram-look .builder-warning,body.ryagram-look .look-warnings{color:#f0c05a}
 body.ryagram-look .job-row-editorial_action_required .job-problem{color:#f0d9a0}
@@ -21,6 +85,5 @@ body.ryagram-look .state-editorial_action_required,body.ryagram-look .job-editor
 body.ryagram-look .state-queued,body.ryagram-look .state-rendering,body.ryagram-look .state-validating,body.ryagram-look .state-uploading,
 body.ryagram-look .job-queued,body.ryagram-look .job-claimed,body.ryagram-look .job-running,body.ryagram-look .job-validating,body.ryagram-look .job-uploading{background:#1e2c40;color:#a9c8f2}
 body.ryagram-look .mock-bar{background:#2a2414}
-body.ryagram-look .template-card.is-chosen,body.ryagram-look .invite-panel{background:#17302b}
 body.ryagram-look .chat-user{background:#1f2b29}
 body.ryagram-look .source-licence-full{background:var(--soft)}
