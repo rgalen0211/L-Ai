@@ -50,3 +50,11 @@ test('the pages that do NOT wear the look are exactly the ones left out on purpo
     'preview-demo/index.html',                                              // saved for offline use by name: a new sheet needs the saved list changed too
   ].sort());
 });
+
+test('contrast: every text pair is 4.5:1 or better and every field border and ring 3:1, computed from the sheet own tokens', () => {
+  const tok = k => css.match(new RegExp(`--${k}:(#[0-9a-f]{6});`, 'i'))[1];
+  const lum = h => { const [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+  for (const [fg, bg, need] of [['ink', 'bg', 4.5], ['ink', 'paper', 4.5], ['muted', 'bg', 4.5], ['muted', 'paper', 4.5], ['muted', 'soft', 4.5], ['link', 'bg', 4.5], ['link', 'paper', 4.5], ['accent-ink', 'accent', 4.5], ['accent', 'paper', 4.5], ['line-strong', 'bg', 3], ['line-strong', 'paper', 3], ['accent', 'bg', 3]])
+    assert.ok(ratio(tok(fg), tok(bg)) >= need, `${fg} on ${bg} is ${ratio(tok(fg), tok(bg)).toFixed(2)}, needs ${need}`);
+});

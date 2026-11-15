@@ -5,7 +5,7 @@
 body.ryagram-look{
   /* the tokens (the waiting page's own: assets/ryagram.css) */
   --bg:#14141a;--paper:#1b1b23;--soft:#23232d;--line:#3a3a44;--ink:#f2f2ef;--muted:#b6b5ae;--dark:#0e0e13;
-  --accent:#ff8a3d;--accent-ink:#14141a;--link:#8fb6ea;--danger:#ff9b9b;--border:#3a3a44;
+  --line-strong:#7d7d89;--accent:#ff8a3d;--accent-ink:#14141a;--link:#8fb6ea;--danger:#ff9b9b;--border:#3a3a44;
   --brand:#ff8a3d;--brand-deep:#ff8a3d;--wheat:#c9a66b;--wheat-soft:#33291a;
   --radius:18px;--radius-sm:12px;--shadow:0 24px 70px rgba(0,0,0,.5);
   background:var(--bg);color:var(--ink);color-scheme:dark;
@@ -34,8 +34,8 @@ body.ryagram-look .app-nav-link:hover,body.ryagram-look .nav a:not(.brand):not(.
 body.ryagram-look .app-account #account-email{color:var(--muted);font-weight:400}
 
 /* buttons: pills, 48 px and more, one orange main button; the rest outlined */
-body.ryagram-look .button{min-height:48px;padding:11px 24px;border:1px solid var(--line);border-radius:999px;background:transparent;color:var(--ink);font-weight:800;text-decoration:none;touch-action:manipulation}
-body.ryagram-look .button:hover{border-color:var(--muted);filter:none;background:var(--soft)}
+body.ryagram-look .button{min-height:48px;padding:11px 24px;border:1px solid var(--line-strong);border-radius:999px;background:transparent;color:var(--ink);font-weight:800;text-decoration:none;touch-action:manipulation}
+body.ryagram-look .button:hover{border-color:var(--accent);filter:none;background:var(--soft)}
 body.ryagram-look .button.primary,body.ryagram-look .look-presets-row .button.is-chosen{background:var(--accent);border-color:var(--accent);color:var(--accent-ink)}
 body.ryagram-look .button.primary:hover{background:var(--accent);filter:brightness(1.08)}
 body.ryagram-look .button:active{transform:translateY(1px)}
@@ -45,7 +45,7 @@ body.ryagram-look .button:disabled,body.ryagram-look .button[disabled]{opacity:.
 body.ryagram-look .link-button{color:var(--link)}
 
 /* fields: 52 px, 12 px corners, on the page colour inside a card */
-body.ryagram-look input,body.ryagram-look select,body.ryagram-look textarea{background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:var(--radius-sm);min-height:52px;font-size:1rem}
+body.ryagram-look input,body.ryagram-look select,body.ryagram-look textarea{background:var(--bg);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--radius-sm);min-height:52px;font-size:1rem}
 body.ryagram-look input[type=checkbox],body.ryagram-look input[type=radio],body.ryagram-look input[type=range],body.ryagram-look input[type=color]{min-height:0;accent-color:var(--accent)}
 body.ryagram-look input:focus-visible,body.ryagram-look select:focus-visible,body.ryagram-look textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
 body.ryagram-look label,body.ryagram-look legend{font-weight:700;color:var(--ink)}
@@ -73,6 +73,11 @@ body.ryagram-look #library p.meta>a:only-child:hover{border-color:var(--muted)}
 body.ryagram-look .admin-links{display:flex;flex-wrap:wrap;gap:8px;font-size:0;margin:12px 0 20px}
 body.ryagram-look .admin-links a{display:inline-flex;align-items:center;min-height:44px;padding:6px 16px;border:1px solid var(--line);border-radius:999px;color:var(--ink);font-size:.95rem;font-weight:600;text-decoration:none}
 body.ryagram-look .admin-links a:hover{border-color:var(--muted);background:var(--soft)}
+
+/* the Help page's questions: each one a card */
+body.ryagram-look .faq details{margin:10px 0;padding:0 18px;border:1px solid var(--line);border-radius:var(--radius-sm);background:var(--paper)}
+body.ryagram-look .faq summary{min-height:52px;display:flex;align-items:center;cursor:pointer;font-weight:700}
+body.ryagram-look .faq details[open]{border-color:var(--muted)}
 
 /* chips, tables, the footer */
 body.ryagram-look .state{border-radius:999px;font-weight:700;letter-spacing:.02em}
