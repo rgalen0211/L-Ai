@@ -34,6 +34,14 @@ test('the sheet is look only: no content, no script hook, no outside address, no
   assert.deepEqual(bare.filter(l => !/--accent|--brand/.test(l)), [], 'the accent colour is written once, as a token');
 });
 
+test('in-page links land below the sticky header, and the sheet sets no smooth scrolling (the film page jumps and focuses at once; a smooth scroll is cut short by the focus: #sources stopped 450px low, 11-15)', () => {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/scroll-behavior/.test(bare), 'no scroll-behavior in the look sheet');
+  assert.match(bare, /body\.ryagram-look \[id\]\{scroll-margin-top:\d+px\}/, 'every anchor target clears the sticky header');
+  const m = bare.match(/scroll-margin-top:(\d+)px/), nav = bare.match(/\.nav\{min-height:(\d+)px\}/);
+  assert.ok(Number(m[1]) >= Number(nav[1]), 'the margin is at least the header height');
+});
+
 test('the other sheets do not redefine the look tokens for a page that wears it', () => {
   for (const f of ['assets/app.css', 'assets/help.css', 'assets/film.css', 'assets/app-editor.css']) {
     const src = read(f);
