@@ -39,7 +39,7 @@ test('EVERY paragraph of the public text ends with a marker for a person\'s word
 
 test('they promise nothing: no absolute words, no price, no outside link, no mail address, and they say where things stay only with a CHECK marker', () => {
   for (const [name, html] of Object.entries(PAGES)) {
-    const body = html.split('<body>')[1];
+    const body = html.split(/<body[^>]*>/)[1];
     assert.ok(!/\b(guarantee|always|never share|we will never|best|fastest|perfect)\b/i.test(body.replace(/<mark>[\s\S]*?<\/mark>/g, '')), `${name}: no absolute or boasting word`);
     assert.ok(!/[$£€]\s?\d/.test(body), `${name}: no price`);
     assert.ok(!/<a [^>]*href="https?:/.test(body), `${name}: no outside link`);

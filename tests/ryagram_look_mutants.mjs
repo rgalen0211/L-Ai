@@ -16,8 +16,9 @@ const mutants = [
   ['the sheet writes words onto the page', CSS, 'body.ryagram-look .state{', 'body.ryagram-look .state::after{content:"x"}\nbody.ryagram-look .state{'],
   ['the sheet pulls something from outside', CSS, 'body.ryagram-look ::placeholder{', 'body.ryagram-look{background-image:url(https://example.com/a.png)}\nbody.ryagram-look ::placeholder{'],
   ['the accent colour is written outside a token', CSS, 'body.ryagram-look .button.danger{', 'body.ryagram-look .tag{border-color:#ff8a3d}\nbody.ryagram-look .button.danger{'],
-  ['one page links an older stamp', 'help/index.html', 'ryagram-look.css?v=20261115b', 'ryagram-look.css?v=20261023a'],
-  ['one page links the sheet twice', 'report/index.html', '<link rel="stylesheet" href="/assets/ryagram-look.css?v=20261115b">', '<link rel="stylesheet" href="/assets/ryagram-look.css?v=20261115a"><link rel="stylesheet" href="/assets/ryagram-look.css?v=20261115a">'],
+  ['one page links an older stamp', 'help/index.html', 'ryagram-look.css?v=20261115c', 'ryagram-look.css?v=20261023a'],
+  ['one page links the sheet twice', 'report/index.html', '<link rel="stylesheet" href="/assets/ryagram-look.css?v=20261115c">', '<link rel="stylesheet" href="/assets/ryagram-look.css?v=20261115a"><link rel="stylesheet" href="/assets/ryagram-look.css?v=20261115a">'],
+  ['a dressed page loses the look class', 'terms/index.html', '<body class="ryagram-look">', '<body>'],
   ['another sheet redefines the accent for the look', 'assets/help.css', '.help-main{max-width:760px;', 'body.ryagram-look{--accent:#00ff00;}\n.help-main{max-width:760px;'],
 ];
 function run(cwd) { return spawnSync(process.execPath, ['--test', path.join('tests', 'ryagram-look.test.mjs')], { encoding: 'utf8', cwd }); }

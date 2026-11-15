@@ -36,7 +36,7 @@ test('every page says it is a DRAFT, marks what needs a person\'s words, and pro
     const marks = [...html.matchAll(/<mark>\[(RYAN|LAWYER|LAWYER and RYAN)[^\]]*\]<\/mark>/g)];
     assert.ok(marks.length >= 5, `${name}: ${marks.length} markers`);
     assert.ok(/\[RYAN: the support address to publish\]/.test(html), `${name}: the support address is Ryan's to name, not invented here`);
-    assert.ok(!/[A-Za-z0-9._-]+@[A-Za-z0-9.-]+/.test(html.split('<body>')[1]), `${name}: no mail address is written into the page`);
+    assert.ok(!/[A-Za-z0-9._-]+@[A-Za-z0-9.-]+/.test(html.split(/<body[^>]*>/)[1]), `${name}: no mail address is written into the page`);
     assert.ok(!/<a [^>]*href="https?:/.test(html), `${name}: no outside link yet (the providers' policy links are the lawyer's call)`);
     assert.ok(!/\b(guarantee|always safe|fully secure|never share|we will never)\b/i.test(html.replace(/<!--[\s\S]*?-->/g, '')), `${name}: no absolute promise`);
   }

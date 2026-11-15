@@ -83,6 +83,8 @@ body.ryagram-look .app-foot a,body.ryagram-look>footer a{color:var(--muted)}
 body.ryagram-look .app-foot a:hover,body.ryagram-look>footer a:hover{color:var(--ink)}
 body.ryagram-look .admin-menu-panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius-sm);box-shadow:var(--shadow)}
 
+body.ryagram-look .footer-row{align-items:center}
+
 /* components that carried a literal light colour (kept from the first look) */
 body.ryagram-look .app-error,body.ryagram-look .job-problem,body.ryagram-look .builder-problems,body.ryagram-look .look-problems{color:#ffb4a8}
 body.ryagram-look .builder-warning,body.ryagram-look .look-warnings{color:#f0c05a}
