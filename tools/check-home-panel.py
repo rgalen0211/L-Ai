@@ -88,7 +88,7 @@ with sync_playwright() as pw:
     check(works[0]['buttons'] == ['Start this in the chat', 'Open on the site'] and works[1]['buttons'] == ['Start this in the chat', 'Open on the site'], 'Data films and My films each have a start button and an open button')
     check(all(w['tag'] and not w['buttons'] for w in works[2:]), 'every coming-soon entry carries the tag and has NOTHING to press')
     geo = fr.locator('.dept').nth(3).inner_text()
-    check('no sales data' in geo and 'No price and no date' in geo and 'Every number is labelled' in geo, 'the geographic entry shows its three rules and its not-yet line')
+    check('no sales data' in geo and 'No price and no date' in geo and geo.lower().count('every number') == 1, 'the geographic entry shows its two rules, its not-yet line, and says every number once')
     check(any(m.get('method') == 'ui/notifications/size-changed' and m['params']['height'] > 100 for m in pg.evaluate('window.__in')), 'the page reports its height to the host')
     # start a film: the line goes to the host as a user message
     fr.get_by_role('button', name='Start this in the chat').first.click()

@@ -14,7 +14,7 @@ import { handleMcp, toolList } from '../supabase/functions/connect-core/mcp.ts';
 import { HOME_BUILD, HOME_MAX_BYTES, HOME_ORDER, HOME_URI, HOME_WORDS, homeEntries, homeHtml, homeView, isHomeUri } from '../supabase/functions/connect-core/home_panel.ts';
 import { readResource, resourceList } from '../supabase/functions/connect-core/mcp_app.ts';
 
-const GEO_LINE = 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed.';
+const GEO_LINE = 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.';
 const compile = makeCompile(Ajv2020);
 const A = { tokenHash: 'h-alice', userId: 'u-alice', clientId: 'client-claude' };
 function world() {
@@ -92,15 +92,16 @@ test('the words equal the site\'s where the site has them (assets/app-department
     const site = KNOWN[id], ours = HOME_WORDS[id];
     assert.ok(site, `${id} is a department the site knows`);
     if (id !== 'geo_intelligence') assert.equal(ours.label, site.label, `${id}: the label`);
-    if (id === 'geo_intelligence') { assert.equal(ours.label, 'Opportunity Map', 'the department is called Opportunity Map (Q601); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line (proposals/GEO-HOME-PANEL-ENTRY-1113.md), whatever the site says now: the test holds in either landing order with the site\'s change'); continue; }
+    if (id === 'geo_intelligence') { assert.equal(ours.label, 'Opportunity Map', 'the department is called Opportunity Map (Q601); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line, word for word'); assert.equal(ours.line, site.line, 'and it is the site\'s line, word for word (Q601: one name, one line); a change to one side is a change to both, in one WEB+CONNECT pair'); continue; }
     assert.equal(ours.line, site.line ?? site.sentence, `${id}: the line`);
   }
 });
 
-test('the Opportunity Map says that every number is labelled once, not twice (line and rules together)', () => {
+test('the Opportunity Map says that every number is labelled once, not twice (line and rules together), and the once is the site\'s line', () => {
   const g = HOME_WORDS.geo_intelligence, all = [g.line, ...g.rules, ...g.notYet].join(' ');
   assert.equal((all.match(/every number/gi) || []).length, 1, all);
-  assert.match(g.rules[0], /^Every number is labelled: observed, calculated, estimated or simulated\.$/, 'the one place it is said is the rule');
+  assert.match(g.line, /Every number says whether it was counted, calculated or estimated\.$/, 'the one place it is said is the line, as the site has it');
+  assert.equal(g.rules.length, 2, 'two rules are left: what it counts, and no score');
 });
 
 test('nothing the panel says is a price, a date, a score, a ranking, or a promise of where a business would do well', () => {
