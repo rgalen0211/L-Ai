@@ -145,7 +145,10 @@ body.ryagram-look{
   color-scheme:light;
 }
 /* the editor's preview, timeline and banners are dark islands with their own colours: they stay dark in a light page */
-body.ryagram-look .le-view,body.ryagram-look .le-lanes,body.ryagram-look .le-banner,body.ryagram-look .le-ai{--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--link:#8fb6ea;color:#f2f2ef}
+body.ryagram-look .le-view,body.ryagram-look .le-lanes,body.ryagram-look .le-banner,body.ryagram-look .le-ai,body.ryagram-look .le-tl-strip{--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--link:#8fb6ea;color:#f2f2ef}
+/* the editor's two literal pale text colours would vanish on white */
+body.ryagram-look .le-free{color:var(--ok)}
+body.ryagram-look .le-aimark{color:#2f4a9a}
 }
 
 /* more review fixes (RENDERER 19:07/19:08, CC1 19:22): a phone shows an admin table whole and lets it scroll sideways instead of breaking words letter by letter;
@@ -157,3 +160,7 @@ body.ryagram-look .jobs-panel>:first-child,body.ryagram-look .consent-where>:fir
 body.ryagram-look .jobs-panel>:last-child,body.ryagram-look .consent-where>:last-child,body.ryagram-look .consent-can>:last-child,body.ryagram-look .consent-always>:last-child{margin-bottom:0}
 body.ryagram-look .render-caps h2+.form-note{margin-bottom:14px}
 body.ryagram-look .render-caps .inline-row input{flex:0 1 8em;max-width:8em}
+/* the editor's slider and colour boxes stay 44 px tall: the rule above that zeroes the height of checkboxes, radios, sliders and colour inputs must not win over the editor's own */
+body.ryagram-look input.le-range,body.ryagram-look .le-row input[type=color]{min-height:44px}
+/* the editor is a tool: its heading keeps the editor's own size so the picture, slider and film strip stay on the first screen */
+body.ryagram-look .le-top h1{font-size:1.35rem;line-height:1.2;margin:0;letter-spacing:-.01em}
