@@ -1,5 +1,6 @@
 // Must-fail proof for tests/connect-home-panel.test.mjs (the Ryagram home panel in the chat): each mutant breaks ONE thing in a scratch copy of the connector code and the suite must then FAIL.
-// A baseline run on the unbroken copy must PASS first, and every text must occur exactly once. Run:  node tests/connect_home_panel_mutants.mjs   (exit 0 only when every mutant is caught)
+// A baseline run on the unbroken copy must PASS first, and every text must occur exactly once. A mutant is 'source' (the offline suite must FAIL) or 'browser' (the real-Chrome check tools/check-home-panel.py must FAIL with a failed check or a missing element,
+// never a crash of its own). Run:  node tests/connect_home_panel_mutants.mjs [--no-browser]   (exit 0 only when every mutant is caught; the browser needs Chrome and playwright, TEMP on D:)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -25,7 +26,27 @@ const mutants = [
   ['the page loads a script from outside', H, `<title>Ryagram home</title>`, `<title>Ryagram home</title><script src=\\"https://x.example/a.js\\"></script>`],
   ['the page builds from markup', H, `root.textContent='';`, `root.innerHTML='';`],
   ['any fragment may be opened', H, `function openPage(page){if(appUrl&&PAGE.test(page||'')){`, `function openPage(page){if(appUrl){`],
-  ['a host that refuses the message gets nothing', H, `if(r&&r.error){`, `if(false){`],
+  // The refusal: the line comes back as an EXAMPLE, the host's words are kept, the message goes in the shape the spec's types give.
+  ['a host that refuses the message gets nothing', H, `if(!refused(r))return;`, `if(true)return;`, 'browser'],
+  ['a result that says isError is taken for success', H, `r.error||(r.result&&r.result.isError===true)`, `r.error`, 'browser'],
+  ['the message goes as one block, not a list', H, `content:[{type:'text',text:text}]},function(r){got(r,true);}`, `content:{type:'text',text:text}},function(r){got(r,true);}`, 'browser'],
+  ['a host that calls the list shape invalid is not asked again', H, `(e.code===-32602||/invalid|format/i.test(String(e.message||'')))`, `false`, 'browser'],
+  ['every refusal is asked again', H, `(e.code===-32602||/invalid|format/i.test(String(e.message||'')))`, `true`, 'browser'],
+  ['a host without the message capability is still sent the message', H, `function canSend(){return !(caps&&typeof caps==='object'&&!caps.message);}`, `function canSend(){return true;}`, 'browser'],
+  ['the button says it will start the chat on a host that cannot', H, `canSend()?'Start this in the chat':'Show what to say'`, `'Start this in the chat'`, 'browser'],
+  ['the host\'s answer is not shown', H, `'The chat app answered: '+said(r));`, `'');`, 'browser'],
+  ['the host\'s answer is not written to the console', H, `try{console.warn('ryagram-home: ui/message refused: '+JSON.stringify(r.error||r.result).slice(0,300));}catch(x){}`, ``, 'browser'],
+  ['the example has a dashed box again', H, `.example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #6fd1bd;`, `.example{margin:8px 0 0;padding:2px 0 2px 12px;border:1px dashed #3a3a44;border-left:3px solid #6fd1bd;`, 'browser'],
+  ['the example has no left bar', H, `border:0;border-left:3px solid #6fd1bd;`, `border:0;`, 'browser'],
+  ['the example has no label', H, ` x.appendChild(el('p','why',why));x.appendChild(el('p','label','Example:'));`, ` x.appendChild(el('p','why',why));`, 'browser'],
+  ['the sentence has no quotes', H, `q.appendChild(document.createTextNode(Q1));`, ``, 'browser'],
+  ['the example has no Copy button', H, `b=btn('Copy','quiet',function(){copyLine(x,b,text);});x.appendChild(b);`, `b=btn('Copy','quiet',function(){copyLine(x,b,text);});`, 'browser'],
+  ['Copy writes the quoted sentence', H, `navigator.clipboard.writeText(text).then(done,viaSelect)`, `navigator.clipboard.writeText(Q1+text+Q2).then(done,viaSelect)`, 'browser'],
+  ['a refused clipboard says Copied anyway', H, `if(ok)done();else hold();`, `done();`, 'browser'],
+  ['a refused clipboard selects the quote marks too', H, `var q=x.querySelector('.said');`, `var q=x.querySelector('.quote');`, 'browser'],
+  ['a refused clipboard does not say what to press', H, `h.textContent='Press Ctrl+C (Cmd+C on a Mac) to copy it.';`, `h.textContent='';`, 'browser'],
+  ['asking again piles up examples', H, `var old=box.querySelector('.example');if(old)old.remove();`, ``, 'browser'],
+  ['the example is built from markup', H, ` q.appendChild(document.createTextNode(Q1));q.appendChild(w);`, ` q.innerHTML=text;q.appendChild(w);`, 'source'],
   ['an address that is not https is put in the page', H, `const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";`, `const link = appUrl ?? "";`],
   ['the tool is listed with its switch off', MC, `&& (!t.homePanel || homePanel)).map(`, `).map(`],
   ['the tool runs with its switch off', DI, `(found.homePanel && !env.homePanel)`, `false`],
@@ -41,6 +62,10 @@ const mutants = [
   ['the tool is not read-only', TL, `scope: "read", readOnly: true, idempotent: true, homePanel: true,`, `scope: "read", readOnly: false, idempotent: true, homePanel: true,`],
 ];
 
+const noBrowser = process.argv.includes('--no-browser');
+function browser(cwd) {
+  return spawnSync('py', ['-I', path.join('tools', 'check-home-panel.py')], { encoding: 'utf8', cwd, env: { ...process.env } });
+}
 function run(cwd) {
   return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
 }
@@ -50,21 +75,31 @@ function fresh() {
   fs.cpSync(path.join(root, 'supabase/functions'), path.join(scratch, 'supabase/functions'), { recursive: true });
   fs.cpSync(path.join(root, 'tests'), path.join(scratch, 'tests'), { recursive: true });
   fs.cpSync(path.join(root, 'assets'), path.join(scratch, 'assets'), { recursive: true });
+  fs.cpSync(path.join(root, 'tools'), path.join(scratch, 'tools'), { recursive: true });
+  if (fs.existsSync(path.join(root, 'node_modules'))) fs.symlinkSync(path.join(root, 'node_modules'), path.join(scratch, 'node_modules'), 'junction');
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
-const base = run(scratch).status;
+const base = run(scratch).status || (noBrowser ? 0 : browser(scratch).status);
 if (base) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
-for (const [name, file, from, to] of mutants) {
+for (const [name, file, from, to, kind = 'source'] of mutants) {
+  if (kind === 'browser' && noBrowser) continue;
   fresh();
   const target = path.join(scratch, file);
   const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
-  if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
+  const n = src.split(from).length - 1;
+  if (n !== 1 || from === to) { console.log(`BROKEN MUTANT (text found ${n} times, need 1, or no change): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
-  const caught = run(scratch).status !== 0;
-  console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
+  let caught, how = '';
+  if (kind === 'browser') {
+    const r = browser(scratch), said = r.stdout + r.stderr;
+    // caught only when the check itself says so: a failed check line, or the element or message it waits for never came; any other crash is "ran badly", not a catch
+    caught = r.status !== 0 && (/^  FAIL /m.test(r.stdout) || /FAILED:/.test(r.stdout) || /TimeoutError: (Locator|Page)\.wait_for/.test(r.stderr));
+    how = caught ? ` (${(r.stdout.match(/^  FAIL (.*)$/m) || ['', 'an element the check waits for never came'])[1].slice(0, 90)})` : ` (rc ${r.status}, the check did not fail on its own words: ${said.slice(-120).replace(/\s+/g, ' ')})`;
+  } else caught = run(scratch).status !== 0;
+  console.log(`${caught ? 'caught ' : 'MISSED '} ${name}${how}`);
   if (!caught) missed++;
 }
 fs.rmSync(scratch, { recursive: true, force: true });
