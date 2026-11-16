@@ -57,6 +57,7 @@ const mutants = [
   ['any switch turns the films page on', H, `switches.includes("myFilms")`, `switches.length > 0`],
   ['a switch list that cannot be read throws', TL, `await ctx.data.switches().catch(() => [] as string[]);`, `await ctx.data.switches();`],
   ['the geographic line is not GEO\'s', H, `Ask about places with free public data: who lives near a spot`, `Ask a map a question: where would a new shop do well, who lives near a spot`],
+  ['the geographic line says every number is labelled a second time', H, `what is close by, and how counties have changed.`, `what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.`],
   ['a score is promised', H, `No score and no ranking of places.`, `A score for every place.`],
   ['a database that cannot answer throws', TL, `const rows = await ctx.data.departments().catch(() => null);`, `const rows = await ctx.data.departments();`],
   ['the tool is not read-only', TL, `scope: "read", readOnly: true, idempotent: true, homePanel: true,`, `scope: "read", readOnly: false, idempotent: true, homePanel: true,`],
