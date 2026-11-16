@@ -78,3 +78,15 @@ test('it is linked from nowhere else', () => {
   const all = fs.readdirSync(new URL('..', import.meta.url)).filter(f => f.endsWith('.html')).map(f => read(f)).join('\n') + read('help/index.html') + read('ryagram/index.html') + read('game-tv/index.html');
   assert.ok(!/game-phone/.test(all)); assert.ok(!/game-phone/.test(read('assets/app-library.js') + read('assets/app-departments.js') + read('assets/game-tv.js')));
 });
+
+test('in a light page the game screens stay dark islands, and every colour token the look gives a form field is dark inside them (typed text was white on white)', () => {
+  const look = read('assets/ryagram-look.css').replace(/\/\*[\s\S]*?\*\//g, '');
+  const field = (look.match(/body\.ryagram-look input[^{]*\{([^}]*)\}/) || [])[1] || '';
+  const used = [...new Set([...field.matchAll(/var\(--([\w-]+)/g)].map(m => m[1]))];
+  assert.ok(used.includes('bg') || used.includes('ink'), 'the look styles its fields from tokens: ' + field);
+  for (const [sheet, sel] of [['assets/game-phone.css', 'ph-screen'], ['assets/game-tv.css', 'tv-screen']]) {
+    const island = (read(sheet).match(new RegExp(String.raw`@media\(prefers-color-scheme:light\)\{body\.ryagram-look \.${sel}\{([^}]*)\}`)) || [])[1];
+    assert.ok(island, `${sheet}: a light-theme dark island for .${sel}`);
+    for (const k of used.filter(k => !/^(accent|accent-ink|radius|radius-sm)$/.test(k))) assert.match(island, new RegExp(`--${k}:#`), `${sheet}: --${k} is dark inside the island`);
+  }
+});

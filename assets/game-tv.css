@@ -20,3 +20,6 @@
 .tv-screen strong,.tv-screen li,.tv-screen td,.tv-screen th{color:var(--tt)}.tv-screen .tv-banner strong{color:#ffd96b}.tv-screen .tv-pts{color:#101219}.tv-screen em{color:var(--tm)}
 /* a heading the page focuses for a screen reader (tabindex -1) is not a control: no focus ring round it (RENDERER 11-15 16:02 (2)) */
 .tv-screen h2[tabindex="-1"]:focus{outline:none}
+/* a game screen stays a DARK ISLAND in a light page, like the editor's preview: its banner, marks and error words are set for dark
+   (the look's light theme, WEB 3e8c918, follows the device) */
+@media(prefers-color-scheme:light){body.ryagram-look .tv-screen{--bg:#14141a;--paper:#1b1b23;--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--line-strong:#7d7d89;--link:#8fb6ea;--ring:#ff8a3d;color-scheme:dark}}
