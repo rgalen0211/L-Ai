@@ -7,12 +7,14 @@ body.ryagram-look{
   --bg:#14141a;--paper:#1b1b23;--soft:#23232d;--line:#3a3a44;--ink:#f2f2ef;--muted:#b6b5ae;--dark:#0e0e13;
   --line-strong:#7d7d89;--accent:#ff8a3d;--accent-ink:#14141a;--link:#8fb6ea;--danger:#ff9b9b;--border:#3a3a44;
   --brand:#ff8a3d;--brand-deep:#ff8a3d;--wheat:#c9a66b;--wheat-soft:#33291a;
+  --ring:#ff8a3d;--accent-text:#ff8a3d;--header-bg:rgba(20,20,26,.92);--tint:#2a2018;--mock:#2a2414;--chat:#1f2b29;--danger-btn:#a83a3a;
+  --problem:#ffb4a8;--warning:#f0c05a;--ok-bg:#173a33;--ok:#9fe8d6;--bad-bg:#4a1f1b;--bad:#ffb4a8;--warn-bg:#33291a;--warn:#f0d9a0;--info-bg:#1e2c40;--info:#a9c8f2;
   --radius:18px;--radius-sm:12px;--shadow:0 24px 70px rgba(0,0,0,.5);
   background:var(--bg);color:var(--ink);color-scheme:dark;
   font:400 1.0625rem/1.55 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-text-size-adjust:100%;
 }
 body.ryagram-look a{color:var(--link)}
-body.ryagram-look :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
+body.ryagram-look :focus-visible{outline:3px solid var(--ring);outline-offset:3px}
 body.ryagram-look ::placeholder{color:var(--muted)}
 
 /* type: big, tight, heavy headings and a calm muted lead */
@@ -21,10 +23,10 @@ body.ryagram-look h1{font-size:clamp(2.1rem,7vw,3.4rem);font-weight:800;margin-b
 body.ryagram-look h2{font-size:clamp(1.4rem,4vw,1.9rem);font-weight:800}
 body.ryagram-look h3{font-size:1.1rem;font-weight:700;letter-spacing:-.01em}
 body.ryagram-look .form-intro,body.ryagram-look .hero-copy,body.ryagram-look h1+p{color:var(--muted)}
-body.ryagram-look .eyebrow{color:var(--accent);letter-spacing:.14em}
+body.ryagram-look .eyebrow{color:var(--accent-text);letter-spacing:.14em}
 
 /* header: sticky, a soft blur, the wordmark in plain white and the word Ryagram small in capitals */
-body.ryagram-look>header{position:sticky;top:0;z-index:5;background:rgba(20,20,26,.92);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
+body.ryagram-look>header{position:sticky;top:0;z-index:5;background:var(--header-bg);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
 body.ryagram-look .nav{min-height:64px}
 body.ryagram-look .wordmark{color:var(--ink);font-size:2rem;line-height:1;letter-spacing:.01em}
 body.ryagram-look .brand-copy,body.ryagram-look .header-note{color:var(--muted);font-weight:700;font-size:.8rem;letter-spacing:.14em;text-transform:uppercase}
@@ -39,14 +41,14 @@ body.ryagram-look .button.primary,body.ryagram-look .look-presets-row .button.is
 body.ryagram-look .button.primary:hover{background:var(--accent);filter:brightness(1.08)}
 body.ryagram-look .button:active{transform:translateY(1px)}
 body.ryagram-look .button.small{min-height:44px;padding:8px 18px;font-size:.95rem}
-body.ryagram-look .button.danger{background:#a83a3a;border-color:#a83a3a;color:#fff}
+body.ryagram-look .button.danger{background:var(--danger-btn);border-color:var(--danger-btn);color:#fff}
 body.ryagram-look .button:disabled,body.ryagram-look .button[disabled]{opacity:.6}
 body.ryagram-look .link-button{color:var(--link)}
 
 /* fields: 52 px, 12 px corners, on the page colour inside a card */
 body.ryagram-look input,body.ryagram-look select,body.ryagram-look textarea{background:var(--bg);color:var(--ink);border:1px solid var(--line-strong);border-radius:var(--radius-sm);min-height:52px;font-size:1rem}
 body.ryagram-look input[type=checkbox],body.ryagram-look input[type=radio],body.ryagram-look input[type=range],body.ryagram-look input[type=color]{min-height:0;accent-color:var(--accent)}
-body.ryagram-look input:focus-visible,body.ryagram-look select:focus-visible,body.ryagram-look textarea:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+body.ryagram-look input:focus-visible,body.ryagram-look select:focus-visible,body.ryagram-look textarea:focus-visible{outline:3px solid var(--ring);outline-offset:2px}
 body.ryagram-look label,body.ryagram-look legend{font-weight:700;color:var(--ink)}
 body.ryagram-look label span,body.ryagram-look legend span{color:var(--muted)}
 
@@ -56,8 +58,8 @@ body.ryagram-look .source-card,body.ryagram-look .jobs-panel,body.ryagram-look .
 body.ryagram-look .prov-card,body.ryagram-look .windows-card,body.ryagram-look .share-panel{background:var(--paper);border:1px solid var(--line);border-radius:var(--radius)}
 body.ryagram-look .contact-form{border-top:1px solid var(--line);box-shadow:var(--shadow)}
 body.ryagram-look .contact-form .button{width:100%}
-body.ryagram-look .template-card.is-chosen,body.ryagram-look .builder-card.is-chosen{border-color:var(--accent);background:#2a2018}
-body.ryagram-look .invite-panel{background:#2a2018}
+body.ryagram-look .template-card.is-chosen,body.ryagram-look .builder-card.is-chosen{border-color:var(--accent);background:var(--tint)}
+body.ryagram-look .invite-panel{background:var(--tint)}
 body.ryagram-look .app-panel{max-width:520px}
 body.ryagram-look .project-list,body.ryagram-look .version-list{border-top:0;display:grid;gap:12px}
 body.ryagram-look .project-list li,body.ryagram-look .version-list li{padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper)}
@@ -97,16 +99,16 @@ body.ryagram-look .admin-menu-panel{background:var(--paper);border:1px solid var
 body.ryagram-look .footer-row{align-items:center}
 
 /* components that carried a literal light colour (kept from the first look) */
-body.ryagram-look .app-error,body.ryagram-look .job-problem,body.ryagram-look .builder-problems,body.ryagram-look .look-problems{color:#ffb4a8}
-body.ryagram-look .builder-warning,body.ryagram-look .look-warnings{color:#f0c05a}
-body.ryagram-look .job-row-editorial_action_required .job-problem{color:#f0d9a0}
-body.ryagram-look .state-complete,body.ryagram-look .job-complete{background:#173a33;color:#9fe8d6}
-body.ryagram-look .state-failed,body.ryagram-look .job-failed{background:#4a1f1b;color:#ffb4a8}
-body.ryagram-look .state-editorial_action_required,body.ryagram-look .job-editorial_action_required{background:var(--wheat-soft);color:#f0d9a0}
+body.ryagram-look .app-error,body.ryagram-look .job-problem,body.ryagram-look .builder-problems,body.ryagram-look .look-problems{color:var(--problem)}
+body.ryagram-look .builder-warning,body.ryagram-look .look-warnings{color:var(--warning)}
+body.ryagram-look .job-row-editorial_action_required .job-problem{color:var(--warn)}
+body.ryagram-look .state-complete,body.ryagram-look .job-complete{background:var(--ok-bg);color:var(--ok)}
+body.ryagram-look .state-failed,body.ryagram-look .job-failed{background:var(--bad-bg);color:var(--bad)}
+body.ryagram-look .state-editorial_action_required,body.ryagram-look .job-editorial_action_required{background:var(--warn-bg);color:var(--warn)}
 body.ryagram-look .state-queued,body.ryagram-look .state-rendering,body.ryagram-look .state-validating,body.ryagram-look .state-uploading,
-body.ryagram-look .job-queued,body.ryagram-look .job-claimed,body.ryagram-look .job-running,body.ryagram-look .job-validating,body.ryagram-look .job-uploading{background:#1e2c40;color:#a9c8f2}
-body.ryagram-look .mock-bar{background:#2a2414}
-body.ryagram-look .chat-user{background:#1f2b29}
+body.ryagram-look .job-queued,body.ryagram-look .job-claimed,body.ryagram-look .job-running,body.ryagram-look .job-validating,body.ryagram-look .job-uploading{background:var(--info-bg);color:var(--info)}
+body.ryagram-look .mock-bar{background:var(--mock)}
+body.ryagram-look .chat-user{background:var(--chat)}
 body.ryagram-look .source-licence-full{background:var(--soft)}
 
 /* an in-page link (the film page's #sources) lands below the sticky header (smooth scrolling is left out on purpose: the film page jumps and focuses at once and a smooth scroll is cut short by the focus) */
@@ -129,3 +131,29 @@ body.ryagram-look p>.button.small{margin:8px 8px 8px 0}
 /* link-style buttons and the sign-in help links line up with the heading's left edge; paragraphs on the help-style pages have a gap */
 body.ryagram-look .link-button,body.ryagram-look .sign-in-help a{padding-left:0;padding-right:0}
 body.ryagram-look .help-main p+p{margin-top:14px}
+
+/* LIGHT THEME (Ryan 11-15: it follows the device; dark is the default). Only the tokens change; RENDERER's light values, contrast-checked on both themes by tests/ryagram-look.test.mjs.
+   Orange on white is too pale for text and rings, so light has its own ring and accent-text; the orange stays the fill of the main button. */
+@media(prefers-color-scheme:light){
+body.ryagram-look{
+  --bg:#fbfaf7;--paper:#ffffff;--soft:#f1efe9;--line:#d9d6cc;--ink:#1c1c21;--muted:#5b5a55;--dark:#e6e3da;
+  --line-strong:#8a867a;--accent-ink:#14141a;--link:#1f5fae;--danger:#8a2f25;--border:#d9d6cc;
+  --brand-deep:#a8470a;--wheat:#8a6a2a;--wheat-soft:#f6ecd2;
+  --shadow:0 18px 50px rgba(20,20,26,.14);
+  --ring:#c2540a;--accent-text:#a8470a;--header-bg:rgba(251,250,247,.92);--tint:#fdeedd;--mock:#f6ecd2;--chat:#e4efec;--danger-btn:#a83a3a;
+  --problem:#8a2f25;--warning:#6d5427;--ok-bg:#dcefe9;--ok:#0f5a49;--bad-bg:#f8e1dc;--bad:#8a2f25;--warn-bg:#f6ecd2;--warn:#6d5427;--info-bg:#e4ecf5;--info:#28496b;
+  color-scheme:light;
+}
+/* the editor's preview, timeline and banners are dark islands with their own colours: they stay dark in a light page */
+body.ryagram-look .le-view,body.ryagram-look .le-lanes,body.ryagram-look .le-banner,body.ryagram-look .le-ai{--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--link:#8fb6ea;color:#f2f2ef}
+}
+
+/* more review fixes (RENDERER 19:07/19:08, CC1 19:22): a phone shows an admin table whole and lets it scroll sideways instead of breaking words letter by letter;
+   the Render card and the consent cards have room inside; the daily-caps rows are not a 1000 px box */
+@media(max-width:560px){body.ryagram-look .admin-table{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch}
+body.ryagram-look .admin-table th,body.ryagram-look .admin-table td{white-space:nowrap;overflow-wrap:normal;word-break:normal;hyphens:none}}
+body.ryagram-look .jobs-panel,body.ryagram-look .consent-where,body.ryagram-look .consent-can,body.ryagram-look .consent-always{padding:20px 22px}
+body.ryagram-look .jobs-panel>:first-child,body.ryagram-look .consent-where>:first-child,body.ryagram-look .consent-can>:first-child,body.ryagram-look .consent-always>:first-child{margin-top:0}
+body.ryagram-look .jobs-panel>:last-child,body.ryagram-look .consent-where>:last-child,body.ryagram-look .consent-can>:last-child,body.ryagram-look .consent-always>:last-child{margin-bottom:0}
+body.ryagram-look .render-caps h2+.form-note{margin-bottom:14px}
+body.ryagram-look .render-caps .inline-row input{flex:0 1 8em;max-width:8em}

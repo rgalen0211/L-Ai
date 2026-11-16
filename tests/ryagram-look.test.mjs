@@ -71,10 +71,45 @@ test('the pages that do NOT wear the look are exactly the ones left out on purpo
   ].sort());
 });
 
-test('contrast: every text pair is 4.5:1 or better and every field border and ring 3:1, computed from the sheet own tokens', () => {
-  const tok = k => css.match(new RegExp(`--${k}:(#[0-9a-f]{6});`, 'i'))[1];
-  const lum = h => { const [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
-  const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
-  for (const [fg, bg, need] of [['ink', 'bg', 4.5], ['ink', 'paper', 4.5], ['muted', 'bg', 4.5], ['muted', 'paper', 4.5], ['muted', 'soft', 4.5], ['link', 'bg', 4.5], ['link', 'paper', 4.5], ['accent-ink', 'accent', 4.5], ['accent', 'paper', 4.5], ['line-strong', 'bg', 3], ['line-strong', 'paper', 3], ['accent', 'bg', 3]])
-    assert.ok(ratio(tok(fg), tok(bg)) >= need, `${fg} on ${bg} is ${ratio(tok(fg), tok(bg)).toFixed(2)}, needs ${need}`);
+const bareCss = css.replace(/\/\*[\s\S]*?\*\//g, '');
+const darkBlock = bareCss.match(/body\.ryagram-look\{([^}]*)\}/)[1];
+const lightBlock = (bareCss.match(/@media\(prefers-color-scheme:light\)\{\s*body\.ryagram-look\{([^}]*)\}/) || [])[1];
+const themes = { dark: darkBlock, light: lightBlock };
+
+test('Ryan 11-15: light follows the device (prefers-color-scheme), dark stays the default; the light block changes tokens only and redefines every colour the dark block themes', () => {
+  assert.ok(lightBlock, 'a prefers-color-scheme:light block on body.ryagram-look');
+  assert.match(lightBlock, /color-scheme:light/);
+  assert.match(darkBlock, /color-scheme:dark/, 'dark is the default');
+  const names = b => [...b.matchAll(/--([\w-]+):/g)].map(m => m[1]);
+  const lightNames = new Set(names(lightBlock));
+  for (const k of ['bg', 'paper', 'soft', 'line', 'ink', 'muted', 'line-strong', 'link', 'danger', 'ring', 'accent-text', 'header-bg', 'ok-bg', 'ok', 'bad-bg', 'bad', 'warn-bg', 'warn', 'info-bg', 'info', 'problem', 'warning', 'tint', 'mock', 'chat'])
+    assert.ok(lightNames.has(k), `--${k} is redefined for light`);
+  const after = bareCss.slice(bareCss.indexOf('@media(prefers-color-scheme:light)'));
+  const light = after.slice(0, after.indexOf('@media(max-width:560px)'));
+  assert.ok(!/[^-\w]\.[\w-]+\{[^}]*(width|height|margin|padding|display|position)/.test(light.replace(/body\.ryagram-look \.le-[^{]*\{[^}]*\}/g, '')), 'the light block holds colours only, no layout');
+  const rest = bareCss.replace(/body\.ryagram-look\{[^}]*\}/g, '');
+  const literal = rest.split('\n').filter(l => /#[0-9a-f]{3,6}\b|rgba?\(/i.test(l) && !/^body\.ryagram-look \.le-/.test(l) && !/^\s*--/.test(l));
+  assert.deepEqual(literal.filter(l => !/\.button\.danger|^\s*body\.ryagram-look\{/.test(l) && !/#fff\b|rgba\(0,0,0/.test(l)), [], 'no theme-dependent literal colour is left outside the token blocks');
+  assert.ok(!/outline:3px solid var\(--accent\)/.test(bareCss), 'rings use --ring (the orange is too pale on white)');
+  assert.match(light, /\.le-view,[^{]*\.le-lanes[^{]*\{[^}]*--ink:#f2f2ef/, 'the editor preview, timeline and banners stay dark islands in a light page');
+});
+
+test('contrast, in BOTH themes: every text pair is 4.5:1 or better and every field border and ring 3:1, computed from the sheet own tokens', () => {
+  for (const [name, block] of Object.entries(themes)) {
+    const tok = k => { const m = block.match(new RegExp(`--${k}:(#[0-9a-f]{6});`, 'i')) || darkBlock.match(new RegExp(`--${k}:(#[0-9a-f]{6});`, 'i')); assert.ok(m, `${name}: --${k}`); return m[1]; };
+    const lum = h => { const [r, g, b] = [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16) / 255).map(c => (c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)); return 0.2126 * r + 0.7152 * g + 0.0722 * b; };
+    const ratio = (a, b) => { const [x, y] = [lum(a), lum(b)].sort((p, q) => q - p); return (x + 0.05) / (y + 0.05); };
+    for (const [fg, bg, need] of [['ink', 'bg', 4.5], ['ink', 'paper', 4.5], ['ink', 'soft', 4.5], ['muted', 'bg', 4.5], ['muted', 'paper', 4.5], ['muted', 'soft', 4.5], ['link', 'bg', 4.5], ['link', 'paper', 4.5], ['accent-ink', 'accent', 4.5],
+      ['accent-text', 'bg', 4.5], ['accent-text', 'paper', 4.5], ['ok', 'ok-bg', 4.5], ['bad', 'bad-bg', 4.5], ['warn', 'warn-bg', 4.5], ['info', 'info-bg', 4.5], ['problem', 'paper', 4.5], ['warning', 'paper', 4.5], ['danger', 'paper', 4.5], ['ink', 'tint', 4.5], ['ink', 'mock', 4.5], ['ink', 'chat', 4.5],
+      ['line-strong', 'bg', 3], ['line-strong', 'paper', 3], ['ring', 'bg', 3], ['ring', 'paper', 3]])
+      assert.ok(ratio(tok(fg), tok(bg)) >= need, `${name}: ${fg} on ${bg} is ${ratio(tok(fg), tok(bg)).toFixed(2)}, needs ${need}`);
+  }
+});
+
+test('the phone shows an admin table whole and scrolls it sideways; the Render card, the consent cards and the caps rows have room (RENDERER 19:07/19:08)', () => {
+  const rule = sel => { const i = bareCss.lastIndexOf(sel); assert.ok(i >= 0, sel); return bareCss.slice(i, bareCss.indexOf('}', i)); };
+  assert.match(bareCss, /@media\(max-width:560px\)\{body\.ryagram-look \.admin-table\{display:block;overflow-x:auto/, 'admin tables scroll sideways on a phone');
+  assert.match(rule('body.ryagram-look .admin-table th,body.ryagram-look .admin-table td{white-space:nowrap'), /overflow-wrap:normal/, 'no letter-by-letter breaking');
+  assert.match(rule('body.ryagram-look .jobs-panel,body.ryagram-look .consent-where'), /padding:\d+px \d+px/, 'the Render card and the consent cards have inner padding');
+  assert.match(rule('body.ryagram-look .render-caps .inline-row input'), /max-width:\d+em/, 'the cap box has a max width');
 });
