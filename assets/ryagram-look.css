@@ -14,7 +14,6 @@ body.ryagram-look{
 body.ryagram-look a{color:var(--link)}
 body.ryagram-look :focus-visible{outline:3px solid var(--accent);outline-offset:3px}
 body.ryagram-look ::placeholder{color:var(--muted)}
-@media(prefers-reduced-motion:no-preference){html{scroll-behavior:smooth}}
 
 /* type: big, tight, heavy headings and a calm muted lead */
 body.ryagram-look h1,body.ryagram-look h2,body.ryagram-look h3{letter-spacing:-.03em;line-height:1.1;text-wrap:balance}
@@ -60,11 +59,11 @@ body.ryagram-look .contact-form .button{width:100%}
 body.ryagram-look .template-card.is-chosen,body.ryagram-look .builder-card.is-chosen{border-color:var(--accent);background:#2a2018}
 body.ryagram-look .invite-panel{background:#2a2018}
 body.ryagram-look .app-panel{max-width:520px}
-body.ryagram-look .project-list{border-top:0;display:grid;gap:12px}
-body.ryagram-look .project-list li{padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper)}
-body.ryagram-look .project-list li:hover{border-color:var(--muted)}
+body.ryagram-look .project-list,body.ryagram-look .version-list{border-top:0;display:grid;gap:12px}
+body.ryagram-look .project-list li,body.ryagram-look .version-list li{padding:16px 18px;border:1px solid var(--line);border-radius:var(--radius);background:var(--paper)}
+body.ryagram-look .project-list li:hover,body.ryagram-look .version-list li:hover{border-color:var(--muted)}
 body.ryagram-look .project-list a{color:var(--ink)}
-body.ryagram-look .version-list,body.ryagram-look .file-list,body.ryagram-look .job-list{border-top:1px solid var(--line)}
+body.ryagram-look .file-list,body.ryagram-look .job-list{border-top:1px solid var(--line)}
 
 /* the projects page: a single link on its own line is a link card; the admin link line is a row of pills */
 body.ryagram-look #library p.meta:has(>a:only-child){margin:10px 0}
@@ -109,3 +108,24 @@ body.ryagram-look .job-queued,body.ryagram-look .job-claimed,body.ryagram-look .
 body.ryagram-look .mock-bar{background:#2a2414}
 body.ryagram-look .chat-user{background:#1f2b29}
 body.ryagram-look .source-licence-full{background:var(--soft)}
+
+/* an in-page link (the film page's #sources) lands below the sticky header (smooth scrolling is left out on purpose: the film page jumps and focuses at once and a smooth scroll is cut short by the focus) */
+body.ryagram-look [id]{scroll-margin-top:80px}
+
+/* room inside the section cards (RENDERER 11-15): headings, text and buttons never sit on the card's edge, and a form already inside a card is not a second card */
+body.ryagram-look .account-section,body.ryagram-look .ops-section{padding:20px 22px}
+body.ryagram-look .account-section>:first-child,body.ryagram-look .ops-section>:first-child{margin-top:0}
+body.ryagram-look .account-section>:last-child,body.ryagram-look .ops-section>:last-child{margin-bottom:0}
+body.ryagram-look .account-section .contact-form,body.ryagram-look .ops-section .contact-form,body.ryagram-look .account-section .invite-panel,body.ryagram-look .ops-section .invite-panel{padding:0;border:0;background:none;box-shadow:none;border-radius:0}
+/* a heading the page script focuses (tabindex -1) shows no ring: only controls do */
+body.ryagram-look [tabindex="-1"]:focus,body.ryagram-look [tabindex="-1"]:focus-visible{outline:none}
+/* header links are spaced from the header button; the film page's empty-state button has air above it */
+@media(min-width:561px){body.ryagram-look .page-nav{display:flex;align-items:center;gap:8px 20px}}
+body.ryagram-look .film-main p:has(>.button){margin-top:24px}
+/* the admin table: header words stay whole (they wrap between words, never inside one) and the day pills have room */
+body.ryagram-look .admin-table th{letter-spacing:.06em;vertical-align:bottom}
+@media(min-width:561px){body.ryagram-look .admin-table th{overflow-wrap:normal;word-break:normal;hyphens:none}}
+body.ryagram-look p>.button.small{margin:8px 8px 8px 0}
+/* link-style buttons and the sign-in help links line up with the heading's left edge; paragraphs on the help-style pages have a gap */
+body.ryagram-look .link-button,body.ryagram-look .sign-in-help a{padding-left:0;padding-right:0}
+body.ryagram-look .help-main p+p{margin-top:14px}

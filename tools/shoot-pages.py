@@ -36,7 +36,9 @@ with sync_playwright() as pw:
                 p = ctx.new_page()
                 try:
                     p.goto(f'http://127.0.0.1:{PORT}/{path}', wait_until='load', timeout=20000); p.wait_for_timeout(500)
+                    p.evaluate("() => document.querySelectorAll('header, .mock-bar').forEach(e => { e.dataset.wasPos = e.style.position; e.style.setProperty('position', 'static', 'important'); })")
                     p.screenshot(path=str(OUT / f'{slug}-{size}-{scheme}.png'), full_page=True)
+                    p.evaluate("() => document.querySelectorAll('header, .mock-bar').forEach(e => { e.style.position = e.dataset.wasPos || ''; })")
                 except Exception as e:
                     print('FAILED', path, size, scheme, str(e)[:100])
                 ctx.close()

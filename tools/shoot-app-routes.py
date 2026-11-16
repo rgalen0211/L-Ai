@@ -36,7 +36,9 @@ with sync_playwright() as pw:
             slug = re.sub(r'[^a-z0-9]+', '-', route.lower()).strip('-') or 'home'
             try:
                 p.goto(f'http://127.0.0.1:{PORT}/app/?mock{route}', wait_until='load', timeout=20000); p.wait_for_timeout(1200)
+                p.evaluate("() => document.querySelectorAll('header, .mock-bar').forEach(e => { e.dataset.wasPos = e.style.position; e.style.setProperty('position', 'static', 'important'); })")
                 p.screenshot(path=str(OUT / f'{slug}-{size}.png'), full_page=True)
+                p.evaluate("() => document.querySelectorAll('header, .mock-bar').forEach(e => { e.style.position = e.dataset.wasPos || ''; })")
             except Exception as e:
                 print('FAILED', route, size, str(e)[:100])
         ctx.close()

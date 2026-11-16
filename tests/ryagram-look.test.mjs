@@ -34,6 +34,27 @@ test('the sheet is look only: no content, no script hook, no outside address, no
   assert.deepEqual(bare.filter(l => !/--accent|--brand/.test(l)), [], 'the accent colour is written once, as a token');
 });
 
+test('in-page links land below the sticky header, and the sheet sets no smooth scrolling (the film page jumps and focuses at once; a smooth scroll is cut short by the focus: #sources stopped 450px low, 11-15)', () => {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  assert.ok(!/scroll-behavior/.test(bare), 'no scroll-behavior in the look sheet');
+  assert.match(bare, /body\.ryagram-look \[id\]\{scroll-margin-top:\d+px\}/, 'every anchor target clears the sticky header');
+  const m = bare.match(/scroll-margin-top:(\d+)px/), nav = bare.match(/\.nav\{min-height:(\d+)px\}/);
+  assert.ok(Number(m[1]) >= Number(nav[1]), 'the margin is at least the header height');
+});
+
+test('RENDERER 11-15 review: section cards have room inside and no card inside a card; script-focused headings show no ring; table headers keep words whole; version rows are cards; the film nav gap never reopens the phone-hidden nav', () => {
+  const bare = css.replace(/\/\*[\s\S]*?\*\//g, '');
+  const rule = sel => { const i = bare.lastIndexOf(sel); assert.ok(i >= 0, sel); return bare.slice(i, bare.indexOf('}', i)); };
+  assert.match(rule('body.ryagram-look .account-section,body.ryagram-look .ops-section{'), /padding:\d+px \d+px/, 'section cards have inner padding');
+  assert.match(rule('body.ryagram-look .account-section .contact-form,'), /border:0/, 'a form inside a section card is not a second card');
+  assert.match(rule('body.ryagram-look [tabindex="-1"]:focus,'), /outline:none/, 'a heading focused by a script has no ring');
+  assert.match(rule('body.ryagram-look .admin-table th{'), /overflow-wrap:normal/, 'table header words are not broken inside a word');
+  assert.match(rule('body.ryagram-look p>.button.small{'), /margin:\d+px \d+px \d+px 0/, 'small buttons in a paragraph (the day pills) have a gap');
+  assert.match(rule('body.ryagram-look .project-list,body.ryagram-look .version-list{'), /display:grid/, 'version rows are cards like project rows');
+  assert.match(bare, /@media\(min-width:561px\)\{body\.ryagram-look \.page-nav\{display:flex/, 'the nav gap is only above the width where film.css hides the nav');
+  assert.ok(!/body\.ryagram-look \.page-nav\{display/.test(bare.replace(/@media\(min-width:561px\)\{body\.ryagram-look \.page-nav\{display:flex[^}]*\}\}/, '')), 'no unguarded display rule on the film nav (it would beat film.css hiding it on a phone)');
+});
+
 test('the other sheets do not redefine the look tokens for a page that wears it', () => {
   for (const f of ['assets/app.css', 'assets/help.css', 'assets/film.css', 'assets/app-editor.css']) {
     const src = read(f);
