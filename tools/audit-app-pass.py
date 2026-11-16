@@ -62,7 +62,9 @@ def main():
         page.wait_for_timeout(350)
         if SHOTS:
             SHOTS.mkdir(parents=True, exist_ok=True)
+            page.evaluate("() => document.querySelectorAll('header, .mock-bar').forEach(e => { e.dataset.wasPos = e.style.position; e.style.setProperty('position', 'static', 'important'); })")          # a full-page shot prints a sticky or fixed bar in the MIDDLE of the page: set them static for the capture only
             page.screenshot(path=str(SHOTS / (re.sub(r'[^a-z0-9]+', '-', where.lower()).strip('-') + '.png')), full_page=True)
+            page.evaluate("() => document.querySelectorAll('header, .mock-bar').forEach(e => { e.style.position = e.dataset.wasPos || ''; })")
         r = page.evaluate(aa.SCAN)
         for k, label in (('noname', 'control with no name'), ('headings', 'heading'), ('contrast', 'low contrast'), ('small', 'tap target under 40 px'), ('noalt', 'image with no alt')):
             for v in r[k]:
