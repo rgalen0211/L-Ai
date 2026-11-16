@@ -521,6 +521,8 @@ class FilmCards(core.Base):
     def test_the_rollback_removes_every_film_card_object_and_nothing_else(self):
         p, _, _ = self.film(self.a)
         self.ask(self.a, p)
+        # the site's own twins (20261113000500) are undone first: the order of undo is the reverse of the order of the migrations
+        self.owner((core.ROOT / "rollbacks" / "20261113000500_my_film_cards_rollback.sql").read_text(encoding="utf-8"))
         self.owner((core.ROOT / "rollbacks" / "20261109000100_film_cards_rollback.sql").read_text(encoding="utf-8"))
         left = self.owner("""select (select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname in ('public','ryagram_private') and p.proname like '%film_card%'),
                                   (select count(*) from pg_class where relname = 'film_card_requests')""").fetchone()
