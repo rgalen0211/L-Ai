@@ -112,4 +112,7 @@ test('the phone shows an admin table whole and scrolls it sideways; the Render c
   assert.match(rule('body.ryagram-look .admin-table th,body.ryagram-look .admin-table td{white-space:nowrap'), /overflow-wrap:normal/, 'no letter-by-letter breaking');
   assert.match(rule('body.ryagram-look .jobs-panel,body.ryagram-look .consent-where'), /padding:\d+px \d+px/, 'the Render card and the consent cards have inner padding');
   assert.match(rule('body.ryagram-look .render-caps .inline-row input'), /max-width:\d+em/, 'the cap box has a max width');
+  assert.match(rule('body.ryagram-look input.le-range'), /min-height:44px/, "the editor's slider stays 44 px tall (the checkbox rule that zeroes min-height must not win)");
+  assert.match(rule('body.ryagram-look .le-top h1'), /font-size:1\.35rem/, "the editor heading keeps the editor's own size so the film strip stays on the first screen");
+  assert.match(rule('body.ryagram-look .le-free'), /color:var\(--ok\)/, "the editor's pale green note is the theme's own green in light");
 });
