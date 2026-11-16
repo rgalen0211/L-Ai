@@ -20,3 +20,5 @@
 .ph-ghost{background:var(--soft,#1a1d29);border-color:var(--line-strong,#6a7190);color:var(--ink,#fff)}
 .ph-btn:focus-visible{outline:3px solid var(--ink,#ffd96b);outline-offset:3px}
 @media (min-width:560px){.ph-screen{padding:22px}.ph-btn{width:auto}}
+/* a heading the page focuses for a screen reader (tabindex -1) is not a control: no focus ring round it (RENDERER 11-15 16:02 (2)) */
+.ph-screen h2[tabindex="-1"]:focus{outline:none}

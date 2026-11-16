@@ -18,3 +18,5 @@
 @media (max-width:600px){.tv-screen{padding:12px}.tv-guesses li{font-size:1.2rem}.tv-board{font-size:1.05rem}}
 @media (prefers-reduced-motion:no-preference){.tv-next{transition:background .15s}}
 .tv-screen strong,.tv-screen li,.tv-screen td,.tv-screen th{color:var(--tt)}.tv-screen .tv-banner strong{color:#ffd96b}.tv-screen .tv-pts{color:#101219}.tv-screen em{color:var(--tm)}
+/* a heading the page focuses for a screen reader (tabindex -1) is not a control: no focus ring round it (RENDERER 11-15 16:02 (2)) */
+.tv-screen h2[tabindex="-1"]:focus{outline:none}
