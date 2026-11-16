@@ -49,6 +49,12 @@ def check(ok, msg):
     if not ok:
         fails.append(msg)
 
+def tx(fr, sel):
+    """The text of the first element that matches, or '(missing)': a missing element is a FAILED check with its name, never a crash."""
+    loc = fr.locator(sel)
+    return loc.first.inner_text() if loc.count() else '(missing %s)' % sel
+
+
 def open_page(b, width, structured, caps=None, reply=None):
     cc = b.new_context(viewport={'width': width, 'height': 900})
     pg = cc.new_page()
@@ -104,9 +110,9 @@ with sync_playwright() as pw:
     cc, pg, fr, reqs, errs = open_page(b, 640, VIEW, reply='refuse')
     fr.get_by_role('button', name='Start this in the chat').nth(1).click()
     fr.locator('.example').wait_for(timeout=4000)
-    check(fr.locator('.example .label').inner_text() == 'Example:', 'the box carries the label Example: (%r)' % fr.locator('.example .label').inner_text())
-    check(fr.locator('.example .quote').inner_text() == Q1 + LINE + Q2, 'the sentence is in quotes: %r' % fr.locator('.example .quote').inner_text())
-    check('did not let this panel type for you' in fr.locator('.example .why').inner_text(), 'it says plainly that the chat app did not let the panel type: %r' % fr.locator('.example .why').inner_text())
+    check(tx(fr, '.example .label') == 'Example:', 'the box carries the label Example: (%r)' % tx(fr, '.example .label'))
+    check(tx(fr, '.example .quote') == Q1 + LINE + Q2, 'the sentence is in quotes: %r' % tx(fr, '.example .quote'))
+    check('did not let this panel type for you' in tx(fr, '.example .why'), 'it says plainly that the chat app did not let the panel type: %r' % tx(fr, '.example .why'))
     look = fr.evaluate("""() => { const ex = document.querySelector('.example'), cs = getComputedStyle(ex); const dashed = Array.from(document.querySelectorAll('.example, .example *')).filter(e => /dashed|dotted/.test(getComputedStyle(e).borderStyle)).length;
       return { left: cs.borderLeftStyle, leftW: parseFloat(cs.borderLeftWidth), top: cs.borderTopStyle, dashed, editable: document.querySelectorAll('.example input, .example textarea, .example [contenteditable]').length }; }""")
     check(look['dashed'] == 0, 'no dashed or dotted border anywhere in the box (the field look is gone)')
@@ -114,7 +120,7 @@ with sync_playwright() as pw:
     check(look['editable'] == 0, 'nothing in it is a field')
     check(fr.locator('.example').get_by_role('button', name='Copy').count() == 1, 'one Copy button, inside the box')
     check(fr.locator('.example').get_by_role('button', name='Copy').evaluate('e => e.getBoundingClientRect().height') >= 44, 'the Copy button is at least 44 px high')
-    diag = fr.locator('.example .diag').inner_text()
+    diag = tx(fr, '.example .diag')
     check('Message sending denied' in diag and '-32000' in diag, "the host's own answer is shown small under the example: %r" % diag)
     check(any(c.startswith('ryagram-home: ui/message refused') and '-32000' in c and 'Message sending denied' in c for c in pg.console_lines), "and written to the panel's console line: %s" % [c for c in pg.console_lines if 'ryagram-home' in c][:2])
     check(sum(1 for m in pg.evaluate('window.__in') if m.get('method') == 'ui/message') == 1, 'a plain refusal is asked once, not retried')
@@ -127,7 +133,7 @@ with sync_playwright() as pw:
     fr.evaluate("() => { Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: () => Promise.reject(new Error('denied')) } }); document.execCommand = () => false; }")
     fr.locator('.example').get_by_role('button', name='Copied').click()
     fr.locator('.example .hold').wait_for(timeout=4000)
-    check('Ctrl+C' in fr.locator('.example .hold').inner_text(), 'when the clipboard is refused the person is told to press Ctrl+C: %r' % fr.locator('.example .hold').inner_text())
+    check('Ctrl+C' in tx(fr, '.example .hold'), 'when the clipboard is refused the person is told to press Ctrl+C: %r' % tx(fr, '.example .hold'))
     check(fr.evaluate('window.getSelection().toString()').strip() == LINE, 'and the sentence is selected, ready to copy: %r' % fr.evaluate('window.getSelection().toString()'))
     check(not reqs and not errs, 'no request left the page and nothing threw (%s %s)' % (reqs[:2], errs[:2]))
     cc.close()
@@ -145,7 +151,7 @@ with sync_playwright() as pw:
     cc, pg, fr, reqs, errs = open_page(b, 640, VIEW, reply='iserror')
     fr.get_by_role('button', name='Start this in the chat').first.click()
     fr.locator('.example').wait_for(timeout=4000)
-    check(fr.locator('.example .quote').inner_text() == Q1 + VIEW['departments'][0]['starts'][0] + Q2, 'a result that says isError gets the example too')
+    check(tx(fr, '.example .quote') == Q1 + VIEW['departments'][0]['starts'][0] + Q2, 'a result that says isError gets the example too')
     fr.get_by_role('button', name='Start this in the chat').first.click()
     pg.wait_for_function("window.__in.filter(m => m.method === 'ui/message').length >= 2", timeout=4000)
     pg.wait_for_timeout(300)
@@ -170,7 +176,7 @@ with sync_playwright() as pw:
     check(fr.get_by_role('button', name='Start this in the chat').count() == 0 and fr.get_by_role('button', name='Show what to say').count() == 2, 'the two start buttons say Show what to say, none says it will start the chat')
     fr.get_by_role('button', name='Show what to say').nth(1).click()
     fr.locator('.example').wait_for(timeout=4000)
-    check('does not let this panel type for you' in fr.locator('.example .why').inner_text() and fr.locator('.example .quote').inner_text() == Q1 + LINE + Q2, 'it shows the example with the plain sentence: %r' % fr.locator('.example').inner_text())
+    check('does not let this panel type for you' in tx(fr, '.example .why') and tx(fr, '.example .quote') == Q1 + LINE + Q2, 'it shows the example with the plain sentence: %r' % fr.locator('.example').inner_text())
     check(not any(m.get('method') == 'ui/message' for m in pg.evaluate('window.__in')), 'and sent nothing to the host')
     check(fr.locator('.example .diag').count() == 0, 'there is no host answer to show')
     cc.close()
