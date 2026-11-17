@@ -25,8 +25,9 @@ SUMMARY = {'duration': 12, 'limits': {'text_chars': 20}, 'lanes': ['video', 'tex
     {'id': 't1', 'track': 'text', 'start': 0.2, 'len': 3.5, 'label': 'Title', 'text': 'Housing', 'style': 'caption', 'min_len': 0.5, 'max_len': 30}]}
 
 
-def page_html():
-    js = "import('./supabase/functions/connect-core/editor_page.ts').then(m=>process.stdout.write(m.EDITOR_HTML))"
+def page_html(app_url=None):
+    # the page as a host READS it: with the site's address on its root when the connector is configured with one (editorHtml); without, exactly the built page
+    js = "import('./supabase/functions/connect-core/mcp_app.ts').then(m=>process.stdout.write(m.editorHtml(%s)))" % (json.dumps(app_url) if app_url else 'undefined')
     r = subprocess.run(['node', '--no-warnings', '-e', js], cwd=ROOT, capture_output=True, text=True, encoding='utf8')
     if r.returncode:
         print(r.stderr)
@@ -60,6 +61,7 @@ addEventListener('message', async e => {
   }
   else if (m.method === 'ui/request-display-mode') { window.__ctx = { ...window.__ctx, displayMode: m.params.mode }; reply({ result: { mode: m.params.mode } }); }
   else if (m.method === 'ui/update-model-context') reply({ result: {} });
+  else if (m.method === 'ui/open-link') { const mode = window.__openLink || 'ok'; reply(mode === 'ok' ? { result: {} } : mode === 'refuse' ? { error: { code: -32000, message: 'Open link denied' } } : { result: { isError: true } }); }
   else if (m.method === 'ui/notifications/size-changed') f.style.height = m.params.height + 'px';
 });
 window.openInput = args => f.contentWindow.postMessage({ jsonrpc: '2.0', method: 'ui/notifications/tool-input', params: { arguments: args } }, '*');
@@ -484,6 +486,61 @@ def main():
             check(fr15b.eval_on_selector_all('.le-lane:first-child .le-clip', RC) == ['v1', 'v3', 'v2'] and 'changed this just now' not in body15, 'the new panel takes a change straight away: it read the revision of the draft from the host, so the host does not call it stale')
             check(fr15b.inner_text('h1') == 'Remounted film' and 'could not draw' not in body15, 'it opens on the same film with no error')
             c15.close()
+            print('the button that opens the real frames on the site')
+            SITE = 'https://uselai.com/app/'
+            site_doc = page_html(SITE)
+            check(site_doc != doc and ('data-app-url="%s"' % SITE) in site_doc, 'the page as the host reads it carries the site address on its root')
+            DATA_PROJECT = '11111111-2222-4333-8444-555555555555'
+
+            def site_page(html, mode, project, reply=None):
+                c = b.new_context(viewport={'width': 390, 'height': 800}, device_scale_factor=2, is_mobile=True, has_touch=True)
+                p = c.new_page()
+                p.on('pageerror', lambda e: None)
+                p.set_content(HOST.replace('__DOC__', json.dumps(html).replace('</', '<' + chr(92) + '/')).replace('__NAMES__', json.dumps(NAMES)).replace('__CTX__', json.dumps({'displayMode': 'inline', 'availableDisplayModes': ['inline']})))
+                p.add_script_tag(content=fake_js)
+                p.evaluate(INIT, [PROJECT, SUMMARY])
+                if reply:
+                    p.evaluate('(r) => { window.__openLink = r; }', reply)
+                p.wait_for_function("window.__log.some(m => m.method === 'ui/notifications/initialized')", timeout=8000)
+                p.evaluate("(sc) => openWith(sc)", {'project_id': project, 'mode': mode, 'title': 'A data film'})
+                p.wait_for_timeout(900)
+                return c, p
+            SEE = 'See the real frames on the site'
+            c9, p9 = site_page(site_doc, 'data', DATA_PROJECT)
+            f9 = p9.frames[1]
+            btn = f9.get_by_role('button', name=SEE)
+            check(btn.count() == 1, 'a data film in a chat with the site address has the button (%d)' % btn.count())
+            bb = btn.first.bounding_box() if btn.count() else None
+            check(bb and bb['height'] >= 44, 'the button is at least 44 px high for a thumb (%s)' % (bb and round(bb['height'])))
+            btn.first.click()
+            p9.wait_for_function("window.__log.some(m => m.method === 'ui/open-link')", timeout=4000)
+            opened = p9.evaluate("window.__log.filter(m => m.method === 'ui/open-link').map(m => m.params)")
+            check(opened == [{'url': SITE + '#/editor/data/' + DATA_PROJECT}], 'one press asks the host to open exactly the site editor on this film (%s)' % opened)
+            check('Open this address' not in f9.inner_text('body'), 'when the host opens it nothing else is said')
+            check(set(p9.evaluate('window.__refused')) <= {'editor_film_card'}, 'the host refused no tool call but the film card (this stand-in host offers only the five names; a data film also asks for its card)')
+            check(f9.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1'), 'at phone width nothing scrolls sideways')
+            c9.close()
+            for mode_name, reply in (('an error', 'refuse'), ('an isError result', 'iserror')):
+                c10, p10 = site_page(site_doc, 'data', DATA_PROJECT, reply)
+                f10 = p10.frames[1]
+                f10.get_by_role('button', name=SEE).first.click()
+                p10.wait_for_timeout(700)
+                body10 = f10.inner_text('body')
+                check('Your chat app did not open it. Open this address in your browser:' in body10 and (SITE + '#/editor/data/' + DATA_PROJECT) in body10, 'a host that refuses (%s) gets the address in words to open by hand' % mode_name)
+                check(f10.locator('.le-sitelink').count() == 1, 'the words are there once')
+                f10.get_by_role('button', name=SEE).first.click()
+                p10.wait_for_timeout(500)
+                check(f10.locator('.le-sitelink').count() == 1, 'pressing again does not pile up the words')
+                c10.close()
+            c11, p11 = site_page(site_doc, 'compilation', DATA_PROJECT)
+            check(p11.frames[1].get_by_role('button', name=SEE).count() == 0, 'a clip film has no such button (its frames are on the person computer, not the site)')
+            c11.close()
+            c12, p12 = site_page(doc, 'data', DATA_PROJECT)
+            check(p12.frames[1].get_by_role('button', name=SEE).count() == 0, 'a connector with no site address configured has no such button')
+            c12.close()
+            c13, p13 = site_page(site_doc, 'data', '../../etc')
+            check(p13.frames[1].get_by_role('button', name=SEE).count() == 0, 'a film id that is not the form the site uses has no such button')
+            c13.close()
             print('a page that throws while loading')
             bad = doc.replace('<script>\n/* ---- assets/app-editor-core.js', '<script>throw new Error("boom in load");\n/* ---- assets/app-editor-core.js', 1)
             check(bad != doc, 'the throwing page was built')

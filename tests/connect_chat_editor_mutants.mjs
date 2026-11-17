@@ -53,6 +53,21 @@ const mutants = [
   ['a panel click made on this page is applied a second time', DR, 'if (mine) mine.serverId = o.id;\n          else {', 'if (false) mine.serverId = o.id;\n          else {'],
   ['the build button is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-pill{display:none}'],
   ['the pill that talks about the computer is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-top .button.primary{display:none}'],
+  // "See the real frames on the site" (route A): what may go into the address, who may open it, and what a refusing host is told
+  ['a clip film is given the site link', H, "if (mode !== 'data' || typeof appUrl", "if (false || typeof appUrl"],
+  ['a plain http site address is accepted', H, "const SITE_RE = /^https:\\/\\/", "const SITE_RE = /^https?:\\/\\/"],
+  ['a film id of any form is put into the address', H, " || typeof project !== 'string' || !FILM_RE.test(project)) return '';", ") return '';"],
+  ['the address leaves out the film', H, "+ '#/editor/data/' + project;", "+ '#/editor/data/';"],
+  ['the address points at the compilation editor', H, "+ '#/editor/data/' + project;", "+ '#/editor/compilation/' + project;"],
+  ['a site address with a query or a fragment is accepted', H, "(\\/[A-Za-z0-9._~\\/-]*)?$/;\n  const FILM_RE", "(\\/[A-Za-z0-9._~\\/#?=&-]*)?$/;\n  const FILM_RE"],
+  ['the link is opened without the person pressing the button', H, "onclick: () => openSite(siteUrl, siteNote) }", "onclick: () => {} }"],
+  ['a host that refuses to open the link is not told the address', H, "if (r && (r.isError === true || r.error)) said();", ""],
+  ['a host that errors on the link is not told the address', H, ".catch(said);", ".catch(() => {});"],
+  ['the words about the address pile up with every press', H, "if (note.querySelector('.le-sitelink')) return; ", ""],
+  ['the button is shown with no site address', H, "const siteBtn = siteUrl ? h('button'", "const siteBtn = true ? h('button'"],
+  ['the site address is taken from a message the host sends', H, "root.getAttribute ? root.getAttribute('data-app-url') : ''", "(ctx && ctx.appUrl) || ''"],
+  ['the page is read with any address on its root', 'supabase/functions/connect-core/mcp_app.ts', "const link = appUrl && APP_URL.test(appUrl) ? appUrl : \"\";\n  const root = '<main id=\"live-root\"';", "const link = appUrl || \"\";\n  const root = '<main id=\"live-root\"';"],
+  ['the page is read without its address', 'supabase/functions/connect-core/mcp_app.ts', "text: editor ? editorHtml(cfg.appUrl) : home ?", "text: editor ? EDITOR_HTML : home ?"],
   ['the panel does not say drafts are kept by Ryagram', H, "'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'", "''"],
 ];
 

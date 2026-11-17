@@ -8,7 +8,7 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { handleMcp, toolList } from '../supabase/functions/connect-core/mcp.ts';
-import { EDITOR_URI, CARD_URI } from '../supabase/functions/connect-core/mcp_app.ts';
+import { EDITOR_URI, CARD_URI, editorHtml } from '../supabase/functions/connect-core/mcp_app.ts';
 import { TOOLS } from '../supabase/functions/connect-core/tools.ts';
 import { EDITOR_HTML } from '../supabase/functions/connect-core/editor_page.ts';
 import { LIMITS } from '../supabase/functions/connect-core/types.ts';
@@ -85,7 +85,7 @@ test('ON: the editor page is listed and served with no network, no frames and th
   const s = server(ON);
   assert.deepEqual((await s.rpc('resources/list', {})).result.resources.map((r) => r.uri), [CARD_URI, EDITOR_URI]);
   const c = (await s.rpc('resources/read', { uri: EDITOR_URI })).result.contents[0];
-  assert.equal(c.uri, EDITOR_URI); assert.equal(c.mimeType, 'text/html;profile=mcp-app'); assert.equal(c.text, EDITOR_HTML);
+  assert.equal(c.uri, EDITOR_URI); assert.equal(c.mimeType, 'text/html;profile=mcp-app'); assert.equal(c.text, editorHtml(ON.appUrl), 'the built page with the site\'s address (when the config has one) on its root'); assert.equal(c.text.replace(/ data-app-url="[^"]*"/, ''), EDITOR_HTML, 'and nothing else added');
   assert.deepEqual(c._meta.ui, { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false, domain: DOMAIN });
   assert.ok(!('frameDomains' in c._meta.ui.csp));
 });

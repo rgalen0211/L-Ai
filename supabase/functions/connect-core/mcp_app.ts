@@ -115,6 +115,15 @@ const CARD_SCRIPT = [
   "})();",
 ].join("\n");
 
+/** The editor page as a host READS it. The built page (EDITOR_HTML) names no web address; the site's address is a config value (checked here, never request data) put on the page's root when the page is read, so the page's
+ *  own address and build id do not change with it. The page uses it for one button, "See the real frames on the site" (tools/chat-editor/live-host.js), and checks it again before it does. */
+export function editorHtml(appUrl?: string): string {
+  const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";
+  const root = '<main id="live-root"';
+  if (!link || EDITOR_HTML.split(root).length !== 2) return EDITOR_HTML;
+  return EDITOR_HTML.replace(root, root + ' data-app-url="' + link + '"');
+}
+
 /** The built page. `appUrl` is a config value, checked here, never request data. */
 export function cardHtml(appUrl?: string): string {
   const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";
@@ -137,5 +146,5 @@ export function readResource(uri: unknown, cfg: McpAppConfig) {
   if (uri !== CARD_URI && !(editor && cfg.chatEditor) && !(home && cfg.homePanel)) return null;
   const ui: Record<string, unknown> = { csp: { connectDomains: [], resourceDomains: [] }, prefersBorder: false };
   if (cfg.uiDomain && UI_DOMAIN.test(cfg.uiDomain)) ui.domain = cfg.uiDomain;
-  return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: editor ? EDITOR_HTML : home ? homeHtml(cfg.appUrl) : cardHtml(cfg.appUrl), _meta: { ui } }] };
+  return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: editor ? editorHtml(cfg.appUrl) : home ? homeHtml(cfg.appUrl) : cardHtml(cfg.appUrl), _meta: { ui } }] };
 }
