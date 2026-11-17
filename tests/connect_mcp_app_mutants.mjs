@@ -25,7 +25,7 @@ const mutants = [
   ['any page address is answered with the card', A, 'if (uri !== CARD_URI && !(editor && cfg.chatEditor) && !(home && cfg.homePanel)) return null;', 'if (false) return null;'],
   ['a missing page echoes the address it was asked for', M, '"That page does not exist."', '`That page does not exist: ${String(msg.params?.uri)}`'],
   ['the sandbox domain is used without checking its form', A, 'if (cfg.uiDomain && UI_DOMAIN.test(cfg.uiDomain))', 'if (cfg.uiDomain)'],
-  ['the page address is used without checking it', A, 'appUrl && APP_URL.test(appUrl) ? appUrl : ""', 'appUrl ?? ""'],
+  ['the card page address is used without checking it', A, `appUrl && APP_URL.test(appUrl) ? appUrl : "";\n  return "<!doctype`, `appUrl ?? "";\n  return "<!doctype`],
   ['the card is allowed to open a network origin', A, 'csp: { connectDomains: [], resourceDomains: [] }', 'csp: { connectDomains: ["https://api.example.com"], resourceDomains: [] }'],
   ['the card is allowed frames', A, 'csp: { connectDomains: [], resourceDomains: [] }', 'csp: { connectDomains: [], resourceDomains: [], frameDomains: ["https://x.example.com"] }'],
   ['the card is given a border it did not ask for', A, 'prefersBorder: false', 'prefersBorder: true'],
