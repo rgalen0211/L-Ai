@@ -3,6 +3,8 @@
 // empty guess are refused in words, tied to their field and announced; the page never shows the round's answer or a recorded guess; no sideways scroll; no console error; no request leaves 127.0.0.1.
 // Each screen also gets the accessibility scan of tools/audit-a11y.py (its SCAN, read from that file): names, headings, contrast, 40 px tap targets, alt text.
 // Uses the Playwright that is already installed on the machine (no new dependency).   node tools/check-game-phone.mjs
+// RYAGRAM_TEST_CHROME, when set, is the browser to launch (CC1 11-17: the node Playwright here wants a headless-shell build this PC
+// does not have, while the build it does have sits at that path); unset, Playwright's own browser as before. Never downloads one.
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -46,7 +48,7 @@ async function tabToButton(p, text, max = 20) {
   return false;
 }
 
-const b = await chromium.launch();
+const b = await chromium.launch(process.env.RYAGRAM_TEST_CHROME ? { executablePath: process.env.RYAGRAM_TEST_CHROME } : {});
 for (const [name, opts] of [['phone320', { viewport: { width: 320, height: 640 }, isMobile: true, hasTouch: true }], ['phone375', { viewport: { width: 375, height: 700 }, isMobile: true, hasTouch: true }], ['desktop', { viewport: { width: 1200, height: 900 } }]]) {
   for (const on of [false, true]) {
     const ctx = await b.newContext(opts);
