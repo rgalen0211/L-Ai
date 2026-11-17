@@ -62,7 +62,9 @@ with sync_playwright() as pw:
             t = p.inner_text('.tv-screen')
             marks = p.locator('.tv-mark').all_inner_texts()
             sym_ok = all(re.match(r'^[\u2713\u2248\u2717] ', m) and re.search(r'\((right|nearly|missed)\)$', m) for m in marks)
-            check(ans in t and sym_ok and len(marks) == 3 * len(ans.split()), f'round {i + 1} reveal: the answer, and every word marked with a symbol AND a word')
+            guessed = sum(1 for g in r['guesses'] if g['result']['verdict'] != 'no guess')   # GEO 11-17: a player with no guess gets no chips
+            check(ans in t and sym_ok and len(marks) == guessed * len(ans.split()) and not any(re.search(r'[.,!?;:] \(', m) for m in marks),
+                  f'round {i + 1} reveal: the answer, and every guessed word marked with a symbol AND a word, no full stop in a chip')
             pts = [int(x.strip('+')) for x in p.locator('.tv-pts').all_inner_texts()]
             check(pts == [g['result']['points'] for g in r['guesses']], f'round {i + 1}: each players points are the engines: {pts}')
             p.keyboard.press('ArrowRight'); p.wait_for_timeout(100)

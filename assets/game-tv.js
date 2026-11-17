@@ -83,7 +83,7 @@
           el('p', { class: 'tv-label' }, 'What was said so far'), el('p', { class: 'tv-heard' }, `“${r.public.heard_text} …”`),
           el('p', { class: 'tv-left' }, `${r.public.words_left} words are left to guess: `, el('span', { class: 'tv-blanks', 'aria-hidden': 'true' }, Array(r.public.words_left).fill('____').join(' '))),
           el('p', { class: 'tv-meta' }, `This line is ${r.public.difficulty} in the library.`), el('p', { class: 'tv-timer' }, timerText(state.left)),
-          el('p', { class: 'tv-meta' }, 'Players: type or say your guess for the next line.'), pause);
+          el('p', { class: 'tv-meta' }, 'Players: type your guess on your phone.'), pause);
         next.textContent = 'Lock the guesses'; live.textContent = `Round ${state.round + 1}. The clip has stopped. ${r.public.words_left} words are left to guess.`;
         startTimer();
       } else if (phase === 'locked') {
@@ -96,7 +96,7 @@
           el('p', { class: 'tv-meta' }, `A perfect guess was worth ${Math.round(r.reveal.base_points)} points.`),
           el('ul', { class: 'tv-results' }, r.guesses.map(g => el('li', {},
             el('p', {}, el('strong', {}, g.player), ' ', el('span', { class: 'tv-pts' }, `+${g.result.points}`), ` — ${reasonFor(g.result)}`),
-            el('p', { class: 'tv-marks' }, g.result.marks.map(m => el('span', { class: `tv-mark tv-${m.mark}` }, `${MARK[m.mark].sym} ${m.word} (${MARK[m.mark].word})`))),
+            g.result.verdict === 'no guess' ? null : el('p', { class: 'tv-marks' }, g.result.marks.map(m => el('span', { class: `tv-mark tv-${m.mark}` }, `${MARK[m.mark].sym} ${String(m.word).replace(/[.,!?;:]+$/, '')} (${MARK[m.mark].word})`))),
             g.text ? el('p', { class: 'tv-meta' }, `They wrote: “${g.text}”`) : null))),
           el('h3', {}, 'Scores so far'), board(state.running, earned));
         next.textContent = state.round + 1 >= sample.rounds.length ? 'See the final scores' : 'Next round'; live.textContent = `The answer is: ${r.reveal.answer_text}.`;
@@ -118,8 +118,8 @@
 
     document.addEventListener('keydown', ev => { if ((ev.key === 'ArrowRight' || ev.key === 'PageDown') && !ev.altKey && !ev.ctrlKey && !ev.metaKey) { ev.preventDefault(); advance(); } });
     root.replaceChildren(el('div', { class: 'tv-screen' },
-      el('p', { class: 'tv-banner', role: 'note' }, el('strong', {}, 'SAMPLE NIGHT. '), 'A recorded game made by the real engine over a made-up transcript with made-up players. Typing guesses and live scoring run in the Ryagram app on the host’s computer; this page replays the result. Draft words for Ryan.'),
-      el('h1', {}, 'Guess the next line'), live, stage, el('p', { class: 'tv-meta' }, 'Keyboard: press the button, or the right arrow key, to go on.')));
+      el('p', { class: 'tv-banner', role: 'note' }, el('strong', {}, 'SAMPLE NIGHT. '), 'A recorded game made by the real engine over a made-up transcript with made-up players. Typing guesses and live scoring run in the Ryagram app on the host’s computer; this page replays the result.'),
+      el('h1', {}, 'Guess the next line'), live, stage, el('p', { class: 'tv-meta tv-keys' }, 'Keyboard: press the button, or the right arrow key, to go on.')));
     draw();
   }
 

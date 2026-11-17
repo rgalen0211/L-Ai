@@ -25,3 +25,5 @@
 /* a game screen stays a DARK ISLAND in a light page, like the editor's preview: its banner, marks and error words are set for dark
    (the look's light theme, WEB 3e8c918, follows the device) */
 @media(prefers-color-scheme:light){body.ryagram-look .ph-screen{--bg:#14141a;--paper:#1b1b23;--ink:#f2f2ef;--muted:#b6b5ae;--soft:#23232d;--line:#3a3a44;--line-strong:#7d7d89;--link:#8fb6ea;--ring:#ff8a3d;color-scheme:dark}}
+/* GEO 11-17 16:30: the buttons in the page's font, room under the draft box and above the keyboard line */
+.ph-banner{margin-bottom:14px}

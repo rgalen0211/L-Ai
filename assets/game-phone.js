@@ -65,7 +65,7 @@
     const showErr = (f, msg) => { f.err.textContent = msg || ''; if (msg) f.input.setAttribute('aria-invalid', 'true'); else f.input.removeAttribute('aria-invalid'); };
     const show = (kids, focus) => { stage.replaceChildren(...kids); (focus || stage.querySelector('h2')).focus(); };
 
-    function join() {
+    function join(note) {
       state.room = null; state.round = 0; state.sent = null;
       const code = field('ph-code', 'Room code', `The ${CODE_LEN} letters on the TV.`, el('input', { type: 'text', inputmode: 'text', autocomplete: 'off', autocapitalize: 'characters', spellcheck: 'false', maxlength: '9', class: 'ph-input ph-code' }));
       const name = field('ph-name', 'Your name', `For the scoreboard, at most ${NAME_MAX} letters.`, el('input', { type: 'text', autocomplete: 'nickname', maxlength: String(NAME_MAX + 8), class: 'ph-input' }));
@@ -81,7 +81,7 @@
         state.room = room; state.name = clean(name.input.value); live.textContent = `You joined room ${room.code} as ${state.name}.`;
         question();
       } }, code.node, name.node, el('button', { type: 'submit', class: 'ph-btn' }, 'Join the room'));
-      show([el('h2', { tabindex: '-1' }, 'Join a game'), el('p', { class: 'ph-meta' }, `To try it, use the sample room: its code is ${SAMPLE_CODE}.`), form]);
+      show([el('h2', { tabindex: '-1' }, 'Join a game'), note ? el('p', { class: 'ph-meta', role: 'status' }, note) : null, el('p', { class: 'ph-meta' }, `To try it, use the sample room: its code is ${SAMPLE_CODE}.`), form].filter(Boolean));
     }
 
     function question() {
@@ -118,11 +118,11 @@
 
     function over() {
       live.textContent = 'That was the last round.';
-      show([el('h2', { tabindex: '-1' }, 'That was the last round'), el('p', {}, 'The final scores are on the TV.'), el('button', { type: 'button', class: 'ph-btn', onclick: () => join() }, 'Leave the room')]);
+      show([el('h2', { tabindex: '-1' }, 'That was the last round'), el('p', {}, 'The final scores are on the TV.'), el('button', { type: 'button', class: 'ph-btn', onclick: () => join('You left the room. Join again with the code on the TV.') }, 'Leave the room')]);
     }
 
     root.replaceChildren(el('div', { class: 'ph-screen' },
-      el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Only the sample room works: nothing you type leaves this phone. Text only: no microphone and no camera. Draft words for Ryan.'),
+      el('p', { class: 'ph-banner', role: 'note' }, el('strong', {}, 'DRAFT. '), 'Only the sample room works: nothing you type leaves this phone. Text only: no microphone and no camera.'),
       el('h1', {}, 'Guess the next line'), live, stage));
     join();
   }
