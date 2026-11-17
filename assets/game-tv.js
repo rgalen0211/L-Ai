@@ -53,7 +53,10 @@
     const live = el('p', { class: 'tv-live', role: 'status', 'aria-live': 'polite' });
     const stage = el('div', { class: 'tv-stage' });
     const next = el('button', { class: 'tv-next', type: 'button', onclick: () => advance() });
-    const pause = el('button', { class: 'tv-pause', type: 'button', onclick: () => { state.paused = !state.paused; pause.textContent = state.paused ? 'Resume the timer' : 'Pause the timer'; } }, 'Pause the timer');
+    const pause = el('button', { class: 'tv-pause', type: 'button', onclick: () => { state.paused = !state.paused; pause.textContent = state.paused ? 'Resume the timer' : 'Pause the timer';
+      // GEO 11-17: while paused, the time itself says so (only the button changed, and a tester could think it froze)
+      const t = stage.querySelector('.tv-timer'); if (t) t.textContent = timerText(state.left) + (state.paused ? ' (paused)' : '');
+      live.textContent = state.paused ? 'The timer is paused.' : 'The timer is running again.'; } }, 'Pause the timer');
 
     function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
     function startTimer() {
