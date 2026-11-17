@@ -30,15 +30,9 @@ const mutants = [
   ['the site read drops the failure words', SITE, "'fail_detail', r.fail_detail, ", ''],
   ['the connector read forgets how long it waited', CONN, "'waited_s', floor(extract(epoch from (ok.finished_at - ok.asked_at)))::int);", "'waited_s', 0);"],
   // who the person is, and what the caller may type
-  ['the site ask reads the person from a token', SITE, 'me uuid := ryagram_private.require_signed_in();
-  v public.versions;', "me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
-  v public.versions;"],
-  ['the connector ask takes the person from the session', CONN, "me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
-  v public.versions;", 'me uuid := ryagram_private.require_signed_in();
-  v public.versions;'],
-  ['the connector read takes the person from the session', CONN, "me uuid := ryagram_private.connect_actor(p_token_hash, 'read');
-  cur text;", 'me uuid := ryagram_private.require_signed_in();
-  cur text;'],
+  ['the site ask reads the person from a token', SITE, `me uuid := ryagram_private.require_signed_in();\n  v public.versions;`, `me uuid := ryagram_private.connect_actor(p_token_hash, 'read');\n  v public.versions;`],
+  ['the connector ask takes the person from the session', CONN, `me uuid := ryagram_private.connect_actor(p_token_hash, 'read');\n  v public.versions;`, `me uuid := ryagram_private.require_signed_in();\n  v public.versions;`],
+  ['the connector read takes the person from the session', CONN, `me uuid := ryagram_private.connect_actor(p_token_hash, 'read');\n  cur text;`, `me uuid := ryagram_private.require_signed_in();\n  cur text;`],
   ['the site ask lets the caller type the story', SITE, 'create function public.my_film_card_ask(p_project uuid) returns jsonb', 'create function public.my_film_card_ask(p_project uuid, p_story text) returns jsonb'],
 ];
 
