@@ -97,6 +97,65 @@ function optionalSteps(ctx) {
   return out;
 }
 
+// The app's side (the pages an assistant shows in the conversation: the home panel and the editor panel) and its tools. They exist only when the connector's app switches are on. The local copy turns them all on and REQUIRES them;
+// a live connector may have some or none on, and then each step is SKIPPED with that said (never passed, never failed). A step that exists only for a tool this checkout lists (ctx.panelTools).
+function panelSteps(ctx) {
+  const has = (n) => (ctx.panelTools ?? []).includes(n);
+  const listed = (n) => (ctx.listed ?? []).includes(n);
+  const ifListed = (n) => { if (!listed(n)) skip(`${n} is not listed on this connector (its app switch is off); nothing to check`); };
+  const out = [];
+  if (has('open_ryagram_home')) out.push(['open_ryagram_home: the departments (what works, what is coming) and the page that shows them', async (c) => {
+    ifListed('open_ryagram_home');
+    const r = await c.tool('open_ryagram_home');
+    need(!r.isError, `refused: ${r.text.slice(0, 200)}`);
+    const d = r.data?.departments;
+    need(Array.isArray(d) && d.length >= 3, 'no list of departments came back');
+    need(d.every((x) => x && typeof x.id === 'string' && typeof x.label === 'string' && typeof x.line === 'string' && ['working', 'soon'].includes(x.status)), 'a department lacks its id, label, line or status');
+    need(d.some((x) => x.status === 'working' && Array.isArray(x.starts) && x.starts.length > 0), 'no working department has a line to start it with');
+    need(d.filter((x) => x.status === 'soon').every((x) => (x.starts ?? []).length === 0 && !x.page), 'a coming-soon department offers something to start or open');
+    need(r.text.length > 40 && !/<[a-z]/i.test(r.text), 'the words that go with the page are missing or hold markup (an assistant without panels reads only these)');
+  }]);
+  if (has('open_ryagram_home') || has('open_editor')) out.push(['the app pages: each one the connector lists is a small page that loads nothing from outside', async (c) => {
+    if (!listed('open_ryagram_home') && !listed('open_editor')) skip('no app tool is listed on this connector (the app switches are off); nothing to check');
+    const l = await c.rpc('resources/list', {});
+    const rs = l?.result?.resources ?? [];
+    need(rs.length > 0, 'resources/list names no page although app tools are listed');
+    for (const r of rs) {
+      need(/^ui:\/\/ryagram\//.test(r.uri) && /text\/html/.test(r.mimeType ?? ''), `${r.uri}: not an app page address or type`);
+      const g = await c.rpc('resources/read', { uri: r.uri });
+      const x = g?.result?.contents?.[0];
+      need(x && typeof x.text === 'string' && x.text.length > 500 && x.text.length < 200000, `${r.uri}: the page did not come back, or has an odd size`);
+      need(!/<script[^>]+src=|<link[^>]+href=|https?:\/\/[^"' ]+\.(js|css)\b/i.test(x.text), `${r.uri}: the page loads a script or a style from outside`);
+    }
+    if (listed('open_ryagram_home')) need(rs.some((r) => /^ui:\/\/ryagram\/home-/.test(r.uri)), 'the home panel is not among the pages');
+    if (listed('open_editor')) need(rs.some((r) => /^ui:\/\/ryagram\/editor/.test(r.uri)), 'the editor panel is not among the pages');
+  }]);
+  if (has('open_editor')) out.push(['open_editor: the editor opens for the new project, and a film that is not the person\'s is refused', async (c) => {
+    ifListed('open_editor');
+    need(ctx.project, 'no project (an earlier step failed)');
+    const r = await c.tool('open_editor', { project_id: ctx.project, mode: 'data' });
+    if (r.isError && /not allowed|can change what this connection may do/i.test(r.text)) skip('this connection may not edit (the editor needs the edit permission); said, not failed');
+    need(!r.isError && r.data?.project_id === ctx.project && r.data?.mode === 'data', `unexpected answer: ${r.text.slice(0, 200)}`);
+    const other = await c.tool('open_editor', { project_id: crypto.randomUUID(), mode: 'data' });
+    need(other.isError && !/stack|exception|sql|postgres/i.test(other.text), 'a film of nobody was opened, or the refusal leaks an internal message');
+  }]);
+  if (has('editor_film_card')) out.push(['editor_film_card: the film\'s picture is asked for once (asking again is the same request) and read back in words', async (c) => {
+    ifListed('editor_film_card');
+    need(ctx.project, 'no project (an earlier step failed)');
+    const a = await c.tool('editor_film_card', { p_project: ctx.project, p_ask: true });
+    if (a.isError && /not allowed|can change what this connection may do/i.test(a.text)) skip('this connection may not read the card; said, not failed');
+    need(!a.isError, `refused: ${a.text.slice(0, 200)}`);
+    const b = await c.tool('editor_film_card', { p_project: ctx.project, p_ask: true });
+    need(!b.isError, `the second ask was refused: ${b.text.slice(0, 200)}`);
+    const state = (r) => r.data?.data?.state;
+    need(['asked', 'claimed', 'ready', 'failed'].includes(state(a)) && ['asked', 'claimed', 'ready', 'failed'].includes(state(b)), `no state came back (${a.text.slice(0, 120)}; ${b.text.slice(0, 120)})`);
+    const g = await c.tool('editor_film_card', { p_project: ctx.project });
+    need(!g.isError && typeof state(g) === 'string', `reading it back failed: ${g.text.slice(0, 200)}`);
+    need(!/stack|exception|sql|postgres/i.test(g.text), 'the answer leaks an internal message');
+  }]);
+  return out;
+}
+
 export function steps(ctx) {
   return [
     ['no token: the connector answers 401 and says where to sign in', async (c) => {
@@ -112,17 +171,21 @@ export function steps(ctx) {
     ['initialize: the server names itself and keeps to tools', async (c) => {
       const r = await c.rpc('initialize', { protocolVersion: '2025-06-18', capabilities: {}, clientInfo: { name: 'e2e', version: '1' } });
       need(r?.result?.serverInfo?.name === 'ryagram', `serverInfo.name is ${JSON.stringify(r?.result?.serverInfo?.name)}`);
-      need(r.result.capabilities?.tools && !r.result.capabilities.resources && !r.result.capabilities.prompts, 'the server should offer tools only');
+      need(r.result.capabilities?.tools && !r.result.capabilities.prompts, 'the server should offer tools (and, with the app switches on, pages), and no prompts');
+      // pages (resources) are offered exactly when the app is on: the local copy knows which (ctx.panels); a live connector may have the app on or off, so only the local copy is held to it
+      if (ctx.local) need(ctx.panels ? !!r.result.capabilities.resources : !r.result.capabilities.resources, ctx.panels ? 'the app is on but no pages are offered' : 'pages are offered although the app is off');
       need(typeof r.result.instructions === 'string' && r.result.instructions.length > 100, 'no usage instructions came back');
     }],
     ['tools/list: the tools this checkout lists, with titles and honest hints, and no full-render tool', async (c) => {
       const r = await c.rpc('tools/list', {});
       const got = r?.result?.tools ?? [];
       need(got.length > 0, 'no tools came back');
-      const want = ctx.expectedTools;
+      const want = ctx.expectedTools, app = ctx.panelTools ?? [];
       const names = got.map((t) => t.name).sort();
-      const missing = want.filter((n) => !names.includes(n)), extra = names.filter((n) => !want.includes(n));
-      need(!missing.length && !extra.length, `this connector's tool list differs from the code in this checkout (missing: ${missing.join(', ') || 'none'}; extra: ${extra.join(', ') || 'none'})`);
+      // The app's tools appear only when the connector's app switches are on (CONNECT_MCP_APP, CONNECT_CHAT_EDITOR, CONNECT_HOME_PANEL), so on a live connector they may be listed or not; any other extra is a difference.
+      const missing = want.filter((n) => !names.includes(n)), extra = names.filter((n) => !want.includes(n) && !app.includes(n));
+      const appMissing = ctx.local && ctx.panels ? app.filter((n) => !names.includes(n)) : [];
+      need(!missing.length && !extra.length && !appMissing.length, `this connector's tool list differs from the code in this checkout (missing: ${[...missing, ...appMissing].join(', ') || 'none'}; extra: ${extra.join(', ') || 'none'})`);
       need(!names.includes('request_full_render'), 'request_full_render is listed (a directory reviewer would reject an always-refusing tool)');
       for (const t of got) {
         need(t.title && t.annotations && ['readOnlyHint', 'destructiveHint', 'idempotentHint', 'openWorldHint'].every((h) => typeof t.annotations[h] === 'boolean'), `${t.name} lacks a title or one of the four hints`);
@@ -217,6 +280,7 @@ export function steps(ctx) {
       need(p.json?.error && p.status < 500, `bad JSON did not come back as a JSON-RPC error (status ${p.status})`);
     }],
     ...optionalSteps(ctx),
+    ...panelSteps(ctx),
     ['read-only tools change nothing: asking twice gives the same project list', async (c) => {
       const a = await c.tool('list_projects'), b = await c.tool('list_projects');
       need(JSON.stringify(a.data) === JSON.stringify(b.data), 'two reads of the project list differ');
@@ -225,7 +289,7 @@ export function steps(ctx) {
 }
 
 // ------------------------------------------------------------------------------------------------ the local copy
-export async function localRig({ tamper = null } = {}) {                  // tamper: tests only; it changes what the stand-in server answers, to prove that a step FAILS when the connector misbehaves
+export async function localRig({ tamper = null, panels = true } = {}) {                  // tamper: tests only; it changes what the stand-in server answers, to prove that a step FAILS when the connector misbehaves
   const [{ default: Ajv2020 }, { makeCompile }, { FakeWorld }, { handleMcp, toolList }, { build, TEMPLATES }] = await Promise.all([
     import('ajv/dist/2020.js'), import('../supabase/functions/connect-core/ajv_adapter.ts'), import('../supabase/functions/connect-core/fake.ts'),
     import('../supabase/functions/connect-core/mcp.ts'), import('../supabase/functions/_shared/templates.ts')]);
@@ -233,9 +297,9 @@ export async function localRig({ tamper = null } = {}) {                  // tam
   const w = new FakeWorld();
   const A = { tokenHash: 'h-e2e-alice', userId: 'u-e2e-alice', clientId: 'client-e2e' }, B = { tokenHash: 'h-e2e-bob', userId: 'u-e2e-bob', clientId: 'client-e2e' };
   w.addUser(A.userId, 'e2e-alice', 100); w.addUser(B.userId, 'e2e-bob', 100);
-  w.invite(A.userId, A.clientId); w.invite(B.userId, B.clientId);
+  w.invite(A.userId, A.clientId, ['read', 'write', 'render_free', 'edit']); w.invite(B.userId, B.clientId, ['read', 'write', 'render_free', 'edit']);
   w.issue('E2E-TOKEN-ALICE', A); w.issue('E2E-TOKEN-BOB', B);
-  const deps = { data: null, policy: w.policy(), deps: { compile: makeCompile(Ajv2020) }, verifyToken: w.verifyToken, dataFor: (_t, p) => w.data(p.userId), resourceMetadataUrl: 'http://127.0.0.1/.well-known/oauth-protected-resource' };
+  const deps = { data: null, policy: w.policy(), deps: { compile: makeCompile(Ajv2020) }, verifyToken: w.verifyToken, dataFor: (_t, p) => w.data(p.userId), resourceMetadataUrl: 'http://127.0.0.1/.well-known/oauth-protected-resource', ...(panels ? { mcpApp: { enabled: true, chatEditor: true, homePanel: true, appUrl: 'https://uselai.com/app/' } } : {}) };
   const server = http.createServer(async (req, res) => { try {
     const body = ['GET', 'HEAD'].includes(req.method) ? undefined : await new Promise((ok) => { const c = []; req.on('data', (d) => c.push(d)); req.on('end', () => ok(Buffer.concat(c))); });
     const r = await handleMcp(new Request(`http://127.0.0.1${req.url}`, { method: req.method, headers: req.headers, body }), deps);
@@ -250,11 +314,11 @@ export async function localRig({ tamper = null } = {}) {                  // tam
   await new Promise((ok) => server.listen(0, '127.0.0.1', ok));
   const url = `http://127.0.0.1:${server.address().port}/mcp`;
   const t = TEMPLATES[0];
-  return { url, serverErrors, datasetId: t.datasets[0], tokenA: 'E2E-TOKEN-ALICE', tokenB: 'E2E-TOKEN-BOB', expectedTools: toolList().map((x) => x.name).sort(), goodStory: () => build(t.id, t.datasets[0], 'E2E headline'), close: () => new Promise((ok) => server.close(ok)) };
+  return { url, serverErrors, datasetId: t.datasets[0], tokenA: 'E2E-TOKEN-ALICE', tokenB: 'E2E-TOKEN-BOB', expectedTools: toolList().map((x) => x.name).sort(), panels, panelTools: toolList(true, true, true).map((x) => x.name).filter((n) => !toolList().some((b) => b.name === n)).sort(), goodStory: () => build(t.id, t.datasets[0], 'E2E headline'), close: () => new Promise((ok) => server.close(ok)) };
 }
 
-export async function run({ url, token, tokenOther = null, expectedTools, goodStory, datasetId, local, waitMs = 120000, title = `E2E check ${new Date().toISOString().slice(0, 10)}`, log = console.log }) {
-  const ctx = { url, local, waitMs, title, expectedTools, goodStory, datasetId };
+export async function run({ url, token, tokenOther = null, expectedTools, panelTools = [], panels = false, goodStory, datasetId, local, waitMs = 120000, title = `E2E check ${new Date().toISOString().slice(0, 10)}`, log = console.log }) {
+  const ctx = { url, local, waitMs, title, expectedTools, panelTools, panels, goodStory, datasetId };
   const c = client(url, token);
   if (tokenOther) ctx.other = client(url, tokenOther);
   const results = [];
@@ -296,16 +360,16 @@ export function parseArgs(argv, env = process.env) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   let args;
   try { args = parseArgs(process.argv.slice(2)); } catch (e) { console.error(e.message); process.exit(2); }
-  if (args.list) { const l = await localRig(); await l.close(); for (const [n] of steps({ expectedTools: l.expectedTools })) console.log(n); process.exit(0); }
+  if (args.list) { const l = await localRig(); await l.close(); for (const [n] of steps({ expectedTools: l.expectedTools, panelTools: l.panelTools })) console.log(n); process.exit(0); }
   let rig = null, out;
   try {
     if (args.url) {
       const rigLive = await localRig();                                   // only to read this checkout's tool list and a good story; its server is closed at once
       await rigLive.close();
-      out = await run({ url: args.url, token: args.token, expectedTools: rigLive.expectedTools, goodStory: rigLive.goodStory, datasetId: rigLive.datasetId, local: false, waitMs: args.wait * 1000 });
+      out = await run({ url: args.url, token: args.token, expectedTools: rigLive.expectedTools, panelTools: rigLive.panelTools, panels: false, goodStory: rigLive.goodStory, datasetId: rigLive.datasetId, local: false, waitMs: args.wait * 1000 });
     } else {
       rig = await localRig();
-      out = await run({ url: rig.url, token: rig.tokenA, tokenOther: rig.tokenB, expectedTools: rig.expectedTools, goodStory: rig.goodStory, datasetId: rig.datasetId, local: true });
+      out = await run({ url: rig.url, token: rig.tokenA, tokenOther: rig.tokenB, expectedTools: rig.expectedTools, panelTools: rig.panelTools, panels: rig.panels, goodStory: rig.goodStory, datasetId: rig.datasetId, local: true });
     }
   } finally { if (rig) await rig.close(); }
   process.exit(out.failed ? 1 : 0);
