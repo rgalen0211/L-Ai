@@ -19,7 +19,7 @@ export const HOME_WORDS: Readonly<Record<string, HomeWords>> = Object.freeze({
     starts: ["Make me a short film from public data: how adult obesity changed in each state."], page: "#/d/data_films" },
   compilations: { label: "Compilations", line: "Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too." },
   geo_intelligence: { label: "Opportunity Map", line: "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
-    rules: ["Every number is labelled: observed, calculated, estimated or simulated.", "It counts places, jobs, wages, permits and people. It has no sales data, so it does not say where a business would do well.", "No score and no ranking of places."],
+    rules: ["It counts places, jobs, wages, permits and people. It has no sales data, so it does not say where a business would do well.", "No score and no ranking of places."],
     notYet: ["Not part of Ryagram's first release. Testers are trying an early version. No price and no date."] },
   games: { label: "Games", line: "Play with your own data and footage in small games you can share." },
   animation_studio: { label: "Animation Studio", line: "Simple cartoons you direct: characters you can pose, with mouths that move to your voice." },
@@ -77,7 +77,9 @@ const STYLE = [
   ".acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}",
   "button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #6fd1bd;background:#0e0e13;color:#8fe0cf;font:inherit;font-weight:600;cursor:pointer}",
   "button.quiet{border-color:#3a3a44;color:#d8d7d0}", "button:focus-visible{outline:2px solid #8fe0cf;outline-offset:2px}",
-  ".copy{margin:6px 0 0;padding:6px 8px;border:1px dashed #3a3a44;border-radius:8px;color:#d8d7d0;overflow-wrap:anywhere}",
+  ".example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #6fd1bd;color:#d8d7d0;min-width:0}", ".example p{margin:4px 0}",
+  ".example .why{color:#b6b5ae;font-size:13px}", ".example .label{margin-bottom:0;font-size:12px;font-weight:650;letter-spacing:.04em;color:#8fe0cf}",
+  ".example .quote{font-style:italic;font-size:15px;overflow-wrap:anywhere}", ".example .diag,.example .hold{color:#b6b5ae;font-size:12px;overflow-wrap:anywhere}",
   "@media (max-width:360px){.home{padding:12px}}",
 ].join("");
 
@@ -92,10 +94,38 @@ const SCRIPT = [
   "var PAGE=/^#\\/[A-Za-z0-9_\\/-]{0,40}$/;",
   "function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}",
   "function btn(label,cls,fn){var b=el('button',cls||'',label);b.type='button';b.addEventListener('click',fn);return b;}",
+  "var caps=null,Q1=String.fromCharCode(8220),Q2=String.fromCharCode(8221);",
+  "function canSend(){return !(caps&&typeof caps==='object'&&!caps.message);}",
+  "function refused(r){return !!(r&&(r.error||(r.result&&r.result.isError===true)));}",
+  "function said(r){var e=r&&r.error;if(e&&typeof e==='object')return clean(e.message,120)+(e.code!=null?' ('+clean(e.code,12)+')':'');return 'it could not deliver the message';}",
+  "function pick(x,q){try{var s=window.getSelection(),g=document.createRange();g.selectNodeContents(q);s.removeAllRanges();s.addRange(g);}catch(e){}}",
+  "function copyLine(x,b,text){",
+  " var q=x.querySelector('.said');",
+  " function done(){b.textContent='Copied';}",
+  " function hold(){var h=x.querySelector('.hold');if(!h){h=el('p','hold');x.insertBefore(h,x.querySelector('.diag'));}h.textContent='Press Ctrl+C (Cmd+C on a Mac) to copy it.';size();}",
+  " function viaSelect(){pick(x,q);var ok=false;try{ok=document.execCommand('copy');}catch(e){}if(ok)done();else hold();}",
+  " try{if(navigator.clipboard&&navigator.clipboard.writeText){navigator.clipboard.writeText(text).then(done,viaSelect);return;}}catch(e){}",
+  " viaSelect();",
+  "}",
+  "function example(box,text,why,diag){",
+  " var old=box.querySelector('.example');if(old)old.remove();",
+  " var x=el('div','example'),q=el('p','quote'),w=el('span','said',text),b;",
+  " x.appendChild(el('p','why',why));x.appendChild(el('p','label','Example:'));",
+  " q.appendChild(document.createTextNode(Q1));q.appendChild(w);q.appendChild(document.createTextNode(Q2));x.appendChild(q);",
+  " b=btn('Copy','quiet',function(){copyLine(x,b,text);});x.appendChild(b);",
+  " if(diag)x.appendChild(el('p','diag',diag));",
+  " box.appendChild(x);size();",
+  "}",
   "function startLine(box,text){",
-  " ask('ui/message',{role:'user',content:{type:'text',text:text}},function(r){",
-  "  if(r&&r.error){var old=box.querySelector('.copy');if(old)old.remove();var c=el('p','copy','Say this to your AI: '+text);box.appendChild(c);size();}",
-  " });",
+  " if(!canSend()){example(box,text,'Your chat app does not let this panel type for you.','');return;}",
+  " function got(r,again){",
+  "  if(!refused(r))return;",
+  "  var e=r.error;",
+  "  if(again&&e&&typeof e==='object'&&(e.code===-32602||/invalid|format/i.test(String(e.message||'')))){ask('ui/message',{role:'user',content:{type:'text',text:text}},function(r2){got(r2,false);});return;}",
+  "  try{console.warn('ryagram-home: ui/message refused: '+JSON.stringify(r.error||r.result).slice(0,300));}catch(x){}",
+  "  example(box,text,'Your chat app did not let this panel type for you.','The chat app answered: '+said(r));",
+  " }",
+  " ask('ui/message',{role:'user',content:[{type:'text',text:text}]},function(r){got(r,true);});",
   "}",
   "function openPage(page){if(appUrl&&PAGE.test(page||'')){ask('ui/open-link',{url:appUrl+page},function(){});}}",
   "function dept(d){",
@@ -107,7 +137,7 @@ const SCRIPT = [
   " for(var j=0;j<ns.length&&j<2;j++)box.appendChild(el('p','rule',clean(ns[j],240)));",
   " if(d.status==='working'){",
   "  var acts=el('div','acts'),st=Array.isArray(d.starts)?d.starts:[];",
-  "  if(st.length&&typeof st[0]==='string'){(function(t){acts.appendChild(btn('Start this in the chat','',function(){startLine(box,t);}));})(clean(st[0],200));}",
+  "  if(st.length&&typeof st[0]==='string'){(function(t){acts.appendChild(btn(canSend()?'Start this in the chat':'Show what to say','',function(){startLine(box,t);}));})(clean(st[0],200));}",
   "  if(typeof d.page==='string'&&appUrl&&PAGE.test(d.page)){(function(p){acts.appendChild(btn('Open on the site','quiet',function(){openPage(p);}));})(d.page);}",
   "  if(acts.childNodes.length)box.appendChild(acts);",
   " }",
@@ -138,7 +168,7 @@ const SCRIPT = [
   "});",
   "paint(null);",
   "if(typeof ResizeObserver==='function')new ResizeObserver(size).observe(document.body);",
-  "ask('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'ryagram-home',version:'1'},appCapabilities:{availableDisplayModes:['inline']}},function(){note('ui/notifications/initialized',{});size();});",
+  "ask('ui/initialize',{protocolVersion:'2026-01-26',appInfo:{name:'ryagram-home',version:'1'},appCapabilities:{availableDisplayModes:['inline']}},function(r){var c=r&&r.result&&r.result.hostCapabilities;caps=c&&typeof c==='object'?c:null;note('ui/notifications/initialized',{});size();});",
   "})();",
 ].join("\n");
 
@@ -157,7 +187,7 @@ export function homeHtml(appUrl?: string): string {
 function buildId(): string {
   const s = homeHtml("") + JSON.stringify(HOME_WORDS) + JSON.stringify(MY_FILMS);
   let a = 0x811c9dc5, b = 0x01000193 ^ 0x5bd1e995;
-  for (let i = 0; i < s.length; i++) { a = Math.imul(a ^ s.charCodeAt(i), 0x01000193) >>> 0; b = Math.imul(b + s.charCodeAt(i) + i, 0x85ebca6b) >>> 0; b ^= b >>> 13; }
+  for (let i = 0; i < s.length; i++) { a = Math.imul(a ^ s.charCodeAt(i), 0x01000193) >>> 0; b = Math.imul(b + s.charCodeAt(i) + i, 0x85ebca6b) >>> 0; b = (b ^ (b >>> 13)) >>> 0; }      // unsigned: a signed b printed as '-45f...' and the address no longer matched its own shape (found by WEB-8's words change)
   return (a.toString(16).padStart(8, "0") + b.toString(16).padStart(8, "0")).slice(0, 12);
 }
 export const HOME_BUILD = buildId();

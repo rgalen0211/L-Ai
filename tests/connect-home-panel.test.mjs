@@ -92,9 +92,16 @@ test('the words equal the site\'s where the site has them (assets/app-department
     const site = KNOWN[id], ours = HOME_WORDS[id];
     assert.ok(site, `${id} is a department the site knows`);
     if (id !== 'geo_intelligence') assert.equal(ours.label, site.label, `${id}: the label`);
-    if (id === 'geo_intelligence') { assert.equal(ours.label, 'Opportunity Map', 'the department is called Opportunity Map (Q601); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line (proposals/GEO-HOME-PANEL-ENTRY-1113.md), whatever the site says now: the test holds in either landing order with the site\'s change'); continue; }
+    if (id === 'geo_intelligence') { assert.equal(ours.label, 'Opportunity Map', 'the department is called Opportunity Map (Q601); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line, word for word'); assert.equal(ours.line, site.line, 'and it is the site\'s line, word for word (Q601: one name, one line); a change to one side is a change to both, in one WEB+CONNECT pair'); continue; }
     assert.equal(ours.line, site.line ?? site.sentence, `${id}: the line`);
   }
+});
+
+test('the Opportunity Map says that every number is labelled once, not twice (line and rules together), and the once is the site\'s line', () => {
+  const g = HOME_WORDS.geo_intelligence, all = [g.line, ...g.rules, ...g.notYet].join(' ');
+  assert.equal((all.match(/every number/gi) || []).length, 1, all);
+  assert.match(g.line, /Every number says whether it was counted, calculated or estimated\.$/, 'the one place it is said is the line, as the site has it');
+  assert.equal(g.rules.length, 2, 'two rules are left: what it counts, and no score');
 });
 
 test('nothing the panel says is a price, a date, a score, a ranking, or a promise of where a business would do well', () => {
@@ -114,10 +121,18 @@ test('the page is small, makes no request, builds from text nodes only, and open
   assert.ok(!/<script[^>]*\bsrc=|<link|<img|<iframe|@import|url\(/i.test(html), 'nothing loaded from anywhere');
   assert.ok(html.includes("ask('ui/open-link',{url:appUrl+page}"), 'only the app address plus a checked fragment is opened');
   assert.ok(html.includes("function openPage(page){if(appUrl&&PAGE.test(page||'')){"), 'a page is opened only when there is an app address AND the fragment is plain');
-  assert.ok(html.includes("if(r&&r.error){"), 'a host that answers the message with an error gets the fallback');
+  assert.ok(html.includes("function refused(r){return !!(r&&(r.error||(r.result&&r.result.isError===true)));}"), 'a host that answers the message with an error, or with isError, gets the fallback');
+  assert.ok(html.includes("if(!refused(r))return;"), 'only a refusal shows the example');
   assert.ok(html.includes("var PAGE=/^#\\/[A-Za-z0-9_\\/-]{0,40}$/;"), 'the fragment is checked in the page too');
-  assert.ok(html.includes("ask('ui/message',{role:'user',content:{type:'text',text:text}}"), 'a starting line goes through the host\'s own message call');
-  assert.ok(html.includes("var p=el('p','copy','Say this to your AI: '+text)") || html.includes("el('p','copy','Say this to your AI: '+text)"), 'a host that refuses the message gets the line to say');
+  assert.ok(html.includes("ask('ui/message',{role:'user',content:[{type:'text',text:text}]}"), 'a starting line goes through the host\'s own message call, content as a list of blocks (the spec types)');
+  assert.ok(html.includes("e.code===-32602||/invalid|format/i.test(String(e.message||''))"), 'a host that calls that shape invalid is asked once more with the single block');
+  assert.ok(html.includes("function canSend(){return !(caps&&typeof caps==='object'&&!caps.message);}"), 'a host that answered the handshake without the message capability gets no send');
+  assert.ok(html.includes("console.warn('ryagram-home: ui/message refused: '+JSON.stringify(r.error||r.result).slice(0,300))"), 'the host\'s answer is written to the console line');
+  assert.ok(html.includes("x.appendChild(el('p','label','Example:'))"), 'a host that refuses the message gets the line as an example with its label');
+  assert.ok(html.includes("b=btn('Copy','quiet',function(){copyLine(x,b,text);})"), 'and a Copy button');
+  assert.ok(html.includes("Press Ctrl+C (Cmd+C on a Mac) to copy it."), 'and a clipboard that is refused says what to press');
+  assert.ok(!/dashed|dotted/.test(html), 'no dashed field look anywhere in the page');
+  assert.ok(html.includes(".example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #6fd1bd"), 'the example is quote style: a left bar, no box');
   assert.match(html, /data-app-url="https:\/\/uselai\.com\/app\/"/);
   assert.match(homeHtml('http://evil.example/'), /data-app-url=""/, 'an address that is not https is never put in the page');
   assert.match(homeHtml('https://x.example/"><script>'), /data-app-url=""/);
