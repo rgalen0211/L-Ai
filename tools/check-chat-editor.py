@@ -152,7 +152,7 @@ def main():
                     check(all(t in NAMES and t not in ('render',) for t, _ in calls()[n1:]), 'and it called nothing that could start a build')
                     check(not any('render' in m.get('method', '') or 'render' in json.dumps(m.get('params', {})).lower() for m in h.evaluate('window.__log') if m.get('method') == 'tools/call'), 'no tool call mentions a render')
                 # full screen only where the host offers it
-                btn = fr.locator('.le-chatbar button')
+                btn = fr.locator('.le-chatbar button', has_text=re.compile('Full screen|Back to the chat'))
                 check(btn.is_visible() == fullscreen, 'the Full screen button shows only where the host offers full screen (%s)' % fullscreen)
                 if fullscreen:
                     btn.click()
