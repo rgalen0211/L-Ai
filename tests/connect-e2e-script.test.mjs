@@ -6,11 +6,11 @@ import { localRig, run, steps, parseArgs, client } from '../tools/connect-e2e.mj
 
 const quiet = () => { const lines = []; return { lines, log: (l) => lines.push(l) }; };
 
-async function go({ tamper = null, other = true } = {}) {
-  const rig = await localRig({ tamper });
+async function go({ tamper = null, other = true, panels = true } = {}) {
+  const rig = await localRig({ tamper, panels });
   const q = quiet();
   try {
-    const out = await run({ url: rig.url, token: rig.tokenA, tokenOther: other ? rig.tokenB : null, expectedTools: rig.expectedTools, goodStory: rig.goodStory, datasetId: rig.datasetId, local: true, log: q.log });
+    const out = await run({ url: rig.url, token: rig.tokenA, tokenOther: other ? rig.tokenB : null, expectedTools: rig.expectedTools, panelTools: rig.panelTools, panels: rig.panels, goodStory: rig.goodStory, datasetId: rig.datasetId, local: true, log: q.log });
     assert.deepEqual(rig.serverErrors, [], 'the stand-in server itself failed (a fault was made wrongly, so a FAIL below would prove nothing)');
     return { ...out, lines: q.lines, rig };
   } finally { await rig.close(); }
@@ -22,7 +22,8 @@ const rewrite = (out, fn) => { const j = JSON.parse(out.body); if (!j.result) re
 test('on the real code every step passes (none skipped, none failed)', async () => {
   const out = await go();
   assert.deepEqual(failed(out), []);
-  assert.equal(out.results.length, steps({ expectedTools: out.rig.expectedTools }).length);
+  assert.equal(out.results.length, steps({ expectedTools: out.rig.expectedTools, panelTools: out.rig.panelTools }).length);
+  assert.ok(out.results.some((r) => r.name.startsWith('open_editor')) && out.results.some((r) => r.name.startsWith('editor_film_card')) && out.results.some((r) => r.name.startsWith('open_ryagram_home')), 'the app steps are in the run');
   assert.ok(out.results.length >= 20, 'the first 20 steps are always there');
   assert.ok(out.results.every((r) => r.status === 'PASS'), out.lines.join('\n'));
   assert.match(out.lines.at(-1), new RegExp(`${out.results.length} passed, 0 failed, 0 skipped`));
@@ -60,8 +61,28 @@ test('MUST-FAIL: initialize that names another server, or offers resources', asy
   const name = 'initialize: the server names itself and keeps to tools';
   let out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'initialize' ? rewrite(o, (j) => { j.result.serverInfo.name = 'other'; }) : o) });
   assert.ok(failed(out).includes(name));
-  out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'initialize' ? rewrite(o, (j) => { j.result.capabilities.resources = {}; }) : o) });
-  assert.ok(failed(out).includes(name));
+  out = await go({ panels: false, tamper: async ({ sent }, o) => (sent?.method === 'initialize' ? rewrite(o, (j) => { j.result.capabilities.resources = {}; }) : o) });
+  assert.ok(failed(out).includes(name), 'pages offered while the app is off');
+  out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'initialize' ? rewrite(o, (j) => { delete j.result.capabilities.resources; }) : o) });
+  assert.ok(failed(out).includes(name), 'no pages offered while the app is on');
+  out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'initialize' ? rewrite(o, (j) => { j.result.capabilities.prompts = {}; }) : o) });
+  assert.ok(failed(out).includes(name), 'prompts offered');
+});
+
+test('with the app switches off the connector lists no app tool, offers no pages, and the four app steps are SKIPPED with a reason (not passed)', async () => {
+  const out = await go({ panels: false });
+  assert.deepEqual(failed(out), []);
+  const names = out.results.filter((r) => r.status === 'SKIP').map((r) => r.name);
+  assert.equal(names.length, 4, names.join(' | '));
+  assert.ok(out.results.filter((r) => r.status === 'SKIP').every((r) => /not listed|no app tool/.test(r.why)), 'each skip says why');
+});
+
+test('MUST-FAIL: the app is on but a tool or the pages are missing from the list', async () => {
+  const name = 'tools/list: the tools this checkout lists, with titles and honest hints, and no full-render tool';
+  let out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'tools/list' ? rewrite(o, (j) => { j.result.tools = j.result.tools.filter((t) => t.name !== 'open_editor'); }) : o) });
+  assert.ok(failed(out).includes(name), 'open_editor lost while the app is on');
+  out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'tools/list' ? rewrite(o, (j) => j.result.tools.push({ ...j.result.tools[0], name: 'delete_everything' })) : o) });
+  assert.ok(failed(out).includes(name), 'a tool that is neither a base tool nor the app\'s');
 });
 
 test('MUST-FAIL: create_project that makes a second project for the same title', async () => {
@@ -124,11 +145,74 @@ test('the live way of running: a token from the environment, a loopback http add
   try {
     const a = parseArgs(['--url', rig.url, '--token-env', 'E2E_TEST_TOKEN', '--wait', '5'], { E2E_TEST_TOKEN: rig.tokenA });
     assert.equal(a.token, rig.tokenA);
-    const out = await run({ url: a.url, token: a.token, expectedTools: rig.expectedTools, goodStory: rig.goodStory, datasetId: rig.datasetId, local: false, waitMs: a.wait * 1000, log: q.log });
-    assert.deepEqual(failed(out), []);
+    const out = await run({ url: a.url, token: a.token, expectedTools: rig.expectedTools, panelTools: rig.panelTools, panels: false, goodStory: rig.goodStory, datasetId: rig.datasetId, local: false, waitMs: a.wait * 1000, log: q.log });
+    assert.deepEqual(failed(out), [], 'a live connector with the app switches ON lists more tools than the base list and offers pages: that is not a difference');
     assert.equal(out.results.filter((r) => r.status === 'SKIP').length, 1);
     assert.ok(!q.lines.join('\n').includes(rig.tokenA), 'the token appears in the output');
   } finally { await rig.close(); }
+});
+
+test('the live way of running against a connector whose app switches are OFF: it passes and the four app steps are skipped', async () => {
+  const rig = await localRig({ panels: false });
+  const q = quiet();
+  try {
+    const out = await run({ url: rig.url, token: rig.tokenA, expectedTools: rig.expectedTools, panelTools: rig.panelTools, panels: false, goodStory: rig.goodStory, datasetId: rig.datasetId, local: false, waitMs: 5000, log: q.log });
+    assert.deepEqual(failed(out), []);
+    assert.equal(out.results.filter((r) => r.status === 'SKIP').length, 5, 'the second-person step and the four app steps');
+  } finally { await rig.close(); }
+});
+
+// ------------------------------------------------------------------------------------------------ the app's steps (the pages and the editor tools an assistant shows in the conversation)
+const HOME = 'open_ryagram_home: the departments (what works, what is coming) and the page that shows them';
+const PAGES = 'the app pages: each one the connector lists is a small page that loads nothing from outside';
+const OPEN = "open_editor: the editor opens for the new project, and a film that is not the person's is refused";
+const CARD = "editor_film_card: the film's picture is asked for once (asking again is the same request) and read back in words";
+const callOf = (name, o) => (sent) => sent?.method === 'tools/call' && sent.params.name === name;
+test('the app steps pass on the real code and each one is a step of its own', async () => {
+  const out = await go();
+  for (const n of [HOME, PAGES, OPEN, CARD]) assert.equal(out.results.find((r) => r.name === n)?.status, 'PASS', n);
+});
+
+test('MUST-FAIL: the home panel gives no departments, a coming-soon department that can be started, words with markup, or an internal message', async () => {
+  let out = await go({ tamper: async ({ sent }, o) => (callOf('open_ryagram_home')(sent) ? rewrite(o, (j) => { j.result.structuredContent = { departments: [] }; }) : o) });
+  assert.ok(failed(out).includes(HOME), 'no departments');
+  out = await go({ tamper: async ({ sent }, o) => (callOf('open_ryagram_home')(sent) ? rewrite(o, (j) => { j.result.structuredContent.departments.push({ id: 'x_soon', label: 'X', line: 'a line', status: 'soon', starts: ['Say this'], page: null }); }) : o) });
+  assert.ok(failed(out).includes(HOME), 'a coming-soon department can be started');
+  out = await go({ tamper: async ({ sent }, o) => (callOf('open_ryagram_home')(sent) ? rewrite(o, (j) => { j.result.content[0].text = '<b>Ryagram home</b> with a long enough line of words that says what works and what is coming'; }) : o) });
+  assert.ok(failed(out).includes(HOME), 'markup in the words');
+  out = await go({ tamper: async ({ sent }, o) => (callOf('open_ryagram_home')(sent) ? rewrite(o, (j) => { j.result.structuredContent.departments.forEach((d) => { if (d.status === 'working') d.starts = []; }); }) : o) });
+  assert.ok(failed(out).includes(HOME), 'nothing to start');
+});
+
+test('MUST-FAIL: an app page that loads from outside, a page that is empty, a page that is not an app page', async () => {
+  const read = (sent) => sent?.method === 'resources/read';
+  let out = await go({ tamper: async ({ sent }, o) => (read(sent) ? rewrite(o, (j) => { j.result.contents[0].text += '<script src="https://evil.example/x.js"></script>'; }) : o) });
+  assert.ok(failed(out).includes(PAGES), 'a script from outside');
+  out = await go({ tamper: async ({ sent }, o) => (read(sent) ? rewrite(o, (j) => { j.result.contents[0].text = '<p>hi</p>'; }) : o) });
+  assert.ok(failed(out).includes(PAGES), 'a page of nothing');
+  out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'resources/list' ? rewrite(o, (j) => { j.result.resources.forEach((r) => { r.uri = 'https://evil.example/x'; }); }) : o) });
+  assert.ok(failed(out).includes(PAGES), 'not an app page address');
+  out = await go({ tamper: async ({ sent }, o) => (sent?.method === 'resources/list' ? rewrite(o, (j) => { j.result.resources = j.result.resources.filter((r) => !/home-/.test(r.uri)); }) : o) });
+  assert.ok(failed(out).includes(PAGES), 'the home panel is not among the pages');
+});
+
+test('MUST-FAIL: the editor opens for another project, opens a film of nobody, or the refusal leaks an internal message', async () => {
+  let out = await go({ tamper: async ({ sent }, o) => (callOf('open_editor')(sent) && !JSON.parse(o.body).result.isError && o.body.includes('project_id') ? rewrite(o, (j) => { j.result.structuredContent.project_id = '11111111-1111-4111-8111-111111111111'; }) : o) });
+  assert.ok(failed(out).includes(OPEN), 'another project');
+  out = await go({ tamper: async ({ sent }, o) => (callOf('open_editor')(sent) && JSON.parse(o.body).result.isError ? rewrite(o, (j) => { j.result.isError = false; }) : o) });
+  assert.ok(failed(out).includes(OPEN), 'a film of nobody');
+  out = await go({ tamper: async ({ sent }, o) => (callOf('open_editor')(sent) && JSON.parse(o.body).result.isError ? rewrite(o, (j) => { j.result.content[0].text = 'error: relation "projects" does not exist (postgres)'; }) : o) });
+  assert.ok(failed(out).includes(OPEN), 'a leak');
+});
+
+test('MUST-FAIL: the film card gives no state, is refused the second time, or leaks an internal message', async () => {
+  let out = await go({ tamper: async ({ sent }, o) => (callOf('editor_film_card')(sent) ? rewrite(o, (j) => { j.result.structuredContent = { data: {} }; }) : o) });
+  assert.ok(failed(out).includes(CARD), 'no state');
+  let n = 0;
+  out = await go({ tamper: async ({ sent }, o) => (callOf('editor_film_card')(sent) && ++n === 2 ? rewrite(o, (j) => { j.result.isError = true; }) : o) });
+  assert.ok(failed(out).includes(CARD), 'the second ask is refused');
+  out = await go({ tamper: async ({ sent }, o) => (callOf('editor_film_card')(sent) && !sent.params.arguments.p_ask ? rewrite(o, (j) => { j.result.content[0].text = 'error: relation "film_card_requests" does not exist (postgres)'; }) : o) });
+  assert.ok(failed(out).includes(CARD), 'a leak');
 });
 
 test('the command line refuses what could leak a token or hit the wrong place', () => {
