@@ -214,6 +214,8 @@ export interface ToolDef {
   chatEditor?: "app" | "model";
   /** The Ryagram home panel (a third switch, CONNECT_HOME_PANEL, off by default): a tool that exists only when it is on; otherwise "no such tool" and not in tools/list. */
   homePanel?: boolean;
+  /** The Q520 probe's own tools (probe.ts, a third switch, off by default; never in TOOLS): the address of the throwaway page the tool shows. */
+  probe?: string;
   inputSchema: Record<string, unknown>; // JSON Schema; additionalProperties:false always
   run(args: Record<string, unknown>, ctx: ToolCtx): Promise<ToolResult>;
 }
