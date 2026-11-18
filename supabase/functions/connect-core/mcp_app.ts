@@ -6,6 +6,7 @@
 
 import { EDITOR_BUILD, EDITOR_HTML } from "./editor_page.ts";
 import { HOME_URI, homeHtml, isHomeUri } from "./home_panel.ts";
+import { probeCsp, probePage, probeResources } from "./probe.ts";
 
 export const CARD_URI = "ui://ryagram/card";
 /** The editor page's address changes with every build of the page (EDITOR_BUILD is a hash of everything it is made from). A host that keeps pages by address (Claude fetches a connector's pages once, then reuses them) can then never show a stale page under the new address. */
@@ -28,6 +29,8 @@ export interface McpAppConfig {
   chatEditor?: boolean;
   /** The Ryagram home panel (a third switch, with enabled): serves ui://ryagram/home-<build> and lists its tool. Absent or false = none of it exists. */
   homePanel?: boolean;
+  /** The Q520 probe panel (its own switch, off by default; probe.ts): serves its throwaway test pages and tools. Absent or false = none of it exists. */
+  probe?: boolean;
 }
 
 /** Which tools show which page. The tool's text and structured data are exactly what they were. */
@@ -136,11 +139,20 @@ export function cardHtml(appUrl?: string): string {
 export function resourceList(cfg?: McpAppConfig) {
   return [{ uri: CARD_URI, name: "Ryagram card", description: "A small card showing the Ryagram account and projects the AI is working with.", mimeType: MCP_APP_MIME },
     ...(cfg?.chatEditor ? [{ uri: EDITOR_URI, name: "Ryagram editor", description: "The Ryagram live editor for one of the person's films.", mimeType: MCP_APP_MIME }] : []),
-    ...(cfg?.homePanel ? [{ uri: HOME_URI, name: "Ryagram home", description: "The person's Ryagram departments, with what works today and what is coming soon.", mimeType: MCP_APP_MIME }] : [])];
+    ...(cfg?.homePanel ? [{ uri: HOME_URI, name: "Ryagram home", description: "The person's Ryagram departments, with what works today and what is coming soon.", mimeType: MCP_APP_MIME }] : []),
+    ...probeResources(!!cfg?.probe, MCP_APP_MIME)];
 }
 
 /** null = no such page. */
 export function readResource(uri: unknown, cfg: McpAppConfig) {
+  const probe = cfg.probe ? probePage(uri) : null;
+  if (probe !== null) {
+    const csp = probeCsp(), ui: Record<string, unknown> = { csp, prefersBorder: true };
+    const dom = cfg.uiDomain;
+    if (dom && UI_DOMAIN.test(dom)) ui.domain = dom;
+    // the same list in OpenAI's own spelling too, so a host that reads only that one still has the declared origin
+    return { contents: [{ uri: uri as string, mimeType: MCP_APP_MIME, text: probe, _meta: { ui, "openai/widgetCSP": { connect_domains: csp.connectDomains, resource_domains: csp.resourceDomains } } }] };
+  }
   const editor = isEditorUri(uri);
   const home = isHomeUri(uri);
   if (uri !== CARD_URI && !(editor && cfg.chatEditor) && !(home && cfg.homePanel)) return null;

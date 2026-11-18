@@ -14,10 +14,10 @@ ROOT = Path(__file__).resolve().parent.parent
 APP = 'https://uselai.com/app/'
 JS = """
 import { homeHtml, homeView } from %s;
-const rows = [{id:'data_films',label:'Data films',status:'working'},{id:'compilations',label:'Compilations',status:'soon'},{id:'geo_intelligence',label:'Geographic Intelligence',status:'soon'},{id:'games',label:'Games',status:'soon'},{id:'animation_studio',label:'Animation Studio',status:'soon'}];
+const rows = [{id:'data_films',label:'Data films',status:'working'},{id:'compilations',label:'Compilations',status:'soon'},{id:'geo_intelligence',label:'Geographic Intelligence',status:'soon'},{id:'games',label:'Games',status:'soon'},{id:'animation_studio',label:'Animation Studio',status:'soon'},{id:'studio',label:'Studio',status:'soon'}];
 process.stdout.write(JSON.stringify({ html: homeHtml(%s), view: homeView(rows).data }));
 """ % (json.dumps((ROOT / 'supabase/functions/connect-core/home_panel.ts').as_uri()), json.dumps(APP))
-out = subprocess.run(['node', '--input-type=module', '-e', JS], capture_output=True, text=True, cwd=str(ROOT))
+out = subprocess.run(['node', '--input-type=module', '-e', JS], capture_output=True, text=True, encoding='utf-8', cwd=str(ROOT))   # utf-8 on purpose: the panel's words hold a typographic apostrophe (Studio), and the Windows default would garble it
 if out.returncode != 0:
     print(out.stderr)
     sys.exit(2)
@@ -84,9 +84,11 @@ with sync_playwright() as pw:
     check(heads == ['Works today', 'Coming soon'], 'two groups: Works today and Coming soon (%s)' % heads)
     works = fr.eval_on_selector_all('.dept', 'els => els.map(e => ({ h: e.querySelector("h3").childNodes[0].textContent, tag: !!e.querySelector(".tag"), buttons: Array.from(e.querySelectorAll("button")).map(x => x.textContent) }))')
     names = [w['h'] for w in works]
-    check(names == ['Data films', 'My films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio'], 'six entries in order (%s)' % names)
+    check(names == ['Data films', 'My films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio'], 'seven entries in order, Studio last (%s)' % names)
     check(works[0]['buttons'] == ['Start this in the chat', 'Open on the site'] and works[1]['buttons'] == ['Start this in the chat', 'Open on the site'], 'Data films and My films each have a start button and an open button')
     check(all(w['tag'] and not w['buttons'] for w in works[2:]), 'every coming-soon entry carries the tag and has NOTHING to press')
+    studio = fr.locator('.dept').nth(6).inner_text()
+    check("Your podcast’s camera crew and editor in one" in studio and 'no price and no date' in studio, 'the Studio entry says the approved line and that there is no price and no date (%s)' % studio[:80])
     geo = fr.locator('.dept').nth(3).inner_text()
     check('no sales data' in geo and 'No price and no date' in geo and geo.lower().count('every number') == 1, 'the geographic entry shows its two rules, its not-yet line, and says every number once')
     check(any(m.get('method') == 'ui/notifications/size-changed' and m['params']['height'] > 100 for m in pg.evaluate('window.__in')), 'the page reports its height to the host')
@@ -210,7 +212,7 @@ with sync_playwright() as pw:
     pg.evaluate("(s) => window.__send(s)", VIEW)
     pg.wait_for_timeout(300)
     over = fr.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
-    check(over <= 0 and fr.locator('.dept').count() == 6, 'at 360 px wide nothing scrolls sideways (overflow %s)' % over)
+    check(over <= 0 and fr.locator('.dept').count() == 7, 'at 360 px wide nothing scrolls sideways (overflow %s)' % over)
     check(min(fr.eval_on_selector_all('button', 'els => els.map(e => e.getBoundingClientRect().height)')) >= 44, 'every button is at least 44 px high')
     cc.close()
     b.close()

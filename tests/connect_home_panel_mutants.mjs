@@ -12,12 +12,24 @@ const C = 'supabase/functions/connect-core/';
 const SUITES = ['connect-home-panel.test.mjs'];
 const HEAD = 'name: "get_story", title: "Read back a project\'s saved story", scope: "read", readOnly: true';
 const SC = C + 'story_check.ts';
+const F = C + 'fake.ts';
 const H = C + 'home_panel.ts', TL = C + 'tools.ts', DI = C + 'dispatch.ts', MC = C + 'mcp.ts', MA = C + 'mcp_app.ts';
 const mutants = [
   ['a working department with no page is shown', H, `if (r.status === "working" && w.page && PAGE.test(w.page))`, `if (r.status === "working")`],
   ['a soon department is given a page to open', H, `starts: [], page: null });`, `starts: [], page: "#/" });`],
   ['a department listed twice is taken twice (the last wins)', H, `!byId.has(r.id)`, `true`],
-  ['the site order is not kept', H, `export const HOME_ORDER = ["data_films", "compilations", "geo_intelligence", "games", "animation_studio"] as const;`, `export const HOME_ORDER = ["games", "compilations", "geo_intelligence", "data_films", "animation_studio"] as const;`],
+  ['the site order is not kept', H, `export const HOME_ORDER = ["data_films", "compilations", "geo_intelligence", "games", "animation_studio", "studio"] as const;`, `export const HOME_ORDER = ["games", "compilations", "geo_intelligence", "data_films", "animation_studio", "studio"] as const;`],
+  // Studio (Q639): the department the database lists last, shown as Coming soon with Ryan's own words and nothing to press
+  ['Studio is not last in the order', H, `"games", "animation_studio", "studio"] as const;`, `"games", "studio", "animation_studio"] as const;`],
+  ['Studio is left out of the order, so it is never shown', H, `"games", "animation_studio", "studio"] as const;`, `"games", "animation_studio"] as const;`],
+  ['Studio has no words, so the panel drops it', H, `  studio: { label: "Studio", line: "Your podcast’s`, `  studio_off: { label: "Studio", line: "Your podcast’s`],
+  ['Studio says a price', H, `finds the moments worth sharing.",`, `finds the moments worth sharing, from $9 a month.",`],
+  ['Studio names a competitor', H, `Your podcast’s camera crew and editor in one:`, `Your podcast’s camera crew and editor in one, like Riverside:`],
+  ['Studio promises live switching', H, `cuts to the right camera as people talk,`, `cuts to the right camera live as people talk,`],
+  ['Studio drops the not-built sentence', H, `    notYet: ["Not built yet: none of this works today, there is no price and no date."] },`, `    notYet: [] },`],
+  ['Studio is given a page to open, a dead link for a department that is not built', H, `  studio: { label: "Studio", line:`, `  studio: { page: "#/d/studio", label: "Studio", line:`],
+  ['Studio is given a line to start in the chat', H, `  studio: { label: "Studio", line:`, `  studio: { starts: ["Make me a podcast cut."], label: "Studio", line:`],
+  ['the stand-in database lists no Studio, so the panel test never sees it', F, `{ id: "animation_studio", label: "Animation Studio", status: "soon" }, { id: "studio", label: "Studio", status: "soon" }];`, `{ id: "animation_studio", label: "Animation Studio", status: "soon" }];`],
   ['my films is missing', H, `out.push(...working, mine, ...soon);`, `out.push(...working, ...soon);`],
   ['the panel takes the database label', H, `const label = w.label;`, `const label = r.label;`],
   ['the geographic line promises where a business would do well', H, `so it does not say where a business would do well.`, `so it says where a business would do well.`],

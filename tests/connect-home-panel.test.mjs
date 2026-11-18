@@ -42,8 +42,8 @@ test('on, it answers with the person\'s departments: the words for a host with n
   assert.equal(r.isError, undefined, r.text);
   assert.match(r.text, /Data films \(works today\)/); assert.match(r.text, /My films \(works today\)/); assert.match(r.text, /Coming soon \(not built yet, nothing to start\)/);
   const ids = r.data.departments.map((d) => d.id);
-  assert.deepEqual(ids, ['data_films', 'my_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio']);
-  assert.deepEqual(r.data.coming_soon, ['compilations', 'geo_intelligence', 'games', 'animation_studio']);
+  assert.deepEqual(ids, ['data_films', 'my_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
+  assert.deepEqual(r.data.coming_soon, ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.ok(!/<|>|javascript:/.test(r.text));
   w.users.get(A.userId).departments = rows(['data_films', 'working'], ['compilations', 'working'], ['games', 'soon']);          // a promoted department without a page is NOT shown as working
   const r2 = await call('open_ryagram_home', {});
@@ -55,7 +55,7 @@ test('the list follows the site\'s rule: only ids with words, only the two statu
     { id: 'nobody_knows', status: 'working', label: 'x' }, { id: 'animation_studio', status: 'broken', label: 'x' }, { id: 'compilations', status: 'working', label: 'Compilations' }, null, 7, { id: 5 }]);
   assert.deepEqual(e.map((d) => d.id + ':' + d.status), ['data_films:working', 'my_films:working', 'games:soon']);
   assert.deepEqual(homeEntries(null).map((d) => d.id), ['my_films'], 'a failed read still shows the person\'s own films');
-  assert.deepEqual(HOME_ORDER, ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio']);
+  assert.deepEqual(HOME_ORDER, ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.equal(homeEntries([{ id: 'data_films', status: 'working', label: 'x'.repeat(61) }])[0].label, 'Data films', 'the panel says its own word, whatever the database row says');
   assert.equal(homeEntries([{ id: 'geo_intelligence', status: 'soon', label: 'Geographic Intelligence' }]).find((d) => d.id === 'geo_intelligence').label, 'Opportunity Map', 'ONE name everywhere (Ryan 2026-11-13, Q601), even while the database row still holds the old one');
 });
@@ -102,6 +102,27 @@ test('the Opportunity Map says that every number is labelled once, not twice (li
   assert.equal((all.match(/every number/gi) || []).length, 1, all);
   assert.match(g.line, /Every number says whether it was counted, calculated or estimated\.$/, 'the one place it is said is the line, as the site has it');
   assert.equal(g.rules.length, 2, 'two rules are left: what it counts, and no score');
+});
+
+// Studio (Ryan's Q639 yes, 2026-11-17 22:4x): the public wording is HIS, word for word; the department is shown as Coming soon with nothing to press; the one 'not built yet' sentence is from his own fuller words.
+const STUDIO_LINE = "Your podcast’s camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.";
+test('Studio (Q639): one label, the approved line word for word, Coming soon with nothing to start or open, no price, no date, no promise beyond the approved words', async () => {
+  const s = HOME_WORDS.studio;
+  assert.equal(s.label, 'Studio'); assert.equal(s.line, STUDIO_LINE);
+  assert.match((s.notYet ?? []).join(' '), /none of this works today, there is no price and no date/i);
+  assert.equal(s.page, undefined, 'no page to open: it is not built'); assert.deepEqual(s.starts ?? [], [], 'nothing to start');
+  const e = homeEntries(rows(['data_films', 'working'], ['studio', 'soon'])).find((x) => x.id === 'studio');
+  assert.equal(e.status, 'soon'); assert.equal(e.page, null); assert.deepEqual(e.starts, []); assert.equal(e.line, STUDIO_LINE);
+  assert.equal(homeEntries(rows(['data_films', 'working'], ['studio', 'working'])).some((x) => x.id === 'studio'), false, 'a Studio the database calls working has no page here, so it is NOT shown (never a dead link)');
+  assert.equal(homeEntries([{ id: 'studio', status: 'soon', label: 'Anything the row holds' }]).find((x) => x.id === 'studio').label, 'Studio', 'the panel says its own word');
+  const all = [s.line, ...(s.notYet ?? [])].join(' ');
+  assert.ok(!/\$\s?\d|\b20\d\d\b/.test(all), 'no price, no date');
+  assert.ok(!/\b(Descript|Riverside|Opus|Zoom|Premiere|OBS|StreamYard|Restream|Vimeo)\b/i.test(all), 'no competitor name');
+  assert.ok(!/live[- ]?switch|switches live|hardware|real[- ]time/i.test(all), 'no promise about live switching or hardware beyond works with your cameras');
+  const { call } = world();
+  const r = await call('open_ryagram_home', {});
+  const d = r.data.departments.find((x) => x.id === 'studio'); assert.equal(d.status, 'soon'); assert.equal(d.page, null);
+  assert.match(r.text, /Studio/);
 });
 
 test('nothing the panel says is a price, a date, a score, a ranking, or a promise of where a business would do well', () => {
