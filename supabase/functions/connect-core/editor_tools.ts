@@ -79,11 +79,16 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
     const characters = Number(m[1]), limit = Number(m[2]);
     return limit >= 1000 && characters > limit ? { characters, limit } : null;
   };
+  /** A failed picture's code, and, for the one kind a retry can fix (the engine broke), the database's own answer to "may it be asked for again now" (CONNECT 11-18, card retry plan A): the panel's Try again button reads it; it never asks by itself. */
+  const failedCode = (raw: string | null | undefined, retry: boolean | undefined): Record<string, unknown> => {
+    const code = raw && FAIL_WORDS[raw] ? raw : "engine_error";
+    return { code, ...(code === "engine_error" ? { retry: retry === true } : {}) };
+  };
   const shape = (r: FilmCardRead, have: string | null): Record<string, unknown> => {
     if (r.state === "ready") {
       const sha = (r.card as { basis?: { story_sha256?: unknown } } | null | undefined)?.basis?.story_sha256;
       if (checkFilmCard(r.card).length || sha !== r.built_sha256) return { state: "failed", code: "card_rejected", message: FAIL_WORDS.card_rejected };
-      const refresh = r.refresh ? { refresh: { state: r.refresh.state, ...(r.refresh.state === "failed" ? { code: r.refresh.fail_code && FAIL_WORDS[r.refresh.fail_code] ? r.refresh.fail_code : "engine_error" } : {}) } } : {};
+      const refresh = r.refresh ? { refresh: { state: r.refresh.state, ...(r.refresh.state === "failed" ? failedCode(r.refresh.fail_code, r.refresh.retry) : {}) } } : {};
       if (have && have === r.built_sha256) return { state: "ready", unchanged: true, stale: r.stale === true, built_sha256: r.built_sha256, ...refresh };
       return { state: "ready", stale: r.stale === true, built_sha256: r.built_sha256, ...refresh, card: r.card };
     }
@@ -91,7 +96,7 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
       const code = r.fail_code && FAIL_WORDS[r.fail_code] ? r.fail_code : "engine_error";
       const size = code === "view_not_supported" ? tooBig(r.fail_detail) : null;
       if (size) return { state: "failed", code, size, message: `This film's picture is too detailed to draw in the chat: it would be ${size.characters.toLocaleString("en-US")} characters and the limit is ${size.limit.toLocaleString("en-US")}. The editor keeps its stand-in picture.` };
-      return { state: "failed", code, message: FAIL_WORDS[code] };
+      return { state: "failed", code, message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true } : {}) };
     }
     if (r.state === "asked" || r.state === "claimed") return { state: r.state, waited_seconds: Math.max(0, Math.floor(Number(r.waited_s) || 0)) };
     return { state: "none" };

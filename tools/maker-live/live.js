@@ -823,6 +823,7 @@
       // Only the chat host sets host.filmCard, so the website's editor and the maker's page never run any of this.
       const cardOn = isData && !!host && host.filmCard === true && typeof hostRpc === 'function' && typeof host.drawCard === 'function' && !bundleMode;
       let card = null, cardState = '', cardWait = 0, cardMsg = '', cardStale = false, cardRefresh = '', cardHave = '', cardTimer = 0, cardPolls = 0;
+      let cardCode = '', cardRetry = false, cardRefreshCode = '', cardRefreshRetry = false, cardBusy = false, cardNote = '';       // Try again (11-18): what failed, may it be asked again now (the database's answer), is a press out, and the sentence a press left
       const cardBox = h('section', { class: 'le-card', 'aria-labelledby': 'le-card-h', hidden: true });
       const cardLook = key => (card && card.look && typeof card.look[key] === 'string' ? card.look[key] : undefined);
       const cardWaiting = s => s === 'asked' || s === 'claimed';
@@ -842,19 +843,45 @@
           kids.push(h('p', { class: 'meta' }, `This is your film as saved${label ? ' (' + label + ')' : ''}. It does not move when you change a colour here.`));
           if (cardStale) kids.push(h('p', { class: 'meta', role: 'status' }, 'This picture is from an earlier version of the film.'));
           if (cardWaiting(cardRefresh)) kids.push(h('p', { class: 'meta', role: 'status' }, 'A newer picture is being drawn.'));
-          else if (cardRefresh === 'failed') kids.push(h('p', { class: 'meta', role: 'status' }, 'A newer picture could not be drawn.'));
+          else if (cardRefresh === 'failed') {
+            kids.push(h('p', { class: 'meta', role: 'status' }, 'A newer picture could not be drawn.'));
+            if (cardRefresh === 'failed' && cardRefreshCode === 'engine_error') kids.push(retryLine(cardRefreshRetry));
+          }
         } else if (cardWaiting(cardState)) {
           kids.push(h('p', { class: 'meta', role: 'status' }, "Your film's own colours and picture are being drawn by the Ryagram computer. Until then the editor shows a simple stand-in." + (cardWait >= 120 ? ' It is taking a while: the Ryagram computer may be switched off.' : '')));
-        } else kids.push(h('p', { class: 'meta', role: 'status' }, cardMsg || "The film's picture is not available."));
+        } else {
+          kids.push(h('p', { class: 'meta', role: 'status' }, cardMsg || "The film's picture is not available."));
+          if (cardState === 'failed' && cardCode === 'engine_error') kids.push(retryLine(cardRetry));
+        }
         cardBox.replaceChildren(...kids);
       }
-      async function loadCard(ask) {
+      // Try again: only for a picture the engine failed to draw. The words say whether the database would take another ask now; the press is the same call as opening the editor (with p_ask), so the database's own
+      // ten-minute rule decides and a press that is too early asks nothing. The panel never retries by itself.
+      function retryLine(may) {
+        return h('div', { class: 'le-cardretry' },
+          h('p', { class: 'meta', role: 'status' }, cardNote || (may ? 'You can try again now.' : 'It can be tried again about ten minutes after it failed.')),
+          h('button', { type: 'button', class: 'button secondary small le-cardtry', onclick: tryCardAgain, disabled: cardBusy }, 'Try again'));
+      }
+      async function tryCardAgain() {
+        if (cardBusy) return;
+        cardBusy = true; cardNote = ''; cardPolls = 0; paintCard();
+        await loadCard(true, true);
+        cardBusy = false; paintCard();
+        const again = cardBox.querySelector('.le-cardtry'), say = cardBox.querySelector('p[role=status]');
+        if (again) again.focus(); else if (say) { say.setAttribute('tabindex', '-1'); say.focus(); }
+      }
+      async function loadCard(ask, pressed) {
         if (!cardOn || !project) return;
         let r = null;
         try { r = await hostRpc('editor_film_card', { p_project: project, ...(ask ? { p_ask: true } : {}), ...(cardHave ? { p_have: cardHave } : {}) }); } catch (e) { r = null; }
         const d = r && !r.error && r.data && typeof r.data === 'object' ? r.data : null;
-        if (!d) return;                                                           // not available (an older database, a refusal): the stand-in stays, nothing is said that was not said before
+        if (!d) {                                                                 // not available (an older database, a refusal): the stand-in stays, nothing is said that was not said before, EXCEPT after the person's own press
+          if (pressed) { const m = r && r.error && typeof r.error.message === 'string' ? r.error.message.slice(0, 160) : ''; cardNote = 'Could not ask just now.' + (m ? ' ' + m : ''); }
+          return;
+        }
         cardState = typeof d.state === 'string' ? d.state : ''; cardWait = Number(d.waited_seconds) || 0; cardMsg = typeof d.message === 'string' ? d.message : '';
+        cardCode = typeof d.code === 'string' ? d.code : ''; cardRetry = d.retry === true;
+        if (pressed && cardState === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';
         if (cardState === 'ready') {
           if (d.card && typeof d.card === 'object') {
             card = d.card; cardHave = typeof d.built_sha256 === 'string' ? d.built_sha256 : '';
@@ -862,6 +889,8 @@
             for (const [k] of LOOK_ROWS) { const v = cardLook(k); if (v !== undefined) CARD_LOOK[k] = v; }
           }
           cardStale = d.stale === true; cardRefresh = d.refresh && typeof d.refresh.state === 'string' ? d.refresh.state : '';
+          cardRefreshCode = d.refresh && typeof d.refresh.code === 'string' ? d.refresh.code : ''; cardRefreshRetry = !!(d.refresh && d.refresh.retry === true);
+          if (pressed && cardRefresh === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';
         } else if (cardState === 'failed' && card) cardRefresh = 'failed';
         paintCard(); paint();
         if ((cardWaiting(cardState) || (cardState === 'ready' && cardWaiting(cardRefresh))) && ++cardPolls < 40) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 15000); }

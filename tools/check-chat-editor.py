@@ -400,6 +400,48 @@ def main():
             check(f14b.locator('.le-view').count() >= 1 and len(swatches(p14b)) >= 5, 'the film\'s other parts still work: the stand-in preview and the colour controls are there')
             check('D:' not in t14b and 'Error' not in t14b and 'engine' not in t14b.lower(), 'no path, no engine talk in the words')
             c14b.close()
+            # Try again (CONNECT 11-18, card retry plan A): a button for a picture the engine failed to draw, one press = one ask (p_ask), never by itself, and none for a film the engine cannot draw
+            ENG = 'Drawing the film\'s picture did not work this time. Open the editor again in about ten minutes to try again.'
+            c18, p18, e18, o18 = card_page([{'state': 'failed', 'code': 'engine_error', 'retry': False, 'message': ENG}, {'state': 'failed', 'code': 'engine_error', 'retry': False, 'message': ENG}])
+            f18 = p18.frames[1]
+            t18 = f18.locator('.le-card').inner_text()
+            check(ENG in t18 and 'It can be tried again about ten minutes after it failed.' in t18 and 'You can try again now' not in t18, 'a failed picture too soon says when it can be tried again, and not "now"')
+            check(f18.locator('.le-cardtry').count() == 1 and f18.locator('.le-cardtry').inner_text().strip() == 'Try again' and f18.locator('.le-cardtry').is_enabled(), 'and offers one Try again button')
+            n18 = len([1 for t_, a_ in p18.evaluate('window.__calls') if t_ == 'editor_film_card'])
+            p18.wait_for_timeout(1000)
+            check(len([1 for t_, a_ in p18.evaluate('window.__calls') if t_ == 'editor_film_card']) == n18, 'the panel asks nothing by itself while it is failed')
+            f18.locator('.le-cardtry').click()
+            p18.wait_for_timeout(500)
+            calls18 = [a_ for t_, a_ in p18.evaluate('window.__calls') if t_ == 'editor_film_card']
+            check(len(calls18) == n18 + 1 and calls18[-1] == {'p_project': PROJECT, 'p_ask': True}, 'one press makes exactly one call, with p_ask (%s)' % calls18[-1:])
+            t18b = f18.locator('.le-card').inner_text()
+            check('Not yet: it can be tried again about ten minutes after it failed.' in t18b and f18.locator('.le-cardtry').count() == 1 and not e18, 'a press that is too early says "not yet" and keeps the button, and nothing threw')
+            check(not o18, 'nothing left the page')
+            c18.close()
+            c19, p19, e19, o19 = card_page([{'state': 'failed', 'code': 'engine_error', 'retry': True, 'message': ENG}, {'state': 'asked', 'waited_seconds': 0}])
+            f19 = p19.frames[1]
+            check('You can try again now.' in f19.locator('.le-card').inner_text() and f19.locator('.le-cardtry').count() == 1, 'ten minutes on the words say "you can try again now"')
+            f19.locator('.le-cardtry').click()
+            p19.wait_for_timeout(500)
+            t19 = f19.locator('.le-card').inner_text()
+            calls19 = [a_ for t_, a_ in p19.evaluate('window.__calls') if t_ == 'editor_film_card']
+            check(calls19[-1] == {'p_project': PROJECT, 'p_ask': True} and 'being drawn by the Ryagram computer' in t19 and f19.locator('.le-cardtry').count() == 0 and not e19, 'a press that the database accepts shows the waiting words and the button goes')
+            c19.close()
+            c20, p20, e20, o20 = card_page([{'state': 'ready', 'stale': True, 'built_sha256': 'a' * 64, 'refresh': {'state': 'failed', 'code': 'engine_error', 'retry': True}, 'card': CARD}])
+            f20 = p20.frames[1]
+            t20 = f20.locator('.le-card').inner_text()
+            check('A newer picture could not be drawn.' in t20 and 'You can try again now.' in t20 and f20.locator('.le-cardtry').count() == 1 and f20.locator('.le-cardpic svg').count() == 1 and not e20, 'under an older picture whose newer one failed the button is offered and the older picture stays')
+            c20.close()
+            c21, p21, e21, o21 = card_page([{'state': 'failed', 'code': 'engine_error', 'retry': False, 'message': ENG}, {'error': {'code': 'PT429', 'message': 'The limit of 20 film pictures an hour is reached.'}}])
+            f21 = p21.frames[1]
+            f21.locator('.le-cardtry').click()
+            p21.wait_for_timeout(500)
+            t21 = f21.locator('.le-card').inner_text()
+            check('Could not ask just now. The limit of 20 film pictures an hour is reached.' in t21 and f21.locator('.le-cardtry').count() == 1 and f21.locator('.le-cardtry').is_enabled() and not e21, 'a refused press says so in the connector\'s own words and leaves the button usable')
+            c21.close()
+            c22, p22, e22, o22 = card_page([{'state': 'failed', 'code': 'view_not_supported', 'message': 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.'}])
+            check(p22.frames[1].locator('.le-cardtry').count() == 0 and 'Try again' not in p22.frames[1].locator('.le-card').inner_text() and not e22, 'a film the engine cannot draw has no Try again')
+            c22.close()
             c15, p15, e15, o15 = card_page([{'error': {'code': None, 'message': 'The film picture is not available yet.'}}])
             check(p15.frames[1].locator('.le-card').count() == 0 or p15.frames[1].locator('.le-card').is_hidden(), 'a database without the card says nothing new: no card box')
             check(p15.frames[1].locator('.le-defaults').count() == 1 and not e15, 'the editor still works and still says the colours are starting colours')
