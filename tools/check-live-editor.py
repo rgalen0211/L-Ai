@@ -255,7 +255,7 @@ def main():
                 ctx, p, errors = page(flag=False)
                 p.goto(f'{BASE}/app/?mock&standin#/editor/data', wait_until='load')
                 p.wait_for_timeout(700)
-                check(p.locator('.le').count() == 0 and 'Your projects' in p.inner_text('main'), 'flag off: the address shows the library, not the editor')
+                check(p.locator('.le').count() == 0 and 'isn’t on for this account' in p.inner_text('main') and p.locator('#editor-off-home').count() == 1, 'flag off: no editor; the plain ‘isn’t on for this account’ page with its way home (Ryan 11-17, replaces the bounce to the library)')
                 check(not errors, 'flag off: no console errors')
                 ctx.close()
             b.close()
