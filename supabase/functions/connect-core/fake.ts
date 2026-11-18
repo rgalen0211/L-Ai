@@ -36,7 +36,7 @@ export class FakeWorld {
   /** what the database says the departments are (the site's seed: Data films works, the rest are coming soon); a person can have their own list (FUser.departments) */
   departments: { id: string; label: string; status: "working" | "soon" }[] = [
     { id: "data_films", label: "Data films", status: "working" }, { id: "compilations", label: "Compilations", status: "soon" }, { id: "geo_intelligence", label: "Geographic Intelligence", status: "soon" },
-    { id: "games", label: "Games", status: "soon" }, { id: "animation_studio", label: "Animation Studio", status: "soon" }];
+    { id: "games", label: "Games", status: "soon" }, { id: "animation_studio", label: "Animation Studio", status: "soon" }, { id: "studio", label: "Studio", status: "soon" }];
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {

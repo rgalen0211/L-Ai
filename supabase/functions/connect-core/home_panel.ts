@@ -13,7 +13,7 @@ export const HOME_MAX_BYTES = 16 * 1024;
 
 export interface HomeWords { label: string; line: string; rules?: string[]; notYet?: string[]; starts?: string[]; page?: string }
 /** The site's order. An id this table does not know is not shown. */
-export const HOME_ORDER = ["data_films", "compilations", "geo_intelligence", "games", "animation_studio"] as const;
+export const HOME_ORDER = ["data_films", "compilations", "geo_intelligence", "games", "animation_studio", "studio"] as const;
 export const HOME_WORDS: Readonly<Record<string, HomeWords>> = Object.freeze({
   data_films: { label: "Data films", line: "Questions answered with public data, drawn as a short animated film, with every source shown.",
     starts: ["Make me a short film from public data: how adult obesity changed in each state."], page: "#/d/data_films" },
@@ -23,6 +23,9 @@ export const HOME_WORDS: Readonly<Record<string, HomeWords>> = Object.freeze({
     notYet: ["Not part of Ryagram's first release. Testers are trying an early version. No price and no date."] },
   games: { label: "Games", line: "Play with your own data and footage in small games you can share." },
   animation_studio: { label: "Animation Studio", line: "Simple cartoons you direct: characters you can pose, with mouths that move to your voice." },
+  // Studio: the public wording is Ryan's own (Q639, yes 2026-11-17 22:4x), word for word; the one not-built sentence is from his fuller words. Nothing to start, nothing to open: it is not built.
+  studio: { label: "Studio", line: "Your podcast's camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.",
+    notYet: ["Not built yet: none of this works today, there is no price and no date."] },
 });
 /** "My films" is not a department row: it is the person's own films, always there. */
 export const MY_FILMS = Object.freeze({ id: "my_films", label: "My films", line: "Your films, and where each one stands.", starts: ["Show me my films."], page: "#/", pageOn: "#/films" });

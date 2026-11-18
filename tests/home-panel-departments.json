@@ -5,14 +5,16 @@
     "compilations",
     "geo_intelligence",
     "games",
-    "animation_studio"
+    "animation_studio",
+    "studio"
   ],
   "labels": {
     "data_films": "Data films",
     "compilations": "Compilations",
     "geo_intelligence": "Opportunity Map",
     "games": "Games",
-    "animation_studio": "Animation Studio"
+    "animation_studio": "Animation Studio",
+    "studio": "Studio"
   },
   "my_films": {
     "label": "My films",
@@ -26,7 +28,8 @@
     "compilations": "Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.",
     "geo_intelligence": "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
     "games": "Play with your own data and footage in small games you can share.",
-    "animation_studio": "Simple cartoons you direct: characters you can pose, with mouths that move to your voice."
+    "animation_studio": "Simple cartoons you direct: characters you can pose, with mouths that move to your voice.",
+    "studio": "Your podcast's camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing."
   },
   "data_films_sentence": "Questions answered with public data, drawn as a short animated film, with every source shown.",
   "name_note": "Ryan's Q601 answer (2026-11-13): the department is called Opportunity Map, shown as Coming soon, with GEO's line. One name on the site and in the panel."

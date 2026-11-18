@@ -52,7 +52,7 @@ class ConnectDepartments(core.Base):
     def test_the_twin_answers_exactly_what_the_site_answers_for_the_same_person_in_the_same_order(self):
         mine = self.twin(self.a)
         self.assertEqual(mine, self.site(ALICE))
-        self.assertEqual([d["id"] for d in mine], ["data_films", "compilations", "geo_intelligence", "games", "animation_studio"])
+        self.assertEqual([d["id"] for d in mine], ["data_films", "compilations", "geo_intelligence", "games", "animation_studio", "studio"])
         self.assertEqual(mine[0], {"id": "data_films", "label": "Data films", "status": "working"})
         self.assertTrue(all(set(d) == {"id", "label", "status"} for d in mine), "three keys and nothing else")
         self.assertEqual(self.twin(self.b), self.site(BOB))

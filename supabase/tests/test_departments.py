@@ -25,7 +25,7 @@ from test_2a_core import OTHER, WORKER, setUpModule  # noqa: E402,F401  (setUpMo
 
 ALICE, BOB, TESTER, ADMIN, NOTINVITED = (str(uuid.UUID(int=i)) for i in (401, 402, 403, 404, 405))
 MIGRATION = Path(__file__).resolve().parents[1] / "migrations" / "20261027000100_departments.sql"
-IDS = ["data_films", "compilations", "geo_intelligence", "games", "animation_studio"]
+IDS = ["data_films", "compilations", "geo_intelligence", "games", "animation_studio", "studio"]       # studio: 20261118000100_department_studio.sql (core builds every migration)
 
 
 class Departments(core.Base):
@@ -56,13 +56,13 @@ class Departments(core.Base):
         self.assertEqual([d["id"] for d in got], IDS)
         self.assertEqual(got[0], {"id": "data_films", "label": "Data films", "status": "working"})
         self.assertEqual(set(got[1]), {"id", "label", "status"})                      # nothing else in the answer
-        self.assertEqual([d["status"] for d in got], ["working", "soon", "soon", "soon", "soon"])
+        self.assertEqual([d["status"] for d in got], ["working", "soon", "soon", "soon", "soon", "soon"])
 
     def test_nobody_else_gets_a_list_not_an_uninvited_account_an_admin_a_worker_or_nobody(self):
         for who in (NOTINVITED, ADMIN, WORKER, OTHER):
             self.assertEqual(self.deps(who), [], str(who))
         self.assertEqual(self.db.as_(None).one("select my_departments()"), [])                      # no signed-in user
-        self.assertEqual(len(self.deps(ALICE)), 5)                                                  # control
+        self.assertEqual(len(self.deps(ALICE)), 6)                                                  # control
 
     def test_a_working_department_that_needs_local_compute_is_soon_for_an_account_without_it(self):
         self.admin_sql("update public.departments set status = 'working' where id = 'compilations' returning 1")
@@ -124,7 +124,7 @@ class Departments(core.Base):
         self.db.as_(BOB).one("select register_department_interest('games')")
         self.db.as_(BOB).one("select register_department_interest('compilations')")
         got = self.db.as_(ADMIN).one("select admin_department_interest_counts()")
-        self.assertEqual({d["department"]: d["people"] for d in got}, {"data_films": 0, "compilations": 1, "geo_intelligence": 0, "games": 2, "animation_studio": 0})
+        self.assertEqual({d["department"]: d["people"] for d in got}, {"data_films": 0, "compilations": 1, "geo_intelligence": 0, "games": 2, "animation_studio": 0, "studio": 0})
         self.assertTrue(all(set(d) == {"department", "people"} for d in got), "numbers and department names only")
         for who in (ALICE, TESTER, NOTINVITED):
             with self.assertRaises(psycopg.Error, msg=str(who)) as cm:
@@ -155,7 +155,7 @@ class Departments(core.Base):
         self.assertFalse(re.search(r"pg_net|net\.http|http_post|cron\.|create\s+trigger|notify|listen|pg_notify|mail|webhook|smtp|resend|queue", sql, re.I), "no send path of any kind")
         self.assertEqual(self.admin_sql("select count(*) from pg_trigger t join pg_class c on c.oid = t.tgrelid where c.relname in ('departments', 'department_interest') and not t.tgisinternal"), 0)
 
-    def test_the_seed_is_the_five_departments_and_only_data_films_works(self):
+    def test_the_seed_is_the_six_departments_and_only_data_films_works(self):
         self.assertEqual(self.admin_sql("select array_agg(id order by sort, id) from public.departments"), IDS)
         self.assertEqual(self.admin_sql("select array_agg(id) from public.departments where status = 'working'"), ["data_films"])
         with self.assertRaises(psycopg.errors.CheckViolation):
