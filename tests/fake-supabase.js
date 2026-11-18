@@ -543,13 +543,13 @@
       my_departments() {
         if (typeof location !== 'undefined' && /[?&]nodept/.test(location.search || '')) return fail('my_departments is not available');
         const rows = [{ id: 'data_films', label: 'Data films', status: 'working' }, { id: 'compilations', label: 'Compilations', status: 'soon' }, { id: 'geo_intelligence', label: 'Opportunity Map', status: 'soon' },
-                      { id: 'games', label: 'Games', status: 'soon' }, { id: 'animation_studio', label: 'Animation Studio', status: 'soon' }];
+                      { id: 'games', label: 'Games', status: 'soon' }, { id: 'animation_studio', label: 'Animation Studio', status: 'soon' }, { id: 'studio', label: 'Studio', status: 'soon' }];
         if (typeof location !== 'undefined' && /[?&]deptextra/.test(location.search || '')) rows.push({ id: 'time_machine', label: 'Time machine', status: 'working' }, { id: 'games', label: 'Games again', status: 'working' });
         return { data: rows, error: null };
       },
       my_department_interests() { return { data: [...(db.deptInterest || [])].map(d => ({ department: d })), error: null }; },
       register_department_interest({ p_department }) {
-        if (!['compilations', 'geo_intelligence', 'games', 'animation_studio'].includes(p_department)) return fail('That department is not announced.');
+        if (!['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio'].includes(p_department)) return fail('That department is not announced.');
         db.deptInterest = db.deptInterest || []; if (!db.deptInterest.includes(p_department)) db.deptInterest.push(p_department);
         return { data: null, error: null };
       },

@@ -87,8 +87,8 @@ def main():
                 if not phone:
                     p.locator('.soon-group summary').click()          # a desktop list opens on a click; on a phone the items sit open under their heading in the Menu
                 soon = p.locator('.soon-group ul li')
-                check(soon.count() == 4 and all(x in p.locator('.soon-group ul').inner_text() for x in ('Compilations', 'Opportunity Map', 'Games', 'Animation Studio')), 'the Coming soon group lists the four not-built departments')
-                check(p.locator('.soon-group .soon-tag').count() == 4, 'each one is marked "soon"')
+                check(soon.count() == 5 and all(x in p.locator('.soon-group ul').inner_text() for x in ('Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio')), 'the Coming soon group lists the five not-built departments')
+                check(p.locator('.soon-group .soon-tag').count() == 5, 'each one is marked "soon"')
                 p.screenshot(path=str(OUT / f'bar-soon-open-{name}.png'), full_page=False)
                 # 2. the Data films page
                 p.evaluate("location.hash = '#/d/data_films'")
