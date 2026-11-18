@@ -33,10 +33,7 @@ test('the page draws the sections under the line, and the home-panel fixture car
   assert.equal(fx.labels.studio, 'Studio'); assert.equal(fx.lines.studio, Dp.KNOWN.studio.line); assert.ok(fx.order.includes('studio'));
 });
 
-test('the server half is a migration for Ryan to apply (not applied here) and a rollback outside migrations/', () => {
-  const m = read('supabase/migrations/20261118000100_department_studio.sql');
-  assert.match(m, /NOT APPLIED/); assert.match(m, /insert into public\.departments[\s\S]*\('studio', 'Studio', 'soon', false, 60\)[\s\S]*on conflict \(id\) do nothing/);
-  assert.ok(!/drop |delete |truncate /i.test(m.replace(/--.*$/gm, '')), 'adds one row, nothing else');
-  const r = read('supabase/rollbacks/20261118000100_department_studio_rollback.sql');
-  assert.match(r, /delete from public\.department_interest where department = 'studio'/); assert.match(r, /delete from public\.departments where id = 'studio'/);
+test('the server half (the studio department row) is CONNECT’s migration, not this branch: no studio migration here, and the page ignores the id until the server lists it', () => {
+  assert.ok(!fs.existsSync(new URL('../supabase/migrations/20261118000100_department_studio.sql', import.meta.url)), 'one owner for the row: CONNECT');
+  assert.deepEqual(J(Dp.normalize([{ id: 'games', status: 'soon' }])), { working: [], soon: ['games'] });   // no studio row from the server: no Studio in the bar
 });
