@@ -269,10 +269,11 @@
       return { s, kept };
     }
     // The person's op: applied at once. Returns {ok:true} or {ok:false, reason}.
-    do(op, by = 'you') {
+    // `group` ties the ops of one ready-made look together: Undo takes the whole group back in one step, never half of it (GEO 18:58, WEB 11-17).
+    do(op, by = 'you', group = null) {
       const why = check(this.state, op, this.lookKeys);
       if (why) return { ok: false, reason: why };
-      this.state = apply(this.state, op); this.log.push({ op, by }); this.redo = [];
+      this.state = apply(this.state, op); this.log.push(group ? { op, by, group } : { op, by }); this.redo = [];
       return { ok: true };
     }
     // The AI's ops arrive with the revision they were made against. A stale one is refused with the current state (the AI re-reads and tries again);
@@ -294,6 +295,7 @@
     undo() {
       if (!this.log.length) return { ok: false };
       const e = this.log.pop(); this.redo.push(e); this.undone.add(JSON.stringify(e.op));
+      if (e.group) while (this.log.length && this.log[this.log.length - 1].group === e.group) { const g = this.log.pop(); this.redo.push(g); this.undone.add(JSON.stringify(g.op)); }
       this.state = this._replay(this.log).s;
       return { ok: true, undid: e };
     }
@@ -447,8 +449,8 @@
     // Send the person's changes (1 to 20 ops). Accepted: applied on screen. Refused: nothing changes on screen, and the reason is a sentence.
     // One write at a time: a host may hold a write for seconds (ChatGPT asks the person first), and a second change made meanwhile must be sent against the revision the first one produces, not the old one (it would be refused as stale with a wrong reason).
     let tail = Promise.resolve();
-    function send(ops) { const run = tail.then(() => sendNow(ops)); tail = run.then(() => {}, () => {}); return run; }
-    async function sendNow(ops) {
+    function send(ops, group = null) { const run = tail.then(() => sendNow(ops, group)); tail = run.then(() => {}, () => {}); return run; }
+    async function sendNow(ops, group = null) {
       if (ready) await ready;
       for (const op of ops) { const why = window.ryagramEditor.check(editor.state, op, editor.lookKeys); if (why) return { ok: false, reason: why }; }
       const r = await rpc('editor_apply_ops', { p_project: project, p_mode: mode, p_base_revision: state.revision, p_ops: ops });
@@ -459,7 +461,7 @@
       }
       const before = state.revision;
       state.revision = r.data.revision;
-      for (const op of ops) editor.do(op, 'you');
+      for (const op of ops) editor.do(op, 'you', group);
       const found = await poll(before);                                          // the log gives these ops their server ids (needed to undo them there)
       return { ok: true, revision: state.revision, pending: !!r.data.pending, found };
     }
@@ -503,8 +505,11 @@
     async function undo() {
       const last = [...editor.log].reverse()[0];
       if (!last) return { ok: false };
-      if (last.serverId) {
-        const r = await rpc('editor_undo', { p_project: project, p_mode: mode, p_op_id: last.serverId });
+      // a ready-made look is a group: every op of it is undone on the server too, newest first, so the draft and the screen agree
+      const mine = last.group ? editor.log.filter(e => e.group === last.group).reverse() : [last];
+      for (const e of mine) {
+        if (!e.serverId) continue;
+        const r = await rpc('editor_undo', { p_project: project, p_mode: mode, p_op_id: e.serverId });
         if (r.error) return { ok: false, reason: WORDS[r.error.code] || plainWords(r.error, 'That could not be undone.') };
         state.revision = Math.max(state.revision, r.data.revision || 0);
       }
@@ -810,7 +815,7 @@
       let selected = isData ? null : onPc ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
       let saved = true, message = '';
-      const status = h('p', { class: 'form-note', role: 'status' });
+      const status = h('p', { class: 'form-note le-status', role: 'status' });
       const say = t => { message = t; status.textContent = t; };
 
       // ---- the film's own look card (Editor Step A, CONNECT 11-09; contract proposals/CONNECT-EDITOR-STEP-A-CONTRACT-1109.md). In the AI chat the Ryagram computer draws the film's REAL colours and one real still from its SAVED story; the connector checks the
@@ -1191,7 +1196,7 @@
         const presetRows = DD.PRESETS.map(p => {
           const on = cur && cur.id === p.id, notes = DD.cautions(p, bundle);
           return h('li', { class: `le-preset${on ? ' le-on' : ''}` },
-            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.noRamp(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
+            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.noRamp(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops, true)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
             h('span', { class: 'meta' }, ` ${p.blurb}`), ...notes.map(t => h('span', { class: 'le-warn le-cau' }, t)));
         });
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
@@ -1290,12 +1295,14 @@
         paint();
         return r.ok;
       }
-      async function applyMany(ops) {                                           // a preset: several look ops, each checked; with a draft they travel as one batch
+      let groupSeq = 0;
+      async function applyMany(ops, grouped = false) {                                           // a preset: several look ops, each checked; with a draft they travel as one batch
         stopPlay();
         if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; }
         let ok = true, why = '';
-        if (draft) { const r = await draft.send(ops); ok = r.ok; why = r.reason; }
-        else for (const op of ops) { const r = ed.do(op); if (!r.ok) { ok = false; why = r.reason; break; } }
+        const group = grouped ? 'preset-' + (++groupSeq) : null;
+        if (draft) { const r = await draft.send(ops, group); ok = r.ok; why = r.reason; }
+        else for (const op of ops) { const r = ed.do(op, 'you', group); if (!r.ok) { ok = false; why = r.reason; break; } }
         if (ok) saved = false;
         say(ok ? '' : why);
         paint();
