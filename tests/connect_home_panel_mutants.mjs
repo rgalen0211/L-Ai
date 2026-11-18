@@ -22,9 +22,9 @@ const mutants = [
   // Studio (Q639): the department the database lists last, shown as Coming soon with Ryan's own words and nothing to press
   ['Studio is not last in the order', H, `"games", "animation_studio", "studio"] as const;`, `"games", "studio", "animation_studio"] as const;`],
   ['Studio is left out of the order, so it is never shown', H, `"games", "animation_studio", "studio"] as const;`, `"games", "animation_studio"] as const;`],
-  ['Studio has no words, so the panel drops it', H, `  studio: { label: "Studio", line: "Your podcast's`, `  studio_off: { label: "Studio", line: "Your podcast's`],
+  ['Studio has no words, so the panel drops it', H, `  studio: { label: "Studio", line: "Your podcast’s`, `  studio_off: { label: "Studio", line: "Your podcast’s`],
   ['Studio says a price', H, `finds the moments worth sharing.",`, `finds the moments worth sharing, from $9 a month.",`],
-  ['Studio names a competitor', H, `Your podcast's camera crew and editor in one:`, `Your podcast's camera crew and editor in one, like Riverside:`],
+  ['Studio names a competitor', H, `Your podcast’s camera crew and editor in one:`, `Your podcast’s camera crew and editor in one, like Riverside:`],
   ['Studio promises live switching', H, `cuts to the right camera as people talk,`, `cuts to the right camera live as people talk,`],
   ['Studio drops the not-built sentence', H, `    notYet: ["Not built yet: none of this works today, there is no price and no date."] },`, `    notYet: [] },`],
   ['Studio is given a page to open, a dead link for a department that is not built', H, `  studio: { label: "Studio", line:`, `  studio: { page: "#/d/studio", label: "Studio", line:`],

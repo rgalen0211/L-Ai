@@ -105,7 +105,7 @@ test('the Opportunity Map says that every number is labelled once, not twice (li
 });
 
 // Studio (Ryan's Q639 yes, 2026-11-17 22:4x): the public wording is HIS, word for word; the department is shown as Coming soon with nothing to press; the one 'not built yet' sentence is from his own fuller words.
-const STUDIO_LINE = "Your podcast's camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.";
+const STUDIO_LINE = "Your podcast’s camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.";
 test('Studio (Q639): one label, the approved line word for word, Coming soon with nothing to start or open, no price, no date, no promise beyond the approved words', async () => {
   const s = HOME_WORDS.studio;
   assert.equal(s.label, 'Studio'); assert.equal(s.line, STUDIO_LINE);
