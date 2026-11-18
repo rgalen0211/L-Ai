@@ -164,3 +164,5 @@ body.ryagram-look .render-caps .inline-row input{flex:0 1 8em;max-width:8em}
 body.ryagram-look input.le-range,body.ryagram-look .le-row input[type=color]{min-height:44px}
 /* the editor is a tool: its heading keeps the editor's own size so the picture, slider and film strip stay on the first screen */
 body.ryagram-look .le-top h1{font-size:1.35rem;line-height:1.2;margin:0;letter-spacing:-.01em}
+/* a two-row sticky header is a sixth of a phone screen and hid the Undo row when scrolled (GEO 18:58 point 3): on a phone it scrolls away */
+@media(max-width:560px){body.ryagram-look>header{position:static}}

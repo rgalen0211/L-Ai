@@ -74,6 +74,16 @@ def main():
                     p.click('.actions-row a[data-edit-project]')
                     p.wait_for_selector('img.le-svg', timeout=20000)
                     check('/editor/data/' in p.url, f'{name}: Edit opens the editor ({p.url.split("#")[1]})')
+                    # GEO 11-17 points 2-4: the page does not move on the first edit, the card heading has no blank band, a phone's header does not stay over the page
+                    m = "(() => { const r = s => document.querySelector(s).getBoundingClientRect(); return { titleH: Math.round(r('.le-top h1').height), below: Math.round(r('.le-view').top + window.scrollY), h2: Math.round(document.querySelector('.le-panel h2').getBoundingClientRect().top - r('.le-panel').top), pos: getComputedStyle(document.querySelector('body>header')).position } })()"
+                    p.wait_for_selector('.le-pill:has-text("Saved")')
+                    before = p.evaluate(m)
+                    p.click('[data-preset="white-background"]')
+                    p.wait_for_selector('.le-pill:has-text("Draft, not saved")')
+                    after = p.evaluate(m)
+                    check(before['titleH'] == after['titleH'] and before['below'] == after['below'], f'{name}: the first edit moves nothing ({before} -> {after})')
+                    check(before['h2'] <= 16, f'{name}: no blank band above the Look heading ({before["h2"]}px)')
+                    check((before['pos'] == 'static') == (name == 'phone'), f'{name}: the header is {before["pos"]} (static only on a phone)')
                     p.screenshot(path=str(OUT / f'{tag}-3-editor.png'))
                 else:
                     if shown:

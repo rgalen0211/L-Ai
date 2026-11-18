@@ -199,3 +199,17 @@ test('two changes made while a slow host still holds the first (an approval prom
   assert.equal(draft.revision, 2);
   assert.equal(w.editor.state.look['network.color'], GREEN);
 });
+
+test('a ready-made look sent as a group is undone as a group, on screen AND in the draft (every op of it taken back on the server)', async () => {
+  const w = world('data');
+  await w.draft.open(look => ({ look: { 'network.color': '#6fd1bd', ...look } }));
+  await w.draft.send([{ op: 'set_look', key: 'network.color', value: RED }]);
+  await w.draft.send([{ op: 'set_look', key: 'page.background', value: '#ffffff' }, { op: 'set_look', key: 'sequence.theme', value: 'light' }], 'preset-1');
+  const r = await w.draft.undo();
+  assert.equal(r.ok, true);
+  assert.equal(w.editor.log.length, 1, 'the whole look is off the screen');
+  assert.equal(w.editor.state.look['page.background'], undefined);
+  assert.equal(w.editor.state.look['sequence.theme'], undefined);
+  assert.equal(w.m.ops.filter(o => o.status === 'undone').length, 2, 'and both of its ops are undone on the server');
+  assert.equal(w.m.ops.find(o => o.status !== 'undone').status !== 'undone', true, 'the earlier change is not');
+});

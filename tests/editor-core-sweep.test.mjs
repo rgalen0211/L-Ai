@@ -49,6 +49,6 @@ test('phone layout (WEB night pass): the stand-in drawing\'s year labels sit in 
   assert.match(js, /class: bundleMode \? 'le-ticks' : 'le-ticks le-ticks-flat'/);
   assert.match(js, /textLength: 140, lengthAdjust: 'spacingAndGlyphs'/);
   assert.match(css, /\.le-ticks\.le-ticks-flat\{position:static;height:auto;display:flex;justify-content:space-between\}\.le-ticks\.le-ticks-flat span\{position:static;transform:none\}/);
-  assert.match(css, /\.le-top h1\{min-width:0;overflow-wrap:anywhere\}/);
+  assert.match(css, /\.le-top h1\{min-width:0;overflow-wrap:anywhere;flex:1 1 100%\}/);
   assert.ok(css.indexOf('.le-ticks.le-ticks-flat') > css.indexOf('.le-ticks span:last-child{transform:translateX(-100%)}'), 'the row layout comes after the positioned one so it wins');
 });

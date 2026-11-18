@@ -75,7 +75,11 @@ input[type=text],input[type=number],textarea{background:#101015;color:var(--ink)
 .le-lc-opt{display:grid;grid-template-columns:auto 1fr;gap:2px 8px;align-items:start;border:1px solid var(--line,#3a3a44);border-radius:8px;padding:8px;min-height:44px;cursor:pointer}.le-lc-opt input{grid-row:1/4;margin:4px 0 0;min-width:24px;min-height:24px}
 .le-lc-opt img{grid-column:2;width:100%;height:auto;border-radius:4px}.le-lc-name{grid-column:2;font-weight:600}.le-lc-line{grid-column:2;font-size:.85rem;opacity:.85;overflow-wrap:anywhere}.le-lc-opt:has(input:checked){border-color:var(--accent,#e8b030);box-shadow:0 0 0 1px var(--accent,#e8b030)}.le-lc-opt:has(input:focus-visible){outline:2px solid var(--accent,#e8b030);outline-offset:2px}
 .le-ticks.le-ticks-flat{position:static;height:auto;display:flex;justify-content:space-between}.le-ticks.le-ticks-flat span{position:static;transform:none}
-.le-top h1{min-width:0;overflow-wrap:anywhere}
+.le-top h1{min-width:0;overflow-wrap:anywhere;flex:1 1 100%}                      /* the title has a row of its own, so the Saved / Draft pill changing width can never re-wrap it and move the page (GEO 18:58 point 2) */
+.le-status{min-height:1.6em}                      /* the line that says 'Undone.' / 'X is applied' keeps its room, so the first message does not push the page down */
+.le-top .le-pill{min-width:9em;text-align:center;box-sizing:border-box}
+/* the app's #library h2 rule (36px above) is more specific than .le-panel h2 and put a blank band over every card's heading (GEO point 4) */
+#library .le-panel h2,#library .le-ai h2{margin-top:0}
 /* film strip under the data editor's picture (assets/app-editor-timeline.js) */
 .le-tl{margin:6px 0 12px}.le-tl-strip{position:relative;display:flex;gap:3px;height:64px;cursor:ew-resize;touch-action:none;user-select:none;border:1px solid var(--line,#3a3a44);border-radius:8px;background:#101015;padding:4px}
 .le-tl-tile{flex:1 1 0;min-width:0;position:relative;display:flex;align-items:flex-end;justify-content:center;border-radius:4px;background:linear-gradient(180deg,#23232b,#17171c);overflow:hidden}

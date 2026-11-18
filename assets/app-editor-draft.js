@@ -33,8 +33,8 @@
     // Send the person's changes (1 to 20 ops). Accepted: applied on screen. Refused: nothing changes on screen, and the reason is a sentence.
     // One write at a time: a host may hold a write for seconds (ChatGPT asks the person first), and a second change made meanwhile must be sent against the revision the first one produces, not the old one (it would be refused as stale with a wrong reason).
     let tail = Promise.resolve();
-    function send(ops) { const run = tail.then(() => sendNow(ops)); tail = run.then(() => {}, () => {}); return run; }
-    async function sendNow(ops) {
+    function send(ops, group = null) { const run = tail.then(() => sendNow(ops, group)); tail = run.then(() => {}, () => {}); return run; }
+    async function sendNow(ops, group = null) {
       if (ready) await ready;
       for (const op of ops) { const why = window.ryagramEditor.check(editor.state, op, editor.lookKeys); if (why) return { ok: false, reason: why }; }
       const r = await rpc('editor_apply_ops', { p_project: project, p_mode: mode, p_base_revision: state.revision, p_ops: ops });
@@ -45,7 +45,7 @@
       }
       const before = state.revision;
       state.revision = r.data.revision;
-      for (const op of ops) editor.do(op, 'you');
+      for (const op of ops) editor.do(op, 'you', group);
       const found = await poll(before);                                          // the log gives these ops their server ids (needed to undo them there)
       return { ok: true, revision: state.revision, pending: !!r.data.pending, found };
     }
@@ -89,8 +89,11 @@
     async function undo() {
       const last = [...editor.log].reverse()[0];
       if (!last) return { ok: false };
-      if (last.serverId) {
-        const r = await rpc('editor_undo', { p_project: project, p_mode: mode, p_op_id: last.serverId });
+      // a ready-made look is a group: every op of it is undone on the server too, newest first, so the draft and the screen agree
+      const mine = last.group ? editor.log.filter(e => e.group === last.group).reverse() : [last];
+      for (const e of mine) {
+        if (!e.serverId) continue;
+        const r = await rpc('editor_undo', { p_project: project, p_mode: mode, p_op_id: e.serverId });
         if (r.error) return { ok: false, reason: WORDS[r.error.code] || plainWords(r.error, 'That could not be undone.') };
         state.revision = Math.max(state.revision, r.data.revision || 0);
       }

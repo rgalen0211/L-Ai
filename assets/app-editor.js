@@ -74,7 +74,7 @@
       let selected = isData ? null : onPc ? null : 'v3';
       let preview = null;                                                       // a colour being dragged in a chooser: shown, not yet an op
       let saved = true, message = '';
-      const status = h('p', { class: 'form-note', role: 'status' });
+      const status = h('p', { class: 'form-note le-status', role: 'status' });
       const say = t => { message = t; status.textContent = t; };
 
       // ---- the film's own look card (Editor Step A, CONNECT 11-09; contract proposals/CONNECT-EDITOR-STEP-A-CONTRACT-1109.md). In the AI chat the Ryagram computer draws the film's REAL colours and one real still from its SAVED story; the connector checks the
@@ -455,7 +455,7 @@
         const presetRows = DD.PRESETS.map(p => {
           const on = cur && cur.id === p.id, notes = DD.cautions(p, bundle);
           return h('li', { class: `le-preset${on ? ' le-on' : ''}` },
-            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.noRamp(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
+            btn(p.label, 'secondary', async () => { const ops = DD.presetOps(p, ed.state.look, bundle); if (!ops.length) { say(DD.noRamp(bundle) && DD.presetOps(p, {}, null).length ? `${p.label} changes only the low and high colours, which this film does not use.` : `${p.label} is already applied.`); return; } if (await applyMany(ops, true)) say(`${p.label} is applied. Undo takes it back.`); }, { 'aria-pressed': on ? 'true' : 'false', 'data-preset': p.id, disabled: locked }),
             h('span', { class: 'meta' }, ` ${p.blurb}`), ...notes.map(t => h('span', { class: 'le-warn le-cau' }, t)));
         });
         lookPanel.replaceChildren(h('h2', { id: 'le-look-h' }, 'Look'),
@@ -554,12 +554,14 @@
         paint();
         return r.ok;
       }
-      async function applyMany(ops) {                                           // a preset: several look ops, each checked; with a draft they travel as one batch
+      let groupSeq = 0;
+      async function applyMany(ops, grouped = false) {                                           // a preset: several look ops, each checked; with a draft they travel as one batch
         stopPlay();
         if (locked) { say('A render is using what you committed. Cancel it to edit.'); return false; }
         let ok = true, why = '';
-        if (draft) { const r = await draft.send(ops); ok = r.ok; why = r.reason; }
-        else for (const op of ops) { const r = ed.do(op); if (!r.ok) { ok = false; why = r.reason; break; } }
+        const group = grouped ? 'preset-' + (++groupSeq) : null;
+        if (draft) { const r = await draft.send(ops, group); ok = r.ok; why = r.reason; }
+        else for (const op of ops) { const r = ed.do(op, 'you', group); if (!r.ok) { ok = false; why = r.reason; break; } }
         if (ok) saved = false;
         say(ok ? '' : why);
         paint();

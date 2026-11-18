@@ -318,3 +318,17 @@ test('the five ops of CONNECT 13:12 apply as the maker will: a style on a text c
   e.undo();
   assert.equal(e.state.rules.length, 1);                                                                                   // undo takes the new rule back
 });
+
+test('a group of ops (one ready-made look) is taken back by ONE undo, never half of it; ungrouped ops still go one at a time', () => {
+  const e = ed();
+  assert.equal(e.do({ op: 'set_look', key: 'network.color', value: '#ff0000' }).ok, true);
+  assert.equal(e.do({ op: 'set_look', key: 'page.background', value: '#ffffff' }, 'you', 'preset-1').ok, true);
+  assert.equal(e.do({ op: 'set_look', key: 'sequence.theme', value: 'light' }, 'you', 'preset-1').ok, true);
+  e.undo();
+  assert.equal(e.log.length, 1, 'both ops of the look went in one undo');
+  assert.equal(e.state.look['page.background'], undefined);
+  assert.equal(e.state.look['sequence.theme'], undefined);
+  assert.equal(e.state.look['network.color'], '#ff0000', 'the earlier, ungrouped change stays');
+  e.undo();
+  assert.equal(e.log.length, 0);
+});

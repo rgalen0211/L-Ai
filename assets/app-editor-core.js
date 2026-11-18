@@ -266,10 +266,11 @@
       return { s, kept };
     }
     // The person's op: applied at once. Returns {ok:true} or {ok:false, reason}.
-    do(op, by = 'you') {
+    // `group` ties the ops of one ready-made look together: Undo takes the whole group back in one step, never half of it (GEO 18:58, WEB 11-17).
+    do(op, by = 'you', group = null) {
       const why = check(this.state, op, this.lookKeys);
       if (why) return { ok: false, reason: why };
-      this.state = apply(this.state, op); this.log.push({ op, by }); this.redo = [];
+      this.state = apply(this.state, op); this.log.push(group ? { op, by, group } : { op, by }); this.redo = [];
       return { ok: true };
     }
     // The AI's ops arrive with the revision they were made against. A stale one is refused with the current state (the AI re-reads and tries again);
@@ -291,6 +292,7 @@
     undo() {
       if (!this.log.length) return { ok: false };
       const e = this.log.pop(); this.redo.push(e); this.undone.add(JSON.stringify(e.op));
+      if (e.group) while (this.log.length && this.log[this.log.length - 1].group === e.group) { const g = this.log.pop(); this.redo.push(g); this.undone.add(JSON.stringify(g.op)); }
       this.state = this._replay(this.log).s;
       return { ok: true, undid: e };
     }
