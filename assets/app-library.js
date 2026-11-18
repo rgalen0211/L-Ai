@@ -254,7 +254,7 @@
     // An in-page confirm for the clicks that spend credits or stop a render (11-18, CLAUDE for Ryan 23:13): the Claude app's pane and chat panels answer window.confirm with No before a person sees it, so the
     // click did nothing there. A box with two plain buttons sits under the button's row; focus starts on No (the safe answer), Escape answers No, only one box is open at a time. Resolves true on Yes, false otherwise.
     let closeOpenAsk = null;                                                      // the open box's way out: a second box answers the first No
-    function askConfirm(anchor, message, yesLabel, noLabel = 'No, go back') {
+    function askConfirm(anchor, message, yesLabel, noLabel = 'No, go back', host = null) {
       if (closeOpenAsk) closeOpenAsk(false);
       document.querySelectorAll('.inpage-confirm').forEach(n => n.remove());
       return new Promise(resolve => {
@@ -268,7 +268,8 @@
         yes.addEventListener('click', () => done(true));
         no.addEventListener('click', () => done(false));
         const row = anchor.closest('.actions-row');
-        if (row) row.insertAdjacentElement('afterend', box); else anchor.parentElement.appendChild(box);
+        if (host) host.insertAdjacentElement('afterend', box);                      // a host outside any list the page rebuilds on a timer (the order list: FACES 11:26)
+        else if (row) row.insertAdjacentElement('afterend', box); else anchor.parentElement.appendChild(box);
         closeOpenAsk = done;
         no.focus();
       });
@@ -1739,7 +1740,7 @@
           const actions = [];
           if (J.orderOpen(st.state)) actions.push(h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
             const btn = event.currentTarget;
-            if (!(await askConfirm(btn, 'Cancel this full render? Your credits are returned.', 'Yes, cancel it'))) return;
+            if (!(await askConfirm(btn, 'Cancel this full render? Your credits are returned.', 'Yes, cancel it', 'No, go back', orderBox))) return;
             await busy(btn, 'Cancelling\u2026', async () => { try { await data.cancelOrder(o.id); await loadOrders(); } catch (err) { showError(error, err); } });
           } }, 'Cancel the request'));
           if (st.state === 'delivered' && st.delivery && !st.delivery.deleted) actions.push(h('a', { class: 'button primary small', href: `#/delivery/${st.delivery.id}` }, 'Open your film'));

@@ -28,3 +28,10 @@ test('askConfirm: one box at a time, an alertdialog with Yes and No, No is where
   assert.match(fn, /closeOpenAsk\(false\)/);
   assert.doesNotMatch(fn, /\bconfirm\(/);
 });
+
+test('the Cancel box is placed after the order box, outside the list loadOrders rebuilds every poll (FACES 11:26)', () => {
+  const cancel = between("if (J.orderOpen(st.state)) actions.push(", "if (st.state === 'delivered'");
+  assert.match(cancel, /'Yes, cancel it', 'No, go back', orderBox\)/);
+  const fn = between('function askConfirm(', '// The guided builder');
+  assert.match(fn, /host = null/); assert.match(fn, /if \(host\) host\.insertAdjacentElement\('afterend', box\)/);
+});
