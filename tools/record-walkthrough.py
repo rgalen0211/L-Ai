@@ -230,6 +230,9 @@ def record(out: Path, film: Path | None):
 
             def run_job(button, label, fast=True, limit=40):
                 r.tap(button)
+                yes = page.get_by_role('button', name='Yes, render it')   # the final film asks in the page (11-18)
+                if button.inner_text().startswith('Render final'):
+                    r.tap(yes)
                 page.evaluate('fast => { window.__fast = setInterval(() => window.ryagramMock.worker.tick(), fast) }', 130 if fast else 380)
                 t_end = time.time() + limit
                 while time.time() < t_end:

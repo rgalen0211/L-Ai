@@ -55,7 +55,7 @@ def request_a_render(p, title):
         while time.time() < end and p.locator('.job .state.job-complete').count() < count:
             p.wait_for_timeout(250)
         p.evaluate('clearInterval(window.__fast)')
-    p.get_by_role('button', name='Render final film').click()
+    p.get_by_role('button', name='Render final film').click(); p.get_by_role('button', name='Yes, render it').click()   # the confirm is in the page (11-18)
     p.wait_for_selector('.order-list li', timeout=15000)
 
 

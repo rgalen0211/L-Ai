@@ -92,7 +92,7 @@ def main():
                 p.wait_for_selector('#np-title', timeout=20000)
                 check('30 credits available' in balance(p) and 'held' not in balance(p), 'the person starts with 30 credits, none held')
                 make_ladder(p, 'Admin film')
-                p.get_by_role('button', name='Render final film').click()
+                p.get_by_role('button', name='Render final film').click(); p.get_by_role('button', name='Yes, render it').click()   # the confirm is in the page (11-18)
                 p.wait_for_selector('.order-list li', timeout=15000)
                 check('Waiting for approval' in p.inner_text('.order-list'), 'the full render is requested and waits for approval')
                 line = balance(p)
@@ -116,7 +116,7 @@ def main():
                 t = p.inner_text('.order-list')
                 check('Not approved' in t and 'was not approved' in t, f'the person’s order list says in words that it was not approved ({t[:140]!r})')
                 # asks again, and the admin approves
-                p.get_by_role('button', name='Render final film').click()
+                p.get_by_role('button', name='Render final film').click(); p.get_by_role('button', name='Yes, render it').click()   # the confirm is in the page (11-18)
                 p.wait_for_function("window.ryagramMock.client.db.render_orders.filter(o => o.state === 'awaiting_approval').length === 1", timeout=15000)
                 check('20 credits available, 10 held' in balance(p), 'asking again holds the credits again')
                 p.evaluate("location.hash = '#/admin/renders'")

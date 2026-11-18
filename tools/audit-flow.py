@@ -101,7 +101,7 @@ def main():
                     p.wait_for_timeout(250)
                 p.evaluate('clearInterval(window.__fast)')
                 shot('09-preview-done')
-                p.get_by_role('button', name='Render final film').click()
+                p.get_by_role('button', name='Render final film').click(); p.get_by_role('button', name='Yes, render it').click()   # the confirm is in the page (11-18)
                 shot('10-render-requested')
                 p.goto(f'{BASE}/app/?mock#/account', wait_until='load')
                 p.wait_for_selector('#acct-password', timeout=15000)

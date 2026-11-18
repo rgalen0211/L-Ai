@@ -251,6 +251,29 @@
       try { await work(); } finally { button.disabled = false; button.textContent = was; }
     }
 
+    // An in-page confirm for the clicks that spend credits or stop a render (11-18, CLAUDE for Ryan 23:13): the Claude app's pane and chat panels answer window.confirm with No before a person sees it, so the
+    // click did nothing there. A box with two plain buttons sits under the button's row; focus starts on No (the safe answer), Escape answers No, only one box is open at a time. Resolves true on Yes, false otherwise.
+    let closeOpenAsk = null;                                                      // the open box's way out: a second box answers the first No
+    function askConfirm(anchor, message, yesLabel, noLabel = 'No, go back') {
+      if (closeOpenAsk) closeOpenAsk(false);
+      document.querySelectorAll('.inpage-confirm').forEach(n => n.remove());
+      return new Promise(resolve => {
+        const msgId = `confirm-msg-${Date.now().toString(36)}`;
+        const yes = h('button', { class: 'button primary', type: 'button' }, yesLabel);
+        const no = h('button', { class: 'button secondary', type: 'button' }, noLabel);
+        const box = h('div', { class: 'inpage-confirm', role: 'alertdialog', 'aria-labelledby': msgId }, h('p', { id: msgId }, message), h('div', { class: 'actions-row' }, yes, no));
+        const done = answer => { closeOpenAsk = null; box.removeEventListener('keydown', onKey); box.remove(); resolve(answer); if (anchor && anchor.isConnected) anchor.focus(); };
+        const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+        box.addEventListener('keydown', onKey);
+        yes.addEventListener('click', () => done(true));
+        no.addEventListener('click', () => done(false));
+        const row = anchor.closest('.actions-row');
+        if (row) row.insertAdjacentElement('afterend', box); else anchor.parentElement.appendChild(box);
+        closeOpenAsk = done;
+        no.focus();
+      });
+    }
+
     // The guided builder (assets/app-builder.js): built once, with this page's helpers.
     let intakeCache = null;
     const intakeUi = () => intakeCache || (intakeCache = window.ryagramIntake.create({ h }));
@@ -1675,21 +1698,21 @@
         if (p.error) return showError(error, new Error(p.error));
         submit(sheetButton, 'contact_sheet', p.value ? { periods: p.value } : {});
       });
-      previewButton.addEventListener('click', () => {
+      previewButton.addEventListener('click', async () => {
         const w = J.parseWindow(winStart.value, winEnd.value);
         if (w.error) return showError(error, new Error(w.error));
         const q = quotes.preview;
         if (creditsOn() && q && !q.error && q.credits > 0
-            && !confirm(`Your free previews are used up for now, so this one costs ${C.plural(q.credits)}. Go ahead?`)) return;
+            && !(await askConfirm(previewButton, `Your free previews are used up for now, so this one costs ${C.plural(q.credits)}. Go ahead?`, 'Yes, make the preview'))) return;
         submit(previewButton, 'preview', { window_s: w.value || [0, 10] });   // the worker requires a window
       });
-      finalButton.addEventListener('click', () => {
+      finalButton.addEventListener('click', async () => {
         const ladder = J.ladder(jobs, storySha, engine);
         if (!ladder.ready) return showError(error, new Error(ladder.missing));
         const q = quotes.final_render;
         const cost = creditsOn() && q && !q.error && q.credits
           ? ` It uses ${C.plural(q.credits)}, held now and returned if the render fails.` : '';
-        if (!confirm(`Render the final film of version ${v.number}? Its story locks while it renders; later changes need a new version.${cost}`)) return;
+        if (!(await askConfirm(finalButton, `Render the final film of version ${v.number}? Its story locks while it renders; later changes need a new version.${cost}`, 'Yes, render it'))) return;
         if (ordersOn()) { requestOrder(ladder.preview.id); return; }                  // the order path: held for approval while auto_render is off
         submit(finalButton, 'final_render', {}, { sheetJobId: ladder.sheet.id, previewJobId: ladder.preview.id });
       });
@@ -1715,8 +1738,9 @@
           try { st = await data.orderStatus(o.id); } catch { st = { state: o.state, stages: [] }; }
           const actions = [];
           if (J.orderOpen(st.state)) actions.push(h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
-            if (!confirm('Cancel this full render? Your credits are returned.')) return;
-            await busy(event.currentTarget, 'Cancelling\u2026', async () => { try { await data.cancelOrder(o.id); await loadOrders(); } catch (err) { showError(error, err); } });
+            const btn = event.currentTarget;
+            if (!(await askConfirm(btn, 'Cancel this full render? Your credits are returned.', 'Yes, cancel it'))) return;
+            await busy(btn, 'Cancelling\u2026', async () => { try { await data.cancelOrder(o.id); await loadOrders(); } catch (err) { showError(error, err); } });
           } }, 'Cancel the request'));
           if (st.state === 'delivered' && st.delivery && !st.delivery.deleted) actions.push(h('a', { class: 'button primary small', href: `#/delivery/${st.delivery.id}` }, 'Open your film'));
           shown.push(h('li', {}, h('strong', {}, `${J.ORDER_WORDS[st.state] || st.state} `), h('span', { class: 'meta' }, `${date(o.created_at)}. `), J.orderLine(st), ' ', actions));

@@ -88,7 +88,7 @@ def main():
                 run_until_ladder(p)
                 led = p.evaluate("JSON.stringify(window.ryagramMock.client.db.jobs.map(j => [j.job_type, j.held || 0, j.captured || 0]))")
                 check('"contact_sheet",0,0' in led.replace(' ', '') and '"preview",0,0' in led.replace(' ', ''), f'the contact sheet and the preview are free: nothing held ({led})')
-                p.get_by_role('button', name='Render final film').click()
+                p.get_by_role('button', name='Render final film').click(); p.get_by_role('button', name='Yes, render it').click()   # the confirm is in the page (11-18)
                 p.wait_for_selector('.jobs-panel .job:has-text("Final render")', timeout=15000)
                 held = p.evaluate("window.ryagramMock.client.db.jobs.filter(j => j.job_type === 'final_render').map(j => j.held)")
                 check(len(held) == 1 and held[0] > 0, f'the final render holds its credits ({held})')
