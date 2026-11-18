@@ -10,9 +10,15 @@
     compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
     geo_intelligence: { label: 'Opportunity Map', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
     games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
-    animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' }
+    animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' },
+    // Studio (Ryan 2026-11-18, Q639 yes, wording as filed; working name): `sections` are the fuller words shown under the line on its page, always (they are approved, unlike DETAILS below).
+    studio: { label: 'Studio', line: 'Your podcast’s camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.',
+      sections: [['What is coming', ['Ryagram works with the cameras you already have in your multi-camera setup and switches between them for you.',
+        'It cuts on what is said, not only on who is talking: a reaction shot after the joke, a wide shot when it gets heated, a push-in on the serious line.',
+        'The same pass finds the substantial and funny moments and makes Shorts from them. Your own AI can drive it. Then you polish the result in the live editor.']],
+        ['Not built yet', ['None of this works today.', 'There is no price and no date.']]] }
   };
-  const ORDER = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio'];
+  const ORDER = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio'];
   // More words on two Coming soon pages (NEXT-WEB 200, from proposals/DEPARTMENTS-BRIEF-1102.md), shown only when the site switch departmentDetails is exactly true (OFF). DRAFT WORDS FOR RYAN: what is coming,
   // how numbers and people will be treated, and what is not built yet, said without a price or a date. Nothing here promises a feature the brief does not list.
   const DETAILS = {
@@ -219,9 +225,10 @@
       };
       draw();
       const more = detailsFor(id, window.ryagramConfig);
+      const studioEls = Array.isArray(k.sections) ? k.sections.flatMap(([title, items]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, items.map(t => h('li', {}, t)))]) : [];
       const moreEls = more ? [h('p', { class: 'form-note', role: 'note' }, 'Draft wording, not yet approved.'), ...SECTIONS.flatMap(([key, title]) => [h('h2', {}, title), h('ul', { class: 'soon-more' }, more[key].map(t => h('li', {}, t)))])] : [];
       return [h('span', { class: 'soon-tag soon-tag-big' }, WORDS.tag), h('h1', { tabindex: '-1' }, k.label), h('p', { class: 'form-intro' }, k.line),
-              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...moreEls, area, msg];
+              k.picture === 'phrase' ? phrasePicture() : null, id === 'geo_intelligence' && locationPreviewOn(window.ryagramConfig) ? locationPicture() : null, stillsBlock(id), ...studioEls, ...moreEls, area, msg];
     }
 
     // #/d/<id>. An id this account's list does not include, or any failure, is the plain "not available" page with a way home: never a blank page.
