@@ -69,6 +69,12 @@
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
   // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
   const liveEditorOn = () => window.ryagramSwitches?.featureOn('liveEditor') === true;
+  // The Edit button shows wherever the editor is released at all (true for everyone, or 'account'); an account without it gets a plain page saying so, never the library (Ryan 11-17).
+  const liveEditorShown = () => window.ryagramConfig?.liveEditor === true || window.ryagramConfig?.liveEditor === 'account';
+  const editLink = (id, cls) => liveEditorShown() ? h('a', { class: cls, href: `#/editor/data/${id}`, 'data-edit-project': id }, 'Edit') : null;
+  const editorOffView = () => [h('h1', { tabindex: '-1' }, 'The live editor isn’t on for this account'),
+    h('p', { class: 'form-intro', role: 'status' }, 'Your films and projects are all still here. The live editor is being switched on one account at a time, and this one is not on the list yet.'),
+    h('a', { class: 'button primary', id: 'editor-off-home', href: '#/' }, 'Back to your projects')];
   // Departments in the top bar and their pages (#/d/<id>): behind `departments`, which needs the door (app-departments.js). Off by default.
   const departmentsOn = () => window.ryagramDepartments?.flagOn() === true;
   // Invitees only (Ryan 13:49): even with the flag on, the consent page and Connected AIs show only to an account the server says is invited. Fails closed. Asked each time (one small call), never cached,
@@ -144,6 +150,7 @@
         else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
         else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)(?:\/([0-9a-fA-F-]{36}))?$/))) view = editorUi().editorView(m[1], onStop, m[2] || null);
+        else if (!liveEditorOn() && /^#\/editor\/(data|compilation)(?:\/[0-9a-fA-F-]{36})?$/.test(hash)) view = editorOffView();
         else if (departmentsOn() && window.ryagramDepartments.idFromHash(hash)) view = await deptUi().pageView(window.ryagramDepartments.idFromHash(hash));
         else if (builderOn() && /^#\/build(\?.*)?$/.test(hash)) view = await builderUi().builderView(onStop, window.ryagramIntake ? window.ryagramIntake.parseBuildQuery(hash) : null);
         else if (intakeOn() && window.ryagramIntake && hash === '#/new') view = intakeUi().intakeView(onStop);
@@ -301,7 +308,7 @@
 
       const list = projects.length
         ? h('ul', { class: 'project-list' }, projects.map(p => h('li', {},
-            h('a', { href: `#/p/${p.id}` }, p.title),
+            h('a', { href: `#/p/${p.id}` }, p.title), ' ', editLink(p.id, 'button secondary small'),
             h('span', { class: 'meta' },
               p.latest ? [`Version ${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
                        : `No versions · updated ${date(p.updated_at)}`))))
@@ -986,6 +993,7 @@
       } }, h('div', { class: 'inline-row' }, renameInput, renameButton));
 
       const actions = h('div', { class: 'actions-row' },
+        editLink(project.id, 'button primary'),
         h('button', { class: 'button secondary', type: 'button', onclick: () => {
           renameForm.hidden = !renameForm.hidden;
           if (!renameForm.hidden) renameInput.focus();
