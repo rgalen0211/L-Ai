@@ -16,7 +16,7 @@ const mutants = [
   ['an address of the editor shape is answered with anything after it', A, '[0-9a-f]{12}$/;', '[0-9a-f]{12}/;'],
   ['an address of the editor shape is answered with any characters', A, 'editor-[0-9a-f]{12}$/;', 'editor-.*$/;'],
   ['the editor page is answered when the switch is off', A, 'if (uri !== CARD_URI && !(editor && cfg.chatEditor) && !(home && cfg.homePanel)) return null;', 'if (uri !== CARD_URI && !editor && !(home && cfg.homePanel)) return null;'],
-  ['an old address is answered with the card', A, 'text: editor ? EDITOR_HTML : home ? homeHtml(cfg.appUrl) : cardHtml(cfg.appUrl)', 'text: uri === EDITOR_URI ? EDITOR_HTML : home ? homeHtml(cfg.appUrl) : cardHtml(cfg.appUrl)'],
+  ['an old address is answered with the card', A, 'text: editor ? editorHtml(cfg.appUrl) : home ? homeHtml(cfg.appUrl) : cardHtml(cfg.appUrl)', 'text: uri === EDITOR_URI ? editorHtml(cfg.appUrl) : home ? homeHtml(cfg.appUrl) : cardHtml(cfg.appUrl)'],
   ['the build id ignores the sources', B, "update(page('')).digest", "update('x').digest"],
   ['the build id does not cover the first script', B, "update(page('')).digest", "update(page('').replace(/addEventListener\\('error'.*?<\\/script>/s, '')).digest"],
   ['the page does not carry its build', B, ' data-build=\"${id}\"', ''],

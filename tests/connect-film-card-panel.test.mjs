@@ -13,7 +13,7 @@ const HOST = read('tools/chat-editor/live-host.js'), EDITOR = read('assets/app-e
 const list = (src, name) => [...new Function(`return ${new RegExp(`const ${name} = new Set\\((\\[[\\s\\S]*?\\])\\)`).exec(src)[1]}`)()];
 
 test('only the chat host can run the card code: it sets filmCard and drawCard, and the editor needs both (the website and the maker never do)', () => {
-  assert.match(HOST, /window\.ryagramLiveHost = \{ rpc, render, mode: 'compilation', project: '', media: null, title: '', filmCard: true, drawCard \};/);
+  assert.match(HOST, /window\.ryagramLiveHost = \{ rpc, render, mode: 'compilation', project: '', media: null, title: '', filmCard: true, drawCard, siteLink \};/);
   assert.ok(EDITOR.includes("const cardOn = isData && !!host && host.filmCard === true && typeof hostRpc === 'function' && typeof host.drawCard === 'function' && !bundleMode;"));
   assert.ok(EDITOR.includes('if (cardOn) setTimeout(() => loadCard(true), 0);'), 'the first ask only when the card code may run');
   for (const other of ['tools/maker-live/live-host.js']) assert.ok(!/filmCard/.test(read(other)), `${other} does not offer the card`);
@@ -85,7 +85,7 @@ test('what the person reads: the waiting, the failed, the stale and the unparsea
 
 test('the built page carries all of it and stays inside its budget', () => {
   assert.ok(EDITOR_HTML.includes('function drawCard(svg)') && EDITOR_HTML.includes('async function loadCard(ask)'));
-  assert.ok(EDITOR_HTML.includes("filmCard: true, drawCard }"));
+  assert.ok(EDITOR_HTML.includes("filmCard: true, drawCard, siteLink }"));
   assert.ok(Buffer.byteLength(EDITOR_HTML) <= 300 * 1024, `${Buffer.byteLength(EDITOR_HTML)} bytes`);
   assert.ok(!EDITOR_HTML.includes('url('), 'the page names no CSS address (the rebuild writes the paint reference in two pieces)');
 });

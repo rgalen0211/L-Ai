@@ -24,7 +24,7 @@ const mutants = [
   ['xml:space is written outside its namespace', H, "el.setAttributeNS(XML_NS, 'xml:space', v)", "el.setAttribute('xml:space', v)", 'source'],
   ['the panel drops the text length attribute the connector allows', H, "'letter-spacing', 'textLength', 'lengthAdjust',", "'letter-spacing', 'lengthAdjust',", 'source'],
   ['a text length may be any text', H, "if (a.name === 'textLength' && !", "if (false && !", 'source'],
-  ['the chat host does not offer the card', H, 'filmCard: true, drawCard };', 'drawCard };', 'source'],
+  ['the chat host does not offer the card', H, 'filmCard: true, drawCard, siteLink };', 'drawCard, siteLink };', 'source'],
   ['the editor runs the card code on any host', AE, 'host.filmCard === true && ', '', 'source'],
   ['the picture may hold a script element', H, "const CARD_ELEMENTS = new Set(['svg', 'g',", "const CARD_ELEMENTS = new Set(['script', 'svg', 'g',", 'both'],
   ['the picture may carry a style attribute', H, "'gradientUnits', 'gradientTransform', 'patternUnits', 'patternTransform']);", "'gradientUnits', 'gradientTransform', 'patternUnits', 'patternTransform', 'style']);", 'both'],

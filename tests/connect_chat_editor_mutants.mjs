@@ -1,6 +1,7 @@
 // Must-fail proof for tests/connect-chat-editor.test.mjs (the live editor in the AI chat): each mutant breaks ONE thing in a scratch copy, the page is REGENERATED from the broken source (so the
 // "committed page = generator" test cannot be the only thing that notices), and the suite must then FAIL. A baseline run on the unbroken copy must PASS first, and every text must occur exactly once.
-// Run:  node tests/connect_chat_editor_mutants.mjs
+// A mutant is 'source' (the offline suites must FAIL) or, with a fifth item 'browser', a rule only real Chrome can see (what a press does, what a refusing host is told): tools/check-chat-editor.py must FAIL with a FAIL line.
+// Run:  node tests/connect_chat_editor_mutants.mjs [--no-browser]   (the browser kind needs Chrome and playwright, TEMP on D:)
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
@@ -53,6 +54,21 @@ const mutants = [
   ['a panel click made on this page is applied a second time', DR, 'if (mine) mine.serverId = o.id;\n          else {', 'if (false) mine.serverId = o.id;\n          else {'],
   ['the build button is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-pill{display:none}'],
   ['the pill that talks about the computer is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-top .button.primary{display:none}'],
+  // "See the real frames on the site" (route A): what may go into the address, who may open it, and what a refusing host is told
+  ['a clip film is given the site link', H, "if (mode !== 'data' || typeof appUrl", "if (false || typeof appUrl"],
+  ['a plain http site address is accepted', H, "const SITE_RE = /^https:\\/\\/", "const SITE_RE = /^https?:\\/\\/"],
+  ['a film id of any form is put into the address', H, " || typeof project !== 'string' || !FILM_RE.test(project)) return '';", ") return '';"],
+  ['the address leaves out the film', H, "+ '#/editor/data/' + project;", "+ '#/editor/data/';"],
+  ['the address points at the compilation editor', H, "+ '#/editor/data/' + project;", "+ '#/editor/compilation/' + project;"],
+  ['a site address with a query or a fragment is accepted', H, "(\\/[A-Za-z0-9._~\\/-]*)?$/;\n  const FILM_RE", "(\\/[A-Za-z0-9._~\\/#?=&-]*)?$/;\n  const FILM_RE"],
+  ['the link is opened without the person pressing the button', H, "onclick: () => openSite(siteUrl, siteNote) }", "onclick: () => {} }"],
+  ['a host that refuses to open the link is not told the address', H, "if (r && (r.isError === true || r.error)) said();", "", 'browser'],
+  ['a host that errors on the link is not told the address', H, ".catch(said);", ".catch(() => {});", 'browser'],
+  ['the words about the address pile up with every press', H, "if (note.querySelector('.le-sitelink')) return; ", "", 'browser'],
+  ['the button is shown with no site address', H, "const siteBtn = siteUrl ? h('button'", "const siteBtn = true ? h('button'", 'browser'],
+  ['the site address is taken from a message the host sends', H, "root.getAttribute ? root.getAttribute('data-app-url') : ''", "(ctx && ctx.appUrl) || ''"],
+  ['the page is read with any address on its root', 'supabase/functions/connect-core/mcp_app.ts', "const link = appUrl && APP_URL.test(appUrl) ? appUrl : \"\";\n  const root = '<main id=\"live-root\"';", "const link = appUrl || \"\";\n  const root = '<main id=\"live-root\"';"],
+  ['the page is read without its address', 'supabase/functions/connect-core/mcp_app.ts', "text: editor ? editorHtml(cfg.appUrl) : home ?", "text: editor ? EDITOR_HTML : home ?"],
   ['the panel does not say drafts are kept by Ryagram', H, "'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'", "''"],
 ];
 
@@ -65,22 +81,33 @@ function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
   fs.mkdirSync(scratch, { recursive: true });
   for (const d of ['supabase/functions', 'tests', 'assets', 'tools/chat-editor', 'tools/maker-live']) fs.cpSync(path.join(root, d), path.join(scratch, d), { recursive: true });
+  fs.copyFileSync(path.join(root, 'tools/check-chat-editor.py'), path.join(scratch, 'tools/check-chat-editor.py'));
   fs.copyFileSync(path.join(root, 'tools/build-chat-editor.mjs'), path.join(scratch, 'tools/build-chat-editor.mjs'));
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
-if (run(scratch).status) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
+if (run(scratch).status || (!process.argv.includes('--no-browser') && browser(scratch).status)) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
-for (const [name, file, from, to] of mutants) {
+const noBrowser = process.argv.includes('--no-browser');
+function browser(cwd) {
+  const gen = spawnSync(process.execPath, [path.join('tools', 'build-chat-editor.mjs')], { encoding: 'utf8', cwd });
+  if (gen.status) return { status: 2, out: gen.stderr };
+  const r = spawnSync('py', ['-I', path.join('tools', 'check-chat-editor.py'), path.join(cwd, 'shots')], { encoding: 'utf8', cwd });
+  return { status: r.status, out: r.stdout + r.stderr };
+}
+for (const [name, file, from, to, kind = 'source'] of mutants) {
+  if (kind === 'browser' && noBrowser) continue;
+  if (kind === 'source' && process.argv.includes('--only-browser')) continue;
   fresh();
   const target = path.join(scratch, file);
   const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
   const n = src.split(from).length - 1;
   if (n !== 1) { console.log(`BROKEN MUTANT (text found ${n} times, need 1): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
-  const r = run(scratch);
-  const caught = r.status !== 0;
+  let caught;
+  if (kind === 'browser') { const b = browser(scratch); caught = b.status !== 0 && /^  FAIL /m.test(b.out); }       // a crash of the check is not a catch: only its own FAIL line is
+  else caught = run(scratch).status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
   if (!caught) missed++;
 }

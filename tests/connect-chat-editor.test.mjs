@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import vm from 'node:vm';
 import { build, html, JS, OUT, POLICY } from '../tools/build-chat-editor.mjs';
 import { EDITOR_HTML } from '../supabase/functions/connect-core/editor_page.ts';
+import { EDITOR_URI, editorHtml, readResource, resourceList } from '../supabase/functions/connect-core/mcp_app.ts';
 
 const NAMES = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];
 const HOST_SRC = fs.readFileSync(new URL('../tools/chat-editor/live-host.js', import.meta.url), 'utf8');
@@ -76,6 +77,51 @@ test('the computer page\'s footer sentence about a final button and "your comput
 test('the page has no non-ASCII character (the file is escaped) and no control character', () => {
   const src = fs.readFileSync(new URL('../' + OUT, import.meta.url), 'utf8');
   assert.ok(!/[^\x20-\x7e\r\n\t]/.test(src));
+});
+
+// ------------------------------------------------------------------------------------------------ "See the real frames on the site" (route A of proposals/CONNECT-CHAT-REAL-FRAMES-1117.md)
+// The chat panel cannot draw a film's real frames (it has no network); the website's editor can. The panel gets the site's address from the connector's own config (a data-app-url on the page's root, put there when the
+// page is READ, so the page's address and build id do not change), and a button opens the site's editor on THIS film with the host's own ui/open-link. The rules below are the whole of what may be built into that address.
+const APP = 'https://uselai.com/app/';
+const rootTag = (html) => (html.match(/<main[^>]*id="live-root"[^>]*>/g) || []);
+test('the page is read with the site\'s address on its root, only when the connector\'s config gives a good one; the page\'s own address does not change', () => {
+  const cfg = { enabled: true, chatEditor: true, appUrl: APP };
+  const page = readResource(EDITOR_URI, cfg).contents[0].text;
+  assert.equal(page.split('data-app-url=').length - 1, 1, 'the address is put on the page once');
+  assert.ok(rootTag(page).length === 1 && rootTag(page)[0].includes(`data-app-url="${APP}"`), 'and on the root of the editor, nowhere else');
+  assert.equal(page.replace(` data-app-url="${APP}"`, '').replace(`data-app-url="${APP}" `, ''), EDITOR_HTML, 'it is the built page and nothing more');
+  assert.equal(readResource(EDITOR_URI, { enabled: true, chatEditor: true }).contents[0].text, EDITOR_HTML, 'with no address configured the page is exactly the built page');
+  for (const bad of ['http://uselai.com/app/', 'javascript:alert(1)', 'https://uselai.com/app/"><script>x</script>', 'https://uselai.com/app/ onload=x', '//uselai.com/app/', 'https://', '']) {
+    const t = readResource(EDITOR_URI, { enabled: true, chatEditor: true, appUrl: bad }).contents[0].text;
+    assert.equal(t, EDITOR_HTML, `an address that is not a plain https address is dropped: ${bad}`);
+  }
+  assert.equal(editorHtml(APP), page);
+  assert.ok(resourceList({ enabled: true, chatEditor: true, appUrl: APP }).some((r) => r.uri === EDITOR_URI), 'the page is still listed at its one address');
+});
+
+function seam() {
+  const listeners = {};
+  const win = { parent: { postMessage: () => {} } };
+  const ctx = { Date: { now: () => 1 }, window: win, addEventListener: (n, f) => { (listeners[n] ||= []).push(f); }, setTimeout, clearTimeout, Promise, Error, JSON, Number, Math, Map, String, Array, Object, RegExp,
+    document: { getElementById: () => null, createElement: () => ({}), body: {}, documentElement: { getBoundingClientRect: () => ({ height: 400, width: 600 }) } } };
+  vm.runInNewContext(HOST_SRC, ctx, { timeout: 2000 });
+  return win.ryagramLiveHost;
+}
+test('the address the button opens is the site\'s editor on THIS film: a data film, a plain https site address, a film id of the site\'s own form, and nothing else goes into it', () => {
+  const link = seam().siteLink;
+  assert.equal(typeof link, 'function');
+  assert.equal(link(APP, PROJECT, 'data'), `${APP}#/editor/data/${PROJECT}`);
+  assert.equal(link('https://uselai.com/app', PROJECT, 'data'), `${APP}#/editor/data/${PROJECT}`, 'a missing closing slash is added');
+  assert.equal(link(APP, PROJECT, 'compilation'), '', 'a clip film has no real frames on the site');
+  assert.equal(link(APP, PROJECT, undefined), '');
+  for (const bad of ['', null, undefined, 'http://uselai.com/app/', 'javascript:alert(1)', 'https://uselai.com/app/#x', 'https://uselai.com/app/?x=1', 'https://uselai.com/app/ x', 'https://evil.example/\\u0000']) assert.equal(link(bad, PROJECT, 'data'), '', `site address: ${bad}`);
+  for (const bad of ['', '../../etc', '00000000-0000-4000-8000-0000000000a', '00000000-0000-4000-8000-0000000000a1x', 'abc', '00000000-0000-4000-8000-0000000000a1/../x', null]) assert.equal(link(APP, bad, 'data'), '', `film id: ${bad}`);
+});
+
+test('the panel\'s button and its words are in the page, and it asks the host to open the link with the host\'s own call', () => {
+  for (const want of ['See the real frames on the site', "request('ui/open-link', { url })", 'Your chat app did not open it. Open this address in your browser:', "getAttribute('data-app-url')"]) assert.ok(HOST_SRC.includes(want), want);
+  assert.ok(EDITOR_HTML.includes('See the real frames on the site'), 'the built page carries it');
+  assert.ok(!/https?:\/\/(?!www\.w3\.org)/.test(EDITOR_HTML), 'the built page itself still names no web address (the site\'s address arrives with the page being read, not inside it)');
 });
 
 // ------------------------------------------------------------------------------------------------ the host seam, run in a fake window
@@ -278,9 +324,11 @@ test('the host\'s requests are answered: teardown with {}, anything else refused
   assert.equal(out.find((m) => m.id === 6).error.code, -32601);
 });
 
-test('the seam never calls a tool by any name but the five, and never sends a chat message, a link or a model-context update except the one line', () => {
+test('the seam never calls a tool by any name but the five, and never sends a chat message or a model-context update except the one line; it opens ONE link, the site\'s editor on this film, when the person presses its button', () => {
   const methods = new Set([...HOST_SRC.matchAll(/(?:request|notify)\('([a-z/-]+)'/g)].map((m) => m[1]));
-  assert.deepEqual([...methods].sort(), ['tools/call', 'ui/initialize', 'ui/notifications/initialized', 'ui/notifications/size-changed', 'ui/request-display-mode', 'ui/update-model-context']);
-  assert.ok(!/ui\/message|ui\/open-link/.test(HOST_SRC));
+  assert.deepEqual([...methods].sort(), ['tools/call', 'ui/initialize', 'ui/notifications/initialized', 'ui/notifications/size-changed', 'ui/open-link', 'ui/request-display-mode', 'ui/update-model-context']);
+  assert.ok(!/ui\/message/.test(HOST_SRC));
+  assert.equal((HOST_SRC.match(/request\('ui\/open-link'/g) || []).length, 1, 'one place opens a link');
+  assert.ok(/onclick: \(\) => openSite\(siteUrl, siteNote\)/.test(HOST_SRC) && /const siteUrl = siteLink\(appUrl, project, window\.ryagramLiveHost\.mode\)/.test(HOST_SRC), 'and it is opened only with the address siteLink built, from the button\'s press, never from a message the host sends');
   assert.equal((HOST_SRC.match(/request\('tools\/call'/g) || []).length, 1, 'one place makes a tool call, and it is guarded by the name list');
 });
