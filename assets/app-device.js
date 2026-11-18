@@ -274,9 +274,18 @@
       const reason = h('input', { id: 'tester-reason', type: 'text', autocomplete: 'off', maxlength: String(REASON_MAX), 'aria-describedby': 'tester-reason-note' });
       const status = h('p', { class: 'form-note', role: 'status' });
       const history = h('div', { class: 'tester-history' });
+      const nowBox = h('div', { class: 'tester-now' });
       async function drawHistory() {
         let rows;
-        try { rows = await data.adminLocalComputeAudit(); } catch (err) { history.replaceChildren(h('p', { class: 'form-note' }, err.message)); return; }
+        try { rows = await data.adminLocalComputeAudit(); } catch (err) { history.replaceChildren(h('p', { class: 'form-note' }, err.message)); nowBox.replaceChildren(h('h2', {}, 'Currently on'), h('p', { class: 'form-note' }, 'Not loaded: the history could not be read.')); return; }
+        const on = window.ryagramDevice.currentlyOn(rows);
+        nowBox.replaceChildren(h('h2', {}, 'Currently on'), on.length ? h('ul', { class: 'project-list tester-now-list' }, on.map(o => {
+          const off = h('button', { class: 'button secondary small', type: 'button', 'data-turn-off': o.email, 'aria-label': `Turn off tester mode for ${o.email}` }, 'Turn off');
+          off.addEventListener('click', () => busy(off, 'Turning off…', async () => {
+            try { await data.adminSetLocalCompute(o.email, false, 'Turned off from the Currently on list'); status.textContent = `${o.email} is no longer a tester. The change is in the history below.`; await drawHistory(); } catch (err) { showError(error, err); }
+          }));
+          return h('li', {}, h('strong', {}, o.email.slice(0, 120)), h('span', { class: 'meta' }, ` on since ${new Date(o.since).toLocaleString()}`), o.why ? h('p', { class: 'form-note' }, 'Why: ', o.why.slice(0, REASON_MAX)) : null, off);
+        })) : h('p', { class: 'form-note' }, 'No account is a tester right now.'));
         history.replaceChildren(rows.length ? h('ul', { class: 'project-list' }, rows.map(r => h('li', {},
           h('strong', {}, String(r.user_email || 'an account').slice(0, 120)),
           h('span', { class: 'meta' }, ` ${r.was_on ? 'on' : 'off'} to ${r.turned_on ? 'on' : 'off'} by ${String(r.set_by_email || 'an admin').slice(0, 120)}, ${new Date(r.at).toLocaleString()}`),
@@ -356,6 +365,7 @@
         h('h3', {}, 'History'), cHistory);
       return [back, h('h1', { tabindex: '-1' }, 'Tester computers'),
         h('p', { class: 'form-intro' }, 'A tester account makes its films on its own computer instead of Ryagram’s machine, and pays no credits for them. Only an admin can change this, and every change is written down.'),
+        nowBox,
         h('label', { for: 'tester-email' }, 'Account email'), email,
         h('label', { for: 'tester-reason' }, 'Why (a few words, saved in the history)'), reason,
         h('p', { id: 'tester-reason-note', class: 'form-note' }, `${REASON_MIN} to ${REASON_MAX} characters.`),
@@ -369,6 +379,16 @@
   // ---- the admin's list of each tester's computers (NEXT-WEB 187). Pure: rows from admin_tester_devices() -> one entry per tester with its computers in words. "Ready" means the sign-in was used in the last 3
   // minutes (the app's ping); anything else is "not seen" with how long ago. Whether a computer can render, and whether it paused under its disk floor, are NOT in the database, and the page says so.
   const SEEN_MS = 3 * 60 * 1000;
+  // Who is a tester right now, from the audit rows alone: the newest row per account decides, and an account is listed only if that row turned it on. { email, since, why }, newest first like the History.
+  function currentlyOn(rows) {
+    const newest = new Map();
+    for (const r of Array.isArray(rows) ? rows : []) {
+      if (!r || typeof r.user_email !== 'string' || !r.user_email || typeof r.at !== 'string' || !Number.isFinite(Date.parse(r.at))) continue;
+      const had = newest.get(r.user_email);
+      if (!had || Date.parse(r.at) > Date.parse(had.at)) newest.set(r.user_email, r);
+    }
+    return [...newest.values()].filter(r => r.turned_on === true).sort((a, b) => Date.parse(b.at) - Date.parse(a.at)).map(r => ({ email: r.user_email, since: r.at, why: String(r.reason || '') }));
+  }
   function deviceRows(rows, now = Date.now()) {
     const by = new Map();
     for (const r of Array.isArray(rows) ? rows : []) {
@@ -388,5 +408,5 @@
   const deviceLine = c => `${c.name}: ${c.state === 'seen' ? 'seen in the last 3 minutes' : `not seen for a while (last ${c.last})`}${c.holds ? `; holding ${c.holds} film${c.holds === 1 ? '' : 's'} now` : ''}${c.signedInUntil ? `; its sign-in ends ${c.signedInUntil}` : ''}`;
   const deviceNote = 'Whether a computer can render, and whether it paused under its disk floor, are not reported to the site by the app yet. This list shows only what the sign-in shows.';
 
-  window.ryagramDevice = { deviceRows, deviceLine, deviceNote, SEEN_MS, windowsReady, viaDownloadFunction, parseDownloadAnswer, downloadErrorWords, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
+  window.ryagramDevice = { currentlyOn, deviceRows, deviceLine, deviceNote, SEEN_MS, windowsReady, viaDownloadFunction, parseDownloadAnswer, downloadErrorWords, spaceWords, freeGb, MODEL_MB, seenWords, checkTesterForm, REASON_MIN, REASON_MAX, BAD_CODE, ALPHABET, normalizeCode, showCode, codeFromHash, expiry, EXPIRED, WARN, ago, create };
 })();

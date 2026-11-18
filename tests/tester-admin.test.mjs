@@ -64,8 +64,8 @@ test('PAGE SOURCE: the route needs the flag AND an admin answer, the link needs 
   assert.match(lib, /\.\.\.\(desktopOn\(\) \? \[' \\u00b7 ', h\('a', \{ href: '#\/admin\/tester' \}, 'Tester computers'\)\] : \[\]\)/);
   const src = read('assets/app-device.js');
   const view = src.slice(src.indexOf('async function testerAdminView'), src.indexOf('return { deviceView, computersSection, testerAdminView }'));
-  assert.equal([...view.matchAll(/data\.adminSetLocalCompute\(/g)].length, 1);
-  assert.match(view, /const change = async \(button, on\) => \{[\s\S]*checkTesterForm\(email\.value, reason\.value\)[\s\S]*data\.adminSetLocalCompute\(email\.value, on, reason\.value\)[\s\S]*\};\s*const onBtn/);
+  assert.equal([...view.matchAll(/data\.adminSetLocalCompute\(/g)].length, 2);   // the form's change(), and the 'Currently on' row's Turn off (11-17): both only inside a click handler
+  assert.match(view, /data\.adminSetLocalCompute\(o\.email, false, 'Turned off from the Currently on list'/);
   assert.match(view, /'Turn on'/);
   assert.match(view, /'Turn off'/);
   assert.match(view, /'Why: ', String\(r\.reason \|\| ''\)\.slice\(0, REASON_MAX\)/);                          // the reason is shown as text

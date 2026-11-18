@@ -7,7 +7,7 @@
   // Links to private files expire after 15 minutes; the page signs fresh ones each time it draws.
   const SIGNED_URL_SECONDS = 900;
   const JOB_COLUMNS = 'id, version_id, job_type, state, attempt, params, story_sha256, sheet_job_id, preview_job_id, engine_commit, '
-    + 'cancel_requested, error_class, error_code, error_detail, progress, progress_note, created_at, started_at, ended_at';
+    + 'run_on, cancel_requested, error_class, error_code, error_detail, progress, progress_note, created_at, started_at, ended_at';
 
   const LOOK_COLUMNS = 'id, name, title, based_on, spec, is_default, created_at, updated_at';
 

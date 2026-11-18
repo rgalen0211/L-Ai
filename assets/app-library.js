@@ -1810,7 +1810,7 @@
         const failed = ['failed', 'editorial_action_required', 'cancelled'].includes(j.state);
         const note = active ? J.progressNote(j, positions[j.id], ownCompute) : failed ? J.problem(j) : '';
         return h('li', { class: `job job-row-${j.state}` },
-          h('strong', {}, J.TYPE_LABELS[j.job_type] || j.job_type),
+          h('strong', {}, J.typeLabel(j.job_type)),
           h('span', { class: `state job-${j.state}` }, J.STATE_LABELS[j.state] || j.state),
           h('span', { class: 'meta' }, date(j.created_at)),
           creditsOn() && accounting[j.id] ? h('span', { class: 'meta credit-line' }, C.jobCredits(accounting[j.id])) : null,

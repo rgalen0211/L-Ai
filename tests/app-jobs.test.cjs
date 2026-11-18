@@ -150,11 +150,23 @@ test('queue positions count everyone ahead; submit refuses a second job of the s
   assert.match(J.progressNote({ state: 'queued', attempt: 2 }, 1), /Next in line\. Retrying .*attempt 2 of 3/);
 });
 
+test('ROUGH SPOT: a job reserved for the person’s own computer says so, even with no account switch; no raw job type is ever shown', () => {
+  const q = { state: 'queued', attempt: 1, run_on: 'owner_local' };
+  assert.match(J.progressNote(q, 1), /^Waiting for your computer to pick it up\./);               // the job itself says owner_local: no 'Next in line'
+  assert.match(J.progressNote(q, 1, { tester: true, computers: 0 }), /^Waiting for your computer\. No computer is signed in/);
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1), 'Next in line.');   // the site’s own machine: the ordinary line
+  assert.equal(J.progressNote({ state: 'queued', attempt: 1, run_on: 'house' }, 1, { tester: true, computers: 1 }), 'Next in line.');   // the job’s own place wins over the account
+  assert.equal(J.typeLabel('film_bundle'), 'Film files');
+  assert.equal(J.typeLabel('some_new_kind'), 'Some new kind');                                      // an unknown type is spoken, never shown raw
+  assert.equal(J.typeLabel('final_render'), 'Final render');
+  assert.equal(J.typeLabel(undefined), 'Job');
+});
+
 test('a waiting film says plainly when it waits for a computer, and only when that is known', () => {
   const q = { state: 'queued', attempt: 1 };
   assert.match(J.progressNote(q, 1, { tester: true, computers: 0 }), /^Waiting for your computer\. No computer is signed in .*sign in; the film starts once it is signed in\.$/);
-  assert.equal(J.progressNote(q, 2, { tester: true, computers: 1 }), 'Number 2 in line.');       // a computer is signed in: the ordinary line
-  assert.equal(J.progressNote(q, 2, { tester: true, computers: null }), 'Number 2 in line.');    // not readable: no claim
+  assert.match(J.progressNote(q, 2, { tester: true, computers: 1 }), /^Waiting for your computer to pick it up\. .*Ryagram app/);   // a computer is signed in: still its own computer, never 'in line'
+  assert.match(J.progressNote(q, 2, { tester: true, computers: null }), /^Waiting for your computer to pick it up\./);   // not readable: still its own computer, no claim about sign-in
   assert.equal(J.progressNote(q, 2, { tester: false, computers: 0 }), 'Number 2 in line.');       // not a computer account: the site's own machine, no claim
   assert.equal(J.progressNote(q, 2), 'Number 2 in line.');
   assert.equal(J.progressNote({ state: 'running', progress_note: 'x' }, 0, { tester: true, computers: 0 }), 'x');

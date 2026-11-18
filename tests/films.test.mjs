@@ -114,3 +114,14 @@ test('TESTER wiring: behind its own switch (off), read only when the account is 
   assert.match(src, /catch \{ own = null; \}/);
   assert.ok(!/innerHTML|insertAdjacentHTML|eval\(|fetch\(|localStorage/.test(src));
 });
+
+test('ROUGH SPOT: a film reserved for the person’s own computer says so with no account switch, and no row shows a raw job type', () => {
+  const f = { project: P('p', 'T'), version: V('v', 1, 'sampling'), jobs: [job('queued', 'film_bundle', '2026-10-30T09:10:00Z', { run_on: 'owner_local' })] };
+  const r = W(F.rowFor(f, J));
+  assert.equal(r.status, 'waiting');
+  assert.match(r.why, /^Film files: Waiting for your computer to pick it up\./);
+  assert.doesNotMatch(r.why, /film_bundle/);
+  const house = W(F.rowFor({ ...f, jobs: [job('queued', 'film_bundle', '2026-10-30T09:10:00Z', { run_on: 'house' })] }, J));
+  assert.doesNotMatch(house.why, /Waiting for your computer/);
+  for (const state of ['running', 'complete', 'cancelled']) assert.doesNotMatch(W(F.rowFor({ ...f, jobs: [job(state, 'some_new_kind')] }, J)).why, /some_new_kind|film_bundle/);
+});

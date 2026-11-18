@@ -45,22 +45,22 @@
       const queued = active.state === 'queued';
       row.status = queued ? 'waiting' : 'making';
       row.word = queued ? WORDS.waiting : WORDS.making;
-      row.why = `${J.TYPE_LABELS[active.job_type] || active.job_type}: ${J.STATE_LABELS[active.state] || active.state}.`;
+      row.why = `${J.typeLabel(active.job_type)}: ${J.STATE_LABELS[active.state] || active.state}.`;
       const cs = computerState(own);
       if (cs) {                                                                    // a tester's film: say where it is
-        if (queued) { const w = WAIT_WHY[cs.state]; row.why = `${J.TYPE_LABELS[active.job_type] || active.job_type}: ${typeof w === 'function' ? w(cs) : w}`; }
-        else { row.word = 'Being made on your computer'; row.why = `${J.TYPE_LABELS[active.job_type] || active.job_type}: ${J.STATE_LABELS[active.state] || active.state}. Keep the Ryagram app open until it finishes.`; }
-      }
+        if (queued) { const w = WAIT_WHY[cs.state]; row.why = `${J.typeLabel(active.job_type)}: ${typeof w === 'function' ? w(cs) : w}`; }
+        else { row.word = 'Being made on your computer'; row.why = `${J.typeLabel(active.job_type)}: ${J.STATE_LABELS[active.state] || active.state}. Keep the Ryagram app open until it finishes.`; }
+      } else if (queued && active.run_on === 'owner_local') row.why = `${J.typeLabel(active.job_type)}: Waiting for your computer to pick it up. Open the Ryagram app on your computer.`;   // its own computer, whatever the account switches say
       return row;
     }
     const done = jobs.filter(j => j.state === 'complete').sort((a, b) => (RANK[b.job_type] || 0) - (RANK[a.job_type] || 0))[0];
     const last = jobs[0];
     if (last.state === 'complete') {
-      row.status = 'ready'; row.word = WORDS.ready; row.why = READY_WORD[last.job_type] || `${J.TYPE_LABELS[last.job_type] || last.job_type} is ready.`;
+      row.status = 'ready'; row.word = WORDS.ready; row.why = READY_WORD[last.job_type] || `${J.typeLabel(last.job_type)} is ready.`;
       return row;
     }
     if (last.state === 'cancelled') {
-      row.status = 'stopped'; row.word = WORDS.stopped; row.why = `${J.TYPE_LABELS[last.job_type] || last.job_type} was stopped.${done ? ` ${READY_WORD[done.job_type] || ''}`.trimEnd() : ''}`;
+      row.status = 'stopped'; row.word = WORDS.stopped; row.why = `${J.typeLabel(last.job_type)} was stopped.${done ? ` ${READY_WORD[done.job_type] || ''}`.trimEnd() : ''}`;
     } else {
       row.status = 'failed'; row.word = WORDS.failed; row.why = J.problem(last);
     }

@@ -6,7 +6,14 @@
   const ACTIVE = ['queued', 'claimed', 'running', 'validating', 'uploading'];
   // Mirrors submit_job: a failed version may still retry, a complete one is finished.
   const LOCKED_VERSION = ['queued', 'rendering', 'validating', 'uploading', 'complete', 'archived', 'non_restorable'];
-  const TYPE_LABELS = { contact_sheet: 'Contact sheet', preview: 'Preview', final_render: 'Final render' };
+  const TYPE_LABELS = { contact_sheet: 'Contact sheet', preview: 'Preview', final_render: 'Final render', film_bundle: 'Film files' };
+  // A job type in plain words, never the raw name: a type this page does not know yet is spoken from its own name ('some_new_kind' reads 'Some new kind').
+  const typeLabel = type => {
+    if (typeof type !== 'string' || !type) return 'Job';
+    if (Object.hasOwn(TYPE_LABELS, type)) return TYPE_LABELS[type];
+    const words = type.replace(/[_-]+/g, ' ').trim();
+    return words ? words[0].toUpperCase() + words.slice(1) : 'Job';
+  };
   const STATE_LABELS = {
     queued: 'Queued', claimed: 'Starting', running: 'Rendering', validating: 'Checking', uploading: 'Uploading',
     complete: 'Complete', failed: 'Failed', editorial_action_required: 'Needs a decision', cancelled: 'Cancelled'
@@ -82,8 +89,11 @@
 
   // What to show while it runs.
   // own = { tester, computers } for an account whose films are made on its own computer; computers is how many are signed in, or null when that could not be read (then nothing is claimed).
+  // A job reserved for the person's own computer (run_on 'owner_local') says so whatever the account switches are; with no run_on on the row, the account's tester flag decides.
+  const WAITING_FOR_COMPUTER_PICKUP = 'Waiting for your computer to pick it up. Open the Ryagram app on your computer and keep it signed in; the film starts there.';
   function progressNote(job, queuePosition, own) {
-    if (job.state === 'queued' && own && own.tester === true && own.computers === 0 && !job.cancel_requested) return WAITING_FOR_COMPUTER;
+    const ownComputer = job.run_on ? job.run_on === 'owner_local' : !!(own && own.tester === true);
+    if (job.state === 'queued' && ownComputer && !job.cancel_requested) return own && own.computers === 0 ? WAITING_FOR_COMPUTER : WAITING_FOR_COMPUTER_PICKUP;
     if (job.state === 'queued') {
       const place = queuePosition ? (queuePosition === 1 ? 'Next in line.' : `Number ${queuePosition} in line.`) : 'Waiting in line.';
       return job.attempt > 1 ? `${place} Retrying after a render-machine problem (attempt ${job.attempt} of 3).` : place;
@@ -260,6 +270,6 @@
   const orderOpen = state => state === 'running' || state === 'awaiting_approval';
 
   window.ryagramJobs = { ORDER_WORDS, orderLine, orderOpen,
-    TYPE_LABELS, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
+    TYPE_LABELS, typeLabel, STATE_LABELS, isActive, versionTakesJobs, problem, plainDetail, rawDetail, progressNote, progressView, addSample, etaSeconds, duration, canRetry, ladder, parsePeriods, parseWindow
   };
 })();
