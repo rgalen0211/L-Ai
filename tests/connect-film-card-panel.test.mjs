@@ -108,7 +108,7 @@ test('Try again (CONNECT 11-18, card retry plan A): a button only for a picture 
 test('Step B (card retry plan B, CONNECT 11-18): an open panel notices without a reload, with a few READS and never an ask, and every count is bounded', () => {
   const block = EDITOR.slice(EDITOR.indexOf('const cardWaiting = '), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
   assert.ok(block.includes('else if (waiting && cardSlow++ < 10) {') && block.includes('setTimeout(() => loadCard(false), 120000);'), 'after the 39 quick reads, 10 slow ones every 2 minutes, then none');
-  assert.ok(block.includes('else if (tooSoon && cardQuiet++ < 1) {') && block.includes('setTimeout(() => loadCard(false), 620000);'), 'a failed picture not yet old enough: ONE quiet read about 10 minutes 20 seconds on');
+  assert.ok(block.includes('else if (tooSoon && cardQuiet++ < 1) {') && block.includes('setTimeout(() => loadCard(false), quietMs('), 'a failed picture not yet old enough: ONE quiet read about 10 minutes 20 seconds on');
   assert.ok(block.includes("const tooSoon = (cardCode === 'engine_error' && cardState === 'failed' && !cardRetry) || (cardState === 'ready' && cardRefreshCode === 'engine_error' && cardRefresh === 'failed' && !cardRefreshRetry);"), 'only the kind a retry can fix, and only while the database says not yet');
   assert.ok(block.includes('cardPolls = 0; cardSlow = 0; cardQuiet = 0; paintCard();'), 'a press starts the counts again');
   assert.equal([...block.matchAll(/loadCard\(true/g)].length, 1, 'every timer reads (loadCard(false)); only the press asks');
@@ -120,6 +120,14 @@ test('Step B, GAMES review 11-18 finding 1: a stopped view stops its card reads 
   assert.ok(EDITOR.includes('let cardStopped = false; onStop(() => { cardStopped = true; clearTimeout(cardTimer); });'), 'the view stopping clears the card timer and says so');
   assert.ok(block.includes('if (!cardOn || !project || cardStopped) return;'), 'a stopped view starts no read');
   assert.ok(block.includes('if (cardStopped) return;\n        const d = r &&'), 'a read that comes back after the stop paints nothing and parks no timer');
+});
+
+test('Step B, GAMES finding 2 (CONNECT 11-19): the quiet re-read is timed from the failure when the database says how long ago it failed, and from today\'s fixed 10 min 20 s when it does not', () => {
+  const block = EDITOR.slice(EDITOR.indexOf('const cardWaiting = '), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
+  assert.ok(block.includes('const quietMs = (age) => (age >= 0 ? 620000 - age * 1000 : 620000);'), 'ten minutes and twenty seconds minus the seconds since it failed; the fixed wait when there is no age');
+  assert.ok(block.includes('const ageOf = (n) => (typeof n === \'number\' && n >= 0 && n <= 600 ? n : -1);'), 'an age is a number from 0 to 600 seconds (a failure the database still refuses); anything else is no age');
+  assert.ok(block.includes('cardAge = ageOf(d.failed_s);') && block.includes('cardRefreshAge = ageOf(d.refresh && d.refresh.failed_s);'), 'both places the database names it');
+  assert.ok(block.includes("quietMs(cardState === 'failed' ? cardAge : cardRefreshAge)"), 'the picture that is on show or the refresh, whichever failed');
 });
 
 test('the built page carries all of it and stays inside its budget', () => {

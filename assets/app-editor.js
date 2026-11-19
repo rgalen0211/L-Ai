@@ -83,10 +83,13 @@
       const cardOn = isData && !!host && host.filmCard === true && typeof hostRpc === 'function' && typeof host.drawCard === 'function' && !bundleMode;
       let card = null, cardState = '', cardWait = 0, cardMsg = '', cardStale = false, cardRefresh = '', cardHave = '', cardTimer = 0, cardPolls = 0, cardSlow = 0, cardQuiet = 0;
       let cardStopped = false; onStop(() => { cardStopped = true; clearTimeout(cardTimer); });       // GAMES review 11-18: a view the host has stopped asks the database for nothing more
-      let cardCode = '', cardRetry = false, cardRefreshCode = '', cardRefreshRetry = false, cardBusy = false, cardNote = '';       // Try again (11-18): what failed, may it be asked again now (the database's answer), is a press out, and the sentence a press left
+      let cardCode = '', cardRetry = false, cardAge = -1, cardRefreshCode = '', cardRefreshRetry = false, cardRefreshAge = -1, cardBusy = false, cardNote = '';       // Try again (11-18): what failed, may it be asked again now (the database's answer), is a press out, and the sentence a press left
       const cardBox = h('section', { class: 'le-card', 'aria-labelledby': 'le-card-h', hidden: true });
       const cardLook = key => (card && card.look && typeof card.look[key] === 'string' ? card.look[key] : undefined);
       const cardWaiting = s => s === 'asked' || s === 'claimed';
+      // GAMES finding 2 (11-19): when the database says how long ago it failed (failed_s), the quiet read is timed from the failure (620 s minus that age), not from when this panel looked; without it (an older database) the fixed 620 s
+      const ageOf = (n) => (typeof n === 'number' && n >= 0 && n <= 600 ? n : -1);
+      const quietMs = (age) => (age >= 0 ? 620000 - age * 1000 : 620000);
       // the words under the swatches: the film's own colours when a card has come, else the starting-colour sentence the editor has always said
       const lookNote = fallback => (!card ? fallback : cardStale ? 'These colours are from an earlier version of the film.'
         : LOOK_ROWS.every(([k]) => cardLook(k) !== undefined) ? "These are the film's own colours, as saved. A colour you change here is yours." : "A colour the picture did not name is shown in the editor's own starting colour.");
@@ -143,7 +146,7 @@
           return;
         }
         cardState = typeof d.state === 'string' ? d.state : ''; cardWait = Number(d.waited_seconds) || 0; cardMsg = typeof d.message === 'string' ? d.message : '';
-        cardCode = typeof d.code === 'string' ? d.code : ''; cardRetry = d.retry === true;
+        cardCode = typeof d.code === 'string' ? d.code : ''; cardRetry = d.retry === true; cardAge = ageOf(d.failed_s);
         if (pressed && cardState === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';
         if (cardState === 'ready') {
           if (d.card && typeof d.card === 'object') {
@@ -152,7 +155,7 @@
             for (const [k] of LOOK_ROWS) { const v = cardLook(k); if (v !== undefined) CARD_LOOK[k] = v; }
           }
           cardStale = d.stale === true; cardRefresh = d.refresh && typeof d.refresh.state === 'string' ? d.refresh.state : '';
-          cardRefreshCode = d.refresh && typeof d.refresh.code === 'string' ? d.refresh.code : ''; cardRefreshRetry = !!(d.refresh && d.refresh.retry === true);
+          cardRefreshCode = d.refresh && typeof d.refresh.code === 'string' ? d.refresh.code : ''; cardRefreshRetry = !!(d.refresh && d.refresh.retry === true); cardRefreshAge = ageOf(d.refresh && d.refresh.failed_s);
           if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';
         } else if (cardState === 'failed' && card) cardRefresh = 'failed';
         paintCard(); paint();
@@ -162,7 +165,7 @@
         const tooSoon = (cardCode === 'engine_error' && cardState === 'failed' && !cardRetry) || (cardState === 'ready' && cardRefreshCode === 'engine_error' && cardRefresh === 'failed' && !cardRefreshRetry);
         if (waiting && ++cardPolls < 40) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 15000); }
         else if (waiting && cardSlow++ < 10) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 120000); }
-        else if (tooSoon && cardQuiet++ < 1) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 620000); }
+        else if (tooSoon && cardQuiet++ < 1) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), quietMs(cardState === 'failed' ? cardAge : cardRefreshAge)); }
       }
 
       // ---- the preview: a stand-in drawing (ENGINE 35's drawer replaces it); it redraws from the state at once

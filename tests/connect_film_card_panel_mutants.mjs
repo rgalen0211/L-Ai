@@ -70,10 +70,10 @@ const mutants = [
   ['the too-early note names a time again', AE, "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';", "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';", 'both'],
   ['a refused press shows any error text', AE, "typeof e.code === 'string' && /^PT" + BS + "d{3}$/.test(e.code) && ", "", 'both'],
   // ---- Step B (11-18): the open panel notices, with reads only
-  ['the quiet re-read comes far too soon', AE, 'loadCard(false), 620000', 'loadCard(false), 6200', 'both'],
-  ['the quiet re-read asks', AE, 'loadCard(false), 620000', 'loadCard(true), 620000', 'both'],
+  ['the quiet re-read comes far too soon', AE, '(age >= 0 ? 620000 - age * 1000 : 620000)', '(age >= 0 ? 620000 - age * 1000 : 6200)', 'both'],
+  ['the quiet re-read asks', AE, 'cardTimer = setTimeout(() => loadCard(false), quietMs(', 'cardTimer = setTimeout(() => loadCard(true), quietMs(', 'both'],
   ['the quiet re-read repeats for ever', AE, 'cardQuiet++ < 1', 'cardQuiet++ < 100', 'both'],
-  ['the quiet re-read is a fixed timer that runs on', AE, 'cardTimer = setTimeout(() => loadCard(false), 620000);', 'cardTimer = setInterval(() => loadCard(false), 620000);', 'both'],
+  ['the quiet re-read is a fixed timer that runs on', AE, 'cardTimer = setTimeout(() => loadCard(false), quietMs(', 'cardTimer = setInterval(() => loadCard(false), quietMs(', 'both'],
   ['a film the engine cannot draw is read again too', AE, "(cardCode === 'engine_error' && cardState === 'failed' && !cardRetry)", "(cardState === 'failed' && !cardRetry)", 'browser'],
   ['the slow reads never stop', AE, 'cardSlow++ < 10', 'cardSlow++ < 100000', 'both'],
   ['the slow reads ask', AE, 'loadCard(false), 120000', 'loadCard(true), 120000', 'both'],
@@ -83,6 +83,15 @@ const mutants = [
   ['the view stopping does not clear the card timer', AE, 'cardStopped = true; clearTimeout(cardTimer);', 'cardStopped = true;', 'source'],
   ['a stopped view still starts a read', AE, '!project || cardStopped) return;', '!project) return;', 'source'],
   ['a read in flight after the stop still paints and parks a timer', AE, 'if (cardStopped) return;\n        const d = r &&', 'const d = r &&', 'source'],
+  // ---- Step B, GAMES finding 2 (11-19): the quiet re-read is timed from the failure
+  ['the age is ignored: always the fixed wait', AE, '(age >= 0 ? 620000 - age * 1000 : 620000)', '(false ? 620000 - age * 1000 : 620000)', 'both'],
+  ['the age is counted in minutes', AE, '620000 - age * 1000 : 620000)', '620000 - age * 60000 : 620000)', 'both'],
+  ['an age beyond what the database still refuses is trusted', AE, "n >= 0 && n <= 600 ? n : -1", "n >= 0 && n <= 600000 ? n : -1", 'both'],
+  // (a negative age passing ageOf alone is NOT a mutant: quietMs turns any age below 0 into the fixed wait too, so the two guards back each other; the guard in quietMs has its own mutant below, and the Chrome scenario feeds -5)
+  ['a missing or negative age counts as an age', AE, '(age >= 0 ? 620000 - age * 1000 : 620000)', '(true ? 620000 - age * 1000 : 620000)', 'both'],
+  ['a text that looks like a number is trusted as an age', AE, "typeof n === 'number' && n >= 0", "n >= 0", 'both'],
+  ['a failed refresh is timed from the newest picture age', AE, "quietMs(cardState === 'failed' ? cardAge : cardRefreshAge)", "quietMs(cardAge)", 'both'],
+  ['the refresh age is never read from the answer', AE, "cardRefreshAge = ageOf(d.refresh && d.refresh.failed_s);", "cardRefreshAge = -1;", 'both'],
 ];
 
 function suites(cwd) {
