@@ -23,3 +23,39 @@ test('sign-in page order: the card, then Forgot your password, then Have an invi
   const at = id => { const i = html.indexOf(`id="${id}"`); assert.ok(i > 0, id); return i; };
   assert.ok(at('sign-in-form') < at('forgot-row') && at('forgot-row') < at('invite-row') && at('invite-row') < at('invite-form') && at('invite-form') < html.indexOf('class="form-note sign-in-help"'));
 });
+
+// Q649 (Ryan 11-18 21:2x: 1 yes, 2 yes, 3 coming soon, 4 keep both and say why, 5 yes): the words, found by GAMES' live /help/ and /ryagram/ walk.
+test('Q649 1: the private-beta box says creators can ASK FOR AN INVITE (the application form is off, so "apply now" was not true)', () => {
+  const html = read('ryagram/index.html');
+  assert.match(html, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">ask for an invite<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\./);
+  assert.doesNotMatch(html, /Creators can <a href="#creators">apply now/);
+});
+
+test('Q649 2: "I cannot sign in" ends at the address below, not a form that is not there', () => {
+  const html = read('help/index.html');
+  assert.match(html, /check your spam folder, then write to us at the address below\./);
+  assert.doesNotMatch(html, /from the form below/);
+});
+
+test('Q649 3: the uploads question starts "Coming soon: when uploading your own data opens, ..." while the upload switch is off', () => {
+  const help = read('help/index.html');
+  assert.match(help, /<summary>My own data \(spreadsheet\) won't read\.<\/summary>\s*<p>Coming soon: when uploading your own data opens, /);
+  assert.match(read('assets/ryagram-config.js'), /uploads:\s*false/, 'this words fix is only true while uploads is off: revisit it when the switch goes on');
+});
+
+test('Q649 4: 2 working days for questions and 7 days for reports stay, and the report page says why a report takes longer', () => {
+  assert.match(read('help/index.html'), /reply within 2 working days/);
+  const rep = read('report/index.html');
+  assert.match(rep, /We reply to the email you give within 7 days: a report needs a review before we can answer it, so it takes longer than a question\./);
+  assert.match(rep, /We reply to your email within 7 days\./);
+});
+
+test('Q649 5: the first card under "Films made with Ryagram" is not the film the hero already shows', () => {
+  const html = read('ryagram/index.html');
+  const hero = html.match(/<figure class="rg-hero-film">[\s\S]*?<\/figure>/)[0];
+  const cards = [...html.matchAll(/<article class="rg-film">([\s\S]*?)<\/article>/g)].map(m => m[1]);
+  assert.equal(cards.length, 4);
+  assert.match(hero, /UC4j77KYVQ8/);
+  assert.doesNotMatch(cards[0], /UC4j77KYVQ8|Interstate/);
+  assert.match(cards[3], /Interstate/, 'the Interstate card stays on the page, further down');
+});

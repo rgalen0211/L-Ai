@@ -90,27 +90,27 @@ test('film slots accept YouTube links or IDs and ignore anything else', () => {
   });
 });
 
-test('the shipped page shows four films, newest first: two still-image entries (Interstate: watch link; Construction Mix: Coming soon, NO link) and the two finished-film loops (no film slots any more)', () => {
+test('the shipped page shows four films, the two finished-film loops first, then Construction Mix (Coming soon, NO link), then Interstate LAST (watch link; the hero above already shows the Interstate film, so the first card must not repeat it; Ryan Q649 5)', () => {
   assert.equal(shippedSlots.length, 0);
   const films = [...pageHtml.matchAll(/<article class="rg-film">([\s\S]*?)<\/article>/g)].map(m => m[1]);
   assert.equal(films.length, 4);
   // Interstate: the published film (youtu.be/UC4j77KYVQ8). Its title, line and credit are the film's own card and licence text.
-  assert.match(films[0], /<h3>Rise of the Interstate Highway, 1956&ndash;1993<\/h3>/);
-  assert.match(films[0], /href="https:\/\/youtu\.be\/UC4j77KYVQ8"[^>]*rel="noopener"/);
-  assert.match(films[0], /39,279 miles constructed, 1956&ndash;1993/);
-  assert.match(films[0], /Brooks &amp; Liscow \(2023\), CC BY 4\.0/);
+  assert.match(films[3], /<h3>Rise of the Interstate Highway, 1956&ndash;1993<\/h3>/);
+  assert.match(films[3], /href="https:\/\/youtu\.be\/UC4j77KYVQ8"[^>]*rel="noopener"/);
+  assert.match(films[3], /39,279 miles constructed, 1956&ndash;1993/);
+  assert.match(films[3], /Brooks &amp; Liscow \(2023\), CC BY 4\.0/);
   // Construction Mix: not out yet, so a plain "Coming soon" and no link of any kind to a film that does not exist.
-  assert.match(films[1], /<p class="rg-tag">Coming soon<\/p>/);
-  assert.match(films[1], /<h3>America's Housing Permits: The Construction Mix \(1990&ndash;2024\)<\/h3>/);
-  assert.match(films[1], /23\.5% of the new homes America authorized were in buildings with 5 or more units\. By 2024 it was 29\.9%\./);
-  assert.doesNotMatch(films[1], /<a\s|href=/);
-  for (const f of films.slice(0, 2)) {
+  assert.match(films[2], /<p class="rg-tag">Coming soon<\/p>/);
+  assert.match(films[2], /<h3>America's Housing Permits: The Construction Mix \(1990&ndash;2024\)<\/h3>/);
+  assert.match(films[2], /23\.5% of the new homes America authorized were in buildings with 5 or more units\. By 2024 it was 29\.9%\./);
+  assert.doesNotMatch(films[2], /<a\s|href=/);
+  for (const f of films.slice(2)) {
     assert.match(f, /<img class="rg-loop" src="\/assets\/ryagram-film-[a-z-]+\.jpg" width="960" height="540" loading="lazy" alt="[^"]{40,}"/);
     assert.doesNotMatch(f, /<video|autoplay/);
   }
-  assert.match(films[2], /href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*rel="noopener"/);
-  assert.match(films[3], /href="https:\/\/youtu\.be\/h32_9Gd8cOg"[^>]*rel="noopener"/);
-  for (const f of films.slice(2)) {
+  assert.match(films[0], /href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*rel="noopener"/);
+  assert.match(films[1], /href="https:\/\/youtu\.be\/h32_9Gd8cOg"[^>]*rel="noopener"/);
+  for (const f of films.slice(0, 2)) {
     assert.match(f, /<video class="rg-loop" muted loop playsinline preload="none" poster="\/assets\/ryagram-loop-[a-z]+\.jpg"/);
     assert.match(f, /aria-label="[^"]{20,}"/);                                  // a described, silent loop
     assert.doesNotMatch(f, /\sautoplay[\s>]/);                                 // started by ryagram-loops.js, only while visible
@@ -447,7 +447,7 @@ test('the Compilation Maker section is an illustration with public-domain words,
 test('LANDING: how it works is three steps of what the beta really does, one checks line (no strip), and the private-beta line with both ways in', () => {
   const how = pageHtml.match(/<section id="how"[\s\S]*?<\/section>/)[0];
   assert.deepEqual([...how.matchAll(/<h3>([^<]*)<\/h3>/g)].map(m => m[1]), ['Ask', 'We draw it', 'You get it, checked']);
-  assert.match(how, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">apply now<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\. Already have an invite\? <a href="\/app\/">Sign in<\/a>\.<\/p>/);
+  assert.match(how, /<p class="rg-release">Ryagram is in private beta\. Creators can <a href="#creators">ask for an invite<\/a>; everyone else can <a href="#waitlist">join the waitlist<\/a>\. Already have an invite\? <a href="\/app\/">Sign in<\/a>\.<\/p>/);
   assert.doesNotMatch(pageHtml, /\[RELEASE DATE\]/);
   const checks = [...pageHtml.matchAll(/<p class="rg-checks">([^<]*)<\/p>/g)];
   assert.equal(checks.length, 1);                                              // ONE line
