@@ -448,6 +448,15 @@ def main():
             t23 = f23.locator('.le-card').inner_text()
             check('Could not ask just now.' in t23 and 'connection reset' not in t23 and 'db-7f3a' not in t23 and f23.locator('.le-cardtry').is_enabled() and not e23, 'an error the connector did not write for people is never shown raw')
             c23.close()
+            # a press that is too early under an older picture whose newer one failed: the same "not yet" words, no time named
+            REF = {'state': 'ready', 'stale': True, 'built_sha256': 'a' * 64, 'refresh': {'state': 'failed', 'code': 'engine_error', 'retry': False}, 'card': CARD}
+            c24, p24, e24, o24 = card_page([REF, REF])
+            f24 = p24.frames[1]
+            f24.locator('.le-cardtry').click()
+            p24.wait_for_timeout(500)
+            t24 = f24.locator('.le-card').inner_text()
+            check('Not yet. Please try again in a few minutes.' in t24 and 'ten minutes after it failed' not in t24.split('Not yet.')[1] and f24.locator('.le-cardtry').count() == 1 and not e24, 'under an older picture a press that is too early says not yet, with no time named, and keeps the button')
+            c24.close()
             c22, p22, e22, o22 = card_page([{'state': 'failed', 'code': 'view_not_supported', 'message': 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.'}])
             check(p22.frames[1].locator('.le-cardtry').count() == 0 and 'Try again' not in p22.frames[1].locator('.le-card').inner_text() and not e22, 'a film the engine cannot draw has no Try again')
             c22.close()

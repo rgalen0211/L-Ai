@@ -68,7 +68,7 @@ const mutants = [
   ['with the button the card also says open the editor again in ten minutes', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg ||", "(cardMsg ||", 'both'],
   ['a failure with no button loses the connector words', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg || \"The film's picture is not available.\")", "\"Drawing the film's picture did not work this time.\"", 'both'],
   ['the too-early note names a time again', AE, "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';", "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';", 'both'],
-  ['a refused press shows any error text', AE, "/^PT" + BS + "d{3}$/.test(e.code)", "true", 'both'],
+  ['a refused press shows any error text', AE, "typeof e.code === 'string' && /^PT" + BS + "d{3}$/.test(e.code) && ", "", 'both'],
 ];
 
 function suites(cwd) {
