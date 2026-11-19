@@ -1,9 +1,11 @@
--- AFTER 20261119000100_film_card_failed_age.sql (the card read also says how many seconds ago a failed picture failed): one SELECT, read-only, changes nothing. Every ok must be true.
--- Run it on the same project right after the migration. Before the migration the first two rows answer false, never an error. Every column is named.
+-- AFTER 20261119000100_film_card_failed_age.sql (the card read, the connector's and the site's, also says how many seconds ago a failed picture failed): one SELECT, read-only, changes nothing. Every ok must be true.
+-- Run it on the same project right after the migration. Before the migration the first three rows answer false, never an error. Every column is named.
 select 'connect_film_card_get names failed_s for a failed request (the newest picture)' as check_name,
        coalesce((select p.prosrc like '%''fail_detail'', r.fail_detail, ''retry'', retry, ''failed_s'', case when r.state = ''failed'' then%' from pg_proc p where p.oid = to_regprocedure('public.connect_film_card_get(text,uuid)')), false) as ok
 union all select 'and for a failed refresh under an older picture',
        coalesce((select p.prosrc like '%''retry'', retry, ''failed_s'', case when r.state = ''failed'' then%end)%' from pg_proc p where p.oid = to_regprocedure('public.connect_film_card_get(text,uuid)')), false)
+union all select 'my_film_card_get (the site twin) names failed_s in both places too',
+       coalesce((select p.prosrc like '%''fail_detail'', r.fail_detail, ''retry'', retry, ''failed_s'', case when r.state = ''failed'' then%' and p.prosrc like '%''retry'', retry, ''failed_s'', case when r.state = ''failed'' then%end)%' from pg_proc p where p.oid = to_regprocedure('public.my_film_card_get(uuid)')), false)
 union all select 'connect_film_card_get still carries the retry rule (engine_error, older than 10 minutes)',
        coalesce((select p.prosrc like '%r.fail_code = ''engine_error'' and r.finished_at < now() - interval ''10 minutes''%' from pg_proc p where p.oid = to_regprocedure('public.connect_film_card_get(text,uuid)')), false)
 union all select 'connect_film_card_get still checks the connector token (connect_actor)',

@@ -749,7 +749,7 @@ class FilmCards(core.Base):
 
     def test_the_failed_age_after_check_is_all_true_after_the_migration_and_false_in_the_rows_that_matter_before_it(self):
         rows = self.apply_sql(self.AGE_CHECK.read_text(encoding="utf-8"), "the after-check").fetchall()
-        self.assertEqual(len(rows), 7)
+        self.assertEqual(len(rows), 8)
         self.assertTrue(all(ok for _, ok in rows), rows)
         self.apply_sql(self.AGE_RB.read_text(encoding="utf-8"), "the rollback")
         after_rb = dict(self.apply_sql(self.AGE_CHECK.read_text(encoding="utf-8"), "the after-check").fetchall())
@@ -763,10 +763,34 @@ class FilmCards(core.Base):
         self.assertNotIn("failed_s", g)
         self.assertEqual((g["state"], g["fail_code"], g["retry"]), ("failed", "engine_error", True), "everything else the read said is the same")
         self.assertNotIn("failed_s", self.owner(self.GET_DEF).fetchone()[0])
+        self.assertNotIn("failed_s", self.owner("select pg_get_functiondef(to_regprocedure('public.my_film_card_get(uuid)'))").fetchone()[0], "and the site twin too")
         self.apply_sql(self.AGE_RB.read_text(encoding="utf-8"), "a second rollback")                  # a second undo: nothing to do
         self.apply_sql(self.AGE_MIG.read_text(encoding="utf-8"), "the migration again")
         self.assertTrue(660 <= self.get(self.a, p)["failed_s"] < 690)
         self.assertEqual(self.owner(self.GET_DEF).fetchone()[0].count("failed_s"), 2, "in exactly the two places")
+        self.assertEqual(self.owner("select pg_get_functiondef(to_regprocedure('public.my_film_card_get(uuid)'))").fetchone()[0].count("failed_s"), 2, "and in the site twin")
+
+    SITE_DEF = "select pg_get_functiondef(to_regprocedure('public.my_film_card_get(uuid)'))"
+
+    def test_the_site_twin_says_the_same_failed_age_as_the_connector_read(self):
+        p, rid = self.failed_film()
+        self.owner("update public.film_card_requests set finished_at = now() - interval '7 minutes' where id = %s", rid)
+        mine = self.app(ALICE).one("select my_film_card_get(%s)", p)
+        theirs = self.get(self.a, p)
+        self.assertTrue(420 <= mine["failed_s"] < 450, mine.get("failed_s"))
+        self.assertTrue(abs(mine["failed_s"] - theirs["failed_s"]) <= 5, (mine.get("failed_s"), theirs.get("failed_s")))
+        self.assertEqual({k: v for k, v in mine.items() if k not in ("failed_s", "waited_s", "id")}, {k: v for k, v in theirs.items() if k not in ("failed_s", "waited_s", "id")}, "and nothing else differs between the twins")
+
+    def test_the_failed_age_migration_changes_neither_function_when_either_is_not_the_expected_one(self):
+        self.apply_sql(self.AGE_RB.read_text(encoding="utf-8"), "the rollback")
+        drifted = self.owner(self.SITE_DEF).fetchone()[0].replace("'retry', retry)", "'retry', retry, 'x', 1)", 1)
+        self.owner(drifted)
+        with self.assertRaises(psycopg.Error) as cm:
+            self.owner(self.AGE_MIG.read_text(encoding="utf-8"))
+        self.assertIn("my_film_card_get", str(cm.exception))
+        self.db.c.execute("rollback")
+        for sql in (self.GET_DEF, self.SITE_DEF):
+            self.assertNotIn("failed_s", self.owner(sql).fetchone()[0], "the connector's read was not changed either")
 
     def test_the_failed_age_migration_ends_with_the_waiting_list_gate_and_names_no_new_function(self):
         sql = self.AGE_MIG.read_text(encoding="utf-8")

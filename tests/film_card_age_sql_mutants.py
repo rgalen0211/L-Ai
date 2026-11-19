@@ -18,6 +18,7 @@ W.SCRATCH = W.ROOT / ".mut_age"
 W.RUN_TMP = W.base.BASE_TEMP / f"age-mut-{os.getpid()}"
 
 TOP_NEW = "''retry'', retry, ''failed_s'', case when r.state = ''failed'' then greatest(0, floor(extract(epoch from (now() - r.finished_at)))::int) end,';"
+ARR = "foreach fn in array array['public.connect_film_card_get(text, uuid)', 'public.my_film_card_get(uuid)'] loop"
 REPLACE_BOTH = "neu := replace(replace(def, top_old, top_new), ref_old, ref_new);"
 UNDO_BOTH = "neu := replace(replace(def, top_new, top_old), ref_new, ref_old);"
 
@@ -31,6 +32,8 @@ W.MUTANTS[:] = [
     ("a drifted function is changed anyway", " or n_top <> 1 or n_ref <> 1 or position('failed_s' in def) > 0 then", " then"),
     ("running the migration a second time is not a no-op", "if position(top_new in def) > 0 and position(ref_new in def) > 0 then raise notice", "if false then raise notice"),
     ("the migration has no waiting-list gate at the end", "select ryagram_private.gate_apply();                       --", "select 1;                       --"),
+    ("the site twin is left without the age", ARR, "foreach fn in array array['public.connect_film_card_get(text, uuid)'] loop"),
+    ("the rollback leaves the age in the site twin", [(R, ARR, "foreach fn in array array['public.connect_film_card_get(text, uuid)'] loop")]),
     ("the rollback leaves the age in the newest picture's answer", [(R, UNDO_BOTH, "neu := replace(def, ref_new, ref_old);")]),
     ("the rollback leaves the age in the refresh", [(R, UNDO_BOTH, "neu := replace(def, top_new, top_old);")]),
     ("the rollback is not a no-op the second time", [(R, "if position('failed_s' in def) = 0 then raise notice", "if false then raise notice")]),
