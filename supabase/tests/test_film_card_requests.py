@@ -331,7 +331,7 @@ class FilmCards(core.Base):
         self.assertEqual(r2["state"], "asked")
         still = self.get(self.a, p)
         self.assertEqual((still["state"], still["stale"]), ("ready", True), "the old card is still shown while the new one is drawn")
-        self.assertEqual(still["refresh"], {"state": "asked", "fail_code": None, "retry": False}, "and the answer says the new one is being asked for")
+        self.assertEqual(still["refresh"], {"state": "asked", "fail_code": None, "retry": False, "failed_s": None}, "and the answer says the new one is being asked for (it has not failed, so no age)")
         got = self.claim()
         self.assertEqual(got[0][3], sha2)
         self.finish(r2["id"], card(sha2))
@@ -413,7 +413,8 @@ class FilmCards(core.Base):
         r2 = self.ask(self.a, p)
         self.claim()
         self.worker().one("select public.fail_film_card(%s, 'engine_error', 'it broke')", r2["id"])
-        self.assertEqual(self.get(self.a, p)["refresh"], {"state": "failed", "fail_code": "engine_error", "retry": False})
+        r_ = self.get(self.a, p)["refresh"]
+        self.assertEqual({k: r_[k] for k in ("state", "fail_code", "retry")}, {"state": "failed", "fail_code": "engine_error", "retry": False})
         self.owner("update public.film_card_requests set finished_at = now() - interval '11 minutes' where id = %s", r2["id"])
         g = self.get(self.a, p)
         self.assertEqual((g["state"], g["stale"], g["refresh"].get("retry")), ("ready", True, True), "the old picture stays on show and a new ask is allowed")
@@ -664,6 +665,111 @@ class FilmCards(core.Base):
 
     def test_the_caps_migration_ends_with_the_waiting_list_gate_and_names_no_new_function(self):
         sql = self.CAPS_MIG.read_text(encoding="utf-8")
+        lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
+        self.assertEqual(lines[-2:], ["select ryagram_private.gate_apply();", "commit;"])
+        self.assertNotRegex(sql, r"(?i)create\s+(or\s+replace\s+)?function")
+
+
+    # ------------------------------------------------------------------------------------------------ the failed age (20261119000100_film_card_failed_age.sql): how many seconds ago a failed picture failed
+    AGE_MIG = core.ROOT / "migrations" / "20261119000100_film_card_failed_age.sql"
+    AGE_RB = core.ROOT / "rollbacks" / "20261119000100_film_card_failed_age_rollback.sql"
+    AGE_CHECK = core.ROOT / "live-steps" / "26_film_card_failed_age_after_check.sql"
+    GET_DEF = "select pg_get_functiondef(to_regprocedure('public.connect_film_card_get(text,uuid)'))"
+
+    def failed_film(self, code="engine_error", title="Invented film"):
+        p, _, _ = self.film(self.a, title, {"title": title})
+        r = self.ask(self.a, p)
+        self.claim()
+        self.worker().one("select public.fail_film_card(%s, %s, 'it broke')", r["id"], code)
+        return p, r["id"]
+
+    def test_the_read_says_how_many_seconds_ago_a_failed_picture_failed(self):
+        p, rid = self.failed_film()
+        g = self.get(self.a, p)
+        self.assertIsInstance(g.get("failed_s"), int)
+        self.assertTrue(0 <= g["failed_s"] < 30, "just failed: about 0 seconds ago (%r)" % g.get("failed_s"))
+        self.owner("update public.film_card_requests set finished_at = now() - interval '9 minutes' where id = %s", rid)
+        g = self.get(self.a, p)
+        self.assertTrue(540 <= g["failed_s"] < 570, "nine minutes ago is about 540 seconds, whole seconds (%r)" % g.get("failed_s"))
+        self.assertFalse(g.get("retry"), "and the retry rule is the one it was")
+        self.owner("update public.film_card_requests set finished_at = now() - interval '11 minutes' where id = %s", rid)
+        g = self.get(self.a, p)
+        self.assertTrue(660 <= g["failed_s"] < 690, "eleven minutes ago is about 660 seconds (%r)" % g.get("failed_s"))
+        self.assertTrue(g.get("retry"))
+
+    def test_a_request_that_has_not_failed_carries_no_failed_age(self):
+        p, _, sha = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.assertIsNone(self.get(self.a, p).get("failed_s"), "asked")
+        self.claim()
+        self.assertIsNone(self.get(self.a, p).get("failed_s"), "claimed")
+        self.finish(r["id"], card(sha))
+        g = self.get(self.a, p)
+        self.assertEqual(g["state"], "ready")
+        self.assertIsNone(g.get("failed_s"), "answered")
+
+    def test_a_failure_that_cannot_be_retried_still_says_how_long_ago_it_failed_and_the_age_is_never_below_zero(self):
+        p, rid = self.failed_film("view_not_supported", "Invented film vns")
+        self.owner("update public.film_card_requests set finished_at = now() - interval '2 hours' where id = %s", rid)
+        g = self.get(self.a, p)
+        self.assertEqual((g["fail_code"], g.get("retry")), ("view_not_supported", False))
+        self.assertTrue(7200 <= g["failed_s"] < 7230, g.get("failed_s"))
+        p2, rid2 = self.failed_film("engine_error", "Invented film future")
+        self.owner("update public.film_card_requests set finished_at = now() + interval '5 minutes' where id = %s", rid2)
+        self.assertEqual(self.get(self.a, p2)["failed_s"], 0, "a clock that is ahead reads as 0, never a negative age")
+
+    def test_a_failed_refresh_says_how_long_ago_it_failed_too(self):
+        p, v, sha = self.film(self.a)
+        r = self.ask(self.a, p)
+        self.claim()
+        self.finish(r["id"], card(sha))
+        self.runner().one("select connect_save_story(%s, %s, %s::jsonb)", self.a, v, json.dumps(STORY2))
+        r2 = self.ask(self.a, p)
+        self.claim()
+        self.worker().one("select public.fail_film_card(%s, 'engine_error', 'it broke')", r2["id"])
+        self.owner("update public.film_card_requests set finished_at = now() - interval '4 minutes' where id = %s", r2["id"])
+        g = self.get(self.a, p)
+        self.assertEqual((g["state"], g["stale"], g["refresh"]["state"], g["refresh"]["retry"]), ("ready", True, "failed", False))
+        self.assertTrue(240 <= g["refresh"]["failed_s"] < 270, g["refresh"])
+        self.assertIsNone(g.get("failed_s"), "the picture on show has not failed: only the refresh has")
+
+    def test_the_failed_age_migration_is_safe_to_run_twice_and_stops_in_words_on_a_function_that_is_not_the_expected_one(self):
+        before = self.owner(self.GET_DEF).fetchone()[0]
+        self.assertIn("failed_s", before)
+        self.apply_sql(self.AGE_MIG.read_text(encoding="utf-8"), "a second run of the migration")      # nothing to do, no error
+        self.assertEqual(self.owner(self.GET_DEF).fetchone()[0], before)
+        self.apply_sql(self.AGE_RB.read_text(encoding="utf-8"), "the rollback")
+        drifted = self.owner(self.GET_DEF).fetchone()[0].replace("'retry', retry)", "'retry', retry, 'x', 1)", 1)       # as if someone had changed the function by hand
+        self.owner(drifted)
+        with self.assertRaises(psycopg.Error) as cm:
+            self.owner(self.AGE_MIG.read_text(encoding="utf-8"))
+        self.assertIn("is not the one this change expects", str(cm.exception))
+        self.db.c.execute("rollback")
+        self.assertNotIn("failed_s", self.owner("select prosrc from pg_proc where oid = to_regprocedure('public.connect_film_card_get(text,uuid)')").fetchone()[0], "nothing was changed")
+
+    def test_the_failed_age_after_check_is_all_true_after_the_migration_and_false_in_the_rows_that_matter_before_it(self):
+        rows = self.apply_sql(self.AGE_CHECK.read_text(encoding="utf-8"), "the after-check").fetchall()
+        self.assertEqual(len(rows), 7)
+        self.assertTrue(all(ok for _, ok in rows), rows)
+        self.apply_sql(self.AGE_RB.read_text(encoding="utf-8"), "the rollback")
+        after_rb = dict(self.apply_sql(self.AGE_CHECK.read_text(encoding="utf-8"), "the after-check").fetchall())
+        self.assertEqual(sorted(k for k, v in after_rb.items() if not v), sorted(k for k in after_rb if "failed_s" in k or k.startswith("and for a failed refresh")), after_rb)
+
+    def test_the_failed_age_rollback_takes_the_number_out_and_changes_nothing_else_and_the_migration_puts_it_back(self):
+        p, rid = self.failed_film()
+        self.owner("update public.film_card_requests set finished_at = now() - interval '11 minutes' where id = %s", rid)
+        self.apply_sql(self.AGE_RB.read_text(encoding="utf-8"), "the rollback")
+        g = self.get(self.a, p)
+        self.assertNotIn("failed_s", g)
+        self.assertEqual((g["state"], g["fail_code"], g["retry"]), ("failed", "engine_error", True), "everything else the read said is the same")
+        self.assertNotIn("failed_s", self.owner(self.GET_DEF).fetchone()[0])
+        self.apply_sql(self.AGE_RB.read_text(encoding="utf-8"), "a second rollback")                  # a second undo: nothing to do
+        self.apply_sql(self.AGE_MIG.read_text(encoding="utf-8"), "the migration again")
+        self.assertTrue(660 <= self.get(self.a, p)["failed_s"] < 690)
+        self.assertEqual(self.owner(self.GET_DEF).fetchone()[0].count("failed_s"), 2, "in exactly the two places")
+
+    def test_the_failed_age_migration_ends_with_the_waiting_list_gate_and_names_no_new_function(self):
+        sql = self.AGE_MIG.read_text(encoding="utf-8")
         lines = [ln.split("--")[0].strip() for ln in sql.splitlines() if ln.strip() and not ln.strip().startswith("--")]
         self.assertEqual(lines[-2:], ["select ryagram_private.gate_apply();", "commit;"])
         self.assertNotRegex(sql, r"(?i)create\s+(or\s+replace\s+)?function")
