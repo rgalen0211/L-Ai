@@ -72,7 +72,7 @@ test('SWITCHES: every switch defaults OFF unless Ryan turned it on, every OFF sw
       assert.match(m[2], /\bhidden\b/, `${f}: <${m[1]} data-flag="${m[3]}"> must carry hidden in the HTML`);
       for (const n of m[3].split(/\s+/).filter(Boolean)) assert.ok(known.has(n), `${f}: data-flag names "${n}", which is not a switch`);
     }
-    if (/<p id="not-available">/.test(code[f])) {
+    if (/<(?:p|section) id="not-available"[ >]/.test(code[f])) {            // GAMES 11-19: the game pages' off state is a <section> with a heading
       assert.match(code[f], /<div id="[a-z-]+" hidden>/, `${f}: a switched page keeps its content hidden in the HTML`);
       const scripts = [...code[f].matchAll(/src="\/(assets\/[a-z0-9-]+\.js)\?v=/g)].map(x => x[1]).filter(s => s !== 'assets/ryagram-config.js'), script = scripts[scripts.length - 1];
       const flag = (/(?:\bcfg|ryagramConfig)\??\.([a-zA-Z]+) === true/.exec(code[script] || '') || [])[1];

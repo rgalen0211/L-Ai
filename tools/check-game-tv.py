@@ -92,7 +92,9 @@ with sync_playwright() as pw:
     p.context.close()
     p = page(b, base, dict(viewport={'width': 1200, 'height': 900}), errs, hosts)
     p.goto(f'http://127.0.0.1:{PORT}/game-tv/', wait_until='load'); p.wait_for_timeout(500)
-    check(p.inner_text('main').strip() == 'This page is not available yet.', 'with the switch off only the plain line shows')
+    main_txt = p.inner_text('main').strip()                     # GAMES 11-19: the off state is the line as its heading, then the 404 page's help list
+    check(main_txt.startswith('This page is not available yet.') and 'These might help:' in main_txt and "The L'Ai home page" in main_txt
+          and 'Guess the next line' not in main_txt and p.title() == "Not available yet | L'Ai", 'with the switch off only the off state shows, and the tab names no game')
     p.context.close(); b.close()
 srv.shutdown(); srv.server_close()
 print('ALL OK' if ok else 'FAILED'); sys.exit(0 if ok else 1)

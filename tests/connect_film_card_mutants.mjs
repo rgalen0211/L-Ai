@@ -104,6 +104,12 @@ const mutants = [
   ['the stand-in lets many requests wait', FK, 'c.state === "claimed").length >= 5) throw err("There are already 5 film pictures', 'c.state === "claimed").length >= 500) throw err("There are already 5 film pictures'],
   ['the stand-in worker may store a card for another story', FK, 'if ((o!.basis as { story_sha256?: unknown } | undefined)?.story_sha256 !== c.sha) throw', 'if (false) throw'],
   ['the stand-in retries an engine error at once', FK, '(same.finished ?? 0) < Date.now() - 600000', '(same.finished ?? 0) < Date.now() + 600000'],
+  // ---- Try again (11-18): the database's own "may it be asked for again now" rides on a failed picture, and only on the kind a retry can fix
+  ['a failed picture never carries the retry flag', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true } : {}) };', ', message: FAIL_WORDS[code] };'],
+  ['a failed picture always says it may be asked for again', ET, '{ retry: r.retry === true } : {}) };', '{ retry: true } : {}) };'],
+  ['every failed picture carries the flag, even a film the engine cannot draw', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true } : {}) };', ', message: FAIL_WORDS[code], retry: r.retry === true };'],
+  ['an older picture whose newer one failed never carries the flag', ET, 'return { code, ...(code === "engine_error" ? { retry: retry === true } : {}) };', 'return { code };'],
+  ['an older picture whose newer one failed always says it may be asked again', ET, '{ retry: retry === true } : {}) };', '{ retry: true } : {}) };'],
 ];
 
 function run(cwd) {
