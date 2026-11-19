@@ -1,0 +1,745 @@
+{
+ "ask": {
+  "shape": "compare",
+  "counties": [
+   "39113",
+   "39057"
+  ],
+  "kind": "grocery",
+  "rule": null,
+  "year": null
+ },
+ "answer": {
+  "schema": "ryagram.geo-compare-counties/1",
+  "kind": "grocery",
+  "kind_title": "supermarkets and other grocery stores",
+  "counties": [
+   {
+    "county": "39113",
+    "name": "Montgomery County, Ohio"
+   },
+   {
+    "county": "39057",
+    "name": "Greene County, Ohio"
+   }
+  ],
+  "rule": null,
+  "ordered": false,
+  "order_words": "the order you asked; no rule was stated, so nothing is ordered",
+  "rule_table": [],
+  "county_figures": [
+   {
+    "county": "39113",
+    "name": "Montgomery County, Ohio",
+    "read_how": "per_county_extract",
+    "series": [
+     {
+      "measure": "establishments",
+      "title": "supermarkets and other grocery stores: establishments",
+      "label": "Observed",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+      "unit": "places",
+      "breaks": [],
+      "note": "a count of places, as published. A count of supermarkets and grocery stores. Supercenters, warehouse clubs, dollar stores and convenience stores also sell food and are not in this count.",
+      "years": [
+       {
+        "year": 1998,
+        "value": 101,
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 99,
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 100,
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 100,
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 86,
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 94,
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 91,
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 92,
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 92,
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 82,
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 79,
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 80,
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 77,
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 73,
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 83,
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 81,
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 84,
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 84,
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 85,
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 82,
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 84,
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 83,
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 82,
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 82,
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 73,
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 77,
+        "note": ""
+       }
+      ]
+     },
+     {
+      "measure": "per_10k",
+      "title": "supermarkets and other grocery stores: places per 10,000 residents",
+      "label": "Calculated",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain); U.S. Census Bureau, Population Estimates Program, county totals (public domain)",
+      "unit": "places per 10,000 residents",
+      "breaks": [
+       2000,
+       2010,
+       2020
+      ],
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "years": [
+       {
+        "year": 1998,
+        "value": 1.78,
+        "residents": 566715,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 1.76,
+        "residents": 561944,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 1.79,
+        "residents": 558522,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 1.8,
+        "residents": 555536,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 1.55,
+        "residents": 553170,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 1.7,
+        "residents": 551742,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 1.66,
+        "residents": 549713,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 1.68,
+        "residents": 546979,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 1.69,
+        "residents": 543620,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 1.52,
+        "residents": 540667,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 1.47,
+        "residents": 537664,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 1.49,
+        "residents": 535294,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 1.44,
+        "residents": 535751,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 1.36,
+        "residents": 535298,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 1.55,
+        "residents": 535653,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 1.51,
+        "residents": 536165,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 1.57,
+        "residents": 534953,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 1.57,
+        "residents": 534832,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 1.59,
+        "residents": 535576,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 1.53,
+        "residents": 535794,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 1.57,
+        "residents": 536312,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 1.55,
+        "residents": 537026,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 1.53,
+        "residents": 537139,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 1.53,
+        "residents": 536229,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 1.37,
+        "residents": 534355,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 1.44,
+        "residents": 535313,
+        "estimate": "2020-2024",
+        "note": ""
+       }
+      ]
+     }
+    ],
+    "not_held_items": [],
+    "full_profile": {
+     "tool": "county_profile",
+     "county": "39113",
+     "kind": "grocery",
+     "words": "every other figure for this county (employees, payroll, QCEW, permits, population) is in its full county profile"
+    }
+   },
+   {
+    "county": "39057",
+    "name": "Greene County, Ohio",
+    "read_how": "per_county_extract",
+    "series": [
+     {
+      "measure": "establishments",
+      "title": "supermarkets and other grocery stores: establishments",
+      "label": "Observed",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain)",
+      "unit": "places",
+      "breaks": [],
+      "note": "a count of places, as published. A count of supermarkets and grocery stores. Supercenters, warehouse clubs, dollar stores and convenience stores also sell food and are not in this count.",
+      "years": [
+       {
+        "year": 1998,
+        "value": 24,
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 24,
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 22,
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 22,
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 24,
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 27,
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 25,
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 22,
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 24,
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 22,
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 26,
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 23,
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 21,
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 18,
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 15,
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 15,
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 16,
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 17,
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 21,
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 23,
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 23,
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 21,
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 17,
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 19,
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 19,
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 19,
+        "note": ""
+       }
+      ]
+     },
+     {
+      "measure": "per_10k",
+      "title": "supermarkets and other grocery stores: places per 10,000 residents",
+      "label": "Calculated",
+      "source": "U.S. Census Bureau, County Business Patterns, bulk county files (public domain); U.S. Census Bureau, Population Estimates Program, county totals (public domain)",
+      "unit": "places per 10,000 residents",
+      "breaks": [
+       2000,
+       2010,
+       2020
+      ],
+      "note": "the count divided by the county's population estimate, times 10,000; at a population break the estimate changes base, so a step there can be that change",
+      "years": [
+       {
+        "year": 1998,
+        "value": 1.64,
+        "residents": 146266,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 1999,
+        "value": 1.63,
+        "residents": 147479,
+        "estimate": "1990-1999",
+        "note": ""
+       },
+       {
+        "year": 2000,
+        "value": 1.48,
+        "residents": 148401,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2001,
+        "value": 1.47,
+        "residents": 149643,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2002,
+        "value": 1.58,
+        "residents": 151537,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2003,
+        "value": 1.76,
+        "residents": 153064,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2004,
+        "value": 1.61,
+        "residents": 155442,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2005,
+        "value": 1.41,
+        "residents": 156223,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2006,
+        "value": 1.52,
+        "residents": 157850,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2007,
+        "value": 1.38,
+        "residents": 159055,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2008,
+        "value": 1.62,
+        "residents": 160115,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2009,
+        "value": 1.43,
+        "residents": 161075,
+        "estimate": "2000-2010",
+        "note": ""
+       },
+       {
+        "year": 2010,
+        "value": 1.3,
+        "residents": 161548,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2011,
+        "value": 1.1,
+        "residents": 163345,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2012,
+        "value": 0.91,
+        "residents": 163943,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2013,
+        "value": 0.92,
+        "residents": 163339,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2014,
+        "value": 0.98,
+        "residents": 163927,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2015,
+        "value": 1.04,
+        "residents": 163348,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2016,
+        "value": 1.28,
+        "residents": 164215,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2017,
+        "value": 1.39,
+        "residents": 165237,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2018,
+        "value": 1.39,
+        "residents": 165955,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2019,
+        "value": 1.25,
+        "residents": 167462,
+        "estimate": "2010-2020",
+        "note": ""
+       },
+       {
+        "year": 2020,
+        "value": 1.01,
+        "residents": 168130,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2021,
+        "value": 1.13,
+        "residents": 168250,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2022,
+        "value": 1.12,
+        "residents": 169380,
+        "estimate": "2020-2024",
+        "note": ""
+       },
+       {
+        "year": 2023,
+        "value": 1.12,
+        "residents": 170335,
+        "estimate": "2020-2024",
+        "note": ""
+       }
+      ]
+     }
+    ],
+    "not_held_items": [],
+    "full_profile": {
+     "tool": "county_profile",
+     "county": "39057",
+     "kind": "grocery",
+     "words": "every other figure for this county (employees, payroll, QCEW, permits, population) is in its full county profile"
+    }
+   }
+  ],
+  "say": [
+   "Ryagram counts places, jobs, wages paid, permits and people. It has no sales data, so it cannot say where a business would do well.",
+   "These are counts of places, not of sales or customers.",
+   "An order shown here follows the stated rule only; it is not a ranking of better places.",
+   "Ryagram counts grocery stores and people. It does not measure how far anyone travels to buy food, what they buy, or whether an area has enough stores.",
+   "This order follows only the rule you stated. It is not a ranking, and it does not say where a store would do well or whether an area has enough stores."
+  ],
+  "forecast": "none: this tool gives held figures only"
+ }
+}

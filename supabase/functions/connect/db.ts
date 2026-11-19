@@ -88,6 +88,9 @@ export class ConnectDb {
       // migrations/20261113000200_connect_departments.sql (NOT APPLIED): the person's departments, the same rule as the site's top bar
       departments: () => self.fn("connect_my_departments", ["text"], [h]),
       switches: () => self.fn("connect_my_switches", ["text"], [h]),
+      // migrations/20261109000200_county_requests.sql (NOT APPLIED): the county tools' requests
+      askCounty: (q) => self.fn("connect_county_ask", ["text", "text", "text[]", "text", "text", "int"], [h, q.shape, q.counties, q.kind, q.rule, q.year]),
+      getCounty: (id) => self.fn("connect_county_get", ["text", "uuid"], [h, id]),
       // migrations/20261109000100_film_cards.sql (NOT APPLIED): the editor's film look card (Step A)
       askFilmCard: (projectId) => self.fn("connect_film_card_ask", ["text", "uuid"], [h, projectId]),
       getFilmCard: (projectId) => self.fn("connect_film_card_get", ["text", "uuid"], [h, projectId]),

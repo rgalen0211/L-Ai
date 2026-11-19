@@ -109,6 +109,9 @@ export interface Data extends Omit<UserData, "submitJob"> {
   departments(): Promise<DepartmentRow[]>;
   /** The person's OWN list of site switches (migration 20261113000200: connect_my_switches, the token-checked twin of my_switches()); empty on any problem. */
   switches(): Promise<string[]>;
+  /** County questions (migration 20261109000200, NOT APPLIED): asked here, answered by the house computer with GEO's county tools, read back with county_answer. Optional: a database without the migration has none, and the tools say so. */
+  askCounty?(q: { shape: "profile" | "compare"; counties: string[]; kind: string; rule: string | null; year: number | null }): Promise<{ id: string; state: string; repeat?: boolean }>;
+  getCounty?(id: string): Promise<CountyRow | null>;
   quote(versionId: string, jobType: "contact_sheet" | "preview" | "final_render"): Promise<Quote>;
   jobById(jobId: string): Promise<(Job & { version_id: string; progress?: number | null; note?: string | null; queue_position?: number | null;
     /** The worker's heartbeat (jobs.progress_detail): stage, done, total, unit, eta_s, ... Untrusted; absent when the database call does not return it. */
@@ -157,6 +160,11 @@ export interface GeoSwitch {
 }
 /** A place question as the database holds it (NEXT-CONNECT 196): asked here, answered by the house computer, read back with geo_answer. `answer` is the engine's ryagram.drive-estimate/0 JSON, untrusted until the tool has checked it. */
 export type GeoShape = "compare_sites" | "verdict" | "where_to_go";
+/** A county request as the database holds it. `answer` is whatever the house computer stored: it is read by county.ts before anything of it is shown. */
+export interface CountyRow {
+  id: string; state: "asked" | "claimed" | "answered" | "failed"; shape: "profile" | "compare"; counties: string[]; kind: string; rule: string | null; year: number | null;
+  answer: unknown; fail_code: string | null; fail_detail: string | null; waited_s: number;
+}
 export interface GeoRow {
   id: string; state: "asked" | "claimed" | "answered" | "failed"; lat: number | null; lon: number | null; minutes: number | null; categories: string[];
   /** absent on a database that has not had migration 20261104000400: that is the old shape */
@@ -172,6 +180,8 @@ export interface Deps {
   geo?: GeoSwitch;
   /** The forecast tools' own switch (same shape as `geo`): the real function wires none, so they refuse and ask nothing. */
   forecast?: GeoSwitch;
+  /** The county tools' own switch (same shape as `geo`): the real function wires none, so they refuse and ask nothing. */
+  county?: GeoSwitch;
 }
 
 export interface ToolCtx {
@@ -232,6 +242,7 @@ export const LIMITS = Object.freeze({
   footagePlansPerDayPerUser: 20,
   geoQuestionsPerHourPerUser: 30,
   geoReadsPerHourPerUser: 120,
+  countyQuestionsPerHourPerUser: 30,          // BACKLOG CONNECT-4: asks for a county profile or comparison (reads use the place questions' read bucket)
   panelCallsPerMinutePerClient: 90,      // the chat panel polls (about 10 a minute) and beats; its calls have their own buckets so they cannot use up the AI's
   panelCallsPerMinutePerAccount: 150,
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
