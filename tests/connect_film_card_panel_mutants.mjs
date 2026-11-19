@@ -87,7 +87,8 @@ const mutants = [
   ['the age is ignored: always the fixed wait', AE, '(age >= 0 ? 620000 - age * 1000 : 620000)', '(false ? 620000 - age * 1000 : 620000)', 'both'],
   ['the age is counted in minutes', AE, '620000 - age * 1000 : 620000)', '620000 - age * 60000 : 620000)', 'both'],
   ['an age beyond what the database still refuses is trusted', AE, "n >= 0 && n <= 600 ? n : -1", "n >= 0 && n <= 600000 ? n : -1", 'both'],
-  ['a negative age is trusted', AE, "n >= 0 && n <= 600 ? n : -1", "n <= 600 ? n : -1", 'both'],
+  // (a negative age passing ageOf alone is NOT a mutant: quietMs turns any age below 0 into the fixed wait too, so the two guards back each other; the guard in quietMs has its own mutant below, and the Chrome scenario feeds -5)
+  ['a missing or negative age counts as an age', AE, '(age >= 0 ? 620000 - age * 1000 : 620000)', '(true ? 620000 - age * 1000 : 620000)', 'both'],
   ['a text that looks like a number is trusted as an age', AE, "typeof n === 'number' && n >= 0", "n >= 0", 'both'],
   ['a failed refresh is timed from the newest picture age', AE, "quietMs(cardState === 'failed' ? cardAge : cardRefreshAge)", "quietMs(cardAge)", 'both'],
   ['the refresh age is never read from the answer', AE, "cardRefreshAge = ageOf(d.refresh && d.refresh.failed_s);", "cardRefreshAge = -1;", 'both'],

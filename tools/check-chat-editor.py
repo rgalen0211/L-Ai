@@ -477,7 +477,7 @@ def main():
             c30, p30, e30, o30 = card_page([eng(False, 0)], capture=True)
             check(slow(p30) == [620000] and not e30, 'a picture that has only just failed waits the full 620 seconds (%s)' % slow(p30))
             c30.close()
-            for bad in (-5, 601, 99999, 'x'):
+            for bad in (-5, 601, 99999, 'x', '7'):
                 cb, pb, eb, ob = card_page([eng(False, bad)], capture=True)
                 check(slow(pb) == [620000] and not eb, 'an age that makes no sense (%r) is no age: the fixed wait (%s)' % (bad, slow(pb)))
                 cb.close()

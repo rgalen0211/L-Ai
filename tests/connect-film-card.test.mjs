@@ -362,6 +362,24 @@ test('a failed picture says how many seconds ago it failed, for the one kind a r
   assert.ok(!('failed_s' in rr), 'the picture on show has not failed');
 });
 
+test('a failed age that is not a plain whole number of seconds is never passed on: a text, a negative, null and a fraction (CONNECT 11-19)', async () => {
+  const s = server();
+  const w = s.w.cardWorker(A.userId);
+  const f = await s.film();
+  await s.call({ p_project: f.id, p_ask: true });
+  const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
+  let said;
+  const real = s.w.data.bind(s.w);
+  s.w.data = (id) => { const d = real(id); return { ...d, getFilmCard: async (pid) => { const r = await d.getFilmCard(pid); return r && r.state === 'failed' ? { ...r, failed_s: said } : r; } }; };
+  const age = async (v) => { said = v; return (await s.call({ p_project: f.id })).body.data; };
+  assert.ok(!('failed_s' in await age(-5)), 'a negative is no age');
+  assert.ok(!('failed_s' in await age('7')), 'a text is no age');
+  assert.ok(!('failed_s' in await age(null)), 'null is no age');
+  assert.ok(!('failed_s' in await age(Number.NaN)), 'not a number is no age');
+  assert.strictEqual((await age(12.7)).failed_s, 12, 'a fraction becomes whole seconds');
+  assert.strictEqual((await age(0)).failed_s, 0, 'zero is an age');
+});
+
 test('a failed picture carries the database\'s own answer to "may it be asked for again now" for the panel\'s Try again button, and only a failure that a retry can fix carries it (CONNECT 11-18, card retry plan A)', async () => {
   const s = server();
   const w = s.w.cardWorker(A.userId);
