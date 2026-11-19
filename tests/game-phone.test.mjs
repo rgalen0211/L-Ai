@@ -67,7 +67,7 @@ test('MUST FAIL: the code never reads the answer or anyone\'s guess, asks for no
 
 test('the page: noindex, hidden unless gamePhone is on, the scripts in order, no inline script, no outside script, no connections allowed', () => {
   const html = read('game-phone/index.html');
-  assert.match(html, /<meta name="robots" content="noindex, nofollow">/); assert.match(html, /<p id="not-available">This page is not available yet\.<\/p>/); assert.match(html, /<div id="game-phone" hidden><h1>[^<]+<\/h1><\/div>/);
+  assert.match(html, /<meta name="robots" content="noindex, nofollow">/); assert.match(html, /<section id="not-available" aria-labelledby="not-available-title">\s*<h1 id="not-available-title">This page is not available yet\.<\/h1>/);   // GAMES 11-19: the off state has a heading and the 404 page's help list (tests/game-offstate-1119.test.mjs) assert.match(html, /<div id="game-phone" hidden><\/div>/);
   assert.match(html, /connect-src 'none'/); assert.match(html, /form-action 'none'/);
   const at = n => html.indexOf(`src="/assets/${n}`); assert.ok(at('ryagram-config.js') > 0 && at('ryagram-config.js') < at('game-tv-sample.js') && at('game-tv-sample.js') < at('game-phone.js'));
   assert.ok(!/<script(?![^>]*\bsrc=)[^>]*>/.test(html) && !/<script[^>]*src="https?:/.test(html)); assert.match(html, /<a href="\/ai-content\/">AI content<\/a>/);
