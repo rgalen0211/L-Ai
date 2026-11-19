@@ -55,7 +55,7 @@ test('the help and report pages are static, allow no inline script or style, and
 
 test('the FAQ has its 7 answers and none is hidden (the uploaded-data answer is live: uploadreader is on main)', () => {
   const html = fs.readFileSync(path.join(root, 'help/index.html'), 'utf8');
-  assert.match(html, /<details><summary>My own data/);
+  assert.match(html, /<details><summary>Can I use my own data/);
   assert.equal((html.match(/<details(?![^>]*data-flag)/g) || []).length, 7);               // the seven answers are all shown; entries for what is new in the app carry data-flag and stay hidden until their switch is on (tests/help-flags.test.mjs)
   assert.doesNotMatch(html, /<details(?![^>]*data-flag)[^>]*hidden/);
 });
