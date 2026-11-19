@@ -58,12 +58,17 @@ const mutants = [
   ['a second press while the first is out asks again', AE, 'if (cardBusy) return;', 'if (false) return;', 'source'],
   ['the button stays usable while the ask is out', AE, 'disabled: cardBusy }', 'disabled: false }', 'source'],
   ['the words say "now" when the database said not yet', AE, "(may ? 'You can try again now.' :", "(!may ? 'You can try again now.' :", 'browser'],
-  ['a press that is too early says nothing', AE, "if (pressed && cardState === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';", '', 'browser'],
+  ['a press that is too early says nothing', AE, "if (pressed && cardState === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';", '', 'browser'],
   ['a refused press says nothing', AE, "cardNote = 'Could not ask just now.' + (m ? ' ' + m : '');", "cardNote = '';", 'both'],
   ['an older picture whose newer one failed has no button', AE, "if (cardRefresh === 'failed' && cardRefreshCode === 'engine_error') kids.push(retryLine(cardRefreshRetry));", '', 'both'],
   ['under an older picture the button words follow the wrong flag', AE, 'kids.push(retryLine(cardRefreshRetry));', 'kids.push(retryLine(cardRetry));', 'browser'],
   ['a press that is taken gets no reads to watch it', AE, "cardBusy = true; cardNote = ''; cardPolls = 0; paintCard();", "cardBusy = true; cardNote = ''; paintCard();", 'source'],
   ['the retry line has no style', CSS, '.le-cardretry{margin-top:8px}', '', 'source'],
+  // ---- Try again words (GAMES review 11-18: the two sentences must not disagree; the note names no stale time; a raw error is never shown)
+  ['with the button the card also says open the editor again in ten minutes', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg ||", "(cardMsg ||", 'both'],
+  ['a failure with no button loses the connector words', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg || \"The film's picture is not available.\")", "\"Drawing the film's picture did not work this time.\"", 'both'],
+  ['the too-early note names a time again', AE, "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';", "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';", 'both'],
+  ['a refused press shows any error text', AE, "/^PT" + BS + "d{3}$/.test(e.code)", "true", 'both'],
 ];
 
 function suites(cwd) {

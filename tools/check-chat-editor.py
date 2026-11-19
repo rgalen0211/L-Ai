@@ -405,7 +405,7 @@ def main():
             c18, p18, e18, o18 = card_page([{'state': 'failed', 'code': 'engine_error', 'retry': False, 'message': ENG}, {'state': 'failed', 'code': 'engine_error', 'retry': False, 'message': ENG}])
             f18 = p18.frames[1]
             t18 = f18.locator('.le-card').inner_text()
-            check(ENG in t18 and 'It can be tried again about ten minutes after it failed.' in t18 and 'You can try again now' not in t18, 'a failed picture too soon says when it can be tried again, and not "now"')
+            check("Drawing the film's picture did not work this time." in t18 and 'Open the editor again' not in t18 and t18.count('ten minutes') == 1 and 'It can be tried again about ten minutes after it failed.' in t18 and 'You can try again now' not in t18, 'a failed picture too soon says when it can be tried again once, and not "now", and does not also say to open the editor again (the button replaces that)')
             check(f18.locator('.le-cardtry').count() == 1 and f18.locator('.le-cardtry').inner_text().strip() == 'Try again' and f18.locator('.le-cardtry').is_enabled(), 'and offers one Try again button')
             n18 = len([1 for t_, a_ in p18.evaluate('window.__calls') if t_ == 'editor_film_card'])
             p18.wait_for_timeout(1000)
@@ -415,12 +415,13 @@ def main():
             calls18 = [a_ for t_, a_ in p18.evaluate('window.__calls') if t_ == 'editor_film_card']
             check(len(calls18) == n18 + 1 and calls18[-1] == {'p_project': PROJECT, 'p_ask': True}, 'one press makes exactly one call, with p_ask (%s)' % calls18[-1:])
             t18b = f18.locator('.le-card').inner_text()
-            check('Not yet: it can be tried again about ten minutes after it failed.' in t18b and f18.locator('.le-cardtry').count() == 1 and not e18, 'a press that is too early says "not yet" and keeps the button, and nothing threw')
+            check('Not yet. Please try again in a few minutes.' in t18b and 'ten minutes' not in t18b and f18.locator('.le-cardtry').count() == 1 and not e18, 'a press that is too early says "not yet" and keeps the button, and nothing threw')
             check(not o18, 'nothing left the page')
             c18.close()
             c19, p19, e19, o19 = card_page([{'state': 'failed', 'code': 'engine_error', 'retry': True, 'message': ENG}, {'state': 'asked', 'waited_seconds': 0}])
             f19 = p19.frames[1]
-            check('You can try again now.' in f19.locator('.le-card').inner_text() and f19.locator('.le-cardtry').count() == 1, 'ten minutes on the words say "you can try again now"')
+            t19a = f19.locator('.le-card').inner_text()
+            check('You can try again now.' in t19a and 'Open the editor again' not in t19a and 'ten minutes' not in t19a and f19.locator('.le-cardtry').count() == 1, 'ten minutes on the words say "you can try again now" and never also "open the editor again in about ten minutes"')
             f19.locator('.le-cardtry').click()
             p19.wait_for_timeout(500)
             t19 = f19.locator('.le-card').inner_text()
@@ -439,6 +440,14 @@ def main():
             t21 = f21.locator('.le-card').inner_text()
             check('Could not ask just now. The limit of 20 film pictures an hour is reached.' in t21 and f21.locator('.le-cardtry').count() == 1 and f21.locator('.le-cardtry').is_enabled() and not e21, 'a refused press says so in the connector\'s own words and leaves the button usable')
             c21.close()
+            # a refused press with an error the connector did not write for people (no PT code): the panel says only that it could not ask, never the raw text
+            c23, p23, e23, o23 = card_page([{'state': 'failed', 'code': 'engine_error', 'retry': True, 'message': ENG}, {'error': {'code': None, 'message': 'connection reset by peer at db-7f3a internal'}}])
+            f23 = p23.frames[1]
+            f23.locator('.le-cardtry').click()
+            p23.wait_for_timeout(500)
+            t23 = f23.locator('.le-card').inner_text()
+            check('Could not ask just now.' in t23 and 'connection reset' not in t23 and 'db-7f3a' not in t23 and f23.locator('.le-cardtry').is_enabled() and not e23, 'an error the connector did not write for people is never shown raw')
+            c23.close()
             c22, p22, e22, o22 = card_page([{'state': 'failed', 'code': 'view_not_supported', 'message': 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.'}])
             check(p22.frames[1].locator('.le-cardtry').count() == 0 and 'Try again' not in p22.frames[1].locator('.le-card').inner_text() and not e22, 'a film the engine cannot draw has no Try again')
             c22.close()

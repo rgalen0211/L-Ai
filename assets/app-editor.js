@@ -109,8 +109,10 @@
         } else if (cardWaiting(cardState)) {
           kids.push(h('p', { class: 'meta', role: 'status' }, "Your film's own colours and picture are being drawn by the Ryagram computer. Until then the editor shows a simple stand-in." + (cardWait >= 120 ? ' It is taking a while: the Ryagram computer may be switched off.' : '')));
         } else {
-          kids.push(h('p', { class: 'meta', role: 'status' }, cardMsg || "The film's picture is not available."));
-          if (cardState === 'failed' && cardCode === 'engine_error') kids.push(retryLine(cardRetry));
+          // with the Try again button the card says only that it did not work (the connector's longer words tell a person to open the editor again in about ten minutes, which the button replaces); a failure with no button keeps the connector's words
+          const retryable = cardState === 'failed' && cardCode === 'engine_error';
+          kids.push(h('p', { class: 'meta', role: 'status' }, retryable ? "Drawing the film's picture did not work this time." : (cardMsg || "The film's picture is not available.")));
+          if (retryable) kids.push(retryLine(cardRetry));
         }
         cardBox.replaceChildren(...kids);
       }
@@ -135,12 +137,12 @@
         try { r = await hostRpc('editor_film_card', { p_project: project, ...(ask ? { p_ask: true } : {}), ...(cardHave ? { p_have: cardHave } : {}) }); } catch (e) { r = null; }
         const d = r && !r.error && r.data && typeof r.data === 'object' ? r.data : null;
         if (!d) {                                                                 // not available (an older database, a refusal): the stand-in stays, nothing is said that was not said before, EXCEPT after the person's own press
-          if (pressed) { const m = r && r.error && typeof r.error.message === 'string' ? r.error.message.slice(0, 160) : ''; cardNote = 'Could not ask just now.' + (m ? ' ' + m : ''); }
+          if (pressed) { const e = r && r.error, m = e && typeof e.code === 'string' && /^PT\d{3}$/.test(e.code) && typeof e.message === 'string' ? e.message.slice(0, 160) : ''; cardNote = 'Could not ask just now.' + (m ? ' ' + m : ''); }       // the connector's own words only for the codes it writes for people (PT429 and the like), never raw database or network text
           return;
         }
         cardState = typeof d.state === 'string' ? d.state : ''; cardWait = Number(d.waited_seconds) || 0; cardMsg = typeof d.message === 'string' ? d.message : '';
         cardCode = typeof d.code === 'string' ? d.code : ''; cardRetry = d.retry === true;
-        if (pressed && cardState === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';
+        if (pressed && cardState === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';
         if (cardState === 'ready') {
           if (d.card && typeof d.card === 'object') {
             card = d.card; cardHave = typeof d.built_sha256 === 'string' ? d.built_sha256 : '';
@@ -149,7 +151,7 @@
           }
           cardStale = d.stale === true; cardRefresh = d.refresh && typeof d.refresh.state === 'string' ? d.refresh.state : '';
           cardRefreshCode = d.refresh && typeof d.refresh.code === 'string' ? d.refresh.code : ''; cardRefreshRetry = !!(d.refresh && d.refresh.retry === true);
-          if (pressed && cardRefresh === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';
+          if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';
         } else if (cardState === 'failed' && card) cardRefresh = 'failed';
         paintCard(); paint();
         if ((cardWaiting(cardState) || (cardState === 'ready' && cardWaiting(cardRefresh))) && ++cardPolls < 40) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 15000); }

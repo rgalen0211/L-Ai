@@ -60,7 +60,7 @@ test('the panel asks once, then at most every 15 seconds and 40 times, and the p
   assert.ok(block.includes("...(ask ? { p_ask: true } : {})"), 'p_ask only on the first call');
   assert.ok(block.includes("...(cardHave ? { p_have: cardHave } : {})"), 'a card already held is not fetched again');
   assert.ok(block.includes('++cardPolls < 40) {') && block.includes('setTimeout(() => loadCard(false), 15000);'));
-  assert.ok(block.includes('if (!d) {') && /if \(pressed\) \{ const m = [^\n]*\n\s*return;\n\s*\}/.test(block), 'an unavailable tool changes nothing the person sees, except one sentence after their own press of Try again');
+  assert.ok(block.includes('if (!d) {') && /if \(pressed\) \{ const e = [^\n]*\n\s*return;\n\s*\}/.test(block), 'an unavailable tool changes nothing the person sees, except one sentence after their own press of Try again');
   assert.ok(block.includes("if (d.card && typeof d.card === 'object') {"), 'a reply without a card keeps the card already shown');
   assert.ok(block.includes("else if (cardState === 'failed' && card) cardRefresh = 'failed';"), 'a failed refresh keeps the old card');
   assert.ok(!block.includes('setInterval'), 'no fixed timer that could run on');
@@ -85,13 +85,16 @@ test('what the person reads: the waiting, the failed, the stale and the unparsea
 
 test('Try again (CONNECT 11-18, card retry plan A): a button only for a picture the engine failed to draw, one press = one ask through the database\'s own ten-minute rule, words for "now", "not yet" and "could not ask", no timer of its own', () => {
   const block = EDITOR.slice(EDITOR.indexOf('const cardWaiting = '), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
-  for (const s of ['Try again', 'You can try again now.', 'It can be tried again about ten minutes after it failed.', 'Not yet: it can be tried again about ten minutes after it failed.', 'Could not ask just now.']) {
+  for (const s of ['Try again', 'You can try again now.', 'It can be tried again about ten minutes after it failed.', 'Not yet. Please try again in a few minutes.', 'Could not ask just now.', "Drawing the film's picture did not work this time."]) {
     assert.ok(EDITOR.includes(s), s);
     assert.ok(EDITOR_HTML.includes(s), `the built page has it: ${s}`);
   }
   assert.ok(block.includes("cardState === 'failed' && cardCode === 'engine_error'"), 'the button is for a picture that failed because the engine broke, and for nothing else (a film the engine cannot draw has nothing to retry)');
   assert.ok(block.includes("cardRefresh === 'failed' && cardRefreshCode === 'engine_error'"), 'and under an older picture whose newer one failed the same way');
   assert.ok(block.includes('cardRetry = d.retry === true') && block.includes('cardRefreshRetry = !!(d.refresh && d.refresh.retry === true)'), 'the words follow the database\'s own answer, not the panel\'s guess');
+  assert.ok(block.includes("retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg ||"), 'with the button the card says only that it did not work, and the connector\'s longer "open the editor again in about ten minutes" is kept for a failure with no button, so the two never disagree');
+  assert.ok(!block.includes('Not yet: it can be tried again about ten minutes'), 'the too-early note names no time (nothing re-reads the card, so a time would go stale)');
+  assert.ok(block.includes('/^PT\\d{3}$/.test(e.code)'), 'a refused press shows the connector\'s own words only for the codes it writes for people, never raw database or network text');
   assert.ok(block.includes('await loadCard(true, true);'), 'a press is the same call as opening the editor: with p_ask, so the database decides');
   assert.equal([...block.matchAll(/loadCard\(true/g)].length, 1, 'p_ask is sent from exactly one place: the press');
   assert.ok(block.includes('if (cardBusy) return;'), 'a second press while the first is out does nothing');
