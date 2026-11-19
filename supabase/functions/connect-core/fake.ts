@@ -309,6 +309,7 @@ export class FakeWorld {
         return { id: row.id, state: "asked", repeat: false };
       },
       getFilmCard: async (pid) => {
+        const ageS = (c: FCard) => (c.state === "failed" ? Math.max(0, Math.floor((Date.now() - (c.finished ?? Date.now())) / 1000)) : null);          // the database's failed_s: whole seconds since it failed, never below 0, null for anything that has not failed
         const retryOk = (c: FCard) => c.state === "failed" && c.fail_code === "engine_error" && (c.finished ?? 0) < Date.now() - 600000;          // the database's own rule (connect_film_card_get's `retry`)
         // mirrors connect_film_card_get: the newest answered card (this save's first), else where the request for the current save stands; null for a film that is not the person's
         const user = u();
@@ -318,9 +319,9 @@ export class FakeWorld {
         const done = [...user.cards.values()].filter((c) => c.project_id === pid && c.state === "answered").sort((a, b) => Number(b.sha === cur) - Number(a.sha === cur) || (b.finished ?? 0) - (a.finished ?? 0))[0];
         const r = [...user.cards.values()].find((c) => c.project_id === pid && c.sha === cur);
         if (done) return JSON.parse(JSON.stringify({ state: "ready", id: done.id, card: done.answer, built_sha256: done.sha, current_sha256: cur, stale: done.sha !== cur,
-          refresh: done.sha === cur || !r ? null : { state: r.state, fail_code: r.fail_code, retry: retryOk(r) }, waited_s: Math.floor(((done.finished ?? 0) - done.asked) / 1000) }));
+          refresh: done.sha === cur || !r ? null : { state: r.state, fail_code: r.fail_code, retry: retryOk(r), failed_s: ageS(r) }, waited_s: Math.floor(((done.finished ?? 0) - done.asked) / 1000) }));
         if (!r) return { state: "none", current_sha256: cur };
-        return { state: r.state === "answered" ? "ready" : r.state, id: r.id, current_sha256: cur, fail_code: r.fail_code, fail_detail: r.fail_detail, retry: retryOk(r), waited_s: Math.floor(((r.finished ?? Date.now()) - r.asked) / 1000) };
+        return { state: r.state === "answered" ? "ready" : r.state, id: r.id, current_sha256: cur, fail_code: r.fail_code, fail_detail: r.fail_detail, retry: retryOk(r), failed_s: ageS(r), waited_s: Math.floor(((r.finished ?? Date.now()) - r.asked) / 1000) };
       },
       clipReports: async (pid) => (u().projects.some((p) => p.id === pid) ? JSON.parse(JSON.stringify(this.reports.get(userId + "/" + pid) ?? { why_clip: null, draft_messages: null })) : null),
       currentEngine: async () => this.engine,

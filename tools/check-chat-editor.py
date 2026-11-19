@@ -296,7 +296,7 @@ def main():
                 cc = b.new_context(viewport={'width': 1280, 'height': 900})
                 if capture:
                     # step B: every timer of exactly 15 s (the quick poll) or 100 s and more (the new quiet and slow reads) is parked (not run) so a check can count them and fire them by hand; the fake ids are large so they never collide with a real timer id
-                    cc.add_init_script("(() => { const st = window.setTimeout.bind(window); window.__slow = []; window.setTimeout = (fn, ms, ...a) => { if (typeof ms === 'number' && (ms === 15000 || ms >= 100000)) { window.__slow.push({ ms, fn: () => fn(...a) }); return 900000 + window.__slow.length; } return st(fn, ms, ...a); }; })();")
+                    cc.add_init_script("(() => { const st = window.setTimeout.bind(window); window.__slow = []; window.setTimeout = (fn, ms, ...a) => { if (typeof ms === 'number' && (ms === 15000 || ms > 20000)) { window.__slow.push({ ms, fn: () => fn(...a) }); return 900000 + window.__slow.length; } return st(fn, ms, ...a); }; })();")
                 pp = cc.new_page()
                 errs, out = [], []
                 pp.on('pageerror', lambda e: errs.append(str(e)))
@@ -454,7 +454,7 @@ def main():
             # Step B (card retry plan B, CONNECT 11-18): a failed picture that is not yet old enough to retry is read ONCE more, quietly, about ten minutes later (a read, never an ask), so an open panel notices "you can try again now"; a picture still being drawn after the 40 quick reads gets 10 slow reads, then stops
             slow = lambda pg: pg.frames[1].evaluate('(window.__slow || []).map(t => t.ms)')
             fire = lambda pg, i: pg.frames[1].evaluate('(i) => window.__slow[i].fn()', i)
-            eng = lambda r: {'state': 'failed', 'code': 'engine_error', 'retry': r, 'message': ENG}
+            eng = lambda r, a=None: {'state': 'failed', 'code': 'engine_error', 'retry': r, 'message': ENG, **({'failed_s': a} if a is not None else {})}
             c25, p25, e25, o25 = card_page([eng(False), eng(True)], capture=True)
             f25 = p25.frames[1]
             check(slow(p25) == [620000], 'a failed picture that may not be retried yet parks ONE quiet re-read, about ten minutes and twenty seconds out (%s)' % slow(p25))
@@ -467,6 +467,24 @@ def main():
             t25 = f25.locator('.le-card').inner_text()
             check('You can try again now.' in t25 and f25.locator('.le-cardtry').count() == 1 and slow(p25) == [620000] and not e25, 'and the open panel now says "you can try again now"; nothing more is parked')
             c25.close()
+            # GAMES finding 2 (11-19): when the database says how long ago it failed, the quiet read is timed from the failure, not from when the panel looked
+            c29, p29, e29, o29 = card_page([eng(False, 540), eng(True, 620)], capture=True)
+            check(slow(p29) == [80000], 'a picture that failed 9 minutes before the panel opened parks its quiet re-read 80 seconds out, not 620 (%s)' % slow(p29))
+            fire(p29, 0)
+            p29.wait_for_timeout(400)
+            check('You can try again now.' in p29.frames[1].locator('.le-card').inner_text() and slow(p29) == [80000] and not e29, 'and the words turn at once')
+            c29.close()
+            c30, p30, e30, o30 = card_page([eng(False, 0)], capture=True)
+            check(slow(p30) == [620000] and not e30, 'a picture that has only just failed waits the full 620 seconds (%s)' % slow(p30))
+            c30.close()
+            for bad in (-5, 601, 99999, 'x'):
+                cb, pb, eb, ob = card_page([eng(False, bad)], capture=True)
+                check(slow(pb) == [620000] and not eb, 'an age that makes no sense (%r) is no age: the fixed wait (%s)' % (bad, slow(pb)))
+                cb.close()
+            REFAGE = {'state': 'ready', 'stale': True, 'built_sha256': 'a' * 64, 'refresh': {'state': 'failed', 'code': 'engine_error', 'retry': False, 'failed_s': 300}, 'card': CARD}
+            c31, p31, e31, o31 = card_page([REFAGE], capture=True)
+            check(slow(p31) == [320000] and not e31, 'under an older picture the age of the failed REFRESH is the one used (%s)' % slow(p31))
+            c31.close()
             c26, p26, e26, o26 = card_page([eng(False), eng(False)], capture=True)
             fire(p26, 0)
             p26.wait_for_timeout(400)

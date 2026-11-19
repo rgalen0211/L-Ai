@@ -311,7 +311,7 @@ test('an older picture stays on show while a newer one that failed because the e
   const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
   const open = async () => (await s.call({ p_project: f.id, p_ask: true })).body.data;
   const soon = await open();
-  assert.equal(soon.state, 'ready'); assert.equal(soon.stale, true); assert.deepEqual(soon.refresh, { state: 'failed', code: 'engine_error', retry: false }); assert.ok(soon.card);
+  assert.equal(soon.state, 'ready'); assert.equal(soon.stale, true); assert.deepEqual(noAge(soon.refresh), { state: 'failed', code: 'engine_error', retry: false }); assert.ok(soon.card);
   assert.equal(w.claim(), null, 'not before ten minutes');
   const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
   row.finished = Date.now() - 11 * 60000;
@@ -320,6 +320,46 @@ test('an older picture stays on show while a newer one that failed because the e
   const job2 = w.claim();
   assert.ok(job2 && job2.request_id !== job.request_id);
   assert.equal(job2.story_sha256, f.ver.story_sha256);
+});
+
+// The age (GAMES finding 2, CONNECT 11-19): the read's failed_s is passed on, so the open panel can time its quiet re-read from the failure; the tests that compare a whole refresh object leave it out here
+const noAge = (o) => { const { failed_s, ...rest } = o; return rest; };
+
+test('a failed picture says how many seconds ago it failed, for the one kind a retry can fix, and only as a plain whole number (CONNECT 11-19, card retry finding 2)', async () => {
+  const s = server();
+  const w = s.w.cardWorker(A.userId);
+  const f = await s.film();
+  await s.call({ p_project: f.id, p_ask: true });
+  const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
+  const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
+  const read = async () => (await s.call({ p_project: f.id })).body.data;
+  const first = await read();
+  assert.ok(Number.isInteger(first.failed_s) && first.failed_s >= 0 && first.failed_s < 30, 'just failed: about 0 seconds ago (' + first.failed_s + ')');
+  row.finished = Date.now() - 4 * 60000 - 500;
+  const four = await read();
+  assert.ok(Number.isInteger(four.failed_s) && four.failed_s >= 240 && four.failed_s < 270, 'four minutes ago: about 240 whole seconds (' + four.failed_s + ')');
+  assert.strictEqual(four.retry, false);
+  // the model's own words and every other field are the same as before
+  assert.deepEqual(Object.keys(four).sort(), ['code', 'failed_s', 'message', 'retry', 'state']);
+  row.finished = Date.now() - 40 * 86400000;
+  assert.strictEqual((await read()).failed_s, 2592000, 'an age is capped at 30 days');
+  row.finished = Date.now() - 4 * 60000 - 500;
+  // a failure no retry can fix carries no age
+  const g = await s.film(A, { title: 'invented unsupported age' });
+  await s.call({ p_project: g.id, p_ask: true });
+  const jg = w.claim(); w.fail(jg.request_id, 'view_not_supported', '');
+  assert.ok(!('failed_s' in (await s.call({ p_project: g.id })).body.data), 'no age for a film the engine cannot draw');
+  // a refresh that failed carries its own age; a refresh that is being drawn carries none
+  const h = await s.film(A, { title: 'invented refresh age' });
+  await s.call({ p_project: h.id, p_ask: true });
+  const w2 = s.w.cardWorker(A.userId); w2.finish(w2.claim().request_id, goodCard(h.ver.story_sha256));
+  h.ver.story_spec = { title: 'invented refresh age two' }; h.ver.story_sha256 = sha({ title: 'invented refresh age two' });
+  await s.call({ p_project: h.id, p_ask: true });
+  const jh = w2.claim(); w2.fail(jh.request_id, 'engine_error', 'it broke');
+  [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === jh.request_id).finished = Date.now() - 5 * 60000 - 500;
+  const rr = (await s.call({ p_project: h.id })).body.data;
+  assert.equal(rr.state, 'ready'); assert.ok(Number.isInteger(rr.refresh.failed_s) && rr.refresh.failed_s >= 300 && rr.refresh.failed_s < 330, 'the refresh failed five minutes ago (' + rr.refresh.failed_s + ')');
+  assert.ok(!('failed_s' in rr), 'the picture on show has not failed');
 });
 
 test('a failed picture carries the database\'s own answer to "may it be asked for again now" for the panel\'s Try again button, and only a failure that a retry can fix carries it (CONNECT 11-18, card retry plan A)', async () => {
@@ -371,10 +411,10 @@ test('an older picture that shows while a newer one failed carries the same flag
   const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
   const read = async () => (await s.call({ p_project: f.id })).body.data;
   const a = await read();
-  assert.equal(a.state, 'ready'); assert.deepEqual(a.refresh, { state: 'failed', code: 'engine_error', retry: false });
+  assert.equal(a.state, 'ready'); assert.deepEqual(noAge(a.refresh), { state: 'failed', code: 'engine_error', retry: false });
   [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id).finished = Date.now() - 11 * 60000;
   const b = await read();
-  assert.deepEqual(b.refresh, { state: 'failed', code: 'engine_error', retry: true }); assert.ok(b.card, 'the older picture stays');
+  assert.deepEqual(noAge(b.refresh), { state: 'failed', code: 'engine_error', retry: true }); assert.ok(b.card, 'the older picture stays');
   assert.equal(w.claim(), null, 'reading asks nothing');
   const c = (await s.call({ p_project: f.id, p_ask: true })).body.data;
   assert.deepEqual(c.refresh, { state: 'asked' }, 'the press asks once; a refresh that is being drawn carries no flag');

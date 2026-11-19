@@ -105,11 +105,17 @@ const mutants = [
   ['the stand-in worker may store a card for another story', FK, 'if ((o!.basis as { story_sha256?: unknown } | undefined)?.story_sha256 !== c.sha) throw', 'if (false) throw'],
   ['the stand-in retries an engine error at once', FK, '(same.finished ?? 0) < Date.now() - 600000', '(same.finished ?? 0) < Date.now() + 600000'],
   // ---- Try again (11-18): the database's own "may it be asked for again now" rides on a failed picture, and only on the kind a retry can fix
-  ['a failed picture never carries the retry flag', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true } : {}) };', ', message: FAIL_WORDS[code] };'],
-  ['a failed picture always says it may be asked for again', ET, '{ retry: r.retry === true } : {}) };', '{ retry: true } : {}) };'],
-  ['every failed picture carries the flag, even a film the engine cannot draw', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true } : {}) };', ', message: FAIL_WORDS[code], retry: r.retry === true };'],
-  ['an older picture whose newer one failed never carries the flag', ET, 'return { code, ...(code === "engine_error" ? { retry: retry === true } : {}) };', 'return { code };'],
-  ['an older picture whose newer one failed always says it may be asked again', ET, '{ retry: retry === true } : {}) };', '{ retry: true } : {}) };'],
+  ['a failed picture never carries the retry flag', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true, ...ageOf(r.failed_s) } : {}) };', ', message: FAIL_WORDS[code] };'],
+  ['a failed picture always says it may be asked for again', ET, '{ retry: r.retry === true, ...ageOf(r.failed_s) } : {}) };', '{ retry: true, ...ageOf(r.failed_s) } : {}) };'],
+  ['every failed picture carries the flag, even a film the engine cannot draw', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true, ...ageOf(r.failed_s) } : {}) };', ', message: FAIL_WORDS[code], retry: r.retry === true };'],
+  ['an older picture whose newer one failed never carries the flag', ET, 'return { code, ...(code === "engine_error" ? { retry: retry === true, ...ageOf(age) } : {}) };', 'return { code };'],
+  ['an older picture whose newer one failed always says it may be asked again', ET, '{ retry: retry === true, ...ageOf(age) } : {}) };', '{ retry: true, ...ageOf(age) } : {}) };'],
+  // ---- the failed age (GAMES finding 2, 11-19): failed_s rides on a failed picture, only for the kind a retry can fix, as a plain whole number
+  ['a failed picture never says how long ago it failed', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true, ...ageOf(r.failed_s) } : {}) };', ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true } : {}) };'],
+  ['a film the engine cannot draw carries an age too', ET, ', message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true, ...ageOf(r.failed_s) } : {}) };', ', message: FAIL_WORDS[code], ...ageOf(r.failed_s), ...(code === "engine_error" ? { retry: r.retry === true } : {}) };'],
+  ['a failed refresh never says how long ago it failed', ET, 'failedCode(r.refresh.fail_code, r.refresh.retry, r.refresh.failed_s)', 'failedCode(r.refresh.fail_code, r.refresh.retry)'],
+  ['an age is not capped at 30 days', ET, 'Math.min(Math.floor(n), 2592000)', 'Math.floor(n)'],
+  ['an age below zero is passed on', ET, 'Number.isFinite(n) && n >= 0 ? {', 'Number.isFinite(n) ? {'],
 ];
 
 function run(cwd) {
