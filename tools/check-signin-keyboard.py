@@ -17,7 +17,7 @@ spec = importlib.util.spec_from_file_location('aa', ROOT / 'tools' / 'audit-a11y
 DESCRIBE = """() => { const e = document.activeElement; if (!e || e === document.body) return null; const r = e.getBoundingClientRect(), s = getComputedStyle(e);
   const lab = (e.labels && e.labels[0] && e.labels[0].textContent.trim()) || e.getAttribute('aria-label') || e.textContent.trim().slice(0, 40) || e.getAttribute('placeholder') || '';
   const ring = (s.outlineStyle !== 'none' && parseFloat(s.outlineWidth) > 0) || (s.boxShadow && s.boxShadow !== 'none');
-  return { tag: e.tagName.toLowerCase(), id: e.id, name: lab, y: Math.round(r.top + window.scrollY), ring: !!ring, vis: r.width > 0 && r.height > 0 }; }"""
+  return { tag: e.tagName.toLowerCase(), id: e.id, name: lab, y: Math.round(r.top + window.scrollY), ring: !!ring, vis: r.width > 0 && r.height > 0, mock: !!e.closest('.mock-bar') }; }"""
 LIVE = """(id) => { const e = document.getElementById(id); return e ? { text: e.textContent.trim(), hidden: e.hidden, role: e.getAttribute('role') } : null; }"""
 
 
@@ -52,6 +52,7 @@ def run():
                     p.keyboard.press('Tab')
                     d = p.evaluate(DESCRIBE)
                     if d is None: break
+                    if d['mock']: break                              # the test-only mock bar (fixed at the bottom) is not the page; a visitor never has it
                     path.append(d)
                 return path
 
