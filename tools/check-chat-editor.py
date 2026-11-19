@@ -292,8 +292,11 @@ def main():
             LOOK = {'network.color': '#aa1111', 'network.base_color': '#11aa11', 'network.context_color': '#1111aa', 'state.fill': '#aaaa11', 'page.background': '#11aaaa'}
             CARD = {'schema': 1, 'basis': {'story_sha256': 'a' * 64, 'view': 'network', 'theme': 'dark3'}, 'look': LOOK, 'frame': {'label': '2024', 'width': 960, 'height': 540, 'svg': EVIL}}
 
-            def card_page(answers):
+            def card_page(answers, capture=False):
                 cc = b.new_context(viewport={'width': 1280, 'height': 900})
+                if capture:
+                    # step B: every timer of exactly 15 s (the quick poll) or 100 s and more (the new quiet and slow reads) is parked (not run) so a check can count them and fire them by hand; the fake ids are large so they never collide with a real timer id
+                    cc.add_init_script("(() => { const st = window.setTimeout.bind(window); window.__slow = []; window.setTimeout = (fn, ms, ...a) => { if (typeof ms === 'number' && (ms === 15000 || ms >= 100000)) { window.__slow.push({ ms, fn: () => fn(...a) }); return 900000 + window.__slow.length; } return st(fn, ms, ...a); }; })();")
                 pp = cc.new_page()
                 errs, out = [], []
                 pp.on('pageerror', lambda e: errs.append(str(e)))
@@ -448,6 +451,47 @@ def main():
             t23 = f23.locator('.le-card').inner_text()
             check('Could not ask just now.' in t23 and 'connection reset' not in t23 and 'db-7f3a' not in t23 and f23.locator('.le-cardtry').is_enabled() and not e23, 'an error the connector did not write for people is never shown raw')
             c23.close()
+            # Step B (card retry plan B, CONNECT 11-18): a failed picture that is not yet old enough to retry is read ONCE more, quietly, about ten minutes later (a read, never an ask), so an open panel notices "you can try again now"; a picture still being drawn after the 40 quick reads gets 10 slow reads, then stops
+            slow = lambda pg: pg.frames[1].evaluate('(window.__slow || []).map(t => t.ms)')
+            fire = lambda pg, i: pg.frames[1].evaluate('(i) => window.__slow[i].fn()', i)
+            eng = lambda r: {'state': 'failed', 'code': 'engine_error', 'retry': r, 'message': ENG}
+            c25, p25, e25, o25 = card_page([eng(False), eng(True)], capture=True)
+            f25 = p25.frames[1]
+            check(slow(p25) == [620000], 'a failed picture that may not be retried yet parks ONE quiet re-read, about ten minutes and twenty seconds out (%s)' % slow(p25))
+            n25 = len([1 for t_, a_ in p25.evaluate('window.__calls') if t_ == 'editor_film_card'])
+            check('It can be tried again about ten minutes after it failed.' in f25.locator('.le-card').inner_text(), 'before it, the words say it cannot be tried yet')
+            fire(p25, 0)
+            p25.wait_for_timeout(400)
+            calls25 = [a_ for t_, a_ in p25.evaluate('window.__calls') if t_ == 'editor_film_card']
+            check(len(calls25) == n25 + 1 and calls25[-1] == {'p_project': PROJECT}, 'the quiet re-read is a read: one call, no p_ask (%s)' % calls25[-1:])
+            t25 = f25.locator('.le-card').inner_text()
+            check('You can try again now.' in t25 and f25.locator('.le-cardtry').count() == 1 and slow(p25) == [620000] and not e25, 'and the open panel now says "you can try again now"; nothing more is parked')
+            c25.close()
+            c26, p26, e26, o26 = card_page([eng(False), eng(False)], capture=True)
+            fire(p26, 0)
+            p26.wait_for_timeout(400)
+            check(slow(p26) == [620000] and 'It can be tried again about ten minutes after it failed.' in p26.frames[1].locator('.le-card').inner_text() and not e26, 'a re-read that is STILL too early parks nothing more: one quiet re-read per failure')
+            c26.close()
+            c27, p27, e27, o27 = card_page([{'state': 'failed', 'code': 'view_not_supported', 'message': 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.'}], capture=True)
+            check(slow(p27) == [] and not e27, 'a film the engine cannot draw parks no re-read at all')
+            c27.close()
+            c28, p28, e28, o28 = card_page([{'state': 'asked', 'waited_seconds': 0}], capture=True)
+            f28 = p28.frames[1]
+            for _ in range(70):
+                n_ = len(slow(p28))
+                idx = n_ - 1
+                if idx < 0:
+                    break
+                tot = len(slow(p28))
+                fire(p28, idx)
+                p28.wait_for_timeout(60)
+                if len(slow(p28)) == tot:
+                    break
+            ms28 = slow(p28)
+            calls28 = [a_ for t_, a_ in p28.evaluate('window.__calls') if t_ == 'editor_film_card']
+            check(ms28 == [15000] * 39 + [120000] * 10, 'a picture still being drawn: 39 quick reads (15 s), then 10 slow ones (2 minutes), then no more (%d quick, %d slow)' % (ms28.count(15000), ms28.count(120000)))
+            check(len(calls28) == 50 and calls28[0] == {'p_project': PROJECT, 'p_ask': True} and all('p_ask' not in a_ for a_ in calls28[1:]) and not e28, 'the first call asks once; every re-read after it is a read, never an ask (%d calls)' % len(calls28))
+            c28.close()
             # a press that is too early under an older picture whose newer one failed: the same "not yet" words, no time named
             REF = {'state': 'ready', 'stale': True, 'built_sha256': 'a' * 64, 'refresh': {'state': 'failed', 'code': 'engine_error', 'retry': False}, 'card': CARD}
             c24, p24, e24, o24 = card_page([REF, REF])

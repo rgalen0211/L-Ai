@@ -62,13 +62,23 @@ const mutants = [
   ['a refused press says nothing', AE, "cardNote = 'Could not ask just now.' + (m ? ' ' + m : '');", "cardNote = '';", 'both'],
   ['an older picture whose newer one failed has no button', AE, "if (cardRefresh === 'failed' && cardRefreshCode === 'engine_error') kids.push(retryLine(cardRefreshRetry));", '', 'both'],
   ['under an older picture the button words follow the wrong flag', AE, 'kids.push(retryLine(cardRefreshRetry));', 'kids.push(retryLine(cardRetry));', 'browser'],
-  ['a press that is taken gets no reads to watch it', AE, "cardBusy = true; cardNote = ''; cardPolls = 0; paintCard();", "cardBusy = true; cardNote = ''; paintCard();", 'source'],
+  ['a press that is taken gets no reads to watch it', AE, "cardBusy = true; cardNote = ''; cardPolls = 0; cardSlow = 0; cardQuiet = 0; paintCard();", "cardBusy = true; cardNote = ''; cardSlow = 0; cardQuiet = 0; paintCard();", 'source'],
   ['the retry line has no style', CSS, '.le-cardretry{margin-top:8px}', '', 'source'],
   // ---- Try again words (GAMES review 11-18: the two sentences must not disagree; the note names no stale time; a raw error is never shown)
   ['with the button the card also says open the editor again in ten minutes', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg ||", "(cardMsg ||", 'both'],
   ['a failure with no button loses the connector words', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg || \"The film's picture is not available.\")", "\"Drawing the film's picture did not work this time.\"", 'both'],
   ['the too-early note names a time again', AE, "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';", "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';", 'both'],
   ['a refused press shows any error text', AE, "typeof e.code === 'string' && /^PT" + BS + "d{3}$/.test(e.code) && ", "", 'both'],
+  // ---- Step B (11-18): the open panel notices, with reads only
+  ['the quiet re-read comes far too soon', AE, 'loadCard(false), 620000', 'loadCard(false), 6200', 'both'],
+  ['the quiet re-read asks', AE, 'loadCard(false), 620000', 'loadCard(true), 620000', 'both'],
+  ['the quiet re-read repeats for ever', AE, 'cardQuiet++ < 1', 'cardQuiet++ < 100', 'both'],
+  ['the quiet re-read is a fixed timer that runs on', AE, 'cardTimer = setTimeout(() => loadCard(false), 620000);', 'cardTimer = setInterval(() => loadCard(false), 620000);', 'both'],
+  ['a film the engine cannot draw is read again too', AE, "(cardCode === 'engine_error' && cardState === 'failed' && !cardRetry)", "(cardState === 'failed' && !cardRetry)", 'browser'],
+  ['the slow reads never stop', AE, 'cardSlow++ < 10', 'cardSlow++ < 100000', 'both'],
+  ['the slow reads ask', AE, 'loadCard(false), 120000', 'loadCard(true), 120000', 'both'],
+  ['there are no slow reads', AE, 'else if (waiting && cardSlow++ < 10)', 'else if (false)', 'both'],
+  ['a press does not start the quiet re-read again', AE, 'cardSlow = 0; cardQuiet = 0; paintCard();', 'cardSlow = 0; paintCard();', 'source'],
 ];
 
 function suites(cwd) {

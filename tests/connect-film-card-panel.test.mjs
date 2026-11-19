@@ -105,6 +105,16 @@ test('Try again (CONNECT 11-18, card retry plan A): a button only for a picture 
   assert.ok(CSS.includes('.le-cardretry{margin-top:8px}') && CSS.includes('.le-cardretry p{margin:0 0 6px}'), 'the retry line has its own small style');
 });
 
+test('Step B (card retry plan B, CONNECT 11-18): an open panel notices without a reload, with a few READS and never an ask, and every count is bounded', () => {
+  const block = EDITOR.slice(EDITOR.indexOf('const cardWaiting = '), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
+  assert.ok(block.includes('else if (waiting && cardSlow++ < 10) {') && block.includes('setTimeout(() => loadCard(false), 120000);'), 'after the 39 quick reads, 10 slow ones every 2 minutes, then none');
+  assert.ok(block.includes('else if (tooSoon && cardQuiet++ < 1) {') && block.includes('setTimeout(() => loadCard(false), 620000);'), 'a failed picture not yet old enough: ONE quiet read about 10 minutes 20 seconds on');
+  assert.ok(block.includes("const tooSoon = (cardCode === 'engine_error' && cardState === 'failed' && !cardRetry) || (cardState === 'ready' && cardRefreshCode === 'engine_error' && cardRefresh === 'failed' && !cardRefreshRetry);"), 'only the kind a retry can fix, and only while the database says not yet');
+  assert.ok(block.includes('cardPolls = 0; cardSlow = 0; cardQuiet = 0; paintCard();'), 'a press starts the counts again');
+  assert.equal([...block.matchAll(/loadCard\(true/g)].length, 1, 'every timer reads (loadCard(false)); only the press asks');
+  assert.ok(!block.includes('setInterval'), 'no fixed timer that could run on');
+});
+
 test('the built page carries all of it and stays inside its budget', () => {
   assert.ok(EDITOR_HTML.includes('function drawCard(svg)') && EDITOR_HTML.includes('async function loadCard(ask, pressed)'));
   assert.ok(EDITOR_HTML.includes("filmCard: true, drawCard, siteLink }"));

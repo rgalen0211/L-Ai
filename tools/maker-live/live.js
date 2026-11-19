@@ -822,7 +822,7 @@
       // card and the chat host rebuilds the picture element by element (host.drawCard) before anything is shown. The panel asks once, then asks again while it waits (never faster than every 15 s, at most 40 times). The person's own changes always win.
       // Only the chat host sets host.filmCard, so the website's editor and the maker's page never run any of this.
       const cardOn = isData && !!host && host.filmCard === true && typeof hostRpc === 'function' && typeof host.drawCard === 'function' && !bundleMode;
-      let card = null, cardState = '', cardWait = 0, cardMsg = '', cardStale = false, cardRefresh = '', cardHave = '', cardTimer = 0, cardPolls = 0;
+      let card = null, cardState = '', cardWait = 0, cardMsg = '', cardStale = false, cardRefresh = '', cardHave = '', cardTimer = 0, cardPolls = 0, cardSlow = 0, cardQuiet = 0;
       let cardCode = '', cardRetry = false, cardRefreshCode = '', cardRefreshRetry = false, cardBusy = false, cardNote = '';       // Try again (11-18): what failed, may it be asked again now (the database's answer), is a press out, and the sentence a press left
       const cardBox = h('section', { class: 'le-card', 'aria-labelledby': 'le-card-h', hidden: true });
       const cardLook = key => (card && card.look && typeof card.look[key] === 'string' ? card.look[key] : undefined);
@@ -866,7 +866,7 @@
       }
       async function tryCardAgain() {
         if (cardBusy) return;
-        cardBusy = true; cardNote = ''; cardPolls = 0; paintCard();
+        cardBusy = true; cardNote = ''; cardPolls = 0; cardSlow = 0; cardQuiet = 0; paintCard();
         await loadCard(true, true);
         cardBusy = false; paintCard();
         const again = cardBox.querySelector('.le-cardtry'), say = cardBox.querySelector('p[role=status]');
@@ -895,7 +895,13 @@
           if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';
         } else if (cardState === 'failed' && card) cardRefresh = 'failed';
         paintCard(); paint();
-        if ((cardWaiting(cardState) || (cardState === 'ready' && cardWaiting(cardRefresh))) && ++cardPolls < 40) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 15000); }
+        // Step B (11-18): an open panel notices without a reload, with a few reads and never an ask. Still being drawn: 39 quick reads (15 s), then 10 slow ones (2 minutes), then stop. A failed picture that may not be retried yet:
+        // ONE quiet read about ten minutes and twenty seconds on, so the words can turn to "You can try again now." A press starts the counts again.
+        const waiting = cardWaiting(cardState) || (cardState === 'ready' && cardWaiting(cardRefresh));
+        const tooSoon = (cardCode === 'engine_error' && cardState === 'failed' && !cardRetry) || (cardState === 'ready' && cardRefreshCode === 'engine_error' && cardRefresh === 'failed' && !cardRefreshRetry);
+        if (waiting && ++cardPolls < 40) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 15000); }
+        else if (waiting && cardSlow++ < 10) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 120000); }
+        else if (tooSoon && cardQuiet++ < 1) { clearTimeout(cardTimer); cardTimer = setTimeout(() => loadCard(false), 620000); }
       }
 
       // ---- the preview: a stand-in drawing (ENGINE 35's drawer replaces it); it redraws from the state at once
