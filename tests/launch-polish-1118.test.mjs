@@ -81,3 +81,10 @@ test('the phone footer is a tidy two-by-two under its source line', () => {
 test('home page desktop: nav and footer links are at least 24 px tall (a rule for 721 px and wider)', () => {
   assert.match(read('index.html'), /@media\(min-width:721px\)\{nav a,\.footer-row a\{display:inline-block;padding:3px 6px;min-height:28px;box-sizing:border-box\}\}/);
 });
+
+// Q652 item 2 (Ryan's words): the first film card carries its data source, like the Construction Mix card.
+test('the first film card names its data source under the link', () => {
+  const html = read('ryagram/index.html');
+  const card = html.slice(html.indexOf('<h3>America Never Started Building Again</h3>'), html.indexOf('</article>', html.indexOf('<h3>America Never Started Building Again</h3>')));
+  assert.match(card, /<a href="https:\/\/youtu\.be\/6Vgfp4WzHh4"[^>]*>Watch the full film<\/a>\s*<p class="rg-film-credit">Data: U\.S\. Census Bureau, Building Permits Survey\.<\/p>/);
+});
