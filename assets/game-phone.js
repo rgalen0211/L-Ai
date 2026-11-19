@@ -132,6 +132,7 @@
   if (root) {
     const enabled = on(window.ryagramConfig);
     root.hidden = !enabled; if (off) off.hidden = enabled;
+    if (enabled) document.title = "Guess the next line, phone (draft) | L'Ai";          // GAMES 11-19: the HTML's title names no draft game while it is off; the game's own title only when it is on
     if (enabled) { const room = sampleRoom(S); if (!room) root.textContent = 'The sample room could not be made, so nothing is shown.'; else mount(root, [room]); }
   }
 })();

@@ -131,6 +131,7 @@
   if (root && S) {
     const enabled = on(window.ryagramConfig);
     root.hidden = !enabled; if (off) off.hidden = enabled;
+    if (enabled) document.title = "Guess the next line, TV screen (draft) | L'Ai";          // GAMES 11-19: the HTML's title names no draft game while it is off; the game's own title only when it is on
     if (enabled) { const bad = check(S); if (bad.length) root.textContent = `The sample did not pass the check (${bad[0]}), so nothing is shown.`; else mount(root, S); }
   }
 })();
