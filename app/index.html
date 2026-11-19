@@ -24,15 +24,6 @@
   <section id="sign-in" class="app-panel" hidden aria-labelledby="sign-in-title">
     <h1 id="sign-in-title" tabindex="-1">Sign in</h1>
     <p class="form-intro">Ryagram is invite-only for now.</p>
-    <p id="invite-row" hidden><button class="link-button" id="have-invite" type="button" aria-expanded="false" aria-controls="invite-form">Have an invite code?</button></p>
-    <form id="invite-form" class="contact-form" hidden>
-      <label for="iv-code">Invite code</label>
-      <input id="iv-code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="RYA-XXXX-XXXX" required>
-      <label for="iv-email">Your email</label>
-      <input id="iv-email" name="email" type="email" autocomplete="email" required>
-      <button class="button primary" type="submit">Join</button>
-      <p id="invite-note" class="form-note" role="status"></p>
-    </form>
     <form id="sign-in-form" class="contact-form">
       <label for="si-email">Email</label>
       <input id="si-email" name="email" type="email" autocomplete="username" required>
@@ -42,6 +33,15 @@
       <p id="sign-in-error" class="form-note app-error" role="alert" hidden></p>
     </form>
     <p id="forgot-row" hidden><button class="link-button" id="forgot" type="button" aria-expanded="false" aria-controls="reset-form">Forgot your password?</button></p>
+    <p id="invite-row" hidden><button class="link-button" id="have-invite" type="button" aria-expanded="false" aria-controls="invite-form">Have an invite code?</button></p>
+    <form id="invite-form" class="contact-form" hidden>
+      <label for="iv-code">Invite code</label>
+      <input id="iv-code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="RYA-XXXX-XXXX" required>
+      <label for="iv-email">Your email</label>
+      <input id="iv-email" name="email" type="email" autocomplete="email" required>
+      <button class="button primary" type="submit">Join</button>
+      <p id="invite-note" class="form-note" role="status"></p>
+    </form>
     <p class="form-note sign-in-help"><span class="help-line">No invite yet? <a href="/ryagram/#waitlist">Join the waitlist</a> to ask for an invite.</span> <span class="help-line">Trouble signing in? <a href="/help/">Get help</a>.</span></p>
     <p id="create-row" class="form-note" hidden>First time here? <a href="#/create-account" id="create-link">Create an account</a></p>
     <form id="reset-form" class="contact-form" hidden>
