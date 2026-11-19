@@ -94,7 +94,7 @@ for (const [name, file, from, to, kind] of mutants) {
   fs.writeFileSync(target, src.replace(from, () => to));
   // SOURCE mutants must fail the offline suites; BOTH mutants must fail the offline suites AND the real-Chrome check (the behaviour is proved in the browser, the text is pinned offline)
   if (kind === 'browser' && browserOnly) { console.log(`skipped (browser only) ${name}`); continue; }
-  const s = kind === 'browser' ? true : suites(scratch).status !== 0;
+  const s = kind === 'browser' ? (spawnSync(process.execPath, [path.join('tools', 'build-chat-editor.mjs')], { encoding: 'utf8', cwd: scratch }).status === 0) : suites(scratch).status !== 0; // a browser-only mutant still needs the generated page rebuilt from the broken source, or Chrome sees the unbroken page
   const wantBrowser = (kind === 'both' || kind === 'browser') && !browserOnly;
   const bw = wantBrowser ? browser(scratch).status !== 0 : null;
   const caught = wantBrowser ? s && bw : s;
