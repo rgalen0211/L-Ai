@@ -61,7 +61,8 @@ def main():
                 p.evaluate("location.hash = '#/admin/funnel'")
                 p.wait_for_selector('table.funnel-days', timeout=15000)
                 text = p.inner_text('main')
-                check('Funnel by day' in text and 'Signed up' in text and 'First preview' in text and 'First order' in text, 'the columns: signed up, first preview, first order')
+                # the shared look sheet upper-cases table heads, and inner_text returns them as drawn
+                check('funnel by day' in text.lower() and all(w in p.inner_text('table.funnel-days thead').lower() for w in ('signed up', 'first preview', 'first order')), 'the columns: signed up, first preview, first order')
                 check(p.locator('table.funnel-days tbody tr').count() == 15, '14 days plus a Total row')
                 check('Over these days:' in text and 'null' not in text.split(), 'a summary line, no stray "null"')
                 check(p.locator('main button:visible').count() == 3, 'only the three range buttons (read-only)')
