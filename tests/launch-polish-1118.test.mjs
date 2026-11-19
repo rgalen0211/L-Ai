@@ -59,3 +59,20 @@ test('Q649 5: the first card under "Films made with Ryagram" is not the film the
   assert.doesNotMatch(cards[0], /UC4j77KYVQ8|Interstate/);
   assert.match(cards[3], /Interstate/, 'the Interstate card stays on the page, further down');
 });
+
+// GAMES 21:29 (MEDIUM + LOW): the report error line must read in the dark theme, and an empty send must take the keyboard to what needs fixing.
+test('GAMES MEDIUM: the report error colour comes from the look\'s problem token (a light-theme red was 2.1:1 on the dark card)', () => {
+  assert.match(read('assets/help.css'), /\.report-error\{color:var\(--problem,#8a2f25\);margin:0\}/);
+  assert.match(read('assets/ryagram-look.css'), /--problem:#ffb4a8;/, 'the dark token is a light pink');
+});
+
+test('GAMES LOW: a send with no choice moves focus to the first reason, and the choices are tied to the error line', () => {
+  const js = read('assets/report.js');
+  assert.match(js, /querySelector\('input\[name="reason"\]'\)\.focus\(\)/);
+  assert.match(read('report/index.html'), /<fieldset aria-describedby="r-error">/);
+});
+
+// Live walk 11-18 rough spot 4: the phone footer wrapped into uneven rows.
+test('the phone footer is a tidy two-by-two under its source line', () => {
+  assert.match(read('assets/help.css'), /@media\(max-width:560px\)\{body\.ryagram-look \.footer-row\{display:grid;grid-template-columns:1fr 1fr;/);
+});

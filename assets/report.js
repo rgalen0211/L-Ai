@@ -55,7 +55,11 @@
       const r = build({ film: film.value, reason: form.querySelector('input[name="reason"]:checked')?.value,
                         email: document.getElementById('r-email').value, details: document.getElementById('r-details').value,
                         website: document.getElementById('r-website').value });
-      if (r.error) { error.textContent = r.error; error.hidden = false; return; }
+      if (r.error) {
+        error.textContent = r.error; error.hidden = false;
+        if (/problem/.test(r.error)) form.querySelector('input[name="reason"]').focus();   // nothing chosen: take the keyboard to the choices (GAMES 21:29)
+        return;
+      }
       try {
         if (!(local && new URLSearchParams(location.search).has('mock'))) await send(r.body);
         form.hidden = true;

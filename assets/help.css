@@ -18,7 +18,7 @@
 .report-form .choice input{width:20px;height:20px;flex:none;margin:0}
 .report-form .button{justify-self:start}
 .report-form .hp-field{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
-.report-error{color:#8a2f25;margin:0}
+.report-error{color:var(--problem,#8a2f25);margin:0}
 .report-done{padding:18px 20px;border:1px solid var(--line);border-radius:12px;background:var(--paper)}
 .not-found-links{list-style:none;margin:18px 0;padding:0}.not-found-links li{margin:0 0 6px}.not-found-links a{display:inline-block;padding:10px 2px}
 /* Legal page shells: a plain banner that says the page is a placeholder pending legal review */
@@ -28,3 +28,5 @@
 /* Phone: the long connector address and the command lines wrap instead of pushing the page sideways (live walk 10-25: /connect-ai/ was 583 px wide at 375) */
 code,pre{overflow-wrap:anywhere}
 pre{white-space:pre-wrap}
+/* phone footer: the source line on its own row, the four links in a tidy two-by-two (live walk 11-18: they wrapped into uneven rows) */
+@media(max-width:560px){body.ryagram-look .footer-row{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;justify-content:stretch}body.ryagram-look .footer-row>span{grid-column:1/-1;padding-bottom:6px}body.ryagram-look .footer-row a{padding-left:0;padding-right:0}}
