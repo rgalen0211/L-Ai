@@ -173,7 +173,7 @@ test('A FILM MADE FROM THE OWNER\'S UPLOAD names only "the maker\'s own data": n
 
 test('the film page file loads the sample and the page script, under a policy that allows only its own files and the project\'s storage', () => {
   const html = read('film/index.html');
-  assert.match(html, /film\.js\?v=20261104c/);
+  assert.match(html, /film\.js\?v=20261119a/);
   const csp = html.match(/Content-Security-Policy" content="([^"]+)"/)[1];
   assert.match(csp, /script-src 'self'(;|$)/);
   assert.match(csp, /connect-src 'self' https:\/\/jxtkfishqfxuptwjzczz\.supabase\.co/);
@@ -279,4 +279,17 @@ test('THE SAMPLE IS BUILT FROM THE PUBLIC FILM: its title, final engine, draw da
   assert.deepEqual(sample.summary.engine, { commit: 'b17561adead5', drawn_at: '2026-10-15' });   // the FINAL film's sidecar, not the 10-10 draft's
   assert.equal(sample.published_at, null);                                                     // a sample, not a published page
   assert.equal(sample.summary.datasets[0].sources[0].url, 'https://doi.org/10.3886/E144281V1');
+});
+
+test('Q652 item 3: a film page opened with no film link at all says so kindly and offers the L\'Ai home page; a bad or missing film still says "No film here" as before', async () => {
+  const none = await renderPage({ search: '' });
+  assert.deepEqual(none.calls, []);
+  assert.match(textOf(none.root), /No film here/);
+  assert.match(textOf(none.root), /This page needs a film link\. Ask whoever sent it for the full link\./);
+  assert.doesNotMatch(textOf(none.root), /doesn’t exist/);
+  assert.match(textOf(none.root), /Or go to the L'Ai home page\./);
+  assert.match(textOf(none.root), /See what Ryagram makes/);
+  const gone = await renderPage({ search: `?s=${SLUG}`, status: 404 });
+  assert.match(textOf(gone.root), /doesn’t exist, or its maker has stopped sharing it/);
+  assert.doesNotMatch(textOf(gone.root), /home page/);
 });

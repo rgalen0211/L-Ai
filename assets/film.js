@@ -157,12 +157,13 @@
     }
   }
 
-  function notFound(text) {
+  function notFound(text, home) {
     root.replaceChildren(h('h1', { tabindex: '-1' }, 'No film here'), h('p', {}, text),
-      h('p', {}, h('a', { class: 'button primary', href: cta }, 'See what Ryagram makes')));
+      h('p', {}, h('a', { class: 'button primary', href: cta }, 'See what Ryagram makes')),
+      ...(home ? [h('p', {}, h('a', { href: '/' }, "Or go to the L'Ai home page."))] : []));      // not a null child: replaceChildren(null) prints the word
   }
 
-  load().then(page => (page ? render(page) : notFound('This film page doesn’t exist, or its maker has stopped sharing it.')))
+  load().then(page => (page ? render(page) : params.has('s') || params.has('sample') ? notFound('This film page doesn’t exist, or its maker has stopped sharing it.') : notFound('This page needs a film link. Ask whoever sent it for the full link.', true)))
     .catch(() => notFound('The film couldn’t be loaded just now. Try again in a minute.'))
     .finally(() => { if (!handledSources) root.querySelector('h1')?.focus(); });   // a failed load focuses its heading too, #sources or not
 })();
