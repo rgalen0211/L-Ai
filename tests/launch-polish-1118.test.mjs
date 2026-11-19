@@ -39,7 +39,7 @@ test('Q649 2: "I cannot sign in" ends at the address below, not a form that is n
 
 test('Q649 3: the uploads question starts "Coming soon: when uploading your own data opens, ..." while the upload switch is off', () => {
   const help = read('help/index.html');
-  assert.match(help, /<summary>My own data \(spreadsheet\) won't read\.<\/summary>\s*<p>Coming soon: when uploading your own data opens, /);
+  assert.match(help, /<summary>Can I use my own data \(a spreadsheet\)\?<\/summary>\s*<p>Coming soon: when uploading your own data opens, /);
   assert.match(read('assets/ryagram-config.js'), /uploads:\s*false/, 'this words fix is only true while uploads is off: revisit it when the switch goes on');
 });
 
