@@ -14,8 +14,8 @@
 .report-form label,.report-form legend{display:block;font-weight:700;font-size:.9rem;margin-bottom:6px}
 .report-form input[type=text],.report-form input[type=email],.report-form textarea{width:100%;box-sizing:border-box;padding:10px 12px;border:1px solid var(--line);border-radius:10px;font:inherit}
 .report-form fieldset{border:0;margin:0;padding:0}
-.report-form .choice{display:flex;align-items:center;gap:8px;margin:4px 0;font-weight:400}
-.report-form .choice input{width:auto;margin:0}
+.report-form .choice{display:flex;align-items:center;gap:10px;margin:0;min-height:44px;font-weight:400;cursor:pointer}
+.report-form .choice input{width:20px;height:20px;flex:none;margin:0}
 .report-form .button{justify-self:start}
 .report-form .hp-field{position:absolute;left:-10000px;width:1px;height:1px;overflow:hidden}
 .report-error{color:#8a2f25;margin:0}
