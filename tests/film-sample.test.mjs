@@ -293,3 +293,10 @@ test('Q652 item 3: a film page opened with no film link at all says so kindly an
   assert.match(textOf(gone.root), /doesn’t exist, or its maker has stopped sharing it/);
   assert.doesNotMatch(textOf(gone.root), /home page/);
 });
+
+test('Q652 item 4: the film page phone footer is the same two-by-two as the other pages (film.css, new stamp), and "Report this film" is removed when no film loaded', async () => {
+  const css = fs.readFileSync(new URL('../assets/film.css', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(css, /@media\(max-width:560px\)\{body\.film-page \.footer-row\{display:grid;grid-template-columns:1fr 1fr;/);
+  assert.match(fs.readFileSync(new URL('../film/index.html', import.meta.url), 'utf8'), /film\.css\?v=20261119a/);
+  assert.match(fs.readFileSync(new URL('../assets/film.js', import.meta.url), 'utf8'), /function notFound\(text, home\) \{\s*(\/\/[^\n]*\n\s*)?document\.getElementById\('report-link'\)\?\.remove\(\);/);
+});

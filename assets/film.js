@@ -158,6 +158,7 @@
   }
 
   function notFound(text, home) {
+    document.getElementById('report-link')?.remove();                          // nothing to report on a page with no film
     root.replaceChildren(h('h1', { tabindex: '-1' }, 'No film here'), h('p', {}, text),
       h('p', {}, h('a', { class: 'button primary', href: cta }, 'See what Ryagram makes')),
       ...(home ? [h('p', {}, h('a', { href: '/' }, "Or go to the L'Ai home page."))] : []));      // not a null child: replaceChildren(null) prints the word

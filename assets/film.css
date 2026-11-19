@@ -32,3 +32,4 @@
 #remix-canvas{width:100%;height:auto;border-radius:12px;background:#14141a}
 .film-remix-error{color:#9b2c2c;margin:0}.film-remix-final{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:center}.film-remix-final p{margin:0;flex:1 1 240px}
 .film-remix .button{min-height:44px}
+@media(max-width:560px){body.film-page .footer-row{display:grid;grid-template-columns:1fr 1fr;gap:0 18px;justify-content:stretch}body.film-page .footer-row>span{grid-column:1/-1;padding-bottom:6px}body.film-page .footer-row a{padding-left:0;padding-right:0}}
