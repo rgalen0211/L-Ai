@@ -115,6 +115,13 @@ test('Step B (card retry plan B, CONNECT 11-18): an open panel notices without a
   assert.ok(!block.includes('setInterval'), 'no fixed timer that could run on');
 });
 
+test('Step B, GAMES review 11-18 finding 1: a stopped view stops its card reads (the timer is cleared, a read in flight paints nothing and parks nothing)', () => {
+  const block = EDITOR.slice(EDITOR.indexOf('const cardWaiting = '), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
+  assert.ok(EDITOR.includes('let cardStopped = false; onStop(() => { cardStopped = true; clearTimeout(cardTimer); });'), 'the view stopping clears the card timer and says so');
+  assert.ok(block.includes('if (!cardOn || !project || cardStopped) return;'), 'a stopped view starts no read');
+  assert.ok(block.includes('if (cardStopped) return;\n        const d = r &&'), 'a read that comes back after the stop paints nothing and parks no timer');
+});
+
 test('the built page carries all of it and stays inside its budget', () => {
   assert.ok(EDITOR_HTML.includes('function drawCard(svg)') && EDITOR_HTML.includes('async function loadCard(ask, pressed)'));
   assert.ok(EDITOR_HTML.includes("filmCard: true, drawCard, siteLink }"));

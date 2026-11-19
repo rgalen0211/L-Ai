@@ -82,6 +82,7 @@
       // Only the chat host sets host.filmCard, so the website's editor and the maker's page never run any of this.
       const cardOn = isData && !!host && host.filmCard === true && typeof hostRpc === 'function' && typeof host.drawCard === 'function' && !bundleMode;
       let card = null, cardState = '', cardWait = 0, cardMsg = '', cardStale = false, cardRefresh = '', cardHave = '', cardTimer = 0, cardPolls = 0, cardSlow = 0, cardQuiet = 0;
+      let cardStopped = false; onStop(() => { cardStopped = true; clearTimeout(cardTimer); });       // GAMES review 11-18: a view the host has stopped asks the database for nothing more
       let cardCode = '', cardRetry = false, cardRefreshCode = '', cardRefreshRetry = false, cardBusy = false, cardNote = '';       // Try again (11-18): what failed, may it be asked again now (the database's answer), is a press out, and the sentence a press left
       const cardBox = h('section', { class: 'le-card', 'aria-labelledby': 'le-card-h', hidden: true });
       const cardLook = key => (card && card.look && typeof card.look[key] === 'string' ? card.look[key] : undefined);
@@ -132,9 +133,10 @@
         if (again) again.focus(); else if (say) { say.setAttribute('tabindex', '-1'); say.focus(); }
       }
       async function loadCard(ask, pressed) {
-        if (!cardOn || !project) return;
+        if (!cardOn || !project || cardStopped) return;
         let r = null;
         try { r = await hostRpc('editor_film_card', { p_project: project, ...(ask ? { p_ask: true } : {}), ...(cardHave ? { p_have: cardHave } : {}) }); } catch (e) { r = null; }
+        if (cardStopped) return;
         const d = r && !r.error && r.data && typeof r.data === 'object' ? r.data : null;
         if (!d) {                                                                 // not available (an older database, a refusal): the stand-in stays, nothing is said that was not said before, EXCEPT after the person's own press
           if (pressed) { const e = r && r.error, m = e && typeof e.code === 'string' && /^PT\d{3}$/.test(e.code) && typeof e.message === 'string' ? e.message.slice(0, 160) : ''; cardNote = 'Could not ask just now.' + (m ? ' ' + m : ''); }       // the connector's own words only for the codes it writes for people (PT429 and the like), never raw database or network text

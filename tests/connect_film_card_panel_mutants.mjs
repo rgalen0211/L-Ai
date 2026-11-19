@@ -79,6 +79,10 @@ const mutants = [
   ['the slow reads ask', AE, 'loadCard(false), 120000', 'loadCard(true), 120000', 'both'],
   ['there are no slow reads', AE, 'else if (waiting && cardSlow++ < 10)', 'else if (false)', 'both'],
   ['a press does not start the quiet re-read again', AE, 'cardSlow = 0; cardQuiet = 0; paintCard();', 'cardSlow = 0; paintCard();', 'source'],
+  // ---- Step B, GAMES review finding 1 (11-18): a stopped view stops its card reads
+  ['the view stopping does not clear the card timer', AE, 'cardStopped = true; clearTimeout(cardTimer);', 'cardStopped = true;', 'source'],
+  ['a stopped view still starts a read', AE, '!project || cardStopped) return;', '!project) return;', 'source'],
+  ['a read in flight after the stop still paints and parks a timer', AE, 'if (cardStopped) return;\n        const d = r &&', 'const d = r &&', 'source'],
 ];
 
 function suites(cwd) {
