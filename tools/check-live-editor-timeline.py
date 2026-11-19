@@ -47,7 +47,9 @@ with sync_playwright() as pw:
         v0 = int(p.locator('#le-range').input_value())
         on_year = int(p.locator('.le-tl-on i').inner_text())
         check(on_year <= v0 and all(int(x) <= v0 or int(x) > on_year for x in p.locator('.le-tl-tile i').all_inner_texts()) and p.locator('.le-tl-on').count() == 1, f'the current tile holds the slider year ({on_year} for {v0})')
+        p.locator('.le-tl-strip').evaluate("e => e.scrollIntoView({ block: 'center' })")     # a raw mouse click does not scroll: with the shared look the page is taller and the strip sat under the mock bar (WEB 11-19)
         box = p.locator('.le-tl-strip').bounding_box()
+        check(p.evaluate("(([x, y]) => !!document.elementFromPoint(x, y)?.closest('.le-tl-strip'))", [box['x'] + box['width'] * 0.5, box['y'] + box['height'] / 2]), 'the middle of the strip is what a click there would hit (nothing covers it)')
         hx = p.evaluate("(() => { const h = document.querySelector('.le-tl-head').getBoundingClientRect(), t = document.querySelector('.le-tl-on').getBoundingClientRect(); return [h.left + h.width / 2, t.left, t.right]; })()")
         nxt = p.evaluate("(() => { const t = document.querySelector('.le-tl-on').nextElementSibling; if (!t || !t.classList.contains('le-tl-tile')) return null; const r = t.getBoundingClientRect(); return r.right; })()")
         check(hx[1] - 1 <= hx[0] <= (nxt if nxt else hx[2]) + 1, f'the playhead sits on the current tile or just after its centre toward the next ({hx[0]:.0f} in {hx[1]:.0f} to {(nxt or hx[2]):.0f})')
@@ -98,6 +100,7 @@ with sync_playwright() as pw:
         if name == 'desktop':                                      # on a phone the tracks give way to a plain clip list, so there is no ruler to use
             over = p.evaluate("(() => { const b = document.querySelector('.le-ruler-bar').getBoundingClientRect(); return Math.max(...[...document.querySelectorAll('.le-ruler-tick i')].map(i => i.getBoundingClientRect().right - b.right)); })()")
             check(over <= 0.5, f'no ruler label overhangs the bar ({over:.1f}px)')
+            p.locator('.le-ruler-bar').evaluate("e => e.scrollIntoView({ block: 'center' })")
             rb = p.locator('.le-ruler-bar').bounding_box()
             check(p.locator('.le-ruler-tick').count() >= 5 and p.locator('.le-ruler-tick i').first.inner_text() == '0:00', 'the compilation editor has a time ruler above its tracks')
             p.mouse.click(rb['x'] + rb['width'] * 0.5, rb['y'] + rb['height'] / 2); p.wait_for_timeout(250)
