@@ -1,5 +1,5 @@
 // Must-fail proof for the chat editor panel's half of Editor Step A (tests/connect-film-card-panel.test.mjs and the card checks in tools/check-chat-editor.py): each mutant breaks ONE rule in a scratch copy, the page is REGENERATED
-// from the broken source, and it must then FAIL. Two kinds: the SOURCE mutants must fail the offline suites; the BROWSER mutants must fail the real-Chrome check (tools/check-chat-editor.py, needs Chrome and playwright, TEMP on D:).
+// from the broken source, and it must then FAIL. Three kinds (source / browser / both): the SOURCE mutants must fail the offline suites; the BROWSER mutants must fail the real-Chrome check (tools/check-chat-editor.py, needs Chrome and playwright, TEMP on D:).
 // A baseline run on the unbroken copy must PASS first, and every text must occur exactly once (a pattern that no longer matches is BROKEN, never "caught").
 // Run:  node tests/connect_film_card_panel_mutants.mjs [--no-browser]
 import fs from 'node:fs';
@@ -51,6 +51,34 @@ const mutants = [
   ['the card is never asked for', AE, 'if (cardOn) setTimeout(() => loadCard(true), 0);', '', 'both'],
   ['a further call name is allowed', H, "'editor_heartbeat', 'editor_film_card'];", "'editor_heartbeat', 'editor_film_card', 'set_look'];", 'source'],
   ['the picture box has no style', CSS, '.le-cardpic svg{display:block;width:100%;height:100%}', '', 'source'],
+  // ---- Try again (11-18): the panel's button for a picture the engine failed to draw
+  ['Try again is offered for every failed picture, even one a retry cannot fix', AE, "cardState === 'failed' && cardCode === 'engine_error'", "cardState === 'failed'", 'both'],
+  ['a press does not ask (no p_ask)', AE, 'await loadCard(true, true);', 'await loadCard(false, true);', 'both'],
+  ['the panel presses Try again by itself', AE, 'cardRetry = d.retry === true;', "cardRetry = d.retry === true; if (cardRetry && cardState === 'failed') setTimeout(tryCardAgain, 0);", 'both'],
+  ['a second press while the first is out asks again', AE, 'if (cardBusy) return;', 'if (false) return;', 'source'],
+  ['the button stays usable while the ask is out', AE, 'disabled: cardBusy }', 'disabled: false }', 'source'],
+  ['the words say "now" when the database said not yet', AE, "(may ? 'You can try again now.' :", "(!may ? 'You can try again now.' :", 'browser'],
+  ['a press that is too early says nothing', AE, "if (pressed && cardState === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';", '', 'browser'],
+  ['a refused press says nothing', AE, "cardNote = 'Could not ask just now.' + (m ? ' ' + m : '');", "cardNote = '';", 'both'],
+  ['an older picture whose newer one failed has no button', AE, "if (cardRefresh === 'failed' && cardRefreshCode === 'engine_error') kids.push(retryLine(cardRefreshRetry));", '', 'both'],
+  ['under an older picture the button words follow the wrong flag', AE, 'kids.push(retryLine(cardRefreshRetry));', 'kids.push(retryLine(cardRetry));', 'browser'],
+  ['a press that is taken gets no reads to watch it', AE, "cardBusy = true; cardNote = ''; cardPolls = 0; cardSlow = 0; cardQuiet = 0; paintCard();", "cardBusy = true; cardNote = ''; cardSlow = 0; cardQuiet = 0; paintCard();", 'source'],
+  ['the retry line has no style', CSS, '.le-cardretry{margin-top:8px}', '', 'source'],
+  // ---- Try again words (GAMES review 11-18: the two sentences must not disagree; the note names no stale time; a raw error is never shown)
+  ['with the button the card also says open the editor again in ten minutes', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg ||", "(cardMsg ||", 'both'],
+  ['a failure with no button loses the connector words', AE, "retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg || \"The film's picture is not available.\")", "\"Drawing the film's picture did not work this time.\"", 'both'],
+  ['the too-early note names a time again', AE, "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet. Please try again in a few minutes.';", "if (pressed && cardRefresh === 'failed') cardNote = 'Not yet: it can be tried again about ten minutes after it failed.';", 'both'],
+  ['a refused press shows any error text', AE, "typeof e.code === 'string' && /^PT" + BS + "d{3}$/.test(e.code) && ", "", 'both'],
+  // ---- Step B (11-18): the open panel notices, with reads only
+  ['the quiet re-read comes far too soon', AE, 'loadCard(false), 620000', 'loadCard(false), 6200', 'both'],
+  ['the quiet re-read asks', AE, 'loadCard(false), 620000', 'loadCard(true), 620000', 'both'],
+  ['the quiet re-read repeats for ever', AE, 'cardQuiet++ < 1', 'cardQuiet++ < 100', 'both'],
+  ['the quiet re-read is a fixed timer that runs on', AE, 'cardTimer = setTimeout(() => loadCard(false), 620000);', 'cardTimer = setInterval(() => loadCard(false), 620000);', 'both'],
+  ['a film the engine cannot draw is read again too', AE, "(cardCode === 'engine_error' && cardState === 'failed' && !cardRetry)", "(cardState === 'failed' && !cardRetry)", 'browser'],
+  ['the slow reads never stop', AE, 'cardSlow++ < 10', 'cardSlow++ < 100000', 'both'],
+  ['the slow reads ask', AE, 'loadCard(false), 120000', 'loadCard(true), 120000', 'both'],
+  ['there are no slow reads', AE, 'else if (waiting && cardSlow++ < 10)', 'else if (false)', 'both'],
+  ['a press does not start the quiet re-read again', AE, 'cardSlow = 0; cardQuiet = 0; paintCard();', 'cardSlow = 0; paintCard();', 'source'],
 ];
 
 function suites(cwd) {
@@ -80,11 +108,12 @@ for (const [name, file, from, to, kind] of mutants) {
   if (n !== 1 || from === to) { console.log(`BROKEN MUTANT (text found ${n} times, need 1, or no change): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
   // SOURCE mutants must fail the offline suites; BOTH mutants must fail the offline suites AND the real-Chrome check (the behaviour is proved in the browser, the text is pinned offline)
-  const s = suites(scratch).status !== 0;
-  const wantBrowser = kind === 'both' && !browserOnly;
+  if (kind === 'browser' && browserOnly) { console.log(`skipped (browser only) ${name}`); continue; }
+  const s = kind === 'browser' ? (spawnSync(process.execPath, [path.join('tools', 'build-chat-editor.mjs')], { encoding: 'utf8', cwd: scratch }).status === 0) : suites(scratch).status !== 0; // a browser-only mutant still needs the generated page rebuilt from the broken source, or Chrome sees the unbroken page
+  const wantBrowser = (kind === 'both' || kind === 'browser') && !browserOnly;
   const bw = wantBrowser ? browser(scratch).status !== 0 : null;
   const caught = wantBrowser ? s && bw : s;
-  const how = wantBrowser ? `offline suites ${s ? 'failed' : 'PASSED'}, real Chrome ${bw ? 'failed' : 'PASSED'}` : `offline suites ${s ? 'failed' : 'PASSED'}`;
+  const how = kind === 'browser' ? `real Chrome ${bw ? 'failed' : 'PASSED'}` : wantBrowser ? `offline suites ${s ? 'failed' : 'PASSED'}, real Chrome ${bw ? 'failed' : 'PASSED'}` : `offline suites ${s ? 'failed' : 'PASSED'}`;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name} (${how})`);
   if (!caught) missed++;
 }

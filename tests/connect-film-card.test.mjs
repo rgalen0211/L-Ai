@@ -311,7 +311,7 @@ test('an older picture stays on show while a newer one that failed because the e
   const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
   const open = async () => (await s.call({ p_project: f.id, p_ask: true })).body.data;
   const soon = await open();
-  assert.equal(soon.state, 'ready'); assert.equal(soon.stale, true); assert.deepEqual(soon.refresh, { state: 'failed', code: 'engine_error' }); assert.ok(soon.card);
+  assert.equal(soon.state, 'ready'); assert.equal(soon.stale, true); assert.deepEqual(soon.refresh, { state: 'failed', code: 'engine_error', retry: false }); assert.ok(soon.card);
   assert.equal(w.claim(), null, 'not before ten minutes');
   const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
   row.finished = Date.now() - 11 * 60000;
@@ -320,6 +320,64 @@ test('an older picture stays on show while a newer one that failed because the e
   const job2 = w.claim();
   assert.ok(job2 && job2.request_id !== job.request_id);
   assert.equal(job2.story_sha256, f.ver.story_sha256);
+});
+
+test('a failed picture carries the database\'s own answer to "may it be asked for again now" for the panel\'s Try again button, and only a failure that a retry can fix carries it (CONNECT 11-18, card retry plan A)', async () => {
+  const s = server();
+  const w = s.w.cardWorker(A.userId);
+  const f = await s.film();
+  await s.call({ p_project: f.id, p_ask: true });
+  const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
+  const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
+  const read = async () => (await s.call({ p_project: f.id })).body.data;                      // no p_ask: a read never asks
+  const first = await read();
+  assert.equal(first.state, 'failed'); assert.equal(first.code, 'engine_error'); assert.strictEqual(first.retry, false, 'just failed: not yet');
+  assert.match(first.message, /ten minutes/, 'the words an AI reads are unchanged');
+  row.finished = Date.now() - 9 * 60000;
+  assert.strictEqual((await read()).retry, false, 'nine minutes is not ten');
+  row.finished = Date.now() - 11 * 60000;
+  const later = await read();
+  assert.equal(later.state, 'failed'); assert.strictEqual(later.retry, true, 'ten minutes on: the panel may offer Try again');
+  assert.equal(w.claim(), null, 'reading says it, and asks nothing');
+  // the button is the same call as opening the editor: p_ask. Too soon it asks nothing and says failed with retry false; after ten minutes it asks once.
+  row.finished = Date.now() - 2 * 60000;
+  const soon = (await s.call({ p_project: f.id, p_ask: true })).body.data;
+  assert.equal(soon.state, 'failed'); assert.strictEqual(soon.retry, false); assert.equal(w.claim(), null, 'a press before ten minutes asks nothing');
+  row.finished = Date.now() - 11 * 60000;
+  assert.deepEqual((await s.call({ p_project: f.id, p_ask: true })).body.data, { state: 'asked', waited_seconds: 0 });
+  const again = w.claim(); assert.ok(again && again.request_id !== job.request_id, 'one new request');
+  assert.equal((await s.call({ p_project: f.id, p_ask: true })).body.data.state, 'claimed', 'a second press while it is being drawn is the same request');
+  assert.equal(w.claim(), null);
+  // a failure no retry can fix never carries the flag, however long ago
+  const g = await s.film(A, { title: 'invented unsupported two' });
+  await s.call({ p_project: g.id, p_ask: true });
+  const jg = w.claim(); w.fail(jg.request_id, 'view_not_supported', '');
+  [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === jg.request_id).finished = Date.now() - 3 * 3600000;
+  const stays = (await s.call({ p_project: g.id })).body.data;
+  assert.equal(stays.code, 'view_not_supported'); assert.ok(!('retry' in stays), 'no Try again for a film the engine cannot draw');
+  const h = await s.film(A, { title: 'invented story missing' });
+  await s.call({ p_project: h.id, p_ask: true });
+  const jh = w.claim(); w.fail(jh.request_id, 'story_not_found', '');
+  assert.ok(!('retry' in (await s.call({ p_project: h.id })).body.data));
+});
+
+test('an older picture that shows while a newer one failed carries the same flag inside refresh, so the panel can offer Try again under the old picture (CONNECT 11-18)', async () => {
+  const s = server();
+  const f = await s.film();
+  await s.call({ p_project: f.id, p_ask: true });
+  const w = s.w.cardWorker(A.userId); w.finish(w.claim().request_id, goodCard(f.ver.story_sha256));
+  f.ver.story_spec = { title: 'invented three' }; f.ver.story_sha256 = sha({ title: 'invented three' });
+  await s.call({ p_project: f.id, p_ask: true });
+  const job = w.claim(); w.fail(job.request_id, 'engine_error', 'it broke');
+  const read = async () => (await s.call({ p_project: f.id })).body.data;
+  const a = await read();
+  assert.equal(a.state, 'ready'); assert.deepEqual(a.refresh, { state: 'failed', code: 'engine_error', retry: false });
+  [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id).finished = Date.now() - 11 * 60000;
+  const b = await read();
+  assert.deepEqual(b.refresh, { state: 'failed', code: 'engine_error', retry: true }); assert.ok(b.card, 'the older picture stays');
+  assert.equal(w.claim(), null, 'reading asks nothing');
+  const c = (await s.call({ p_project: f.id, p_ask: true })).body.data;
+  assert.deepEqual(c.refresh, { state: 'asked' }, 'the press asks once; a refresh that is being drawn carries no flag');
 });
 
 test('a county map the engine refuses for size reaches the person as ONE plain sentence with the two numbers; any other detail is never shown; the next film\'s card still shows (Ryan Q567 a)', async () => {

@@ -56,11 +56,11 @@ test('the rebuild keeps no address and no outside reference, renames every id, c
 });
 
 test('the panel asks once, then at most every 15 seconds and 40 times, and the person\'s own changes and the old card are never lost', () => {
-  const block = EDITOR.slice(EDITOR.indexOf('async function loadCard(ask) {'), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
+  const block = EDITOR.slice(EDITOR.indexOf('async function loadCard(ask, pressed) {'), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
   assert.ok(block.includes("...(ask ? { p_ask: true } : {})"), 'p_ask only on the first call');
   assert.ok(block.includes("...(cardHave ? { p_have: cardHave } : {})"), 'a card already held is not fetched again');
   assert.ok(block.includes('++cardPolls < 40) {') && block.includes('setTimeout(() => loadCard(false), 15000);'));
-  assert.ok(block.includes("if (!d) return;"), 'an unavailable tool changes nothing the person sees');
+  assert.ok(block.includes('if (!d) {') && /if \(pressed\) \{ const e = [^\n]*\n\s*return;\n\s*\}/.test(block), 'an unavailable tool changes nothing the person sees, except one sentence after their own press of Try again');
   assert.ok(block.includes("if (d.card && typeof d.card === 'object') {"), 'a reply without a card keeps the card already shown');
   assert.ok(block.includes("else if (cardState === 'failed' && card) cardRefresh = 'failed';"), 'a failed refresh keeps the old card');
   assert.ok(!block.includes('setInterval'), 'no fixed timer that could run on');
@@ -83,8 +83,40 @@ test('what the person reads: the waiting, the failed, the stale and the unparsea
   assert.ok(CSS.includes('.le-card{') && CSS.includes('.le-cardpic svg{display:block;width:100%;height:100%}'));
 });
 
+test('Try again (CONNECT 11-18, card retry plan A): a button only for a picture the engine failed to draw, one press = one ask through the database\'s own ten-minute rule, words for "now", "not yet" and "could not ask", no timer of its own', () => {
+  const block = EDITOR.slice(EDITOR.indexOf('const cardWaiting = '), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
+  for (const s of ['Try again', 'You can try again now.', 'It can be tried again about ten minutes after it failed.', 'Not yet. Please try again in a few minutes.', 'Could not ask just now.', "Drawing the film's picture did not work this time."]) {
+    assert.ok(EDITOR.includes(s), s);
+    assert.ok(EDITOR_HTML.includes(s), `the built page has it: ${s}`);
+  }
+  assert.ok(block.includes("cardState === 'failed' && cardCode === 'engine_error'"), 'the button is for a picture that failed because the engine broke, and for nothing else (a film the engine cannot draw has nothing to retry)');
+  assert.ok(block.includes("cardRefresh === 'failed' && cardRefreshCode === 'engine_error'"), 'and under an older picture whose newer one failed the same way');
+  assert.ok(block.includes('cardRetry = d.retry === true') && block.includes('cardRefreshRetry = !!(d.refresh && d.refresh.retry === true)'), 'the words follow the database\'s own answer, not the panel\'s guess');
+  assert.ok(block.includes("retryable ? \"Drawing the film's picture did not work this time.\" : (cardMsg ||"), 'with the button the card says only that it did not work, and the connector\'s longer "open the editor again in about ten minutes" is kept for a failure with no button, so the two never disagree');
+  assert.ok(!block.includes('Not yet: it can be tried again about ten minutes'), 'the too-early note names no time (nothing re-reads the card, so a time would go stale)');
+  assert.ok(block.includes('/^PT\\d{3}$/.test(e.code)'), 'a refused press shows the connector\'s own words only for the codes it writes for people, never raw database or network text');
+  assert.ok(block.includes('await loadCard(true, true);'), 'a press is the same call as opening the editor: with p_ask, so the database decides');
+  assert.equal([...block.matchAll(/loadCard\(true/g)].length, 1, 'p_ask is sent from exactly one place: the press');
+  assert.ok(block.includes('if (cardBusy) return;'), 'a second press while the first is out does nothing');
+  assert.ok(!/setTimeout\([^)]*tryCardAgain|setInterval/.test(block), 'the panel never retries by itself: only the person\'s press asks again');
+  assert.ok(block.includes("cardPolls = 0;"), 'a press that is accepted gets the usual 40 reads to watch it');
+  assert.ok(block.includes('disabled: cardBusy'), 'the button is off while the ask is out');
+  assert.ok(!/\b(alert|confirm|prompt)\s*\(/.test(block), 'no browser box');
+  assert.ok(CSS.includes('.le-cardretry{margin-top:8px}') && CSS.includes('.le-cardretry p{margin:0 0 6px}'), 'the retry line has its own small style');
+});
+
+test('Step B (card retry plan B, CONNECT 11-18): an open panel notices without a reload, with a few READS and never an ask, and every count is bounded', () => {
+  const block = EDITOR.slice(EDITOR.indexOf('const cardWaiting = '), EDITOR.indexOf('// ---- the preview: a stand-in drawing'));
+  assert.ok(block.includes('else if (waiting && cardSlow++ < 10) {') && block.includes('setTimeout(() => loadCard(false), 120000);'), 'after the 39 quick reads, 10 slow ones every 2 minutes, then none');
+  assert.ok(block.includes('else if (tooSoon && cardQuiet++ < 1) {') && block.includes('setTimeout(() => loadCard(false), 620000);'), 'a failed picture not yet old enough: ONE quiet read about 10 minutes 20 seconds on');
+  assert.ok(block.includes("const tooSoon = (cardCode === 'engine_error' && cardState === 'failed' && !cardRetry) || (cardState === 'ready' && cardRefreshCode === 'engine_error' && cardRefresh === 'failed' && !cardRefreshRetry);"), 'only the kind a retry can fix, and only while the database says not yet');
+  assert.ok(block.includes('cardPolls = 0; cardSlow = 0; cardQuiet = 0; paintCard();'), 'a press starts the counts again');
+  assert.equal([...block.matchAll(/loadCard\(true/g)].length, 1, 'every timer reads (loadCard(false)); only the press asks');
+  assert.ok(!block.includes('setInterval'), 'no fixed timer that could run on');
+});
+
 test('the built page carries all of it and stays inside its budget', () => {
-  assert.ok(EDITOR_HTML.includes('function drawCard(svg)') && EDITOR_HTML.includes('async function loadCard(ask)'));
+  assert.ok(EDITOR_HTML.includes('function drawCard(svg)') && EDITOR_HTML.includes('async function loadCard(ask, pressed)'));
   assert.ok(EDITOR_HTML.includes("filmCard: true, drawCard, siteLink }"));
   assert.ok(Buffer.byteLength(EDITOR_HTML) <= 300 * 1024, `${Buffer.byteLength(EDITOR_HTML)} bytes`);
   assert.ok(!EDITOR_HTML.includes('url('), 'the page names no CSS address (the rebuild writes the paint reference in two pieces)');
