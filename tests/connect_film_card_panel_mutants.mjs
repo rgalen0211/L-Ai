@@ -1,5 +1,5 @@
 // Must-fail proof for the chat editor panel's half of Editor Step A (tests/connect-film-card-panel.test.mjs and the card checks in tools/check-chat-editor.py): each mutant breaks ONE rule in a scratch copy, the page is REGENERATED
-// from the broken source, and it must then FAIL. Two kinds: the SOURCE mutants must fail the offline suites; the BROWSER mutants must fail the real-Chrome check (tools/check-chat-editor.py, needs Chrome and playwright, TEMP on D:).
+// from the broken source, and it must then FAIL. Three kinds (source / browser / both): the SOURCE mutants must fail the offline suites; the BROWSER mutants must fail the real-Chrome check (tools/check-chat-editor.py, needs Chrome and playwright, TEMP on D:).
 // A baseline run on the unbroken copy must PASS first, and every text must occur exactly once (a pattern that no longer matches is BROKEN, never "caught").
 // Run:  node tests/connect_film_card_panel_mutants.mjs [--no-browser]
 import fs from 'node:fs';
@@ -93,11 +93,12 @@ for (const [name, file, from, to, kind] of mutants) {
   if (n !== 1 || from === to) { console.log(`BROKEN MUTANT (text found ${n} times, need 1, or no change): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
   // SOURCE mutants must fail the offline suites; BOTH mutants must fail the offline suites AND the real-Chrome check (the behaviour is proved in the browser, the text is pinned offline)
-  const s = suites(scratch).status !== 0;
-  const wantBrowser = kind === 'both' && !browserOnly;
+  if (kind === 'browser' && browserOnly) { console.log(`skipped (browser only) ${name}`); continue; }
+  const s = kind === 'browser' ? true : suites(scratch).status !== 0;
+  const wantBrowser = (kind === 'both' || kind === 'browser') && !browserOnly;
   const bw = wantBrowser ? browser(scratch).status !== 0 : null;
   const caught = wantBrowser ? s && bw : s;
-  const how = wantBrowser ? `offline suites ${s ? 'failed' : 'PASSED'}, real Chrome ${bw ? 'failed' : 'PASSED'}` : `offline suites ${s ? 'failed' : 'PASSED'}`;
+  const how = kind === 'browser' ? `real Chrome ${bw ? 'failed' : 'PASSED'}` : wantBrowser ? `offline suites ${s ? 'failed' : 'PASSED'}, real Chrome ${bw ? 'failed' : 'PASSED'}` : `offline suites ${s ? 'failed' : 'PASSED'}`;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name} (${how})`);
   if (!caught) missed++;
 }

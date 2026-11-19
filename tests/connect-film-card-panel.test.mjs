@@ -99,7 +99,7 @@ test('Try again (CONNECT 11-18, card retry plan A): a button only for a picture 
   assert.ok(block.includes("cardPolls = 0;"), 'a press that is accepted gets the usual 40 reads to watch it');
   assert.ok(block.includes('disabled: cardBusy'), 'the button is off while the ask is out');
   assert.ok(!/\b(alert|confirm|prompt)\s*\(/.test(block), 'no browser box');
-  assert.ok(CSS.includes('.le-cardretry'), 'the retry line has its own small style');
+  assert.ok(CSS.includes('.le-cardretry{margin-top:8px}') && CSS.includes('.le-cardretry p{margin:0 0 6px}'), 'the retry line has its own small style');
 });
 
 test('the built page carries all of it and stays inside its budget', () => {
