@@ -76,3 +76,8 @@ test('GAMES LOW: a send with no choice moves focus to the first reason, and the 
 test('the phone footer is a tidy two-by-two under its source line', () => {
   assert.match(read('assets/help.css'), /@media\(max-width:560px\)\{body\.ryagram-look \.footer-row\{display:grid;grid-template-columns:1fr 1fr;/);
 });
+
+// Live walk 11-18 rough spot 5: on the desktop home page 10 text links (nav, footer, contact line) were 16-23 px tall, under the 24 px minimum.
+test('home page desktop: nav and footer links are at least 24 px tall (a rule for 721 px and wider)', () => {
+  assert.match(read('index.html'), /@media\(min-width:721px\)\{nav a,\.footer-row a\{display:inline-block;padding:3px 6px;min-height:28px;box-sizing:border-box\}\}/);
+});
