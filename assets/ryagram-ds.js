@@ -69,6 +69,7 @@
 
   // ---- workbench: collapse, drag + keyboard resize, state kept
   function initWb(wb, off) {
+    if (wb.hasAttribute('data-wb-own')) return;                    // a page that wires its own panels (the editor) opts out
     const saved = store.get(), listeners = [];
     const on = (el, ev, fn, opt) => { el.addEventListener(ev, fn, opt); listeners.push(() => el.removeEventListener(ev, fn, opt)); };
     for (const k of ['left', 'right', 'bottom']) { if (saved[k + 'Size']) wb.style.setProperty(`--wb-${k}`, saved[k + 'Size']); if (saved[k + 'Collapsed']) wb.dataset[k] = 'collapsed'; }

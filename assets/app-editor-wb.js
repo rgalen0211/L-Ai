@@ -71,7 +71,7 @@
     const proBar = root.querySelector('.le-pro');
     const tl = panel('bottom', 'Timeline', null, h('div', { class: 'body wb-tl' }, proBar || null, P.tracks));
     tl.classList.remove('bottom'); tl.classList.add('timeline');
-    const grid = h('div', { class: 'wb' }, left, stage, right, tl);
+    const grid = h('div', { class: 'wb', 'data-wb-own': '' }, left, stage, right, tl);                 // the editor binds its own panel handlers (collapse, resize, tabs): the shared script must not bind them twice
 
     // handles: drag or the arrow keys (Shift = a bigger step); collapse buttons; the choice is kept on this device
     const handle = (k, cls, label) => h('div', { class: `wb-resize ${cls} ${k}`, 'data-resize': k, role: 'separator', tabindex: '0', 'aria-label': label, 'aria-orientation': cls === 'v' ? 'vertical' : 'horizontal' });
