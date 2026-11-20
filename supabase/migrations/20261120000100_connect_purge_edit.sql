@@ -10,7 +10,7 @@
 -- APPLY NOTE FOR RYAN (CC1's deep review of 11-20, LOW 3, so this file does not surprise anyone): applying it switches edit_purge on FOR THE FIRST TIME, and edit_purge DELETES DATA on the live database: within a day, any
 -- compilation draft whose web editor was last opened more than 24 hours ago loses its mirrored track list and its "AI can see it" setting, EVEN IF the desktop app posted a new list an hour earlier (edit_purge compares the editor-open
 -- time, coalesce(editor_seen_at, updated_at), not the app's last post); the draft's revision does not change, so a client sees nothing and waiting edits stay pending until the app posts again. That is what the 24-hour promise in
--- 20261027000400 says, but nobody has ever run it. THE FIRST RUN ALSO DELETES every public.edit_ops row older than 7 days: the whole edit-log backlog since the live editor began (edit_purge in 20261027000400_live_editor.sql), in one go. Before applying: decide whether to also (a) bump the revision and reject waiting edits when a draft is cleared, and (b) count the app's last post as activity; neither is done here
+-- 20261027000400 says, but nobody has ever run it. THE FIRST RUN ALSO DELETES every public.edit_ops row older than 7 days: the whole edit-log backlog since the live editor began (edit_purge in 20261027000400_live_editor.sql), in one go. Those rows also hold the AI's re-apply guard (a change the person undid is not applied again: status undone or rejected, ended_by person, live_editor line 237), so that guard and the person's undo history vanish after 7 days; that is the promise the live-editor migration makes, nobody ran it before. Before applying: decide whether to also (a) bump the revision and reject waiting edits when a draft is cleared, and (b) count the app's last post as activity; neither is done here
 -- (unrun SQL is kept to the least change). Also: the network-only host list in the plan-asks migration (20261120000200) is a name rule only; a public name that resolves to a private address (127.0.0.1.nip.io) passes it, and names such as
 -- home.arpa, localdomain, corp and intranet are not listed: the desktop app's own address check at download time is the real guard, this is the first one.
 
@@ -31,7 +31,11 @@ begin
     and not exists (select 1 from public.connect_tokens t where t.client_id = c.client_id);
   -- the live editor's own retention (20261027000400): mirrored track summaries 24 hours after the editor was last open, the edit log after 7 days
   if to_regprocedure('ryagram_private.edit_purge()') is not null then
-    execute 'select ryagram_private.edit_purge()' into e;
+    begin
+      execute 'select ryagram_private.edit_purge()' into e;
+    exception when others then
+      e := jsonb_build_object('error', sqlstate);          -- a failing editor purge must NEVER stop the daily connector purge above it (RENDERER's review of 11-20): the answer says it failed, the other deletes stand
+    end;
   end if;
   return jsonb_build_object('requests', a, 'codes', b, 'tokens', c, 'calls', d, 'edit', e);
 end $$;
