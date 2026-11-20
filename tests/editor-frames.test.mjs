@@ -245,8 +245,9 @@ test('try colours: the palette of a ready window, a preview-only swap that redra
 });
 
 test('the colour panel says plainly that a change is not saved', () => {
-  assert.match(read('assets/app-editor-film.js'), /it changes the picture you see here only, and nothing here is kept when you leave the page\. To keep a colour, set it in the Look panel/);
+  assert.match(read('assets/app-editor-film.js'), /it changes the picture you see here only, and nothing here is kept when you leave the page\. To keep a colour, set it in the Look panel/);
   assert.ok(!/store\.want\(t\.mid\)/.test(read('assets/app-editor-film.js')), 'the film strip never asks the worker for a window just to fill a tile (WORKER 08:08: each window is a live film_bundle job)');
+  assert.match(read('assets/app-editor-frames.js'), /this\.drawer\.thumbUri\(this\._sceneFor\(e\), f,/, 'a strip tile follows Try colours');
 });
 
 test('FrameStore with a plan asks ahead of the playhead too, and never more than maxInFlight at once', async () => {

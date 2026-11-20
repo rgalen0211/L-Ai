@@ -198,7 +198,7 @@
       const e = this._entry(w.text);
       if (e.state !== 'ready') return null;
       const f = frameIn(e.win, w.sec); if (f === null || typeof this.drawer.thumbUri !== 'function') return null;
-      return this.drawer.thumbUri(e.win.scene, f, Math.min(4096, Math.max(16, Math.floor(width))));
+      return this.drawer.thumbUri(this._sceneFor(e), f, Math.min(4096, Math.max(16, Math.floor(width))));      // the recoloured copy when Try colours is on, so a tile follows the main picture
     }
   }
 
