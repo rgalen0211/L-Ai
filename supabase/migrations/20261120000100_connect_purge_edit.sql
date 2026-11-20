@@ -7,6 +7,12 @@
 -- Same name, same arguments, same owner and grants (create or replace keeps them: nobody but the database owner and the dashboard can run it). Summaries are therefore dropped between 24 and 48 hours after the editor was last open (the job runs once a day).
 -- Needs 20261018000100_connect_ai.sql. Uses 20261027000400_live_editor.sql when it is applied (the call is skipped without it, so the file is safe in either order).
 -- Undo: supabase/rollbacks/20261120000100_connect_purge_edit_rollback.sql. After-check: supabase/live-steps/30_connect_purge_edit_after_check.sql.
+-- APPLY NOTE FOR RYAN (CC1's deep review of 11-20, LOW 3, so this file does not surprise anyone): applying it switches edit_purge on FOR THE FIRST TIME, and edit_purge DELETES DATA on the live database: within a day, any
+-- compilation draft whose web editor was last opened more than 24 hours ago loses its mirrored track list and its "AI can see it" setting, EVEN IF the desktop app posted a new list an hour earlier (edit_purge compares the editor-open
+-- time, coalesce(editor_seen_at, updated_at), not the app's last post); the draft's revision does not change, so a client sees nothing and waiting edits stay pending until the app posts again. That is what the 24-hour promise in
+-- 20261027000400 says, but nobody has ever run it. Before applying: decide whether to also (a) bump the revision and reject waiting edits when a draft is cleared, and (b) count the app's last post as activity; neither is done here
+-- (unrun SQL is kept to the least change). Also: the network-only host list in the plan-asks migration (20261120000200) is a name rule only; a public name that resolves to a private address (127.0.0.1.nip.io) passes it, and names such as
+-- home.arpa, localdomain, corp and intranet are not listed: the desktop app's own address check at download time is the real guard, this is the first one.
 
 begin;
 
