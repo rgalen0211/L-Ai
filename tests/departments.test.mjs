@@ -52,7 +52,7 @@ test('ROUTES: #/d/<id> only for ids the page knows', () => {
 test('APPROVED WORDING (Ryan 2026-10-28 10:59, Q244): the draft note is gone from the module and the page; Games is flagged as a placeholder; no date, price or plan anywhere', () => {
   assert.equal(Dp.DRAFT_NOTE, undefined);
   assert.doesNotMatch(read('assets/app-departments.js'), /DRAFT WORDING|DRAFT_NOTE|soon-draft/);
-  assert.deepEqual(Object.keys(Dp.KNOWN), ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
+  assert.deepEqual(Object.keys(Dp.KNOWN), ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'forecasts', 'studio']);
   assert.equal(Dp.KNOWN.games.placeholder, true);
   const lines = Object.values(Dp.KNOWN).filter(k => k.line).map(k => k.line).join(' ');
   assert.doesNotMatch(lines, /\$|\bprice|\bplan\b|\b20\d\d\b|\bsoon\b.*\b(by|in)\b \d|\bwill be (ready|available) (on|by)\b/i);
@@ -132,7 +132,7 @@ test('A FAILING OR EMPTY my_departments() IS NOT AN EMPTY BAR: the page falls ba
     assert.ok(textOf(g.view).includes('Coming soon') && textOf(g.view).includes('Games'), JSON.stringify(opt));
     const m = await w.ui.load();
     assert.deepEqual(plain(m.working), ['data_films']);
-    assert.deepEqual(plain(m.soon), ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
+    assert.deepEqual(plain(m.soon), ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio', 'forecasts']);
   }
   const ok = await pageOf('games', { rows: [{ id: 'data_films', status: 'working' }] });      // a list the server DID give is obeyed: no fallback
   assert.ok(textOf(ok.view).includes('isn’t available'));
@@ -143,9 +143,9 @@ test('THE CARDS ROW on Your projects is the same list as the bar: a link and Ope
   win.ryagramConfig = { ...(win.ryagramConfig || {}), departments: true, aiFirst: true, connectAi: true };
   const row = await ui.cardsRow();
   const t = textOf([row]);
-  for (const w of ['Departments', 'Data films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio', 'Open', 'soon']) assert.ok(t.includes(w), w);
+  for (const w of ['Departments', 'Data films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio', 'Forecasts', 'Open', 'soon']) assert.ok(t.includes(w), w);
   const hrefs = all(wrap([row]), n => n.tag === 'a').map(n => n.attrs.href);
-  assert.deepEqual(plain(hrefs), ['#/d/data_films', '#/d/compilations', '#/d/geo_intelligence', '#/d/games', '#/d/animation_studio', '#/d/studio']);
+  assert.deepEqual(plain(hrefs), ['#/d/data_films', '#/d/compilations', '#/d/geo_intelligence', '#/d/games', '#/d/animation_studio', '#/d/studio', '#/d/forecasts']);
   win.ryagramConfig = { ...win.ryagramConfig, departments: false };
   assert.equal(await ui.cardsRow(), null);
 });
@@ -175,7 +175,7 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261120k/);
+  assert.match(html, /app-departments\.js\?v=20261120q/);
   assert.match(html, /app-data\.js\?v=20261120h/);
   assert.match(html, /app-library\.js\?v=20261120j/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });
@@ -193,4 +193,30 @@ test('THE MOCK MIRRORS THE PROPOSED SERVER: five departments (one works), intere
   await assert.rejects(data.registerDepartmentInterest('time_machine'), /not announced/);
   await data.withdrawDepartmentInterest('games');
   assert.deepEqual(await data.myDepartmentInterests(), []);
+});
+
+test('FORECASTS (Ryan 11-20, draft words): a page-owned Coming soon page that shows for every account even when the server list does not name it, says a forecast is never shown as a fact, and offers NO sign-up button until the server names the id', async () => {
+  for (const opt of [{}, { fail: true }, { rows: [{ id: 'data_films', status: 'working' }] }, { rows: [{ id: 'data_films', status: 'working' }, { id: 'games', status: 'soon' }] }]) {
+    const { view, ui } = await pageOf('forecasts', opt);
+    const t = textOf(view);
+    assert.ok(t.includes('Coming soon') && t.includes('Forecasts') && t.includes('never shown as a fact'), JSON.stringify(opt) + ': ' + t.slice(0, 100));
+    assert.equal(all(wrap(view), n => n.attrs && n.attrs.id === 'soon-notify').length, 0, 'no button the server would refuse');
+    assert.ok(t.includes('Nothing to sign up for yet'), 'it says why there is no button');
+    const m = await ui.load();
+    assert.ok(m.soon.includes('forecasts') && !m.working.includes('forecasts'));
+  }
+  const named = await pageOf('forecasts', { rows: [{ id: 'data_films', status: 'working' }, { id: 'forecasts', status: 'soon' }] });         // the server names it: the same button as the others
+  assert.equal(all(wrap(named.view), n => n.attrs && n.attrs.id === 'soon-notify').length, 1);
+  await press(named.view, 'soon-notify');
+  assert.deepEqual(named.calls, [['register', 'forecasts']]);
+});
+
+test('FORECASTS WORDS: no price, date or promise, and nothing that reads as a prediction being real data', () => {
+  const k = Dp.KNOWN.forecasts;
+  assert.ok(k && k.label === 'Forecasts' && typeof k.line === 'string');
+  assert.doesNotMatch(k.line, /\$|price|20\d\d|will (be|happen)|accurate|guarantee/i);
+  assert.match(k.line, /never shown as a fact/);
+  assert.deepEqual(plain(Dp.PAGE_ONLY), ['forecasts']);
+  assert.ok(Dp.ORDER.includes('forecasts') && Dp.FALLBACK.some(r => r.id === 'forecasts' && r.status === 'soon'));
+  assert.equal(Dp.idFromHash('#/d/forecasts'), 'forecasts');
 });
