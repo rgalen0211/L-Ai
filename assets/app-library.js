@@ -224,7 +224,7 @@
       const topics = O.TOPICS.map(([id, label]) => h('label', { class: 'choice' },
         h('input', { type: 'radio', name: 'help-topic', value: id, ...(id === (job ? 'render' : 'other') ? { checked: true } : {}) }), ' ', label));
       const topicValue = () => form.querySelector('input[name="help-topic"]:checked')?.value;
-      const message = h('textarea', { id: 'help-message', required: true, rows: '6', maxlength: '4000' });
+      const message = h('textarea', { id: 'help-message', required: true, rows: '5', maxlength: '4000' });
       const trap = h('input', { id: 'help-website', name: 'website', type: 'text', tabindex: '-1', autocomplete: 'off' });   // honeypot
       const send = h('button', { class: 'button primary', type: 'submit' }, 'Send');
       const form = h('form', { class: 'contact-form', onsubmit: async event => {
@@ -241,15 +241,30 @@
           } catch (err) { showError(error, err); }
         });
       } },
-        h('label', { for: 'help-email' }, 'Your email'), email,
-        h('fieldset', { class: 'choices' }, h('legend', {}, 'What is it about?'), topics),
-        h('label', { for: 'help-message' }, 'What happened?'), message,
-        h('div', { class: 'hp-field', 'aria-hidden': 'true' }, h('label', { for: 'help-website' }, 'Leave this empty'), trap),
-        job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
-        send, error);
+        h('div', { class: 'help-col' }, h('label', { for: 'help-email' }, 'Your email'), email,
+          h('fieldset', { class: 'choices' }, h('legend', {}, 'What is it about?'), topics)),
+        h('div', { class: 'help-col' }, h('label', { for: 'help-message' }, 'What happened?'), message,
+          h('div', { class: 'hp-field', 'aria-hidden': 'true' }, h('label', { for: 'help-website' }, 'Leave this empty'), trap),
+          job ? h('p', { class: 'form-note' }, 'This message will include the film you came from, so we can look into it. We never see its contents.') : null,
+          send, error));
+      // the form is the main action and stays on the first screen; the quick answers (the same words as the help pages) sit in two more flip sections (Ryan 11-20: no long pages)
+      const qa = (q, ...a) => h('details', {}, h('summary', {}, q), ...a.map(t => h('p', {}, t)));
+      const answers = (...items) => h('div', { class: 'help-answers' }, h('div', { class: 'scroll-panel' }, ...items));
+      const flip = window.ryagramFlip.create({ h, label: 'Help', address: false, sections: [
+        { id: 'write', label: 'Write to us', el: h('div', {}, form, done) },
+        { id: 'films', label: 'Films and credits', el: answers(
+          qa('The app says "Rendering is delayed". What does that mean?', 'Your film is made on our render machine, and it hasn\u2019t checked in for a few minutes. Nothing is wrong with your film. It will start as soon as the machine is back. If it waits more than an hour we stop it and give your credits back.'),
+          qa('Why is my film still "Queued"?', 'Films are made one at a time, oldest first. Yours starts when the ones ahead of it finish. The Render panel shows your place in line.'),
+          qa('A correctness check stopped my film. What now?', 'Every film goes through checks before you get it, and the message on the film says which one stopped it and why. Change the story (for example the years or the view) and try again. A film that fails a check does not use your credits.'),
+          qa('Do I get my credits back?', 'Yes when a film fails, or when you cancel it before it has started: the credits held for it are released straight away. Credits for a film that finished are used.')) },
+        { id: 'account', label: 'Account and reports', el: answers(
+          qa('I can\u2019t sign in, or I forgot my password.', 'Use \u201cForgot your password?\u201d on the sign-in screen and follow the email. If nothing arrives within a few minutes, check your spam folder, then write to us here.'),
+          qa('How do I report a film?', 'Every public film page has a \u201cReport this film\u201d link, or use the report form. For reports about child safety, private information, harassment or copyright we hide the film right away while we review it.'),
+          qa('My own data (spreadsheet) won\u2019t read.', 'Coming soon: when uploading your own data opens, Ryagram will read spreadsheets (CSV and similar files). If a file can\u2019t be read you\u2019ll see why, and the file is deleted automatically. Your uploaded data is always deleted once it has been used; none of it is kept.')) }
+      ] });
       return [h('a', { href: '#/', class: 'back' }, '\u2190 All projects'), h('h1', { tabindex: '-1' }, 'Get help'),
-              h('p', { class: 'form-intro' }, 'Common questions are answered in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
-              form, done];
+              h('p', { class: 'form-intro' }, 'Common questions are answered below and in the ', h('a', { href: '/help/' }, 'help pages'), '. Otherwise write to us here and we reply within 2 working days.'),
+              flip.el];
     }
 
     function errorLine() {
