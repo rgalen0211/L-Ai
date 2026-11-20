@@ -71,5 +71,5 @@ test('SIGN-OUT: the title the page had is put back; the polish runs on every pag
   assert.match(LIB, /return \(\) => \{ token\+\+; stopAdminNav\(\); if \(window\.ryagramDs\) window\.ryagramDs\.unmount\(\); document\.title = titleWas;/);
   const k = LIB.indexOf('polishPage(hash);'); assert.ok(k > 0);
   const around = LIB.slice(k - 400, k + 160);
-  assert.ok(around.indexOf('root.replaceChildren') > -1 && around.indexOf('polishPage(hash)') < around.indexOf("root.querySelector('h1')?.focus()"), 'after the page is in place, before the heading takes focus');
+  assert.ok(around.indexOf('root.replaceChildren') > -1 && around.indexOf('polishPage(hash)') < around.indexOf("root.querySelector('h1')?.focus({ preventScroll: true })"), 'after the page is in place, before the heading takes focus');
 });

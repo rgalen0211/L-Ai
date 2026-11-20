@@ -83,6 +83,7 @@ def tab_walk(p):
         if (!((r.width > 0 && r.height > 0) || isRadio || e.type === 'checkbox')) continue;
         const d = e.closest('details:not([open])'); if (d && !(e.tagName === 'SUMMARY' && e.parentElement === d)) continue;     // inside a folded section: reached by opening it
         if (e.closest('[hidden]')) continue;
+        if (e.closest('.flip-panel[aria-hidden=true], [inert]')) continue;     // an unseen flip section: reached by flipping to it (tabs are tab stops)
         const key = isRadio ? 'radio:' + e.name : e.tagName.toLowerCase() + (e.id ? '#' + e.id : '') + ':' + (e.getAttribute('aria-label') || e.textContent || e.value || '').trim().slice(0, 60);
         if (seen.has(key)) continue; seen.add(key); out.push(key);
       }

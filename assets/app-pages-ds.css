@@ -1,0 +1,104 @@
+/* Long pages as flip sections (WEB 2026-11-20, Ryan 11:55; design system v1.1: proposals/WEB-DESIGN-1120/ds-v11.css). Tokens fall back to the site's own so this works with or without assets/ryagram-ds.css. */
+.ds-page{--ds-line:var(--line,rgba(255,255,255,.12));--ds-surface:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));--ds-r:20px;--ds-shadow:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px rgba(0,0,0,.35)}
+
+/* hero band: the film's own frame behind the title, or a plain gradient when it has none */
+.page-hero{position:relative;isolation:isolate;overflow:hidden;border-radius:var(--ds-r);border:1px solid var(--ds-line);padding:32px;margin:0 0 24px;background:radial-gradient(60% 120% at 85% 0,rgba(255,138,61,.16),transparent 60%),var(--paper,#1b1b23)}
+.page-hero .hero-frame{position:absolute;inset:0;z-index:-2;background-size:cover;background-position:center;opacity:.55;filter:saturate(1.05)}
+.page-hero::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(90deg,rgba(11,12,17,.88) 0%,rgba(11,12,17,.55) 55%,rgba(11,12,17,.2) 100%)}
+.page-hero .back{display:inline-flex;align-items:center;min-height:44px}
+.page-hero h1{margin:0 0 8px}
+.page-hero .meta{margin:0 0 16px}
+.page-hero .actions-row{margin:0}
+
+/* the key facts: equal cards, never flush to an edge */
+.fact-cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin:0 0 24px}
+.fact-card{padding:24px;border-radius:var(--ds-r);border:1px solid var(--ds-line);background:var(--ds-surface);box-shadow:var(--ds-shadow);min-width:0}
+.fact-card .k{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted,#9a99a3);margin:0 0 8px}
+.fact-card .v{font-size:1.125rem;font-weight:650;margin:0 0 4px;overflow-wrap:anywhere}
+.fact-card .s{font-size:.875rem;color:var(--muted,#9a99a3);margin:0}
+
+/* the flip bar, panels, dots */
+.flip{position:relative;margin:0 0 24px}
+.flip-bar{display:flex;align-items:center;gap:12px;margin-bottom:16px}
+.flip-tabs{display:flex;gap:8px;overflow-x:auto;scrollbar-width:none;flex:1 1 auto;min-width:0;padding:4px 0}
+.flip-tabs::-webkit-scrollbar{display:none}
+.flip-tab{flex:0 0 auto;min-height:44px;padding:0 16px;border-radius:999px;border:1px solid var(--ds-line);background:transparent;color:var(--ink,#f4f3ef);font:600 .875rem/1 inherit;font-family:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:8px}
+.flip-tab:hover{background:rgba(255,255,255,.06)}
+.flip-tab[aria-selected=true]{background:var(--ds-surface);border-color:rgba(255,255,255,.2);box-shadow:var(--ds-shadow)}
+.flip-tab .n{font-size:.75rem;opacity:.6}
+.flip-arrow{flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:1px solid rgba(255,255,255,.18);background:var(--ds-surface);color:var(--ink,#f4f3ef);cursor:pointer;display:grid;place-items:center;font-size:1.25rem;font-family:inherit}
+.flip-arrow:disabled{opacity:.35;cursor:default}
+.flip-viewport{overflow:hidden;border-radius:var(--ds-r)}
+.flip-track{display:flex;transition:transform .45s cubic-bezier(.2,.7,.2,1);align-items:flex-start}
+.flip-panel{flex:0 0 100%;min-width:0;padding:2px;box-sizing:border-box}
+.flip-panel[aria-hidden=true]{max-height:60px;overflow:hidden}            /* an unseen section never makes the page tall */
+.flip-dots{display:flex;justify-content:center;gap:8px;margin-top:16px}
+.flip-dot{position:relative;width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.2);border:0;padding:0}
+.flip-dot[aria-current=true]{background:var(--accent,#ff8a3d);transform:scale(1.25)}
+.flip-where{text-align:center;margin:8px 0 0}
+@media(prefers-reduced-motion:reduce){.flip-track{transition:none}}
+
+/* a section is a card with real padding; a long list scrolls inside its own panel */
+.flip-panel>.app-panel,.flip-panel>.jobs-panel,.flip-panel>section,.flip-panel>div.advanced-panel{padding:32px;border-radius:var(--ds-r);border:1px solid var(--ds-line);background:var(--ds-surface);box-shadow:var(--ds-shadow);margin:0}
+.scroll-panel{max-height:min(46vh,420px);overflow:auto;overscroll-behavior:contain;padding-right:8px;scrollbar-width:thin}
+@media(max-width:640px){.page-hero{padding:24px}.flip-panel>.app-panel,.flip-panel>.jobs-panel,.flip-panel>section,.flip-panel>div.advanced-panel{padding:24px}}
+
+/* Make it: the render ladder is three step cards side by side (contact sheet, preview, final film), not a tall column */
+.jobs-panel .run-controls{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;margin-top:16px}
+.jobs-panel .run-controls>.run-step{padding:20px;border:1px solid var(--ds-line);border-radius:16px;background:rgba(255,255,255,.03);min-width:0;display:flex;flex-direction:column;gap:8px}
+.jobs-panel .run-controls>.run-step .inline-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:auto}
+.jobs-panel .run-controls>.run-step input{min-width:0}
+.jobs-panel .run-controls>[data-key=no-film-yet],.jobs-panel .run-controls>.run-timing{grid-column:1/-1}
+.jobs-panel .jobs-head{margin-bottom:8px}
+.jobs-panel>.form-note:not(.run-timing){margin:0 0 4px}
+.make-it>*+*{margin-top:16px}
+@media(max-width:900px){.jobs-panel .run-controls{grid-template-columns:1fr}}
+
+/* compact first screen: the band, the facts and the ladder together stay within about 1.4 screens at 1280x800 */
+.page-hero{padding:24px 32px;margin-bottom:16px}
+.page-hero h1{font-size:clamp(1.75rem,3.2vw,2.5rem);margin-bottom:4px}
+.page-hero .meta{margin-bottom:12px}
+.fact-cards{margin-bottom:16px;gap:16px}
+.fact-card{padding:20px 24px}
+.fact-card .s{display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.flip-bar{margin-bottom:12px}
+.jobs-panel .run-controls>.run-step .inline-row input{flex:1 1 90px}
+.jobs-panel>.form-intro,.jobs-panel>.form-note:not(.run-timing){font-size:.875rem;margin:0 0 4px}
+.jobs-panel h2{margin:0}
+.flip-panel>.jobs-panel{padding:24px 32px}
+.make-it>*+*{margin-top:12px}
+.make-it .template-picker{margin:0}
+
+/* tighter still: title and actions share a row on a wide screen; the render notes are captions; the step cards are short */
+@media(min-width:900px){.page-hero{display:grid;grid-template-columns:1fr auto;column-gap:24px;align-items:end}.page-hero>.back,.page-hero>h1,.page-hero>.meta{grid-column:1}.page-hero>.actions-row{grid-column:2;grid-row:1/4;align-self:end;justify-content:flex-end}}
+.page-hero{padding:16px 32px 20px;margin-bottom:16px}
+.fact-card{padding:16px 24px}
+.fact-card .v{font-size:1.0625rem}
+.jobs-panel>.form-intro,.jobs-panel>.form-note:not(.run-timing){font-size:.8125rem;line-height:1.4;margin:0}
+.jobs-panel .run-controls{margin-top:12px;gap:12px}
+.jobs-panel .run-controls>.run-step{padding:14px 16px;gap:6px}
+.jobs-panel .run-controls>.run-step label{margin:0}
+.jobs-panel .run-controls>.run-timing{margin:0}
+.make-it .template-picker>summary{padding:12px 16px}
+.make-it .byod-pointer{margin:0;font-size:.8125rem}
+.flip-panel>.jobs-panel{padding:20px 28px}
+.jobs-panel .credit-balance{margin:8px 0 0}
+.jobs-panel h2{font-size:1.5rem;margin:0}
+.jobs-panel .jobs-head{align-items:baseline}
+.jobs-panel .run-controls{border:0;padding:0;background:none;box-shadow:none}
+.flip-where{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}      /* still announced; the tabs and dots already show where you are */
+.flip-dots{margin-top:12px}
+.flip{margin-bottom:8px}
+.jobs-panel>.jobs-head,.jobs-list-panel>.jobs-head{margin-top:0;padding-top:0}
+.flip-panel h2{margin-top:0}
+.fact-card .s{-webkit-line-clamp:1}
+.jobs-panel>.form-intro{display:none}
+.ds-page>footer,.ds-page footer.site-footer{margin-top:24px;padding-block:16px}
+/* long content inside a section scrolls in its own panel, never the page (Ryan 11:55) */
+.flip-panel .template-picker[open]>form{max-height:46vh;overflow:auto;padding-right:8px}
+.flip-panel .advanced-panel{max-height:54vh;overflow:auto}
+.flip-panel>.jobs-panel,.flip-panel>.app-panel{padding:16px 28px}
+.flip-dots{margin-top:4px}
+.page-hero{padding:12px 32px 16px;margin-bottom:12px}
+body.ds-page .app-main{padding-top:24px;padding-bottom:32px}
+body.ds-page:has(.mock-bar) .app-main{padding-bottom:96px}
