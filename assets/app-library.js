@@ -354,9 +354,10 @@
       const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
       const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
+      const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
       return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
-              startStrip, credits, creditsNote, buildLink, intakeLink, filmsLink, looksLink, requestLink, adminLinks, form, list, help];
+              startStrip, deptCards, credits, creditsNote, buildLink, intakeLink, filmsLink, looksLink, requestLink, adminLinks, form, list, help];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.

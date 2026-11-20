@@ -18,6 +18,9 @@
         'The same pass finds the substantial and funny moments and makes Shorts from them. Your own AI can drive it. Then you polish the result in the live editor.']],
         ['Not built yet', ['None of this works today.', 'There is no price and no date.']]] }
   };
+  // What the bar shows when the server's list is missing, empty or fails, and for an account the connector does not count as invited (an administrator account never is): the page's own default, so EVERY
+  // signed-in account can steer to every department by hand (Ryan 06:24, the standing rule since 11-07: anything the AI can do, the website can also do). Data films works for everyone; the rest are Coming soon.
+  const FALLBACK = [{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }, { id: 'geo_intelligence', status: 'soon' }, { id: 'games', status: 'soon' }, { id: 'animation_studio', status: 'soon' }, { id: 'studio', status: 'soon' }];
   const ORDER = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio'];
   // More words on two Coming soon pages (NEXT-WEB 200, from proposals/DEPARTMENTS-BRIEF-1102.md), shown only when the site switch departmentDetails is exactly true (OFF). DRAFT WORDS FOR RYAN: what is coming,
   // how numbers and people will be treated, and what is not built yet, said without a price or a date. Nothing here promises a feature the brief does not list.
@@ -93,14 +96,27 @@
     let model = null, cleanup = () => {};
 
     async function load() {
-      try { model = normalize(await data.myDepartments()); } catch { model = null; }
+      let rows = null;
+      try { rows = await data.myDepartments(); } catch { rows = null; }
+      model = normalize(rows);
+      if (!hasAny(model)) { model = normalize(FALLBACK); model.fallback = true; }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
       return model;
+    }
+    // The cards on Your projects: the same list as the bar, one card each, working ones marked Open, the rest Coming soon. Null when the departments switch conditions are not met.
+    async function cardsRow() {
+      if (!flagOn()) return null;
+      const m = model || await load();
+      const ids = [...m.working, ...m.soon];
+      if (!ids.length) return null;
+      return h('section', { class: 'dept-cards', 'aria-labelledby': 'dept-cards-h' }, h('h2', { id: 'dept-cards-h' }, 'Departments'),
+        h('ul', { class: 'dept-card-list' }, ids.map(id => h('li', { class: 'dept-card' }, h('a', { href: pathOf(id) }, KNOWN[id].label), ' ', h('span', { class: m.working.includes(id) ? 'meta dept-card-open' : 'soon-tag' }, m.working.includes(id) ? 'Open' : WORDS.soonMark),
+          h('p', { class: 'meta' }, KNOWN[id].sentence || KNOWN[id].line)))));
     }
 
     // The bar: Start, the departments that work, ONE "Coming soon" group, My films, Credits. On a phone the list sits behind one Menu button.
-    function barElement(m) {
+    function barElement(m, invited = true) {
       const link = (href, text, extra = {}) => h('a', { href, ...extra }, text);
-      const items = [h('li', {}, link('#/start', 'Start'))];
+      const items = invited ? [h('li', {}, link('#/start', 'Start'))] : [];                  // Start is the AI door: only for an account the connector counts as invited
       for (const id of m.working) items.push(h('li', {}, link(pathOf(id), KNOWN[id].label)));
       if (m.soon.length) {
         items.push(h('li', { class: 'dept-soon' }, h('details', { class: 'soon-group' }, h('summary', {}, WORDS.soonGroup),
@@ -133,10 +149,11 @@
       cleanup();
       cleanup = () => { document.body.classList.remove('has-departments'); if (slot) { slot.replaceChildren(); slot.hidden = true; } };
       if (!slot || !flagOn()) return false;
-      try { if ((await data.connectAccess()) !== true) return false; } catch { return false; }
+      let invited = false;
+      try { invited = (await data.connectAccess()) === true; } catch { invited = false; }       // not invited (an administrator account never is) is no reason to hide the way to the departments
       const m = await load();
       if (!hasAny(m)) return false;
-      const nav = barElement(m);
+      const nav = barElement(m, invited);
       slot.replaceChildren(nav);
       slot.hidden = false;
       document.body.classList.add('has-departments');                          // the header's own Help and Account links give way to the bar on a phone
@@ -240,8 +257,8 @@
       return unavailable();
     }
 
-    return { mountBar, unmountBar, pageView, load };
+    return { mountBar, unmountBar, pageView, load, cardsRow };
   }
 
-  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, hasAny, pathOf, idFromHash, flagOn, create };
+  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, FALLBACK, hasAny, pathOf, idFromHash, flagOn, create };
 })();

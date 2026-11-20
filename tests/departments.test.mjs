@@ -116,12 +116,38 @@ test('A WORKING DEPARTMENT: Data films has the AI strip (or the connect line), y
 });
 
 test('FALLBACKS: an id the account does not have, an unknown id and a failing my_departments() are the plain "not available" page with a way home, never a blank page or a raw error', async () => {
-  for (const [id, opt] of [['games', { rows: [{ id: 'data_films', status: 'working' }] }], ['compilations', { rows: [{ id: 'compilations', status: 'working' }] }], ['time_machine', {}], ['data_films', { fail: true }], ['data_films', { rows: 'nope' }]]) {
+  for (const [id, opt] of [['games', { rows: [{ id: 'data_films', status: 'working' }] }], ['compilations', { rows: [{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'working' }] }], ['time_machine', {}]]) {
     const { view } = await pageOf(id, opt);
     const t = textOf(view);
     assert.ok(t.includes('This page isn’t available on this account') && t.includes('Back to your projects'), `${id}: ${t.slice(0, 80)}`);
     assert.ok(!/down|Error|undefined|null/.test(t), t);
   }
+});
+
+test('A FAILING OR EMPTY my_departments() IS NOT AN EMPTY BAR: the page falls back to its own default list (Data films works, the rest Coming soon), so every account, an administrator included, can reach every department by hand', async () => {
+  for (const opt of [{ fail: true }, { rows: 'nope' }, { rows: [] }, { rows: [{ id: 'time_machine', status: 'working' }] }]) {
+    const w = await pageOf('data_films', opt);
+    assert.ok(textOf(w.view).includes('Data films') && !textOf(w.view).includes('isn’t available'), JSON.stringify(opt));
+    const g = await pageOf('games', opt);
+    assert.ok(textOf(g.view).includes('Coming soon') && textOf(g.view).includes('Games'), JSON.stringify(opt));
+    const m = await w.ui.load();
+    assert.deepEqual(plain(m.working), ['data_films']);
+    assert.deepEqual(plain(m.soon), ['compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
+  }
+  const ok = await pageOf('games', { rows: [{ id: 'data_films', status: 'working' }] });      // a list the server DID give is obeyed: no fallback
+  assert.ok(textOf(ok.view).includes('isn’t available'));
+});
+
+test('THE CARDS ROW on Your projects is the same list as the bar: a link and Open or soon on each, nothing without the flag', async () => {
+  const { ui } = await pageOf('data_films', { fail: true });
+  win.ryagramConfig = { ...(win.ryagramConfig || {}), departments: true, aiFirst: true, connectAi: true };
+  const row = await ui.cardsRow();
+  const t = textOf([row]);
+  for (const w of ['Departments', 'Data films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio', 'Open', 'soon']) assert.ok(t.includes(w), w);
+  const hrefs = all(wrap([row]), n => n.tag === 'a').map(n => n.attrs.href);
+  assert.deepEqual(plain(hrefs), ['#/d/data_films', '#/d/compilations', '#/d/geo_intelligence', '#/d/games', '#/d/animation_studio', '#/d/studio']);
+  win.ryagramConfig = { ...win.ryagramConfig, departments: false };
+  assert.equal(await ui.cardsRow(), null);
 });
 
 test('THE BAR: Start, the working departments, ONE Coming soon group of marked items, My films, Credits only when credits are on; Help and Account join the phone Menu; nothing mounts without the flag, an invited account or a usable list', async () => {
@@ -130,7 +156,9 @@ test('THE BAR: Start, the working departments, ONE Coming soon group of marked i
   assert.match(src, /h\('details', \{ class: 'soon-group' \}, h\('summary', \{\}, WORDS\.soonGroup\)/);
   assert.match(src, /window\.ryagramConfig\?\.credits === true\) items\.push\(h\('li', \{\}, link\('#\/credits', 'Credits'\)\)\)/);
   assert.match(src, /if \(!slot \|\| !flagOn\(\)\) return false;/);
-  assert.match(src, /if \(\(await data\.connectAccess\(\)\) !== true\) return false;/);
+  assert.match(src, /invited = \(await data\.connectAccess\(\)\) === true/);
+  assert.match(src, /const items = invited \?/);
+  assert.doesNotMatch(src, /connectAccess\(\)\) !== true\) return false/);
   assert.match(src, /if \(!hasAny\(m\)\) return false;/);
   // a working department is a normal item; a soon one is ONLY in the group
   const m = Dp.normalize([{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }]);
@@ -147,9 +175,9 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261118b/);
+  assert.match(html, /app-departments\.js\?v=20261120d/);
   assert.match(html, /app-data\.js\?v=20261117d/);
-  assert.match(html, /app-library\.js\?v=20261118e/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
+  assert.match(html, /app-library\.js\?v=20261120d/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });
 
 test('THE MOCK MIRRORS THE PROPOSED SERVER: five departments (one works), interest once per person per department, an unannounced id refused, withdraw removes it', async () => {
