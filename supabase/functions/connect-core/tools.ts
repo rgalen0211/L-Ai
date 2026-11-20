@@ -1223,6 +1223,8 @@ const forecastSeries: ToolDef = {
       }
       series.push([y, v]);
     }
+    // the engine's own limit (ryagram/predict/core.py: half the history, at most 10); a longer reach can only fail later, after the person's AI has waited for it
+    if (horizon > Math.floor(raw.length / 2)) return refuse(`The horizon can be at most half the number of years given (${Math.floor(raw.length / 2)} for ${raw.length} pairs). Give more years or ask for fewer ahead. Nothing was asked.`, "args");
     const method = a.method === undefined ? undefined : (typeof a.method === "string" && FORECAST_METHODS.includes(a.method) ? a.method : null);
     const unit = a.unit === undefined ? undefined : (typeof a.unit === "string" && FORECAST_UNIT.test(a.unit) ? a.unit : null);
     const rawBreaks = a.breaks === undefined ? [] : a.breaks;
