@@ -11,6 +11,8 @@ export interface Measured {
   first_period: number | null; last_period: number | null; periods_found: number | null; periods_missing: number[];
   shape: "long" | "wide" | "unknown"; non_numeric_values: number;
 }
+/** A cell that a spreadsheet would run as a formula: it starts with =, + or @, or with a minus and then anything but a digit or a dot. Refused before the table is stored or ever drawn. */
+const FORMULA = /^[=+@]|^-[^0-9.]/;
 export type Parsed = { ok: true; header: string[]; rows: string[][] } | { ok: false; problem: string };
 
 /** Strict CSV (RFC 4180 shape): commas, double-quoted cells with "" for a quote, LF or CRLF line ends, an optional BOM. A row with another number of cells than the header is refused WITH ITS NUMBER. */
@@ -28,7 +30,11 @@ export function parseCsv(text: string): Parsed {
   while (i < s.length) {
     const ch = s[i];
     if (inQ) {
-      if (ch === '"') { if (s[i + 1] === '"') { cell += '"'; i += 2; continue; } inQ = false; i += 1; continue; }
+      if (ch === '"') {
+        if (s[i + 1] === '"') { cell += '"'; i += 2; continue; }
+        if (i + 1 < s.length && s[i + 1] !== ',' && s[i + 1] !== '\n') return { ok: false, problem: "A quoted cell has text after its closing quote. Check the quotes in the table." };
+        inQ = false; i += 1; continue;
+      }
       cell += ch; i += 1; continue;
     }
     if (ch === '"' && cell === "") { inQ = true; i += 1; continue; }
@@ -43,10 +49,12 @@ export function parseCsv(text: string): Parsed {
   if (header.length < 2) return { ok: false, problem: "The table needs at least 2 columns (a place and a value, with the year as a column or as the column titles)." };
   if (header.length > PREPARED_LIMITS.maxColumns) return { ok: false, problem: `The table has ${header.length} columns; the most is ${PREPARED_LIMITS.maxColumns}.` };
   if (header.some((h) => h === "")) return { ok: false, problem: "Every column needs a title in the header row." };
+  if (header.some((h) => h.length > 60)) return { ok: false, problem: "A column title is longer than 60 characters. Use short titles." };
   if (out.length - 1 > PREPARED_LIMITS.maxRows) return { ok: false, problem: `The table has ${out.length - 1} rows; the most is ${PREPARED_LIMITS.maxRows}.` };
   const rows = out.slice(1);
   for (let r = 0; r < rows.length; r += 1) {
     if (rows[r].length !== header.length) return { ok: false, problem: `Row ${r + 2} of the table has ${rows[r].length} cells but the header has ${header.length}. Fix that row.` };
+    for (const c of rows[r]) if (FORMULA.test(c)) return { ok: false, problem: `Row ${r + 2} has a cell that starts with =, +, @ or - and then something that is not a number (a spreadsheet formula). Send the value, not a formula.` };
     for (const c of rows[r]) if (c.length > PREPARED_LIMITS.maxCell) return { ok: false, problem: `Row ${r + 2} has a cell of more than ${PREPARED_LIMITS.maxCell} characters. Send the data, not text around it.` };
   }
   return { ok: true, header, rows };

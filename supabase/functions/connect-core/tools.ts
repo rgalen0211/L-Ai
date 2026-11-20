@@ -1362,14 +1362,14 @@ const openRyagramHome: ToolDef = {
 };
 
 // ---------------------------------------------------------------------------------------------- AI-prepared data (Q634)
-const PREP_URL = "^https://[A-Za-z0-9][A-Za-z0-9.-]*\\.[A-Za-z][A-Za-z0-9-]*(/[\\x21-\\x7e]*)?$";
+const PREP_URL = "^https://[A-Za-z0-9][A-Za-z0-9.-]*\\.[A-Za-z][A-Za-z0-9-]*(/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]*)?$";
 const submitPrepared: ToolDef = {
   name: "submit_prepared_data", title: "Hand Ryagram a table of data you prepared", scope: "submit_data", readOnly: false, idempotent: false,
   description: "Use this when the person wants a film about data that is NOT in Ryagram's catalog and you have found it (for example an official statistics table). Send the cleaned table as CSV text (at most 200 KB, 5,000 rows, 40 columns), "
     + "either LONG (one row per place and year, columns like place, year, value) or WIDE (one row per place, one column per year titled 2010, 2011 ...), plus the sources you used (1 to 5 https addresses), the licence, the units and a short change log "
     + "(at most 12 steps) saying what you did to the data. It does NOT become usable data: it waits for the PERSON to look at it in the Ryagram app (their preview, your sources and change log shown as declared by you and not checked by Ryagram) and press Accept; you cannot accept, confirm or use it. "
     + "Ryagram labels every table you hand over 'Unverified, user-supplied', whatever the source. Ryagram measures the table itself (rows, places, the years it really finds, and the years MISSING in between) and tells you; never fill a missing year. "
-    + "After the person accepts it, call list_my_data for its name and use that name as the dataset in the story. At most 5 tables wait at once and 10 are accepted a day; each waits 7 days. Writing the table costs the person's AI plan tokens.",
+    + "After the person accepts it, call list_my_data for its name and use that name as the dataset in the story. At most 5 tables wait at once and you may hand over 10 a day; each waits 7 days. Writing the table costs the person's AI plan tokens.",
   inputSchema: obj({
     label: { type: "string", minLength: 1, maxLength: PREPARED_LIMITS.maxLabel, description: "A short plain name for the table, for example: Median age by US state, ACS 1-year." },
     csv_text: { type: "string", minLength: 8, maxLength: PREPARED_LIMITS.maxBytes, description: "The cleaned table as CSV text with a header row. Plain text only." },

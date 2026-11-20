@@ -8,7 +8,7 @@
 -- WHAT IT ADDS. (1) the scope 'submit_data' on the consent page (connections made before keep their grant and do not get it); (2) two columns on public.datasets (prepared_from, prep_log); (3) the table public.prepared_data;
 -- (4) connector functions (token hash only, EXECUTE only to connect_runner): connect_submit_prepared_data (scope submit_data) and connect_list_my_data (scope read: the person's uploaded datasets, by the story name u_<24 hex>);
 -- (5) app functions (signed-in session only; the gate refuses a waiting-list account): my_prepared_data(), my_prepared_data_csv(uuid), discard_prepared_data(uuid), mark_prepared_accepted(uuid, uuid);
--- (6) ryagram_private.prepared_purge(): deletes staged items 7 days after they arrived (and accepted or discarded ones a day later). NOTHING CALLS IT YET: until the daily connector purge (connect_purge) calls it, an expired item is simply
+-- (6) a discarded table keeps its (empty) row for a day so the 10-a-day count cannot be lowered by discarding; ryagram_private.prepared_purge(): deletes staged items 7 days after they arrived (and accepted or discarded ones a day later). NOTHING CALLS IT YET: until the daily connector purge (connect_purge) calls it, an expired item is simply
 -- invisible and refused (every read and write checks expires_at), and the purge is one line to add. Limits: at most 5 waiting and 10 a day per person (the AI is told in words, code PT429); the table is at most 200 KB and 5000 rows.
 -- WHAT IT DOES NOT DO. It changes no grant on an existing object, no existing function, and nothing about how a story names a dataset (that is the connector's TypeScript: set_story learns that u_<hex> names the person's own approved uploads).
 -- Needs 20261004000200_uploads_schema.sql (datasets, create_upload ...), 20261018000100_connect_ai.sql (connect_actor and the scopes), 20261027000400_live_editor.sql (ryagram_private.edit_text_ok) and the waiting-list gate (gate_apply).
@@ -51,7 +51,7 @@ begin
   if jsonb_typeof(s -> 'urls') is distinct from 'array' or jsonb_array_length(s -> 'urls') not between 1 and 5 then return 'Give 1 to 5 source addresses (https).'; end if;
   for u in select * from jsonb_array_elements(s -> 'urls') loop
     if jsonb_typeof(u) <> 'string' or length(u #>> '{}') > 500
-       or (u #>> '{}') !~ '^https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+(/[\x21-\x7e]*)?$' then
+       or (u #>> '{}') !~ '^https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+(/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]*)?$' then
       return 'Each source address must be an https:// website name with no user name, no port and no spaces.';
     end if;
   end loop;
@@ -81,7 +81,7 @@ create function ryagram_private.prepared_measured_ok(m jsonb) returns boolean
 language plpgsql immutable set search_path = '' as $$
 begin
   if m is null or jsonb_typeof(m) <> 'object' then return false; end if;
-  if exists (select 1 from jsonb_object_keys(m) x where x not in ('rows', 'columns', 'header', 'places', 'first_period', 'last_period', 'periods_found', 'periods_missing', 'value_column', 'period_column', 'place_column')) then return false; end if;
+  if exists (select 1 from jsonb_object_keys(m) x where x not in ('rows', 'columns', 'header', 'places', 'first_period', 'last_period', 'periods_found', 'periods_missing', 'value_column', 'period_column', 'place_column', 'shape', 'non_numeric_values')) then return false; end if;
   if coalesce(jsonb_typeof(m -> 'rows'), '') <> 'number' or coalesce(jsonb_typeof(m -> 'columns'), '') <> 'number' then return false; end if;
   if (m ->> 'rows')::numeric not between 1 and 5000 or (m ->> 'columns')::numeric not between 2 and 40 then return false; end if;
   return true;
@@ -135,7 +135,7 @@ begin
     'datasets', coalesce((select jsonb_agg(jsonb_build_object(
         'name', 'u_' || substr(replace(d.id::text, '-', ''), 1, 24), 'label', d.filename_label, 'status', d.status::text, 'geography', d.geography,
         'cadence', d.mapping ->> 'cadence', 'trust_label', 'unverified_user', 'prepared_by_ai', d.prepared_from is not null) order by d.created_at desc)
-      from public.datasets d where d.owner_id = me and d.source = 'upload' and d.deleted_at is null and d.delete_requested_at is null), '[]'::jsonb),
+      from public.datasets d where d.owner_id = me and d.source = 'upload' and d.deleted_at is null and d.delete_requested_at is null and (to_jsonb(d) ->> 'trashed_at') is null), '[]'::jsonb),
     'waiting_for_you', (select count(*) from public.prepared_data p where p.owner_id = me and p.state = 'waiting' and p.expires_at > now()));
 end $$;
 
@@ -164,7 +164,8 @@ create function public.discard_prepared_data(p_id uuid) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare me uuid := ryagram_private.require_signed_in(); n int;
 begin
-  delete from public.prepared_data where id = p_id and owner_id = me and state = 'waiting';
+  -- the staged text goes at once, the row stays a day so that discarding does not lower the day's count (the purge removes it)
+  update public.prepared_data set state = 'discarded', csv_text = '', decided_at = now() where id = p_id and owner_id = me and state = 'waiting';
   get diagnostics n = row_count;
   return jsonb_build_object('discarded', n > 0);
 end $$;

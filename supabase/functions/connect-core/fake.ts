@@ -176,6 +176,8 @@ export class FakeWorld {
         const urls = (a.sources as { urls?: unknown }).urls;
         if (!Array.isArray(urls) || urls.length < 1 || urls.length > 5 || urls.some((x) => typeof x !== "string" || !/^https:\/\/[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z0-9-]*(\/\S*)?$/.test(x))) throw err("Give 1 to 5 source addresses (https).", "22023");
         if (typeof (a.sources as { licence?: unknown }).licence !== "string" || typeof (a.sources as { units?: unknown }).units !== "string") throw err("Say what the licence is and what the units are.", "22023");
+        const MEASURED_KEYS = ["rows", "columns", "header", "places", "first_period", "last_period", "periods_found", "periods_missing", "value_column", "period_column", "place_column", "shape", "non_numeric_values"];
+        if (Object.keys(a.measured).some((k) => !MEASURED_KEYS.includes(k)) || typeof a.measured.rows !== "number" || typeof a.measured.columns !== "number") throw err("The measured counts are not in the shape Ryagram expects.", "22023");
         if (a.changeLog.length > 12) throw err("The change log is at most 12 steps, each 1 to 200 characters of plain words.", "22023");
         if (user.prepared.filter((x) => x.state === "waiting").length >= 5) throw err("There are already 5 tables waiting for the person to accept. Ask them to deal with those first.", "PT429");
         if (user.prepared.length >= 10) throw err("That is 10 prepared tables in a day. Try again tomorrow.", "PT429");

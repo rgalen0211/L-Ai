@@ -26,7 +26,7 @@ from test_connect import ALICE, BOB, h, setUpModule  # noqa: E402,F401
 SCOPES = ("read", "write", "render_free", "edit", "fetch_data", "submit_data")
 SOURCES = {"urls": ["https://data.census.gov/table?q=B01002"], "publisher": "U.S. Census Bureau", "licence": "Public domain (U.S. government work)", "units": "median age in years"}
 CSV = "place,year,value\n" + "\n".join(f"{s},{y},{35 + (y % 7) / 3:.1f}" for s in ("Alabama", "Alaska") for y in (2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023)) + "\n"
-MEASURED = {"rows": 26, "columns": 3, "places": 2, "first_period": 2010, "last_period": 2023, "periods_found": 13, "periods_missing": [2020]}
+MEASURED = {"rows": 26, "columns": 3, "places": 2, "first_period": 2010, "last_period": 2023, "periods_found": 13, "periods_missing": [2020], "shape": "long", "non_numeric_values": 0}   # every key the connector measures (CC1 review HIGH: the database refused two of them)
 LOG = ["kept table B01002 estimate 001", "one row per state and year"]
 
 
@@ -132,7 +132,9 @@ class PreparedData(core.Base):
         self.refused(a, log=["see https://evil.example"])
         self.refused(a, measured={"rows": 0, "columns": 3})
         self.refused(a, measured={"rows": 5, "columns": 3, "surprise": 1})
+        self.hand(a, measured={"rows": 5, "columns": 3, "shape": "wide", "non_numeric_values": 2})                  # the two keys the connector really sends are allowed
         self.assertEqual(self.staged(), 0)
+        self.refused(a, sources={**SOURCES, "urls": ["https://x.example.org/a\"onclick=\"x"]})              # no quote, angle or backtick in an address
         self.hand(a, csv=CSV + "")                                                                          # control: the good table goes in
 
     def test_at_most_5_wait_and_10_a_day_and_the_words_say_what_to_do(self):
@@ -165,7 +167,9 @@ class PreparedData(core.Base):
         self.assertEqual(self.app(BOB).one("select discard_prepared_data(%s)", pid), {"discarded": False})
         self.assertEqual(self.staged(), 1)
         self.assertEqual(self.app(ALICE).one("select discard_prepared_data(%s)", pid), {"discarded": True})
-        self.assertEqual(self.staged(), 0)
+        self.assertEqual(self.admin("select csv_text from public.prepared_data where id = %s", pid), "")      # the text is gone at once; the empty row stays a day so discarding cannot lower the day's count
+        self.assertEqual(self.admin("select state from public.prepared_data where id = %s", pid), "discarded")
+        self.assertEqual(self.app(ALICE).one("select my_prepared_data()"), [])
 
     def test_an_expired_table_is_invisible_and_refused_and_the_purge_removes_it(self):
         a = self.alice()

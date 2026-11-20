@@ -112,7 +112,7 @@ test('MUST-FAIL: a story cannot name a waiting table, a made-up u_ name, or ANOT
 test('MUST-FAIL: a connection that was made before the scope existed cannot hand anything over; bad labels, sources and tables are refused with nothing stored', async () => {
   const { w, A, OLD, call } = world();
   const r = await call(OLD, 'submit_prepared_data', args());
-  assert.equal(r.isError, true); assert.equal(w.preparedFor('u-old').length, 0);
+  assert.equal(r.isError, true); assert.equal(r.code, 'scope'); assert.equal(w.preparedFor('u-old').length, 0);
   for (const [bad, why] of [[args(censusCsv(YEARS), { sources: { urls: ['http://x.org/a'], licence: 'l', units: 'u' } }), 'a source that is not https'], [args(censusCsv(YEARS), { sources: { urls: ['https://x.org/a'], units: 'u' } }), 'no licence'],
     [args('place,value\nA,1\nB,2\nC,3\n'), 'no year anywhere'], [args('place,year,value\nA,2010,1\nB,2011\nC,2012,3\n'), 'a ragged row'], [args(censusCsv(YEARS), { change_log: Array.from({ length: 13 }, (_, i) => 'step ' + i) }), 'a 13-step change log']]) {
     const x = await call(A, 'submit_prepared_data', bad);
@@ -144,4 +144,25 @@ test('the migration: a closed staging table, connector-only functions, app-only 
   assert.match(m, /pg_advisory_xact_lock\(hashtextextended\('prepared:'/);
   assert.match(m, /waiting >= 5/); assert.match(m, /today >= 10/);
   assert.match(m, /mark_prepared_accepted[\s\S]*d\.created_at < now\(\) - interval '2 hours'/);
+});
+
+test('MUST-FAIL (the review HIGH): every key the connector measures is a key the database accepts, and the other way round; the fake enforces the same list, so a new key can never again reach the database refused', async () => {
+  const sql = fs.readFileSync(new URL('../supabase/migrations/20261120000500_prepared_data.sql', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  const m = /m\) x where x not in \(([^)]*)\)\) then return false/.exec(sql);
+  assert.ok(m, 'the closed list of measured keys is in the migration');
+  const allowed = [...m[1].matchAll(/'([a-z_]+)'/g)].map((x) => x[1]).sort();
+  const measured = measure(parseCsv(censusCsv(YEARS)));
+  assert.deepEqual(Object.keys(measured).sort(), allowed, 'what measure() returns is exactly what the database allows');
+  const { A, call } = world();
+  const r = await call(A, 'submit_prepared_data', args());
+  assert.ok(!r.isError, r.text);                                                                         // the fake refuses any key outside the list: this passing is what the real database would do
+});
+
+test('MUST-FAIL: a cell a spreadsheet would run as a formula, text after a closing quote, and a very long column title are refused; a negative number and a lone dash are fine', () => {
+  const bad = (t) => { const r = parseCsv(t); assert.equal(r.ok, false, t.slice(0, 50)); return r.problem; };
+  for (const cell of ['=1+1', '+1', '@SUM(A1)', '-cmd', '-Alabama']) assert.match(bad('place,year,value\nA,2010,1\nB,2011,' + cell + '\nC,2012,3\n'), /spreadsheet formula/, cell);
+  assert.match(bad('place,year,value\n"A"x,2010,1\nB,2011,2\nC,2012,3\n'), /text after its closing quote/);
+  assert.match(bad('place,year,' + 'v'.repeat(61) + '\nA,2010,1\nB,2011,2\nC,2012,3\n'), /longer than 60 characters/);
+  assert.ok(parseCsv('place,year,value\nA,2010,-1.5\nB,2011,-\nC,2012,3\n').ok, 'a negative number and a lone dash are not formulas');
+  assert.ok(parseCsv('place,year,value\n"A, B",2010,1\nC,2011,"2"\nD,2012,3\n').ok, 'quoted cells still work');
 });
