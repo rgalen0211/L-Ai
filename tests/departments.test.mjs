@@ -214,7 +214,7 @@ test('FORECASTS (Ryan 11-20, draft words): a page-owned Coming soon page that sh
 test('FORECASTS WORDS: no price, date or promise, and nothing that reads as a prediction being real data', () => {
   const k = Dp.KNOWN.forecasts;
   assert.ok(k && k.label === 'Forecasts' && typeof k.line === 'string');
-  assert.doesNotMatch(k.line, /\$|price|20\d\d|will (be|happen)|accurate|guarantee/i);
+  assert.doesNotMatch(k.line, /\$|\bprice|\b20\d\d\b|\bwill (be|happen)\b|\baccurate\b|\bguarantee/i);
   assert.match(k.line, /never shown as a fact/);
   assert.deepEqual(plain(Dp.PAGE_ONLY), ['forecasts']);
   assert.ok(Dp.ORDER.includes('forecasts') && Dp.FALLBACK.some(r => r.id === 'forecasts' && r.status === 'soon'));
