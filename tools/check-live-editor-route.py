@@ -62,7 +62,7 @@ with sync_playwright() as pw:
     p = page(b, on_cfg, errs)
     p.goto(f'http://127.0.0.1:{PORT}/app/?mock&standin#/editor/data/{PROJ}', wait_until='load'); p.wait_for_selector('h1:has-text("Edit your film")', timeout=15000); p.wait_for_timeout(800)
     txt = p.inner_text('.le')
-    check('stand-in' in txt and 'not available here yet' in txt and 'saved to this film' in txt, 'it says the picture is a stand-in and that changes go to the film’s draft')
+    check('No drawing is made up for your film' in txt and 'saved to this film' in txt and 'Stand-in drawing' not in txt, 'it says no drawing is made up for the film (no sketch) and that changes go to the film’s draft')
     check('Stand-in preview for the design' not in txt and 'nothing here is stored' not in txt, 'and no longer says nothing is stored or sent')
     p.evaluate("window.ryagramMockEditor.ai.apply(window.RYAGRAM_MOCK_EDITOR_PROJECT, 'data', window.ryagramMockEditor.draft(window.RYAGRAM_MOCK_EDITOR_PROJECT, 'data').revision, [{op: 'set_look', key: 'network.color', value: '#ff9f6b'}], 'Claude')"); p.wait_for_timeout(2600)
     check('Your AI changed' in p.inner_text('.le'), 'the AI’s change reaches it through the shared draft')

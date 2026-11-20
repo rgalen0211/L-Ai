@@ -799,6 +799,9 @@
       const lookLoader = isData && DD && RL ? (window.ryagramLiveHost && typeof window.ryagramLiveHost.bundle === 'function' ? p => window.ryagramLiveHost.bundle(p) : typeof window.ryagramMockLookBundle === 'function' ? p => window.ryagramMockLookBundle(p) : null) : null;
       const bundleMode = !!lookLoader;
       let bundle = null, tl = null, bundleState = bundleMode ? 'opening' : 'none', bundleNote = '';
+      // A person's own film on the website (a project in the address) NEVER gets the invented sketch (WEB 11-20, CLAUDE's launch-slice finding): its picture is its real frames, or a plain box that says so, with the film's own latest sheet or preview when it has one.
+      const realFilm = isData && !!routeProject && !window.ryagramLiveHost && !bundleMode;
+      let filmState = 'none', sheet = null, drawnKey = '';                  // filmState: none (no film API), opening, ready, failed; sheet: null (not known), 'none', or { src, kind, note }
       let streamLeft = 0, streamNote = '';                                   // a streamed film: how many chunks are still on their way, and why it stopped if it did
       const ed = new E.Editor(onPc || bundleMode ? { look: {}, clips: [], duration: 0 } : isData ? DATA_BASE() : CLIPS_BASE());
       // The shared draft: in mock mode (the only place it runs until CONNECT's SQL is applied) with the stand-in functions; otherwise the page edits locally, as before.
@@ -929,8 +932,45 @@
         if (quick && !r.error && !r.loading) view.append(h('p', { class: 'meta le-draft' }, 'A quick draft while you move. The full picture comes back when you let go.'));
         view.setAttribute('aria-label', `Preview of ${tl.label(position)}`);
       }
+      function drawNoSketch() {
+        const key = `${filmState}|${sheet && sheet.src ? sheet.src : sheet}`;
+        if (key === drawnKey) return;                                          // a redraw from a slider or a draft change must not restart a playing preview
+        drawnKey = key;
+        const kids = [];
+        if (filmState === 'opening') kids.push(h('p', { class: 'le-bundle-note', role: 'status' }, 'Opening your film’s own picture…'));
+        else {
+          kids.push(h('p', { class: 'le-bundle-note', role: 'status' }, 'Your film’s own frames cannot be drawn in this editor yet, so no drawing is shown: a made-up one would not be your film.'));
+          if (sheet && sheet.src) {
+            kids.push(sheet.kind === 'preview' ? h('video', { class: 'le-sheet', controls: true, preload: 'metadata', src: sheet.src, 'aria-label': 'Your film’s latest preview' }) : h('img', { class: 'le-sheet', src: sheet.src, alt: 'Your film’s latest contact sheet' }));
+            kids.push(h('p', { class: 'meta' }, sheet.note));
+          } else if (sheet === 'none') kids.push(h('p', { class: 'meta' }, 'This film has no contact sheet or preview yet.'));
+          kids.push(h('p', { class: 'meta' }, h('a', { href: `#/p/${routeProject}` }, 'Open this film’s page'), ' to make a contact sheet or a preview, or to see the ones it has.'));
+        }
+        view.setAttribute('role', 'group'); view.setAttribute('aria-label', 'Your film’s picture');
+        view.replaceChildren(...kids);
+      }
+      // The film's own latest contact sheet (else preview, else thumbnail), newest version first, from the same reads the film's own page uses. Nothing is asked of the engine and nothing is made.
+      async function loadSheet() {
+        if (!data || typeof data.getProject !== 'function' || typeof data.getVersion !== 'function' || typeof data.fileUrl !== 'function') return;
+        try {
+          const versions = [...((await data.getProject(routeProject)).versions || [])].sort((a, b) => b.number - a.number).slice(0, 4);
+          for (const v of versions) {
+            const arts = (await data.getVersion(v.id)).artifacts || [];
+            const a = arts.find(x => x.kind === 'contact_sheet') || arts.find(x => x.kind === 'preview') || arts.find(x => x.kind === 'thumbnail');
+            if (!a) continue;
+            const src = await data.fileUrl(a.storage_path);
+            if (!src) continue;
+            const kind = a.kind === 'preview' ? 'preview' : 'contact sheet';
+            sheet = { src, kind, note: `This is your film’s latest ${kind}${a.created_at ? `, made ${String(a.created_at).slice(0, 10)}` : ''}, from version ${v.number}. It is not live: it does not show the changes you make here.` };
+            break;
+          }
+          if (!sheet) sheet = 'none';
+        } catch { sheet = null; }
+        if (!destroyedEditor) drawData();
+      }
       function drawData() {
         if (bundleMode) { drawBundle(); return; }
+        if (realFilm) { drawNoSketch(); return; }
         const look = { ...DATA_BASE().look, ...ed.state.look, ...(preview || {}) };            // a sketch: a colour the film has not set is drawn in the editor's own default
         const reveal = (position - FIRST) / (LAST - FIRST);
         const svg = sv('svg', { viewBox: '0 0 160 90', class: 'le-svg' });
@@ -1262,7 +1302,7 @@
             return h('div', { class: 'le-row' }, h('label', { for: input.id }, label, touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null), input);
           }),
           ...(LOOK_ROWS.some(([k]) => ed.state.look[k] === undefined) ? [h('p', { class: 'meta le-defaults' }, lookNote("A colour this film has not changed is shown in the editor's own starting colour. The film's own colours are not shown here yet."))] : []),
-          ...WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the engine'))),
+          ...(realFilm ? [] : WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the engine')))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }
 
@@ -1536,9 +1576,11 @@
           fcShown && series && !(bundle && bundle.forecast) && window.ryagramMock ? h('p', { class: 'meta' }, 'A made-up example series, not real data.') : null].filter(Boolean));
       }
 
-      const title = h('h1', { tabindex: '-1' }, host ? String(host.title || 'Edit your film').slice(0, 80) : isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
+      const title = h('h1', { tabindex: '-1' }, host ? String(host.title || 'Edit your film').slice(0, 80) : routeProject ? 'Edit your film' : isData ? 'Edit your film: obesity and fast food' : 'Edit your film: housing montage');
       const emptyNote = h('p', { class: 'le-warn', role: 'status', hidden: true }, 'There is no film to edit yet. In the Ryagram app, choose your clips and press Plan, then open this page again.');
-      const standin = h('div', { class: 'le-standin' }, view, cardOn ? cardBox : null, scrub, stripHolder, ticks, h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.'));
+      const standin = h('div', { class: 'le-standin' }, ...(realFilm ? [view] : [view, cardOn ? cardBox : null, scrub, stripHolder, ticks, h('p', { class: 'meta le-keys' }, 'Keys on the slider: arrows step, Shift+arrows or J and L jump a tenth of the film, Space or K plays and pauses, Home and End go to the ends.')]));
+      if (realFilm && filmEd) filmState = 'opening';
+      if (realFilm && filmEd) filmEd.ready.then(ok => { filmState = ok ? 'ready' : 'failed'; if (!destroyedEditor) drawData(); });
       if (filmEd) filmEd.ready.then(ok => { if (ok && !destroyedEditor) { standin.hidden = true; filmEd.el.hidden = false; } });         // the film opened for real: its own picture takes the place of the stand-in; if it did not, the stand-in stays
       const root = h('div', { class: 'le' },
         host ? null : h('p', {}, h('a', { href: '#/' }, '← All projects')),
@@ -1548,10 +1590,11 @@
           h('div', { class: 'le-main' }, ...(filmEd ? [filmEd.el] : []), standin, warns, fcOn ? fcHolder : null, isData ? null : [rulerHolder, lanes, list, ...(paceOn ? [paceHolder] : []), ...(whyOn ? [whyHolder] : [])]),
           isData ? lookPanel : h('div', { class: 'le-side' }, clipPanel, filmLookPanel, rulesPanel)),
         mockAi ? h('p', { class: 'meta' }, mockAi) : null,
-        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? 'The picture is a stand-in: the drawing data of your own film is not available here yet. The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
+        host ? h('p', { class: 'meta' }, 'Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button.') : h('p', { class: 'meta' }, routeProject ? (realFilm ? 'No drawing is made up for your film. ' : 'The picture is a stand-in: the drawing data of your own film is not available here yet. ') + 'The changes you make are saved to this film’s draft, which your AI can see, and nothing uses credits until you press the final button. ' : bundleMode ? 'The picture is drawn by the engine’s own drawer from a made-up sample film; nothing here is stored or sent, and nothing uses credits. ' : 'Stand-in preview for the design; nothing here is stored or sent, and nothing uses credits. ', routeProject ? null : h('a', { href: isData ? '#/editor/compilation' : '#/editor/data' }, isData ? 'See the compilation editor' : 'See the data film editor')));
       paint();
       paintForecast();
       if (cardOn) setTimeout(() => loadCard(true), 0);
+      if (realFilm) loadSheet();
       if (bundleMode) {                                                         // fetch the film's drawing data once; the page stays usable (the title, Ask my AI) while it opens
         const problem = t => { bundleState = 'failed'; bundleNote = t; paint(); };
         Promise.resolve().then(() => lookLoader(project)).then(b => {
