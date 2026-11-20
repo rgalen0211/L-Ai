@@ -1,5 +1,5 @@
 """Ryan 11-20 11:01: a new user must reach EVERY department's page, and every department that is not launch-ready must have a Coming soon page. Real Chrome, mock mode, LOCAL server only, desktop 1280 and phone 390,
-for an invited account, a not-invited one (an administrator never is), a non-admin account and one whose my_departments() fails. For each of the seven departments (Data films, Compilations, Opportunity Map, Games,
+for an invited account, a not-invited one (an administrator never is), a non-admin account and one whose my_departments() fails. For each of the seven departments (Data films, Compilations, Perfect City, Games,
 Animation Studio, Studio, Forecasts) the page is opened BOTH from the top bar (on a phone through the Menu) and from its card on Your projects and must show its own heading, never the home page, a blank or the 'isn't
 available' page; Data films is the working page, the six others are Coming soon pages with the tag and either the 'Tell me when it's ready' button or (Forecasts, which the server does not name yet) the plain
 'Nothing to sign up for yet' line; with ?deptforecasts the server names Forecasts and it gets the button too.   Needs Chrome.   python tools/check-departments-all.py [outdir]"""
@@ -9,7 +9,7 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/dept-all-shots')
-DEPTS = [('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Opportunity Map'), ('games', 'Games'), ('animation_studio', 'Animation Studio'), ('studio', 'Studio'), ('forecasts', 'Forecasts')]
+DEPTS = [('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Perfect City'), ('games', 'Games'), ('animation_studio', 'Animation Studio'), ('studio', 'Studio'), ('forecasts', 'Forecasts')]
 
 
 class H(http.server.SimpleHTTPRequestHandler):
