@@ -102,7 +102,7 @@ const mutants = [
   ['the plain sentence never shows', CSS, ".le-card[hidden]+.le-nopic{display:block}", ".le-card[hidden]+.le-nopic{display:none}", 'both'],
   ['the plain sentence always shows', CSS, ".le-nopic{display:none;", ".le-nopic{display:block;", 'both'],
   ['the plain sentence is never added', H, "if (card && !(card.nextElementSibling", "if (false && card && !(card.nextElementSibling", 'both'],
-  ['the waiting sentence still says stand-in', H, "p.textContent = p.textContent.replace(STAND_OLD, '');", "p.textContent = p.textContent;", 'both'],
+  ['the waiting sentence still says stand-in', H, "window.ryagramLiveHost.mode === 'data' && p.textContent.indexOf(STAND_OLD) > 0", 'false', 'both'],
   ['the plain sentence points to a stand-in', H, "const NOPIC = \"No picture of your film is shown here yet. The film's real frames", "const NOPIC = \"No picture of your film is shown here yet. The stand-in is on show; the film's real frames", 'both'],
   ['the connector tells a film the engine cannot draw to keep a stand-in', ET, "so no picture is shown here. The film's real frames are in the editor on the Ryagram website.\",", "The editor keeps its stand-in picture.\",", 'source'],
   ['the connector tells a too big picture to keep a stand-in', ET, "No picture is shown here; the film's real frames are in the editor on the Ryagram website.`", "The editor keeps its stand-in picture.`", 'source'],
@@ -114,7 +114,7 @@ function suites(cwd) {
   return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
 }
 function browser(cwd) {
-  return spawnSync('py', ['-I', path.join('tools', 'check-chat-editor.py'), path.join(cwd, 'shots')], { encoding: 'utf8', cwd, env: { ...process.env } });
+  return spawnSync('py', ['-I', path.join('tools', 'check-chat-editor.py'), path.join(cwd, 'shots')], { encoding: 'utf8', cwd, env: { ...process.env }, timeout: 420000, killSignal: 'SIGKILL' });   // a frozen page must END the check (and be named HUNG), never stall the whole run (11-20: a planted fault that re-fired the page's own observer froze Chrome for 13 minutes)
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -124,7 +124,7 @@ function fresh() {
 }
 fresh();
 if (suites(scratch).status) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
-if (!browserOnly && browser(scratch).status) { console.log('BROWSER BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
+if (!browserOnly && (() => { const r = browser(scratch); return r.error || r.status; })()) { console.log('BROWSER BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
 for (const [name, file, from, to, kind] of mutants) {
@@ -138,7 +138,9 @@ for (const [name, file, from, to, kind] of mutants) {
   if (kind === 'browser' && browserOnly) { console.log(`skipped (browser only) ${name}`); continue; }
   const s = kind === 'browser' ? (spawnSync(process.execPath, [path.join('tools', 'build-chat-editor.mjs')], { encoding: 'utf8', cwd: scratch }).status === 0) : suites(scratch).status !== 0; // a browser-only mutant still needs the generated page rebuilt from the broken source, or Chrome sees the unbroken page
   const wantBrowser = (kind === 'both' || kind === 'browser') && !browserOnly;
-  const bw = wantBrowser ? browser(scratch).status !== 0 : null;
+  const bres = wantBrowser ? browser(scratch) : null;
+  if (bres && bres.error) { console.log(`HUNG    ${name} (the real-Chrome check did not end in 7 minutes: not counted as caught; write the fault so the page fails, not freezes)`); missed++; continue; }
+  const bw = bres ? bres.status !== 0 : null;
   const caught = wantBrowser ? s && bw : s;
   const how = kind === 'browser' ? `real Chrome ${bw ? 'failed' : 'PASSED'}` : wantBrowser ? `offline suites ${s ? 'failed' : 'PASSED'}, real Chrome ${bw ? 'failed' : 'PASSED'}` : `offline suites ${s ? 'failed' : 'PASSED'}`;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name} (${how})`);
