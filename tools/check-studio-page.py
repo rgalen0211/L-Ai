@@ -56,7 +56,9 @@ def main():
                 elif p.locator('.soon-group summary').count():
                     p.locator('.soon-group summary').click()
                 items = p.locator('.soon-group ul li').all_inner_texts()
-                check(len(items) == 5 and items[-1].startswith('Studio'), f'{tag}: Studio is the last in the Coming soon list ({[i.split(chr(10))[0] for i in items]})')
+                names = [i.split(chr(10))[0] for i in items]
+                server = [x for x in names if not x.startswith('Forecasts')]                  # Forecasts is a site-owned page (Ryan 11-20): it sits after the server's five
+                check(len(server) == 5 and server[-1].startswith('Studio') and any(x.startswith('Forecasts') for x in names), f'{tag}: Studio is the last of the five announced Coming soon departments, and the site-owned Forecasts is listed too ({names})')
                 p.locator('.soon-group ul a', has_text='Studio').last.click()
                 p.wait_for_selector('h1:has-text("Studio")', timeout=15000)
                 main = p.inner_text('main')
