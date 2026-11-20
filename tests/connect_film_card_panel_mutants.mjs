@@ -100,7 +100,7 @@ const mutants = [
   ['the slider row is not hidden', CSS, ".le-nosketch .le-standin>.le-scrub,", "", 'both'],
   ['the years under the sketch are not hidden', CSS, ".le-nosketch .le-standin>.le-ticks,", "", 'both'],
   ['the timeline holder under the sketch is not hidden', CSS, ".le-nosketch .le-standin>.le-tl-holder,", "", 'source'],
-  ['the keys line under the sketch is not hidden', CSS, ".le-nosketch .le-standin>.le-keys,", "", 'source'],
+  ['the keys line under the sketch is not hidden', CSS, ".le-nosketch .le-standin>.le-keys,", "", 'both'],
   ['the five waiting rows are not hidden', CSS, ".le-nosketch .le-row.le-waiting{display:none!important}", ".le-nosketch .le-row.le-waitingx{display:none!important}", 'both'],
   ['the plain sentence never shows', CSS, ".le-card[hidden]+.le-nopic{display:block}", ".le-card[hidden]+.le-nopic{display:none}", 'both'],
   ['the plain sentence always shows', CSS, ".le-nopic{display:none;", ".le-nopic{display:block;", 'both'],
