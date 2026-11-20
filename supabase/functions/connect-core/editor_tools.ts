@@ -67,7 +67,7 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
   /** Editor Step A (migration 20261109000100, contract proposals/CONNECT-EDITOR-STEP-A-CONTRACT-1109.md): the film's look card for the panel. App-only, behind the chat-editor switch, scope read. It asks the house computer for a card of the film's CURRENT
    *  saved story (p_ask), and reads the newest card or where the request stands. A card is checked here (film_card.ts) before the panel ever sees it; `p_have` (the story hash of a card the panel already holds) keeps a poll from carrying the same card twice. */
   const FAIL_WORDS: Record<string, string> = {
-    view_not_supported: "The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.",
+    view_not_supported: "The engine cannot draw a picture of this kind of film yet, so no picture is shown here. The film's real frames are in the editor on the Ryagram website.",
     story_not_found: "The saved film could not be read to draw its picture.",
     engine_error: "Drawing the film's picture did not work this time. Open the editor again in about ten minutes to try again.",
     card_rejected: "The film's picture was drawn but could not be used.",
@@ -97,7 +97,7 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
     if (r.state === "failed") {
       const code = r.fail_code && FAIL_WORDS[r.fail_code] ? r.fail_code : "engine_error";
       const size = code === "view_not_supported" ? tooBig(r.fail_detail) : null;
-      if (size) return { state: "failed", code, size, message: `This film's picture is too detailed to draw in the chat: it would be ${size.characters.toLocaleString("en-US")} characters and the limit is ${size.limit.toLocaleString("en-US")}. The editor keeps its stand-in picture.` };
+      if (size) return { state: "failed", code, size, message: `This film's picture is too detailed to draw in the chat: it would be ${size.characters.toLocaleString("en-US")} characters and the limit is ${size.limit.toLocaleString("en-US")}. No picture is shown here; the film's real frames are in the editor on the Ryagram website.` };
       return { state: "failed", code, message: FAIL_WORDS[code], ...(code === "engine_error" ? { retry: r.retry === true, ...ageOf(r.failed_s) } : {}) };
     }
     if (r.state === "asked" || r.state === "claimed") return { state: r.state, waited_seconds: Math.max(0, Math.floor(Number(r.waited_s) || 0)) };

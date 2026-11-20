@@ -219,10 +219,24 @@
 
   // ---- the computer page's footer says "Everything here is drawn and kept on your computer. Nothing uses credits until you press the final button." In the chat there is no final button and Ryagram keeps the drafts, so that sentence is replaced
   const FOOT_OLD = 'Everything here is drawn and kept on your computer.', FOOT_NEW = 'Changes here stay drafts. Nothing is built, and nothing uses credits, from this panel.';
+  // ---- no made-up picture in the chat (CONNECT 11-20, paper CONNECT-CHAT-PANEL-STANDIN-1120.md, fix A). The editor page draws a stand-in sketch (invented shapes) for a data film; here the film's own picture is the card still, so the
+  //      sketch, its slider row and the five "waiting for the engine" rows are hidden by chat-extra.css under .le-nosketch, and when there is no card box yet a plain sentence takes the picture's place. A clip film (no card) is unchanged.
+  const NOPIC = "No picture of your film is shown here yet. The film's real frames are in the editor on the Ryagram website.";
+  const STAND_OLD = ' Until then the editor shows a simple stand-in.';
+  function noSketch(root) {
+    if (window.ryagramLiveHost.mode !== 'data') return;
+    root.classList.add('le-nosketch');
+    const card = root.querySelector('.le-card');
+    if (card && !(card.nextElementSibling && card.nextElementSibling.classList.contains('le-nopic'))) card.insertAdjacentElement('afterend', h('p', { class: 'meta le-nopic', role: 'status' }, NOPIC));
+  }
   function reword() {
     const root = document.getElementById('live-root');
     if (!root || typeof root.querySelectorAll !== 'function') return;
-    root.querySelectorAll('p.meta').forEach(p => { if (p.textContent.indexOf(FOOT_OLD) === 0) p.textContent = FOOT_NEW; });
+    root.querySelectorAll('p.meta').forEach(p => {
+      if (p.textContent.indexOf(FOOT_OLD) === 0) p.textContent = FOOT_NEW;
+      else if (window.ryagramLiveHost.mode === 'data' && p.textContent.indexOf(STAND_OLD) > 0) p.textContent = p.textContent.replace(STAND_OLD, '');
+    });
+    noSketch(root);
   }
 
   // ---- the call that opened the panel tells us which film: its result (with the title), or failing that the arguments the host says it was called with

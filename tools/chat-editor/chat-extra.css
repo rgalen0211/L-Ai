@@ -18,3 +18,8 @@
 .le-cardpic svg{display:block;width:100%;height:100%}
 .le-cardretry{margin-top:8px}
 .le-cardretry p{margin:0 0 6px}
+
+/* Fix A (CONNECT 11-20): a data film in the chat never shows the stand-in sketch. The card still is its picture; with no card yet a plain sentence (.le-nopic, added by the chat host) stands in its place. A clip film is unchanged. */
+.le-nosketch .le-standin>.le-view,.le-nosketch .le-standin>.le-scrub,.le-nosketch .le-standin>.le-tl-holder,.le-nosketch .le-standin>.le-ticks,.le-nosketch .le-standin>.le-keys,.le-nosketch .le-row.le-waiting{display:none!important}
+.le-nopic{display:none;margin:12px 0 0;padding:12px;border:1px solid var(--line,#3a3a44);border-radius:10px;background:#15151b}
+.le-card[hidden]+.le-nopic{display:block}
