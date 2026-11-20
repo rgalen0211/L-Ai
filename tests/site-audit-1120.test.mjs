@@ -91,3 +91,12 @@ test('PRO HISTORY: look changes are in plain words (never a story key like state
   assert.ok(!/state\.|network\.|choropleth\.|sequence\./.test(P.describe({ op: 'set_look', key: 'network.base_color', value: '#fff' })));
   assert.ok(!/class: 'le-pro-tc', role: 'status'/.test(read('assets/app-editor-pro.js')), 'the timecode is not role=status');
 });
+
+test('DEPARTMENTS BAR: a bar asked for and then unmounted (or asked for again) while it loads never appears afterwards, and its media-query listener goes with it', () => {
+  const src = read('assets/app-departments.js');
+  assert.match(src, /const mine = \+\+mountToken;/);
+  assert.match(src, /if \(mine !== mountToken \|\| !hasAny\(m\)\) return false;/);
+  assert.match(src, /const unmountBar = \(\) => \{ mountToken\+\+; cleanup\(\); \};/);
+  assert.match(src, /phoneQuery\.removeEventListener\('change', syncSoon\)/);
+  assert.match(src, /if \(nav\.dispose\) nav\.dispose\(\);/);
+});
