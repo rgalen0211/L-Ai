@@ -23,7 +23,7 @@ body.wb-page .le.le-wb{flex:1 1 auto;min-height:0;display:flex;flex-direction:co
 .le-wb .wb-foot{display:none}
 
 /* ---- the grid: [media | stage | properties] over [timeline]; panels scroll INSIDE */
-.le-wb .wb{flex:1 1 auto;min-height:0;display:grid;gap:8px;padding:8px;grid-template-columns:var(--wb-left,248px) minmax(0,1fr) var(--wb-right,300px);grid-template-rows:minmax(0,1fr) var(--wb-bottom,clamp(168px,27vh,280px));grid-template-areas:"left stage right" "timeline timeline timeline"}
+.le-wb .wb{flex:1 1 auto;min-height:0;display:grid;gap:8px;padding:8px;grid-template-columns:var(--wb-left,248px) minmax(0,1fr) var(--wb-right,300px);grid-template-rows:minmax(0,1fr) var(--wb-bottom,clamp(184px,23vh,216px));grid-template-areas:"left stage right" "timeline timeline timeline"}
 .le-wb .wb[data-left=collapsed]{--wb-left:44px}.le-wb .wb[data-right=collapsed]{--wb-right:44px}.le-wb .wb[data-bottom=collapsed]{--wb-bottom:44px}
 .le-wb .wb-panel{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;border-radius:var(--wb-radius);border:1px solid var(--wb-line);background:var(--wb-surface),var(--wb-bg);overflow:hidden}
 .le-wb .wb-panel.left{grid-area:left}.le-wb .wb-panel.stage{grid-area:stage}.le-wb .wb-panel.right{grid-area:right}.le-wb .wb-panel.timeline{grid-area:timeline}
@@ -117,8 +117,66 @@ body.wb-page .le.le-wb{flex:1 1 auto;min-height:0;display:flex;flex-direction:co
 .le-wb .wb-tabbody #le-look-h{display:none}
 .le-wb .wb-panel.timeline .body{display:block}
 body .le-wb .wb-ph h2{margin:0;font-size:.875rem;line-height:1.2}
-.le-wb.le-is-pro .wb{--wb-bottom:clamp(236px,36vh,360px)}
+.le-wb.le-is-pro .wb{--wb-bottom:clamp(232px,30vh,280px)}
 .le-wb .wb-tl .le-pro{padding:8px 12px}
 .le-wb .wb-tl .le-pro .le-pro-row{flex-wrap:nowrap;overflow-x:auto}
 /* the shared sheet gives .container a content width; the workbench uses the whole window (specificity above body.ryagram-ds.ryagram-look .container) */
-body.wb-page.ryagram-ds.ryagram-look main.app-main.container{max-width:none;width:100%;padding-left:0;padding-right:0;margin:0}
+body.wb-page.ryagram-ds.ryagram-look main.app-main.container{max-width:none;width:100%;padding:0;margin:0}
+
+/* ---- polish (Ryan: 'build it like the mockup', proposals/WEB-DESIGN-1120/mock-editor-2.html): type scale, 44 px panel headers, small-caps captions, quiet toolbar, 44 px Look rows */
+body.wb-page>header .container.nav{padding-left:16px;padding-right:16px}
+body.wb-page .le-wb .wb-top{gap:16px;padding:8px 16px;min-height:64px}
+body.wb-page .le-wb .wb-name{align-items:center;gap:12px}
+body.wb-page .le-wb .wb-name .wb-eyebrow{font-size:.6875rem;letter-spacing:.1em}
+body.wb-page .le-wb .wb-name h1{font-size:1.5rem;line-height:1.2;font-weight:650;margin:0;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+body.wb-page .le-wb .wb-tools{gap:4px}
+body.wb-page .le-wb .wb-tools .le-pro-switch{margin-right:12px}
+body.wb-page .le-wb .wb-tools .button{min-height:44px;padding:0 16px;font-size:.9375rem}
+body.wb-page .le-wb .wb-tools .button.secondary{background:transparent;border-color:transparent;box-shadow:none;color:var(--wb-muted);font-weight:600}
+body.wb-page .le-wb .wb-tools .button.secondary:hover:not(:disabled){background:rgba(255,255,255,.08);color:var(--wb-ink)}
+body.wb-page .le-wb .wb-tools .button.primary{margin-left:12px}
+body.wb-page .le-wb .wb-panel>.wb-ph{min-height:44px;height:44px;padding:0 8px 0 16px;align-items:center}
+body.wb-page .le-wb .wb-panel>.wb-ph h2{font-family:inherit;font-size:.875rem;font-weight:650;line-height:1;letter-spacing:0;text-transform:none;color:var(--wb-ink);margin:0;padding:0}
+body.wb-page .le-wb .wb-collapse{width:32px;height:32px;margin:0;padding:0;align-self:center}
+body.wb-page .le-wb .wb-tab{min-height:32px;margin:0}
+body.wb-page .le-wb .wb-cap{font-family:inherit;font-size:.75rem;line-height:1.2;letter-spacing:.08em;text-transform:uppercase;font-weight:600;color:var(--wb-muted);margin:0 0 12px}
+body.wb-page .le-wb .wb-panel .body{padding:16px}
+body.wb-page .le-wb .wb-panel.right .body{padding:8px 16px 16px}
+/* the Look rows: label left, swatch right, 44 px controls on 52 px rows, and the panel scrolls inside itself */
+body.wb-page .le-wb .wb-tabbody .le-row{min-height:52px;padding:4px 0;margin:0;gap:12px;align-items:center}
+body.wb-page .le-wb .wb-tabbody .le-row label{margin:0;font-weight:600}
+body.wb-page .le-wb .wb-tabbody .le-row-note{margin:0 0 8px}
+body.wb-page .le-wb .wb-tabbody .le-panel h2{font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--wb-muted);font-family:inherit}
+body.wb-page .le-wb .wb-tabbody .le-film-colours h2{font-family:inherit;font-size:.75rem;letter-spacing:.08em;text-transform:uppercase;color:var(--wb-muted);margin:0 0 8px}
+/* the stage: the picture gets the room; one compact transport row; the key sentence is a popover */
+body.wb-page .le-wb .wb-panel.stage .body{position:relative;padding:12px 16px 8px}
+body.wb-page .le-wb .le-scrub-bar{margin:4px 0 0;padding:0;gap:12px}
+body.wb-page .le-wb .le-scrub-bar .button{min-width:72px;min-height:40px;padding:0 16px}
+body.wb-page .le-wb .le-scrub-bar input[type=range]{height:40px}
+body.wb-page .le-wb .le-scrub-bar .le-pos{min-width:8em}
+.le-wb .wb-keybtn{flex:0 0 auto;min-height:32px;padding:0 12px;border-radius:999px;border:1px solid var(--wb-line);background:transparent;color:var(--wb-muted);font:inherit;font-size:.8125rem;font-weight:600;cursor:pointer}
+.le-wb .wb-keybtn:hover,.le-wb .wb-keybtn[aria-expanded=true]{color:var(--wb-ink);background:rgba(255,255,255,.08)}
+body.wb-page .le-wb .wb-keys-pop{position:absolute;z-index:5;right:16px;bottom:56px;max-width:min(420px,calc(100% - 32px));margin:0;padding:16px;border-radius:var(--wb-radius);border:1px solid rgba(255,255,255,.2);background:rgba(18,19,26,.97);box-shadow:0 18px 50px rgba(0,0,0,.55);font-size:.8125rem;line-height:1.5}
+.le-wb .wb-keys-pop[hidden]{display:none}
+/* the timeline's strip: current tile outlined, small time labels */
+body.wb-page .le-wb .wb-panel.timeline .body{padding:8px 16px 12px}
+body.wb-page .le-wb .wb-tl .le-film-bar.le-film-thumbs{height:64px}
+@media(max-width:900px){
+  body.wb-page .le-wb .wb-top{min-height:0}
+  body.wb-page .le-wb .wb-name h1{white-space:normal;overflow:visible;font-size:1.25rem}
+  body.wb-page .le-wb .wb-tools .le-pro-switch{margin-right:0}
+  body.wb-page .le-wb .wb-tools .button.primary{margin-left:0}
+  body.wb-page .le-wb .wb-keys-pop{right:8px;bottom:120px}
+}
+body.wb-page.ryagram-ds.ryagram-look>header .container.nav{max-width:none;width:100%;padding-left:16px;padding-right:16px}
+body.wb-page.ryagram-ds.ryagram-look .le-wb .wb-panel>.wb-ph h2,body.wb-page.ryagram-ds.ryagram-look .le-wb .wb-name h1,body.wb-page.ryagram-ds.ryagram-look .le-wb .wb-cap{margin-top:0!important;margin-bottom:0!important}
+body.wb-page.ryagram-ds.ryagram-look .le-wb .wb-cap{margin-bottom:12px!important}
+body.wb-page.ryagram-ds.ryagram-look .le-wb .wb-tabbody .le-film-colours h2{margin:24px 0 8px}
+body.wb-page.ryagram-ds.ryagram-look .le-wb .wb{grid-template-columns:var(--wb-left,248px) minmax(0,1fr) var(--wb-right,300px);grid-template-rows:minmax(0,1fr) var(--wb-bottom,clamp(176px,21vh,200px))}
+@media(min-width:901px) and (max-width:1240px){
+  body.wb-page .le-wb .wb-top{flex-wrap:wrap;row-gap:0;min-height:0;padding:4px 16px}
+  body.wb-page .le-wb .wb-name{flex:1 1 360px}
+  body.wb-page .le-wb .wb-name .wb-eyebrow{display:none}
+  body.wb-page .le-wb .wb-tools{flex:1 1 100%;justify-content:flex-end}
+  body.wb-page .le-wb .le-scrub-bar{flex-wrap:wrap;gap:4px 12px}body.wb-page .le-wb .le-scrub-bar input[type=range]{order:3;flex:1 1 100%}body.wb-page .le-wb .le-scrub-bar .le-pos{margin-left:auto}
+}

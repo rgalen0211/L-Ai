@@ -24,7 +24,12 @@
     const top = c.top;                                                                       // .le-top: title, pill, undo, revert, ask, save, final, and PRO's Simple | Pro switch
     const eyebrow = h('span', { class: 'wb-eyebrow' }, 'Edit your film');
     const tools = h('div', { class: 'wb-tools' });
-    for (const el of [...top.children]) { if (el !== c.title && el !== c.pill) tools.append(el); }
+    const rest = [...top.children].filter(el => el !== c.title && el !== c.pill);
+    // Simple | Pro first, then the quiet actions (Undo, Revert, Save, Ask my AI), and the one primary button last
+    const rank = el => el.classList.contains('le-pro-switch') ? 0 : /^Undo/.test(el.textContent) ? 1 : /^Revert/.test(el.textContent) ? 2 : /^Save/.test(el.textContent) ? 3 : el.classList.contains('le-ai-btn') ? 4 : el.classList.contains('primary') ? 6 : 5;
+    for (const el of rest.sort((x, y) => rank(x) - rank(y))) tools.append(el);
+    const nameTip = () => { c.title.title = c.title.textContent || ''; };
+    nameTip(); if (typeof MutationObserver === 'function') { const tm = new MutationObserver(nameTip); tm.observe(c.title, { childList: true, characterData: true, subtree: true }); onStop(() => tm.disconnect()); }
     const head = h('div', { class: 'wb-top' }, back ? h('div', { class: 'wb-crumb' }, back) : null, h('div', { class: 'wb-name' }, eyebrow, c.title, c.pill), tools);
 
     // ---- panels
@@ -51,8 +56,16 @@
     const msgs = h('div', { class: 'wb-msgs' }, c.status, c.emptyNote, c.aiBox, c.banner, c.warns, P.status);
     const stage = h('section', { class: 'wb-panel stage', 'aria-label': 'Preview' }, h('div', { class: 'body' }, msgs, c.standin || null, picture, P.scrub, P.keys), c.renderBox);
     // the film's own parts show only once its plan and first window have really opened; until then (and if it never opens) the editor's plain box says so, in words
-    const live = [P.view, P.scrub, P.keys, P.tracks, P.colourBox];
+    const live = [P.view, P.scrub, P.tracks, P.colourBox];
     for (const p of live) p.hidden = true;
+    // the long key sentence lives behind a small Keys button (a popover over the picture), not under the bar
+    P.keys.hidden = true; P.keys.classList.add('wb-keys-pop'); P.keys.id = 'wb-keys-pop';
+    const keyBtn = h('button', { type: 'button', class: 'wb-keybtn', 'aria-expanded': 'false', 'aria-controls': 'wb-keys-pop', title: 'Keyboard shortcuts' }, 'Keys');
+    const keysShow = on => { P.keys.hidden = !on; keyBtn.setAttribute('aria-expanded', String(on)); };
+    keyBtn.addEventListener('click', () => keysShow(P.keys.hidden));
+    P.keys.addEventListener('keydown', e => { if (e.key === 'Escape') { keysShow(false); keyBtn.focus(); } });
+    keyBtn.addEventListener('keydown', e => { if (e.key === 'Escape') keysShow(false); });
+    P.scrub.append(keyBtn);
     filmEd.ready.then(ok => { for (const p of live) p.hidden = !ok; picture.hidden = !ok; fit(); });
 
     // right: Look | History
