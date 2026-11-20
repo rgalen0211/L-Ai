@@ -17,13 +17,7 @@ test('drawCard drops any attribute whose value holds a backslash, before it look
   assert.ok(EDITOR_HTML.includes(GUARD), 'the generated page holds it');
 });
 
-test('the connector refuses the same thing first (the two locks agree)', () => {
-  const server = fs.readFileSync(new URL('../supabase/functions/connect-core/film_card.ts', import.meta.url), 'utf8');
-  assert.ok(server.includes('String.fromCharCode(92)'), 'film_card.ts refuses a backslash in an attribute value');
-});
-
-test('no allowed card attribute needs a backslash: none of the allowed names is a font or text value that could carry one by design', () => {
-  // the allow-list is names, not values; a backslash is never part of a number, colour, path, transform, id or the two words the connector allows
-  const m = /const CARD_ATTRS = new Set\(\[([\s\S]*?)\]\);/.exec(HOST);
-  assert.ok(m && m[1].includes("'d'") && m[1].includes("'fill'") && m[1].includes("'transform'"));
+test('the connector refuses the same thing first, by this exact line (the two locks agree)', () => {
+  const server = fs.readFileSync(new URL('../supabase/functions/connect-core/film_card.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.ok(server.includes('if (val.includes(String.fromCharCode(92))) return ["An attribute has a backslash'), 'film_card.ts refuses a backslash in an attribute value, by that line');
 });

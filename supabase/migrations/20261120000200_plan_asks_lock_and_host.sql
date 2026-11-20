@@ -11,6 +11,8 @@
 -- a function that is not on this database is skipped, so the file is safe in either order.
 -- Undo: supabase/rollbacks/20261120000200_plan_asks_lock_and_host_rollback.sql. After-check: supabase/live-steps/31_plan_asks_lock_and_host_after_check.sql.
 
+-- HOST RULE CAVEAT (CC1's deep review 11-20, LOW 2): the network-only host list below is a NAME rule only. A public name that resolves to a private address (127.0.0.1.nip.io) passes it, and names such as home.arpa, localdomain, corp and intranet are not listed. The desktop app's own address check at download time is the real guard; this is the first one. Do not rely on it alone.
+
 begin;
 
 do $do$

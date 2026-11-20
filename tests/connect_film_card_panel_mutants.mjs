@@ -18,7 +18,7 @@ const browserOnly = process.argv.includes('--no-browser');
 // [name, file, from, to, kind]
 const mutants = [
   ['the panel drops the length adjustment the connector allows', H, "'textLength', 'lengthAdjust', 'xml:space', 'dx',", "'textLength', 'xml:space', 'dx',", 'source'],
-  ['the panel keeps an attribute with a backslash', H, "if (v.indexOf(String.fromCharCode(92)) >= 0) continue;", "", 'source'],
+  ['the panel keeps an attribute with a backslash', H, "if (v.indexOf(String.fromCharCode(92)) >= 0) continue;", "", 'both'],
   ['the panel drops xml:space the connector allows', H, "'textLength', 'lengthAdjust', 'xml:space', 'dx',", "'textLength', 'lengthAdjust', 'dx',", 'source'],
   ['a length adjustment may be any word', H, "if (a.name === 'lengthAdjust' && v !== 'spacing'", "if (false && v !== 'spacing'", 'source'],
   ['xml:space may be any word', H, "if (v === 'preserve' || v === 'default') el.setAttributeNS(", "if (true) el.setAttributeNS(", 'source'],

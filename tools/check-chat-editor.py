@@ -287,6 +287,7 @@ def main():
                     '<rect width="960" height="540" fill="url(#g1)" style="fill:red" onclick="window.__pwned=2"/>'
                     '<script>window.__pwned=3</script><image href="https://evil.example/x.png" width="10" height="10"/>'
                     '<foreignObject><div>hi</div></foreignObject><use href="#g1"/><path d="M0 0L9 9" stroke="https://evil.example/s" fill="#ffffff"/>'
+                    '<rect id="bs1" width="9" height="9" fill="#ffffff" stroke-dasharray="1' + chr(92) + '2"/>'
                     '<text x="20" y="40" fill="#ffffff" font-size="20">Greene &amp; Montgomery</text>'
                     '<text x="20" y="80" textLength="120.5" lengthAdjust="spacing" xml:space="preserve" fill="#ffffff">Fitted</text>'
                     '<text x="20" y="120" textLength="1e3" lengthAdjust="evil" xml:space="remove" fill="#ffffff">Bad</text></svg>')
@@ -340,6 +341,7 @@ def main():
             ids = fr12.eval_on_selector_all('.le-cardpic svg [id]', 'els => els.map(e => e.id)')
             check(ids and all(i.startswith('lecard-') for i in ids) and any('url(#lecard-g1)' in a for a in attrs), 'every id inside the picture is renamed, and a paint reference follows it (%s)' % ids)
             check('Greene & Montgomery' in fr12.locator('.le-cardpic svg text').first.text_content(), 'text in the picture is text')
+            check(fr12.locator('.le-cardpic svg rect[id="lecard-bs1"]').count() == 1 and not fr12.evaluate("Array.from(document.querySelectorAll('.le-cardpic svg *')).some(e => Array.from(e.attributes).some(a => a.value.indexOf(String.fromCharCode(92)) >= 0))"), 'an attribute with a backslash is dropped by the panel itself (the shape stays, the attribute does not): the second lock holds on its own')
             check(p12.evaluate('window.__pwned') is None and fr12.evaluate('window.__pwned') is None, 'no script in the picture ran')
             check(not o12 and not e12, 'no request left the page and nothing threw (%s %s)' % (o12[:2], e12[:2]))
             check('This is your film as saved (2024)' in fr12.locator('.le-card').inner_text() and 'does not move' in fr12.locator('.le-card').inner_text(), 'the caption says what the picture is and that it does not move')
