@@ -20,6 +20,7 @@
     return {
       get(k) { const e = m.get(k); if (!e) return undefined; if (now() > e.until) { m.delete(k); return undefined; } return e.v; },
       set(k, v) { if (m.size > 200) m.delete(m.keys().next().value); m.set(k, { v, until: now() + (v ? ttlMs : failMs) }); },
+      drop(k) { m.delete(k); },
       size: () => m.size
     };
   }
@@ -30,7 +31,7 @@
     if (hit !== undefined) return hit;
     let url = null;
     try {
-      const arts = ((await data.getVersion(versionId)).artifacts || []);
+      const arts = (await data.artifactsFor(versionId)) || [];                    // ONE light read (the thumbnail and contact-sheet rows of this version), not the version page's four or five
       const a = arts.find(x => x.kind === 'thumbnail') || arts.find(x => x.kind === 'contact_sheet');
       if (a) url = (await data.fileUrl(a.storage_path)) || null;
     } catch { url = null; }
@@ -51,13 +52,15 @@
     }
   }
   function filmCard({ h, project, statusEl, updated, edit, data, version }) {
-    const holder = h('a', { class: 'film-thumb', href: `#/p/${project.id}`, tabindex: '-1', 'aria-hidden': 'true' }, h('span', { class: 'film-thumb-letter' }, String(project.title || '?').trim().slice(0, 1).toUpperCase() || '?'));
+    const letter = () => h('span', { class: 'film-thumb-letter' }, String(project.title || '?').trim().slice(0, 1).toUpperCase() || '?');
+    const holder = h('a', { class: 'film-thumb', href: `#/p/${project.id}`, tabindex: '-1', 'aria-hidden': 'true' }, letter());
     const li = h('li', { class: 'film-card' }, holder,
       h('div', { class: 'film-card-body' }, h('h3', {}, h('a', { href: `#/p/${project.id}` }, project.title)),
         h('p', { class: 'meta' }, statusEl, ' ', updated),
         h('p', { class: 'film-card-actions' }, h('a', { class: 'button secondary small', href: `#/p/${project.id}` }, 'Open'), edit ? [' ', edit] : null)));
-    if (version && data && typeof data.getVersion === 'function' && typeof data.fileUrl === 'function') {
-      const load = () => { queue.push(async () => { const url = await pictureFor(data, version); if (url && li.isConnected) { const img = h('img', { src: url, alt: '', loading: 'lazy', draggable: 'false' }); holder.replaceChildren(img); } }); pump(); };
+    if (version && data && typeof data.artifactsFor === 'function' && typeof data.fileUrl === 'function') {
+      const load = () => { queue.push(async () => { const url = await pictureFor(data, version); if (url && li.isConnected) { const img = h('img', { src: url, alt: '', loading: 'lazy', draggable: 'false' }); img.addEventListener('error', () => { seen.drop(version); holder.replaceChildren(letter()); }); holder.replaceChildren(img); }       // an address that stopped working puts the plain tile back and is asked again next time
+ }); pump(); };
       observe(li, load);
     }
     return li;

@@ -17,12 +17,34 @@ vm.runInNewContext(read('assets/app-data.js'), { window: dataWin, setTimeout, cl
 
 test('FILM CARDS: the project list carries the latest version\'s id, or a card has no version to read a picture from (the picture never loaded before this)', async () => {
   const client = createFakeClient({});
+  client.db.strictColumns = true;                                      // a read gives back ONLY the columns it selected, as the database does (the fake used to hand back everything, so this test could not fail)
   const data = dataWin.ryagramData(client);
   const made = await data.createProject('A film');
   const rows = await data.listProjects();
   assert.equal(rows.length, 1);
   assert.equal(rows[0].latest && rows[0].latest.id, made.version.id, 'latest.id is the version id');
   assert.equal(rows[0].latest.number, 1);
+});
+
+test('LIGHT PICTURE READ: artifactsFor gives only the thumbnail and contact-sheet rows of ONE version, newest first, with only the four columns the card needs; the strict fake fails a missing column', async () => {
+  const client = createFakeClient({});
+  client.db.strictColumns = true;
+  const data = dataWin.ryagramData(client);
+  const made = await data.createProject('A film');
+  const v = made.version.id;
+  client.db.artifacts.push(
+    { id: 'a1', version_id: v, kind: 'contact_sheet', storage_path: 'p/sheet-old.png', created_at: '2026-11-01T00:00:00Z', job_id: 'j1', bytes: 5 },
+    { id: 'a2', version_id: v, kind: 'preview', storage_path: 'p/prev.mp4', created_at: '2026-11-03T00:00:00Z' },
+    { id: 'a3', version_id: v, kind: 'thumbnail', storage_path: 'p/thumb.png', created_at: '2026-11-02T00:00:00Z' },
+    { id: 'a4', version_id: v, kind: 'thumbnail', storage_path: 'p/gone.png', created_at: '2026-11-04T00:00:00Z', deleted_at: '2026-11-05T00:00:00Z' },
+    { id: 'a5', version_id: 'other', kind: 'thumbnail', storage_path: 'p/other.png', created_at: '2026-11-06T00:00:00Z' });
+  const rows = await data.artifactsFor(v);
+  assert.deepEqual(rows.map(r => r.id), ['a3', 'a1'], 'thumbnail and contact sheet of THIS version only, newest first; no preview, no deleted file');
+  assert.deepEqual(Object.keys(rows[0]).sort(), ['created_at', 'id', 'kind', 'storage_path'], 'only the four columns');
+  const src = read('assets/app-data.js');
+  assert.match(src, /select\('id, kind, storage_path, created_at'\)\.eq\('version_id', versionId\)\.in\('kind', \['thumbnail', 'contact_sheet'\]\)/);
+  const home = read('assets/app-site.js');
+  assert.ok(!/getVersion/.test(home.replace(/\/\/.*$/gm, '')), 'the home page module never calls the heavy getVersion');
 });
 
 test('PICTURE ADDRESS CACHE: a signed address is kept for 10 minutes (it lasts 15), a failed read for 30 seconds, and the cache never grows without end', () => {
