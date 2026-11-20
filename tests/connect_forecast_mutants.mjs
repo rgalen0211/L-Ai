@@ -81,7 +81,7 @@ const mutants = [
   ['the structured answer denies the numbers were supplied by the AI', [[T, 'from_supplied_numbers: true', 'from_supplied_numbers: false']]],
   ['the structured answer drops the range warning', [[T, 'band_too_narrow_in_test: rep.narrow, looked_up: true', 'band_too_narrow_in_test: false, looked_up: true']]],
   ['the real function names a database call that does not exist', [[D, '"connect_forecast_ask"', '"connect_forecast_asks"']]],
-  ['the series travels as an array (a Postgres array literal)', [[D, 'JSON.stringify(q.series)', 'q.series']]],
+  ['the series is stringified before the database layer stringifies it again (a JSON string, not an array, reaches SQL)', [[D, '[h, q.series, q.horizon', '[h, JSON.stringify(q.series), q.horizon']]],
 ];
 
 function run(cwd) {
