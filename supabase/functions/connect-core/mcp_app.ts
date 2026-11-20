@@ -76,7 +76,7 @@ const CARD_SCRIPT = [
   "  if(Array.isArray(sc.projects)){",
   "   var ps=sc.projects;any=true;",
   "   if(!ps.length)kids.push(el('p','hint','No projects yet.'));",
-  "   else{kids.push(el('p','rc-h','Your films'));var ls=el('div','rc-list');",
+  "   else{kids.push(el('p','rc-h','My films'));var ls=el('div','rc-list');",
   "    for(var i=0;i<ps.length&&i<3;i++){var p=ps[i];if(p&&typeof p==='object'){var li=el('div','rc-li');li.appendChild(el('span','',clean(p.title,60)));ls.appendChild(li);}}",
   "    kids.push(ls);}",
   "   if(ps.length>3)kids.push(el('p','hint','and '+(ps.length-3)+' more'));",

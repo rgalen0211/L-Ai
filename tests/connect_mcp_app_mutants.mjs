@@ -23,6 +23,11 @@ const mutants = [
   ['the ChatGPT alias is dropped', A, '"openai/outputTemplate": uri', 'x: uri'],
   ['a third tool is given the card', A, 'list_projects: CARD_URI }', 'list_projects: CARD_URI, create_project: CARD_URI }'],
   ['resources are served without signing in', M, 'if (!principal) return json(401,', 'if (false) return json(401,'],
+  // the words
+  ['the films list is headed Your films, not the site\'s My films', A, "el('p','rc-h','My films')", "el('p','rc-h','Your films')"],
+  // the byte budget
+  ['the card grows past its budget', A, 'chatCss("tokens", "controls", "base", "card");', 'chatCss("tokens", "controls", "base", "card") + "x".repeat(4000);'],
+  ['the card budget is raised to a megabyte', A, 'CARD_MAX_BYTES = 12 * 1024', 'CARD_MAX_BYTES = 1024 * 1024'],
   // what is served
   ['any page address is answered with the card', A, 'if (uri !== CARD_URI && !(editor && cfg.chatEditor) && !(home && cfg.homePanel)) return null;', 'if (false) return null;'],
   ['a missing page echoes the address it was asked for', M, '"That page does not exist."', '`That page does not exist: ${String(msg.params?.uri)}`'],

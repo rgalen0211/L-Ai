@@ -85,6 +85,10 @@ test('MUST-FAIL: addresses and texts that are not allowed are refused and nothin
   assert.equal((await call(A, 'list_my_downloads')).data.downloads.length, 0);
   for (const u of Object.values(bad)) assert.ok(downloadUrlProblem(u), u);
   assert.equal(downloadUrlProblem(URL_OK), null);
+  // a bare IP number is refused by its OWN rule (tools.ts, the dotted-number test) and says so; without it the later last-label rule would still refuse it but with its other wording,
+  // which is why a mutant that removed the dotted-number test was missed before (CC1 review 11-20 17:51)
+  assert.equal(downloadUrlProblem(bad.ip), 'Use a website name (like www.example.org), not a number.');
+  assert.equal(downloadUrlProblem('https://printer.local/a.csv'), 'Use a public website name (like www.example.org), not a number and not a name that only works inside a computer or network.', 'a number written another way is the later rule\'s');
 });
 
 test('five waiting at once, then the AI is told in words; nobody else is affected', async () => {

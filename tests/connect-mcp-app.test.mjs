@@ -131,6 +131,7 @@ const HTML = cardHtml(APP);
 const SCRIPT = HTML.slice(HTML.indexOf('<script>') + 8, HTML.indexOf('</script>'));
 
 test('the page is small, self-contained and makes no request', () => {
+  assert.equal(CARD_MAX_BYTES, 12 * 1024, 'the budget is pinned: raising it is a decision, not a side effect');
   assert.ok(Buffer.byteLength(HTML) <= CARD_MAX_BYTES, `${Buffer.byteLength(HTML)} bytes is over the ${CARD_MAX_BYTES} budget`);
   assert.equal((HTML.match(/<script/g) || []).length, 1, 'one script, inline');
   const noUrl = HTML.replace(`data-app-url="${APP}"`, '');
@@ -198,6 +199,7 @@ test('a whoami result shows the account and the credits; a projects result shows
   t = texts(p.card);
   assert.deepEqual(t.filter((x) => /^Film /.test(x)), ['Film 1', 'Film 2', 'Film 3']);
   assert.ok(t.includes('and 2 more'));
+  assert.ok(t.includes('My films') && !t.includes('Your films'), 'the list is headed with the site\'s own word, My films (CC1 review 11-20 17:51)');
   p.fire(RESULT({ projects: [] }));
   assert.ok(texts(p.card).includes('No projects yet.'));
 });

@@ -137,6 +137,7 @@ test('nothing the panel says is a price, a date, a score, a ranking, or a promis
 
 test('the page is small, makes no request, builds from text nodes only, and opens only fixed fragments of the app address', () => {
   const html = homeHtml('https://uselai.com/app/');
+  assert.equal(HOME_MAX_BYTES, 20 * 1024, 'the budget is pinned: raising it is a decision, not a side effect');
   assert.ok(Buffer.byteLength(html) <= HOME_MAX_BYTES, `${Buffer.byteLength(html)} bytes is over the ${HOME_MAX_BYTES} budget`);
   assert.ok(!/fetch\(|XMLHttpRequest|WebSocket|importScripts|sendBeacon|eval\(|new Function|document\.write|innerHTML|outerHTML|insertAdjacentHTML/.test(html), 'no network, no code from text, no markup from text');
   assert.ok(!/<script[^>]*\bsrc=|<link|<img|<iframe|@import|url\(/i.test(html), 'nothing loaded from anywhere');

@@ -18,6 +18,8 @@ const F = C + 'fake.ts';
 const CL = C + 'chat_look.ts';       // the generated look (WEB's tokens + the chat layout): the example's CSS lives here since 11-20
 const H = C + 'home_panel.ts', TL = C + 'tools.ts', DI = C + 'dispatch.ts', MC = C + 'mcp.ts', MA = C + 'mcp_app.ts';
 const mutants = [
+  ['the home page grows past its budget', H, '":root{color-scheme:dark}" + chatCss("tokens", "controls", "flip", "base", "home")', '":root{color-scheme:dark}" + chatCss("tokens", "controls", "flip", "base", "home") + "x".repeat(4000)'],
+  ['the home budget is raised to a megabyte', H, 'HOME_MAX_BYTES = 20 * 1024', 'HOME_MAX_BYTES = 1024 * 1024'],
   ['a working department with no page is shown', H, `if (r.status === "working" && w.page && PAGE.test(w.page))`, `if (r.status === "working")`],
   ['a soon department is given a page to open', H, `starts: [], page: null });`, `starts: [], page: "#/" });`],
   ['a department listed twice is taken twice (the last wins)', H, `!byId.has(r.id)`, `true`],

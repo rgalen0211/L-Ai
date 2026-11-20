@@ -20,6 +20,8 @@ const mutants = [
   ['the home panel carries no shared look', HP, 'chatCss("tokens", "controls", "flip", "base", "home")', 'chatCss("base", "home")'],
   ['the account card carries no shared look', MA, 'chatCss("tokens", "controls", "base", "card")', 'chatCss("base", "card")'],
   ['the account card writes a colour of its own', MA, 'chatCss("tokens", "controls", "base", "card");', 'chatCss("tokens", "controls", "base", "card") + "a{color:#ffffff}";'],
+  ['the site-sheet guard lets a changed token pass', BUILD, "else if (site[n] !== v) problems.push", "else if (false) problems.push"],
+  ['the site-sheet guard takes the FIRST declaration of a name, not the last', BUILD, 'out[m[1]] = m[2].replace', 'out[m[1]] ??= m[2].replace'],
   ['the build keeps no tokens (the chat gets no :root)', BUILD, "const KEEP = [':root', ", "const KEEP = ["],
 ];
 const run = (cwd) => {

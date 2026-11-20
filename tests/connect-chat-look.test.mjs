@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, layoutProblems, minify, rules } from '../tools/build-chat-look.mjs';
+import { build, layoutProblems, minify, rules, siteDrift } from '../tools/build-chat-look.mjs';
 import * as look from '../supabase/functions/connect-core/chat_look.ts';
 import { homeHtml } from '../supabase/functions/connect-core/home_panel.ts';
 import { cardHtml } from '../supabase/functions/connect-core/mcp_app.ts';
@@ -66,4 +66,20 @@ test('the account card is drawn with the generated look, only the parts it uses,
   const src = rd('supabase/functions/connect-core/mcp_app.ts');
   assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/.test(src.replace(/\/\/.*$/gm, '')), 'mcp_app.ts writes no colour');
   assert.ok(/import \{[^}]*chatCss[^}]*\} from "\.\/chat_look\.ts"/.test(src), 'it imports the look from the one generated file');
+});
+
+test('siteDrift compares the chat\'s tokens with the site sheet by effective value: a later declaration wins, a changed or missing token fails, extra site tokens are information', () => {
+  const chat = ':root{--a:#111111;--b:#222222;--c:1px}';
+  const site = (body) => '/* note */ body.ryagram-ds.ryagram-look{' + body + ';color:var(--a);background:radial-gradient(1px 1px at 1px 1px,red,blue)}';
+  assert.deepEqual(siteDrift(site('--a:#111111;--b:#222222;--c:1px;--extra:9'), chat), { problems: [], notCarried: ['--extra'] });
+  assert.deepEqual(siteDrift(site('--a:#000000;--b:#222222;--c:1px;--a:#111111'), chat).problems, [], 'a later declaration of the same name wins, as in a browser');
+  assert.match(siteDrift(site('--a:#111111;--b:#333333;--c:1px'), chat).problems.join(), /--b is #222222 in the chat but #333333/);
+  assert.match(siteDrift(site('--a:#111111;--b:#222222'), chat).problems.join(), /--c is in the chat but not in the site/);
+  assert.match(siteDrift('a{color:red}', chat).problems.join(), /no body\.ryagram-ds/);
+});
+
+test('the chat\'s tokens equal WEB\'s shipped sheet once assets/ryagram-ds.css is in the tree (until then this cannot run: see the top of tools/build-chat-look.mjs)', (t) => {
+  if (!fs.existsSync(path.join(ROOT, 'assets/ryagram-ds.css'))) { t.diagnostic('assets/ryagram-ds.css is not in this tree: the token guard against the shipped sheet did NOT run here'); return; }
+  const d = siteDrift(rd('assets/ryagram-ds.css'), look.CHAT_CSS.tokens);
+  assert.deepEqual(d.problems, [], d.problems.join('; '));
 });

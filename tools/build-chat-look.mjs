@@ -1,17 +1,25 @@
 // ONE source for the look of the site and of the in-chat panels (Ryan 2026-11-20 12:35, "so chat and site can't drift").
-// Reads WEB's design-system files, copies - by selector, never retyped - the :root tokens and the shared components (button, badge, focus ring, flip carousel) into
+// Reads WEB's design-system proposal files, copies - by selector, never retyped - the :root tokens and the shared components (button, badge, focus ring, flip carousel) into
 // supabase/functions/connect-core/chat_look.ts, together with the chat-only layout in tools/chat-look/chat-ui.css. The panels import that one file.
 //
 //   node tools/build-chat-look.mjs            write chat_look.ts
 //   node tools/build-chat-look.mjs --check    exit 1 if chat_look.ts is not what the sources build (the DRIFT test), or if the layout breaks a rule below
 //
-// SOURCE: assets/ds.css + assets/ds-v11.css when the site has lifted them there (WEB's "Step 2"); until then the vendored copies in tools/chat-look/source/.
+// SOURCE: assets/ds.css + assets/ds-v11.css when the site has lifted them there (WEB's "Step 2"); until then the vendored copies in tools/chat-look/source/ (WEB's PROPOSAL files).
 //   A test (tests/connect-chat-look.test.mjs) fails if both exist and differ, so a vendored copy cannot go stale unnoticed.
+// WHAT IS GUARDED AGAINST WEB'S SHIPPED SHEET, AND WHAT IS NOT (CC1 review 11-20 17:51): the site's real sheet is assets/ryagram-ds.css (every rule under body.ryagram-ds.ryagram-look),
+//   which is NOT in this tree yet (it is on web-ds-1120-all). siteDrift() below compares the TOKENS the chat carries with that sheet's effective values (the last declaration of a name wins, as in
+//   a browser); tests/connect-chat-look.test.mjs runs it as soon as assets/ryagram-ds.css exists, and node tools/build-chat-look.mjs --against <file | ref:path> runs it now.
+//   Checked 11-20 against origin/web-ds-1120-all: every token the chat carries has the same value there (--ok #8fe3cf and --warn #f0c05a are redeclared later in the same block, so they win);
+//   17 older-sheet tokens (--bad-bg --brand --brand-deep --chat --header-bg --info --info-bg --line-strong --mock --ok-bg --paper --problem --soft --tint --warn-bg --warning --wheat-soft) are not carried.
+//   NOT guarded: the button, badge and flip RULES are copied from the proposal files, not from ryagram-ds.css; they differ there in small ways (flip-track align-items, flip-panel height, flip-hint margin,
+//   button disabled state and the .button alias). So until the site's sheet is in the tree the chat follows WEB's proposal files, and this file does not claim more.
 // RULES for chat-ui.css (checked here): it may use only var(--name) that the site's :root defines, and it writes no colour of its own (colours come from tokens;
 //   color-mix() of a token is fine). The shared CSS carries no url(), no @import, no dashed or dotted border (the panels' pages are pinned to load nothing).
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -44,6 +52,30 @@ export function minify(css) {
   return css.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\s+/g, ' ').replace(/ ?([{};]) ?/g, '$1').replace(/([,:]) /g, '$1').replace(/;}/g, '}').trim();
 }
 
+
+/** The effective custom properties of one block of CSS: the LAST declaration of a name wins, as in a browser. */
+export function tokenValues(block) {
+  const out = {};
+  for (const m of block.replace(/\/\*[\s\S]*?\*\//g, '').matchAll(/(--[a-z0-9-]+)\s*:\s*([^;}]+)/g)) out[m[1]] = m[2].replace(/\s+/g, ' ').trim();
+  return out;
+}
+
+/** Compare the tokens the chat carries (chatTokensCss, the generated :root part) with WEB's shipped sheet (siteCss = assets/ryagram-ds.css, tokens in ONE block on body.ryagram-ds.ryagram-look).
+ *  problems = a token the chat carries that the site lacks or gives another value; notCarried = tokens the site has that the chat does not (information, not a failure). */
+export function siteDrift(siteCss, chatTokensCss) {
+  const css = siteCss.replace(/\/\*[\s\S]*?\*\//g, '');
+  const head = 'body.ryagram-ds.ryagram-look{';
+  const at = css.indexOf(head);
+  if (at < 0) return { problems: ['the site sheet has no body.ryagram-ds.ryagram-look token block'], notCarried: [] };
+  const site = tokenValues(css.slice(at + head.length, css.indexOf('}', at)));
+  const chat = tokenValues(chatTokensCss);
+  const problems = [];
+  for (const [n, v] of Object.entries(chat)) {
+    if (site[n] === undefined) problems.push(`${n} is in the chat but not in the site's sheet`);
+    else if (site[n] !== v) problems.push(`${n} is ${v} in the chat but ${site[n]} in the site's sheet`);
+  }
+  return { problems, notCarried: Object.keys(site).filter((n) => !(n in chat)).sort() };
+}
 
 /** The rules for the chat-only layout (see the top): returns the problems, none when it is clean. Exported so a test can plant a fault. */
 export function layoutProblems(ui, shared) {
@@ -102,7 +134,19 @@ export function build() {
   return { text, problems, css, picked: picked.length, tokens: names.size, bytes, src: path.relative(ROOT, src) };
 }
 
-if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url) && process.argv.includes('--against')) {
+  // node tools/build-chat-look.mjs --against <file>  or  --against <gitref>:<path>   (e.g. origin/web-ds-1120-all:assets/ryagram-ds.css): is the chat's token set the site's?
+  const arg = process.argv[process.argv.indexOf('--against') + 1] || '';
+  const m = /^([^:\\/][^:]*):(.+)$/.exec(arg);
+  let siteCss;
+  if (m) { const g = spawnSync('git', ['-C', ROOT, 'show', arg], { encoding: 'utf8', maxBuffer: 16e6 }); if (g.status) { console.log('cannot read ' + arg); process.exit(2); } siteCss = g.stdout.replace(/\r\n/g, '\n'); }
+  else siteCss = read(arg);
+  const d = siteDrift(siteCss, build().css.tokens);
+  for (const p of d.problems) console.log('DRIFT ' + p);
+  console.log(`not carried by the chat (the site has them): ${d.notCarried.length ? d.notCarried.join(' ') : 'none'}`);
+  console.log(d.problems.length ? `${d.problems.length} token(s) differ` : 'every token the chat carries has the same value in the site sheet');
+  process.exit(d.problems.length ? 1 : 0);
+} else if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const r = build();
   const check = process.argv.includes('--check');
   console.log(`source ${r.src}: ${r.picked} shared rules, ${r.tokens} tokens, ${r.bytes} bytes of CSS (${Object.entries(r.css).map(([k, v]) => k + ' ' + v.length).join(', ')})`);
