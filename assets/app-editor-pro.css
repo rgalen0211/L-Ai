@@ -1,0 +1,18 @@
+/* PRO mode of the live editor (assets/app-editor-pro.js). Simple stays the default; everything here sits beside it. */
+.le-pro-switch{display:inline-flex;border:1px solid var(--line,#3a3a44);border-radius:10px;overflow:hidden}
+.le-pro-seg{min-height:44px;padding:0 16px;border:0;background:var(--soft,#23232d);color:inherit;font:inherit;cursor:pointer}.le-pro-seg.on{background:#4b6fd6;color:#fff}
+.le-pro{background:var(--soft,#23232d);border:1px solid var(--line,#3a3a44);border-radius:10px;padding:10px 12px;margin:0 0 12px}.le-pro[hidden]{display:none}
+.le-pro-row{display:flex;flex-wrap:wrap;gap:6px;align-items:center}.le-pro-row .button{min-height:44px}
+.le-pro-tc{font-family:ui-monospace,Consolas,monospace;font-size:1rem;background:#0d0d11;color:#f2f2ef;border-radius:6px;padding:6px 10px;min-width:9.5em;text-align:center}
+.le-pro-note{margin:6px 0 0;min-height:1.2em}.le-pro-zoomlabel{min-width:4.5em}
+.le-pro-marks{position:relative;height:22px;margin-top:8px;border-top:1px solid var(--line,#3a3a44)}.le-pro-marks[hidden]{display:none}
+.le-pro-mark{position:absolute;top:2px;transform:translateX(-50%);min-width:24px;min-height:24px;padding:0 6px;border:0;border-radius:12px 12px 12px 2px;background:#e8c15a;color:#101015;font-size:.75rem;cursor:pointer}
+.le-pro-mark:focus-visible{outline:3px solid #fff;outline-offset:1px}
+.le-pro-hist{margin:6px 0 12px;padding-left:1.4em}.le-pro-hist li{padding:4px 0;border-bottom:1px solid var(--line,#3a3a44)}.le-pro-hist .button{margin-left:8px;min-height:36px}.le-pro-ai{color:#9fb6ff}
+.le-pro-needs{margin:4px 0 0;padding-left:1.2em}.le-pro-side h2{font-size:1rem;margin:10px 0 4px}
+.le-view.le-pro-safe,.le-film-view.le-pro-safe{position:relative}
+.le-pro-safe::before,.le-pro-safe::after{content:'';position:absolute;pointer-events:none;border:1px dashed}
+.le-pro-safe::before{inset:5%;border-color:#e8c15a}.le-pro-safe::after{inset:2.5%;border-color:#6fd0a0}
+.le-zoomed .le-lanes,.le-zoomed .le-ruler-holder{overflow-x:auto}
+.le-zoomed .le-lanes .le-lane,.le-zoomed .le-ruler-holder>*{width:calc(var(--le-zoom,1) * 100%)}
+.le-zoomed .le-lane>b{position:sticky;left:0;background:#101015;z-index:2}
