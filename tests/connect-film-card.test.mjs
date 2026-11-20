@@ -208,7 +208,7 @@ test('a failed card says why in words, a card that is not usable is turned into 
   const w = s.w.cardWorker(A.userId); const job = w.claim();
   w.fail(job.request_id, 'view_not_supported', 'x');
   const failed = (await s.call({ p_project: f.id })).body.data;
-  assert.deepEqual(failed, { state: 'failed', code: 'view_not_supported', message: 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.' });
+  assert.deepEqual(failed, { state: 'failed', code: 'view_not_supported', message: 'The engine cannot draw a picture of this kind of film yet, so no picture is shown here. The film\'s real frames are in the editor on the Ryagram website.' });
   for (const [code, re] of [['story_not_found', /could not be read/], ['engine_error', /did not work this time/], ['card_rejected', /could not be used/]]) {
     const g = await s.film(A, { title: 'invented ' + code });
     await s.call({ p_project: g.id, p_ask: true });
@@ -446,7 +446,7 @@ test('a county map the engine refuses for size reaches the person as ONE plain s
   const job = w.claim(); w.fail(job.request_id, 'view_not_supported', 'too_big 359069 200000');
   const r = (await s.call({ p_project: county.id, p_ask: true })).body.data;
   assert.deepEqual(r, { state: 'failed', code: 'view_not_supported', size: { characters: 359069, limit: 200000 },
-    message: "This film's picture is too detailed to draw in the chat: it would be 359,069 characters and the limit is 200,000. The editor keeps its stand-in picture." });
+    message: "This film's picture is too detailed to draw in the chat: it would be 359,069 characters and the limit is 200,000. No picture is shown here; the film's real frames are in the editor on the Ryagram website." });
   assert.ok(!/engine|retry|try again|ten minutes|Error|D:|path/i.test(r.message.replace('The editor keeps', '')), 'one plain sentence: no engine talk, no retry promise, no path');
   // never asked for again, however long ago, and polling asks nothing
   const row = [...s.w.users.get(A.userId).cards.values()].find((c) => c.id === job.request_id);
@@ -460,7 +460,7 @@ test('a county map the engine refuses for size reaches the person as ONE plain s
     await s.call({ p_project: f.id, p_ask: true });
     const j = w.claim(); w.fail(j.request_id, 'view_not_supported', bad);
     const d = (await s.call({ p_project: f.id })).body.data;
-    assert.deepEqual(d, { state: 'failed', code: 'view_not_supported', message: 'The engine cannot draw a picture of this kind of film yet. The editor keeps its stand-in picture.' }, JSON.stringify(bad));
+    assert.deepEqual(d, { state: 'failed', code: 'view_not_supported', message: 'The engine cannot draw a picture of this kind of film yet, so no picture is shown here. The film\'s real frames are in the editor on the Ryagram website.' }, JSON.stringify(bad));
   }
   // a size detail on any other code is not a size sentence
   const g = await s.film(A, { title: 'invented engine error with a size' });
