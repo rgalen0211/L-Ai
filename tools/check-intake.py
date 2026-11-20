@@ -78,7 +78,7 @@ with sync_playwright() as pw:
         p.click('[data-choice="map"]'); p.wait_for_selector('a:has-text("Open the builder")')
         href = p.get_attribute('a:has-text("Open the builder")', 'href')
         check(href == '#/build?type=map&q=county', f'a map lands on the builder with the type and the county search ({href})')
-        p.click('a:has-text("Open the builder")'); p.wait_for_selector('h2:has-text("Which data?")', timeout=15000)
+        p.click('a:has-text("Open the builder")'); p.wait_for_selector('h2:has-text("Which data?")', timeout=15000); p.get_by_role('tab', name=re.compile('Your own data')).click()   # step 1 flips between ready-made films and the dataset list
         check(p.input_value('#bd-filter') == 'county', 'the dataset list opens already narrowed to counties')
         cards = p.locator('.builder-card').all_inner_texts()
         check(len(cards) >= 1 and all('county' in c.lower() or 'counties' in c.lower() for c in cards), f'every dataset shown is a county one ({len(cards)} shown)')

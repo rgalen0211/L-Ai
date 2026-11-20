@@ -26,6 +26,7 @@
     const tabs = [...flip.querySelectorAll('.flip-tab')], panels = [...flip.querySelectorAll('.flip-panel')], track = flip.querySelector('.flip-track');
     const dots = [...flip.querySelectorAll('.flip-dot')], prev = flip.querySelector('[data-flip-prev]'), next = flip.querySelector('[data-flip-next]'), hint = flip.querySelector('.flip-hint');
     if (!track || !panels.length) return;
+    if (flip.dataset.flipBound === 'true') return;                     // assets/app-flip.js built and drives this one (address kept as ?section=); never bind it twice
     let i = 0;
     const idOf = p => (p.id || '');
     const go = (n, focusTab) => {
