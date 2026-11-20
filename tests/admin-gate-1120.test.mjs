@@ -41,11 +41,12 @@ test('MUST-FAIL: the route check notices an admin route whose admin check was ta
 });
 
 // CC1's LOW (11-20 07:20): a route written another way (startsWith, a regex, a lookup table) would escape the finder above, so EVERY
-// '#/admin' string in the code (comments left out) must be one of: a gated route line, an Admin page row, or a link (href) to a page
+// '#/admin' string in the code (comments left out) must be one of: a gated route line, an Admin page row, or a link (href, or
+// setAttribute('href', ...) as the stranger-walk back link ' Admin' does) to a page
 // whose route is gated. Anything else is unknown and fails.
 function unknownAdminUses(src) {
   return src.split('\n').map(l => l.replace(/\/\/.*$/, '')).filter(l => /['`"]#\/admin/.test(l)).filter(l =>
-    !(adminRoutes(l + '\n').length && gated(l)) && !/^\s*\['#\/admin\//.test(l) && !/href: ?['`]#\/admin/.test(l)
+    !(adminRoutes(l + '\n').length && gated(l)) && !/^\s*\['#\/admin\//.test(l) && !/href: ?['`]#\/admin/.test(l) && !/setAttribute\('href', ?['`]#\/admin/.test(l)
   ).map(l => l.trim().slice(0, 120));
 }
 
