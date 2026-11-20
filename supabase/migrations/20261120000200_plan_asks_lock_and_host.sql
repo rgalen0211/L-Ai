@@ -11,13 +11,19 @@
 -- a function that is not on this database is skipped, so the file is safe in either order.
 -- Undo: supabase/rollbacks/20261120000200_plan_asks_lock_and_host_rollback.sql. After-check: supabase/live-steps/31_plan_asks_lock_and_host_after_check.sql.
 
+-- HOST RULE CAVEAT (CC1's deep review 11-20, LOW 2): the network-only host list below is a NAME rule only. A public name that resolves to a private address (127.0.0.1.nip.io) passes it, and names such as home.arpa, localdomain, corp and intranet are not listed. The desktop app's own address check at download time is the real guard; this is the first one. Do not rely on it alone.
+
 begin;
 
+-- connect_request_download: the per-person lock and the host rule
 do $do$
+declare cur text;
 begin
-  if to_regprocedure('public.connect_request_download(text, text, text, text)') is null then
-    raise notice 'connect_request_download is not on this database: skipped.';
-    return;
+  select md5(replace(f.prosrc, chr(13), '')) into cur from pg_proc f where f.oid = to_regprocedure('public.connect_request_download(text, text, text, text)');
+  if cur is null then raise notice 'connect_request_download is not on this database: skipped.'; return; end if;
+  if cur = '776cf579d8ef38b1941a1439ce49e814' then raise notice 'connect_request_download: nothing to do (already in the wanted state).'; return; end if;
+  if cur <> '2116d6cfde60b64701bbbb56a53ca143' then
+    raise exception 'The live function connect_request_download is not the one this change expects (its text differs from the repository''s 20261027000500_download_plans.sql); nothing was changed. Send this sentence to CONNECT.';
   end if;
   execute $fn$
 create or replace function public.connect_request_download(p_token_hash text, p_url text, p_why text, p_folder text) returns jsonb
@@ -61,11 +67,15 @@ end $$;
 $fn$;
 end $do$;
 
+-- connect_request_footage: the per-person lock and the host rule
 do $do$
+declare cur text;
 begin
-  if to_regprocedure('public.connect_request_footage(text, text, text, text)') is null then
-    raise notice 'connect_request_footage is not on this database: skipped.';
-    return;
+  select md5(replace(f.prosrc, chr(13), '')) into cur from pg_proc f where f.oid = to_regprocedure('public.connect_request_footage(text, text, text, text)');
+  if cur is null then raise notice 'connect_request_footage is not on this database: skipped.'; return; end if;
+  if cur = '881966a329796faacbc2eac5e40f72df' then raise notice 'connect_request_footage: nothing to do (already in the wanted state).'; return; end if;
+  if cur <> '100b43a667e9058952c345d1b8c8ac3e' then
+    raise exception 'The live function connect_request_footage is not the one this change expects (its text differs from the repository''s 20261030000200_footage_plans.sql); nothing was changed. Send this sentence to CONNECT.';
   end if;
   execute $fn$
 create or replace function public.connect_request_footage(p_token_hash text, p_source text, p_item_id text, p_why text) returns jsonb

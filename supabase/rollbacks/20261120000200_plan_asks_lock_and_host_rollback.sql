@@ -3,11 +3,15 @@
 -- No plan row is touched. A function that is not on this database is skipped.
 begin;
 
+-- connect_request_download: puts the original back
 do $do$
+declare cur text;
 begin
-  if to_regprocedure('public.connect_request_download(text, text, text, text)') is null then
-    raise notice 'connect_request_download is not on this database: skipped.';
-    return;
+  select md5(replace(f.prosrc, chr(13), '')) into cur from pg_proc f where f.oid = to_regprocedure('public.connect_request_download(text, text, text, text)');
+  if cur is null then raise notice 'connect_request_download is not on this database: skipped.'; return; end if;
+  if cur = '2116d6cfde60b64701bbbb56a53ca143' then raise notice 'connect_request_download: nothing to do (already in the wanted state).'; return; end if;
+  if cur <> '776cf579d8ef38b1941a1439ce49e814' then
+    raise exception 'The live function connect_request_download is not the one this change expects (its text is neither the locked text nor the original of the repository); nothing was changed. Send this sentence to CONNECT.';
   end if;
   execute $fn$
 create or replace function public.connect_request_download(p_token_hash text, p_url text, p_why text, p_folder text) returns jsonb
@@ -45,11 +49,15 @@ end $$;
 $fn$;
 end $do$;
 
+-- connect_request_footage: puts the original back
 do $do$
+declare cur text;
 begin
-  if to_regprocedure('public.connect_request_footage(text, text, text, text)') is null then
-    raise notice 'connect_request_footage is not on this database: skipped.';
-    return;
+  select md5(replace(f.prosrc, chr(13), '')) into cur from pg_proc f where f.oid = to_regprocedure('public.connect_request_footage(text, text, text, text)');
+  if cur is null then raise notice 'connect_request_footage is not on this database: skipped.'; return; end if;
+  if cur = '100b43a667e9058952c345d1b8c8ac3e' then raise notice 'connect_request_footage: nothing to do (already in the wanted state).'; return; end if;
+  if cur <> '881966a329796faacbc2eac5e40f72df' then
+    raise exception 'The live function connect_request_footage is not the one this change expects (its text is neither the locked text nor the original of the repository); nothing was changed. Send this sentence to CONNECT.';
   end if;
   execute $fn$
 create or replace function public.connect_request_footage(p_token_hash text, p_source text, p_item_id text, p_why text) returns jsonb

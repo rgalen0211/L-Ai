@@ -1,10 +1,13 @@
 // Must-fail proof for tests/connect-forecast.test.mjs (forecast_series / forecast_answer): each mutant breaks ONE thing (or, where two layers check the same rule, both layers) in a scratch copy of the connector code and the suites
 // must then FAIL. A baseline run on the unbroken copy must PASS first. Run:  node tests/connect_forecast_mutants.mjs   (exit 0 only when every mutant is caught)
 // The forecast tools share snippets with the place tools; `nth(k, from, to)` breaks the first k-1 copies of `from` harmlessly so the edit that follows lands on the k-th.
+// In tools.ts the copies run what_is_within, place_question, forecast_series, then forecast_answer BEFORE geo_answer: the forecast tools' own copy of a snippet shared with geo_answer is the FIRST (11-20 audit: nth(2) had planted three faults in geo_answer).
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// a planted fault that makes a suite HANG must end the run loudly, never stall it (node:test has no time limit of its own); a timeout is neither "caught" nor "missed" (11-20 audit)
+const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdout) + String(r.stderr))) throw new Error('HUNG: the suites did not end in 5 minutes (' + (r.error ? r.error.code : 'a test timed out') + '; a test that hangs for 2 minutes fails by itself, so this means a synchronous loop, and its node child may still be running: end it by its own PID): write the fault so a test fails, not hangs'); return r; };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-forecast');
@@ -16,7 +19,9 @@ const AHEAD = 'name: "forecast_answer", title: "Read the answer to a forecast re
 const GATE = 'if (!sw || !(await sw.enabled())) return refuse("Forecasts are not available yet. Nothing was asked.", "not_available", { data: { ok: false, looked_up: false } });\n    if (!(await ctx.policy.hit(ctx.principal, "geo_read"';
 const HIT = 'if (!(await ctx.policy.hit(ctx.principal, "geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {';
 const LOOKED = 'looked_up: false, do_not_poll: false, poll_after_s: 20 });';
-const nth = (k, from, to) => [...Array.from({ length: k - 1 }, () => [T, from, from.slice(0, 12) + '/*' + 'x' + '*/' + from.slice(12)]), [T, from, to]];
+// The marker goes right AFTER `anchor`, which must end at a token boundary (a space, a comma, `${`): an anchor that cuts an identifier or a string in two (the old fixed 12 characters did) breaks the PARSER, and the suites then
+// "catch" the fault for the wrong reason. The break must also leave the suites green; both are proved by hand for every use below (11-20 audit).
+const nth = (k, from, to, anchor = from.slice(0, 12)) => [...Array.from({ length: k - 1 }, () => [T, from, from.replace(anchor, () => anchor + '/*x*/')]), [T, from, to]];
 const mutants = [
   ['forecast_series is listed', [[T, SHEAD, SHEAD.replace(' listed: false,', '')]]],
   ['forecast_series needs write permission', [[T, SHEAD, SHEAD.replace('scope: "read"', 'scope: "write"')]]],
@@ -41,11 +46,11 @@ const mutants = [
   ['any number of breaks is accepted (schema and run)', [[T, 'breaks: { type: "array", maxItems: 5,', 'breaks: { type: "array",'], [T, 'rawBreaks.length > 5 ||', '']]],
   ['a unit is not checked (schema and run)', [[T, 'unit: { type: "string", pattern: "^[A-Za-z%$ ./-]{1,30}$", description: "Optional: what', 'unit: { type: "string", description: "Optional: what'], [T, 'FORECAST_UNIT.test(a.unit)', 'true']]],
   ['the shared hourly limit is gone', nth(3, HIT, 'if (false) {')],
-  ['forecasts have their own hourly bucket (not shared with the place questions)', nth(3, '"geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {', '"forecast", LIMITS.geoQuestionsPerHourPerUser, 3600))) {')],
+  ['forecasts have their own hourly bucket (not shared with the place questions)', nth(3, '"geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {', '"forecast", LIMITS.geoQuestionsPerHourPerUser, 3600))) {', '"geo", ')],
   ['the request is written with a dataset name as well', [[T, 'askForecast({ series, horizon,', 'askForecast({ series, horizon, dataset: String(a.dataset ?? ""),']]],
   ['breaks are sent unsorted and repeated', [[T, 'const breaks = [...new Set(rawBreaks as number[])].sort((x, y) => x - y);', 'const breaks = rawBreaks as number[];']]],
   ['an unset option is sent as a key', [[T, '...(method ? { method } : {})', 'method: method as never']]],
-  ['the ask claims a lookup was made', nth(3, LOOKED, 'looked_up: true, do_not_poll: false, poll_after_s: 20 });')],
+  ['the ask claims a lookup was made', nth(3, LOOKED, 'looked_up: true, do_not_poll: false, poll_after_s: 20 });', 'looked_up: false, ')],
   ['the ask does not say the numbers are unchecked', [[T, ' The forecast will be made from exactly the numbers you gave, which this service does not check against any source.', '']]],
   ['forecast_answer reads place questions too', [[T, 'if (!row || row.shape !== "forecast") return refuse("That forecast request', 'if (!row) return refuse("That forecast request']]],
   ['geo_answer reads forecasts', [[T, '    if (row.shape === "forecast") return refuse("That is a forecast, not a place question: read it with forecast_answer.", "not_found");\n', '']]],
@@ -68,9 +73,9 @@ const mutants = [
   ['any number of engine sentences is accepted', [[T, '!Array.isArray(s.words) || s.words.length > 16', '!Array.isArray(s.words)']]],
   ['the method and basis are shown unfenced', [[T, '`Method: ${untrusted("report-sentence", rep.method)} ${untrusted("report-sentence", rep.basis)}`', '`Method: ${rep.method} ${rep.basis}`']]],
   ['the engine words are shown unfenced', [[T, 'for (const w of rep.words) lines.push(untrusted("report-sentence", w));', 'for (const w of rep.words) lines.push(w);']]],
-  ['a failed request\'s detail is shown unfenced', nth(2, '${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""}', '${row.fail_detail ? " " + row.fail_detail : ""}')],
-  ['a stuck request still tells the AI to keep checking', nth(2, 'do_not_poll: stuck, poll_after_s: stuck ? null : 20', 'do_not_poll: false, poll_after_s: 20')],
-  ['the answer checks have no limit', nth(2, 'if (!(await ctx.policy.hit(ctx.principal, "geo_read", LIMITS.geoReadsPerHourPerUser, 3600))) {', 'if (false) {')],
+  ['a failed request\'s detail is shown unfenced', nth(1, '${row.fail_detail ? " " + untrusted("report-sentence", row.fail_detail) : ""}', '${row.fail_detail ? " " + row.fail_detail : ""}')],
+  ['a stuck request still tells the AI to keep checking', nth(1, 'do_not_poll: stuck, poll_after_s: stuck ? null : 20', 'do_not_poll: false, poll_after_s: 20')],
+  ['the answer checks have no limit', nth(1, 'if (!(await ctx.policy.hit(ctx.principal, "geo_read", LIMITS.geoReadsPerHourPerUser, 3600))) {', 'if (false) {')],
   ['the opening does not say the years are not measured or the numbers unchecked', [[T, ' These years are not measured, and this service did not check the numbers against any source.', '']]],
   ['the range is not said to be no promise', [[T, 'It is not a promise.', '']]],
   ['the test is not shown', [[T, 'The test: hiding the last', 'Hiding the last']]],
@@ -85,7 +90,7 @@ const mutants = [
 ];
 
 function run(cwd) {
-  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
+  return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });

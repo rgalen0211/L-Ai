@@ -111,7 +111,7 @@ def main():
                 check(calls() and all(t in NAMES for t, _ in calls()), 'the editor called only the five editor names')
                 check(all(a.get('p_project') == PROJECT for _, a in calls()), 'and only for that film')
                 check(not h.evaluate('window.__refused'), 'the host refused nothing')
-                check(fr.locator('canvas.le-canvas').count() == 0 or True, 'no frame feed in the chat (the plain card is drawn)')
+                check(fr.locator('canvas.le-canvas').count() == 0, 'no frame feed in the chat (the plain card is drawn): the editor draws its canvas only when the host offers a frame() feed')      # was `... or True`, which could never fail (11-20 audit)
                 check(fr.locator('#live-root.le-nosketch').count() == 0 and fr.locator('.le-nopic').count() == 0 and fr.locator('.le-view').first.is_visible(), 'a CLIP film is unchanged by the no-sketch rule: no marker class, no sentence, its title boards stay')
                 order = lambda: fr.eval_on_selector_all('.le-lane:first-child .le-clip', 'els => els.map(e => e.dataset.id)')
                 if phone:
@@ -227,7 +227,7 @@ def main():
             c4, p4 = fresh()
             p4.evaluate("(a) => openInput(a)", {'project_id': PROJECT, 'mode': 'compilation'})
             p4.frames[1].wait_for_selector('.le-panel', timeout=15000)
-            check(True, 'the editor opens, after a wait for a result that never comes, from the arguments alone')
+            check(p4.frames[1].locator('.le-panel').count() >= 1 and p4.frames[1].locator('h1').count() >= 1, 'the editor opens, after a wait for a result that never comes, from the arguments alone')      # was `check(True, ...)`: the wait above raises on a timeout, so this line could only ever pass (11-20 audit)
             c4.close()
             print('a refusal is read as words, never as an editor')
             NS = 'The person has not shared their track list with their AI. Ask them to tick "Let my AI see my track list" in the Ryagram app, then open the editor again.'
@@ -287,6 +287,7 @@ def main():
                     '<rect width="960" height="540" fill="url(#g1)" style="fill:red" onclick="window.__pwned=2"/>'
                     '<script>window.__pwned=3</script><image href="https://evil.example/x.png" width="10" height="10"/>'
                     '<foreignObject><div>hi</div></foreignObject><use href="#g1"/><path d="M0 0L9 9" stroke="https://evil.example/s" fill="#ffffff"/>'
+                    '<rect id="bs1" width="9" height="9" fill="#ffffff" stroke-dasharray="1' + chr(92) + '2"/>'
                     '<text x="20" y="40" fill="#ffffff" font-size="20">Greene &amp; Montgomery</text>'
                     '<text x="20" y="80" textLength="120.5" lengthAdjust="spacing" xml:space="preserve" fill="#ffffff">Fitted</text>'
                     '<text x="20" y="120" textLength="1e3" lengthAdjust="evil" xml:space="remove" fill="#ffffff">Bad</text></svg>')
@@ -340,6 +341,7 @@ def main():
             ids = fr12.eval_on_selector_all('.le-cardpic svg [id]', 'els => els.map(e => e.id)')
             check(ids and all(i.startswith('lecard-') for i in ids) and any('url(#lecard-g1)' in a for a in attrs), 'every id inside the picture is renamed, and a paint reference follows it (%s)' % ids)
             check('Greene & Montgomery' in fr12.locator('.le-cardpic svg text').first.text_content(), 'text in the picture is text')
+            check(fr12.locator('.le-cardpic svg rect[id="lecard-bs1"]').count() == 1 and not fr12.evaluate("Array.from(document.querySelectorAll('.le-cardpic svg *')).some(e => Array.from(e.attributes).some(a => a.value.indexOf(String.fromCharCode(92)) >= 0))"), 'an attribute with a backslash is dropped by the panel itself (the shape stays, the attribute does not): the second lock holds on its own')
             check(p12.evaluate('window.__pwned') is None and fr12.evaluate('window.__pwned') is None, 'no script in the picture ran')
             check(not o12 and not e12, 'no request left the page and nothing threw (%s %s)' % (o12[:2], e12[:2]))
             check('This is your film as saved (2024)' in fr12.locator('.le-card').inner_text() and 'does not move' in fr12.locator('.le-card').inner_text(), 'the caption says what the picture is and that it does not move')

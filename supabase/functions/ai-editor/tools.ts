@@ -177,7 +177,7 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
     case "inspect_dataset":
     case "fetch_dataset": {
       const id = String(input.dataset_id ?? "");
-      if (!DATASETS[id]) return { text: `"${id}" is not in the catalog. Use search_dataset.`, isError: true };
+      if (!Object.hasOwn(DATASETS, id)) return { text: `"${id}" is not in the catalog. Use search_dataset.`, isError: true };
       const views = TEMPLATES.filter((t) => t.datasets.includes(id) && !(t as { unmeasured?: boolean }).unmeasured).map((t) => t.view);
       return { text: `${catalogLine(id)}. Tried and tested views: ${views.join(", ") || "none yet"}.${name === "fetch_dataset" ? " The render worker fetches and caches it; nothing to download." : ""}` };
     }
@@ -192,7 +192,7 @@ export async function runTool(name: string, input: Record<string, unknown>, ctx:
     case "set_mapping": {
       const dataset = String(input.dataset_id ?? "");
       const view = String(input.view ?? "");
-      if (!DATASETS[dataset]) return { text: `"${dataset}" is not in the catalog.`, isError: true };
+      if (!Object.hasOwn(DATASETS, dataset)) return { text: `"${dataset}" is not in the catalog.`, isError: true };
       if (!RENDER_VIEWS.includes(view)) return { text: `"${view}" is not a view.`, isError: true };
       for (const p of [input.start, input.end]) {
         if (p != null && !PERIOD.test(String(p))) return { text: `"${p}" is not a period like 2016 or 2016-03.`, isError: true };

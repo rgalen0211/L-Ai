@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// a planted fault that makes a suite HANG must end the run loudly, never stall it (node:test has no time limit of its own); a timeout is neither "caught" nor "missed" (11-20 audit)
+const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdout) + String(r.stderr))) throw new Error('HUNG: the suites did not end in 5 minutes (' + (r.error ? r.error.code : 'a test timed out') + '; a test that hangs for 2 minutes fails by itself, so this means a synchronous loop, and its node child may still be running: end it by its own PID): write the fault so a test fails, not hangs'); return r; };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-geoshapes');
@@ -18,7 +20,9 @@ const LOOKED = 'looked_up: false, do_not_poll: false, poll_after_s: 20 });';
 const STOP = 'deleted after 7 days." + GEO_STOP,';
 const ASSUMED = 'lines.push(`Assumed, not measured: ${untrusted("report-sentence", rep.assumptions)}`);';
 /** two edits: break the FIRST copy of `from` in a way that no longer matches it, then change the SECOND */
-const second = (from, to) => [[T, from, from.slice(0, 12) + '/*1*/' + from.slice(12)], [T, from, to]];
+// The marker goes right AFTER `anchor`, which must end at a token boundary (a space, a comma, `${`): an anchor that cuts an identifier or a string in two (the old fixed 12 characters did) breaks the PARSER, and the suites then
+// "catch" the fault for the wrong reason. The break must also leave the suites green; both are proved by hand for every use below (11-20 audit).
+const second = (from, to, anchor = from.slice(0, 12)) => [[T, from, from.replace(anchor, () => anchor + '/*1*/')], [T, from, to]];
 // each mutant: [name, [[file, from, to], ...]]
 const mutants = [
   ['the tool is listed', [[T, HEAD, HEAD.replace(' listed: false,', '')]]],
@@ -36,10 +40,10 @@ const mutants = [
     [T, 'return lat === null || lon === null || lat < -90 || lat > 90 || lon < -180 || lon > 180 ? null : { lat, lon };', 'return lat === null || lon === null ? null : { lat, lon };']]],
   ['the category is not checked', [[T, 'category: { type: "string", pattern: "^[a-z][a-z0-9_]{1,30}$", description: "One kind', 'category: { type: "string", description: "One kind'], [T, 'typeof a.category === "string" && GEO_CATEGORY.test(a.category) ? a.category : null', 'typeof a.category === "string" ? a.category : null']]],
   ['the shared hourly limit is gone', second(HIT, 'if (false) {')],
-  ['place questions have their own hourly bucket (not shared with what_is_within)', second('"geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {', '"geo_shapes", LIMITS.geoQuestionsPerHourPerUser, 3600))) {')],
+  ['place questions have their own hourly bucket (not shared with what_is_within)', second('"geo", LIMITS.geoQuestionsPerHourPerUser, 3600))) {', '"geo_shapes", LIMITS.geoQuestionsPerHourPerUser, 3600))) {', '"geo", ')],
   ['the question is written with a place name as well', [[T, 'askGeoShape({ shape, ...(siteA ? { a: siteA } : {})', 'askGeoShape({ shape, place: String(a.place ?? ""), ...(siteA ? { a: siteA } : {})']]],
-  ['the ask claims a lookup was made', second(LOOKED, 'looked_up: true, do_not_poll: false, poll_after_s: 20 });')],
-  ['the ask does not tell the AI to stop checking', second(STOP, 'deleted after 7 days.",')],
+  ['the ask claims a lookup was made', second(LOOKED, 'looked_up: true, do_not_poll: false, poll_after_s: 20 });', 'looked_up: false, ')],
+  ['the ask does not tell the AI to stop checking', second(STOP, 'deleted after 7 days.",', 'deleted after 7 days." ')],
   ['the ask does not say a verdict will not be a yes or no, or that no place will be picked', [[T, 'const note = shape === "verdict" ? " This will not be a yes or no." : shape === "where_to_go" ? " This will not pick a place." : "";', 'const note = "";']]],
   ['geo_answer does not route the new shapes', [[T, 'if (row.shape !== undefined && row.shape !== "within_minutes") return showShapeAnswer(row);', '']]],
   ['a row with no shape field is read as a new shape', [[T, 'if (row.shape !== undefined && row.shape !== "within_minutes")', 'if (row.shape !== "within_minutes")']]],
@@ -70,7 +74,7 @@ const mutants = [
   ['the comparison does not say there is no winner', [[T, ' There is no score and no winner: picking one would need sales data, and none is used.`', '`']]],
   ['the answer lines are shown unfenced', [[T, 'for (const it of rep.items) lines.push(`  ${untrusted("report-sentence", it.text)}`);', 'for (const it of rep.items) lines.push(`  ${it.text}`);']]],
   ['the answer statements are shown unfenced', [[T, 'for (const st of rep.statements) lines.push(untrusted("report-sentence", st));', 'for (const st of rep.statements) lines.push(st);']]],
-  ['the assumptions are shown unfenced', second(ASSUMED, 'lines.push(`Assumed, not measured: ${rep.assumptions}`);')],
+  ['the assumptions are shown unfenced', [[T, ASSUMED, 'lines.push(`Assumed, not measured: ${rep.assumptions}`);']]],
   ['the sources are not shown', [[T, 'lines.push(`Sources: ${[...new Set(rep.items.map((i) => i.source))].map((x) => untrusted("report-sentence", x)).join("; ")}.`);', '']]],
   ['the structured answer claims a verdict was given', [[T, 'verdict_given: false', 'verdict_given: true']]],
   ['the structured answer claims a place was picked', [[T, 'place_picked: false', 'place_picked: true']]],
@@ -79,7 +83,7 @@ const mutants = [
 ];
 
 function run(cwd) {
-  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
+  return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });

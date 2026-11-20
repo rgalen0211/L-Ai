@@ -47,8 +47,10 @@ with sync_playwright() as pw:
     expect = [labels[i] for i in FIX['order']]
     got = [x for x in shown['working'] if x in expect] + shown['soon']
     check(sorted(got) == sorted(expect), f'the bar names the fixture departments ({got})')
-    order_seen = [labels[i] for i in FIX['order'] if labels[i] in got]
-    check(got == order_seen or sorted(got) == sorted(order_seen), 'in the fixture order, working ones first, then the Coming soon group')
+    rank = {labels[i]: n for n, i in enumerate(FIX['order'])}
+    in_order = lambda xs: xs == sorted(xs, key=lambda x: rank.get(x, 99))
+    # the old check was `got == order_seen or sorted(got) == sorted(order_seen)`: once the names matched, its second half was always true, so the order was never tested (11-20 audit). The bar keeps ORDER inside each group (app-departments.js normalize()).
+    check(in_order([x for x in shown['working'] if x in expect]) and in_order(shown['soon']), 'in the fixture order inside each group: the working ones first, then the Coming soon group (%s | %s)' % (shown['working'], shown['soon']))
     check(shown['mine'] == [FIX['my_films']['link_when_on']], f"My films is in the bar and goes to {FIX['my_films']['link_when_on']} when the switch list names it ({shown['mine']})")
     ctx.close()
     ctx, p = bar(b, '&noswitches')

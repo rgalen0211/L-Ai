@@ -342,7 +342,10 @@ test('DIRECTORY (CONNECT 147): honest annotations on every listed tool, the refu
   for (const n of ['whoami_and_credits', 'list_projects', 'job_status', 'get_film_link', 'get_story_schema']) assert.equal(by[n].destructiveHint, false, n);
   const refused = await (await post({ jsonrpc: '2.0', id: 4, method: 'tools/call', params: { name: 'request_full_render', arguments: { project_id: 'x' } } })).json();
   assert.equal(refused.result.isError, true, 'the unlisted tool still answers, with its refusal');
+  const made = await (await post({ jsonrpc: '2.0', id: 6, method: 'tools/call', params: { name: 'create_project', arguments: { title: 'A film to list' } } })).json();
+  assert.ok(!made.result.isError, 'a project exists, so the list is not empty and the next check is not vacuous: ' + JSON.stringify(made.result).slice(0, 200));
   const lp = await (await post({ jsonrpc: '2.0', id: 5, method: 'tools/call', params: { name: 'list_projects', arguments: {} } })).json();
+  assert.ok(JSON.stringify(lp.result).includes('A film to list'), 'the list holds the project');
   assert.ok(!JSON.stringify(lp.result).includes('updated'), 'no timestamp in the project list');
   for (const d of TOOLS.filter((x) => x.listed !== false)) {
     assert.ok(!/\b(call it first|read it before|poll every|give them to|do not store|you must|always call)\b/i.test(d.description), d.name + ': a description says what the tool does, not what the AI must do');

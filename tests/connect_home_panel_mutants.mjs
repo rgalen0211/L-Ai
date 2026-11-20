@@ -5,6 +5,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// a planted fault that makes a suite HANG must end the run loudly, never stall it (node:test has no time limit of its own); a timeout is neither "caught" nor "missed" (11-20 audit)
+const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdout) + String(r.stderr))) throw new Error('HUNG: the suites did not end in 5 minutes (' + (r.error ? r.error.code : 'a test timed out') + '; a test that hangs for 2 minutes fails by itself, so this means a synchronous loop, and its node child may still be running: end it by its own PID): write the fault so a test fails, not hangs'); return r; };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-home');
@@ -78,10 +80,10 @@ const mutants = [
 
 const noBrowser = process.argv.includes('--no-browser');
 function browser(cwd) {
-  return spawnSync('py', ['-I', path.join('tools', 'check-home-panel.py')], { encoding: 'utf8', cwd, env: { ...process.env } });
+  return spawnSync('py', ['-I', path.join('tools', 'check-home-panel.py')], { encoding: 'utf8', cwd, env: { ...process.env }, timeout: 420000, killSignal: 'SIGKILL' });   // a frozen page must END the check (and be named HUNG), never stall the whole run: playwright's evaluate() has no timeout of its own (11-20 audit; the film-card-panel runner got this on 11-20 after a planted fault froze Chrome for 13 minutes)
 }
 function run(cwd) {
-  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
+  return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -90,11 +92,11 @@ function fresh() {
   fs.cpSync(path.join(root, 'tests'), path.join(scratch, 'tests'), { recursive: true });
   fs.cpSync(path.join(root, 'assets'), path.join(scratch, 'assets'), { recursive: true });
   fs.cpSync(path.join(root, 'tools'), path.join(scratch, 'tools'), { recursive: true });
-  if (fs.existsSync(path.join(root, 'node_modules'))) fs.symlinkSync(path.join(root, 'node_modules'), path.join(scratch, 'node_modules'), 'junction');
+  // no node_modules junction here (11-20 audit): the scratch sits inside the repo, so node finds the repo's node_modules by itself, and a recursive delete of a junction can follow it into the shared folder
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
-const base = run(scratch).status || (noBrowser ? 0 : browser(scratch).status);
+const base = run(scratch).status || (noBrowser ? 0 : (() => { const r = browser(scratch); return r.error || r.status; })());
 if (base) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
@@ -109,6 +111,7 @@ for (const [name, file, from, to, kind = 'source'] of mutants) {
   let caught, how = '';
   if (kind === 'browser') {
     const r = browser(scratch), said = r.stdout + r.stderr;
+    if (r.error) { console.log(`HUNG    ${name} (the real-Chrome check did not end in 7 minutes: not counted as caught; write the fault so the page fails, not freezes)`); missed++; continue; }
     // caught only when the check itself says so: a failed check line, or the element or message it waits for never came; any other crash is "ran badly", not a catch
     caught = r.status !== 0 && (/^  FAIL /m.test(r.stdout) || /FAILED:/.test(r.stdout) || /TimeoutError: (Locator|Page)\.wait_for/.test(r.stderr));
     how = caught ? ` (${(r.stdout.match(/^  FAIL (.*)$/m) || ['', 'an element the check waits for never came'])[1].slice(0, 90)})` : ` (rc ${r.status}, the check did not fail on its own words: ${said.slice(-120).replace(/\s+/g, ' ')})`;

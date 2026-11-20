@@ -6,6 +6,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// a planted fault that makes a suite HANG must end the run loudly, never stall it (node:test has no time limit of its own); a timeout is neither "caught" nor "missed" (11-20 audit)
+const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdout) + String(r.stderr))) throw new Error('HUNG: the suites did not end in 5 minutes (' + (r.error ? r.error.code : 'a test timed out') + '; a test that hangs for 2 minutes fails by itself, so this means a synchronous loop, and its node child may still be running: end it by its own PID): write the fault so a test fails, not hangs'); return r; };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-chated');
@@ -48,7 +50,7 @@ const mutants = [
   ['the policy lets the page reach out', B, "connect-src 'none'", 'connect-src *'],
   ['the policy lets the page run eval', B, "script-src 'unsafe-inline'", "script-src 'unsafe-inline' 'unsafe-eval'"],
   ['the footer about a final button is left in the chat', H, "    reword();\n    if (typeof MutationObserver", "    if (typeof MutationObserver"],
-  ['the footer is reworded once and never again', H, "new MutationObserver(reword).observe(root, { childList: true, subtree: true, characterData: true });", ""],
+  ['the footer is reworded once and never again', H, "new MutationObserver(reword).observe(root, { childList: true, subtree: true, characterData: true });", ";"],
   ['writes are sent at once instead of one after the other (a second change made while a slow host holds the first is called stale)', DR, 'const run = tail.then(() => sendNow(ops, group));', 'const run = sendNow(ops, group);'],
   ['a panel click is read as the AI\'s change', DR, "if (o.actor === 'ai' && o.client === PANEL) {", 'if (false) {'],
   ['a panel click made on this page is applied a second time', DR, 'if (mine) mine.serverId = o.id;\n          else {', 'if (false) mine.serverId = o.id;\n          else {'],
@@ -75,7 +77,7 @@ const mutants = [
 function run(cwd) {
   const gen = spawnSync(process.execPath, [path.join('tools', 'build-chat-editor.mjs')], { encoding: 'utf8', cwd });
   if (gen.status) return gen;
-  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
+  return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -86,15 +88,15 @@ function fresh() {
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
-if (run(scratch).status || (!process.argv.includes('--no-browser') && browser(scratch).status)) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
+if (run(scratch).status || (!process.argv.includes('--no-browser') && (() => { const b = browser(scratch); return b.hung || b.status; })())) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
 const noBrowser = process.argv.includes('--no-browser');
 function browser(cwd) {
   const gen = spawnSync(process.execPath, [path.join('tools', 'build-chat-editor.mjs')], { encoding: 'utf8', cwd });
   if (gen.status) return { status: 2, out: gen.stderr };
-  const r = spawnSync('py', ['-I', path.join('tools', 'check-chat-editor.py'), path.join(cwd, 'shots')], { encoding: 'utf8', cwd });
-  return { status: r.status, out: r.stdout + r.stderr };
+  const r = spawnSync('py', ['-I', path.join('tools', 'check-chat-editor.py'), path.join(cwd, 'shots')], { encoding: 'utf8', cwd, timeout: 420000, killSignal: 'SIGKILL' });   // a frozen page must END the check (and be named HUNG), never stall the whole run: playwright's evaluate() has no timeout of its own (11-20 audit; the film-card-panel runner got this on 11-20 after a planted fault froze Chrome for 13 minutes)
+  return { status: r.status, out: r.stdout + r.stderr, hung: !!r.error };
 }
 for (const [name, file, from, to, kind = 'source'] of mutants) {
   if (kind === 'browser' && noBrowser) continue;
@@ -106,7 +108,11 @@ for (const [name, file, from, to, kind = 'source'] of mutants) {
   if (n !== 1) { console.log(`BROKEN MUTANT (text found ${n} times, need 1): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
   let caught;
-  if (kind === 'browser') { const b = browser(scratch); caught = b.status !== 0 && /^  FAIL /m.test(b.out); }       // a crash of the check is not a catch: only its own FAIL line is
+  if (kind === 'browser') {
+    const b = browser(scratch);
+    if (b.hung) { console.log(`HUNG    ${name} (the real-Chrome check did not end in 7 minutes: not counted as caught; write the fault so the page fails, not freezes)`); missed++; continue; }
+    caught = b.status !== 0 && /^  FAIL /m.test(b.out);
+  }       // a crash of the check is not a catch: only its own FAIL line is
   else caught = run(scratch).status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
   if (!caught) missed++;
