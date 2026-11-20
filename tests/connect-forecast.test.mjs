@@ -63,7 +63,8 @@ test('the real function wires no forecast switch, and the database layer names t
   assert.match(src, /deps: \{ compile \}/); assert.ok(!/\bforecast\b/.test(src));
   const db = fs.readFileSync(new URL('../supabase/functions/connect/db.ts', import.meta.url), 'utf8');
   const mig = fs.readFileSync(new URL('../supabase/migrations/20261104000500_forecast_requests.sql', import.meta.url), 'utf8');
-  assert.match(db, /"connect_forecast_ask", \["text", "jsonb", "int", "text", "int\[\]", "text"\], \[h, JSON\.stringify\(q\.series\)/, 'the series travels as a JSON string (an array would be sent as a Postgres array literal)');
+  assert.match(db, /"connect_forecast_ask", \["text", "jsonb", "int", "text", "int\[\]", "text"\], \[h, q\.series, /, 'the series is passed as the array it is: the database layer turns every jsonb parameter into JSON text once (a pre-stringified series was encoded twice)');
+  assert.ok(!/JSON\.stringify\(q\.series\)/.test(db));
   assert.ok(mig.includes('create function public.connect_forecast_ask(p_token_hash text, p_series jsonb'));
 });
 
@@ -221,4 +222,25 @@ test('READ: the answer-check limit applies to forecasts too', async () => {
   const r = await call('forecast_answer', { id: asked.data.id });
   assert.equal(r.code, 'rate'); assert.match(r.text, /Do not check again/);
   assert.equal(rows(w).length, 1);
+});
+
+test('the REAL database layer sends the series as ONE JSON array text (parsed back it is the array, not a JSON string), the breaks as an int[] literal, and the options as they are', async () => {
+  // Found in the 11-20 audit: db.ts stringified the series and then fn() stringified every jsonb parameter again, so SQL got a jsonb STRING and connect_forecast_ask refused it ("Give 6 to 120 pairs").
+  const { ConnectDb } = await import('../supabase/functions/connect/db.ts');
+  const seen = [];
+  const db = new ConnectDb(async (sql, params) => { seen.push({ sql, params }); return [{ r: { id: 'x', state: 'asked' } }]; }, 'https://x.example/app/');
+  const data = db.data({ tokenHash: 'h'.repeat(64) });
+  await data.askForecast({ series: SERIES, horizon: 3, method: 'linear', breaks: [2018, 2016], unit: 'people' });
+  assert.equal(seen.length, 1);
+  assert.match(seen[0].sql, /^select public\.connect_forecast_ask\(\$1::text, \$2::text::jsonb, \$3::int, \$4::text, \$5::text::int\[\], \$6::text\) as r$/);
+  const p = seen[0].params;
+  assert.equal(p[0], 'h'.repeat(64));
+  assert.equal(typeof p[1], 'string');
+  const parsed = JSON.parse(p[1]);
+  assert.ok(Array.isArray(parsed), 'the jsonb parameter must parse to the array of pairs, not to a string');
+  assert.deepEqual(parsed, SERIES);
+  assert.deepEqual(p.slice(2), [3, 'linear', '{"2018","2016"}', 'people']);
+  seen.length = 0;
+  await data.askForecast({ series: SERIES, horizon: 1 });
+  assert.deepEqual(seen[0].params.slice(2), [1, null, null, null], 'absent options are null, never undefined');
 });
