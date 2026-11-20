@@ -129,6 +129,9 @@
     let token = 0;
     let stopView = () => {};                      // timers and subscriptions of the page on screen
     const stopAdminNav = adminNav(data);
+    // Signed in, the logo takes a person to their own home (Your projects), not back to the public page: the signed-in site is one website (WEB 11-20). Put back on sign-out.
+    const brand = document.querySelector('header .brand'), brandWas = brand ? brand.getAttribute('href') : null;
+    if (brand) { brand.setAttribute('href', '#/'); brand.setAttribute('aria-label', 'Ryagram, your projects'); }
 
     async function route() {
       const mine = ++token;
@@ -1954,7 +1957,7 @@
     window.addEventListener('hashchange', route);
     route();
     if (departmentsOn()) deptUi().mountBar(document.getElementById('dept-slot'));              // the top bar's departments; on any failure the header stays as it was
-    return () => { token++; stopAdminNav(); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
+    return () => { token++; stopAdminNav(); if (brand && brandWas) { brand.setAttribute('href', brandWas); brand.setAttribute('aria-label', 'Ryagram'); } stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };
