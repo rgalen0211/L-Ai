@@ -21,7 +21,7 @@ def load(name, file):
 aa = load('aa', 'audit-a11y.py')
 sp = load('sp', 'check-signin-phone.py')
 SVG = '<svg xmlns="http://www.w3.org/2000/svg" width="1920" height="1080" viewBox="0 0 1920 1080"><rect width="1920" height="1080" fill="#445"/></svg>'
-PAGES = (('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Opportunity Map'), ('games', 'Games'), ('animation_studio', 'Animation Studio'), ('studio', 'Studio'))
+PAGES = (('data_films', 'Data films'), ('compilations', 'Compilations'), ('geo_intelligence', 'Opportunity Map'), ('games', 'Games'), ('animation_studio', 'Animation Studio'), ('studio', 'Studio'), ('forecasts', 'Forecasts'))
 
 
 def main():

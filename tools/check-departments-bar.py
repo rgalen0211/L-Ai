@@ -8,8 +8,8 @@ from playwright.sync_api import sync_playwright
 
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/dept-bar-shots')
-IDS = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']
-LABELS = {'data_films': 'Data films', 'compilations': 'Compilations', 'geo_intelligence': 'Opportunity Map', 'games': 'Games', 'animation_studio': 'Animation Studio', 'studio': 'Studio'}
+IDS = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio', 'forecasts']
+LABELS = {'forecasts': 'Forecasts', 'data_films': 'Data films', 'compilations': 'Compilations', 'geo_intelligence': 'Opportunity Map', 'games': 'Games', 'animation_studio': 'Animation Studio', 'studio': 'Studio'}
 
 
 class H(http.server.SimpleHTTPRequestHandler):
@@ -46,11 +46,11 @@ with sync_playwright() as pw:
             p.on('pageerror', lambda e: errs.append(str(e))); p.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text and 'status of 404' not in m.text else None)
             p.goto(f'http://127.0.0.1:{PORT}/app/{q}#/', wait_until='load'); p.wait_for_selector('.dept-bar', state='attached', timeout=20000); p.wait_for_selector('.dept-card', timeout=20000)
             hrefs = p.evaluate("[...document.querySelectorAll('.dept-bar a')].map(a => a.getAttribute('href'))")
-            check(all(f'#/d/{i}' in hrefs for i in IDS), f'{tag}: the bar links all six departments')
+            check(all(f'#/d/{i}' in hrefs for i in IDS), f'{tag}: the bar links all seven departments')
             check((('#/start' in hrefs) == invited), f'{tag}: the Start door is {"there" if invited else "absent"}')
             cards = p.evaluate("[...document.querySelectorAll('.dept-card a')].map(a => a.getAttribute('href'))")
-            check(cards == [f'#/d/{i}' for i in IDS], f'{tag}: the Departments row on Your projects has six cards in order ({cards})')
-            check(p.locator('.dept-card-open').count() == 1 and p.locator('.dept-card .soon-tag').count() == 5, f'{tag}: one card Open, five soon')
+            check(cards == [f'#/d/{i}' for i in IDS], f'{tag}: the Departments row on Your projects has seven cards in order ({cards})')
+            check(p.locator('.dept-card-open').count() == 1 and p.locator('.dept-card .soon-tag').count() == 6, f'{tag}: one card Open, six soon')
             check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), f'{tag}: no sideways scroll')
             check(p.evaluate("[...document.querySelectorAll('.dept-card a')].every(a => a.getBoundingClientRect().height >= 24)"), f'{tag}: every card link is at least 24 px tall')
             if who == 'invited' or who == 'not invited (admin)':
