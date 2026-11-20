@@ -55,7 +55,7 @@ with sync_playwright() as pw:
     print('a film with no real frames and no sheet')
     for width in (1100, 390):
         p = page(b, errs, width)
-        p.goto(f'http://127.0.0.1:{PORT}/app/?mock&standin#/editor/data/{PROJ}', wait_until='load'); p.wait_for_selector('h1:has-text("Edit your film")', timeout=15000); p.wait_for_timeout(1500)
+        p.goto(f'http://127.0.0.1:{PORT}/app/?mock&standin#/editor/data/{PROJ}', wait_until='load'); p.wait_for_selector('h1:has-text("Edit your film"), h1[data-film]', timeout=15000); p.wait_for_timeout(1500)
         no_sketch(p, f'{width}px')
         v = p.inner_text('.le-view')
         check('cannot be drawn in this editor yet' in v and 'made-up one would not be your film' in v, f'{width}px: a plain sentence says why nothing is drawn')
@@ -98,7 +98,7 @@ with sync_playwright() as pw:
     p.evaluate('clearInterval(window.__fast)')
     check(p.locator('.job .state.job-complete').count() >= 1, 'the contact sheet job completed in the mock')
     p.evaluate("pid => { window.ryagramMockLookBundle = undefined; location.hash = '#/editor/data/' + pid; }", pid)      # no look bundle: the website as it is today, where the engine's drawer is not offered
-    p.wait_for_selector('h1:has-text("Edit your film")', timeout=15000); p.wait_for_timeout(2500)
+    p.wait_for_selector('h1:has-text("Edit your film"), h1[data-film]', timeout=15000); p.wait_for_timeout(2500)
     no_sketch(p, 'with a sheet')
     check(p.locator('.le-view img.le-sheet').count() == 1, 'the film’s own contact sheet is shown')
     note = p.inner_text('.le-view')
@@ -108,7 +108,7 @@ with sync_playwright() as pw:
 
     print('the design demo (no project in the address) is as before')
     p = page(b, errs)
-    p.goto(f'http://127.0.0.1:{PORT}/app/?mock&standin#/editor/data', wait_until='load'); p.wait_for_selector('h1:has-text("Edit your film")', timeout=15000); p.wait_for_timeout(500)
+    p.goto(f'http://127.0.0.1:{PORT}/app/?mock&standin#/editor/data', wait_until='load'); p.wait_for_selector('h1:has-text("Edit your film"), h1[data-film]', timeout=15000); p.wait_for_timeout(500)
     check('Stand-in preview for the design' in p.inner_text('.le') and p.locator('.le-view svg').count() == 1, 'the demo keeps its labelled sketch')
     p.context.close()
     check(not errs, 'no console errors' + (f': {errs[:2]}' if errs else ''))

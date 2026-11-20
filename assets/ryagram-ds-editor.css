@@ -1,0 +1,122 @@
+/* The editor as a one-screen WORKBENCH (WEB 2026-11-20; design system v1.1, proposals/WEB-DESIGN-SYSTEM-1120.md; layout by assets/app-editor-wb.js). Only a person's own film on the website gets it (class .le-wb on the
+   editor's root, body.wb-page on the page); every other editor is untouched. Tokens: the site's own variables with fallbacks, so this works with or without assets/ryagram-ds.css. */
+body.wb-page{--wb-bg:var(--bg,#0b0c11);--wb-surface:var(--ds-surface,linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02)));--wb-line:var(--line,rgba(255,255,255,.12));--wb-ink:var(--ink,#f4f3ef);--wb-muted:var(--muted,#b6b5ae);--wb-accent:var(--accent,#ff8a3d);--wb-radius:var(--ds-radius-sm,12px);
+  height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
+body.wb-page>header{flex:0 0 auto}
+body.wb-page>header .nav{min-height:56px;flex-wrap:nowrap}
+body.wb-page>header .dept-slot,body.wb-page>header .brand-copy{display:none}
+body.wb-page>footer{display:none}
+body.wb-page main.app-main{flex:1 1 auto;min-height:0;max-width:none;width:100%;padding:0;margin:0;display:flex;flex-direction:column}
+body.wb-page main.app-main>#library{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;padding:0}
+body.wb-page .le.le-wb{flex:1 1 auto;min-height:0;display:flex;flex-direction:column;margin:0;max-width:none}
+
+/* ---- the top row: the way back, this film's own name, saved or not, every action */
+.le-wb .wb-top{flex:0 0 auto;display:flex;align-items:center;gap:var(--s4,16px);padding:4px 16px;min-height:56px;border-bottom:1px solid var(--wb-line)}
+.le-wb .wb-crumb a{display:inline-flex;align-items:center;min-height:44px;color:var(--wb-muted);text-decoration:none;white-space:nowrap}
+.le-wb .wb-crumb a:hover{color:var(--wb-ink);text-decoration:underline}
+.le-wb .wb-name{display:flex;align-items:baseline;gap:12px;min-width:0;flex:1 1 auto}
+.le-wb .wb-name .wb-eyebrow{font-size:.75rem;letter-spacing:.14em;text-transform:uppercase;color:var(--wb-muted);white-space:nowrap}
+.le-wb .wb-name h1{margin:0;font-size:1.25rem;line-height:1.2;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.le-wb .wb-name .le-pill,.le-wb .wb-name .pill,.le-wb .wb-name>span:not(.wb-eyebrow){flex:0 0 auto}
+.le-wb .wb-tools{display:flex;align-items:center;gap:8px;flex:0 0 auto;flex-wrap:nowrap}
+.le-wb .wb-tools .button{white-space:nowrap}
+.le-wb .wb-foot{display:none}
+
+/* ---- the grid: [media | stage | properties] over [timeline]; panels scroll INSIDE */
+.le-wb .wb{flex:1 1 auto;min-height:0;display:grid;gap:8px;padding:8px;grid-template-columns:var(--wb-left,248px) minmax(0,1fr) var(--wb-right,300px);grid-template-rows:minmax(0,1fr) var(--wb-bottom,clamp(168px,27vh,280px));grid-template-areas:"left stage right" "timeline timeline timeline"}
+.le-wb .wb[data-left=collapsed]{--wb-left:44px}.le-wb .wb[data-right=collapsed]{--wb-right:44px}.le-wb .wb[data-bottom=collapsed]{--wb-bottom:44px}
+.le-wb .wb-panel{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;border-radius:var(--wb-radius);border:1px solid var(--wb-line);background:var(--wb-surface),var(--wb-bg);overflow:hidden}
+.le-wb .wb-panel.left{grid-area:left}.le-wb .wb-panel.stage{grid-area:stage}.le-wb .wb-panel.right{grid-area:right}.le-wb .wb-panel.timeline{grid-area:timeline}
+.le-wb .wb-panel>.wb-ph{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:8px;padding:4px 8px 4px 16px;min-height:44px;border-bottom:1px solid var(--wb-line)}
+.le-wb .wb-panel>.wb-ph h2{margin:0;font-size:.875rem;font-weight:650;letter-spacing:.02em;color:var(--wb-muted)}
+.le-wb .wb-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}
+.le-wb .wb-panel .body{flex:1 1 auto;min-height:0;overflow:auto;padding:16px;overscroll-behavior:contain;scrollbar-width:thin}
+.le-wb .wb-collapse{flex:0 0 auto;width:36px;height:36px;border-radius:8px;border:1px solid var(--wb-line);background:transparent;color:var(--wb-muted);cursor:pointer;font-size:1rem;line-height:1}
+.le-wb .wb[data-left=collapsed] .left .body,.le-wb .wb[data-right=collapsed] .right .body,.le-wb .wb[data-bottom=collapsed] .timeline .body{display:none}
+.le-wb .wb[data-left=collapsed] .left>.wb-ph h2,.le-wb .wb[data-right=collapsed] .right>.wb-ph h2,.le-wb .wb[data-bottom=collapsed] .timeline>.wb-ph h2,.le-wb .wb[data-right=collapsed] .right>.wb-ph .wb-tabs{display:none}
+.le-wb .wb[data-left=collapsed] .left>.wb-ph,.le-wb .wb[data-right=collapsed] .right>.wb-ph{justify-content:center;padding:4px}
+.le-wb .wb-resize{position:absolute;z-index:4;background:transparent}
+.le-wb .wb-resize.v{top:0;bottom:0;width:10px;cursor:col-resize}.le-wb .wb-resize.h{left:0;right:0;height:10px;cursor:row-resize}
+.le-wb .wb-resize.left{right:0}.le-wb .wb-resize.right{left:0}.le-wb .wb-resize.bottom{top:0}
+.le-wb .wb-resize:hover,.le-wb .wb-resize.drag,.le-wb .wb-resize:focus-visible{background:rgba(255,138,61,.35)}
+
+/* ---- left: the film's own frames and layers */
+.le-wb .wb-cap{margin:0 0 8px;font-size:.75rem;letter-spacing:.12em;text-transform:uppercase;color:var(--wb-muted);font-weight:600}
+.le-wb .wb-media{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-bottom:24px}
+.le-wb .wb-frame{position:relative;display:block;padding:0;border:1px solid var(--wb-line);border-radius:8px;overflow:hidden;background:#0a0a0e;cursor:pointer;aspect-ratio:16/9}
+.le-wb .wb-frame img{width:100%;height:100%;object-fit:cover;display:block}
+.le-wb .wb-frame span{position:absolute;left:6px;bottom:4px;font-size:.7rem;font-weight:700;color:#fff;text-shadow:0 1px 3px #000}
+.le-wb .wb-frame:hover{border-color:var(--wb-accent)}
+.le-wb .wb-layers{list-style:none;margin:0;padding:0}.le-wb .wb-layers li{display:flex;align-items:center;gap:8px;padding:10px 0;border-bottom:1px solid var(--wb-line)}
+.le-wb .wb-dot{width:10px;height:10px;border-radius:3px;background:#8fa0e8}.le-wb .wb-dot-film{background:#6fd1bd}
+
+/* ---- stage: the picture fits its own shape (sized by JS), the panel's surface shows around it; then the scrub bar */
+.le-wb .wb-panel.stage .body{display:flex;flex-direction:column;overflow:hidden;padding:12px 16px 12px}
+.le-wb .wb-msgs{flex:0 0 auto}.le-wb .wb-msgs:empty{display:none}
+.le-wb .wb-msgs>*{margin:0 0 8px}
+.le-wb .wb-picture{flex:1 1 auto;min-height:0;display:grid;place-items:center;overflow:hidden}
+.le-wb .wb-picture[hidden]{display:none}
+.le-wb .wb-picture .le-film-view{display:block;min-height:0;margin:0;overflow:hidden;border-radius:6px;box-shadow:0 18px 50px rgba(0,0,0,.45)}
+.le-wb .wb-picture .le-film-view svg{display:block;width:100%;height:100%}
+.le-wb .wb-picture .le-film-view .le-film-block{padding:16px}
+.le-wb .le-standin{flex:1 1 auto;min-height:0;overflow:auto}.le-wb .le-standin[hidden]{display:none}
+.le-wb .le-film-status{flex:0 0 auto;margin:0 0 4px;min-height:0}
+.le-wb .le-keys{flex:0 0 auto;margin:6px 0 0;font-size:.75rem}
+.le-wb .le-render{position:absolute;z-index:6;left:16px;right:16px;bottom:16px;max-height:80%;overflow:auto;padding:24px;border-radius:var(--wb-radius);border:1px solid rgba(255,255,255,.2);background:rgba(18,19,26,.97);box-shadow:0 24px 60px rgba(0,0,0,.6)}
+.le-wb .le-render[hidden]{display:none}
+.le-wb .le-format{margin:4px 0 8px;padding-left:1.2em}
+
+/* ---- the scrub bar: a real bar under the picture (played part filled, a thumb, current / total), no floating dot */
+.le-wb .le-scrub-bar{flex:0 0 auto;display:flex;align-items:center;gap:16px;margin:12px 0 0;padding:8px 4px 0}
+.le-wb .le-scrub-bar .button{min-width:76px;min-height:44px}
+.le-wb .le-scrub-bar .le-pos{min-width:9.5em;text-align:right;font-variant-numeric:tabular-nums;color:var(--wb-muted)}
+.le-wb .le-scrub-bar input[type=range]{--p:0%;flex:1 1 auto;min-width:0;height:44px;margin:0;padding:0;background:transparent;-webkit-appearance:none;appearance:none;cursor:pointer}
+.le-wb .le-scrub-bar input[type=range]::-webkit-slider-runnable-track{height:10px;border-radius:999px;background:linear-gradient(90deg,var(--wb-accent) var(--p),rgba(255,255,255,.16) var(--p));border:1px solid rgba(255,255,255,.1)}
+.le-wb .le-scrub-bar input[type=range]::-moz-range-track{height:10px;border-radius:999px;background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.1)}
+.le-wb .le-scrub-bar input[type=range]::-moz-range-progress{height:10px;border-radius:999px;background:var(--wb-accent)}
+.le-wb .le-scrub-bar input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:8px;height:26px;margin-top:-9px;border-radius:4px;background:#fff;border:0;box-shadow:0 0 0 3px rgba(0,0,0,.35)}
+.le-wb .le-scrub-bar input[type=range]::-moz-range-thumb{width:8px;height:26px;border-radius:4px;background:#fff;border:0}
+.le-wb .le-scrub-bar input[type=range]:focus-visible{outline:2px solid var(--wb-accent);outline-offset:4px}
+
+/* ---- right: Look | History */
+.le-wb .wb-tabs{display:flex;gap:4px}
+.le-wb .wb-tab{min-height:36px;padding:0 14px;border-radius:999px;border:1px solid transparent;background:transparent;color:var(--wb-muted);font:inherit;font-weight:600;cursor:pointer}
+.le-wb .wb-tab.on{background:rgba(255,255,255,.09);color:var(--wb-ink);border-color:var(--wb-line)}
+.le-wb:not(.le-is-pro) .le-pro-only{display:none}
+.le-wb .wb-tabbody[hidden]{display:none}
+.le-wb .wb-tabbody .le-panel{margin:0;padding:0;border:0;background:transparent;box-shadow:none}
+.le-wb .wb-tabbody .le-film-colours{margin-top:24px}
+.le-wb .wb-tabbody .le-pro-side{margin:0;padding:0;border:0;background:transparent}
+
+/* ---- bottom: the timeline scrolls inside itself (both ways) */
+.le-wb .wb-panel.timeline .body{overflow:auto;padding:8px 16px 16px}
+.le-wb .wb-tl .le-film-tracks{min-width:640px}
+.le-wb .wb-tl .le-pro{margin:0 0 8px;position:sticky;left:0}
+.le-wb .wb-tl .le-film-bar.le-film-thumbs{height:72px}
+
+/* ---- a phone: stack, the page may scroll (a phone cannot hold a workbench in one screen) */
+@media(max-width:900px){
+  body.wb-page{height:auto;min-height:100dvh;overflow:auto;display:block}
+  body.wb-page main.app-main,body.wb-page main.app-main>#library,body.wb-page .le.le-wb{display:block}
+  body.wb-page>header .nav{flex-wrap:wrap}
+  .le-wb .wb-top{flex-wrap:wrap;gap:8px}
+  .le-wb .wb-tools{flex-wrap:wrap;max-width:100%;flex:1 1 100%}
+  .le-wb .wb-name{flex:1 1 100%}
+  .le-wb .wb-name{flex-wrap:wrap;row-gap:4px}.le-wb .wb-name h1{white-space:normal;overflow:visible}
+  .le-wb .le-scrub-bar{flex-wrap:wrap;gap:8px 12px}.le-wb .le-scrub-bar input[type=range]{order:3;flex:1 1 100%}.le-wb .le-scrub-bar .le-pos{margin-left:auto;min-width:0}
+  .le-wb .wb{display:flex;flex-direction:column;padding:8px}
+  .le-wb .wb-panel.stage{order:1}.le-wb .wb-panel.timeline{order:2}.le-wb .wb-panel.right{order:3}.le-wb .wb-panel.left{order:4}
+  .le-wb .wb-panel.stage .body{overflow:visible}
+  .le-wb .wb-picture{min-height:46vw}
+  .le-wb .wb-panel .body{max-height:none}
+  .le-wb .wb-resize{display:none}
+  .le-wb .wb-collapse{display:none}
+}
+@media(prefers-reduced-motion:reduce){.le-wb *{transition:none!important}}
+
+.le-wb .wb-tabbody #le-look-h{display:none}
+.le-wb .wb-panel.timeline .body{display:block}
+body .le-wb .wb-ph h2{margin:0;font-size:.875rem;line-height:1.2}
+.le-wb.le-is-pro .wb{--wb-bottom:clamp(236px,36vh,360px)}
+.le-wb .wb-tl .le-pro{padding:8px 12px}
+.le-wb .wb-tl .le-pro .le-pro-row{flex-wrap:nowrap;overflow-x:auto}

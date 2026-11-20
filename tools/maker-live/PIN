@@ -8,9 +8,10 @@ REGENERATED 2026-11-05 on L-Ai branch live-editor-banded-1105 (WEB): banded maps
 REGENERATED 2026-11-06 on L-Ai branch live-editor-banded-042-1105 (WEB): banded maps take low and high colours, and the engine's draft frame while a slider is dragged, on 042a041 (the PC page has no data mode, so nothing changes for it, but the bytes moved).
 REGENERATED 2026-11-06 on L-Ai branch web-editor-sweep-on-train-1106 (WEB): the editor core opens an empty or half-written project as an empty editor, snap answers a finite time, the stand-in drawing's year labels sit in a row and a long heading wraps (the PC page has no data mode, but the shared core and css moved).
 REGENERATED 2026-11-20 on L-Ai branch web-site-1120 (WEB): the website editor changed (no-sketch for a person's own film, the real-frames strip, Look rows, PRO layer, the audit and review fixes); the PC page has no data mode, so nothing changes for it, but the bytes moved; re-pinned here (CC1 page batch 11:31, A1).
+REGENERATED 2026-11-20 on L-Ai branch web-ds-1120 (WEB EDITOR-PORT): the website editor core got the workbench hooks (scrub bar parts, media list, film title, Format facts); the PC page does not mount the workbench, so nothing changes for it, but the bytes moved.
 live.html from 34376ac: its own title, unchanged), NEXT-WEB 152, contract: docs/maker-live-host-contract.md). They are GENERATED there
 (node tools/build-maker-live.mjs) from the website's own editor files, so the PC's page cannot drift from the site's. Replace them by copying WEB's three files and changing the hashes in this
 file in the same commit; tools/check-maker-live-page.py fails when a hash here is not the file's.
 live.html 637 bytes sha256 6277e70c0c6c453e48562578d94b9cc832489d8aca9da339a91bd1cfff8442e8
 live.css 14582 bytes sha256 ac4f86b6ba44183138dc2fe4448fcd27b253db37896f83c009cdb5303ff848a1
-live.js 157438 bytes sha256 b279459f7f9577ce7f28a1861fdbf486b19a697f5e7a60f384f66c10b6483457
+live.js 159198 bytes sha256 3d9b790ee8781cf2618c7f94dab293254d5a414d1cc2b8ba264d116896bdcef7
