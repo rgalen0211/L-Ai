@@ -19,7 +19,7 @@ const mutants = [
   ["the page keeps the bar's mark after the bar", DP, "document.body.classList.remove('has-departments'); slot.replaceChildren(); slot.hidden = true; };\n      return true;", "slot.replaceChildren(); slot.hidden = true; };\n      return true;"],
   ["a non-invited account has no bar", DP, "try { invited = (await data.connectAccess()) === true; } catch { invited = false; }", "invited = (await data.connectAccess()) === true; if (!invited) return false;"],
   ["a non-invited account gets Start", DP, 'const items = invited ?', 'const items = true ?'],
-  ["a failing list leaves no bar", DP, 'if (!hasAny(model)) { model = normalize(FALLBACK); model.fallback = true; }', ''],
+  ["a failing list leaves no bar", DP, 'if (!hasAny(model)) { model = normalize(FALLBACK); }', ''],
   ["the bar mounts without the flag", DP, 'if (!slot || !flagOn()) return false;', 'if (!slot) return false;'],
 ];
 
