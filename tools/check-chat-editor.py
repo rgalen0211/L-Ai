@@ -319,7 +319,7 @@ def main():
                 pp.wait_for_timeout(1200)
                 return cc, pp, errs, out
 
-            NOSKETCH = lambda fr: fr.locator('#live-root.le-nosketch').count() == 1 and not any(fr.locator(sel).first.is_visible() for sel in ('.le-standin > .le-view', '.le-standin > .le-scrub', '.le-standin > .le-ticks', '.le-standin > .le-keys', '.le-row.le-waiting') if fr.locator(sel).count())
+            NOSKETCH = lambda fr: fr.locator('#live-root.le-nosketch').count() == 1 and fr.locator('.le-standin > .le-view').count() >= 1 and fr.locator('.le-standin > .le-scrub').count() >= 1 and not any(fr.locator(sel).first.is_visible() for sel in ('.le-standin > .le-view', '.le-standin > .le-scrub', '.le-standin > .le-tl-holder', '.le-standin > .le-ticks', '.le-standin > .le-keys', '.le-row.le-waiting') if fr.locator(sel).count())   # the sketch and slider elements must EXIST (hidden by the rule), so a renamed class cannot make this pass by matching nothing
             swatches = lambda pg: pg.frames[1].evaluate("Array.from(document.querySelectorAll('input[type=color]')).map(i => i.value)")
             c12, p12, e12, o12 = card_page([{'state': 'ready', 'stale': False, 'built_sha256': 'a' * 64, 'card': CARD}])
             fr12 = p12.frames[1]
@@ -529,7 +529,7 @@ def main():
             c22.close()
             c15, p15, e15, o15 = card_page([{'error': {'code': None, 'message': 'The film picture is not available yet.'}}])
             check(p15.frames[1].locator('.le-card').count() == 0 or p15.frames[1].locator('.le-card').is_hidden(), 'a database without the card shows no card box')
-            check(NOSKETCH(p15.frames[1]) and p15.frames[1].locator('.le-nopic').is_visible() and 'No picture of your film is shown here yet' in p15.frames[1].locator('.le-nopic').inner_text(), 'and no sketch: one plain sentence stands in the picture\'s place')
+            check(NOSKETCH(p15.frames[1]) and p15.frames[1].locator('.le-nopic').is_visible() and 'No picture of your film is shown here yet' in p15.frames[1].locator('.le-nopic').inner_text() and 'stand-in' not in p15.frames[1].locator('.le-nopic').inner_text().lower(), 'and no sketch: one plain sentence stands in the picture\'s place')
             check(p15.frames[1].locator('.le-defaults').count() == 1 and not e15, 'the editor still works and still says the colours are starting colours')
             c15.close()
             c16, p16, e16, o16 = card_page([{'state': 'ready', 'stale': True, 'built_sha256': 'a' * 64, 'refresh': {'state': 'asked'}, 'card': CARD}])

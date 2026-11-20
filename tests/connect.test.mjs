@@ -105,7 +105,9 @@ test('WIRING AND FLAG: the route and the account section exist only behind conne
   const html = read('app/index.html');
   assert.ok(html.indexOf('app-connect.js') > 0 && html.indexOf('app-connect.js') < html.indexOf('app-library.js'));
   const src = read('assets/app-connect.js');
-  assert.match(src, /confirm\(`Disconnect \$\{r\.client_name \|\| 'this AI'\}\? It stops working with your account straight away\.`\)/);
+  assert.match(src, /askDisconnect\(button, r\.client_name \|\| 'this AI'\)/);
+  assert.ok(src.includes('Disconnect ${name}? It stops working with your account straight away.'));
+  assert.ok(!/(^|[^A-Za-z.])confirm\(/m.test(src.replace(/\/\/.*$/gm, '')), 'window.confirm is answered No, unseen, in the Claude app pane: Disconnect asks in the page (tests/connect-account-disconnect.test.mjs runs it)');
   assert.match(src, /await data\.disconnectAi\(r\.client_id\); await draw\(\);/);
 });
 

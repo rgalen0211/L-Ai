@@ -752,6 +752,8 @@ export function downloadUrlProblem(u: unknown): string | null {
   if (p.username || p.password || u.includes("@")) return "An address with a user name or password in it is not accepted.";
   if (p.port) return "An address with a port number is not accepted.";
   if (!DL_HOST.test(p.hostname) || /^[0-9.]+$/.test(p.hostname)) return "Use a website name (like www.example.org), not a number.";
+  // a public website name ends in a label that starts with a letter (a number written another way, 0x7f.0.0.1, does not), and is not a name that only works inside a computer or network (the database checks the same two rules)
+  if (!/\.[A-Za-z][A-Za-z0-9-]*$/.test(p.hostname) || /\.(localhost|local|internal|lan)$/i.test(p.hostname)) return "Use a public website name (like www.example.org), not a number and not a name that only works inside a computer or network.";
   return null;
 }
 
@@ -1223,6 +1225,8 @@ const forecastSeries: ToolDef = {
       }
       series.push([y, v]);
     }
+    // the engine's own limit (ryagram/predict/core.py: half the history, at most 10); a longer reach can only fail later, after the person's AI has waited for it
+    if (horizon > Math.floor(raw.length / 2)) return refuse(`The horizon can be at most half the number of years given (${Math.floor(raw.length / 2)} for ${raw.length} pairs). Give more years or ask for fewer ahead. Nothing was asked.`, "args");
     const method = a.method === undefined ? undefined : (typeof a.method === "string" && FORECAST_METHODS.includes(a.method) ? a.method : null);
     const unit = a.unit === undefined ? undefined : (typeof a.unit === "string" && FORECAST_UNIT.test(a.unit) ? a.unit : null);
     const rawBreaks = a.breaks === undefined ? [] : a.breaks;
