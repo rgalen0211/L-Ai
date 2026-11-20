@@ -227,7 +227,7 @@ def main():
             c4, p4 = fresh()
             p4.evaluate("(a) => openInput(a)", {'project_id': PROJECT, 'mode': 'compilation'})
             p4.frames[1].wait_for_selector('.le-panel', timeout=15000)
-            check(p4.frames[1].locator('.le-panel').count() == 1, 'the editor opens, after a wait for a result that never comes, from the arguments alone')      # was `check(True, ...)`: the wait above raises on a timeout, so this line could only ever pass (11-20 audit)
+            check(p4.frames[1].locator('.le-panel').count() >= 1 and p4.frames[1].locator('h1').count() >= 1, 'the editor opens, after a wait for a result that never comes, from the arguments alone')      # was `check(True, ...)`: the wait above raises on a timeout, so this line could only ever pass (11-20 audit)
             c4.close()
             print('a refusal is read as words, never as an editor')
             NS = 'The person has not shared their track list with their AI. Ask them to tick "Let my AI see my track list" in the Ryagram app, then open the editor again.'
