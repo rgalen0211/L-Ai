@@ -12,7 +12,7 @@ const all = () => [Dp.KNOWN.studio.line, ...Dp.KNOWN.studio.sections.flatMap(([t
 
 test('Studio is a known department, last in the order, with the approved line', () => {
   assert.equal(Dp.KNOWN.studio.label, 'Studio');
-  assert.equal(Dp.ORDER[Dp.ORDER.length - 1], 'studio');
+  assert.equal(Dp.ORDER.filter(id => !Dp.PAGE_ONLY.includes(id)).pop(), 'studio');         // last of the departments the server announces (a page-owned one, Forecasts, follows it)
   assert.equal(Dp.KNOWN.studio.line, 'Your podcast’s camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.');
   assert.deepEqual(J(Dp.normalize([{ id: 'studio', status: 'soon' }, { id: 'games', status: 'soon' }])), { working: [], soon: ['games', 'studio'] });
 });
