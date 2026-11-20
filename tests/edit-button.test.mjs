@@ -14,7 +14,7 @@ test('the Edit link is shown only where the editor is released (true or account)
 });
 
 test('every project row and the top of the project page carry it', () => {
-  assert.match(lib, /h\('a', \{ href: `#\/p\/\$\{p\.id\}` \}, p\.title\), ' ', editLink\(p\.id, 'button secondary small'\)/);
+  assert.match(lib, /edit: editLink\(p\.id, 'button secondary small'\)/);
   assert.match(lib, /const actions = h\('div', \{ class: 'actions-row' \},\n\s+editLink\(project\.id, 'button primary'\),/);
 });
 

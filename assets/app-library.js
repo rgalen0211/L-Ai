@@ -87,7 +87,17 @@
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
 
-  // The admin menu in the top bar (NEXT-WEB 159, Ryan 21:07): for an ADMIN account only, an 'Admin' menu beside Help and Account with a link to every admin page that is switched on, plus the
+  // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
+  const adminPages = () => [
+    ['#/admin/ops', 'Operations and invites', 'People, invite codes, support questions and abuse reports.', 'People', opsOn()],
+    ['#/admin/waiting', 'Waiting list', 'People waiting for access. Approve them here.', 'People', waitingOn()],
+    ['#/admin/waitlist', 'Waitlist by film', 'Signups per film link, per day.', 'People', true],
+    ['#/admin/visits', 'Visits and signups', 'Who visited the site and who signed up.', 'People', true],
+    ['#/admin/funnel', 'Funnel by day', 'Signed up, first preview and first order, day by day.', 'People', funnelOn()],
+    ['#/admin/renders', 'Render approvals', 'Full films waiting for your yes.', 'Films', ordersOn()],
+    ['#/admin/tester', 'Tester computers and Connect an AI', 'Which computers are signed in for testers, and who has an AI connected.', 'Computers', desktopOn()]
+  ].filter(r => r[4]).map(([href, label, about, group]) => ({ href, label, about, group }));
+  // The admin link in the top bar (NEXT-WEB 159, Ryan 21:07; WEB 11-20: one plain link to the Admin page instead of a menu): for an ADMIN account only, an 'Admin' menu beside Help and Account with a link to every admin page that is switched on, plus the
   // normal pages. The server decides who is an admin (is_app_admin); a non-admin, or a failed check, gets nothing new. It is a real <details> (keyboard and screen reader for free) that closes on
   // a choice, on Escape and when the address changes.
   function adminNav(data) {
@@ -108,16 +118,7 @@
     };
     Promise.resolve().then(() => data.isAppAdmin()).then(yes => {
       if (!alive || yes !== true) return;                                         // the check belongs to THIS mount: a later sign-in starts its own
-      const normal = [['#/', 'All projects'], ['#/account', 'Account'], ['#/help', 'Help']].filter(l => l[0] !== '#/help' || opsOn());
-      const admin = [['#/admin/ops', 'Operations and invites', opsOn()], ['#/admin/renders', 'Render approvals', ordersOn()], ['#/admin/tester', 'Tester computers and Connect an AI', desktopOn()],
-        ['#/admin/waiting', 'Waiting list', waitingOn()], ['#/admin/waitlist', 'Waitlist by film', true], ['#/admin/visits', 'Visits and signups', true], ['#/admin/funnel', 'Funnel by day', funnelOn()]].filter(l => l[2]);
-      const list = (title, rows) => [h('p', { class: 'admin-menu-title' }, title), h('ul', {}, rows.map(([href, label]) => h('li', {}, h('a', { href }, label))))];
-      menu = h('details', { class: 'admin-menu' }, h('summary', { class: 'app-nav-link', 'aria-label': 'Admin menu' }, 'Admin'),
-        h('nav', { class: 'admin-menu-panel', 'aria-label': 'Admin pages' }, ...list('Admin', admin), ...list('Your pages', normal)));
-      menu.addEventListener('click', event => { if (event.target.closest('a')) close(); });
-      menu.addEventListener('keydown', event => { if (event.key === 'Escape') { close(); menu.querySelector('summary').focus(); } });
-      window.addEventListener('hashchange', close);
-      document.addEventListener('click', outside);
+      menu = h('a', { class: 'app-nav-link admin-link', href: '#/admin' }, 'Admin');
       slot.prepend(menu);
       if (slot.parentElement) slot.parentElement.classList.add('has-admin');           // lets the phone header wrap onto a second row instead of overflowing
     }).catch(() => { /* a failed check shows nothing new */ });
@@ -166,6 +167,7 @@
         else if (requestsOn() && hash === '#/request') view = await requestView();
         else if (opsOn() && (hash === '#/help' || /^#\/help\?job=/.test(hash))) view = await helpView();
         else if (waitingOn() && hash === '#/admin/waiting' && await data.isAppAdmin()) view = await waitingUi().adminView();
+        else if (hash === '#/admin' && await data.isAppAdmin()) view = window.ryagramSite.adminHub({ h, pages: adminPages() });
         else if (hash === '#/admin/waitlist' && await data.isAppAdmin()) view = await waitlistAdminView(onStop);
         else if (hash === '#/admin/visits' && await data.isAppAdmin()) view = await visitsAdminView(onStop);
         else if (opsOn() && hash === '#/admin/ops' && await data.isAppAdmin()) view = await opsAdminView(onStop);
@@ -328,36 +330,37 @@
             location.hash = `#/v/${version.id}`;
           } catch (err) { showError(error, err); }
         });
-      } }, h('label', { for: 'np-title' }, 'New project'), h('div', { class: 'inline-row' }, input, create), error);
+      } }, h('label', { for: 'np-title' }, 'Name your film'), h('div', { class: 'inline-row' }, input, create), error);
 
+      const S = window.ryagramSite;
       const list = projects.length
-        ? h('ul', { class: 'project-list' }, projects.map(p => h('li', {},
-            h('a', { href: `#/p/${p.id}` }, p.title), ' ', editLink(p.id, 'button secondary small'),
-            h('span', { class: 'meta' },
-              p.latest ? [`Version ${p.latest.number} · `, badge(p.latest.state), ` · updated ${date(p.updated_at)}`]
-                       : `No versions · updated ${date(p.updated_at)}`))))
-        : h('p', { class: 'form-intro' }, builderOn() ? 'No projects yet. The quickest way to start is above: pick a ready-made film and the first picture is free.' : 'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.');
+        ? h('ul', { class: 'film-grid' }, projects.map(p => S.filmCard({ h, project: p, data, version: p.latest && p.latest.id,
+            statusEl: p.latest ? [`Version ${p.latest.number} · `, badge(p.latest.state)] : 'No versions yet', updated: `· updated ${date(p.updated_at)}`, edit: editLink(p.id, 'button secondary small') })))
+        : h('p', { class: 'form-intro' }, builderOn() ? 'No films yet. The quickest way to start is the big card above: pick a ready-made film and the first picture is free.' : 'No films yet. Name your first film above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
                                 ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
-      // Ryan only: the link appears once is_app_admin() says so (never before its SQL is applied).
-      const adminLinks = h('p', { class: 'meta admin-links', hidden: true }, h('a', { href: '#/admin/waitlist' }, 'Waitlist by film'), ' \u00b7 ', h('a', { href: '#/admin/visits' }, 'Visits and signups'), ...(opsOn() ? [' \u00b7 ', h('a', { href: '#/admin/ops' }, 'Operations')] : []), ...(ordersOn() ? [' \u00b7 ', h('a', { href: '#/admin/renders' }, 'Render approvals')] : []), ...(funnelOn() ? [' \u00b7 ', h('a', { href: '#/admin/funnel' }, 'Funnel by day')] : []), ...(desktopOn() ? [' \u00b7 ', h('a', { href: '#/admin/tester' }, 'Tester computers')] : []));
-      data.isAppAdmin().then(yes => { adminLinks.hidden = !yes; });
-      const help = opsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/help' }, 'Get help')) : null;
+      const help = opsOn() ? h('a', { href: '#/help' }, 'Get help') : null;
       // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
-      const buildLink = builderOn() ? (projects.length ? h('p', { class: 'meta' }, h('a', { href: '#/build' }, 'Tutorial: make a film step by step'))
-        : h('p', { class: 'first-film' }, h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, 'Try the tutorial: your first film'), ' ', h('span', { class: 'meta' }, 'Pick a ready-made film or choose your own data. The first picture is free.'))) : null;
-      const intakeLink = intakeOn() && window.ryagramIntake ? h('p', { class: 'meta' }, h('a', { href: '#/new' }, 'What do you want to make?')) : null;
-      const filmsLink = myFilmsOn() && window.ryagramFilms ? h('p', { class: 'meta' }, h('a', { href: '#/films' }, 'My films')) : null;
-      const looksLink = looksOn() ? h('p', { class: 'meta' }, h('a', { href: '#/looks' }, 'Your look')) : null;
-      const requestLink = requestsOn() ? h('p', { class: 'meta' }, h('a', { href: '#/request' }, 'Request a film')) : null;
+      const buildLink = null;                                                  // the tutorial is a button on the Start card now
+      const intakeLink = intakeOn() && window.ryagramIntake ? h('a', { href: '#/new' }, 'What do you want to make?') : null;
+      const filmsLink = myFilmsOn() && window.ryagramFilms ? h('a', { href: '#/films' }, 'All my films') : null;
+      const looksLink = looksOn() ? h('a', { href: '#/looks' }, 'Your look') : null;
+      const requestLink = requestsOn() ? h('a', { href: '#/request' }, 'Ask us to make a film') : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro' }, 'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'),
-              startStrip, deptCards, credits, creditsNote, buildLink, intakeLink, filmsLink, looksLink, requestLink, adminLinks, form, list, help];
+      const startCard = h('section', { class: 'start-card', 'aria-labelledby': 'start-card-h' }, h('h2', { id: 'start-card-h' }, 'Start a new film'),
+        h('p', { class: 'meta' }, 'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'),
+        h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, startOn() ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null),
+        form);
+      const quiet = [intakeLink, requestLink, looksLink, help].filter(Boolean);
+      return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro page-lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
+              startStrip, startCard,
+              h('section', { class: 'site-section', 'aria-labelledby': 'films-h' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), list),
+              deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null, buildLink];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.

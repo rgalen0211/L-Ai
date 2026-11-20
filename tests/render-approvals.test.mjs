@@ -82,7 +82,7 @@ test('WORDS: when it was asked and when it expires, in plain hours or days', () 
 test('PAGE SOURCE: admin only and behind renderOrders; Approve and Decline (with a confirm and an optional note) call the one decide function and redraw only after it returns; errors are shown', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /ordersOn\(\) && hash === '#\/admin\/renders' && await data\.isAppAdmin\(\)\) view = await rendersAdminView\(onStop\)/);
-  assert.match(lib, /\.\.\.\(ordersOn\(\) \? \[' \\u00b7 ', h\('a', \{ href: '#\/admin\/renders' \}, 'Render approvals'\)\] : \[\]\)/);
+  assert.match(lib, /\['#\/admin\/renders', 'Render approvals', '[^']*', 'Films', ordersOn\(\)\]/);
   const view = lib.slice(lib.indexOf('async function rendersAdminView'), lib.indexOf('async function opsAdminView'));
   assert.equal([...view.matchAll(/data\.adminRenderDecide\(/g)].length, 1);
   assert.match(view, /try \{ await data\.adminRenderDecide\(r\.stage_id, approve, n\.value\.trim\(\)\); await load\(\); \} catch \(err\) \{ showError\(error, err\); \}/);

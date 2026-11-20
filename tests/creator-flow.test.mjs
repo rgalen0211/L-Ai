@@ -86,7 +86,7 @@ test('SCREEN: the request page and its link exist only behind the filmRequests f
   const src = read('assets/app-library.js');
   assert.match(src, /const requestsOn = \(\) => window\.ryagramConfig\?\.filmRequests === true \|\| !!window\.ryagramMock;/);
   assert.match(src, /else if \(requestsOn\(\) && hash === '#\/request'\) view = await requestView\(\);/);
-  assert.match(src, /const requestLink = requestsOn\(\) \? h\('p', \{ class: 'meta' \}, h\('a', \{ href: '#\/request' \}, 'Request a film'\)\) : null;/);
+  assert.match(src, /const requestLink = requestsOn\(\) \? h\('a', \{ href: '#\/request' \}, 'Ask us to make a film'\) : null;/);
   assert.match(src, /try \{ fr = await data\.adminFilmRequests\(\); \} catch \{ fr = null; \}/);                // the rest of the screen works without the SQL
   assert.match(src, /queueSection\(fr, now\),/);
   for (const call of ['adminFilmRequestSet(r.id, \'in_progress\'', 'adminFilmRequestSet(r.id, \'delivered\'', 'adminFilmRequestSet(r.id, \'declined\'', 'adminCreatorInvite(a.id, null)']) assert.ok(src.includes(call), call);

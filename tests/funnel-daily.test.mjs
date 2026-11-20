@@ -50,7 +50,7 @@ test('PAGE: admin only, behind the funnelTracking flag, linked from the admin li
   const lib = read('assets/app-library.js');
   assert.match(lib, /const funnelOn = \(\) => window\.ryagramConfig\?\.funnelTracking === true \|\| !!window\.ryagramMock;/);
   assert.match(lib, /funnelOn\(\) && hash === '#\/admin\/funnel' && await data\.isAppAdmin\(\)\) view = await funnelAdminView\(onStop\)/);
-  assert.match(lib, /\.\.\.\(funnelOn\(\) \? \[' \\u00b7 ', h\('a', \{ href: '#\/admin\/funnel' \}, 'Funnel by day'\)\] : \[\]\)/);
+  assert.match(lib, /\['#\/admin\/funnel', 'Funnel by day', '[^']*', 'People', funnelOn\(\)\]/);
   const view = lib.slice(lib.indexOf('async function funnelAdminView'), lib.indexOf('// --- #/admin/renders'));
   assert.doesNotMatch(view, /data\.(?!adminFunnelEvents)[a-zA-Z]+\(/, 'it calls no other data function');
   assert.doesNotMatch(view, /replaceChildren\([^;]*: null\)/);

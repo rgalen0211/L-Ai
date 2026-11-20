@@ -43,8 +43,9 @@ test('404: a branded not-found page with absolute paths (it is shown at any dept
 
 test('EMPTY LIBRARY AND CREDITS: the first screen says what a project is and what to do, and what credits are for', () => {
   const lib = read('assets/app-library.js');
-  assert.ok(lib.includes("'No projects yet. A project is one film you are making. Name it above, then pick a ready-made film to start from.'"));
-  assert.ok(lib.includes("'Each project is one film. Start one below and Ryagram draws it from public data, with its sources shown.'"));
+  assert.ok(lib.includes("'No films yet. Name your first film above, then pick a ready-made film to start from.'"));
+  assert.ok(lib.includes("'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'"));
+  assert.ok(lib.includes("'Welcome back. Pick up a film below, or start a new one.'"));
   assert.ok(lib.includes("'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.'"));
   assert.doesNotMatch(lib, /it starts as r1/);
 });

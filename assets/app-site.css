@@ -1,0 +1,24 @@
+/* The signed-in site as one website (WEB 11-20). Structure and plain layout only; RENDERER owns the look pass in THIS file. Colours come from the page's own variables. */
+.app-main{max-width:1100px}
+.page-lede{margin:0 0 18px;max-width:46em}
+.start-card{margin:18px 0 26px;padding:22px 24px;border:1px solid var(--line,rgba(127,127,127,.35));border-radius:16px;background:var(--soft,rgba(127,127,127,.08))}
+.start-card h2{margin:0 0 6px;font-size:1.5rem}
+.start-card .start-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 4px}
+.start-card .start-actions .button{min-height:46px}
+.start-card form{margin-top:12px}
+.site-section{margin:26px 0}
+.site-section>h2{margin:0 0 10px}
+.site-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.film-grid,.site-card-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
+.film-card,.site-card{border:1px solid var(--line,rgba(127,127,127,.35));border-radius:14px;overflow:hidden;background:var(--card,transparent);display:flex;flex-direction:column}
+.site-card{padding:14px 16px}
+.site-card-link{text-decoration:none}
+.film-thumb{display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;background:var(--soft,rgba(127,127,127,.14));text-decoration:none;overflow:hidden}
+.film-thumb img{width:100%;height:100%;object-fit:cover;display:block}
+.film-thumb-letter{font-size:2.4rem;font-weight:700;opacity:.55}
+.film-card-body{padding:12px 14px 14px}
+.film-card-body h3{margin:0 0 4px;font-size:1.05rem;overflow-wrap:anywhere}
+.film-card-actions{margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap}
+.home-links{display:flex;flex-wrap:wrap;gap:6px 18px;margin:22px 0 8px;padding:0;list-style:none}
+.admin-link{font-weight:600}
+@media (max-width:700px){.film-grid,.site-card-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.start-card{padding:16px}.start-card .start-actions .button{width:100%}}

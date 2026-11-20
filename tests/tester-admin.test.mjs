@@ -61,7 +61,7 @@ test('MUST-FAIL: the server refuses what the form would also refuse, so the pre-
 test('PAGE SOURCE: the route needs the flag AND an admin answer, the link needs the flag, the change is made only inside the button handler, the form pre-checks first, and everything goes in as text', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /else if \(desktopOn\(\) && hash === '#\/admin\/tester' && await data\.isAppAdmin\(\)\) view = await deviceUi\(\)\.testerAdminView\(\);/);
-  assert.match(lib, /\.\.\.\(desktopOn\(\) \? \[' \\u00b7 ', h\('a', \{ href: '#\/admin\/tester' \}, 'Tester computers'\)\] : \[\]\)/);
+  assert.match(lib, /\['#\/admin\/tester', 'Tester computers and Connect an AI', '[^']*', 'Computers', desktopOn\(\)\]/);
   const src = read('assets/app-device.js');
   const view = src.slice(src.indexOf('async function testerAdminView'), src.indexOf('return { deviceView, computersSection, testerAdminView }'));
   assert.equal([...view.matchAll(/data\.adminSetLocalCompute\(/g)].length, 2);   // the form's change(), and the 'Currently on' row's Turn off (11-17): both only inside a click handler
