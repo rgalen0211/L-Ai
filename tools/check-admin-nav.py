@@ -48,7 +48,7 @@ with sync_playwright() as pw:
         got = p.eval_on_selector_all('.site-card-link', 'els => els.map(e => [e.innerText.trim(), e.getAttribute("href")])')
         check([list(x) for x in got] == [list(x) for x in PAGES], f'the Admin page links every admin page that is switched on, in plain words ({len(got)} cards)')
         check(p.locator('.site-card .meta').count() == len(PAGES), 'each card says in a line what the page is for')
-        check(min(p.eval_on_selector_all('.site-card-link', 'els => els.map(e => Math.round(e.getBoundingClientRect().height))')) >= 20, 'the links have a real height')
+        check(min(p.eval_on_selector_all('.site-card-link', 'els => els.map(e => Math.round(e.getBoundingClientRect().height))')) >= 44, 'every Admin card link is at least 44 px tall (the tap floor)')
         p.screenshot(path=str(OUT / f'admin-page-{name}.png'), full_page=True)
         check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), 'no sideways scroll on the Admin page')
         for label, href in PAGES:

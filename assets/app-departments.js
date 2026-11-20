@@ -99,7 +99,7 @@
       let rows = null;
       try { rows = await data.myDepartments(); } catch { rows = null; }
       model = normalize(rows);
-      if (!hasAny(model)) { model = normalize(FALLBACK); model.fallback = true; }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
+      if (!hasAny(model)) { model = normalize(FALLBACK); }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
       return model;
     }
     // The cards on Your projects: the same list as the bar, one card each, working ones marked Open, the rest Coming soon. Null when the departments switch conditions are not met.
