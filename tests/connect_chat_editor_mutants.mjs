@@ -35,7 +35,7 @@ const mutants = [
   ['a refused call still opens an editor from the arguments', H, "if (params && params.isError) { refused(params); return; }", ''],
   ['the arguments open the film even when a result has arrived', H, 'if (!seen.result) opened(input);', 'opened(input);'],
   ['the arguments open the film after 1.5 s, before a slow result', H, '}, 8000);     // only when', '}, 1500);     // only when'],
-  ['a refusal leaves the editor on screen and shows nothing', H, "if (root) root.replaceChildren(h('p', { class: 'meta' }, text));", ''],
+  ['a refusal leaves the editor on screen and shows nothing', H, "if (root) root.replaceChildren(h('p', { class: 'meta', role: 'alert' }, text));", ''],
   ['a refusal after the editor opened leaves its timers running', H, '    stopAll();\n    mounted = true; didRefuse = true;', '    mounted = true; didRefuse = true;'],
   ['a refusal that arrives later still lets the film open', H, 'mounted = true; didRefuse = true;', 'mounted = true;'],
   ['a look colour is read without a guard', AE, "const hue = k => (typeof lk[k] === 'string' ? lk[k].toLowerCase() : '');", "const hue = k => lk[k].toLowerCase();"],

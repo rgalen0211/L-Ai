@@ -37,12 +37,13 @@ test('the first script ends its error words with the build, so "old page or new 
   let handler = null;
   const root = { querySelector: () => null, textContent: 'x', kids: [], appendChild(p) { this.kids.push(p); } };
   const logged = [];
-  const ctx = { console: { error: (...a) => logged.push(a) }, addEventListener: (type, fn) => { if (type === 'error') handler = fn; }, document: { getElementById: (id) => (id === 'live-root' ? root : null), createElement: () => ({}) } };
+  const ctx = { console: { error: (...a) => logged.push(a) }, addEventListener: (type, fn) => { if (type === 'error') handler = fn; }, document: { getElementById: (id) => (id === 'live-root' ? root : null), createElement: () => ({ setAttribute(k, v) { this[k] = v; } }) } };
   vm.runInNewContext(first, ctx);
   assert.equal(typeof handler, 'function');
   handler({ message: 'Uncaught TypeError: Cannot read properties of undefined (reading \'toLowerCase\')', filename: 'https://host.example/bridge.js', lineno: 12, colno: 7,
     error: { stack: 'TypeError: x\n    at lower (https://host.example/bridge.js:12:7)\n    at onMessage (https://host.example/bridge.js:40:2)\n    at third (nope)' } });
   const p = root.kids[0];
+  assert.equal(p.role, 'alert', 'the sentence is read out, not only drawn');
   assert.match(p.textContent, /could not draw\. Ask your AI to open the editor in the Ryagram app instead\. \(Uncaught TypeError: Cannot read properties of undefined \(reading 'toLowerCase'\)\) At https:\/\/host\.example\/bridge\.js line 12 column 7\. Stack: at lower \(https:\/\/host\.example\/bridge\.js:12:7\) \| at onMessage \(https:\/\/host\.example\/bridge\.js:40:2\)\. Panel build [0-9a-f]{12}\.$/);
   assert.ok(!p.textContent.includes('third'), 'only the first two stack lines');
   assert.ok(p.textContent.endsWith(`Panel build ${EDITOR_BUILD}.`));
