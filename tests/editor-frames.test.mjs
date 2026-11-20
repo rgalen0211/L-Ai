@@ -328,3 +328,16 @@ test('glue build: every window asked is the window the editor wants, a missing p
   for (let i = 0; i < packed.length - 46; i++) if (dv.getUint32(i, true) === 0x02014b50 && new TextDecoder().decode(packed.subarray(i + 46, i + 46 + 13)) === 'manifest.json') { dv.setUint16(i + 10, 8, true); hit = true; }
   assert.ok(hit); assert.throws(() => G.manifestOf(packed), /packed in a way/);
 });
+
+test('FrameStore: a thumbnail follows Try colours (the recoloured copy), and goes back with the film’s own colours (WEB 11-20: a strip tile must match the main picture)', async () => {
+  const store = new F.FrameStore({ plan: PLAN0, fetchWindow: serve, drawer: D });
+  store.want(2); await settle(store);
+  const own = store.thumbUri(2.5, 160);
+  const target = store.paletteAt(2.5).find(c => c.elements > 0).colour;
+  store.setColours({ [target]: '#ff00aa' });
+  const swapped = store.thumbUri(2.5, 160);
+  assert.notEqual(swapped, own, 'the thumbnail changes with the colour');
+  assert.ok(decodeURIComponent(swapped).toLowerCase().includes('#ff00aa') || decodeURIComponent(swapped).includes('255,0,170'), 'the new colour is in the thumbnail');
+  store.setColours({}); assert.equal(store.thumbUri(2.5, 160), own, 'put back');
+  assert.ok(store.cver >= 2, 'every change of colours is a new version for whoever keeps pictures made from it');
+});
