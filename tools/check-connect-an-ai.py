@@ -3,6 +3,7 @@ connector address is shown in full with a Copy button that really copies it, the
 
     python tools/check-connect-an-ai.py [outdir]        (default D:/Ryagram-scratch/WEB/connect-an-ai-shots)
 """
+import re
 import http.server
 import socketserver
 import sys
@@ -58,7 +59,7 @@ def main():
                 p.on('pageerror', lambda e: errors.append(str(e)))
                 p.on('console', lambda m: errors.append(m.text) if m.type == 'error' and 'status of 404' not in m.text and 'Failed to load resource' not in m.text else None)
                 p.goto(f'{BASE}/app/?mock#/account', wait_until='load')
-                p.wait_for_selector('#acct-ais', timeout=20000)
+                p.get_by_role('tab', name=re.compile('Connected')).click(); p.wait_for_selector('#acct-ais', timeout=20000)
                 sec = p.locator('.account-section:has(#acct-ais)')
                 btn = sec.locator('[data-key="connect-an-ai"]')
                 check(btn.inner_text() == 'Connect an AI' and btn.get_attribute('aria-expanded') == 'false', 'a Connect an AI button, closed to start with')

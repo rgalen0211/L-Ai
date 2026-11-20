@@ -12,10 +12,10 @@
     return m && ids.includes(m[1]) ? m[1] : null;
   }
 
-  function create({ h, sections, initial = null, onChange = () => {}, label = 'Sections' }) {
+  function create({ h, sections, initial = null, onChange = () => {}, label = 'Sections', address = true }) {
     const list = sections.filter(s => s && s.el && !s.hidden);
     const ids = list.map(s => s.id);
-    let at = Math.max(0, ids.indexOf(sectionFromAddress(ids) || initial || ids[0]));
+    let at = Math.max(0, ids.indexOf((address ? sectionFromAddress(ids) : null) || initial || ids[0]));
     const uid = Math.random().toString(36).slice(2, 7);
     const tabEls = list.map((s, i) => h('button', { type: 'button', class: 'flip-tab', role: 'tab', id: `flip-tab-${uid}-${s.id}`, 'aria-controls': `section-${s.id}`, 'aria-selected': 'false', tabindex: '0' },
       h('span', { class: 'n', 'aria-hidden': 'true' }, String(i + 1)), s.label));
@@ -43,7 +43,7 @@
       where.textContent = `${list[at].label}: ${at + 1} of ${list.length}`;
       const tab = tabEls[at], row = tab.parentElement;
       if (row && row.getBoundingClientRect) { const r = tab.getBoundingClientRect(), p = row.getBoundingClientRect(); row.scrollLeft += (r.left + r.width / 2) - (p.left + p.width / 2); }
-      if (user) {
+      if (user && address) {
         try { const base = String(location.hash).replace(/[?&]section=[a-z0-9_-]*/i, ''); history.replaceState(null, '', `${base}${base.includes('?') ? '&' : '?'}section=${ids[at]}`); } catch { /* the address stays as it is */ }
       }
       onChange(ids[at], at);
