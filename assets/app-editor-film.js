@@ -137,14 +137,13 @@
       if (filling || destroyed || !store || !tiles.length) return;
       filling = true;
       try {
-        let asked = false;
         for (const t of tiles) {
           if (!t.inR) continue;
           const key = t.mid.toFixed(2);
           if (thumbs.has(key)) { if (!t.tile.querySelector('img')) setThumb(t, thumbs.get(key)); continue; }
           const st = store.stateOf(t.mid);
           if (st === 'ready') { let u = null; try { u = store.thumbUri(t.mid, 200); } catch { u = null; } if (u) { thumbs.set(key, u); setThumb(t, u); setTimeout(fillThumbs, 40); break; } }      // one drawing per turn, so the page never stalls while a strip fills
-          else if (stripSeen && !asked && st === 'idle' && store.building() === 0) { asked = true; store.want(t.mid); }      // one window at a time, and never ahead of the picture under the playhead
+          // a tile whose window is not ready stays a plain tile: the strip NEVER asks the worker for a window just to fill itself (WORKER 08:08: every window is a film_bundle job on the live worker); it fills from the windows the playhead already asks for
         }
       } finally { filling = false; }
     }
