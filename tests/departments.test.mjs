@@ -143,7 +143,7 @@ test('THE CARDS ROW on Your projects is the same list as the bar: a link and Ope
   win.ryagramConfig = { ...(win.ryagramConfig || {}), departments: true, aiFirst: true, connectAi: true };
   const row = await ui.cardsRow();
   const t = textOf([row]);
-  for (const w of ['Departments', 'Data films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio', 'Forecasts', 'Open', 'soon']) assert.ok(t.includes(w), w);
+  for (const w of ['Departments', 'Data films', 'Compilations', 'Perfect City', 'Games', 'Animation Studio', 'Studio', 'Forecasts', 'Open', 'soon']) assert.ok(t.includes(w), w);
   const hrefs = all(wrap([row]), n => n.tag === 'a').map(n => n.attrs.href);
   assert.deepEqual(plain(hrefs), ['#/d/data_films', '#/d/compilations', '#/d/geo_intelligence', '#/d/games', '#/d/animation_studio', '#/d/studio', '#/d/forecasts']);
   win.ryagramConfig = { ...win.ryagramConfig, departments: false };
