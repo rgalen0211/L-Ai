@@ -102,6 +102,8 @@ body.wb-page .le.le-wb{flex:1 1 auto;min-height:0;display:flex;flex-direction:co
   .le-wb .wb-top{flex-wrap:wrap;gap:8px}
   .le-wb .wb-tools{flex-wrap:wrap;max-width:100%;flex:1 1 100%}
   .le-wb .wb-name{flex:1 1 100%}
+  .le-wb .wb-name{flex-wrap:wrap;row-gap:4px}.le-wb .wb-name h1{white-space:normal;overflow:visible}
+  .le-wb .le-scrub-bar{flex-wrap:wrap;gap:8px 12px}.le-wb .le-scrub-bar input[type=range]{order:3;flex:1 1 100%}.le-wb .le-scrub-bar .le-pos{margin-left:auto;min-width:0}
   .le-wb .wb{display:flex;flex-direction:column;padding:8px}
   .le-wb .wb-panel.stage{order:1}.le-wb .wb-panel.timeline{order:2}.le-wb .wb-panel.right{order:3}.le-wb .wb-panel.left{order:4}
   .le-wb .wb-panel.stage .body{overflow:visible}
