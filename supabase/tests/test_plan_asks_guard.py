@@ -2,7 +2,10 @@
 Run:  python supabase/tests/test_plan_asks_guard.py
 It proves (1) both files carry the guard with the hashes the builder computes from the repository's own text, (2) the guard's order is: skip when absent, nothing to do when already in the wanted state, STOP when the live text
 is anything else, only then replace, and (3) MUST-FAIL: a file with a wrong hash, or with the guard stripped, is reported by the builder's --check."""
+import os
+import shutil
 import subprocess
+import tempfile
 import sys
 import unittest
 from pathlib import Path
@@ -13,8 +16,11 @@ MIG = ROOT / "supabase" / "migrations" / "20261120000200_plan_asks_lock_and_host
 RB = ROOT / "supabase" / "rollbacks" / "20261120000200_plan_asks_lock_and_host_rollback.sql"
 
 
-def check():
-    return subprocess.run([sys.executable, "-B", str(BUILDER), "--check"], capture_output=True, text=True, cwd=str(ROOT))
+def check(mig=None, rb=None):
+    env = dict(os.environ)
+    if mig: env['PLAN_ASKS_MIG'] = str(mig)
+    if rb: env['PLAN_ASKS_RB'] = str(rb)
+    return subprocess.run([sys.executable, '-B', str(BUILDER), '--check'], capture_output=True, text=True, cwd=str(ROOT), env=env)
 
 
 class PlanAsksGuard(unittest.TestCase):
@@ -37,21 +43,21 @@ class PlanAsksGuard(unittest.TestCase):
                     self.assertEqual(body.replace("''", "").count("'"), 0, "an apostrophe inside the sentence must be doubled: " + line[:120])
 
     def test_must_fail_a_wrong_hash_or_a_stripped_guard_is_reported(self):
-        for path in (MIG, RB):
-            orig = path.read_bytes()
-            try:
-                t = orig.decode("utf-8")
+        # the planted faults go into COPIES in a temp folder, never into the real migration (a killed run could otherwise leave its drift guard off)
+        with tempfile.TemporaryDirectory() as td:
+            m, r = Path(td) / MIG.name, Path(td) / RB.name
+            real = (MIG.read_bytes(), RB.read_bytes())
+            for kind in ('mig', 'rb'):
+                shutil.copyfile(MIG, m); shutil.copyfile(RB, r)
+                self.assertEqual(check(m, r).returncode, 0, 'the untouched copies pass')
+                target = m if kind == 'mig' else r
+                t = target.read_text(encoding='utf-8')
                 i = t.index("if cur <> '") + len("if cur <> '")
-                bad = t[:i] + ("0" if t[i] != "0" else "1") + t[i + 1:]
-                path.write_bytes(bad.encode("utf-8"))
-                r = check()
-                self.assertNotEqual(r.returncode, 0, "a wrong hash must be reported: " + path.name)
-                stripped = t.replace("  if cur <> '", "  if false and cur <> '", 1)
-                path.write_bytes(stripped.encode("utf-8"))
-                self.assertNotEqual(check().returncode, 0, "a changed guard must be reported: " + path.name)
-            finally:
-                path.write_bytes(orig)
-        self.assertEqual(check().returncode, 0, "the files were put back")
+                target.write_text(t[:i] + ('0' if t[i] != '0' else '1') + t[i + 1:], encoding='utf-8')
+                self.assertNotEqual(check(m, r).returncode, 0, 'a wrong hash must be reported: ' + kind)
+                target.write_text(t.replace("  if cur <> '", "  if false and cur <> '", 1), encoding='utf-8')
+                self.assertNotEqual(check(m, r).returncode, 0, 'a changed guard must be reported: ' + kind)
+            self.assertEqual(real, (MIG.read_bytes(), RB.read_bytes()), 'the real files were never touched')
 
 
 if __name__ == "__main__":

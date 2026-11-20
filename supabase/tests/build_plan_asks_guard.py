@@ -10,12 +10,15 @@ Run:  python supabase/tests/build_plan_asks_guard.py            (rewrites both f
 UNRUN against a database: the hashes are computed from the repository's own text exactly as the sibling does; a live function that differs for ANY reason makes the file stop, never silently replace.
 """
 import hashlib
+import os
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-MIG = ROOT / "supabase" / "migrations" / "20261120000200_plan_asks_lock_and_host.sql"
-RB = ROOT / "supabase" / "rollbacks" / "20261120000200_plan_asks_lock_and_host_rollback.sql"
+# the two files to read or rewrite; the tests point these at COPIES in a temp folder (PLAN_ASKS_MIG, PLAN_ASKS_RB), so a planted fault or a killed run can never touch the real migration
+MIG = Path(os.environ.get("PLAN_ASKS_MIG") or ROOT / "supabase" / "migrations" / "20261120000200_plan_asks_lock_and_host.sql")
+RB = Path(os.environ.get("PLAN_ASKS_RB") or ROOT / "supabase" / "rollbacks" / "20261120000200_plan_asks_lock_and_host_rollback.sql")
 FUNCS = [
     ("connect_request_download", "20261027000500_download_plans.sql", "text, text, text, text"),
     ("connect_request_footage", "20261030000200_footage_plans.sql", "text, text, text, text"),
@@ -127,12 +130,10 @@ def main():
             # drop the one-line label comments the guard adds
             lines = [l for l in unguarded.split("\n") if not (l.startswith("-- connect_request_") and ": the per-person lock" in l) and not (l.startswith("-- connect_request_") and ": puts the original back" in l)]
             unguarded = "\n".join(lines)
-            tmp = path.with_suffix(".tmp-unguarded")
-            tmp.write_text(unguarded, encoding="utf-8")
-            try:
+            with tempfile.TemporaryDirectory() as td:                      # never write next to the real file
+                tmp = Path(td) / path.name
+                tmp.write_text(unguarded, encoding="utf-8")
                 new, problems = rewrite(tmp, direction)
-            finally:
-                tmp.unlink()
         else:
             new, problems = rewrite(path, direction)
         for p in problems:
