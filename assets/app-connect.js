@@ -58,7 +58,8 @@
   const hostOf = uri => { try { return new URL(uri).host; } catch { return ''; } };
   const ago = (iso, now = Date.now()) => {
     if (!iso) return 'never';
-    const d = Math.max(0, Math.round((now - Date.parse(iso)) / 86400000));
+    if (!Number.isFinite(Date.parse(iso))) return 'at a time Ryagram could not read';          // never "NaN days ago"
+    const d =Math.max(0, Math.round((now - Date.parse(iso)) / 86400000));
     return d === 0 ? 'today' : d === 1 ? 'yesterday' : `${d} days ago`;
   };
   // A sign-in request lives 30 minutes (CONNECT). The page says when it ends, warns with 5 minutes left, and turns Approve off once it has ended.
@@ -115,6 +116,7 @@
       const expiryLine = h('p', { class: 'form-note consent-expiry', role: 'status' });
       const approve = h('button', { class: 'button primary', type: 'button' }, 'Approve');
       const deny = h('button', { class: 'button secondary', type: 'button' }, 'Deny');
+      let sent = false;
       const decide = async (button, yes) => {
         error.hidden = true;
         const picked = boxes.filter(b => b.checked).map(b => b.value);
@@ -123,10 +125,13 @@
           try {
             const r = await data.connectConsentDecide(requestId, yes, yes ? picked : []);
             if (!r || typeof r.redirect_to !== 'string' || !safeRedirect(c.redirect_uri, r.redirect_to)) throw new Error('The answer did not go back to the place shown above, so nothing was done. Close this page and start again from the AI.');
-            approve.disabled = deny.disabled = true;
+            sent = true; approve.disabled = deny.disabled = true;
             navigate(r.redirect_to);
           } catch (err) { showError(error, err); }
         });
+        // busy() gives the pressed button back when the answer comes: an answer already sent leaves both closed, and a request that ended meanwhile leaves Approve closed
+        if (sent) approve.disabled = deny.disabled = true;
+        if (tick() === 'expired') approve.disabled = true;
       };
       approve.addEventListener('click', () => decide(approve, true));
       deny.addEventListener('click', () => decide(deny, false));
@@ -154,6 +159,26 @@
     }
 
     // ---- the account page's list
+    // Disconnect asks IN the page: the Claude app's pane and chat panels answer window.confirm with No before a person sees it, so the button did nothing there (the same fix as askConfirm in app-library.js, 11-18).
+    // One box at a time under the button, focus starts on No, Escape answers No. Resolves true on Yes only.
+    let closeAsk = null, askId = 0;
+    function askDisconnect(button, name) {
+      if (closeAsk) closeAsk(false);
+      return new Promise(resolve => {
+        const id = `disconnect-ask-${++askId}`;
+        const yes = h('button', { class: 'button primary small', type: 'button' }, 'Yes, disconnect');
+        const no = h('button', { class: 'button secondary small', type: 'button' }, 'No, go back');
+        const box = h('div', { class: 'inpage-confirm', role: 'alertdialog', 'aria-labelledby': id }, h('p', { id }, `Disconnect ${name}? It stops working with your account straight away.`), h('div', { class: 'actions-row' }, yes, no));
+        const onKey = e => { if (e.key === 'Escape') { e.stopPropagation(); done(false); } };
+        const done = answer => { closeAsk = null; box.removeEventListener('keydown', onKey); box.remove(); resolve(answer); if (button.isConnected) button.focus(); };
+        box.addEventListener('keydown', onKey);
+        yes.addEventListener('click', () => done(true));
+        no.addEventListener('click', () => done(false));
+        closeAsk = done;
+        button.parentElement.append(box);
+        no.focus();
+      });
+    }
     async function connectedSection(opts = {}) {
       const error = errorLine();
       const list = h('div');
@@ -164,10 +189,11 @@
           h('strong', {}, r.client_name || r.client_id), r.redirect_label ? h('span', { class: 'meta' }, ` (${r.redirect_label})`) : '', h('span', { class: 'meta' }, ` connected ${date(r.connected_at)}, last used ${ago(r.last_used_at)}, ${callsLine(r.calls_30d)}`),
           h('p', { class: 'form-note' }, (r.scopes || []).map(scopeWord).join('; ') || 'No permissions.'),
           h('button', { class: 'button secondary small', type: 'button', onclick: async event => {
-            if (!confirm(`Disconnect ${r.client_name || 'this AI'}? It stops working with your account straight away.`)) return;
+            const button = event.currentTarget;
+            if (!(await askDisconnect(button, r.client_name || 'this AI'))) return;
             error.hidden = true;
-            await busy(event.currentTarget, 'Disconnecting…', async () => {
-              try { await data.disconnectAi(r.client_id); await draw(); list.prepend(h('p', { class: 'form-note', role: 'status' }, `${r.client_name || 'The AI'} is disconnected.`)); }
+            await busy(button, 'Disconnecting…', async () => {
+              try { await data.disconnectAi(r.client_id); await draw(); const said = h('p', { class: 'form-note', role: 'status', tabindex: '-1' }, `${r.client_name || 'The AI'} is disconnected.`); list.prepend(said); said.focus(); }
               catch (err) { showError(error, err); }
             });
           } }, 'Disconnect')))) : h('p', { class: 'form-note' }, 'No AI is connected to your account.'));

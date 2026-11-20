@@ -46,7 +46,7 @@ test('the opening handshake reads the film from the result, its JSON text, or th
   const host = fs.readFileSync('tools/chat-editor/live-host.js', 'utf8').replace(/\r\n/g, '\n');
   for (const need of ['ui/notifications/tool-input', 'ui/notifications/tool-result', 'function unwrap', 'structuredContent', 'part.text', 'has not told it which film']) assert.ok(host.includes(need), need);
   // a refused open_editor is words, never an editor; the arguments open a film only when no result has come at all, after a long wait
-  for (const need of ['params && params.isError', 'refused(params)', 'if (!seen.result) opened(input)', '}, 8000);', '    stopAll();\n    mounted = true; didRefuse = true;', "root.replaceChildren(h('p', { class: 'meta' }, text))"]) assert.ok(host.includes(need), need);
+  for (const need of ['params && params.isError', 'refused(params)', 'if (!seen.result) opened(input)', '}, 8000);', '    stopAll();\n    mounted = true; didRefuse = true;', "root.replaceChildren(h('p', { class: 'meta', role: 'alert' }, text))"]) assert.ok(host.includes(need), need);
 });
 
 test('a film whose look names no colours (a new one, or an older one) never crashes the page: every look read is guarded', () => {

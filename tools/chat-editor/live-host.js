@@ -13,6 +13,7 @@
   const WAIT_MS = 20000;
   const POLL_MS = 5000;          // the page asks for changes every 2 s; each ask is a call through the host to the server, so an ask for the SAME revision within 5 s is answered from the last answer
   const PANEL = 'Ryagram panel';          // the label the server gives this panel's own edits (they are recorded under the AI's limits, so they come back as the AI's rows)
+  const NOSTART = 'Ryagram could not start here. Ask your AI to open the editor in the Ryagram app instead.';
   const DOWN = { data: null, error: { code: null, message: 'Ryagram did not answer. Ask your AI to open the editor again.' } };
   const BAD = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069\u200e\u200f]/g;
   const clean = (s, n) => String(s == null ? '' : s).replace(BAD, ' ').slice(0, n);
@@ -264,14 +265,14 @@
     mounted = true; didRefuse = true;
     window.ryagramLiveHost.project = '';
     const root = document.getElementById('live-root');
-    if (root) root.replaceChildren(h('p', { class: 'meta' }, text));
+    if (root) root.replaceChildren(h('p', { class: 'meta', role: 'alert' }, text));      // role alert: a refusal that replaces the page is read out, not only drawn
   }
   function noFilm() {
     if (mounted) return;
     const root = document.getElementById('live-root');
     if (!root) return;
     const got = ['initialized', 'input', 'result'].filter(k => seen[k]).join(', ') || 'nothing';
-    root.replaceChildren(h('p', { class: 'meta' }, `Ryagram is here but your chat has not told it which film to show. Ask your AI to open the editor again. (For Ryagram support: the chat sent ${got}.)`));
+    root.replaceChildren(h('p', { class: 'meta', role: 'status' }, `Ryagram is here but your chat has not told it which film to show. Ask your AI to open the editor again. (For Ryagram support: the chat sent ${got}.)`));
   }
   function opened(sc) {
     if (mounted || didRefuse || !sc || typeof sc !== 'object') return;
@@ -282,10 +283,11 @@
     window.ryagramLiveHost.mode = sc.mode === 'data' ? 'data' : 'compilation';
     window.ryagramLiveHost.title = clean(sc.title, 80);
     const root = document.getElementById('live-root');
+    if (root && !window.ryagramEditorPage) root.replaceChildren(h('p', { class: 'meta', role: 'alert' }, NOSTART));      // the editor's own script is missing: say so, never sit on "Opening your film..." for good
     if (!root || !window.ryagramEditorPage) return;
-    fullBtn = h('button', { type: 'button', class: 'button secondary', hidden: true, onclick: toggleFull }, 'Full screen');
+    fullBtn =h('button', { type: 'button', class: 'button secondary', hidden: true, onclick: toggleFull }, 'Full screen');
     const appUrl = root.getAttribute ? root.getAttribute('data-app-url') : '';
-    const siteUrl = siteLink(appUrl, project, window.ryagramLiveHost.mode), siteNote = h('div', { class: 'le-sitenote' });
+    const siteUrl = siteLink(appUrl, project, window.ryagramLiveHost.mode), siteNote = h('div', { class: 'le-sitenote', role: 'status' });      // empty until a link is refused; a status box that already exists is read out when words are put in it
     const siteBtn = siteUrl ? h('button', { type: 'button', class: 'button secondary', onclick: () => openSite(siteUrl, siteNote) }, 'See the real frames on the site') : null;
     root.replaceChildren(h('div', { class: 'le-chatbar' }, h('span', { class: 'meta' }, 'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'), h('span', { class: 'le-chatbtns' }, siteBtn, fullBtn)), siteNote, window.ryagramEditorPage.create({ h }).editorView(window.ryagramLiveHost.mode, fn => stops.push(fn)));
     paintFull();
@@ -303,5 +305,5 @@
 
   request('ui/initialize', { protocolVersion: '2026-01-26', appInfo: { name: 'ryagram-editor', version: '1' }, appCapabilities: { availableDisplayModes: ['inline', 'fullscreen'] } })
     .then(r => { ctx = (r && r.hostContext && typeof r.hostContext === 'object') ? r.hostContext : {}; seen.initialized = true; notify('ui/notifications/initialized', {}); size(); paintFull(); watchTimer = setTimeout(noFilm, 12000); })
-    .catch(() => { const root = document.getElementById('live-root'); if (root && !mounted) root.replaceChildren(h('p', { class: 'meta' }, 'Ryagram could not start here. Ask your AI to open the editor in the Ryagram app instead.')); });
+    .catch(() => { const root = document.getElementById('live-root'); if (root && !mounted) root.replaceChildren(h('p', { class: 'meta', role: 'alert' }, NOSTART)); });
 })();
