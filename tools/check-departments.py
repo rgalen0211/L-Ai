@@ -138,9 +138,10 @@ def main():
                 p.goto(f'{BASE}/app/?mock&aiconnected&nodept#/', wait_until='load')
                 p.wait_for_selector('#sign-out', timeout=20000)
                 p.wait_for_timeout(800)
-                check(p.locator('.dept-bar').count() == 0 and p.locator('#dept-slot').is_hidden(), 'a failing my_departments(): no bar')
+                check(p.locator('.dept-bar').count() == 1 and not p.locator('#dept-slot').is_hidden(), 'a failing my_departments(): the bar still shows, from the page’s own default list (WEB 11-20)')
+                check(p.locator('.dept-bar a[href="#/d/data_films"]').count() == 1 and p.locator('.dept-bar a[href="#/d/games"]').count() == 1, 'and it carries Data films and the Coming soon departments')
                 h = p.inner_text('header')
-                check('Help' in h and 'Account' in h and 'Sign out' in h, 'a failing my_departments(): the header is as it was (Help, Account, Sign out)')
+                check('Sign out' in h and p.locator('.dept-bar a[href="/help/"]').count() == 1 and p.locator('.dept-bar a[href="#/account"]').count() == 1, 'a failing my_departments(): the header keeps Sign out and the bar carries Help and Account')
                 check(p.locator('h1:has-text("Your projects")').count() == 1 or p.locator('h1').count() >= 1, 'and the page itself is fine')
                 ctx.close()
                 # 6. not invited: no bar
@@ -148,7 +149,7 @@ def main():
                 p.goto(f'{BASE}/app/?mock&noinvite#/', wait_until='load')
                 p.wait_for_selector('#sign-out', timeout=20000)
                 p.wait_for_timeout(800)
-                check(p.locator('.dept-bar').count() == 0, 'an account that is not invited sees no bar')
+                check(p.locator('.dept-bar').count() == 1 and p.locator('.dept-bar a[href="#/start"]').count() == 0 and p.locator('.dept-bar a[href="#/d/data_films"]').count() == 1, 'an account that is not invited (an administrator never is) still sees the bar, without the Start door (WEB 11-20)')
                 ctx.close()
                 # 7. the flag OFF (the committed config): nothing changes
                 ctx, p, errors = page(flag=False)
