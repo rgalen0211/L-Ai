@@ -85,14 +85,14 @@ def main():
                 check('is asking to sign in to your account' in p.inner_text('main') and p.locator('#device-back').count() == 0, 'with a code in the link nothing changes')
                 # 4. the signed-out note does not follow you back in
                 p.evaluate("location.hash = '#/'")
-                p.wait_for_selector('#sign-out', timeout=10000)
-                p.click('#sign-out')
+                p.wait_for_selector('#account-avatar', timeout=10000)
+                p.evaluate("document.querySelector('#sign-out').click()")   # Sign out lives in the account menu now
                 p.wait_for_selector('#app-status:has-text("You have signed out.")', timeout=10000)
                 check(True, 'signing out shows the note')
                 p.fill('#si-email', 'mock@localhost')
                 p.fill('#si-password', 'x')
                 p.click('#sign-in-form button[type=submit]')
-                p.wait_for_selector('#sign-out', timeout=10000)
+                p.wait_for_selector('#account-avatar', timeout=10000)
                 p.wait_for_timeout(400)
                 check('You have signed out.' not in p.inner_text('#app-status') or p.locator('#app-status').is_hidden(), 'signed in again: the "You have signed out." note is gone')
                 check(errors == [], 'no console errors')

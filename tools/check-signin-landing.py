@@ -55,7 +55,7 @@ def main():
         p.fill('#si-email', email)
         p.fill('#si-password', 'x')
         p.click('#sign-in-form button[type=submit]')
-        p.wait_for_selector('#sign-out', timeout=10000)
+        p.wait_for_selector('#account-avatar', timeout=10000)
         p.wait_for_timeout(500)
     try:
         with sync_playwright() as pw:
@@ -77,13 +77,13 @@ def main():
                 page_hash = p.evaluate('location.hash')
                 check(page_hash.startswith('#/v/'), 'a signed-in person is on a version page')
                 # 1. the same account signs out and back in: it keeps its page
-                p.click('#sign-out')
+                p.evaluate("document.querySelector('#sign-out').click()")   # Sign out lives in the account menu now
                 p.wait_for_selector('#app-status:has-text("You have signed out.")', timeout=10000)
                 sign_in(p, 'mock@localhost')
                 check(p.evaluate('location.hash') == page_hash and p.locator('h1:has-text("Version 1")').count() == 1, 'the SAME account signing back in keeps its version page')
                 check(p.locator('#app-status').is_hidden() or 'signed out' not in p.inner_text('#app-status'), 'and the "You have signed out." note is gone')
                 # 2. a DIFFERENT account signs in from that page: home, never the last account's page
-                p.click('#sign-out')
+                p.evaluate("document.querySelector('#sign-out').click()")   # Sign out lives in the account menu now
                 p.wait_for_selector('#app-status:has-text("You have signed out.")', timeout=10000)
                 p.screenshot(path=str(OUT / f'signed-out-{name}.png'), full_page=True)
                 sign_in(p, 'other@localhost')
