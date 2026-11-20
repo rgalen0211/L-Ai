@@ -143,7 +143,7 @@ test('THE CARDS ROW on Your projects is the same list as the bar: a link and Ope
   win.ryagramConfig = { ...(win.ryagramConfig || {}), departments: true, aiFirst: true, connectAi: true };
   const row = await ui.cardsRow();
   const t = textOf([row]);
-  for (const w of ['Departments', 'Data films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio', 'Forecasts', 'Open', 'soon']) assert.ok(t.includes(w), w);
+  for (const w of ['Departments', 'Data films', 'Compilations', 'Perfect City', 'Games', 'Animation Studio', 'Studio', 'Forecasts', 'Open', 'soon']) assert.ok(t.includes(w), w);
   const hrefs = all(wrap([row]), n => n.tag === 'a').map(n => n.attrs.href);
   assert.deepEqual(plain(hrefs), ['#/d/data_films', '#/d/compilations', '#/d/geo_intelligence', '#/d/games', '#/d/animation_studio', '#/d/studio', '#/d/forecasts']);
   win.ryagramConfig = { ...win.ryagramConfig, departments: false };
@@ -175,7 +175,7 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261120q/);
+  assert.match(html, /app-departments\.js\?v=20261120r/);
   assert.match(html, /app-data\.js\?v=20261120h/);
   assert.match(html, /app-library\.js\?v=20261120k/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });
