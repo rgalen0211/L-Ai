@@ -1,9 +1,14 @@
 // Must-fail proof for tests/connect-tools.test.mjs: each mutant deletes ONE check from a scratch copy of the connect code
-// and the suite must then FAIL. Run:  node tests/connect_mutants.mjs   (exit 0 only when every mutant is caught)
+// and the suite must then FAIL. A baseline run on the unbroken copy must PASS first, and every text must occur EXACTLY once (a text that moved is "broken", never "caught").
+// Run:  node tests/connect_mutants.mjs   (exit 0 only when every mutant is caught)
+// 11-20 audit: this runner had NO baseline and its scratch copy held only supabase/functions and the four suite files, but four tests in those suites read tools/, docs/, the migrations and the app files; they failed on the
+// UNBROKEN copy, so every fault below was "caught" by that, whatever it did. The scratch now holds what the suites read, and the baseline is checked.
 import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// a planted fault that makes a suite HANG must end the run loudly, never stall it (node:test has no time limit of its own); a timeout is neither "caught" nor "missed" (11-20 audit)
+const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdout) + String(r.stderr))) throw new Error('HUNG: the suites did not end in 5 minutes (' + (r.error ? r.error.code : 'a test timed out') + '; a test that hangs for 2 minutes fails by itself, so this means a synchronous loop, and its node child may still be running: end it by its own PID): write the fault so a test fails, not hangs'); return r; };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut');
@@ -35,8 +40,8 @@ const mutants = [
   ['a missing grant_type is not refused', D + 'oauth.ts', 'if (!grant) return json(400', 'if (false) return json(400'],
   ['the OpenID-shaped discovery document is not served', D + 'oauth.ts', 'route.startsWith("/.well-known/openid-configuration")', 'route.startsWith("/.well-known/openid-configuration-off")'],
   ['the token endpoint returns the token in the clear to the store', D + 'oauth.ts', 'accessHash: aHash, refreshHash: rHash', 'accessHash: access, refreshHash: refresh'],
-  ['story size cap removed', D + 'story_check.ts', 'if (size > LIMITS.maxStoryBytes)', 'if (false)'],
-  ['unknown dataset allowed', D + 'story_check.ts', 'typeof c.dataset === "string" && !DATASETS[c.dataset]', 'false'],
+  ['story size cap removed', D + 'story_check.ts', 'if (size > LIMITS.maxStoryBytes) return one(', 'if (false) return one('],
+  ['unknown dataset allowed', D + 'story_check.ts', 'typeof c.dataset === "string" && !Object.hasOwn(DATASETS, c.dataset)', 'false'],
   ['calls are not logged', D + 'dispatch.ts', 'await policy.log(principal, {', 'void ({'],
   ['the refusing render tool is listed again', D + 'mcp.ts', 'TOOLS.filter((t) => t.listed !== false && (!t.chatEditor || chatEditor) && (!t.homePanel || homePanel)).map', 'TOOLS.map'],
   ['every tool says it is not destructive', D + 'mcp.ts', 'destructiveHint: t.destructive === true', 'destructiveHint: false'],
@@ -49,18 +54,27 @@ const mutants = [
   ['a finished sheet of an EARLIER story counts for a preview', D + 'tools.ts', 'j.job_type === "contact_sheet" && j.story_sha256 === sha', 'j.job_type === "contact_sheet"'],
 ];
 
+function run(cwd) {
+  return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((f) => path.join('tests', f))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
+}
+function fresh() {
+  fs.rmSync(scratch, { recursive: true, force: true });
+  fs.mkdirSync(scratch, { recursive: true });
+  for (const d of ['supabase', 'tools', 'docs', 'tests', 'assets', 'app']) if (fs.existsSync(path.join(root, d))) fs.cpSync(path.join(root, d), path.join(scratch, d), { recursive: true });
+  if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
+}
+fresh();
+if (run(scratch).status) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
+console.log('baseline passes');
 let missed = 0;
 for (const [name, file, from, to] of mutants) {
-  fs.rmSync(scratch, { recursive: true, force: true });
-  fs.mkdirSync(path.join(scratch, 'tests'), { recursive: true });
-  fs.cpSync(path.join(root, 'supabase/functions'), path.join(scratch, 'supabase/functions'), { recursive: true });
-  for (const f of SUITES) fs.copyFileSync(path.join(root, 'tests', f), path.join(scratch, 'tests', f));
+  fresh();
   const target = path.join(scratch, file);
   const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');          // this checkout may have CRLF line endings
-  if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
-  fs.writeFileSync(target, src.replace(from, to));
-  const r = spawnSync(process.execPath, ['--test', ...SUITES.map((f) => path.join('tests', f))], { encoding: 'utf8', cwd: scratch });
-  const caught = r.status !== 0;
+  const n = src.split(from).length - 1;
+  if (n !== 1 || from === to) { console.log(`BROKEN MUTANT (text found ${n} times, need 1, or no change): ${name}`); missed++; continue; }
+  fs.writeFileSync(target, src.replace(from, () => to));
+  const caught = run(scratch).status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
   if (!caught) missed++;
 }

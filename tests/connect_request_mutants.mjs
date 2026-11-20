@@ -4,6 +4,8 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+// a planted fault that makes a suite HANG must end the run loudly, never stall it (node:test has no time limit of its own); a timeout is neither "caught" nor "missed" (11-20 audit)
+const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdout) + String(r.stderr))) throw new Error('HUNG: the suites did not end in 5 minutes (' + (r.error ? r.error.code : 'a test timed out') + '; a test that hangs for 2 minutes fails by itself, so this means a synchronous loop, and its node child may still be running: end it by its own PID): write the fault so a test fails, not hangs'); return r; };
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-req');
@@ -40,7 +42,7 @@ const mutants = [
 ];
 
 function run(cwd) {
-  return spawnSync(process.execPath, ['--test', ...SUITES.map((f) => path.join('tests', f))], { encoding: 'utf8', cwd });
+  return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((f) => path.join('tests', f))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -50,15 +52,16 @@ function fresh() {
 }
 fresh();
 const base = run(scratch);
-if (base.status !== 0) { console.log('BASELINE FAILS (nothing proved):\n' + base.stdout.slice(-800)); process.exit(2); }
+if (base.status !== 0) { console.log('BASELINE FAILS (nothing proved):\n' + base.stdout.slice(-800)); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
 for (const [name, file, from, to] of mutants) {
   fresh();
   const target = path.join(scratch, file);
   const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
-  if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
-  fs.writeFileSync(target, src.replace(from, to));
+  const n = src.split(from).length - 1;
+  if (n !== 1 || from === to) { console.log(`BROKEN MUTANT (text found ${n} times, need 1, or no change): ${name}`); missed++; continue; }
+  fs.writeFileSync(target, src.replace(from, () => to));          // a FUNCTION: a plain string would expand $` and $' in the fault (two faults below end in $` and were "caught" only because the file stopped parsing, 11-20 audit)
   const caught = run(scratch).status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
   if (!caught) missed++;

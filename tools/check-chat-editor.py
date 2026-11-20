@@ -111,7 +111,7 @@ def main():
                 check(calls() and all(t in NAMES for t, _ in calls()), 'the editor called only the five editor names')
                 check(all(a.get('p_project') == PROJECT for _, a in calls()), 'and only for that film')
                 check(not h.evaluate('window.__refused'), 'the host refused nothing')
-                check(fr.locator('canvas.le-canvas').count() == 0 or True, 'no frame feed in the chat (the plain card is drawn)')
+                check(fr.locator('canvas.le-canvas').count() == 0, 'no frame feed in the chat (the plain card is drawn): the editor draws its canvas only when the host offers a frame() feed')      # was `... or True`, which could never fail (11-20 audit)
                 check(fr.locator('#live-root.le-nosketch').count() == 0 and fr.locator('.le-nopic').count() == 0 and fr.locator('.le-view').first.is_visible(), 'a CLIP film is unchanged by the no-sketch rule: no marker class, no sentence, its title boards stay')
                 order = lambda: fr.eval_on_selector_all('.le-lane:first-child .le-clip', 'els => els.map(e => e.dataset.id)')
                 if phone:
@@ -227,7 +227,7 @@ def main():
             c4, p4 = fresh()
             p4.evaluate("(a) => openInput(a)", {'project_id': PROJECT, 'mode': 'compilation'})
             p4.frames[1].wait_for_selector('.le-panel', timeout=15000)
-            check(True, 'the editor opens, after a wait for a result that never comes, from the arguments alone')
+            check(p4.frames[1].locator('.le-panel').count() == 1, 'the editor opens, after a wait for a result that never comes, from the arguments alone')      # was `check(True, ...)`: the wait above raises on a timeout, so this line could only ever pass (11-20 audit)
             c4.close()
             print('a refusal is read as words, never as an editor')
             NS = 'The person has not shared their track list with their AI. Ask them to tick "Let my AI see my track list" in the Ryagram app, then open the editor again.'
