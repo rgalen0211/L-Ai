@@ -2,6 +2,7 @@
 with the raw text behind "Get help with this", and a running job with no progress data reading "Working…" plus elapsed time. Writes screenshots.
 Not part of the node suite (it needs Chrome).   python tools/check-smoke-fixes.py [outdir]   (default D:/Ryagram-scratch/WEB/smoke-shots)
 """
+import re
 import http.server
 import socketserver
 import sys
@@ -78,7 +79,7 @@ def main():
                 p.evaluate("location.hash = '#/'")
                 p.wait_for_selector('#np-title', timeout=20000)
                 p.evaluate('(h) => { location.hash = h }', h)                      # leave and come back: the page reads the jobs again (the mock keeps its data)
-                p.wait_for_selector('.job-list', timeout=20000)
+                p.get_by_role('tab', name=re.compile('Jobs')).click(); p.wait_for_selector('.job-list', timeout=20000)
                 text = p.inner_text('.job-list')
                 check('Working' in text and 'Stage' not in text.split('Working')[0][-0:] and ('2 min' in text), f'a running job with no data says Working and the time: {text[:200]!r}')
                 check('unknown key' not in p.inner_text('.job-problem') and 'outro' in p.inner_text('.job-problem') and '$' not in p.inner_text('.job-problem'), 'the refusal is plain words')
