@@ -121,4 +121,4 @@ body .le-wb .wb-ph h2{margin:0;font-size:.875rem;line-height:1.2}
 .le-wb .wb-tl .le-pro{padding:8px 12px}
 .le-wb .wb-tl .le-pro .le-pro-row{flex-wrap:nowrap;overflow-x:auto}
 /* the shared sheet gives .container a content width; the workbench uses the whole window (specificity above body.ryagram-ds.ryagram-look .container) */
-body.wb-page.ryagram-ds.ryagram-look main.app-main.container,body.wb-page.ryagram-ds.ryagram-look .container{max-width:none;width:100%;padding-left:0;padding-right:0;margin:0}
+body.wb-page.ryagram-ds.ryagram-look main.app-main.container{max-width:none;width:100%;padding-left:0;padding-right:0;margin:0}
