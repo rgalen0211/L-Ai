@@ -20,7 +20,7 @@ MEASURE = """() => {
   const vis = e => e.offsetParent !== null && getComputedStyle(e).visibility !== 'hidden';
   const box = e => { const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
   const header = document.querySelector('header');
-  const sel = '.nav > a, .nav .app-nav-link, .nav .dept-list > li > a, .nav .dept-list > li > details > summary, .nav .admin-menu > summary, .nav #sign-out, .nav .dept-menu';
+  const sel = '.nav > a, .nav .app-nav-link, .nav .dept-list > li > a, .nav .dept-list > li > details > summary, .nav .admin-link, .nav #sign-out, .nav .dept-menu';
   const items = [...header.querySelectorAll(sel)].filter(vis).map(e => ({ text: e.textContent.trim().slice(0, 20), clipped: e.scrollWidth > e.clientWidth + 1, ...box(e) }));
   const links = ['Help', 'Account'].map(w => { const a = [...header.querySelectorAll('.app-account .app-nav-link')].find(x => x.textContent.trim() === w); return a && vis(a) ? { w, clipped: a.scrollWidth > a.clientWidth + 1, width: a.getBoundingClientRect().width } : { w, hidden: true }; });
   const h1 = [...document.querySelectorAll('main h1')].find(vis);

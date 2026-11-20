@@ -58,10 +58,10 @@ def main():
                 p.on('pageerror', lambda e: errs.append(str(e)))
                 tag = f"{value.strip(chr(39))}-{name}"
                 p.goto(f'{base}/app/?mock#/', wait_until='load')
-                p.wait_for_selector('ul.project-list a[href^="#/p/"]', timeout=20000)
+                p.wait_for_selector('ul.film-grid a[href^="#/p/"]', timeout=20000)
                 p.wait_for_timeout(400)
-                rows = p.locator('ul.project-list li').count()
-                edits = p.locator('ul.project-list li a[data-edit-project]').count()
+                rows = p.locator('ul.film-grid li').count()
+                edits = p.locator('ul.film-grid li a[data-edit-project]').count()
                 p.screenshot(path=str(OUT / f'{tag}-1-library.png'))
                 shown = value != 'false'
                 check(edits == (rows if shown else 0), f'{name}: Edit on every project row when shown ({edits} of {rows})')
@@ -94,7 +94,7 @@ def main():
                     check(p.locator('#editor-off-home').is_visible() and 'Your projects' not in p.inner_text('main h1'), f'{name}: the editor address says it is not on, with the way home, not the library')
                     p.screenshot(path=str(OUT / f'{tag}-3-not-on.png'))
                     p.click('#editor-off-home')
-                    p.wait_for_selector('ul.project-list')
+                    p.wait_for_selector('ul.film-grid')
                     check(p.url.endswith('#/'), f'{name}: the way home goes to the projects')
                 check(not errs, f'{name}: no page errors {errs}')
                 ctx.close()

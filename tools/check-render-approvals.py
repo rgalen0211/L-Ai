@@ -82,7 +82,7 @@ def main():
                 p.on('dialog', lambda d: d.accept())
                 p.goto(f'{BASE}/app/?mock&autorender=off', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)
-                check(p.locator('.admin-links a:has-text("Render approvals")').count() == 1, 'the library shows the Render approvals link to an admin')
+                check((p.goto(p.url.split('#')[0] + '#/admin'), p.wait_for_selector('.site-card-link'), p.locator('.site-card-link:has-text("Render approvals")').count())[-1] == 1, 'the Admin page shows the Render approvals link to an admin')
                 p.evaluate("location.hash = '#/admin/renders'")
                 p.wait_for_selector('h1:has-text("Render approvals")', timeout=15000)
                 check('No full renders are waiting for approval.' in p.inner_text('main'), 'an empty queue says so')

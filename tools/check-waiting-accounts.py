@@ -62,7 +62,7 @@ with sync_playwright() as pw:
         check('We will email you when your access opens.' in p.inner_text('#library'), 'it says the access email is coming')
         check(noscroll(p), 'no sideways scroll')
         p.screenshot(path=str(SHOTS / f'waiting-{name}.png'), full_page=True)
-        check(p.locator('.dept-slot:visible').count() == 0 and p.locator('.admin-menu:visible').count() == 0, 'no department or admin menu is drawn')
+        check(p.locator('.dept-slot:visible').count() == 0 and p.locator('.admin-link:visible').count() == 0, 'no department or admin menu is drawn')
         check(p.locator('#library a[href^="#/p/"], #library a[href="#/credits"], #library a[href="#/new"]').count() == 0, 'no project, credits or new-film links')
         for hh in ('#/credits', '#/account', '#/new', '#/admin/waiting', '#/p/00000000-0000-4000-8000-000000000001'):
             p.evaluate(f"location.hash='{hh}'"); p.wait_for_timeout(500)
