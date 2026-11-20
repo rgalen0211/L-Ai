@@ -15,12 +15,16 @@
   const mmss = t => { t = Math.max(0, t); return `${Math.floor(t / 60)}:${(Math.floor(t % 60) + '').padStart(2, '0')}.${Math.floor((t * 10) % 10)}`; };
   // 0:07.4 and, when the picture has real frames, the frame number: "0:07.4 · frame 178".
   function timecode(seconds, fps) { seconds = Number.isFinite(seconds) ? Math.max(0, seconds) : 0; return fps && fps > 10 ? `${mmss(seconds)} · frame ${Math.round(seconds * fps)}` : mmss(seconds); }
+  // The look keys in plain words (a person reads the history list, not the story's own key names); a key with no plain name is shown as 'a look setting'.
+  const KEY_WORDS = { 'network.color': 'line colour', 'network.base_color': 'base lines colour', 'network.context_color': 'background lines colour', 'state.fill': 'land colour', 'page.background': 'page colour',
+    'choropleth.low': 'low colour', 'choropleth.high': 'high colour', 'state.outline_width': 'border width', 'sequence.theme': 'theme' };
+  const keyWords = k => (KEY_WORDS[k] ? `the ${KEY_WORDS[k]}` : 'a look setting');
   // One plain sentence for a change in the history list. Values are shown as given (they were checked when they were made).
   function describe(op) {
     const a = op || {};
     switch (a.op) {
-      case 'set_look': return `Set ${a.key} to ${a.value}`;
-      case 'unset_look': return `Put ${a.key} back to the film’s own`;
+      case 'set_look': return `Set ${keyWords(a.key)} to ${a.value}`;
+      case 'unset_look': return `Put ${keyWords(a.key)} back to the film’s own`;
       case 'set_film_look': return `Set the film’s ${a.key} to ${a.value}`;
       case 'move_clip': return `Moved clip ${a.id} to ${r1(a.start)} s`;
       case 'trim_clip': return `Trimmed the ${a.edge} of clip ${a.id} to ${r1(a.to)} s`;
@@ -52,7 +56,7 @@
     let modeKey = MODE_KEY + 'device';
 
     // ---- the tool bar
-    const tc = h('b', { class: 'le-pro-tc', role: 'status', 'aria-label': 'Time and frame' }, '0:00.0');
+    const tc = h('b', { class: 'le-pro-tc', 'aria-label': 'Time and frame' }, '0:00.0');                    // not a live region: it changes five times a second during play and a screen reader would read every change
     const note = h('p', { class: 'meta le-pro-note' }, '');
     const zoomLabel = h('span', { class: 'meta le-pro-zoomlabel' }, 'Zoom 1×');
     const markStrip = h('div', { class: 'le-pro-marks', 'aria-label': 'Your markers' });

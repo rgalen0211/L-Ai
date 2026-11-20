@@ -159,7 +159,7 @@ test('THE BAR: Start, the working departments, ONE Coming soon group of marked i
   assert.match(src, /invited = \(await data\.connectAccess\(\)\) === true/);
   assert.match(src, /const items = invited \?/);
   assert.doesNotMatch(src, /connectAccess\(\)\) !== true\) return false/);
-  assert.match(src, /if \(!hasAny\(m\)\) return false;/);
+  assert.match(src, /if \(mine !== mountToken \|\| !hasAny\(m\)\) return false;/);
   // a working department is a normal item; a soon one is ONLY in the group
   const m = Dp.normalize([{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }]);
   assert.deepEqual(plain(m), { working: ['data_films'], soon: ['compilations'] });
@@ -175,9 +175,9 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261120d/);
-  assert.match(html, /app-data\.js\?v=20261117d/);
-  assert.match(html, /app-library\.js\?v=20261120u/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
+  assert.match(html, /app-departments\.js\?v=20261120f/);
+  assert.match(html, /app-data\.js\?v=20261120a/);
+  assert.match(html, /app-library\.js\?v=20261120w/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });
 
 test('THE MOCK MIRRORS THE PROPOSED SERVER: five departments (one works), interest once per person per department, an unannounced id refused, withdraw removes it', async () => {

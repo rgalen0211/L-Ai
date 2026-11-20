@@ -93,7 +93,7 @@
 
   // ---------------------------------------------------------------- the bar and the pages
   function create({ h, data, startUi }) {
-    let model = null, cleanup = () => {};
+    let model = null, cleanup = () => {}, mountToken = 0;
 
     async function load() {
       let rows = null;
@@ -133,6 +133,7 @@
       const onPhone = () => !!phoneQuery && phoneQuery.matches;
       const syncSoon = () => { if (soonDetails) { if (onPhone()) soonDetails.setAttribute('open', ''); else soonDetails.removeAttribute('open'); } };      // on a phone the Coming soon items sit open under their heading in the Menu; on a desktop the list opens on a click
       if (phoneQuery && phoneQuery.addEventListener) phoneQuery.addEventListener('change', syncSoon);
+      nav.dispose = () => { if (phoneQuery && phoneQuery.removeEventListener) phoneQuery.removeEventListener('change', syncSoon); };      // the media-query listener goes with the bar (WEB audit 11-20)
       syncSoon();
       const closeSoon = () => { if (soonDetails && !onPhone()) soonDetails.removeAttribute('open'); };      // the Coming soon list never stays open over the page (a desktop list)
       nav.addEventListener('click', ev => { if (ev.target && ev.target.closest && ev.target.closest('a')) { nav.classList.remove('open'); toggle.setAttribute('aria-expanded', 'false'); closeSoon(); } });
@@ -146,13 +147,15 @@
     }
     // Fills the header's slot. With the flag's conditions not met, or my_departments() failing, or nothing to show, the slot stays hidden and the header is exactly as it was.
     async function mountBar(slot) {
+      const mine = ++mountToken;                                                // a bar that was asked for and then unmounted (or asked for again) while it was loading must not appear afterwards
       cleanup();
       cleanup = () => { document.body.classList.remove('has-departments'); if (slot) { slot.replaceChildren(); slot.hidden = true; } };
       if (!slot || !flagOn()) return false;
       let invited = false;
       try { invited = (await data.connectAccess()) === true; } catch { invited = false; }       // not invited (an administrator account never is) is no reason to hide the way to the departments
+      if (mine !== mountToken) return false;
       const m = await load();
-      if (!hasAny(m)) return false;
+      if (mine !== mountToken || !hasAny(m)) return false;
       const nav = barElement(m, invited);
       slot.replaceChildren(nav);
       slot.hidden = false;
@@ -162,10 +165,10 @@
       const onOutside = ev => { if (!nav.contains(ev.target)) nav.closeSoon(); };                // a click anywhere else closes the Coming soon list
       window.addEventListener('hashchange', onHash);
       document.addEventListener('click', onOutside);
-      cleanup = () => { window.removeEventListener('hashchange', onHash); document.removeEventListener('click', onOutside); document.body.classList.remove('has-departments'); slot.replaceChildren(); slot.hidden = true; };
+      cleanup = () => { window.removeEventListener('hashchange', onHash); document.removeEventListener('click', onOutside); if (nav.dispose) nav.dispose(); document.body.classList.remove('has-departments'); slot.replaceChildren(); slot.hidden = true; };
       return true;
     }
-    const unmountBar = () => cleanup();
+    const unmountBar = () => { mountToken++; cleanup(); };
 
     const homeLink = () => h('a', { class: 'button primary', id: 'department-home', href: '#/' }, 'Back to your projects');
     const unavailable = () => [h('h1', { tabindex: '-1' }, WORDS.unavailable), h('p', { class: 'form-intro', role: 'status' }, 'It may belong to a different account, or it may have been removed.'), homeLink()];

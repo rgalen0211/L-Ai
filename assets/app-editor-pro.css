@@ -16,3 +16,25 @@
 .le-zoomed .le-lanes,.le-zoomed .le-ruler-holder{overflow-x:auto}
 .le-zoomed .le-lanes .le-lane,.le-zoomed .le-ruler-holder>*{width:calc(var(--le-zoom,1) * 100%)}
 .le-zoomed .le-lane>b{position:sticky;left:0;background:#101015;z-index:2}
+
+/* ---- LOOK PASS (RENDERER 11-20, CLAUDE for Ryan's 08:5x order): PRO reads as part of the same website. The site's own variables only (so light and dark both follow), the site's
+   spacing steps (8 / 12 / 16 / 24), ONE card (1px --line, 14px corners, --paper ground), the site's pill buttons and brand colour; 44 px targets kept. Same selectors as above, later in the file. */
+.le-pro-switch{border-radius:999px;background:var(--soft,#23232d)}
+.le-pro-seg{padding:0 20px;border-radius:999px;font-weight:600}
+.le-pro-seg.on{background:var(--brand,#ff8a3d);color:#1c1c21}
+.le-pro{background:var(--paper,#1b1b23);border:1px solid var(--line,#3a3a44);border-radius:14px;padding:12px 16px;margin:0 0 16px}
+.le-pro-row{gap:8px}
+.le-pro-tc{border-radius:999px;padding:8px 16px;background:#14141a;color:#f2f2ef}
+.le-pro-zoomlabel{color:var(--muted,#b6b5ae)}
+.le-pro-marks{margin-top:12px}
+body.ryagram-look .le-pro-side h2{font-size:1.15rem;line-height:1.2;margin:24px 0 8px;letter-spacing:-.01em}
+body.ryagram-look .le-pro-side h2:first-child{margin-top:0}
+.le-pro-hist{margin:8px 0 16px}.le-pro-hist li{padding:8px 0}
+.le-pro-ai{color:var(--link,#9fb6ff)}
+.le-pro-side{padding:16px;border:1px solid var(--line,#3a3a44);border-radius:14px;background:var(--paper,#1b1b23)}
+@media (max-width:520px){
+  .le-pro{padding:12px}
+  .le-pro-row .button{flex:1 1 calc(50% - 4px)}
+  .le-pro-switch{align-self:flex-start}
+  .le-pro-side{padding:12px}
+}

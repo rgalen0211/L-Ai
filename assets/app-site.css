@@ -63,3 +63,5 @@ body.ryagram-look .film-card-body h3 a{color:var(--ink);text-decoration:none}   
 /* tap floor and the phone Admin link (WEB: a link is at least 44 px tall to press; the departments phone rule hides header links, the Admin link stays) */
 .home-links a,.site-section-head a,.film-card-body h3 a,.credit-balance a,.dept-card a{display:inline-flex;align-items:center;min-height:44px}
 .has-departments .app-account a.admin-link{display:inline-flex}
+/* stranger walk 11-20: a phone's small targets get a 44 px row (the admin card link, a radio's whole row, the tutorial's sample link) */
+@media (max-width:520px){.site-card-link{display:flex;align-items:center;min-height:44px}label:has(>input[type=radio]),label:has(>input[type=checkbox]){display:flex;align-items:center;gap:10px;min-height:44px}.builder-sample-link a{display:inline-flex;align-items:center;min-height:44px}}

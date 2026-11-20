@@ -204,7 +204,8 @@
             kids.push(sheet.kind === 'preview' ? h('video', { class: 'le-sheet', controls: true, preload: 'metadata', src: sheet.src, 'aria-label': 'Your film’s latest preview' }) : h('img', { class: 'le-sheet', src: sheet.src, alt: 'Your film’s latest contact sheet' }));
             kids.push(h('p', { class: 'meta' }, sheet.note));
           } else if (sheet === 'none') kids.push(h('p', { class: 'meta' }, 'This film has no contact sheet or preview yet.'));
-          kids.push(h('p', { class: 'meta' }, h('a', { href: `#/p/${routeProject}` }, 'Open this film’s page'), ' to make a contact sheet or a preview, or to see the ones it has.'));
+          kids.push(h('p', { class: 'le-bundle-note' }, 'A contact sheet or a preview of your film is made, and kept, on the film’s own page.'));
+          kids.push(h('p', { class: 'le-nosketch-link le-bundle-note' }, h('a', { class: 'button secondary small', href: `#/p/${routeProject}` }, 'Open this film’s page')));
         }
         view.setAttribute('role', 'group'); view.setAttribute('aria-label', 'Your film’s picture');
         view.replaceChildren(...kids);
@@ -555,13 +556,13 @@
       // choropleth.low and .high next to the colour rows above) and the engine honours in the final film. Glow, Metal finish, Middle colour, Marker shape and Labels are NOT here: the draft takes no such key yet (or the engine has none), and a row that cannot take effect is not shown.
       function extraLookRows() {
         const theme = ed.state.look['sequence.theme'] || 'dark', light = theme === 'light';
-        const row = (label, control, note) => h('div', { class: 'le-row' }, h('label', { for: control.id }, label), control, note ? h('span', { class: 'meta le-row-note' }, note) : null);
+        const row = (label, control, note) => h('div', { class: note ? 'le-row le-row-has-note' : 'le-row' }, h('label', { for: control.id }, label), control, note ? h('span', { class: 'meta le-row-note' }, note) : null);
         const sel = h('select', { id: 'le-look-theme', disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, t]) => h('option', { value: v }, t)));
         sel.value = theme;
         sel.addEventListener('change', () => apply({ op: 'set_look', key: 'sequence.theme', value: sel.value }));
         const bw = ed.state.look['state.outline_width'];
         const num = h('input', { type: 'number', id: 'le-look-border', min: '0', max: '4', step: '0.5', value: String(bw !== undefined ? bw : 2), disabled: locked });
-        num.addEventListener('change', () => { const v = Number(num.value); if (Number.isFinite(v) && v >= 0 && v <= 4) apply({ op: 'set_look', key: 'state.outline_width', value: v }); });
+        num.addEventListener('change', () => { const v = Number(num.value); if (String(num.value).trim() !== '' && Number.isFinite(v) && v >= 0 && v <= 4) apply({ op: 'set_look', key: 'state.outline_width', value: v }); });
         const colour = (key, label, dflt) => {
           const input = h('input', { type: 'color', id: `le-look-${key}`, value: ed.state.look[key] !== undefined ? ed.state.look[key] : dflt, disabled: locked });
           input.addEventListener('change', () => apply({ op: 'set_look', key, value: input.value }));

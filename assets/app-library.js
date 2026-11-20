@@ -104,17 +104,13 @@
     const slot = document.getElementById('account');
     if (!slot) return () => {};
     // Start clean: nothing left by an earlier session in this tab may carry over (an admin signing out and a non-admin signing in must NOT inherit the menu).
-    slot.querySelectorAll('.admin-menu').forEach(m => m.remove());
+    slot.querySelectorAll('.admin-menu, .admin-link').forEach(m => m.remove());
     if (slot.parentElement) slot.parentElement.classList.remove('has-admin');
     let alive = true, menu = null;
-    const close = () => { if (menu) menu.open = false; };
-    const outside = event => { if (menu && menu.open && !menu.contains(event.target)) close(); };
-    const cleanup = () => {                                                      // called when this mount ends (sign-out): the menu, the class and both listeners go
+    const cleanup = () => {                                                      // called when this mount ends (sign-out): the link and the class go
       alive = false;
       if (menu) { menu.remove(); menu = null; }
       if (slot.parentElement) slot.parentElement.classList.remove('has-admin');
-      window.removeEventListener('hashchange', close);
-      document.removeEventListener('click', outside);
     };
     Promise.resolve().then(() => data.isAppAdmin()).then(yes => {
       if (!alive || yes !== true) return;                                         // the check belongs to THIS mount: a later sign-in starts its own
@@ -130,6 +126,7 @@
     let stopView = () => {};                      // timers and subscriptions of the page on screen
     const stopAdminNav = adminNav(data);
     // Signed in, the logo takes a person to their own home (Your projects), not back to the public page: the signed-in site is one website (WEB 11-20). Put back on sign-out.
+    const titleWas = document.title;
     const brand = document.querySelector('header .brand'), brandWas = brand ? brand.getAttribute('href') : null;
     if (brand) { brand.setAttribute('href', '#/'); }                  // (the aria-label stays 'Ryagram': assets/workflow-audit.css aligns the wordmark's baseline by it)
 
@@ -195,7 +192,18 @@
       const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
       if (mine !== token) return;
       root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
+      polishPage(hash);
       root.querySelector('h1')?.focus();
+    }
+
+    // A stranger's three small needs on every signed-in page (WEB 11-20 stranger walk): the tab says where you are, an admin page goes back to the Admin page (not to the user's home), and a page with no way back gets one.
+    function polishPage(hash) {
+      const h1 = root.querySelector('h1');
+      document.title = h1 && h1.textContent.trim() ? `${h1.textContent.trim()} | Ryagram` : 'Ryagram | L’Ai';
+      const first = root.querySelector('a.back');
+      if (/^#\/admin\/./.test(hash)) { if (first) { first.setAttribute('href', '#/admin'); first.textContent = '← Admin'; } return; }
+      const isHome = hash === '' || hash === '#/' || hash === '#';
+      if (!first && !isHome && h1 && !root.querySelector('a[href="#/"]')) h1.before(h('a', { href: '#/', class: 'back' }, '← All projects'));
     }
 
     async function delayedNotice() {
@@ -347,7 +355,6 @@
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       const help = opsOn() ? h('a', { href: '#/help' }, 'Get help') : null;
       // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
-      const buildLink = null;                                                  // the tutorial is a button on the Start card now
       const intakeLink = intakeOn() && window.ryagramIntake ? h('a', { href: '#/new' }, 'What do you want to make?') : null;
       const filmsLink = myFilmsOn() && window.ryagramFilms ? h('a', { href: '#/films' }, 'All my films') : null;
       const looksLink = looksOn() ? h('a', { href: '#/looks' }, 'Your look') : null;
@@ -363,7 +370,7 @@
       return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro page-lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
               startStrip, startCard,
               h('section', { class: 'site-section', 'aria-labelledby': 'films-h' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), list),
-              deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null, buildLink];
+              deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.
@@ -1957,7 +1964,7 @@
     window.addEventListener('hashchange', route);
     route();
     if (departmentsOn()) deptUi().mountBar(document.getElementById('dept-slot'));              // the top bar's departments; on any failure the header stays as it was
-    return () => { token++; stopAdminNav(); if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
+    return () => { token++; stopAdminNav(); document.title = titleWas; if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };
