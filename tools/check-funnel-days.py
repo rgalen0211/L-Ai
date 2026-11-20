@@ -57,7 +57,7 @@ def main():
                 p.on('console', lambda m: errors.append(m.text) if m.type == 'error' and 'status of 404' not in m.text and 'fake.supabase.co' not in m.text and 'media-src' not in m.text else None)
                 p.goto(f'{BASE}/app/?mock', wait_until='load')
                 p.wait_for_selector('#np-title', timeout=20000)
-                check(p.locator('.admin-links a:has-text("Funnel by day")').count() == 1, 'the admin links include Funnel by day')
+                check((p.goto(p.url.split('#')[0] + '#/admin'), p.wait_for_selector('.site-card-link'), p.locator('.site-card-link:has-text("Funnel by day")').count())[-1] == 1, 'the Admin page includes Funnel by day')
                 p.evaluate("location.hash = '#/admin/funnel'")
                 p.wait_for_selector('table.funnel-days', timeout=15000)
                 text = p.inner_text('main')
