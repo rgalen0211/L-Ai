@@ -17,9 +17,17 @@
 <link rel="stylesheet" href="/assets/app-editor-pro.css?v=20261120m">
 <link rel="stylesheet" href="/assets/app-site.css?v=20261120zc">
 <link rel="icon" href="/favicon.ico" sizes="any"><link rel="stylesheet" href="/assets/ryagram-look.css?v=20261117c">
+<link rel="stylesheet" href="/assets/ryagram-ds.css?v=20261122a">
 </head>
-<body class="ryagram-app ryagram-look">
-<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a><div class="dept-slot" id="dept-slot" hidden></div><div class="app-account" id="account" hidden><a class="app-nav-link" href="/help/">Help</a><a class="app-nav-link" href="#/account">Account</a><a id="account-email" href="#/account" title="Your account"></a><button class="button secondary" id="sign-out" type="button">Sign out</button></div></div></header>
+<body class="ryagram-app ryagram-look ryagram-ds">
+<header><div class="container nav"><a class="brand" href="/ryagram/" aria-label="Ryagram"><span class="wordmark" aria-hidden="true">L'Ai</span><span class="brand-copy">Ryagram</span></a><div class="dept-slot" id="dept-slot" hidden></div><div class="app-account" id="account" hidden>
+<button class="avatar" id="account-avatar" type="button" data-account-btn aria-haspopup="menu" aria-expanded="false" aria-controls="account-menu" aria-label="Account menu"></button>
+<div class="account-menu" id="account-menu" data-account-menu role="menu" hidden>
+<div class="who">Signed in as <span id="account-email"></span></div>
+<a class="menu-link" role="menuitem" href="#/account">Account</a><a class="menu-link" role="menuitem" href="/help/">Help</a>
+<div class="menu-sep"></div>
+<button id="sign-out" type="button" role="menuitem">Sign out</button>
+</div></div></div></header>
 <main class="container app-main">
   <p id="app-status" class="app-status" role="status" tabindex="-1" hidden></p>
 
@@ -150,6 +158,7 @@
 <script src="/assets/app-editor-pro.js?v=20261120o"></script>
 <script src="/assets/app-waiting.js?v=20261104c"></script>
 <script src="/assets/app-switches.js?v=20261110a"></script>
+<script src="/assets/ryagram-ds.js?v=20261122a"></script>
 <script src="/assets/app-site.js?v=20261120j"></script>
 <script src="/assets/app-library.js?v=20261120y"></script>
 <script src="/assets/app-auth.js?v=20261106c"></script>

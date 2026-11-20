@@ -24,6 +24,11 @@ threading.Thread(target=srv.serve_forever, daemon=True).start()
 ok = True
 
 
+def open_account(pg):
+    """the Admin link lives in the account menu (design system): open it if it is closed"""
+    if pg.locator('[data-account-menu]').is_hidden(): pg.locator('[data-account-btn]').click(); pg.wait_for_timeout(150)
+
+
 def check(c, w):
     global ok
     print(('  ok   ' if c else '  FAIL ') + w); ok = ok and bool(c)
@@ -39,8 +44,7 @@ with sync_playwright() as pw:
         p.on('pageerror', lambda e: errs.append(str(e)))
         p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/account', wait_until='load')
         p.wait_for_selector('.admin-link', state='attached', timeout=15000)
-        menu_btn = p.locator('button:has-text("Menu")')                      # on a phone the header's account area may sit behind the page's Menu button
-        if p.locator('.admin-link').is_hidden() and menu_btn.count(): menu_btn.first.click()
+        open_account(p)                                                     # the Admin link sits in the account menu (avatar), on a phone too
         check(p.locator('.admin-link').inner_text() == 'Admin' and p.locator('.admin-link').count() == 1 and p.locator('.admin-menu').count() == 0, 'ONE plain Admin link sits in the top bar (no dropdown)')
         check(p.get_attribute('header .brand', 'href') == '#/', 'signed in, the logo takes a person to their own home (Your projects)')
         p.locator('.admin-link').click(); p.wait_for_selector('h1:has-text("Admin")', timeout=15000); p.wait_for_timeout(500)
@@ -65,7 +69,7 @@ with sync_playwright() as pw:
         check(t.locator('.admin-link').count() == 1, 'switch walk: the admin has the link')
 
         def sign_out_and_in(email):
-            if t.locator('#sign-out').is_hidden() and t.locator('button:has-text("Menu")').count(): t.locator('button:has-text("Menu")').first.click()
+            open_account(t)
             t.click('#sign-out'); t.wait_for_selector('#si-email', state='visible', timeout=15000)
             t.fill('#si-email', email); t.fill('#si-password', 'a-long-password-12'); t.click('#sign-in-form button[type=submit]'); t.wait_for_selector('#account:not([hidden])', timeout=15000); t.wait_for_timeout(1500)
         t.click('#sign-out') if False else None
@@ -87,7 +91,8 @@ with sync_playwright() as pw:
     for w in (720, 800, 980):
         ctx = b.new_context(viewport={'width': w, 'height': 900}); q = ctx.new_page()
         q.goto(f'http://127.0.0.1:{PORT}/app/?mock#/account', wait_until='load'); q.wait_for_selector('.admin-link', state='attached', timeout=15000); q.wait_for_timeout(800)
-        check(q.locator('.admin-link').is_visible(), f'{w}px: the Admin link is visible in the bar')
+        open_account(q)
+        check(q.locator('.admin-link').is_visible(), f'{w}px: the Admin link is in the account menu and visible')
         q.locator('.admin-link').click(); q.wait_for_selector('h1:has-text("Admin")', timeout=15000)
         check(q.evaluate('location.hash') == '#/admin', f'{w}px: and it opens the Admin page')
         ctx.close()

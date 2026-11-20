@@ -114,8 +114,9 @@
     };
     Promise.resolve().then(() => data.isAppAdmin()).then(yes => {
       if (!alive || yes !== true) return;                                         // the check belongs to THIS mount: a later sign-in starts its own
-      menu = h('a', { class: 'app-nav-link admin-link', href: '#/admin' }, 'Admin');
-      slot.prepend(menu);
+      menu = h('a', { class: 'menu-link admin-link', href: '#/admin', role: 'menuitem' }, 'Admin');
+      const panel = slot.querySelector('#account-menu'), sep = panel && panel.querySelector('.menu-sep');       // the account menu holds it (Help, Account, Admin, Sign out); an older page without the menu keeps it in the bar
+      if (panel && sep) panel.insertBefore(menu, sep); else slot.prepend(menu);
       if (slot.parentElement) slot.parentElement.classList.add('has-admin');           // lets the phone header wrap onto a second row instead of overflowing
     }).catch(() => { /* a failed check shows nothing new */ });
     return cleanup;
@@ -192,6 +193,7 @@
       const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
       if (mine !== token) return;
       root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
+      if (window.ryagramDs) window.ryagramDs.mount(root);                     // the design system's carousels, workbenches and parallax in this view (the previous view's are disposed)
       polishPage(hash);
       root.querySelector('h1')?.focus();
     }
@@ -363,13 +365,20 @@
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
       const aiInvited = startOn() ? await connectAllowed(data).catch(() => false) : false;               // the Ask your AI button only for an account the connector counts as invited (the Start strip's own rule); the page it opens does nothing for anyone else
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
-      const startCard = h('section', { class: 'start-card', 'aria-labelledby': 'start-card-h' }, h('h2', { id: 'start-card-h' }, 'Start a new film'),
-        h('p', { class: 'meta' }, 'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'),
-        h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null),
-        form);
+      // The home as a design-system page (WEB 11-20, Ryan's approved mockup): a parallax hero with a frame of our own films, the Start card overlapping it, the films as picture cards, the departments, credits.
+      const back = h('div', { class: 'layer back', 'data-parallax': '.16', role: 'img', 'aria-label': 'A map of the United States with interstate highways drawn in blue, from one of our own films' });
+      back.style.backgroundImage = 'url(/assets/ryagram-hero-interstate.jpg)';
+      const hero = h('section', { class: 'hero', 'aria-labelledby': 'home-h1' }, back, h('div', { class: 'layer glow', 'data-parallax': '.05' }),
+        h('div', { class: 'container' }, h('div', { class: 'copy' }, h('p', { class: 'eyebrow' }, 'Welcome back'), h('h1', { tabindex: '-1', class: 'display', id: 'home-h1' }, 'Your projects'),
+          h('p', { class: 'lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
+          h('div', { class: 'actions' }, h('a', { class: 'button primary', href: '#/', onclick: ev => { ev.preventDefault(); const t = document.getElementById('start-new'); if (t) { t.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'center' }); const f = t.querySelector('input'); if (f) f.focus({ preventScroll: true }); } } }, 'Start a new film'), filmsLink ? h('a', { class: 'button', href: '#/films' }, 'See your films') : null))));
+      const startCard = h('section', { class: 'ds-start', id: 'start-new', 'aria-labelledby': 'start-card-h' }, h('div', { class: 'container' }, h('div', { class: 'card' }, h('div', { class: 'inner' },
+        h('div', {}, h('p', { class: 'eyebrow' }, 'Start'), h('h2', { id: 'start-card-h' }, 'Start a new film'),
+          h('p', { class: 'meta' }, 'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'),
+          h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null)),
+        h('div', {}, form, startStrip ? [h('div', { class: 'or' }, 'or start from a line'), startStrip] : null)))));
       const quiet = [intakeLink, requestLink, looksLink, help].filter(Boolean);
-      return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro page-lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
-              startStrip, startCard,
+      return [hero, startCard,
               h('section', { class: 'site-section', 'aria-labelledby': 'films-h' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), list),
               deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null];
     }
@@ -1966,7 +1975,7 @@
     window.addEventListener('hashchange', route);
     route();
     if (departmentsOn()) deptUi().mountBar(document.getElementById('dept-slot'));              // the top bar's departments; on any failure the header stays as it was
-    return () => { token++; stopAdminNav(); document.title = titleWas; if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
+    return () => { token++; stopAdminNav(); if (window.ryagramDs) window.ryagramDs.unmount(); document.title = titleWas; if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };

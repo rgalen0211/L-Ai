@@ -140,7 +140,7 @@
       const nav = h('nav', { class: 'dept-bar', 'aria-label': 'Departments' }, toggle, h('ul', { id: 'dept-list', class: 'dept-list' }, items));
       toggle.addEventListener('click', () => { const open = nav.classList.toggle('open'); toggle.setAttribute('aria-expanded', open ? 'true' : 'false'); });
       const soonDetails = nav.querySelector('details.soon-group');
-      const phoneQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 700px)') : null;
+      const phoneQuery = typeof window.matchMedia === 'function' ? window.matchMedia('(max-width: 820px)') : null;
       const onPhone = () => !!phoneQuery && phoneQuery.matches;
       const syncSoon = () => { if (soonDetails) { if (onPhone()) soonDetails.setAttribute('open', ''); else soonDetails.removeAttribute('open'); } };      // on a phone the Coming soon items sit open under their heading in the Menu; on a desktop the list opens on a click
       if (phoneQuery && phoneQuery.addEventListener) phoneQuery.addEventListener('change', syncSoon);
