@@ -96,6 +96,7 @@ export function checkSvg(svg: unknown): string[] {
       if (key === "xmlns") { if (stack.length || val !== XMLNS) return ["The picture names an address it may not."]; continue; }
       if (val.length > 60000) return ["An attribute is too long."];
       const low = val.toLowerCase();
+      if (val.includes(String.fromCharCode(92))) return ["An attribute has a backslash (a style escape could spell what is refused below)."];     // no allowed value needs one; refused first so an escaped url( or scheme is never judged by its spelling
       vals.set(key, val);
       if (PATTERN_ONLY.has(key) && name !== "pattern") return ["A pattern attribute is on an element that is not a pattern."];
       if (patternish && low.includes("url(")) return ["A pattern may not refer to anything (no url) in itself or inside it."];

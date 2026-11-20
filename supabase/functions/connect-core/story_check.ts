@@ -60,7 +60,7 @@ export function extraProblems(story: unknown): string[] {
       else ids.set(c.id, n);
     }
     if (c.kind === "render") {
-      if (typeof c.dataset === "string" && !DATASETS[c.dataset]) {
+      if (typeof c.dataset === "string" && !Object.hasOwn(DATASETS, c.dataset)) {         // own keys only: "constructor" and "__proto__" fit the schema's pattern and are not catalog datasets
         out.push(`Clip ${n} uses the dataset "${c.dataset.slice(0, 64)}", which is not in the Ryagram catalog. Allowed: ${Object.keys(DATASETS).join(", ")}.`);
       }
       if (typeof c.start === "string" && typeof c.end === "string" && c.start > c.end) {
