@@ -57,7 +57,7 @@ test('the list follows the site\'s rule: only ids with words, only the two statu
   assert.deepEqual(homeEntries(null).map((d) => d.id), ['my_films'], 'a failed read still shows the person\'s own films');
   assert.deepEqual(HOME_ORDER, ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio']);
   assert.equal(homeEntries([{ id: 'data_films', status: 'working', label: 'x'.repeat(61) }])[0].label, 'Data films', 'the panel says its own word, whatever the database row says');
-  assert.equal(homeEntries([{ id: 'geo_intelligence', status: 'soon', label: 'Geographic Intelligence' }]).find((d) => d.id === 'geo_intelligence').label, 'Opportunity Map', 'ONE name everywhere (Ryan 2026-11-13, Q601), even while the database row still holds the old one');
+  assert.equal(homeEntries([{ id: 'geo_intelligence', status: 'soon', label: 'Geographic Intelligence' }]).find((d) => d.id === 'geo_intelligence').label, 'Perfect City', 'ONE name everywhere (Ryan 2026-11-13, Q601), even while the database row still holds the old one');
 });
 
 test('My films opens the site\'s page by the site\'s own rule: #/films when the account\'s myFilms switch is on, the projects page otherwise (and when the list could not be read)', async () => {
@@ -92,12 +92,12 @@ test('the words equal the site\'s where the site has them (assets/app-department
     const site = KNOWN[id], ours = HOME_WORDS[id];
     assert.ok(site, `${id} is a department the site knows`);
     if (id !== 'geo_intelligence') assert.equal(ours.label, site.label, `${id}: the label`);
-    if (id === 'geo_intelligence') { assert.equal(ours.label, 'Opportunity Map', 'the department is called Opportunity Map (Q601); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line, word for word'); assert.equal(ours.line, site.line, 'and it is the site\'s line, word for word (Q601: one name, one line); a change to one side is a change to both, in one WEB+CONNECT pair'); continue; }
+    if (id === 'geo_intelligence') { assert.equal(ours.label, 'Perfect City', 'the department is called Perfect City (Ryan 11-20 14:36, it replaced Opportunity Map); the site changes with WEB\'s branch, so the label is pinned here, not compared'); assert.equal(ours.line, GEO_LINE, 'the panel says GEO\'s paper line, word for word'); assert.equal(ours.line, site.line, 'and it is the site\'s line, word for word (Q601: one name, one line); a change to one side is a change to both, in one WEB+CONNECT pair'); continue; }
     assert.equal(ours.line, site.line ?? site.sentence, `${id}: the line`);
   }
 });
 
-test('the Opportunity Map says that every number is labelled once, not twice (line and rules together), and the once is the site\'s line', () => {
+test('the Perfect City says that every number is labelled once, not twice (line and rules together), and the once is the site\'s line', () => {
   const g = HOME_WORDS.geo_intelligence, all = [g.line, ...g.rules, ...g.notYet].join(' ');
   assert.equal((all.match(/every number/gi) || []).length, 1, all);
   assert.match(g.line, /Every number says whether it was counted, calculated or estimated\.$/, 'the one place it is said is the line, as the site has it');
