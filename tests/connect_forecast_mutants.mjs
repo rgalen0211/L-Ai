@@ -89,6 +89,17 @@ const mutants = [
   ['the series is stringified before the database layer stringifies it again (a JSON string, not an array, reaches SQL)', [[D, '[h, q.series, q.horizon', '[h, JSON.stringify(q.series), q.horizon']]],
 ];
 
+// How many copies of each fault's "from" text its target file has today (11-20 audit, CC1 MEDIUM 2). The planted fault replaces the FIRST copy, so a later copy could move it to another tool; a fault whose count is not what is written here (default 1) is refused as BROKEN, in words, and must be looked at.
+const COPIES = {
+  "the shared hourly limit is gone": [3,3,3],
+  "forecasts have their own hourly bucket (not shared with the place questions)": [3,3,3],
+  "the ask claims a lookup was made": [3,3,3],
+  "a failed request's detail is shown unfenced": [2],
+  "a stuck request still tells the AI to keep checking": [2],
+  "the answer checks have no limit": [2],
+};
+const wantCopies = (name, i) => { const w = COPIES[name]; return Array.isArray(w) ? w[i] : (w ?? 1); };
+const copiesProblem = (src, from, name, i) => { const have = src.split(from).length - 1, want = wantCopies(name, i); return have === want ? null : (have ? `BROKEN MUTANT (${have} copies of the text, expected ${want}): ${name}` : `BROKEN MUTANT (text not found): ${name}`); };
 function run(cwd) {
   return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
@@ -109,10 +120,11 @@ let missed = 0;
 for (const [name, edits] of mutants) {
   cleanup(); fresh();
   let broken = false;
-  for (const [file, from, to] of edits) {
+  for (const [i, [file, from, to]] of edits.entries()) {
     const target = path.join(scratch, file);
     const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
-    if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; broken = true; break; }
+    const problem = copiesProblem(src, from, name, i);
+    if (problem) { console.log(problem); missed++; broken = true; break; }
     fs.writeFileSync(target, src.replace(from, () => to));
   }
   if (broken) continue;

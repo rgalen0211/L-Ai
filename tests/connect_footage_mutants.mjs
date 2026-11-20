@@ -27,6 +27,12 @@ const mutants = [
   ['the daily limit is far too high', Y, 'footagePlansPerDayPerUser: 20,', 'footagePlansPerDayPerUser: 2000,'],
 ];
 
+// How many copies of each fault's "from" text its target file has today (11-20 audit, CC1 MEDIUM 2). The planted fault replaces the FIRST copy, so a later copy could move it to another tool; a fault whose count is not what is written here (default 1) is refused as BROKEN, in words, and must be looked at.
+const COPIES = {
+  "a switch that says no is ignored": 6,
+};
+const wantCopies = (name, i) => { const w = COPIES[name]; return Array.isArray(w) ? w[i] : (w ?? 1); };
+const copiesProblem = (src, from, name, i) => { const have = src.split(from).length - 1, want = wantCopies(name, i); return have === want ? null : (have ? `BROKEN MUTANT (${have} copies of the text, expected ${want}): ${name}` : `BROKEN MUTANT (text not found): ${name}`); };
 function run(cwd) {
   return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
@@ -46,7 +52,8 @@ for (const [name, file, from, to] of mutants) {
   fresh();
   const target = path.join(scratch, file);
   const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
-  if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
+  const problem = copiesProblem(src, from, name, 0);
+  if (problem) { console.log(problem); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
   const caught = run(scratch).status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
