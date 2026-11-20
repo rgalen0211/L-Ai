@@ -319,7 +319,7 @@ def main():
                 pp.wait_for_timeout(1200)
                 return cc, pp, errs, out
 
-            NOSKETCH = lambda fr: fr.locator('#live-root.le-nosketch').count() == 1 and not any(fr.locator(sel).first.is_visible() for sel in ('.le-standin > .le-view', '.le-standin > .le-scrub', '.le-standin > .le-ticks', '.le-standin > .le-keys', '.le-row.le-waiting') if fr.locator(sel).count())
+            NOSKETCH = lambda fr: fr.locator('#live-root.le-nosketch').count() == 1 and fr.locator('.le-standin > .le-view').count() >= 1 and fr.locator('.le-standin > .le-scrub').count() >= 1 and not any(fr.locator(sel).first.is_visible() for sel in ('.le-standin > .le-view', '.le-standin > .le-scrub', '.le-standin > .le-tl-holder', '.le-standin > .le-ticks', '.le-standin > .le-keys', '.le-row.le-waiting') if fr.locator(sel).count())   # the sketch and slider elements must EXIST (hidden by the rule), so a renamed class cannot make this pass by matching nothing
             swatches = lambda pg: pg.frames[1].evaluate("Array.from(document.querySelectorAll('input[type=color]')).map(i => i.value)")
             c12, p12, e12, o12 = card_page([{'state': 'ready', 'stale': False, 'built_sha256': 'a' * 64, 'card': CARD}])
             fr12 = p12.frames[1]
