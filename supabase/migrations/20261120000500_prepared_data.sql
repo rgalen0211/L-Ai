@@ -178,7 +178,7 @@ begin
   select * into p from public.prepared_data where id = p_id and owner_id = me and state = 'waiting' and expires_at > now() for update;
   if not found then raise exception 'That table is not waiting for you any more.' using errcode = '22023'; end if;
   select * into d from public.datasets where id = p_dataset and owner_id = me and source = 'upload' and deleted_at is null and delete_requested_at is null for update;
-  if not found or d.prepared_from is not null or d.created_at < now() - interval '2 hours' then
+  if not found or d.prepared_from is not null or d.created_at < now() - interval '2 hours' or lower(btrim(coalesce(d.filename_label, ''))) <> lower(btrim(p.label)) then
     raise exception 'That upload is not one you just made from this table.' using errcode = '22023';
   end if;
   update public.datasets set prepared_from = p.id,

@@ -112,3 +112,21 @@ test('the card says the honest things: unverified, not checked by Ryagram, nothi
   const all = text(w.made.el);
   for (const t of ['Unverified, user-supplied', 'Ryagram has not checked this', 'not checked by Ryagram', 'Nothing uses this table until you accept it', 'tick “use it anyway”', 'NO rows for 2020', 'Licence: Public domain', 'Units: median age in years']) assert.ok(all.includes(t), t);
 });
+
+test('MUST-FAIL: when the upload worked but recording the acceptance failed, the next Accept records the SAME upload and never makes a second one', async () => {
+  const items = [ITEM];
+  let markFails = true;
+  const calls = [];
+  const client = { async rpc(name, args) { calls.push(name); if (name === 'my_prepared_data') return { data: items.slice(), error: null }; if (name === 'my_prepared_data_csv') return { data: 'place,year,value\nA,2010,1\n', error: null };
+    if (name === 'mark_prepared_accepted') return markFails ? { data: null, error: { message: 'Could not reach Ryagram.' } } : { data: { accepted: true }, error: null }; return { data: null, error: null }; } };
+  let uploads = 0;
+  const data = { async startUpload() { uploads += 1; return '00000000-0000-4000-8000-0000000000d2'; } };
+  const made = P.create({ h: hh, client, data, onChange: async () => {} });
+  await settle();
+  const accept = find(made.el, n => n.tag === 'button' && /Accept/.test(text(n)))[0];
+  await accept.onclick(); await settle();
+  assert.equal(uploads, 1); assert.match(text(made.el), /Could not reach Ryagram/);
+  markFails = false;
+  await accept.onclick(); await settle();
+  assert.equal(uploads, 1, 'no second upload'); assert.equal(calls.filter(c => c === 'mark_prepared_accepted').length, 2);
+});

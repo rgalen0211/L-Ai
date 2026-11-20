@@ -209,15 +209,19 @@ class PreparedData(core.Base):
         a = self.alice()
         pid = self.hand(a)["prepared_id"]
         bobs = self.upload_of(BOB)
-        self.app(ALICE)
-        self.fails("select mark_prepared_accepted(%s, %s)", pid, bobs, code="22023")                        # not her upload
         old = self.upload_of(ALICE)
         self.exec_sql("update public.datasets set created_at = now() - interval '3 hours' where id = %s", old)
+        other = self.upload_of(ALICE, label="Some other file")
+        fresh = self.upload_of(ALICE)
+        bobs2 = self.upload_of(BOB)
+        self.app(ALICE)
+        self.fails("select mark_prepared_accepted(%s, %s)", pid, bobs, code="22023")                        # not her upload
         self.app(ALICE)
         self.fails("select mark_prepared_accepted(%s, %s)", pid, old, code="22023")                         # not one she just made
-        fresh = self.upload_of(ALICE)
+        self.app(ALICE)
+        self.fails("select mark_prepared_accepted(%s, %s)", pid, other, code="22023")                       # not the upload of THIS table (another label)
         self.app(BOB)
-        self.fails("select mark_prepared_accepted(%s, %s)", pid, self.upload_of(BOB), code="22023")         # not Bob's table
+        self.fails("select mark_prepared_accepted(%s, %s)", pid, bobs2, code="22023")                       # not Bob's table
         self.assertEqual(self.admin("select count(*) from public.datasets where prepared_from is not null"), 0)
         self.assertEqual(self.app(ALICE).one("select mark_prepared_accepted(%s, %s)", pid, fresh)["accepted"], True)     # control
 

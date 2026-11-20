@@ -160,9 +160,11 @@ test('MUST-FAIL (the review HIGH): every key the connector measures is a key the
 
 test('MUST-FAIL: a cell a spreadsheet would run as a formula, text after a closing quote, and a very long column title are refused; a negative number and a lone dash are fine', () => {
   const bad = (t) => { const r = parseCsv(t); assert.equal(r.ok, false, t.slice(0, 50)); return r.problem; };
-  for (const cell of ['=1+1', '+1', '@SUM(A1)', '-cmd', '-Alabama']) assert.match(bad('place,year,value\nA,2010,1\nB,2011,' + cell + '\nC,2012,3\n'), /spreadsheet formula/, cell);
+  for (const cell of ['=1+1', '+1', '@SUM(A1)', '-cmd', '-Alabama', '-1+1', '-2+cmd', ' =1', '\t=1', '-1.5.3']) assert.match(bad('place,year,value\nA,2010,1\nB,2011,' + cell + '\nC,2012,3\n'), /spreadsheet formula/, cell);
   assert.match(bad('place,year,value\n"A"x,2010,1\nB,2011,2\nC,2012,3\n'), /text after its closing quote/);
   assert.match(bad('place,year,' + 'v'.repeat(61) + '\nA,2010,1\nB,2011,2\nC,2012,3\n'), /longer than 60 characters/);
-  assert.ok(parseCsv('place,year,value\nA,2010,-1.5\nB,2011,-\nC,2012,3\n').ok, 'a negative number and a lone dash are not formulas');
+  assert.match(bad('=place,year,value\nA,2010,1\nB,2011,2\nC,2012,3\n'), /column title starts with/);
+  assert.match(bad('place,year,value\nA"x,2010,1\nB,2011,2\nC,2012,3\n'), /quote appears inside a cell/);
+  assert.ok(parseCsv('place,year,value\nA,2010,-1.5\nB,2011,-\nC,2012,"-1,234"\n').ok, 'a negative number and a lone dash are not formulas');
   assert.ok(parseCsv('place,year,value\n"A, B",2010,1\nC,2011,"2"\nD,2012,3\n').ok, 'quoted cells still work');
 });

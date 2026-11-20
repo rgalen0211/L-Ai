@@ -1256,7 +1256,7 @@
       const el = h('section', { class: 'app-panel uploads-panel', 'aria-labelledby': 'uploads-title', hidden: true });
       const error = errorLine();
       // "Prepared by your AI" (CONNECT 11-20, Q634): tables the person's AI handed over, waiting for them to Accept; accepting runs the upload below and this panel then shows the new data (assets/app-prepared.js)
-      const prepared = window.ryagramPrepared && window.ryagramApp && window.ryagramApp.client ? window.ryagramPrepared.create({ h, client: window.ryagramApp.client, data, onChange: () => refresh() }) : null;
+      const prepared = editable && window.ryagramPrepared && window.ryagramApp && window.ryagramApp.client ? window.ryagramPrepared.create({ h, client: window.ryagramApp.client, data, onChange: () => refresh() }) : null;
       let list = [], timer = null, open = null, latest = 0, retention = 'keep';
 
       const ready = async () => {

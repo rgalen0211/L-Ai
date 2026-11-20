@@ -174,7 +174,7 @@ export class FakeWorld {
         if (!a.label || a.label.length > 120) throw err("The label must be 1 to 120 characters of plain words (no places on a computer, no web addresses, no markup).", "22023");
         if (!a.csv || new TextEncoder().encode(a.csv).length > 204800) throw err("The table must be CSV text of 200 KB or less. For a bigger table, give the person the cleaned file to upload by hand.", "22023");
         const urls = (a.sources as { urls?: unknown }).urls;
-        if (!Array.isArray(urls) || urls.length < 1 || urls.length > 5 || urls.some((x) => typeof x !== "string" || !/^https:\/\/[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z0-9-]*(\/\S*)?$/.test(x))) throw err("Give 1 to 5 source addresses (https).", "22023");
+        if (!Array.isArray(urls) || urls.length < 1 || urls.length > 5 || urls.some((x) => typeof x !== "string" || !/^https:\/\/[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z0-9-]*(\/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]*)?$/.test(x))) throw err("Give 1 to 5 source addresses (https).", "22023");
         if (typeof (a.sources as { licence?: unknown }).licence !== "string" || typeof (a.sources as { units?: unknown }).units !== "string") throw err("Say what the licence is and what the units are.", "22023");
         const MEASURED_KEYS = ["rows", "columns", "header", "places", "first_period", "last_period", "periods_found", "periods_missing", "value_column", "period_column", "place_column", "shape", "non_numeric_values"];
         if (Object.keys(a.measured).some((k) => !MEASURED_KEYS.includes(k)) || typeof a.measured.rows !== "number" || typeof a.measured.columns !== "number") throw err("The measured counts are not in the shape Ryagram expects.", "22023");

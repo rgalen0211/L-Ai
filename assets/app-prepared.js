@@ -41,15 +41,18 @@
 
     function card(it) {
       const src = it.sources && typeof it.sources === 'object' ? it.sources : {};
+      let uploaded = null;                                    // the dataset made by an Accept whose acknowledgement then failed: the next Accept records it instead of uploading again
       const accept = h('button', { class: 'button small', type: 'button' }, 'Accept and continue');
       const discard = h('button', { class: 'button secondary small', type: 'button' }, 'Discard');
       accept.onclick = async () => {
         accept.disabled = true; discard.disabled = true; ok('Taking it in…');
         try {
-          const csv = await rpc('my_prepared_data_csv', { p_id: it.id });
-          const file = new File([csv], fileName(it.label), { type: 'text/csv' });
-          const datasetId = await data.startUpload(file, { label: clip(it.label, 120) || 'Prepared by your AI', ext: 'csv', contentType: 'text/csv', retention: null });
-          await rpc('mark_prepared_accepted', { p_id: it.id, p_dataset: datasetId });
+          if (!uploaded) {
+            const csv = await rpc('my_prepared_data_csv', { p_id: it.id });
+            const file = new File([csv], fileName(it.label), { type: 'text/csv' });
+            uploaded = await data.startUpload(file, { label: clip(it.label, 120) || 'Prepared by your AI', ext: 'csv', contentType: 'text/csv', retention: null });
+          }
+          await rpc('mark_prepared_accepted', { p_id: it.id, p_dataset: uploaded });
           ok('Accepted. Ryagram is reading it now. Below, under “Your own data”, check what each column means and tick the box to use it anyway.');
           if (onChange) await onChange();
           await refresh();
