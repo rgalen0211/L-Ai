@@ -28,8 +28,7 @@ window.ryagramFilmApi = () => ({
     timeline: { clips: [{ id: 't', kind: 'title', label: 'Invented title', start: 0, seconds: 1, drawn: false }, { id: 'main', kind: 'render', label: 'Invented film', start: 1, seconds: 4, drawn: true }],
       render_clip: 'main', render_start: 1, total_seconds: 5, total_frames: 150 } }),
   window: async (text, o) => {
-    const [a, b] = text.split(':'); o.onProgress(0.25); await new Promise(r => setTimeout(r, a === '2' ? 1200 : 300)); o.onProgress(0.6);
-    window.__asks = window.__asks || {}; window.__asks[text] = (window.__asks[text] || 0) + 1;
+    const [a, b] = text.split(':'); window.__asks = window.__asks || {}; window.__asks[text] = (window.__asks[text] || 0) + 1; o.onProgress(0.25); await new Promise(r => setTimeout(r, a === '2' && window.__asks[text] === 1 ? 5000 : a === '2' ? 1200 : 300)); o.onProgress(0.6);      // the first ask of the second window stays on its way for 5 s, so the step that looks for 'Drawing this part of your film' is not a race
     if (a === '2' && window.__asks[text] === 1) throw new Error('the network dropped');          // the first ask of the second window fails once: the page says so and asks again
     const data = window.__fixtures[a + '-' + b]; if (!data) throw new Error('that part of your film is not here');          // the page's own connect-src allows only Supabase, so the fixtures are handed in
     const bin = atob(data), out = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) out[i] = bin.charCodeAt(i); return out;
@@ -74,8 +73,8 @@ with sync_playwright() as pw:
         p.evaluate("document.getElementById('le-film-range').value = '120'; document.getElementById('le-film-range').dispatchEvent(new Event('input', { bubbles: true }))")
         p.wait_for_timeout(150)
         line = p.locator('.le-film-status').inner_text()
-        check(line.startswith('Drawing this part of your film') or line.endswith('Trying again in a moment.'), f'a window on its way says so, or says it is trying again ({line!r})')      # the strip asks for the second window early, so this may land in the pause after its first failed ask
-        check(re.search(r'\d+%', line) is not None or line == 'Drawing this part of your film.' or line.endswith('Trying again in a moment.'), 'and gives the worker\'s own percent or none')
+        check(line.startswith('Drawing this part of your film'), f'a window on its way says so ({line!r})')
+        check(re.search(r'\d+%', line) is not None or line == 'Drawing this part of your film.', "and gives the worker's own percent or none")
         for _ in range(80):                                                  # (the page's CSP forbids wait_for_function's eval)
             if p.locator('.le-film-status').inner_text() == '': break
             p.wait_for_timeout(250)

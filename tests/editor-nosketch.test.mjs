@@ -119,20 +119,23 @@ test('LATEST SHEET: a file with no address is skipped for an older one; a failed
 
 // ---- the Look rows
 const ROWS_SRC = between('function extraLookRows()', 'function paintLook()');
-function lookRows({ look = {}, locked = false } = {}) {
+function lookRows({ look = {}, locked = false, aiTouched = [] } = {}) {
   const ops = [];
-  const factory = vm.runInNewContext(`(function (h, ed, locked, apply) { ${ROWS_SRC} return extraLookRows; })`, { Number, String, Array });
-  const rows = factory(h, { state: { look } }, locked, op => ops.push(op))();
+  const said = [];
+  const factory = vm.runInNewContext(`(function (h, ed, locked, apply, btn, say) { ${ROWS_SRC} return extraLookRows; })`, { Number, String, Array, Set });
+  const btn = (label, cls, onclick, attrs = {}) => { const b = h('button', attrs, label); b.addEventListener('click', onclick); return b; };
+  const rows = factory(h, { state: { look }, aiTouched: () => aiTouched }, locked, op => ops.push(op), btn, t => said.push(t))();
   const root = h('div', {}, ...rows);
-  return { root, ops, sel: () => root.all(e => e.tag === 'select')[0], num: () => root.all(e => e.tag === 'input' && e.attrs.type === 'number')[0], colours: () => root.all(e => e.tag === 'input' && e.attrs.type === 'color') };
+  return { root, ops, said, sel: () => root.all(e => e.tag === 'select')[0], num: () => root.all(e => e.tag === 'input' && e.attrs.type === 'number')[0], colours: () => root.all(e => e.tag === 'input' && e.attrs.type === 'color') };
 }
 const core = {}; vm.runInNewContext(read('assets/app-editor-core.js'), { window: core, console, Math, Number, String, Object, Array, Set, Map, JSON, Date });
 const LOOK_KEYS = core.ryagramEditor.LOOK_KEYS;
 
 test('LOOK ROWS: Theme, Border width, Low and High colour, named plainly, with the engine’s defaults; nothing the draft cannot take', () => {
   const r = lookRows();
-  assert.equal(r.sel().value, 'dark'); assert.deepEqual(r.sel().children.map(o => o.value), ['dark', 'light']);
-  assert.equal(r.num().value, '2'); assert.equal(r.num().attrs.min, '0'); assert.equal(r.num().attrs.max, '4');
+  assert.equal(r.sel().value, '', 'an unset Theme reads as the film’s own, never as Dark'); assert.deepEqual(r.sel().children.map(o => o.value), ['', 'dark', 'light']);
+  assert.equal(r.num().value, '', 'an unset Border width is empty, never 2'); assert.equal(r.num().attrs.min, '0'); assert.equal(r.num().attrs.max, '4');
+  assert.ok(r.root.text.includes('Not set'), 'unset rows say so');
   assert.deepEqual(r.colours().map(c => c.value), ['#232838', '#e8eefb'], 'the dark ramp ends');
   for (const w of ['Theme', 'Border width', 'Low colour', 'High colour']) assert.ok(r.root.text.includes(w), w);
   for (const w of ['Glow', 'Metal', 'Middle colour', 'Marker shape', 'Labels', 'waiting']) assert.ok(!r.root.text.includes(w), 'no ' + w + ' row');
@@ -140,6 +143,7 @@ test('LOOK ROWS: Theme, Border width, Low and High colour, named plainly, with t
   assert.equal(light.sel().value, 'light'); assert.equal(light.num().value, '3');
   assert.deepEqual(light.colours().map(c => c.value), ['#112233', '#16233f'], 'a set colour is shown; the unset end shows the light default');
   assert.deepEqual(lookRows({ look: { 'sequence.theme': 'light' } }).colours().map(c => c.value), ['#eef1f6', '#16233f'], 'the light ramp ends when nothing is set');
+  assert.ok(lookRows({ look: { 'sequence.theme': 'light' }, aiTouched: ['look:sequence.theme'] }).root.text.includes('by your AI'), 'an AI change to a new row is marked like the colour rows');
   assert.ok(lookRows({ locked: true }).sel().disabled && lookRows({ locked: true }).num().disabled && lookRows({ locked: true }).colours().every(c => c.disabled), 'locked while a change is being made');
 });
 
@@ -152,8 +156,16 @@ test('LOOK ROWS: each change is ONE set_look with a key the draft accepts and a 
   assert.deepEqual(JSON.parse(JSON.stringify(r.ops)), [{ op: 'set_look', key: 'sequence.theme', value: 'light' }, { op: 'set_look', key: 'state.outline_width', value: 3.5 }, { op: 'set_look', key: 'choropleth.low', value: '#ff00aa' }, { op: 'set_look', key: 'choropleth.high', value: '#00ffaa' }]);
   for (const op of r.ops) { assert.ok(LOOK_KEYS[op.key], op.key + ' is a key the editor core accepts'); assert.equal(LOOK_KEYS[op.key](op.value), true, `${op.key} = ${op.value}`); }
   const bad = lookRows();
-  for (const v of ['9', '-1', 'abc', '', '4.5']) { bad.num().value = v; bad.num().fire('change'); }
+  for (const v of ['9', '-1', 'abc', '', '4.5']) { bad.num().value = v; bad.num().fire('change'); assert.equal(bad.num().value, '', 'the box goes back to the last good value (nothing set: empty), never a ' + v + ' left standing'); }
   assert.deepEqual(JSON.parse(JSON.stringify(bad.ops)), [], 'nothing out of range or not a number is sent');
+  assert.equal(bad.said.length, 4, 'each out-of-range or non-number entry says 0 to 4 (an empty box says nothing)'); assert.ok(bad.said.every(t => t.includes('0 to 4')));
+  const kept = lookRows({ look: { 'state.outline_width': 3 } }); kept.num().value = '9'; kept.num().fire('change');
+  assert.equal(kept.num().value, '3', 'a set width comes back when a bad one is typed');
+  const back = lookRows({ look: { 'sequence.theme': 'light', 'state.outline_width': 3 } });
+  back.root.all(e => e.tag === 'button').forEach(b => b.fire('click'));
+  assert.deepEqual(JSON.parse(JSON.stringify(back.ops)), [{ op: 'unset_look', key: 'sequence.theme' }, { op: 'unset_look', key: 'state.outline_width' }], 'Use the film’s own is an unset_look');
+  const own = lookRows({ look: { 'sequence.theme': 'light' } }); own.sel().value = ''; own.sel().fire('change');
+  assert.deepEqual(JSON.parse(JSON.stringify(own.ops)), [{ op: 'unset_look', key: 'sequence.theme' }], 'choosing The film’s own unsets the theme');
   assert.equal(LOOK_KEYS['state.outline_width'](9), false); assert.equal(LOOK_KEYS['state.outline_width'](4), true); assert.equal(LOOK_KEYS['sequence.theme']('sepia'), false);
 });
 

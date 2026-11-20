@@ -46,7 +46,7 @@
       const rows = pal.map(c => {
         const id = 'le-film-col-' + c.colour.slice(1);
         const input = h('input', { type: 'color', id, value: (store.colours[c.colour] || c.colour), 'aria-label': `Colour ${c.colour}, used in ${c.elements} places` });
-        input.addEventListener('input', () => { const next = { ...store.colours, [c.colour]: input.value }; store.setColours(next); draw(); fillThumbs(); });
+        input.addEventListener('input', () => { const next = { ...store.colours, [c.colour]: input.value }; store.setColours(next); draw(); thumbsSoon(); });      // the picture follows at once; the tiles follow when the drag pauses (a drag fires dozens of these)
         swatches.set(c.colour, input);
         return h('li', {}, input, h('label', { for: id }, `Used in ${c.elements} places${c.fixed ? `, and ${c.fixed} more in patterns` : ''}`));
       });
@@ -71,7 +71,7 @@
     }
     const seekSeconds = s => { stop(); position = Math.max(0, Math.min(total(), s)); range.value = String(Math.min(plan.totalFrames - 1, Math.round(position * plan.fps))); draw(); };
     function stop() { if (timer) clearInterval(timer); timer = null; playBtn.textContent = 'Play'; }
-    onStop(() => { destroyed = true; stop(); if (retry) clearTimeout(retry); });
+    onStop(() => { destroyed = true; stop(); if (retry) clearTimeout(retry); clearTimeout(thumbTimer); });
 
     range.addEventListener('input', () => { stop(); position = Math.min(total(), Number(range.value) / plan.fps); draw(); });
     range.addEventListener('keydown', ev => {
@@ -109,10 +109,10 @@
       tracks.replaceChildren(h('div', { class: 'le-ruler-holder' }, rl.lane), h('div', { class: 'le-film-lane' }, h('b', { 'aria-hidden': 'true' }, 'Film'), bar));
       stripBar = bar; layoutStrip();
       if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(() => layoutStrip()); ro.observe(bar); onStop(() => ro.disconnect()); }
-      if (typeof IntersectionObserver === 'function') { const io = new IntersectionObserver(es => { stripSeen = es.some(e => e.isIntersecting); if (stripSeen) fillThumbs(); }, { rootMargin: '200px' }); io.observe(bar); onStop(() => io.disconnect()); } else stripSeen = true;
+      if (typeof IntersectionObserver === 'function') { const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) fillThumbs(); }, { rootMargin: '200px' }); io.observe(bar); onStop(() => io.disconnect()); }
       pumpTimer = setInterval(() => { if (!destroyed) fillThumbs(); }, 3000); onStop(() => { clearInterval(pumpTimer); });
     }
-    let stripNote = null, stripEl = null, stripBar = null, stripSeen = false, pumpTimer = null, tiles = [];
+    let stripNote = null, stripEl = null, stripBar = null, pumpTimer = null, tiles = [];
     const thumbs = new Map();                                                    // tile moment (seconds, 2 decimals) -> data: address, kept once made
     const clipAt = s => (plan.clips || []).find(c => s >= c.start && s < c.start + c.seconds) || null;
     function layoutStrip() {
@@ -120,6 +120,7 @@
       const w = stripBar.clientWidth; if (w < 40) return;
       const n = Math.max(3, Math.min(14, Math.floor(w / 96)));
       if (tiles.length === n) return;
+      thumbs.clear();                                                                                   // a different tile count means different tile moments: the old pictures are not reused
       const dur = total(); tiles = [];
       const kids = [];
       for (let k = 0; k < n; k++) {
@@ -140,12 +141,14 @@
       if (!img) { img = h('img', { alt: '', draggable: 'false' }); t.tile.replaceChildren(img); }
       img.src = uri;
     }
-    let filling = false, thumbVer = -1;
+    let filling = false, thumbVer = -1, thumbTimer = 0;
+    const thumbsSoon = () => { clearTimeout(thumbTimer); thumbTimer = setTimeout(fillThumbs, 250); };      // one pending refill, however many colour events come
+    function plainTile(t) { if (t.tile.querySelector('img')) t.tile.replaceChildren(h('span', { class: 'le-film-tile-wait', 'aria-hidden': 'true' }, '')); }
     function fillThumbs() {
       if (filling || destroyed || !store || !tiles.length) return;
       filling = true;
       try {
-        if (store.cver !== thumbVer) { thumbVer = store.cver; thumbs.clear(); }                        // Try colours changed: the tiles are drawn again in the new colours (ENGINE 08:44 LOW 1)
+        if (store.cver !== thumbVer) { thumbVer = store.cver; thumbs.clear(); for (const t of tiles) if (t.inR && store.stateOf(t.mid) !== 'ready') plainTile(t); }      // a tile whose window is gone does not keep the OLD colours beside a new-colour picture                        // Try colours changed: the tiles are drawn again in the new colours (ENGINE 08:44 LOW 1)
         for (const t of tiles) {
           if (!t.inR) continue;
           const key = t.mid.toFixed(2);
