@@ -126,6 +126,7 @@
     let stopView = () => {};                      // timers and subscriptions of the page on screen
     const stopAdminNav = adminNav(data);
     // Signed in, the logo takes a person to their own home (Your projects), not back to the public page: the signed-in site is one website (WEB 11-20). Put back on sign-out.
+    const titleWas = document.title;
     const brand = document.querySelector('header .brand'), brandWas = brand ? brand.getAttribute('href') : null;
     if (brand) { brand.setAttribute('href', '#/'); }                  // (the aria-label stays 'Ryagram': assets/workflow-audit.css aligns the wordmark's baseline by it)
 
@@ -191,7 +192,18 @@
       const notice = opsOn() ? await delayedNotice() : null;      // after the page is ready; never blocks it (no answer = no notice)
       if (mine !== token) return;
       root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
+      polishPage(hash);
       root.querySelector('h1')?.focus();
+    }
+
+    // A stranger's three small needs on every signed-in page (WEB 11-20 stranger walk): the tab says where you are, an admin page goes back to the Admin page (not to the user's home), and a page with no way back gets one.
+    function polishPage(hash) {
+      const h1 = root.querySelector('h1');
+      document.title = h1 && h1.textContent.trim() ? `${h1.textContent.trim()} | Ryagram` : 'Ryagram | L’Ai';
+      const first = root.querySelector('a.back');
+      if (/^#\/admin\/./.test(hash)) { if (first) { first.setAttribute('href', '#/admin'); first.textContent = '← Admin'; } return; }
+      const isHome = hash === '' || hash === '#/' || hash === '#';
+      if (!first && !isHome && h1 && !root.querySelector('a[href="#/"]')) h1.before(h('a', { href: '#/', class: 'back' }, '← All projects'));
     }
 
     async function delayedNotice() {
@@ -1952,7 +1964,7 @@
     window.addEventListener('hashchange', route);
     route();
     if (departmentsOn()) deptUi().mountBar(document.getElementById('dept-slot'));              // the top bar's departments; on any failure the header stays as it was
-    return () => { token++; stopAdminNav(); if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
+    return () => { token++; stopAdminNav(); document.title = titleWas; if (brand && brandWas) brand.setAttribute('href', brandWas); stopView(); window.removeEventListener('hashchange', route); if (deptCache) deptCache.unmountBar(); root.replaceChildren(); };
   }
 
   window.ryagramLibrary = { mount };
