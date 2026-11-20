@@ -45,7 +45,9 @@ with sync_playwright() as pw:
         return { working: q('.dept-list > li:not(.dept-soon) > a'), soon: q('.soon-group ul li > a'), mine: [...document.querySelectorAll('.dept-list a')].filter(a => a.textContent.trim() === 'My films').map(a => a.getAttribute('href')) }; }""")
     labels = FIX['labels']
     expect = [labels[i] for i in FIX['order']]
-    got = [x for x in shown['working'] if x in expect] + shown['soon']
+    page_only = ['Forecasts']                                                    # a department the SITE owns (Ryan 11-20): in the bar, not in the in-chat panel's fixture, so the panel does not have to name it
+    got = [x for x in shown['working'] if x in expect] + [x for x in shown['soon'] if x not in page_only]
+    check(all(x in shown['soon'] for x in page_only), f'the page-owned departments are in the bar ({page_only})')
     check(sorted(got) == sorted(expect), f'the bar names the fixture departments ({got})')
     rank = {labels[i]: n for n, i in enumerate(FIX['order'])}
     in_order = lambda xs: xs == sorted(xs, key=lambda x: rank.get(x, 99))
