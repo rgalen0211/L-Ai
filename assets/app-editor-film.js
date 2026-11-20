@@ -97,7 +97,14 @@
       // The Film lane is a strip of the film's own frames (WEB 11-20, Ryan's walk): each tile is the SAME bundle drawn by the SAME drawer at thumbnail size (store.thumbUri), made lazily as the strip comes into view, kept once made;
       // a tile in a title or a clip that is drawn when the film is made says so instead of showing a picture; pressing a tile moves the playhead there. Nothing is rendered and nothing costs credits.
       const bar = h('div', { class: 'le-bar le-film-bar le-film-thumbs' });
-      stripEl = h('div', { class: 'le-film-strip', role: 'group', 'aria-label': 'Frames of your film. Press one to move there.' });
+      stripEl = h('div', { class: 'le-film-strip', role: 'group', 'aria-label': 'Frames of your film. Press one to move there. Left and Right arrows move between frames.' });
+      stripEl.addEventListener('keydown', ev => {                                   // ONE tab stop for the whole strip (up to 14 tiles), arrows inside it (WEB audit 11-20)
+        const keys = { ArrowLeft: -1, ArrowRight: 1, Home: -Infinity, End: Infinity };
+        if (!(ev.key in keys) || !tiles.length) return;
+        const at = Math.max(0, tiles.findIndex(t => t.tile === document.activeElement));
+        const next = Math.max(0, Math.min(tiles.length - 1, Number.isFinite(keys[ev.key]) ? at + keys[ev.key] : (keys[ev.key] < 0 ? 0 : tiles.length - 1)));
+        ev.preventDefault(); tiles[next].tile.focus();
+      });
       bar.append(stripEl);
       tracks.replaceChildren(h('div', { class: 'le-ruler-holder' }, rl.lane), h('div', { class: 'le-film-lane' }, h('b', { 'aria-hidden': 'true' }, 'Film'), bar));
       stripBar = bar; layoutStrip();
@@ -117,7 +124,7 @@
       const kids = [];
       for (let k = 0; k < n; k++) {
         const s0 = (k * dur) / n, mid = s0 + dur / n / 2, c = clipAt(mid), inR = inRender(mid);
-        const tile = h('button', { type: 'button', class: `le-film-tile${inR ? '' : ' le-film-tile-block'}`, 'aria-label': `Move to ${mmss(mid)}${inR ? '' : `: ${c && c.label ? c.label : 'a title or a clip drawn when the film is made'}`}` });
+        const tile = h('button', { type: 'button', class: `le-film-tile${inR ? '' : ' le-film-tile-block'}`, tabindex: '-1', 'aria-label': `Move to ${mmss(mid)}${inR ? '' : `: ${c && c.label ? c.label : 'a title or a clip drawn when the film is made'}`}` });
         tile.style.width = `${100 / n}%`; tile.style.left = `${(k * 100) / n}%`;
         if (!inR) tile.append(h('span', { class: 'le-film-tile-label' }, (c && c.label) || 'Title'));
         else tile.append(h('span', { class: 'le-film-tile-wait', 'aria-hidden': 'true' }, ''));
@@ -127,7 +134,7 @@
       stripEl.replaceChildren(...kids); markTiles(); fillThumbs();
       if (!stripNote) { stripNote = h('p', { class: 'meta le-film-strip-note' }, 'Frames fill in as you play or move through the film.'); stripBar.parentElement.after(stripNote); }
     }
-    function markTiles() { const n = tiles.length; if (!n) return; const at = Math.min(n - 1, Math.floor((position / Math.max(0.001, total())) * n)); for (const t of tiles) t.tile.classList.toggle('le-film-tile-on', t.k === at); }
+    function markTiles() { const n = tiles.length; if (!n) return; const at = Math.min(n - 1, Math.floor((position / Math.max(0.001, total())) * n)); for (const t of tiles) { const on = t.k === at; t.tile.classList.toggle('le-film-tile-on', on); t.tile.tabIndex = on ? 0 : -1; if (on) t.tile.setAttribute('aria-current', 'true'); else t.tile.removeAttribute('aria-current'); } }
     function setThumb(t, uri) {
       let img = t.tile.querySelector('img');
       if (!img) { img = h('img', { alt: '', draggable: 'false' }); t.tile.replaceChildren(img); }
@@ -173,7 +180,7 @@
         return false;
       }
     })();
-    return { el, ready, destroy() { destroyed = true; stop(); }, state: () => ({ position, plan, store }) };
+    return { el, ready, destroy() { destroyed = true; stop(); if (pumpTimer) clearInterval(pumpTimer); }, state: () => ({ position, plan, store }) };
   }
 
   window.ryagramEditorFilm = { mount, mmss, progressLine };

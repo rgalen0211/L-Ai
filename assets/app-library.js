@@ -104,17 +104,13 @@
     const slot = document.getElementById('account');
     if (!slot) return () => {};
     // Start clean: nothing left by an earlier session in this tab may carry over (an admin signing out and a non-admin signing in must NOT inherit the menu).
-    slot.querySelectorAll('.admin-menu').forEach(m => m.remove());
+    slot.querySelectorAll('.admin-menu, .admin-link').forEach(m => m.remove());
     if (slot.parentElement) slot.parentElement.classList.remove('has-admin');
     let alive = true, menu = null;
-    const close = () => { if (menu) menu.open = false; };
-    const outside = event => { if (menu && menu.open && !menu.contains(event.target)) close(); };
-    const cleanup = () => {                                                      // called when this mount ends (sign-out): the menu, the class and both listeners go
+    const cleanup = () => {                                                      // called when this mount ends (sign-out): the link and the class go
       alive = false;
       if (menu) { menu.remove(); menu = null; }
       if (slot.parentElement) slot.parentElement.classList.remove('has-admin');
-      window.removeEventListener('hashchange', close);
-      document.removeEventListener('click', outside);
     };
     Promise.resolve().then(() => data.isAppAdmin()).then(yes => {
       if (!alive || yes !== true) return;                                         // the check belongs to THIS mount: a later sign-in starts its own
@@ -347,7 +343,6 @@
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       const help = opsOn() ? h('a', { href: '#/help' }, 'Get help') : null;
       // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
-      const buildLink = null;                                                  // the tutorial is a button on the Start card now
       const intakeLink = intakeOn() && window.ryagramIntake ? h('a', { href: '#/new' }, 'What do you want to make?') : null;
       const filmsLink = myFilmsOn() && window.ryagramFilms ? h('a', { href: '#/films' }, 'All my films') : null;
       const looksLink = looksOn() ? h('a', { href: '#/looks' }, 'Your look') : null;
@@ -363,7 +358,7 @@
       return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro page-lede' }, 'Welcome back. Pick up a film below, or start a new one.'),
               startStrip, startCard,
               h('section', { class: 'site-section', 'aria-labelledby': 'films-h' }, h('div', { class: 'site-section-head' }, h('h2', { id: 'films-h' }, 'Your films'), filmsLink), list),
-              deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null, buildLink];
+              deptCards, credits, creditsNote, quiet.length ? h('ul', { class: 'home-links' }, quiet.map(x => h('li', {}, x))) : null];
     }
 
     // --- #/admin/waitlist  Ryan only: signups per film link (utm_campaign) per day. Counts only.

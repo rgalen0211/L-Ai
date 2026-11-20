@@ -91,6 +91,13 @@ with sync_playwright() as pw:
         last = p.locator('.le-film-tile:not(.le-film-tile-block)').last; before_pos = p.locator('.le-film .le-pos').inner_text(); last.click(); p.wait_for_timeout(300)
         check(p.locator('.le-film .le-pos').inner_text() != before_pos and p.locator('.le-film-tile-on').count() == 1, 'pressing a tile moves the playhead there and marks it')
         p.locator('.le-film-tile:not(.le-film-tile-block)').first.click(); p.wait_for_timeout(300)
+        n_stops = p.locator('.le-film-tile[tabindex="0"]').count()
+        check(n_stops == 1 and p.locator('.le-film-tile[aria-current="true"]').count() == 1, f'the whole strip is ONE tab stop and the current tile is marked for a screen reader ({n_stops})')
+        p.locator('.le-film-tile[tabindex="0"]').focus(); before_k = p.locator('.le-film .le-pos').inner_text()
+        p.keyboard.press('ArrowRight'); p.wait_for_timeout(150)
+        check(p.evaluate("document.activeElement.classList.contains('le-film-tile')") and p.evaluate("document.activeElement.getAttribute('tabindex')") == '-1', 'the Right arrow moves focus to the next tile')
+        p.keyboard.press('Enter'); p.wait_for_timeout(300)
+        check(p.locator('.le-film .le-pos').inner_text() != before_k, 'and Enter on it moves the playhead there')
         # try colours: preview only, redraws at once, and puts the film's colours back
         p.locator('#le-film-range').focus(); p.keyboard.press('Home')
         for _ in range(3): p.keyboard.press('l')

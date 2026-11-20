@@ -1,0 +1,80 @@
+// WEB's audit of what it built on 11-20 (proposals/WEB-AUDIT-1120.md): the film cards' picture address, the shared home page pieces, the film strip's keyboard use, and the dead code that went.
+// Node only: the pieces are pure (makeCache, adminHub) or read from source (the strip, the old Admin dropdown). The Chrome side is tools/check-live-editor-film.py and tools/check-admin-nav.py.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { createFakeClient } = require('./fake-supabase.js');
+const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+
+const win = {};
+vm.runInNewContext(read('assets/app-site.js'), { window: win, setTimeout, clearTimeout });
+const dataWin = {};
+vm.runInNewContext(read('assets/app-data.js'), { window: dataWin, setTimeout, clearTimeout });
+
+test('FILM CARDS: the project list carries the latest version\'s id, or a card has no version to read a picture from (the picture never loaded before this)', async () => {
+  const client = createFakeClient({});
+  const data = dataWin.ryagramData(client);
+  const made = await data.createProject('A film');
+  const rows = await data.listProjects();
+  assert.equal(rows.length, 1);
+  assert.equal(rows[0].latest && rows[0].latest.id, made.version.id, 'latest.id is the version id');
+  assert.equal(rows[0].latest.number, 1);
+});
+
+test('PICTURE ADDRESS CACHE: a signed address is kept for 10 minutes (it lasts 15), a failed read for 30 seconds, and the cache never grows without end', () => {
+  let t = 1000;
+  const c = win.ryagramSite.makeCache(10 * 60 * 1000, 30 * 1000, () => t);
+  assert.equal(c.get('v1'), undefined, 'unknown');
+  c.set('v1', 'https://x/a?sig=1'); c.set('v2', null);
+  assert.equal(c.get('v1'), 'https://x/a?sig=1');
+  assert.equal(c.get('v2'), null, 'a failure is remembered as null, not as unknown');
+  t += 31 * 1000;
+  assert.equal(c.get('v2'), undefined, 'a failed read is asked again after 30 s');
+  assert.equal(c.get('v1'), 'https://x/a?sig=1', 'a good address is still used');
+  t += 10 * 60 * 1000;
+  assert.equal(c.get('v1'), undefined, 'a good address is dropped before it expires');
+  for (let i = 0; i < 400; i++) c.set('k' + i, 'u');
+  assert.ok(c.size() <= 201, `bounded (${c.size()})`);
+});
+
+test('ADMIN PAGE: pages are grouped People, Films, Computers in that order, an empty group draws nothing, and every card is a link with its line', () => {
+  const nodes = [];
+  const h = (tag, attrs, ...kids) => ({ tag, attrs: attrs || {}, kids: kids.flat(Infinity).filter(k => k !== null && k !== undefined) });
+  const out = win.ryagramSite.adminHub({ h, pages: [
+    { href: '#/admin/renders', label: 'Render approvals', about: 'Full films waiting.', group: 'Films' },
+    { href: '#/admin/ops', label: 'Operations and invites', about: 'People and invites.', group: 'People' }] });
+  const text = JSON.stringify(out);
+  assert.ok(text.indexOf('"People"') < text.indexOf('"Films"'), 'People before Films');
+  assert.ok(!text.includes('"Computers"'), 'an empty group is not drawn');
+  assert.ok(text.includes('#/admin/ops') && text.includes('#/admin/renders') && text.includes('People and invites.'));
+  const none = win.ryagramSite.adminHub({ h, pages: [] });
+  assert.ok(JSON.stringify(none).includes('No admin pages are switched on.'));
+  assert.equal(nodes.length, 0);
+});
+
+test('FILM STRIP KEYBOARD: one tab stop for the strip, arrows inside it, the current tile is marked for a screen reader, and destroy() stops the timer', () => {
+  const src = read('assets/app-editor-film.js');
+  assert.match(src, /tabindex: '-1', 'aria-label': `Move to /, 'a tile starts out of the tab order');
+  assert.match(src, /t\.tile\.tabIndex = on \? 0 : -1/, 'only the current tile is a tab stop');
+  assert.match(src, /setAttribute\('aria-current', 'true'\)/);
+  assert.match(src, /ArrowLeft: -1, ArrowRight: 1, Home: -Infinity, End: Infinity/);
+  assert.match(src, /destroy\(\) \{ destroyed = true; stop\(\); if \(pumpTimer\) clearInterval\(pumpTimer\); \}/);
+});
+
+test('DEAD CODE GONE: the old Admin dropdown\'s listeners, the unused tutorial link variable, and a leftover Admin link is cleaned on a new mount', () => {
+  const lib = read('assets/app-library.js');
+  assert.ok(!/const close = \(\) => \{ if \(menu\)/.test(lib) && !/const outside = event/.test(lib), 'no dropdown close/outside handlers');
+  assert.ok(!/removeEventListener\('hashchange', close\)/.test(lib));
+  assert.ok(!/buildLink/.test(lib), 'no buildLink leftover');
+  assert.match(lib, /querySelectorAll\('\.admin-menu, \.admin-link'\)\.forEach\(m => m\.remove\(\)\)/);
+});
+
+test('NO PER-CARD OBSERVERS: the film cards share one IntersectionObserver and release a card when it is reached', () => {
+  const src = read('assets/app-site.js');
+  assert.equal((src.match(/new IntersectionObserver/g) || []).length, 1, 'one observer');
+  assert.match(src, /shared\.unobserve\(e\.target\)/);
+});
