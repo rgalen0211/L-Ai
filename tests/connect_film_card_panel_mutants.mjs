@@ -9,8 +9,8 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-cardpanel');
-const H = 'tools/chat-editor/live-host.js', AE = 'assets/app-editor.js', CSS = 'tools/chat-editor/chat-extra.css';
-const SUITES = ['connect-film-card-panel.test.mjs', 'connect-chat-editor.test.mjs'];
+const H = 'tools/chat-editor/live-host.js', AE = 'assets/app-editor.js', CSS = 'tools/chat-editor/chat-extra.css', ET = 'supabase/functions/connect-core/editor_tools.ts';
+const SUITES = ['connect-film-card-panel.test.mjs', 'connect-chat-editor.test.mjs', 'connect-chat-nosketch.test.mjs', 'connect-film-card.test.mjs'];
 const BS = String.fromCharCode(92);
 const ADDRESS = `} else if (/javascript:|data:|https?:|${BS}/${BS}/|expression${BS}(/i.test(v)) continue;`;
 const browserOnly = process.argv.includes('--no-browser');
@@ -92,6 +92,20 @@ const mutants = [
   ['a text that looks like a number is trusted as an age', AE, "typeof n === 'number' && n >= 0", "n >= 0", 'both'],
   ['a failed refresh is timed from the newest picture age', AE, "quietMs(cardState === 'failed' ? cardAge : cardRefreshAge)", "quietMs(cardAge)", 'both'],
   ['the refresh age is never read from the answer', AE, "cardRefreshAge = ageOf(d.refresh && d.refresh.failed_s);", "cardRefreshAge = -1;", 'both'],
+  // ---- the chat panel never shows the stand-in sketch for a data film (CONNECT 11-20, fix A of CONNECT-CHAT-PANEL-STANDIN-1120.md); the shared editor file is not touched
+  ['a data film is never marked: the sketch stays', H, "root.classList.add('le-nosketch');", "", 'both'],
+  ['a CLIP film is marked too', H, "if (window.ryagramLiveHost.mode !== 'data') return;", "if (false) return;", 'both'],
+  ['the sketch picture is not hidden', CSS, ".le-nosketch .le-standin>.le-view,", "", 'both'],
+  ['the slider row is not hidden', CSS, ".le-nosketch .le-standin>.le-scrub,", "", 'both'],
+  ['the years under the sketch are not hidden', CSS, ".le-nosketch .le-standin>.le-ticks,", "", 'both'],
+  ['the five waiting rows are not hidden', CSS, ".le-nosketch .le-row.le-waiting{display:none!important}", ".le-nosketch .le-row.le-waitingx{display:none!important}", 'both'],
+  ['the plain sentence never shows', CSS, ".le-card[hidden]+.le-nopic{display:block}", ".le-card[hidden]+.le-nopic{display:none}", 'both'],
+  ['the plain sentence always shows', CSS, ".le-nopic{display:none;", ".le-nopic{display:block;", 'both'],
+  ['the plain sentence is never added', H, "if (card && !(card.nextElementSibling", "if (false && card && !(card.nextElementSibling", 'both'],
+  ['the waiting sentence still says stand-in', H, "p.textContent = p.textContent.replace(STAND_OLD, '');", "p.textContent = p.textContent;", 'both'],
+  ['the plain sentence points to a stand-in', H, "const NOPIC = \"No picture of your film is shown here yet. The film's real frames", "const NOPIC = \"No picture of your film is shown here yet. The stand-in is on show; the film's real frames", 'both'],
+  ['the connector tells a film the engine cannot draw to keep a stand-in', ET, "so no picture is shown here. The film's real frames are in the editor on the Ryagram website.\",", "The editor keeps its stand-in picture.\",", 'source'],
+  ['the connector tells a too big picture to keep a stand-in', ET, "No picture is shown here; the film's real frames are in the editor on the Ryagram website.`", "The editor keeps its stand-in picture.`", 'source'],
 ];
 
 function suites(cwd) {
