@@ -799,6 +799,7 @@
       const lookLoader = isData && DD && RL ? (window.ryagramLiveHost && typeof window.ryagramLiveHost.bundle === 'function' ? p => window.ryagramLiveHost.bundle(p) : typeof window.ryagramMockLookBundle === 'function' ? p => window.ryagramMockLookBundle(p) : null) : null;
       const bundleMode = !!lookLoader;
       let bundle = null, tl = null, bundleState = bundleMode ? 'opening' : 'none', bundleNote = '';
+      let proPaint = null;                                                    // PRO mode (assets/app-editor-pro.js) asks to be told after every redraw
       // A person's own film on the website (a project in the address) NEVER gets the invented sketch (WEB 11-20, CLAUDE's launch-slice finding): its picture is its real frames, or a plain box that says so, with the film's own latest sheet or preview when it has one.
       const realFilm = isData && !!routeProject && !window.ryagramLiveHost && !bundleMode;
       let filmState = 'none', sheet = null, drawnKey = '';                  // filmState: none (no film API), opening, ready, failed; sheet: null (not known), 'none', or { src, kind, note }
@@ -1550,6 +1551,7 @@
         else { range.min = '0'; range.max = String(Math.round(ed.state.duration * 10)); range.step = '1'; range.value = String(Math.round(position * 10)); paintLanes(); paintList(); paintClipPanel(); paintRules(); paintFilmLook(); }
         paintBanner(); paintWarns(); paintAiLinks(); paintPace(); paintWhy(); setPos(position);
         if (refocus) { const el = [...lanes.querySelectorAll('.le-clip')].find(e => e.dataset.id === refocus); refocus = null; if (el) el.focus(); }
+        if (proPaint) proPaint();
       }
 
       // A forecast for a data film (CC1 for Claude 15:30 item 2), behind forecastToggle (OFF): ENGINE's forecast hand-over drawn by app-forecast.js with RENDERER's look rules. It comes from the
@@ -1624,6 +1626,17 @@
         const pollTimer = setInterval(async () => { if (document.hidden || locked) return; const r = await draft.poll(); if (r.ok && (r.applied.length || r.skipped.length)) { saved = false; paint(); } }, 2000);
         const beat = setInterval(() => { if (!document.hidden) draft.heartbeat(); }, 15000);
         onStop(() => { clearInterval(pollTimer); clearInterval(beat); });
+      }
+      if (window.ryagramEditorPro && !host) {                                   // PRO mode: the technical layer beside the simple page (paper proposals/WEB-PRO-EDITOR-1120.md); with no such file the page is as before
+        const proTransport = () => {
+          const fs = filmEd && filmEd.state ? filmEd.state() : null, fr = fs && fs.plan ? filmEd.el.querySelector('input[type=range]') : null;
+          if (fr) { const fps = fs.plan.fps, last = fs.plan.totalFrames - 1; return { fps, total: () => last / fps, pos: () => filmEd.state().position, seek: sec => { fr.value = String(Math.max(0, Math.min(last, Math.round(sec * fps)))); fr.dispatchEvent(new Event('input', { bubbles: true })); } }; }
+          if (bundleMode && tl) return { fps: tl.fps, total: () => (tl.frames - 1) / tl.fps, pos: () => position, seek: sec => { range.value = String(tl.frame(sec)); range.dispatchEvent(new Event('input', { bubbles: true })); } };
+          if (!isData) return { fps: 10, total: () => ed.state.duration, pos: () => position, seek: sec => { range.value = String(Math.round(sec * 10)); range.dispatchEvent(new Event('input', { bubbles: true })); } };
+          return null;
+        };
+        window.ryagramEditorPro.mount({ h, root, ed, isData, project, transport: proTransport, lanes, rulerHolder, stopPlay, applyMany, draft, paint, selected: () => selected, locked: () => locked,
+          markUnsaved: () => { saved = false; }, onPaint: f => { proPaint = f; }, onStop, filmEl: () => (filmEd ? filmEd.el : null) });
       }
       return root;
     }
