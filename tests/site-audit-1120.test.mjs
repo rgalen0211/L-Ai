@@ -78,3 +78,16 @@ test('NO PER-CARD OBSERVERS: the film cards share one IntersectionObserver and r
   assert.equal((src.match(/new IntersectionObserver/g) || []).length, 1, 'one observer');
   assert.match(src, /shared\.unobserve\(e\.target\)/);
 });
+
+const proWin = {};
+vm.runInNewContext(read('assets/app-editor-pro.js'), { window: proWin, setTimeout, clearTimeout });
+
+test('PRO HISTORY: look changes are in plain words (never a story key like state.fill), an unknown key says a look setting, and the timecode is not a live region', () => {
+  const P = proWin.ryagramEditorPro;
+  assert.equal(P.describe({ op: 'set_look', key: 'state.fill', value: '#112233' }), 'Set the land colour to #112233');
+  assert.equal(P.describe({ op: 'set_look', key: 'sequence.theme', value: 'light' }), 'Set the theme to light');
+  assert.equal(P.describe({ op: 'unset_look', key: 'choropleth.high' }), 'Put the high colour back to the film’s own');
+  assert.equal(P.describe({ op: 'set_look', key: 'glow.thing', value: 1 }), 'Set a look setting to 1', 'unknown keys get a neutral name');
+  assert.ok(!/state\.|network\.|choropleth\.|sequence\./.test(P.describe({ op: 'set_look', key: 'network.base_color', value: '#fff' })));
+  assert.ok(!/class: 'le-pro-tc', role: 'status'/.test(read('assets/app-editor-pro.js')), 'the timecode is not role=status');
+});

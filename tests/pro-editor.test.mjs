@@ -16,7 +16,7 @@ test('the time reads as minutes, seconds, tenths, and the frame when there are r
 });
 
 test('every change in the history is described in words, and an unknown one still reads as a change', () => {
-  assert.match(P.describe({ op: 'set_look', key: 'network.color', value: '#ff9f6b' }), /network\.color.*#ff9f6b/);
+  assert.match(P.describe({ op: 'set_look', key: 'network.color', value: '#ff9f6b' }), /line colour.*#ff9f6b/);
   assert.match(P.describe({ op: 'trim_clip', id: 'v1', edge: 'end', to: 4.25 }), /Trimmed the end of clip v1 to 4\.3? s|4\.2/);
   assert.equal(P.describe({ op: 'delete_clip', id: 't1' }), 'Deleted clip t1');
   assert.equal(P.describe({ op: 'nothing' }), 'A change');
