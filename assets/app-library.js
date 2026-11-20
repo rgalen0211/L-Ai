@@ -1883,8 +1883,9 @@
           else sightings.delete(j.id);
         }
         syncControls();
-        listEl.replaceChildren(jobs.length
-          ? h('ul', { class: 'job-list' }, jobs.map(jobItem))
+        const shown = jobs.filter(j => j.job_type !== 'film_bundle');           // the editor's own background drawing (film_bundle, 'Film files') is not a job the person asked for: never listed, never shown failing (Q645 live walk 11-20)
+        listEl.replaceChildren(shown.length
+          ? h('ul', { class: 'job-list' }, shown.map(jobItem))
           : h('p', { class: 'form-intro' }, 'No jobs yet. Start with a contact sheet.'));
         liveNote.textContent = watch.live() ? '● Live' : 'Updating every 10 seconds';
       }
