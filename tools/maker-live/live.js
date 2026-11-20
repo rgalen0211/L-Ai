@@ -1302,7 +1302,7 @@
         sel.addEventListener('change', () => apply({ op: 'set_look', key: 'sequence.theme', value: sel.value }));
         const bw = ed.state.look['state.outline_width'];
         const num = h('input', { type: 'number', id: 'le-look-border', min: '0', max: '4', step: '0.5', value: String(bw !== undefined ? bw : 2), disabled: locked });
-        num.addEventListener('change', () => { const v = Number(num.value); if (Number.isFinite(v) && v >= 0 && v <= 4) apply({ op: 'set_look', key: 'state.outline_width', value: v }); });
+        num.addEventListener('change', () => { const v = Number(num.value); if (String(num.value).trim() !== '' && Number.isFinite(v) && v >= 0 && v <= 4) apply({ op: 'set_look', key: 'state.outline_width', value: v }); });
         const colour = (key, label, dflt) => {
           const input = h('input', { type: 'color', id: `le-look-${key}`, value: ed.state.look[key] !== undefined ? ed.state.look[key] : dflt, disabled: locked });
           input.addEventListener('change', () => apply({ op: 'set_look', key, value: input.value }));
