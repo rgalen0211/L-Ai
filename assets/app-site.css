@@ -1,27 +1,65 @@
-/* The signed-in site as one website (WEB 11-20). Structure and plain layout only; RENDERER owns the look pass in THIS file. Colours come from the page's own variables. */
+/* The signed-in site as one website (WEB 11-20). Structure and plain layout by WEB; the LOOK PASS below is RENDERER 11-20 (CLAUDE for Ryan's 07:16 order).
+   One scale, one rhythm, in this file only: headings keep the site's own scale (ryagram-look.css: h1, h2, h3), body text is the page's, small text is .meta (.85rem);
+   spacing steps are 8 / 12 / 16 / 24 / 32 px; every card is the SAME card: 1px var(--line), 14px corners, var(--paper) ground, the brand colour on hover and keyboard focus.
+   Colours come only from the page's variables, so the light and the dark look both follow. */
 .app-main{max-width:1100px}
-.page-lede{margin:0 0 18px;max-width:46em}
-.start-card{margin:18px 0 26px;padding:22px 24px;border:1px solid var(--line,rgba(127,127,127,.35));border-radius:16px;background:var(--soft,rgba(127,127,127,.08))}
-.start-card h2{margin:0 0 6px;font-size:1.5rem}
-.start-card .start-actions{display:flex;flex-wrap:wrap;gap:10px;margin:14px 0 4px}
-.start-card .start-actions .button{min-height:46px}
-.start-card form{margin-top:12px}
-.site-section{margin:26px 0}
-.site-section>h2{margin:0 0 10px}
-.site-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.page-lede{margin:0 0 24px;max-width:46em;color:var(--muted)}
+
+/* ---- the Start card: the one big thing on the home page */
+.start-card{margin:24px 0 32px;padding:24px;border:1px solid var(--line);border-radius:14px;background:var(--paper)}
+.start-card h2{margin:0 0 8px}
+.start-card>.meta{margin:0;max-width:46em;font-size:.95rem}
+.start-card .start-actions{display:flex;flex-wrap:wrap;gap:12px;margin:16px 0 0}
+.start-card .start-actions .button{min-height:48px}
+.start-card form{margin-top:16px;padding-top:16px;border-top:1px solid var(--line)}
+
+/* ---- sections */
+.site-section{margin:32px 0}
+.site-section>h2{margin:0 0 12px}
+.site-section-head{display:flex;align-items:baseline;justify-content:space-between;gap:8px 16px;flex-wrap:wrap;margin:0 0 12px}
+.site-section-head h2{margin:0}
+
+/* ---- the card, once (a film card and a department card are the same card) */
 .film-grid,.site-card-grid{list-style:none;margin:0;padding:0;display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}
-.film-card,.site-card{border:1px solid var(--line,rgba(127,127,127,.35));border-radius:14px;overflow:hidden;background:var(--card,transparent);display:flex;flex-direction:column}
-.site-card{padding:14px 16px}
-.site-card-link{text-decoration:none}
-.film-thumb{display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;background:var(--soft,rgba(127,127,127,.14));text-decoration:none;overflow:hidden}
+.film-card,.site-card{position:relative;display:flex;flex-direction:column;overflow:hidden;border:1px solid var(--line);border-radius:14px;background:var(--paper);transition:border-color .15s ease,box-shadow .15s ease}
+.film-card:hover,.site-card:hover,.film-card:focus-within,.site-card:focus-within{border-color:var(--brand-deep);box-shadow:0 2px 12px rgba(0,0,0,.08)}
+@media (prefers-reduced-motion:reduce){.film-card,.site-card{transition:none}}
+
+/* a department card: the whole card is the link (one tab stop, one big target) */
+.site-card{padding:16px}
+.site-card-link{text-decoration:none;color:var(--ink)}
+.site-card-link::after{content:"";position:absolute;inset:0}
+.site-card-link strong{display:block;margin:0 0 4px;font-size:1.05rem}
+.site-card .meta{margin:0}
+
+/* a film card: the picture, the title, where it stands, then Open and Edit pinned to the card's foot (so the buttons line up whatever the title's length) */
+.film-thumb{display:flex;align-items:center;justify-content:center;aspect-ratio:16/9;background:var(--soft);text-decoration:none;overflow:hidden}
 .film-thumb img{width:100%;height:100%;object-fit:cover;display:block}
-.film-thumb-letter{font-size:2.4rem;font-weight:700;opacity:.55}
-.film-card-body{padding:12px 14px 14px}
+.film-thumb-letter{font-size:2.4rem;font-weight:700;color:var(--muted)}
+.film-card-body{flex:1;display:flex;flex-direction:column;padding:12px 16px 16px}
 .film-card-body h3{margin:0 0 4px;font-size:1.05rem;overflow-wrap:anywhere}
-.film-card-actions{margin:10px 0 0;display:flex;gap:8px;flex-wrap:wrap}
-.home-links{display:flex;flex-wrap:wrap;gap:6px 18px;margin:22px 0 8px;padding:0;list-style:none}
+body.ryagram-look .film-card-body h3 a{color:var(--ink);text-decoration:none}      /* the look layer's link colour would win a tie: the title is the card's own, like a department's */
+.film-card-body h3 a:hover{text-decoration:underline}
+.film-card-body .meta{margin:0}
+.film-card-actions{display:flex;flex-wrap:wrap;gap:8px;margin:auto 0 0;padding-top:12px}
+
+.home-links{display:flex;flex-wrap:wrap;gap:8px 24px;margin:32px 0 8px;padding:0;list-style:none}
 .admin-link{font-weight:600}
-@media (max-width:700px){.film-grid,.site-card-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px}.start-card{padding:16px}.start-card .start-actions .button{width:100%}}
+
+/* ---- a phone (375): the header wraps instead of running off the edge, the cards go one to a row with the picture at the side */
+@media (max-width:520px){
+  .nav{flex-wrap:wrap;row-gap:4px}
+  .nav .app-account{flex:1 0 100%;justify-content:flex-end;flex-wrap:wrap}
+  .nav .app-account .button{white-space:nowrap}
+  .start-card{margin:16px 0 24px;padding:16px}
+  .start-card .start-actions .button{width:100%}
+  .film-grid,.site-card-grid{grid-template-columns:1fr;gap:12px}
+  .film-card{flex-direction:row}
+  .film-thumb{flex:0 0 112px;aspect-ratio:auto;align-self:stretch}
+  .film-thumb-letter{font-size:1.8rem}
+  .film-card-body{min-width:0;padding:12px}
+  .site-section{margin:24px 0}
+}
 /* tap floor and the phone Admin link (WEB: a link is at least 44 px tall to press; the departments phone rule hides header links, the Admin link stays) */
-.home-links a,.site-section-head a,.film-card-body h3 a,.site-card-link,.credit-balance a,.dept-card a{display:inline-flex;align-items:center;min-height:44px}
+.home-links a,.site-section-head a,.film-card-body h3 a,.credit-balance a,.dept-card a{display:inline-flex;align-items:center;min-height:44px}
 .has-departments .app-account a.admin-link{display:inline-flex}
