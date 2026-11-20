@@ -341,3 +341,19 @@ test('FrameStore: a thumbnail follows Try colours (the recoloured copy), and goe
   store.setColours({}); assert.equal(store.thumbUri(2.5, 160), own, 'put back');
   assert.ok(store.cver >= 2, 'every change of colours is a new version for whoever keeps pictures made from it');
 });
+
+test('EDITOR REVIEW FIXES 11-20: a Try colours drag redraws the tiles once after it pauses; the tiles are cleared with the tile count and a not-ready tile goes plain on a colour change; Zoom exists only where there are lanes; Split checks both changes first; PRO sizes and history focus', () => {
+  const film = read('assets/app-editor-film.js'), pro = read('assets/app-editor-pro.js'), css = read('assets/app-editor-pro.css');
+  assert.match(film, /thumbTimer = setTimeout\(fillThumbs, 250\)/, 'one pending trailing refill');
+  assert.match(film, /store\.setColours\(next\); draw\(\); thumbsSoon\(\);/, 'the picture is immediate, the tiles wait for the drag to pause');
+  assert.ok(!/store\.setColours\(next\); draw\(\); fillThumbs\(\);/.test(film), 'a drag never refills the tiles on every pointer move');
+  assert.match(film, /if \(tiles\.length === n\) return;\n\s*thumbs\.clear\(\);/, 'a new tile count drops the old pictures');
+  assert.match(film, /for \(const t of tiles\) if \(t\.inR && store\.stateOf\(t\.mid\) !== 'ready'\) plainTile\(t\)/, 'a tile whose window is gone does not keep the old colours');
+  assert.ok(!/stripSeen/.test(film), 'no dead flag');
+  assert.match(pro, /\.\.\.\(c\.isData \? \[\] : \[btn\('Zoom −'/, 'no Zoom on a data film (no lanes)');
+  assert.match(pro, /E\.check\(ed\.state, trim\) \|\| E\.check\(ed\.state, add\)/, 'both split changes are checked before either is made');
+  assert.match(pro, /if \(sig === histSig\) return;/, 'the history list is rebuilt only when it changed (keyboard focus stays)');
+  assert.match(pro, /if \(r && r\.ok === false\) \{ say\(r\.reason/, 'an undo that does nothing says so');
+  assert.match(css, /\.le-zoomed \.le-film \.le-ruler-holder>\*\{width:auto\}/, 'the film strip’s own ruler never zooms');
+  assert.match(css, /\.le-pro-mark\{min-width:44px;min-height:44px\}\.le-pro-hist \.button\{min-height:44px\}/, '44 px markers and history buttons on a phone');
+});

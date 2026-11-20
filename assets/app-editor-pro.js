@@ -68,7 +68,7 @@
         btn('Marker (M)', () => addMarker(), { 'aria-label': 'Put a marker at the playhead' }),
         btn('◀ Marker', () => jump(-1), { 'aria-label': 'Previous marker' }), btn('Marker ▶', () => jump(1), { 'aria-label': 'Next marker' }),
         btn('Safe areas', () => { safeOn = !safeOn; paintSafe(); }, { id: 'le-pro-safe', 'aria-pressed': 'false' }),
-        btn('Zoom −', () => setZoom(zoom - 1), { 'aria-label': 'Zoom the timeline out' }), btn('Zoom +', () => setZoom(zoom + 1), { 'aria-label': 'Zoom the timeline in' }), zoomLabel,
+        ...(c.isData ? [] : [btn('Zoom −', () => setZoom(zoom - 1), { 'aria-label': 'Zoom the timeline out' }), btn('Zoom +', () => setZoom(zoom + 1), { 'aria-label': 'Zoom the timeline in' }), zoomLabel]),       // a data film has no lanes to zoom: its strip and ruler are the film's own
         c.isData ? null : btn('Split at playhead (S)', () => split(), { id: 'le-pro-split' })),
       markStrip, note);
 
@@ -165,18 +165,26 @@
       if (at < sel.start + min - 1e-9 || at > sel.start + sel.len - min + 1e-9) { say(`Put the playhead inside the clip, at least ${min} s from each end.`); return; }
       const rest = r1(sel.start + sel.len - at);
       const add = sel.track === 'text' ? { op: 'add_clip', track: 'text', start: at, len: rest, text: sel.text || '' } : { op: 'add_clip', track: 'pictures', start: at, len: rest, picture: sel.picture };
-      const ok = await c.applyMany([{ op: 'trim_clip', id: sel.id, edge: 'end', to: at }, add], true);
+      const trim = { op: 'trim_clip', id: sel.id, edge: 'end', to: at };
+      const E = window.ryagramEditor, bad = E && typeof E.check === 'function' ? (E.check(ed.state, trim) || E.check(ed.state, add)) : null;      // both are checked BEFORE either is made: a refusal never leaves half a split
+      if (bad) { say(bad); return; }
+      const ok = await c.applyMany([trim, add], true);
       say(ok ? `Split at ${mmss(at)}. Undo takes it back in one step.` : '');
     }
     async function undoBack(i) {
       for (let guard = 0; guard < 60 && ed.log.length > i; guard += 1) {
         const before = ed.log.length;
-        if (c.draft) await c.draft.undo(); else ed.undo();
-        if (ed.log.length >= before) break;
+        const r = c.draft ? await c.draft.undo() : ed.undo();
+        if (r && r.ok === false) { say(r.reason || 'That could not be undone.'); break; }
+        if (ed.log.length >= before) { say('That could not be undone.'); break; }
       }
       c.markUnsaved(); c.paint();
     }
+    let histSig = null;                                              // null = never painted (an empty history still has to say 'No changes yet.')
     function paintHist() {
+      const sig = ed.log.map(e => `${describe(e.op)}|${e.by}`).join('\n') + (c.locked() ? '|locked' : '');
+      if (sig === histSig) return;                                      // unchanged: leave the list (and the focus in it) alone
+      histSig = sig;
       const items = ed.log.map((e, i) => h('li', { class: e.by === 'ai' ? 'le-pro-ai' : '' },
         h('span', {}, `${describe(e.op)} `), h('span', { class: 'meta' }, e.by === 'ai' ? '· your AI ' : '· you '),
         btn('Undo back to here', () => undoBack(i), { 'aria-label': `Undo step ${i + 1} and everything after it`, disabled: !!c.locked() })));

@@ -15,6 +15,7 @@
 .le-pro-safe::before{inset:5%;border-color:#e8c15a}.le-pro-safe::after{inset:2.5%;border-color:#6fd0a0}
 .le-zoomed .le-lanes,.le-zoomed .le-ruler-holder{overflow-x:auto}
 .le-zoomed .le-lanes .le-lane,.le-zoomed .le-ruler-holder>*{width:calc(var(--le-zoom,1) * 100%)}
+.le-zoomed .le-film .le-ruler-holder>*{width:auto}                       /* the film's own ruler and tiles never zoom */
 .le-zoomed .le-lane>b{position:sticky;left:0;background:#101015;z-index:2}
 
 /* ---- LOOK PASS (RENDERER 11-20, CLAUDE for Ryan's 08:5x order): PRO reads as part of the same website. The site's own variables only (so light and dark both follow), the site's
@@ -33,6 +34,7 @@ body.ryagram-look .le-pro-side h2:first-child{margin-top:0}
 .le-pro-ai{color:var(--link,#9fb6ff)}
 .le-pro-side{padding:16px;border:1px solid var(--line,#3a3a44);border-radius:14px;background:var(--paper,#1b1b23)}
 @media (max-width:520px){
+  .le-pro-marks{height:48px}.le-pro-mark{min-width:44px;min-height:44px}.le-pro-hist .button{min-height:44px}
   .le-pro{padding:12px}
   .le-pro-row .button{flex:1 1 calc(50% - 4px)}
   .le-pro-switch{align-self:flex-start}
