@@ -8,9 +8,9 @@
 // The page makes NO network request, uses textContent only, and is ES5 with no library (like the card page). Pure functions: no dependencies.
 
 import type { DepartmentRow } from "./types.ts";
-import { CHAT_SHARED_CSS, CHAT_UI_CSS } from "./chat_look.ts";
+import { chatCss } from "./chat_look.ts";
 
-export const HOME_MAX_BYTES = 24 * 1024;      // was 16 KB: the look now carries the site's shared tokens and components (chat_look.ts, built from WEB's design files)
+export const HOME_MAX_BYTES = 20 * 1024;      // was 16 KB: the look carries the site's shared tokens and components (chat_look.ts, built from WEB's design files); 17.3 KB used
 
 export interface HomeWords { label: string; line: string; rules?: string[]; notYet?: string[]; starts?: string[]; page?: string }
 /** The site's order. An id this table does not know is not shown. */
@@ -69,7 +69,7 @@ export function homeView(rows: unknown, switches: unknown = []): HomeView {
 
 // ---------------------------------------------------------------------------------------------- the page
 // The look is the site's own (tokens, button, badge, flip) from chat_look.ts, built by tools/build-chat-look.mjs from WEB's design files, plus the chat layout; nothing is written here.
-const STYLE = [":root{color-scheme:dark}", CHAT_SHARED_CSS, CHAT_UI_CSS].join("");
+const STYLE = ":root{color-scheme:dark}" + chatCss("tokens", "controls", "flip", "base", "home");
 
 const SCRIPT = [
   "(function(){",

@@ -7,6 +7,7 @@
 import { EDITOR_BUILD, EDITOR_HTML } from "./editor_page.ts";
 import { HOME_URI, homeHtml, isHomeUri } from "./home_panel.ts";
 import { probeCsp, probePage, probeResources } from "./probe.ts";
+import { chatCss } from "./chat_look.ts";
 
 export const CARD_URI = "ui://ryagram/card";
 /** The editor page's address changes with every build of the page (EDITOR_BUILD is a hash of everything it is made from). A host that keeps pages by address (Claude fetches a connector's pages once, then reuses them) can then never show a stale page under the new address. */
@@ -48,24 +49,8 @@ const APP_URL = /^https:\/\/[A-Za-z0-9][A-Za-z0-9.-]*(:\d{1,5})?(\/[A-Za-z0-9._~
 export const toolUiMeta = (uri: string) => ({ ui: { resourceUri: uri }, "openai/outputTemplate": uri });
 
 /** The page. ES5 on purpose (no build step, no template literal, no library). It makes NO network request: it draws what the host hands it as the tool's result, with textContent only. */
-const CARD_STYLE = [
-  ":root{color-scheme:dark}",
-  "*{box-sizing:border-box}",
-  "html,body{margin:0;background:transparent}",
-  "body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#f2f2ef}",
-  ".card{background:#1b1b23;border:1px solid #3a3a44;border-radius:12px;padding:14px 16px;max-width:560px;min-width:0}",
-  ".top{display:flex;align-items:center;gap:10px;margin:0 0 10px}",
-  ".mark{flex:none;background:#0e0e13;color:#6fd1bd;border:1px solid #3a3a44;border-radius:8px;padding:3px 8px;font-weight:700;letter-spacing:.02em}",
-  "h1{margin:0;font-size:16px;font-weight:650;color:#f2f2ef}",
-  ".row{display:flex;justify-content:space-between;gap:12px;padding:5px 0;border-top:1px solid #2c2c36}",
-  ".k{color:#b6b5ae}",
-  ".v{color:#f2f2ef;text-align:right;overflow-wrap:anywhere;min-width:0}",
-  ".hint{margin:8px 0 0;color:#b6b5ae;font-size:13px}",
-  ".openfail{overflow-wrap:anywhere}",
-  "button{margin-top:12px;min-height:44px;padding:0 16px;border-radius:10px;border:1px solid #6fd1bd;background:#0e0e13;color:#8fe0cf;font:inherit;font-weight:600;cursor:pointer}",
-  "button:focus-visible{outline:2px solid #8fe0cf;outline-offset:2px}",
-  "@media (max-width:360px){.card{padding:12px}}",
-].join("");
+// The look is the site's own (tokens, button, badge) from chat_look.ts (tools/build-chat-look.mjs, built from WEB's design files) plus the chat layout; nothing is written here.
+const CARD_STYLE = ":root{color-scheme:dark}" + chatCss("tokens", "controls", "base", "card");
 
 const CARD_SCRIPT = [
   "(function(){",
@@ -76,27 +61,29 @@ const CARD_SCRIPT = [
   "var BAD=/[\\u0000-\\u001f\\u007f-\\u009f\\u202a-\\u202e\\u2066-\\u2069\\u200e\\u200f]/g;",
   "function clean(s,n){return String(s==null?'':s).replace(BAD,' ').slice(0,n||80);}",
   "function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}",
-  "function row(k,v){var r=el('div','row');r.appendChild(el('span','k',k));r.appendChild(el('span','v',v));return r;}",
+  "function row(k,v){var r=el('div','rc-acct');r.appendChild(el('span','k',k));r.appendChild(el('span','v',v));return r;}",
+  "function stat(n,l){var s=el('div','rc-stat');s.appendChild(el('span','rc-n',n));s.appendChild(el('span','rc-l',l));return s;}",
   "function whole(n){return typeof n==='number'&&isFinite(n)?String(Math.round(n)):null;}",
-  "function head(){var t=el('div','top');t.appendChild(el('span','mark',\"L'Ai\"));t.appendChild(el('h1','','Ryagramming'));return t;}",
+  "function head(){var t=el('div','rc-brand');t.appendChild(el('b','',\"L'Ai\"));t.appendChild(el('h1','','Ryagramming'));return t;}",
   // a host that will not open a link says so; the address is then given in words, once, to open by hand (the chat editor does the same)
   "function openFailed(){var n=card.querySelector('.openfail');if(!n){n=el('p','hint openfail');n.setAttribute('role','alert');card.appendChild(n);}n.textContent='Your chat app did not open it. Open this address in your browser: '+appUrl;size();}",
   "function paint(sc){",
   " var kids=[head()],any=false;",
   " if(sc&&typeof sc==='object'){",
-  "  if(typeof sc.account==='string'){kids.push(row('Account',clean(sc.account)));any=true;}",
   "  var a=whole(sc.credits_available),h=whole(sc.credits_held);",
-  "  if(a!==null){kids.push(row('Credits available',a));any=true;}",
-  "  if(h!==null){kids.push(row('Held for running jobs',h));any=true;}",
+  "  if(a!==null||h!==null){var st=el('div','rc-stats');if(a!==null)st.appendChild(stat(a,'Credits available'));if(h!==null)st.appendChild(stat(h,'Held for running jobs'));kids.push(st);any=true;}",
+  "  if(typeof sc.account==='string'){kids.push(row('Account',clean(sc.account)));any=true;}",
   "  if(Array.isArray(sc.projects)){",
   "   var ps=sc.projects;any=true;",
   "   if(!ps.length)kids.push(el('p','hint','No projects yet.'));",
-  "   for(var i=0;i<ps.length&&i<3;i++){var p=ps[i];if(p&&typeof p==='object')kids.push(row('Project',clean(p.title,60)));}",
+  "   else{kids.push(el('p','rc-h','Your films'));var ls=el('div','rc-list');",
+  "    for(var i=0;i<ps.length&&i<3;i++){var p=ps[i];if(p&&typeof p==='object'){var li=el('div','rc-li');li.appendChild(el('span','',clean(p.title,60)));ls.appendChild(li);}}",
+  "    kids.push(ls);}",
   "   if(ps.length>3)kids.push(el('p','hint','and '+(ps.length-3)+' more'));",
   "  }",
   " }",
   " if(!any)kids.push(el('p','hint','Your Ryagram details are in the conversation above.'));",
-  " if(appUrl){var b=el('button','','Open Ryagram');b.type='button';b.addEventListener('click',function(){ask('ui/open-link',{url:appUrl},function(r){if(r&&(r.error||(r.result&&r.result.isError===true)))openFailed();});});kids.push(b);}",
+  " if(appUrl){var b=el('button','btn primary small','Open Ryagram');b.type='button';b.addEventListener('click',function(){ask('ui/open-link',{url:appUrl},function(r){if(r&&(r.error||(r.result&&r.result.isError===true)))openFailed();});});kids.push(b);}",
   " card.textContent='';for(var j=0;j<kids.length;j++)card.appendChild(kids[j]);",
   " size();",
   "}",
@@ -135,7 +122,7 @@ export function cardHtml(appUrl?: string): string {
   const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";
   return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
     "<title>Ryagram</title><style>" + CARD_STYLE + "</style></head><body data-app-url=\"" + link + "\">" +
-    "<main class=\"card\" id=\"card\" aria-live=\"polite\"><div class=\"top\"><span class=\"mark\" aria-hidden=\"true\">L'Ai</span><h1>Ryagramming</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
+    "<main class=\"card rc\" id=\"card\" aria-live=\"polite\"><div class=\"rc-brand\"><b>L'Ai</b><h1>Ryagramming</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
     "<script>" + CARD_SCRIPT + "</script></body></html>";
 }
 

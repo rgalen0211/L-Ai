@@ -207,7 +207,7 @@ test('text from a result is only ever TEXT: markup stays markup, control and dir
   const evil = '<img src=x onerror=alert(1)><script>alert(2)</script>';
   p.fire(RESULT({ account: evil, projects: [{ id: 'a', title: evil }, { id: 'b', title: 'a\u0000b\u202ec\u2066d\u200fe\u009ff\nx' }, { id: 'c', title: 'z'.repeat(500) }] }));
   const all = p.card.all();
-  assert.ok(all.every((n) => ['main', 'div', 'span', 'h1', 'p', 'button'].includes(n.tag)), 'no element but the card\'s own kinds was made');
+  assert.ok(all.every((n) => ['main', 'div', 'span', 'h1', 'p', 'button', 'b'].includes(n.tag)), 'no element but the card\'s own kinds was made');
   assert.ok(texts(p.card).includes(evil.slice(0, 80)), 'the account label is shown as written, as text');
   assert.ok(texts(p.card).includes(evil.slice(0, 60)), 'a title is shown as written, as text');
   const cleaned = texts(p.card).find((t) => t.startsWith('a b'));

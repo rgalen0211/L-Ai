@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-chatlook');
 const C = 'supabase/functions/connect-core/';
-const GEN = C + 'chat_look.ts', HP = C + 'home_panel.ts', UI = 'tools/chat-look/chat-ui.css', DS = 'tools/chat-look/source/ds.css', BUILD = 'tools/build-chat-look.mjs';
+const GEN = C + 'chat_look.ts', HP = C + 'home_panel.ts', MA = C + 'mcp_app.ts', UI = 'tools/chat-look/chat-ui.css', DS = 'tools/chat-look/source/ds.css', BUILD = 'tools/build-chat-look.mjs';
 const mutants = [
   ['a token is changed by hand in the generated file (the site\'s accent colour)', GEN, '--accent:#ff8a3d;', '--accent:#ff0000;'],
   ['the site changes its accent and the chat is not rebuilt', DS, '--accent:#ff8a3d;', '--accent:#3dff8a;'],
@@ -16,8 +16,10 @@ const mutants = [
   ['the chat layout writes a colour of its own', UI, '.rc-note.ok{color:var(--ok)}', '.rc-note.ok{color:#8fe3cf}'],
   ['the chat layout uses a token the site does not have', UI, '.rc-note.ok{color:var(--ok)}', '.rc-note.ok{color:var(--made-up)}'],
   ['the chat layout loads a picture', UI, '.rc-note.ok{color:var(--ok)}', '.rc-note.ok{background:url(a.png)}'],
-  ['the home panel writes a colour of its own', HP, '[":root{color-scheme:dark}", CHAT_SHARED_CSS, CHAT_UI_CSS].join("")', '[":root{color-scheme:dark}", CHAT_SHARED_CSS, CHAT_UI_CSS, "a{color:#ffffff}"].join("")'],
-  ['the home panel carries no shared look', HP, '[":root{color-scheme:dark}", CHAT_SHARED_CSS, CHAT_UI_CSS].join("")', '[":root{color-scheme:dark}", CHAT_UI_CSS].join("")'],
+  ['the home panel writes a colour of its own', HP, '":root{color-scheme:dark}" + chatCss("tokens", "controls", "flip", "base", "home")', '":root{color-scheme:dark}" + chatCss("tokens", "controls", "flip", "base", "home") + "a{color:#ffffff}"'],
+  ['the home panel carries no shared look', HP, 'chatCss("tokens", "controls", "flip", "base", "home")', 'chatCss("base", "home")'],
+  ['the account card carries no shared look', MA, 'chatCss("tokens", "controls", "base", "card")', 'chatCss("base", "card")'],
+  ['the account card writes a colour of its own', MA, 'chatCss("tokens", "controls", "base", "card");', 'chatCss("tokens", "controls", "base", "card") + "a{color:#ffffff}";'],
   ['the build keeps no tokens (the chat gets no :root)', BUILD, "const KEEP = [':root', ", "const KEEP = ["],
 ];
 const run = (cwd) => {

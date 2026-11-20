@@ -8,14 +8,18 @@ body{font:400 var(--t-small)/1.5 var(--sans);color:var(--ink);background:transpa
 .rc p{margin:0}
 .rc-brand{display:flex;align-items:center;gap:var(--s2);margin-bottom:var(--s3)}
 .rc-brand b{font:600 1.375rem/1 var(--serif);letter-spacing:.01em}
-.rc-brand span{font-size:var(--t-caption);letter-spacing:.18em;text-transform:uppercase;color:var(--muted)}
+.rc-brand span,.rc-brand h1{font-size:var(--t-caption);font-weight:400;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin:0}
 .rc-brand .rc-end{margin-left:auto}
 .rc-title{font:600 1.5rem/1.15 var(--serif);letter-spacing:-.015em;margin:0 0 var(--s2)}
 .rc-lede{color:var(--ink-2);margin-bottom:var(--s4)}
 .rc-actions{display:flex;flex-wrap:wrap;gap:var(--s2)}
 .rc .btn{min-height:44px;padding:0 var(--s4);font-size:var(--t-small)}
 .rc-hero{padding-bottom:var(--s4)}
+.rc-hero .rc-brand{margin-bottom:var(--s2)}
+.hint{margin-top:var(--s3);color:var(--ink-2);font-size:var(--t-small)}
+.openfail{overflow-wrap:anywhere}
 
+/*@part home*/
 /* the flip: tabs and arrows on one line, one section in view, dots under it */
 .rc .flip-bar{margin-bottom:var(--s3);gap:var(--s2)}
 .rc .flip-arrow{font-size:1rem}
@@ -29,19 +33,30 @@ body{font:400 var(--t-small)/1.5 var(--sans);color:var(--ink);background:transpa
 .rc-card .rc-line{color:var(--ink-2)}
 .rc-card .rc-rule{color:var(--muted);font-size:var(--t-caption)}
 .rc-card .rc-actions{margin-top:auto;padding-top:var(--s2)}
+.rc-card .rc-badges{display:flex;gap:var(--s2);align-items:center}
+.tag{font-size:var(--t-caption);font-weight:600;color:var(--muted);border:1px solid var(--line-2);border-radius:var(--radius-xs);padding:1px var(--s2)}
+.example{margin:var(--s2) 0 0;padding:2px 0 2px var(--s3);border:0;border-left:3px solid var(--accent);color:var(--ink-2);min-width:0}
+.example p{margin:var(--s1) 0}
+.example .why,.example .diag,.example .hold{color:var(--muted);font-size:var(--t-caption);overflow-wrap:anywhere}
+.example .label{margin-bottom:0;font-size:var(--t-caption);font-weight:650;letter-spacing:.04em;color:var(--accent-2)}
+.example .quote{font-style:italic;font-size:var(--t-small);overflow-wrap:anywhere}
 
+/*@part card*/
 /* the account card */
 .rc-stats{display:grid;grid-template-columns:1fr 1fr;gap:var(--s2);margin-bottom:var(--s3)}
-.rc-stat{padding:var(--s3) var(--s4);border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface)}
-.rc-stat b{display:block;font:600 1.875rem/1.1 var(--serif);letter-spacing:-.02em}
-.rc-stat span{font-size:var(--t-caption);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
-.rc-who{color:var(--muted);font-size:var(--t-caption);margin-bottom:var(--s3);overflow-wrap:anywhere}
-.rc-list{list-style:none;margin:0 0 var(--s3);padding:0;display:grid;gap:var(--s1)}
-.rc-list li{display:flex;align-items:center;gap:var(--s3);min-height:44px;padding:0 var(--s3);border-radius:var(--radius-xs);border:1px solid var(--line);background:var(--surface)}
-.rc-list li span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.rc-list li i{font-style:normal;color:var(--faint)}
+.rc-stat{padding:var(--s3) var(--s4);border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface);min-width:0}
+.rc-stat .rc-n{display:block;font:600 1.875rem/1.1 var(--serif);letter-spacing:-.02em}
+.rc-stat .rc-l{display:block;font-size:var(--t-caption);letter-spacing:.08em;text-transform:uppercase;color:var(--faint)}
+.rc-acct{display:flex;justify-content:space-between;gap:var(--s3);padding:var(--s2) 0;border-top:1px solid var(--line);margin-bottom:var(--s3)}
+.rc-acct .k{color:var(--muted)}
+.rc-acct .v{text-align:right;overflow-wrap:anywhere;min-width:0}
+.rc-list{display:grid;gap:var(--s1);margin:0 0 var(--s3)}
+.rc-li{display:flex;align-items:center;gap:var(--s3);min-height:44px;padding:0 var(--s3);border-radius:var(--radius-xs);border:1px solid var(--line);background:var(--surface)}
+.rc-li span{flex:1 1 auto;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .rc-h{font-size:var(--t-caption);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-2);font-weight:600;margin:var(--s4) 0 var(--s2)}
+.card>.btn{margin-top:var(--s3)}
 
+/*@part editor*/
 /* the one-screen editor */
 .rc-ed{padding:var(--s3);display:flex;flex-direction:column;gap:var(--s2)}
 .rc-ed-head{display:flex;align-items:center;gap:var(--s2)}
@@ -77,15 +92,3 @@ body{font:400 var(--t-small)/1.5 var(--sans);color:var(--ink);background:transpa
 .rc-step b{min-width:56px;text-align:center;font-variant-numeric:tabular-nums}
 .rc-note{font-size:var(--t-caption);color:var(--muted)}
 .rc-note.ok{color:var(--ok)}
-
-/* the home panel: a hidden section is not read or tabbed to; the example (a host that will not let the panel type) is a quote with a bar, never a field */
-.rc-hero .rc-brand{margin-bottom:var(--s2)}
-.rc-card .rc-badges{display:flex;gap:var(--s2);align-items:center}
-.tag{font-size:var(--t-caption);font-weight:600;color:var(--muted);border:1px solid var(--line-2);border-radius:var(--radius-xs);padding:1px var(--s2)}
-.hint{margin-top:var(--s3);color:var(--ink-2);font-size:var(--t-small)}
-.openfail{overflow-wrap:anywhere}
-.example{margin:var(--s2) 0 0;padding:2px 0 2px var(--s3);border:0;border-left:3px solid var(--accent);color:var(--ink-2);min-width:0}
-.example p{margin:var(--s1) 0}
-.example .why,.example .diag,.example .hold{color:var(--muted);font-size:var(--t-caption);overflow-wrap:anywhere}
-.example .label{margin-bottom:0;font-size:var(--t-caption);font-weight:650;letter-spacing:.04em;color:var(--accent-2)}
-.example .quote{font-style:italic;font-size:var(--t-small);overflow-wrap:anywhere}

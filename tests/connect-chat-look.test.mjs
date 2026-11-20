@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { build, layoutProblems, minify, rules } from '../tools/build-chat-look.mjs';
 import * as look from '../supabase/functions/connect-core/chat_look.ts';
 import { homeHtml } from '../supabase/functions/connect-core/home_panel.ts';
+import { cardHtml } from '../supabase/functions/connect-core/mcp_app.ts';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const rd = (p) => fs.readFileSync(path.join(ROOT, p), 'utf8').replace(/\r\n/g, '\n');
@@ -17,16 +18,17 @@ test('chat_look.ts is exactly what the design sources build (the drift test)', (
   const r = build();
   assert.deepEqual(r.problems, [], r.problems.join('; '));
   assert.equal(rd('supabase/functions/connect-core/chat_look.ts'), r.text, 'chat_look.ts is not what the sources build: run node tools/build-chat-look.mjs');
-  assert.equal(look.CHAT_SHARED_CSS.length > 3000 && look.CHAT_UI_CSS.length > 3000, true);
+  for (const part of ['tokens', 'controls', 'scroll', 'flip', 'base', 'home', 'card', 'editor']) assert.ok(look.CHAT_CSS[part] && look.CHAT_CSS[part].length > 100, 'part ' + part + ' is there');
+  assert.throws(() => look.chatCss('nope'), /no such part/);
 });
 
 test('the chat carries the site\'s own tokens, byte for byte, not a retyped copy', () => {
   const src = rd(fs.existsSync(path.join(ROOT, 'assets/ds.css')) ? 'assets/ds.css' : 'tools/chat-look/source/ds.css');
   const root = rules(src).find((x) => x.startsWith(':root'));
   assert.ok(root, 'the site has a :root block');
-  assert.ok(look.CHAT_SHARED_CSS.startsWith(minify(root)), 'the chat\'s :root is the site\'s :root');
+  assert.ok(look.CHAT_CSS.tokens.startsWith(minify(root)), 'the chat\'s :root is the site\'s :root');
   for (const t of ['--accent', '--bg-2', '--ink', '--radius', '--s4', '--serif', '--ok', '--glow']) assert.ok(look.CHAT_LOOK_TOKENS.includes(t), t + ' is a token');
-  for (const sel of ['.btn.primary', '.badge.soon', '.flip-viewport', '.flip-dot']) assert.ok(look.CHAT_SHARED_CSS.includes(sel), sel + ' comes from the site');
+  for (const sel of ['.btn.primary', '.badge.soon', '.flip-viewport', '.flip-dot']) assert.ok(look.chatCss('controls', 'flip', 'scroll').includes(sel), sel + ' comes from the site');
 });
 
 test('the vendored design copy is not stale: once the site lifts its files into assets/, they must be the same', () => {
@@ -50,8 +52,18 @@ test('the chat layer may use only the site\'s tokens, no colour of its own, and 
 
 test('the home panel is drawn with the generated look and writes no colour or token of its own', () => {
   const html = homeHtml('https://uselai.com/app/');
-  assert.ok(html.includes(look.CHAT_SHARED_CSS) && html.includes(look.CHAT_UI_CSS), 'the page carries the generated look');
+  assert.ok(html.includes(look.chatCss('tokens', 'controls', 'flip', 'base', 'home')), 'the page carries the generated look (the parts it uses)');
+  assert.ok(!html.includes(look.CHAT_CSS.editor) && !html.includes(look.CHAT_CSS.card), 'and not the parts of the other panels');
   const src = rd('supabase/functions/connect-core/home_panel.ts');
   assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/.test(src), 'home_panel.ts writes no colour');
-  assert.ok(/import \{[^}]*CHAT_SHARED_CSS[^}]*\} from "\.\/chat_look\.ts"/.test(src), 'it imports the look from the one generated file');
+  assert.ok(/import \{[^}]*chatCss[^}]*\} from "\.\/chat_look\.ts"/.test(src), 'it imports the look from the one generated file');
+});
+
+test('the account card is drawn with the generated look, only the parts it uses, and writes no colour of its own', () => {
+  const html = cardHtml('https://uselai.com/app/');
+  assert.ok(html.includes(look.chatCss('tokens', 'controls', 'base', 'card')), 'the page carries the generated look (the parts it uses)');
+  assert.ok(!html.includes(look.CHAT_CSS.flip) && !html.includes(look.CHAT_CSS.editor) && !html.includes(look.CHAT_CSS.home), 'and not the parts of the other panels');
+  const src = rd('supabase/functions/connect-core/mcp_app.ts');
+  assert.ok(!/#[0-9a-fA-F]{3,8}\b|rgba?\(|hsla?\(/.test(src.replace(/\/\/.*$/gm, '')), 'mcp_app.ts writes no colour');
+  assert.ok(/import \{[^}]*chatCss[^}]*\} from "\.\/chat_look\.ts"/.test(src), 'it imports the look from the one generated file');
 });

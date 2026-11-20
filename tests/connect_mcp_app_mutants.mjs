@@ -32,7 +32,7 @@ const mutants = [
   ['the card is allowed frames', A, 'csp: { connectDomains: [], resourceDomains: [] }', 'csp: { connectDomains: [], resourceDomains: [], frameDomains: ["https://x.example.com"] }'],
   ['the card is given a border it did not ask for', A, 'prefersBorder: false', 'prefersBorder: true'],
   ['a second script is added from outside', A, '"<script>" + CARD_SCRIPT', '"<script src=\\"https://evil.example/x.js\\"></script><script>" + CARD_SCRIPT'],
-  ['the page grows past its budget', A, '"@media (max-width:360px){.card{padding:12px}}",', '"@media (max-width:360px){.card{padding:12px}}" + "/*" + "x".repeat(20000) + "*/",'],
+  ['the page grows past its budget', A, 'chatCss("tokens", "controls", "base", "card");', 'chatCss("tokens", "controls", "base", "card") + "/*" + "x".repeat(20000) + "*/";'],
   // the page's own behaviour
   ['text is set as markup', A, 'if(text!=null)e.textContent=text;return e;', 'if(text!=null)e.innerHTML=text;return e;'],
   ['messages from any window are believed', A, 'if(ev.source!==host)return;', 'if(false)return;'],

@@ -8,6 +8,7 @@ Checks, at 320, 390, 768 and 1280 px wide, with a light and a dark host: the car
 text keeps contrast of 4.5:1 or better on its own background; the card reports a height; no request leaves the page; no policy violation; markup in a project title stays text and nothing runs;
 a host that never answers still leaves a readable card. Exit 1 on any finding. Nothing here talks to a live host or server."""
 import json
+import os
 import re
 import subprocess
 import sys
@@ -100,7 +101,7 @@ def main():
                     page.wait_for_timeout(200)
                     text = fr.inner_text("body")
                     for want in ("Ryagramming", "alice@example.test", "100", "<img src=x onerror=alert(1)>", "Film two", "and 1 more", "Open Ryagram"):
-                        check(want in text, "%s: shows %r" % (tag, want))
+                        check(want.lower() in text.lower(), "%s: shows %r (the small brand line is drawn in capitals, so the words are compared without case)" % (tag, want))
                     check(fr.query_selector("img") is None, "%s: markup in a title made no image" % tag)
                     check(not dialogs, "%s: nothing ran (no dialog)" % tag)
                     check(not bad_requests, "%s: no request left the page %s" % (tag, bad_requests[:2]))
@@ -110,11 +111,16 @@ def main():
                     btn = fr.query_selector("button")
                     box = btn.bounding_box() if btn else None
                     check(bool(box) and box["height"] >= 44, "%s: the button is at least 44 px tall (%s)" % (tag, box and round(box["height"])))
-                    pairs = fr.evaluate("""() => [...document.querySelectorAll('h1,.k,.v,.hint,button,.mark')].map(e => {
+                    pairs = fr.evaluate("""() => [...document.querySelectorAll('h1,.k,.v,.hint,.rc-n,.rc-l,.rc-li span,.rc-brand b,.rc-h')].map(e => {
                         let n = e, bg = 'rgba(0, 0, 0, 0)'; while (n) { const c = getComputedStyle(n).backgroundColor; if (c !== 'rgba(0, 0, 0, 0)') { bg = c; break; } n = n.parentElement; }
                         return [e.className || e.tagName, getComputedStyle(e).color, bg]; })""")
                     low = [(n, round(ratio(rgb(c), rgb(bg)), 1)) for n, c, bg in pairs if ratio(rgb(c), rgb(bg)) < 4.5]
                     check(not low, "%s: every text keeps 4.5:1 on its own background %s" % (tag, low[:3]))
+                    bt = fr.evaluate("""() => { const b = document.querySelector('button'); return [getComputedStyle(b).color, getComputedStyle(document.documentElement).getPropertyValue('--accent').trim()]; }""")
+                    acc = tuple(int(bt[1][i:i + 2], 16) for i in (1, 3, 5))
+                    check(ratio(rgb(bt[0]), acc) >= 4.5, "%s: the button text keeps 4.5:1 on the accent colour (%s on %s)" % (tag, bt[0], bt[1]))
+                    look = fr.evaluate("() => ({ stats: document.querySelectorAll('.rc-stat').length, list: document.querySelectorAll('.rc-li').length, btn: document.querySelector('button').className })")
+                    check(look['stats'] == 2 and look['list'] == 3 and 'primary' in look['btn'], "%s: two stat tiles, three film rows, one primary button (%s)" % (tag, look))
                     sizes = page.evaluate("window.__log.filter(m => m.method === 'ui/notifications/size-changed').map(m => m.params.height)")
                     check(bool(sizes) and sizes[-1] > 100, "%s: the card reports a height (%s)" % (tag, sizes[-1:]))
                     frame_h = page.evaluate("document.getElementById('v').getBoundingClientRect().height")
@@ -126,6 +132,8 @@ def main():
                     check(opened == [APP], "%s: the button asks the host to open the app address %s" % (tag, opened))
                     methods = set(page.evaluate("window.__log.map(m => m.method)"))
                     check(methods <= {"ui/initialize", "ui/notifications/initialized", "ui/notifications/size-changed", "ui/open-link"}, "%s: the card sent only the expected messages %s" % (tag, sorted(methods)))
+                    if width == 390 and os.environ.get('SHOTS'):
+                        page.screenshot(path=os.path.join(os.environ['SHOTS'], 'card-%s-390.png' % theme))
                     ctx.close()
             # a host that never answers: the card is still readable
             ctx = b.new_context(viewport={"width": 390, "height": 700})
@@ -134,7 +142,7 @@ def main():
             page.wait_for_timeout(500)
             fr = page.frames[1]
             t = fr.inner_text("body")
-            check("Ryagramming" in t, "a host that never answers: the card still says Ryagramming")
+            check("ryagramming" in t.lower(), "a host that never answers: the card still says Ryagramming")
             check(page.evaluate("!window.__log.some(m => m.method === 'ui/notifications/initialized')"), "a host that never answers: the card does not claim to be ready")
             ctx.close()
         finally:
