@@ -122,8 +122,8 @@ with sync_playwright() as pw:
 
     # ---- the other pages (Account, Credits, My films, Tutorial): measured to the bottom of the footer, the mock bar (a test artefact) hidden
     cfg2 = re.sub(r":\s*'account'", ': true', cfg)
-    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.5, 1.7), 'My films': (1.4, 1.5), 'Tutorial': (1.55, 1.7)}
-    ROUTE = {'Account': '#/account', 'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build'}
+    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.5, 1.7), 'My films': (1.4, 1.5), 'Tutorial': (1.55, 1.7), 'Help': (1.3, 1.5)}
+    ROUTE = {'Account': '#/account', 'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build', 'Help': '#/help'}
 
     def foot(p):
         return p.evaluate("Math.round(document.querySelector('footer').getBoundingClientRect().bottom + scrollY)")
@@ -151,6 +151,21 @@ with sync_playwright() as pw:
                     check('section=' not in p.evaluate('location.hash'), f'{name}: the address keeps its own form (no section=)')
             if name == 'Credits':
                 check(p.locator('.flip-tab').count() in (0, 2), f'{name} {kind}: packs and plans are two tabs when both are on sale ({p.locator(".flip-tab").count()})')
+            if name == 'Help':
+                check(p.locator('.flip-tab').count() == 3, f'{name} {kind}: the help page is three sections ({p.locator(".flip-tab").count()})')
+                if kind == 'desktop':
+                    check(p.evaluate("(() => { const b = document.querySelector('[data-flip-section=write] button[type=submit]'); const r = b.getBoundingClientRect(); return r.width > 0 && r.bottom <= 800 })()"), f'{name} {kind}: the help form and its Send button are on the first screen')
+                p.locator('.flip-tab').nth(1).click(); p.wait_for_timeout(500)
+                check(p.evaluate("getComputedStyle(document.querySelector('[data-flip-section=films] .scroll-panel')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the answers scroll in their own panel')
+                p.locator('[data-flip-section=films] summary').first.click(); p.wait_for_timeout(300)
+                check(p.evaluate("document.querySelector('[data-flip-section=films] details').open"), f'{name} {kind}: a question opens its answer')
+                r = foot(p) / h_
+                check(r <= lim, f'{name} {kind}: the films section is {r:.2f} x the screen (at most {lim})')
+                p.locator('.flip-tab').nth(0).click(); p.wait_for_timeout(500)
+                if kind == 'desktop':
+                    p.keyboard.press('ArrowRight'); p.wait_for_timeout(500)
+                    check(p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") == 1, f'{name}: ArrowRight goes to the next section')
+                    p.locator('.flip-tab').nth(0).click(); p.wait_for_timeout(500)
             if name == 'Tutorial':
                 check(p.locator('.flip-tab').count() == 2, f'{name} {kind}: step 1 flips between ready-made films and your own data')
                 p.locator('.flip-tab').nth(1).click(); p.wait_for_timeout(500)

@@ -134,3 +134,15 @@ html{scroll-padding-top:88px}
 :is(body.ryagram-ds.ryagram-look,body) .flip-panel>.jobs-panel{padding:16px 28px}
 /* a locked button shows the not-allowed cursor (its reason is the tooltip); the design system's disabled rule had made it the default arrow (check-smoke-fixes) */
 body.ryagram-ds.ryagram-look .button[data-locked]:disabled{cursor:not-allowed}
+/* Help: the form is the first section and sits on the first screen in two columns (email and topic | message and Send); the quick answers sit in their own scroll panels (Ryan 11-20: no long pages) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.contact-form) .form-intro{margin:0 0 12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.contact-form) .flip-bar{margin-bottom:10px}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form{display:grid;grid-template-columns:1fr 1.4fr;gap:0 28px;padding:20px 28px;align-items:start}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choices{margin:10px 0 0}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choice{margin:2px 0}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form textarea{min-height:0}
+.help-answers .scroll-panel{max-height:min(46vh,380px)}
+.help-answers details{border-bottom:1px solid var(--ds-line);padding:2px 0}
+.help-answers summary{cursor:pointer;font-weight:600;padding:10px 0;min-height:44px;display:flex;align-items:center}
+.help-answers details p{margin:0 0 12px;color:var(--ink-2,inherit)}
+@media(max-width:700px){:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form{grid-template-columns:1fr;padding:16px 18px}:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choices{display:grid;grid-template-columns:1fr 1fr;gap:0 8px}:is(body.ryagram-ds.ryagram-look,body) .flip-panel .contact-form .choices legend{grid-column:1/-1}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.contact-form) .form-intro{display:none}}

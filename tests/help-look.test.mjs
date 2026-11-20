@@ -8,7 +8,7 @@ const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').r
 
 test('Get help opens with a form-intro line, then the form', () => {
   const lib = read('assets/app-library.js');
-  assert.match(lib, /h\('h1', \{ tabindex: '-1' \}, 'Get help'\),\n\s+h\('p', \{ class: 'form-intro' \}, 'Common questions are answered in the '/);
+  assert.match(lib, /h\('h1', \{ tabindex: '-1' \}, 'Get help'\),\n\s+h\('p', \{ class: 'form-intro' \}, 'Common questions are answered below and in the '/);
 });
 
 test('the static help page, the app and the tutorial all wear the look sheet', () => {
