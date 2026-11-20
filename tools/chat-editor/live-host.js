@@ -134,6 +134,7 @@
           if (!CARD_ATTRS.has(a.name)) continue;
           const v = String(a.value);
           if (v.length > 60000) continue;
+          if (v.indexOf(String.fromCharCode(92)) >= 0) continue;                 // no allowed value needs a backslash, and a style escape could spell what is refused below: the connector refuses it first, this is the second lock
           if ((a.name === 'patternUnits' || a.name === 'patternTransform') && src.localName !== 'pattern') continue;                // a pattern's own attributes, on a pattern only
           if (patternish && /url\(/i.test(v)) continue;                      // a pattern, and what is inside it, refers to nothing
           if (a.name === 'patternUnits' && v !== 'userSpaceOnUse' && v !== 'objectBoundingBox') continue;

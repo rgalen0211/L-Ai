@@ -10,7 +10,7 @@ import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-cardpanel');
 const H = 'tools/chat-editor/live-host.js', AE = 'assets/app-editor.js', CSS = 'tools/chat-editor/chat-extra.css', ET = 'supabase/functions/connect-core/editor_tools.ts';
-const SUITES = ['connect-film-card-panel.test.mjs', 'connect-chat-editor.test.mjs', 'connect-chat-nosketch.test.mjs', 'connect-film-card.test.mjs'];
+const SUITES = ['connect-film-card-panel.test.mjs', 'connect-chat-editor.test.mjs', 'connect-chat-nosketch.test.mjs', 'connect-film-card.test.mjs', 'connect-panel-card-backslash.test.mjs'];
 const BS = String.fromCharCode(92);
 const ADDRESS = `} else if (/javascript:|data:|https?:|${BS}/${BS}/|expression${BS}(/i.test(v)) continue;`;
 const browserOnly = process.argv.includes('--no-browser');
@@ -18,6 +18,7 @@ const browserOnly = process.argv.includes('--no-browser');
 // [name, file, from, to, kind]
 const mutants = [
   ['the panel drops the length adjustment the connector allows', H, "'textLength', 'lengthAdjust', 'xml:space', 'dx',", "'textLength', 'xml:space', 'dx',", 'source'],
+  ['the panel keeps an attribute with a backslash', H, "if (v.indexOf(String.fromCharCode(92)) >= 0) continue;", "", 'source'],
   ['the panel drops xml:space the connector allows', H, "'textLength', 'lengthAdjust', 'xml:space', 'dx',", "'textLength', 'lengthAdjust', 'dx',", 'source'],
   ['a length adjustment may be any word', H, "if (a.name === 'lengthAdjust' && v !== 'spacing'", "if (false && v !== 'spacing'", 'source'],
   ['xml:space may be any word', H, "if (v === 'preserve' || v === 'default') el.setAttributeNS(", "if (true) el.setAttributeNS(", 'source'],
