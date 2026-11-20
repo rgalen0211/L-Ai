@@ -162,6 +162,13 @@ test('LIGHT READ: no picture yet is NOT remembered for long (a contact sheet mad
   assert.match(src, /makeCache\(10 \* 60 \* 1000, 30 \* 1000\)/, 'a good address 10 minutes (it lasts 15), a miss 30 seconds');
 });
 
+test('ASK YOUR AI: the button on the Start card is drawn only for an account the connector counts as invited (the page it opens does nothing for anyone else); a failed check draws nothing', () => {
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /const aiInvited = startOn\(\) \? await connectAllowed\(data\)\.catch\(\(\) => false\) : false;/);
+  assert.match(lib, /aiInvited \? h\('a', \{ class: 'button secondary', href: '#\/start' \}, 'Ask your AI'\) : null/);
+  assert.doesNotMatch(lib, /startOn\(\) \? h\('a', \{ class: 'button secondary', href: '#\/start' \}/, 'no longer shown on the flag alone');
+});
+
 test('WIRING: one Admin link in the header (no menu), the Admin page only for an admin, every admin page listed in groups, the home page built from the card module, the logo goes home and is put back', () => {
   const lib = read('assets/app-library.js');
   assert.match(lib, /menu = h\('a', \{ class: 'app-nav-link admin-link', href: '#\/admin' \}, 'Admin'\);/);

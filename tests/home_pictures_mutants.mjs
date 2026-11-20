@@ -19,6 +19,8 @@ const mutants = [
   ["the light read returns oldest first", DT, ".order('created_at', { ascending: false }), 'Couldn’t load the picture.'", ".order('created_at', { ascending: true }), 'Couldn’t load the picture.'"],
   ["the light read selects more columns than a card needs", DT, "select('id, kind, storage_path, created_at')", "select('id, kind, storage_path, created_at, job_id')"],
   ["the project list forgets the version id", DT, "client.from('versions').select('id, project_id, number, state')", "client.from('versions').select('project_id, number, state')"],
+  ["Ask your AI shows for every account on the flag alone", LB, "aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null", "startOn() ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null"],
+  ["a failed invited check throws instead of drawing nothing", LB, 'await connectAllowed(data).catch(() => false)', 'await connectAllowed(data)'],
   ["a film with no version still asks", SP, "if (version && data && typeof data.artifactsFor", "if (data && typeof data.artifactsFor"],
 ];
 
