@@ -27,7 +27,7 @@
 
 /* a department card: the whole card is the link (one tab stop, one big target) */
 .site-card{padding:16px}
-.site-card-link{text-decoration:none;color:var(--ink)}
+.site-card-link{display:flex;align-items:center;min-height:44px;text-decoration:none;color:var(--ink)}
 .site-card-link::after{content:"";position:absolute;inset:0}
 .site-card-link strong{display:block;margin:0 0 4px;font-size:1.05rem}
 .site-card .meta{margin:0}

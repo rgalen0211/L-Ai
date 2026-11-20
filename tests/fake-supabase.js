@@ -118,9 +118,9 @@
         return q;
       }
       const filters = [];
-      let op = 'select', payload = null, single = false, maybe = false, order = null, window_ = null;
+      let op = 'select', payload = null, single = false, maybe = false, order = null, window_ = null, cols = null;
       const q = {
-        select() { return q; },
+        select(list) { cols = typeof list === 'string' ? list : null; return q; },
         insert(row) { op = 'insert'; payload = row; return q; },
         upsert(row) { op = 'upsert'; payload = row; return q; },         // one row per person (account_settings)
         update(row) { op = 'update'; payload = row; return q; },
@@ -175,6 +175,11 @@
         }
         if (window_) result = result.slice(window_[0], window_[1] + 1);
         result = structuredClone(result);
+        // With db.strictColumns on (a test opts in), a read gives back ONLY the columns its select() named, as the real database does: a page that reads a column it did not select then fails in the test too.
+        if (db.strictColumns && op === 'select' && cols && cols.trim() !== '*') {
+          const want = cols.split(',').map(c => c.trim()).filter(Boolean);
+          result = result.map(r => Object.fromEntries(want.filter(c => c in r).map(c => [c, r[c]])));
+        }
         if (single) {
           if (maybe && result.length === 0) return { data: null, error: null };
           return result.length === 1 ? { data: result[0], error: null }

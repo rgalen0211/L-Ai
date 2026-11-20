@@ -11,6 +11,8 @@ class El {
   constructor(tag) { this.tag = tag; this.children = []; this.attrs = {}; this.listeners = {}; this.isConnected = true; this._cls = new Set(); this.hidden = false; }
   append(...ks) { for (const k of ks.flat(Infinity)) if (k != null && k !== false) this.children.push(k); }
   replaceChildren(...ks) { this.children = []; this.append(...ks); }
+  addEventListener(type, fn) { (this.listeners[type] = this.listeners[type] || []).push(fn); }
+  fire(type) { for (const f of this.listeners[type] || []) f({ target: this }); }
   get text() { return this.children.map(c => (c instanceof El ? c.text : String(c))).join(''); }
   all(pred, out = []) { for (const c of this.children) if (c instanceof El) { if (pred(c)) out.push(c); c.all(pred, out); } return out; }
   get className() { return this.attrs.class || ''; }
@@ -23,7 +25,7 @@ const h = (tag, attrs, ...kids) => {
 // a fresh copy of the module per test (its picture cache and queue are module state)
 function load({ observer = false } = {}) {
   const win = {}, seen = [], ctx = { window: win, console, Promise, String, Array, Map, Object };
-  if (observer) ctx.IntersectionObserver = class { constructor(cb) { this.cb = cb; seen.push(this); } observe() {} disconnect() { this.gone = true; } };
+  if (observer) ctx.IntersectionObserver = class { constructor(cb) { this.cb = cb; seen.push(this); } observe() {} unobserve() { this.gone = true; } disconnect() { this.gone = true; } };
   vm.runInNewContext(read('assets/app-site.js'), ctx);
   return { S: win.ryagramSite, seen, win };
 }
@@ -73,7 +75,7 @@ test('FILM CARD: a plain tile with the first letter, the title as text, Open lin
 test('PICTURE: the film’s own thumbnail first, else its contact sheet, never a preview or a render; its address comes from fileUrl; the tile is replaced by the picture', async () => {
   const { S } = load();
   const asked = [];
-  const data = { getVersion: async id => ({ artifacts: [{ kind: 'final_video', storage_path: 'v' }, { kind: 'contact_sheet', storage_path: 'sheet.png' }, { kind: 'thumbnail', storage_path: 'thumb.png' }, { kind: 'preview', storage_path: 'p.mp4' }] }),
+  const data = { artifactsFor: async id => ([{ kind: 'final_video', storage_path: 'v' }, { kind: 'contact_sheet', storage_path: 'sheet.png' }, { kind: 'thumbnail', storage_path: 'thumb.png' }, { kind: 'preview', storage_path: 'p.mp4' }]),
     fileUrl: async path => { asked.push(path); return 'https://files.example/' + path; } };
   const c = card(S, data, project('p1', 'Film'), 'v1'); await flush();
   const img = c.all(e => e.tag === 'img')[0];
@@ -81,11 +83,11 @@ test('PICTURE: the film’s own thumbnail first, else its contact sheet, never a
   assert.deepEqual(asked, ['thumb.png']);
   assert.equal(c.all(e => e.attrs.class === 'film-thumb-letter').length, 0, 'the tile is replaced');
   const { S: S2 } = load();
-  const onlySheet = { getVersion: async () => ({ artifacts: [{ kind: 'preview', storage_path: 'p.mp4' }, { kind: 'contact_sheet', storage_path: 's.png' }] }), fileUrl: async p => 'https://f/' + p };
+  const onlySheet = { artifactsFor: async () => ([{ kind: 'preview', storage_path: 'p.mp4' }, { kind: 'contact_sheet', storage_path: 's.png' }]), fileUrl: async p => 'https://f/' + p };
   const c2 = card(S2, onlySheet, project('p2', 'Film'), 'v2'); await flush();
   assert.equal(c2.all(e => e.tag === 'img')[0].attrs.src, 'https://f/s.png');
   const { S: S3 } = load(); const asked3 = [];
-  const noPic = { getVersion: async () => ({ artifacts: [{ kind: 'preview', storage_path: 'p.mp4' }, { kind: 'final_video', storage_path: 'f.mp4' }] }), fileUrl: async p => { asked3.push(p); return 'https://f/' + p; } };
+  const noPic = { artifactsFor: async () => ([{ kind: 'preview', storage_path: 'p.mp4' }, { kind: 'final_video', storage_path: 'f.mp4' }]), fileUrl: async p => { asked3.push(p); return 'https://f/' + p; } };
   const c3 = card(S3, noPic, project('p3', 'Film'), 'v3'); await flush();
   assert.equal(c3.all(e => e.tag === 'img').length, 0, 'a video is never drawn as a picture'); assert.deepEqual(asked3, [], 'and no address is even asked for one');
   assert.equal(c3.all(e => e.attrs.class === 'film-thumb-letter').length, 1);
@@ -93,13 +95,13 @@ test('PICTURE: the film’s own thumbnail first, else its contact sheet, never a
 
 test('PICTURE: a failed read, a missing address, a card no longer on the page or a data layer without the calls leaves the plain tile and breaks nothing', async () => {
   const { S } = load();
-  const bad = { getVersion: async () => { throw new Error('nope'); }, fileUrl: async () => 'x' };
+  const bad = { artifactsFor: async () => { throw new Error('nope'); }, fileUrl: async () => 'x' };
   const c1 = card(S, bad, project('a', 'A'), 'v-bad'); await flush();
   assert.equal(c1.all(e => e.tag === 'img').length, 0);
-  const noUrl = { getVersion: async () => ({ artifacts: [{ kind: 'thumbnail', storage_path: 't' }] }), fileUrl: async () => null };
+  const noUrl = { artifactsFor: async () => ([{ kind: 'thumbnail', storage_path: 't' }]), fileUrl: async () => null };
   const c2 = card(S, noUrl, project('b', 'B'), 'v-nourl'); await flush();
   assert.equal(c2.all(e => e.tag === 'img').length, 0);
-  const gone = { getVersion: async () => ({ artifacts: [{ kind: 'thumbnail', storage_path: 't' }] }), fileUrl: async () => 'https://x/t' };
+  const gone = { artifactsFor: async () => ([{ kind: 'thumbnail', storage_path: 't' }]), fileUrl: async () => 'https://x/t' };
   const c3 = card(S, gone, project('c', 'C'), 'v-gone'); c3.isConnected = false; await flush();
   assert.equal(c3.all(e => e.tag === 'img').length, 0, 'a card that left the page is not touched');
   const c4 = card(S, { listProjects() {} }, project('d', 'D'), 'v-x'); await flush();
@@ -111,7 +113,7 @@ test('PICTURE: a failed read, a missing address, a card no longer on the page or
 test('PICTURE READS: at most two at once, however many cards; a film is read once for the page’s life', async () => {
   const { S } = load();
   let live = 0, peak = 0, reads = 0; const gates = [];
-  const data = { getVersion: async id => { reads++; live++; peak = Math.max(peak, live); await new Promise(r => gates.push(r)); live--; return { artifacts: [{ kind: 'thumbnail', storage_path: id }] }; }, fileUrl: async p => 'https://f/' + p };
+  const data = { artifactsFor: async id => { reads++; live++; peak = Math.max(peak, live); await new Promise(r => gates.push(r)); live--; return [{ kind: 'thumbnail', storage_path: id }]; }, fileUrl: async p => 'https://f/' + p };
   const cards = [1, 2, 3, 4, 5, 6].map(i => card(S, data, project('p' + i, 'F' + i), 'v' + i));
   await flush(); assert.equal(live, 2, 'two reads started, the rest wait');
   while (gates.length) { gates.shift()(); await flush(); }
@@ -127,7 +129,7 @@ test('PICTURE READS (WEB audit 11-20): with an observer, ONE shared observer for
   const ctx = { window: win, console, Promise, String, Array, Map, Object, WeakMap, Date, IntersectionObserver: class { constructor(cb) { this.cb = cb; this.targets = new Set(); made.push(this); } observe(el) { this.targets.add(el); } unobserve(el) { this.targets.delete(el); } } };
   vm.runInNewContext(read('assets/app-site.js'), ctx);
   const S = win.ryagramSite, reads = [];
-  const data = { getVersion: async id => { reads.push(id); return { artifacts: [{ kind: 'thumbnail', storage_path: id }] }; }, fileUrl: async p => 'https://f/' + p };
+  const data = { artifactsFor: async id => { reads.push(id); return [{ kind: 'thumbnail', storage_path: id }]; }, fileUrl: async p => 'https://f/' + p };
   const cards = [1, 2, 3].map(i => card(S, data, project('p' + i, 'F' + i), 'v' + i)); await flush();
   assert.equal(made.length, 1, 'one observer for all three cards');
   assert.equal(made[0].targets.size, 3); assert.equal(reads.length, 0, 'off screen: nothing is read');
@@ -150,6 +152,39 @@ test('PICTURE ADDRESS CACHE (WEB audit 11-20): an address is kept 10 minutes (it
   t = 0; c.set('b', null); t = 29999; assert.equal(c.get('b'), null, 'a failure is remembered briefly'); t = 30001; assert.equal(c.get('b'), undefined, 'and asked again soon');
   const d = S.makeCache(600000, 30000, () => 0); for (let i = 0; i < 400; i++) d.set('k' + i, 'v');
   assert.ok(d.size() <= 201, 'bounded: ' + d.size()); assert.equal(d.get('k0'), undefined, 'the oldest went first'); assert.equal(d.get('k399'), 'v');
+});
+
+test('LIGHT READ: a card reads its picture with ONE call (artifactsFor), never the version page’s reads (getVersion); a failed read is asked again after 30 s, a good address is kept; an address that stops working puts the tile back', async () => {
+  const { S } = load();
+  let calls = 0, vcalls = 0;
+  const data = { artifactsFor: async () => { calls++; return [{ kind: 'thumbnail', storage_path: 't' }]; }, getVersion: async () => { vcalls++; throw new Error('the heavy path must not be used'); }, fileUrl: async () => 'https://f/t?sig=1' };
+  const c = card(S, data, project('p', 'P'), 'v1'); await flush();
+  assert.equal(calls, 1); assert.equal(vcalls, 0, 'getVersion is never called');
+  const img = c.all(e => e.tag === 'img')[0];
+  assert.ok(img, 'the picture is drawn');
+  img.fire('error');
+  assert.equal(c.all(e => e.tag === 'img').length, 0, 'an address that stopped working puts the plain tile back');
+  assert.equal(c.all(e => e.attrs.class === 'film-thumb-letter').length, 1);
+  const again = card(S, data, project('p', 'P'), 'v1'); await flush();
+  assert.equal(calls, 2, 'and the dropped address is asked for again, not served from the cache');
+  assert.ok(again.all(e => e.tag === 'img').length === 1);
+});
+
+test('LIGHT READ: no picture yet is NOT remembered for long (a contact sheet made then back to home shows up), only for 30 seconds', () => {
+  const { S } = load();
+  let t = 0; const c = S.makeCache(600000, 30000, () => t);
+  c.set('v', null); assert.equal(c.get('v'), null);
+  t = 29000; assert.equal(c.get('v'), null, 'within 30 s it is remembered (no storm of reads)');
+  t = 31000; assert.equal(c.get('v'), undefined, 'after 30 s it is asked again');
+  const src = read('assets/app-site.js');
+  assert.match(src, /makeCache\(10 \* 60 \* 1000, 30 \* 1000\)/, 'a good address 10 minutes (it lasts 15), a miss 30 seconds');
+});
+
+test('ASK YOUR AI: the button on the Start card is drawn only for an account the connector counts as invited (the page it opens does nothing for anyone else); a failed check draws nothing', () => {
+  const lib = read('assets/app-library.js');
+  assert.match(lib, /const aiInvited = startOn\(\) \? await connectAllowed\(data\)\.catch\(\(\) => false\) : false;/);
+  assert.match(lib, /aiInvited \? h\('a', \{ class: 'button secondary', href: '#\/start' \}, 'Ask your AI'\) : null/);
+  assert.doesNotMatch(lib, /startOn\(\) \? h\('a', \{ class: 'button secondary', href: '#\/start' \}/, 'no longer shown on the flag alone');
 });
 
 test('WIRING: one Admin link in the header (no menu), the Admin page only for an admin, every admin page listed in groups, the home page built from the card module, the logo goes home and is put back', () => {

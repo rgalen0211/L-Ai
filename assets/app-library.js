@@ -361,10 +361,11 @@
       const requestLink = requestsOn() ? h('a', { href: '#/request' }, 'Ask us to make a film') : null;
       const creditsNote = creditsOn() ? h('p', { class: 'form-note' }, 'Credits pay for full films and for previews beyond your free ones. Contact sheets are free.') : null;
       const deptCards = departmentsOn() ? await deptUi().cardsRow().catch(() => null) : null;      // the Departments row: the same list as the top bar (Ryan 11-20 06:24)
+      const aiInvited = startOn() ? await connectAllowed(data).catch(() => false) : false;               // the Ask your AI button only for an account the connector counts as invited (the Start strip's own rule); the page it opens does nothing for anyone else
       const startStrip = startOn() ? await startUi().strip() : null;      // the Start a film strip (or the one-line 'Connect your AI' bar); null on any failure
       const startCard = h('section', { class: 'start-card', 'aria-labelledby': 'start-card-h' }, h('h2', { id: 'start-card-h' }, 'Start a new film'),
         h('p', { class: 'meta' }, 'Pick a ready-made film, or name your own. Ryagram draws it from public data, with its sources shown. The first picture is free.'),
-        h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, startOn() ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null),
+        h('div', { class: 'start-actions' }, builderOn() ? h('a', { class: 'button primary', id: 'first-film', href: '#/build' }, projects.length ? 'Make a film step by step' : 'Try the tutorial: your first film') : null, aiInvited ? h('a', { class: 'button secondary', href: '#/start' }, 'Ask your AI') : null),
         form);
       const quiet = [intakeLink, requestLink, looksLink, help].filter(Boolean);
       return [h('h1', { tabindex: '-1' }, 'Your projects'), h('p', { class: 'form-intro page-lede' }, 'Welcome back. Pick up a film below, or start a new one.'),

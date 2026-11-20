@@ -111,6 +111,12 @@
         return run(client.rpc('create_version', args), 'Couldn’t create the version.');
       },
 
+      // The home page's film cards: ONLY the picture rows of one version (a thumbnail or a contact sheet), newest first: one read, not the version page's project, parent, files and jobs (WEB 11-20, CC1's review).
+      artifactsFor(versionId) {
+        return run(client.from('artifacts').select('id, kind, storage_path, created_at').eq('version_id', versionId).in('kind', ['thumbnail', 'contact_sheet'])
+          .is('deleted_at', null).order('created_at', { ascending: false }), 'Couldn’t load the picture.');
+      },
+
       async getVersion(id) {
         const version = await run(
           client.from('versions')
