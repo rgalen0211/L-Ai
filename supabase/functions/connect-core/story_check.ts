@@ -47,7 +47,8 @@ export function plainError(e: AjvError, subject = "story"): string {
 const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === "object" && !Array.isArray(v);
 
 /** The rules the schema cannot carry (worker schema.py NOT_IN_SCHEMA) that can be checked without the data. */
-export function extraProblems(story: unknown): string[] {
+/** `own` = the story names of THIS person's own uploaded datasets (u_ and 24 hex), from the database: a name is allowed only if it is in that set, never by its spelling. */
+export function extraProblems(story: unknown, own: ReadonlySet<string> = new Set<string>()): string[] {
   const out: string[] = [];
   if (!isObj(story)) return out;
   const clips = isObj(story.sequence) && Array.isArray(story.sequence.clips) ? story.sequence.clips : [];
@@ -60,8 +61,8 @@ export function extraProblems(story: unknown): string[] {
       else ids.set(c.id, n);
     }
     if (c.kind === "render") {
-      if (typeof c.dataset === "string" && !Object.hasOwn(DATASETS, c.dataset)) {         // own keys only: "constructor" and "__proto__" fit the schema's pattern and are not catalog datasets
-        out.push(`Clip ${n} uses the dataset "${c.dataset.slice(0, 64)}", which is not in the Ryagram catalog. Allowed: ${Object.keys(DATASETS).join(", ")}.`);
+      if (typeof c.dataset === "string" && !Object.hasOwn(DATASETS, c.dataset) && !own.has(c.dataset)) {         // own keys only: "constructor" and "__proto__" fit the schema's pattern and are not catalog datasets
+        out.push(`Clip ${n} uses the dataset "${c.dataset.slice(0, 64)}", which is not in the Ryagram catalog or among your own uploaded data (list_my_data). Allowed: ${Object.keys(DATASETS).join(", ")}${own.size ? ", " + [...own].join(", ") : ""}.`);
       }
       if (typeof c.start === "string" && typeof c.end === "string" && c.start > c.end) {
         out.push(`Clip ${n} starts (${c.start}) after it ends (${c.end}).`);
@@ -220,12 +221,12 @@ function structureExtra(messages: string[]): StructuredProblem[] {
 }
 
 /** checkStory with the failures as data. ok is true only when nothing failed. The plain sentences (the old failed_checks) are kept for clients that read them. */
-export function checkStoryStructured(story: unknown, schemaCheck: ((v: unknown) => string[]) & { detailed?: (v: unknown) => AjvError[] }): StructuredCheck {
+export function checkStoryStructured(story: unknown, schemaCheck: ((v: unknown) => string[]) & { detailed?: (v: unknown) => AjvError[] }, own: ReadonlySet<string> = new Set<string>()): StructuredCheck {
   if (!isObj(story)) return one("The story must be a JSON object.", "story_shape");
   let size = 0;
   try { size = new TextEncoder().encode(JSON.stringify(story)).length; } catch { return one("The story could not be read as JSON.", "story_shape"); }
   if (size > LIMITS.maxStoryBytes) return one(`The story is ${Math.round(size / 1024)} KB; the limit is ${Math.round(LIMITS.maxStoryBytes / 1024)} KB. Nothing was saved.`, "story_size", "Make the story smaller than 256 KB: shorten long texts, leave out clips you do not need, or split the film into two projects, then send the whole story again.");
-  const extra = [...extraProblems(story), ...titleProblems(story)];
+  const extra = [...extraProblems(story, own), ...titleProblems(story)];
   let structured: { errors: StructuredProblem[]; suppressed: number };
   if (schemaCheck.detailed) structured = structureSchemaErrors(story, schemaCheck.detailed(story), extra);
   else structured = { errors: schemaCheck(story).map((m) => ({ path: "/", where: "the story", code: "invalid", message: m, fix: "Change it and save the whole story again." })), suppressed: 0 };

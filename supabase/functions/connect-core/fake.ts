@@ -12,7 +12,7 @@ interface FCard { id: string; project_id: string; version_id: string; sha: strin
 interface FVersion { id: string; project_id: string; number: number; state: string; story_spec: Record<string, unknown>; story_sha256: string }
 /** r9: the person's own computer. `awake` = their Ryagram app is open and switched on; while it is not, an owner_local job just waits. */
 interface FLocal { lastSeenAt: string | null; computerName: string | null; awake: boolean }
-interface FUser { switches?: string[]; departments?: { id: string; label: string; status: "working" | "soon" }[]; cards: Map<string, FCard>; geo: Map<string, GeoRow>; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
+interface FUser { switches?: string[]; departments?: { id: string; label: string; status: "working" | "soon" }[]; cards: Map<string, FCard>; geo: Map<string, GeoRow>; prepared: { id: string; label: string; csv: string; sources: Record<string, unknown>; changeLog: string[]; measured: Record<string, unknown>; aiName: string | null; state: string; created_at: string }[]; uploads: { id: string; label: string; status: string; geography: string; cadence: string; prepared: boolean }[]; plans: { id: string; host: string; url: string; why: string; folder: string; state: string; created_at: string; receipt: DownloadRow["receipt"] }[]; requests: Map<string, { sha256: string; request: unknown }>; label: string; credits: number; held: number; projects: ProjectRow[]; versions: FVersion[]; jobs: FJob[]; previewsUsed: Map<string, number>; local?: FLocal; drafts: Map<string, Draft>; tracks: Map<string, unknown> }
 
 let n = 0;
 const id = () => { n++; return `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`; };
@@ -22,7 +22,7 @@ const sha = (s: unknown) => {                       // a stable stand-in digest;
   return (h >>> 0).toString(16).padStart(8, "0").repeat(8);
 };
 const err = (message: string, code: string) => Object.assign(new Error(message), { code });
-const ALL: Scope[] = ["read", "write", "render_free", "render_final", "edit", "fetch_data"];
+const ALL: Scope[] = ["read", "write", "render_free", "render_final", "edit", "fetch_data", "submit_data"];
 
 export class FakeWorld {
   users = new Map<string, FUser>();
@@ -40,10 +40,21 @@ export class FakeWorld {
   tokens = new Map<string, Principal>();            // bearer token -> principal (the stand-in for JWKS verification)
 
   addUser(userId: string, label: string, credits = 100): FUser {
-    const u: FUser = { cards: new Map(), geo: new Map(), plans: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
+    const u: FUser = { cards: new Map(), geo: new Map(), plans: [], prepared: [], uploads: [], requests: new Map(), label, credits, held: 0, projects: [], versions: [], jobs: [], previewsUsed: new Map(), drafts: new Map(), tracks: new Map() };
     this.users.set(userId, u);
     return u;
   }
+  /** Tests: the PERSON presses Accept in the app (no connector tool can). The staged text goes, an approved upload of the same label appears, and its story name is returned. */
+  acceptPrepared(userId: string, preparedId: string, geography = "us_states", cadence = "annual"): string {
+    const user = this.users.get(userId)!;
+    const row = user.prepared.find((x) => x.id === preparedId && x.state === "waiting");
+    if (!row) throw new Error("not waiting");
+    const upload = { id: "00000000-0000-4000-8000-" + String(user.uploads.length + 1).padStart(12, "0"), label: row.label, status: "approved", geography, cadence, prepared: true };
+    user.uploads.push(upload); row.state = "accepted"; row.csv = "";
+    return "u_" + upload.id.replace(/-/g, "").slice(0, 24);
+  }
+  /** Tests: what waits for this person, as the database holds it. */
+  preparedFor(userId: string) { return this.users.get(userId)!.prepared.map((x) => ({ ...x })); }
   /** Make this person's jobs run on their own computer (owner_local), with the computer's last-seen time and name. */
   /** The house worker's three calls for the film card, as the database has them (claim hands out the saved story, finish stores a card drawn from THAT story, fail records a known code). For tests of the connector. */
   cardWorker(userId: string) {
@@ -157,6 +168,26 @@ export class FakeWorld {
         return { id: row.id, host, state: "waiting" };
       },
       listDownloads: async () => u().plans.slice().reverse().slice(0, 20).map((p) => ({ ...p })),
+      // mirrors connect_submit_prepared_data: the same limits and the same plain refusals; the table is held as inert text for the PERSON to accept (world.acceptPrepared plays the person)
+      submitPrepared: async (a) => {
+        const user = u();
+        if (!a.label || a.label.length > 120) throw err("The label must be 1 to 120 characters of plain words (no places on a computer, no web addresses, no markup).", "22023");
+        if (!a.csv || new TextEncoder().encode(a.csv).length > 204800) throw err("The table must be CSV text of 200 KB or less. For a bigger table, give the person the cleaned file to upload by hand.", "22023");
+        const urls = (a.sources as { urls?: unknown }).urls;
+        if (!Array.isArray(urls) || urls.length < 1 || urls.length > 5 || urls.some((x) => typeof x !== "string" || !/^https:\/\/[A-Za-z0-9.-]+\.[A-Za-z][A-Za-z0-9-]*(\/\S*)?$/.test(x))) throw err("Give 1 to 5 source addresses (https).", "22023");
+        if (typeof (a.sources as { licence?: unknown }).licence !== "string" || typeof (a.sources as { units?: unknown }).units !== "string") throw err("Say what the licence is and what the units are.", "22023");
+        if (a.changeLog.length > 12) throw err("The change log is at most 12 steps, each 1 to 200 characters of plain words.", "22023");
+        if (user.prepared.filter((x) => x.state === "waiting").length >= 5) throw err("There are already 5 tables waiting for the person to accept. Ask them to deal with those first.", "PT429");
+        if (user.prepared.length >= 10) throw err("That is 10 prepared tables in a day. Try again tomorrow.", "PT429");
+        const row = { id: id(), label: a.label, csv: a.csv, sources: a.sources, changeLog: a.changeLog, measured: a.measured, aiName: a.aiName, state: "waiting", created_at: new Date().toISOString() };
+        user.prepared.push(row);
+        return { prepared_id: row.id, state: "waiting", expires_at: new Date(Date.now() + 7 * 86400000).toISOString(), where: "Your data" };
+      },
+      // mirrors connect_list_my_data: names (u_ and 24 hex of the dataset id), never rows
+      listMyData: async () => ({
+        datasets: u().uploads.map((d) => ({ name: "u_" + d.id.replace(/-/g, "").slice(0, 24), label: d.label, status: d.status, geography: d.geography, cadence: d.cadence, trust_label: "unverified_user", prepared_by_ai: d.prepared })),
+        waiting_for_you: u().prepared.filter((x) => x.state === "waiting").length,
+      }),
       askGeo: async (q) => {
         // mirrors connect_geo_ask: the point is rounded to 4 decimals, the same question is one request, 5 open at once, 100 a day
         const user = u();

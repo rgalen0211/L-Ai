@@ -41,7 +41,8 @@ export function openApi(baseUrl: string): Record<string, unknown> {
         scopes: { read: "See your projects, films and credit balance", write: "Create projects and change your film stories",
                   render_free: "Make contact sheets and previews",
                   edit: "Change the look and the clip list in your open editor, as drafts you can undo",
-                  fetch_data: "Ask the Ryagram desktop app to download a public data file, only when you press Download on your computer" } } } } },
+                  fetch_data: "Ask the Ryagram desktop app to download a public data file, only when you press Download on your computer",
+                  submit_data: "Hand Ryagram a table of data your AI prepared; it waits for you to look at it and press Accept in the Ryagram app, and nothing uses it before that" } } } } },
     },
   };
 }

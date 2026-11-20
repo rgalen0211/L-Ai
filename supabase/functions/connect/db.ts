@@ -75,6 +75,9 @@ export class ConnectDb {
       },
       requestDownload: (url, why, folder) => self.fn("connect_request_download", ["text", "text", "text", "text"], [h, url, why, folder]),
       listDownloads: () => self.fn("connect_list_downloads", ["text"], [h]),
+      // migrations/20261120000500_prepared_data.sql (NOT APPLIED): an AI-prepared table waits for the PERSON to accept it in the app; jsonb parameters are passed as the objects they are (fn encodes them once)
+      submitPrepared: (a) => self.fn("connect_submit_prepared_data", ["text", "text", "text", "jsonb", "jsonb", "jsonb", "text"], [h, a.label, a.csv, a.sources, a.changeLog, a.measured, a.aiName]),
+      listMyData: () => self.fn("connect_list_my_data", ["text"], [h]),
       async saveCompilationRequest(projectId, request) {
         // connect_set_compilation_request lives in migrations/20261026000300_compilation_requests.sql (NOT APPLIED until Ryan applies it): it returns the request's SHA-256, or null for a project that is not the person's.
         const sha = await self.fn<string | null>("connect_set_compilation_request", ["text", "uuid", "jsonb"], [h, projectId, request]);

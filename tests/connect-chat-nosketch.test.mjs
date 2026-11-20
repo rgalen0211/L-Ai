@@ -50,9 +50,9 @@ test('the built page carries the same host code and rules as the sources (it was
   }
 });
 
-test('the shared editor file is untouched by this change: it still draws its stand-in (the maker and the website keep it) and still has the five waiting rows', () => {
+test('the shared editor file is untouched by this change: it still draws its stand-in (the maker and the website keep it) and still has its waiting rows', () => {
   assert.ok(EDITOR.includes("title.textContent = 'Stand-in drawing"), 'the sketch is still there for the other hosts');
-  assert.ok(EDITOR.includes("const WAITING = ['Theme', 'Marker shape', 'Border width', 'Glow', 'Labels'];"));
+  assert.ok(/const WAITING = \['Theme'[^\]]*\];/.test(EDITOR), 'the waiting-rows list is still there for the other hosts (WEB 11-20 cut it to the rows the engine will take later)');
 });
 
 test('the connector never tells the panel to keep a stand-in picture: a film the engine cannot draw, or a picture too big, says no picture is shown here and where the real frames are', () => {

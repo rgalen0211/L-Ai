@@ -6,6 +6,7 @@ import { cleanText, DATASETS, TEMPLATES, build } from "../_shared/templates.ts";
 import { untrusted } from "../ai-editor/prompt.ts";
 import { textOk } from "./edit_state.ts";
 import { checkStoryStructured } from "./story_check.ts";
+import { describeMeasured, measure, parseCsv, PREPARED_LIMITS } from "./prepared.ts";
 import datasetInfo from "../_shared/dataset_info.ts";
 import { CHOSE, KINDS, nextStep, PICTURES, SCALES, stepText, type Known } from "./intake.ts";
 import { makeEditorTools } from "./editor_tools.ts";
@@ -226,7 +227,10 @@ const setStory: ToolDef = {
   async run(a, ctx) {
     const pv = await projectVersion(ctx, String(a.project_id));
     if (!pv) return NOT_YOURS("project");
-    const chk = checkStoryStructured(a.story, ctx.deps.compile(storySchema));
+    // a story may name the person's OWN uploaded datasets (u_ and 24 hex): the names come from the database for THIS person, never from how a name is spelled
+    let own = new Set<string>();
+    try { own = new Set((await ctx.data.listMyData()).datasets.filter((d) => d.status === "approved").map((d) => d.name)); } catch { /* a database without the prepared-data migration: catalog datasets only, as before */ }
+    const chk = checkStoryStructured(a.story, ctx.deps.compile(storySchema), own);
     if (!chk.ok) {
       // A RESULT, not a tool error (NEXT-CONNECT 157): ok false, saved false, every primary problem with its field path, a code and a suggested fix; follow-on schema noise is counted, never listed.
       const n = chk.errors.length;
@@ -1357,5 +1361,57 @@ const openRyagramHome: ToolDef = {
   },
 };
 
-export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome];
+// ---------------------------------------------------------------------------------------------- AI-prepared data (Q634)
+const PREP_URL = "^https://[A-Za-z0-9][A-Za-z0-9.-]*\\.[A-Za-z][A-Za-z0-9-]*(/[\\x21-\\x7e]*)?$";
+const submitPrepared: ToolDef = {
+  name: "submit_prepared_data", title: "Hand Ryagram a table of data you prepared", scope: "submit_data", readOnly: false, idempotent: false,
+  description: "Use this when the person wants a film about data that is NOT in Ryagram's catalog and you have found it (for example an official statistics table). Send the cleaned table as CSV text (at most 200 KB, 5,000 rows, 40 columns), "
+    + "either LONG (one row per place and year, columns like place, year, value) or WIDE (one row per place, one column per year titled 2010, 2011 ...), plus the sources you used (1 to 5 https addresses), the licence, the units and a short change log "
+    + "(at most 12 steps) saying what you did to the data. It does NOT become usable data: it waits for the PERSON to look at it in the Ryagram app (their preview, your sources and change log shown as declared by you and not checked by Ryagram) and press Accept; you cannot accept, confirm or use it. "
+    + "Ryagram labels every table you hand over 'Unverified, user-supplied', whatever the source. Ryagram measures the table itself (rows, places, the years it really finds, and the years MISSING in between) and tells you; never fill a missing year. "
+    + "After the person accepts it, call list_my_data for its name and use that name as the dataset in the story. At most 5 tables wait at once and 10 are accepted a day; each waits 7 days. Writing the table costs the person's AI plan tokens.",
+  inputSchema: obj({
+    label: { type: "string", minLength: 1, maxLength: PREPARED_LIMITS.maxLabel, description: "A short plain name for the table, for example: Median age by US state, ACS 1-year." },
+    csv_text: { type: "string", minLength: 8, maxLength: PREPARED_LIMITS.maxBytes, description: "The cleaned table as CSV text with a header row. Plain text only." },
+    sources: obj({
+      urls: { type: "array", minItems: 1, maxItems: PREPARED_LIMITS.maxSources, items: { type: "string", maxLength: 500, pattern: PREP_URL }, description: "The https addresses of the pages or tables the data came from." },
+      publisher: { type: "string", maxLength: 300, description: "Who publishes it, in words (for example: U.S. Census Bureau, American Community Survey)." },
+      licence: { type: "string", minLength: 1, maxLength: 300, description: "The licence or terms, in words (for example: public domain, U.S. government work)." },
+      units: { type: "string", minLength: 1, maxLength: 300, description: "What one value means (for example: median age in years)." },
+      notes: { type: "string", maxLength: 300, description: "Anything the person should know (breaks in the series, a year not published)." },
+      retrieved: { type: "string", maxLength: 300, description: "When you looked, in words." },
+    }, ["urls", "licence", "units"]),
+    change_log: { type: "array", maxItems: PREPARED_LIMITS.maxLogSteps, items: { type: "string", minLength: 1, maxLength: PREPARED_LIMITS.maxLogStep }, description: "What you did to the data, one short plain sentence per step. Shown to the person as declared by you." },
+  }, ["label", "csv_text", "sources"]),
+  async run(a, ctx) {
+    const label = cleanText(a.label, PREPARED_LIMITS.maxLabel);
+    if (!label) return refuse("Give the table a short plain name. Nothing was handed over.", "args");
+    const parsed = parseCsv(String(a.csv_text ?? ""));
+    if (!parsed.ok) return refuse(parsed.problem + " Nothing was handed over.", "args");
+    const m = measure(parsed);
+    if (m.first_period === null) return refuse("Ryagram found no year in the table. " + describeMeasured(m) + " Nothing was handed over.", "args");
+    const log = Array.isArray(a.change_log) ? a.change_log.map((x) => cleanText(x, PREPARED_LIMITS.maxLogStep)).filter((x): x is string => !!x) : [];
+    try {
+      const r = await ctx.data.submitPrepared({ label, csv: String(a.csv_text), sources: a.sources as Record<string, unknown>, changeLog: log, measured: m as unknown as Record<string, unknown>, aiName: null });
+      return ok(`Handed over. Ryagram measured: ${describeMeasured(m)} It waits under "${r.where}" in the Ryagram app for the PERSON to look at it and press Accept (until ${r.expires_at.slice(0, 10)}). `
+        + "It is labelled 'Unverified, user-supplied' whatever the source, your sources and change log are shown as declared by you, and you cannot accept it. Tell the person where to find it. After they accept it, call list_my_data for its name."
+        + (m.periods_missing.length ? ` NOTE: no rows for ${m.periods_missing.join(", ")}: say so to the person and do not fill them.` : ""),
+        { prepared_id: r.prepared_id, state: r.state, where: r.where, expires_at: r.expires_at, measured: m });
+    } catch (e) { const r = editRefusal(e); if (r) return r; throw e; }
+  },
+};
+
+const listMyData: ToolDef = {
+  name: "list_my_data", title: "List the person's own uploaded data", scope: "read", readOnly: true, idempotent: true,
+  description: "Shows the datasets the person has uploaded or accepted from you (never their rows): the NAME a story uses for each (u_ and 24 characters), its label, whether it is approved, the places (U.S. states or counties) and whether it is yearly or monthly, and how many tables you handed over are still waiting for the person to accept. "
+    + "Use a dataset's name as the dataset of a render clip in set_story only when its status is approved.",
+  inputSchema: obj({}),
+  async run(_a, ctx) {
+    const r = await ctx.data.listMyData();
+    const lines = r.datasets.map((d) => `${d.name}  ${untrusted("dataset-label", String(d.label ?? "").slice(0, 120))}  ${d.status}${d.geography ? ", " + d.geography : ""}${d.cadence ? ", " + d.cadence : ""}${d.prepared_by_ai ? ", prepared by an AI" : ""}  (${d.trust_label})`);
+    return ok((lines.length ? `Your uploaded data:\n${lines.join("\n")}` : "No uploaded data yet.") + (r.waiting_for_you ? `\n${r.waiting_for_you} table${r.waiting_for_you === 1 ? "" : "s"} you handed over wait${r.waiting_for_you === 1 ? "s" : ""} for the person to accept in the Ryagram app.` : ""), { datasets: r.datasets, waiting_for_you: r.waiting_for_you });
+  },
+};
+
+export const TOOLS: ToolDef[] = [whoami, listProjects, getStory, createProject, getSchema, datasetInfoTool, setStory, setCompilationRequest, contactSheet, preview, fullRender, jobStatus, filmLink, getEditState, setLook, editTracks, undoMine, requestDownload, listDownloads, submitPrepared, listMyData, suggestNextStep, costEstimate, requestFootage, getClipExplanations, getDraftMessages, whatIsWithin, geoAnswer, placeQuestion, forecastSeries, forecastAnswer, ...makeEditorTools(friendlyError), openRyagramHome];
 export const TOOL_BY_NAME = new Map(TOOLS.map((t) => [t.name, t]));

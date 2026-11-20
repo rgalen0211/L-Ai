@@ -12,7 +12,8 @@
     write: 'Create projects and change your film stories',
     render_free: 'Make contact sheets and previews. These are free: a connection cannot spend credits, so if one would ever cost any, your AI is refused and you start it yourself in Ryagram.',
     edit: 'Change the look and the clip list in your open editor, as drafts you can undo. It cannot render, spend credits, publish or save for you.',
-    fetch_data: 'Ask the Ryagram app on your computer to download a public data file. Nothing is downloaded until you press Download on your computer, and you can say no. It cannot read your files.'
+    fetch_data: 'Ask the Ryagram app on your computer to download a public data file. Nothing is downloaded until you press Download on your computer, and you can say no. It cannot read your files.',
+    submit_data: 'Hand Ryagram a table of data your AI prepared (with its sources, licence and units). It waits for you in the Ryagram app: you see it, see what your AI says it did to it, and press Accept. Nothing uses it before you do, and Ryagram labels it unverified.'
   };
   const ALWAYS = ['Your AI acts as your Ryagram account.', 'It cannot spend your credits.', 'You can disconnect it any time: Account, then Connected AIs.'];
   // How to connect an AI, on the Account page (NEXT-WEB 156, Ryan 20:05). The steps are the reviewed ones on the public connect guide (CONNECT), shortened; that guide has the full

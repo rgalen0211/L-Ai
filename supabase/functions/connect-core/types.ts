@@ -5,7 +5,7 @@
 // has an argument that skips, waives or overrides one.
 import type { Job, UserData } from "../ai-editor/tools.ts";
 
-export type Scope = "read" | "write" | "render_free" | "render_final" | "edit" | "fetch_data";
+export type Scope = "read" | "write" | "render_free" | "render_final" | "edit" | "fetch_data" | "submit_data";
 
 /** Who is calling. The real server knows only the token's hash: the database resolves the person and client from it on every call, and no
  *  function takes an owner id. userId and clientId exist only in the in-memory stand-in used by tests. */
@@ -88,6 +88,10 @@ export interface Data extends Omit<UserData, "submitJob"> {
   /** Writes down a download plan for the person's desktop app to show. Throws the database's sentences (PT429 too many waiting, 22023 not valid). */
   requestDownload(url: string, why: string, folder: string): Promise<{ id: string; host: string; state: string }>;
   listDownloads(): Promise<(DownloadRow & { url?: string; why?: string; folder?: string })[]>;
+  /** AI-prepared data (migration 20261120000500): the table goes into a CLOSED staging area for the PERSON to accept in the app; it is not a dataset. Throws the database's sentences (22023 not valid, PT429 limits). */
+  submitPrepared(a: PreparedSubmission): Promise<{ prepared_id: string; state: string; expires_at: string; where: string }>;
+  /** The person's own uploaded datasets by the name a story uses (u_ and 24 hex), never rows; and how many prepared tables wait for the person. */
+  listMyData(): Promise<MyDataList>;
   /** A final render also names the contact sheet and preview it stands on (the database re-checks the ladder). */
   submitJob(versionId: string, jobType: string, params: Record<string, unknown>, sheetId?: string, previewId?: string): Promise<{ id: string; state: string; run_on?: string }>;
   whoami(): Promise<{ label: string; available: number; held: number }>;
@@ -239,3 +243,8 @@ export const LIMITS = Object.freeze({
   maxBodyBytes: 300 * 1024,             // 256 KB story + envelope
   maxStoryBytes: 256 * 1024,
 });
+
+/** What the connector hands the database for an AI-prepared table: the table as CSV text, what the AI declared, and what the connector MEASURED from the text. */
+export interface PreparedSubmission { label: string; csv: string; sources: Record<string, unknown>; changeLog: string[]; measured: Record<string, unknown>; aiName: string | null }
+export interface MyDataItem { name: string; label: string | null; status: string; geography: string | null; cadence: string | null; trust_label: string; prepared_by_ai: boolean }
+export interface MyDataList { datasets: MyDataItem[]; waiting_for_you: number }
