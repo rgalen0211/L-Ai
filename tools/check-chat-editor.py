@@ -529,7 +529,7 @@ def main():
             c22.close()
             c15, p15, e15, o15 = card_page([{'error': {'code': None, 'message': 'The film picture is not available yet.'}}])
             check(p15.frames[1].locator('.le-card').count() == 0 or p15.frames[1].locator('.le-card').is_hidden(), 'a database without the card shows no card box')
-            check(NOSKETCH(p15.frames[1]) and p15.frames[1].locator('.le-nopic').is_visible() and 'No picture of your film is shown here yet' in p15.frames[1].locator('.le-nopic').inner_text(), 'and no sketch: one plain sentence stands in the picture\'s place')
+            check(NOSKETCH(p15.frames[1]) and p15.frames[1].locator('.le-nopic').is_visible() and 'No picture of your film is shown here yet' in p15.frames[1].locator('.le-nopic').inner_text() and 'stand-in' not in p15.frames[1].locator('.le-nopic').inner_text().lower(), 'and no sketch: one plain sentence stands in the picture\'s place')
             check(p15.frames[1].locator('.le-defaults').count() == 1 and not e15, 'the editor still works and still says the colours are starting colours')
             c15.close()
             c16, p16, e16, o16 = card_page([{'state': 'ready', 'stale': True, 'built_sha256': 'a' * 64, 'refresh': {'state': 'asked'}, 'card': CARD}])
