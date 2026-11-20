@@ -16,7 +16,8 @@ class El {
   append(...ks) { for (const k of ks.flat(Infinity)) { if (k == null || k === false) continue; this.children.push(this._adopt(k)); } }
   replaceChildren(...ks) { for (const c of this.children) if (c instanceof El) c.parentElement = null; this.children = []; this.append(...ks); }
   after(n) { const p = this.parentElement; p.children.splice(p.children.indexOf(this) + 1, 0, n); n.parentElement = p; }
-  setAttribute(k, v) { this.attrs[k] = v; } getAttribute(k) { return this.attrs[k]; }
+  setAttribute(k, v) { this.attrs[k] = v; } getAttribute(k) { return this.attrs[k]; } removeAttribute(k) { delete this.attrs[k]; }
+  focus() { El.active = this; }
   addEventListener(t, f) { (this.listeners[t] = this.listeners[t] || []).push(f); }
   click() { for (const f of this.listeners.click || []) f({}); }
   querySelector(sel) { for (const c of this.children) { if (!(c instanceof El)) continue; if (c.tag === sel) return c; const r = c.querySelector(sel); if (r) return r; } return null; }
@@ -24,9 +25,10 @@ class El {
   text() { return this.textContent + this.children.map(c => (c instanceof El ? c.text() : String(c))).join(''); }
   get className() { return [...this._cls].join(' '); }
 }
+El.active = null;
 const h = (tag, attrs, ...kids) => {
   const e = new El(tag);
-  if (attrs && !Array.isArray(attrs) && typeof attrs === 'object' && !(attrs instanceof El)) { for (const [k, v] of Object.entries(attrs)) { if (k === 'class') String(v).split(' ').filter(Boolean).forEach(c => e._cls.add(c)); else if (k === 'onclick') e.addEventListener('click', v); else if (k === 'disabled') e.disabled = v; else if (v !== false && v != null) e.attrs[k] = v; } }
+  if (attrs && !Array.isArray(attrs) && typeof attrs === 'object' && !(attrs instanceof El)) { for (const [k, v] of Object.entries(attrs)) { if (k === 'class') String(v).split(' ').filter(Boolean).forEach(c => e._cls.add(c)); else if (k === 'onclick') e.addEventListener('click', v); else if (k === 'disabled') e.disabled = v; else if (k === 'tabindex') { e.attrs[k] = v; e.tabIndex = Number(v); } else if (v !== false && v != null) e.attrs[k] = v; } }
   else if (attrs != null) kids.unshift(attrs);
   e.append(...kids);
   return e;
@@ -50,7 +52,7 @@ function world({ width = 1200, ready = true } = {}) {
     paletteAt() { return []; } setColours(m) { this.colours = m; this.cver++; } progressOf() { return null; }
   }
   const ctx = {
-    window: win, document: {}, console, Promise, Math, Number, String, Object, Array, Map, Set, Error, FontFace: undefined,
+    window: win, document: { get activeElement() { return El.active; } }, console, Promise, Math, Number, String, Object, Array, Map, Set, Error, FontFace: undefined,
     setTimeout: (f, ms) => { timers.push({ f, ms, kind: 'timeout' }); return timers.length; }, clearTimeout: () => {},
     setInterval: (f, ms) => { timers.push({ f, ms, kind: 'interval' }); return timers.length; }, clearInterval: id => { if (timers[id - 1]) timers[id - 1].dead = true; },
     ResizeObserver: class { constructor(cb) { observers.resize.push(cb); } observe() {} disconnect() {} },
@@ -175,4 +177,40 @@ test('STOPPED: once the page stops, the strip draws nothing more and its clock i
   w.seen(); w.run(); w.run();
   assert.equal(w.thumbCalls.length, n, 'nothing drawn after the stop');
   assert.ok(w.timers.every(t => t.kind !== 'interval' || t.dead || true));
+});
+
+test('KEYBOARD (WEB audit 11-20): ONE tab stop for the whole strip (the current tile; the others are -1), the current tile is aria-current and only it, the group tells a screen reader about the arrows', async () => {
+  const w = await opened(1200);
+  const tiles = w.tiles();
+  assert.ok(tiles.length >= 10);
+  assert.equal(tiles.filter(t => t.tabIndex === 0).length, 1, 'exactly one tab stop');
+  assert.equal(tiles.filter(t => t.attrs['aria-current'] === 'true').length, 1, 'exactly one is the current frame');
+  const cur = tiles.find(t => t.attrs['aria-current'] === 'true'); assert.equal(cur.tabIndex, 0, 'and the tab stop is the current tile');
+  assert.ok(tiles.filter(t => t !== cur).every(t => t.tabIndex === -1 && t.attrs['aria-current'] === undefined), 'the others are out of the tab order and not current');
+  assert.match(w.strip().attrs['aria-label'], /Left and Right arrows move between frames/);
+  tiles[tiles.length - 1].click();
+  assert.equal(w.tiles().filter(t => t.tabIndex === 0).length, 1); assert.equal(w.tiles().filter(t => t.attrs['aria-current'] === 'true').length, 1);
+  assert.equal(w.tiles().find(t => t.tabIndex === 0), tiles[tiles.length - 1], 'the tab stop follows the playhead');
+});
+
+test('KEYBOARD: Left and Right move focus between tiles, Home and End go to the ends, nothing goes past an end, other keys are left alone', async () => {
+  const w = await opened(1200);
+  const tiles = w.tiles(), fire = key => { const ev = { key, prevented: false, preventDefault() { this.prevented = true; } }; for (const f of w.strip().listeners.keydown || []) f(ev); return ev; };
+  El.active = tiles[3];
+  assert.equal(fire('ArrowRight').prevented, true); assert.equal(El.active, tiles[4]);
+  fire('ArrowLeft'); fire('ArrowLeft'); assert.equal(El.active, tiles[2]);
+  fire('End'); assert.equal(El.active, tiles[tiles.length - 1]); fire('ArrowRight'); assert.equal(El.active, tiles[tiles.length - 1], 'not past the last');
+  fire('Home'); assert.equal(El.active, tiles[0]); fire('ArrowLeft'); assert.equal(El.active, tiles[0], 'not before the first');
+  El.active = tiles[5];
+  for (const k of ['Tab', 'a', 'Enter', ' ', 'ArrowUp']) { const ev = fire(k); assert.equal(ev.prevented, false, k); assert.equal(El.active, tiles[5], k); }
+  El.active = null; fire('ArrowRight'); assert.equal(El.active, tiles[1], 'with focus elsewhere an arrow starts from the first tile');
+});
+
+test('DESTROY (WEB audit 11-20): leaving the page stops the strip’s own clock as well as the playback clock', async () => {
+  const w = await opened(1200);
+  const clocks = w.timers.filter(t => t.kind === 'interval'); assert.ok(clocks.length >= 1, 'the strip has a clock');
+  assert.ok(clocks.some(t => !t.dead));
+  w.m.destroy();
+  assert.ok(w.timers.filter(t => t.kind === 'interval').every(t => t.dead), 'every interval is cleared by destroy()');
+  const n = w.thumbCalls.length; w.seen(); w.run(); assert.equal(w.thumbCalls.length, n, 'and nothing is drawn after it');
 });

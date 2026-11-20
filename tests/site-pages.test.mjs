@@ -122,16 +122,34 @@ test('PICTURE READS: at most two at once, however many cards; a film is read onc
   assert.equal(again.all(e => e.tag === 'img').length, 1, 'and its second card still shows the picture');
 });
 
-test('PICTURE READS: with an observer, nothing is read until the card is near the screen, and the observer is let go after', async () => {
-  const { S, seen } = load({ observer: true });
-  let reads = 0;
-  const data = { getVersion: async () => { reads++; return { artifacts: [{ kind: 'thumbnail', storage_path: 't' }] }; }, fileUrl: async () => 'https://f/t' };
-  const c = card(S, data, project('p', 'P'), 'v'); await flush();
-  assert.equal(reads, 0, 'off screen: nothing is read');
-  seen[0].cb([{ isIntersecting: false }]); await flush(); assert.equal(reads, 0);
-  seen[0].cb([{ isIntersecting: true }]); await flush();
-  assert.equal(reads, 1); assert.equal(seen[0].gone, true);
-  assert.equal(c.all(e => e.tag === 'img').length, 1);
+test('PICTURE READS (WEB audit 11-20): with an observer, ONE shared observer for every card; nothing is read until a card is near the screen; a card reached is read once and released; cards never reached cost nothing', async () => {
+  const win = {}, made = [];
+  const ctx = { window: win, console, Promise, String, Array, Map, Object, WeakMap, Date, IntersectionObserver: class { constructor(cb) { this.cb = cb; this.targets = new Set(); made.push(this); } observe(el) { this.targets.add(el); } unobserve(el) { this.targets.delete(el); } } };
+  vm.runInNewContext(read('assets/app-site.js'), ctx);
+  const S = win.ryagramSite, reads = [];
+  const data = { getVersion: async id => { reads.push(id); return { artifacts: [{ kind: 'thumbnail', storage_path: id }] }; }, fileUrl: async p => 'https://f/' + p };
+  const cards = [1, 2, 3].map(i => card(S, data, project('p' + i, 'F' + i), 'v' + i)); await flush();
+  assert.equal(made.length, 1, 'one observer for all three cards');
+  assert.equal(made[0].targets.size, 3); assert.equal(reads.length, 0, 'off screen: nothing is read');
+  const fire = (el, yes) => made[0].cb([{ target: el, isIntersecting: yes }]);
+  const targets = [...made[0].targets];
+  fire(targets[1], false); await flush(); assert.equal(reads.length, 0, 'seen but not near: still nothing');
+  fire(targets[1], true); await flush();
+  assert.deepEqual(reads, ['v2']); assert.equal(made[0].targets.size, 2, 'the reached card is released');
+  fire(targets[1], true); await flush(); assert.deepEqual(reads, ['v2'], 'a second sighting reads nothing more');
+  assert.equal(cards[1].all(e => e.tag === 'img').length, 1); assert.equal(cards[0].all(e => e.tag === 'img').length, 0, 'the card never reached has no read and no picture');
+  fire(targets[0], true); fire(targets[2], true); await flush();
+  assert.equal(made[0].targets.size, 0); assert.equal(reads.length, 3);
+});
+
+test('PICTURE ADDRESS CACHE (WEB audit 11-20): an address is kept 10 minutes (it lasts 15), a failed read 30 seconds, an expired one is read again, and the cache is bounded', () => {
+  const { S } = load(); let t = 0; const c = S.makeCache(600000, 30000, () => t);
+  assert.equal(c.get('a'), undefined, 'nothing known is undefined, not null');
+  c.set('a', 'https://x/a'); c.set('b', null);
+  t = 599999; assert.equal(c.get('a'), 'https://x/a'); t = 600001; assert.equal(c.get('a'), undefined, 'the address expired before the signed link would have');
+  t = 0; c.set('b', null); t = 29999; assert.equal(c.get('b'), null, 'a failure is remembered briefly'); t = 30001; assert.equal(c.get('b'), undefined, 'and asked again soon');
+  const d = S.makeCache(600000, 30000, () => 0); for (let i = 0; i < 400; i++) d.set('k' + i, 'v');
+  assert.ok(d.size() <= 201, 'bounded: ' + d.size()); assert.equal(d.get('k0'), undefined, 'the oldest went first'); assert.equal(d.get('k399'), 'v');
 });
 
 test('WIRING: one Admin link in the header (no menu), the Admin page only for an admin, every admin page listed in groups, the home page built from the card module, the logo goes home and is put back', () => {

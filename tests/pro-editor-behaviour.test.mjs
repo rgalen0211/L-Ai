@@ -8,6 +8,7 @@ import vm from 'node:vm';
 
 const read = f => fs.readFileSync(new URL('../' + f, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const SRC = read('assets/app-editor-pro.js');
+const win0 = {}; vm.runInNewContext(SRC, { window: win0 });
 
 class El {
   constructor(tag) { this.tag = tag; this.tagName = (tag || '').toUpperCase(); this.children = []; this.attrs = {}; this.listeners = {}; this.style = { props: {}, setProperty(k, v) { this.props[k] = v; } }; this.hidden = false; this.parentNode = null; this._cls = new Set(); this.textContent = ''; this.type = '';
@@ -163,7 +164,7 @@ test('HISTORY: each change as a plain sentence with who made it; Undo back to he
   p.api.refresh();
   const items = p.root.all(e => e.tag === 'li' && e.text.includes('Undo back to here') || (e.tag === 'li' && e._cls.has('le-pro-ai')));
   const text = p.root.all(e => e.tag === 'ol')[0].text;
-  assert.match(text, /Set page\.background to #000000 · you /); assert.match(text, /Moved clip a to 2\.3 s · your AI /); assert.match(text, /A change · you /);
+  assert.match(text, /Set the page colour to #000000 · you /); assert.doesNotMatch(text, /page\.background/, 'never a story key'); assert.match(text, /Moved clip a to 2\.3 s · your AI /); assert.match(text, /A change · you /);
   const btns = p.root.all(e => e.tag === 'button' && e.text === 'Undo back to here'); assert.equal(btns.length, 3);
   btns[1].click(); await flush();
   assert.equal(p.ed.log.length, 1, 'step 2 and 3 are gone, step 1 stays');
@@ -181,4 +182,15 @@ test('PLACEMENT: the switch sits in the top row, the tools right under it, the s
   assert.ok(p.root.children[0].children.some(e => e._cls.has('le-pro-switch')), 'switch in .le-top');
   const kids = p.root.children; assert.ok(kids.indexOf(p.bar()) === 1 && kids[2]._cls.has('le-cols') && kids[3]._cls.has('le-pro-side'), 'bar after the top row, panel after the columns');
   assert.match(read('assets/app-editor.js'), /window\.ryagramEditorPro/, 'the page asks for it only when it is loaded');
+});
+
+test('PLAIN WORDS (WEB audit 11-20): every look key the editor knows has a plain name in the history, an unknown key says "a look setting", and the time and frame is not a live region', () => {
+  const D = win0.ryagramEditorPro.describe;
+  const names = { 'network.color': 'line colour', 'network.base_color': 'base lines colour', 'network.context_color': 'background lines colour', 'state.fill': 'land colour', 'page.background': 'page colour', 'choropleth.low': 'low colour', 'choropleth.high': 'high colour', 'state.outline_width': 'border width', 'sequence.theme': 'theme' };
+  for (const [k, w] of Object.entries(names)) { assert.equal(D({ op: 'set_look', key: k, value: 3 }), `Set the ${w} to 3`, k); assert.equal(D({ op: 'unset_look', key: k }), `Put the ${w} back to the film’s own`, k); }
+  assert.equal(D({ op: 'set_look', key: 'hatch.line_color', value: '#fff' }), 'Set a look setting to #fff');
+  assert.equal(D({ op: 'unset_look', key: 'x.y' }), 'Put a look setting back to the film’s own');
+  assert.doesNotMatch(Object.values(names).join(' '), /[a-z]+\.[a-z_]+/, 'no story key among the plain names');
+  const p = page(); const tc = p.root.all(e => e._cls.has('le-pro-tc'))[0];
+  assert.equal(tc.attrs.role, undefined, 'no role=status: it changes five times a second while playing'); assert.ok(tc.attrs['aria-label']);
 });

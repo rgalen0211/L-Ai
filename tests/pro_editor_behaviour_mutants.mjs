@@ -41,6 +41,10 @@ const mutants = [
   ["undo back can loop for ever", PR, "if (ed.log.length >= before) break;", ""],
   ["the history says A change for everything", PR, "case 'move_clip': return `Moved clip ${a.id} to ${r1(a.start)} s`;", "case 'move_clip': return 'A change';"],
   ["the key handler stays after the page stops", PR, "root.removeEventListener('keydown', onKey, true);", ""],
+  ['the history shows story keys again', PR, "case 'set_look': return `Set ${keyWords(a.key)} to ${a.value}`;", "case 'set_look': return `Set ${a.key} to ${a.value}`;"],
+  ['an unknown key is shown raw', PR, "const keyWords = k => (KEY_WORDS[k] ? `the ${KEY_WORDS[k]}` : 'a look setting');", "const keyWords = k => (KEY_WORDS[k] ? `the ${KEY_WORDS[k]}` : k);"],
+  ['a plain name is wrong', PR, "'state.fill': 'land colour'", "'state.fill': 'fill'"],
+  ['the time and frame is a live region again', PR, "h('b', { class: 'le-pro-tc', 'aria-label': 'Time and frame' }, '0:00.0')", "h('b', { class: 'le-pro-tc', role: 'status', 'aria-label': 'Time and frame' }, '0:00.0')"],
 ];
 
 function run(cwd) {
