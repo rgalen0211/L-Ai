@@ -51,7 +51,7 @@ begin
   if jsonb_typeof(s -> 'urls') is distinct from 'array' or jsonb_array_length(s -> 'urls') not between 1 and 5 then return 'Give 1 to 5 source addresses (https).'; end if;
   for u in select * from jsonb_array_elements(s -> 'urls') loop
     if jsonb_typeof(u) <> 'string' or length(u #>> '{}') > 500
-       or (u #>> '{}') !~ '^https://[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?(\.[A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?)+(/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]*)?$' then
+       or (u #>> '{}') !~ '^https://([A-Za-z0-9]([A-Za-z0-9-]*[A-Za-z0-9])?\.)+[A-Za-z][A-Za-z0-9-]*(/[A-Za-z0-9._~:/?#@!$&()*+,;=%-]*)?$' then
       return 'Each source address must be an https:// website name with no user name, no port and no spaces.';
     end if;
   end loop;

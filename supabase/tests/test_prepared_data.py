@@ -51,6 +51,11 @@ class PreparedData(core.Base):
         row = self.db.c.execute(sql, args).fetchone()
         return row[0] if row and len(row) == 1 else row
 
+    def exec_sql(self, sql, *args):
+        """A statement that returns nothing (update, delete), as the owner."""
+        self.db.c.execute("reset role")
+        self.db.c.execute(sql, args)
+
     def alice(self, scopes=SCOPES):
         _, a, _ = self.connect(ALICE, scopes=scopes)
         return a
@@ -71,7 +76,7 @@ class PreparedData(core.Base):
     def upload_of(self, owner, label="Median age by US state"):
         """What the browser's own upload path leaves behind (create_upload, finish_upload, the worker's read): an approved upload dataset of this person."""
         ds = self.admin("insert into public.datasets (owner_id, name) values (%s, 'upload.csv') returning id", owner)
-        self.admin("update public.datasets set source = 'upload', status = 'approved', filename_label = %s, geography = 'us_states', mapping = %s::jsonb where id = %s", label, json.dumps({"cadence": "annual"}), ds)
+        self.exec_sql("update public.datasets set source = 'upload', status = 'approved', trust_ack_at = now(), filename_label = %s, geography = 'us_states', mapping = %s::jsonb where id = %s", label, json.dumps({"cadence": "annual"}), ds)
         return ds
 
     # ---------------------------------------------------------------------------------------------- the scope
@@ -126,15 +131,15 @@ class PreparedData(core.Base):
         self.refused(a, label="")
         self.refused(a, label="<b>hi</b>")
         self.refused(a, csv="")
-        self.refused(a, csv=CSV.replace("Alabama", "Ala" + chr(0) + "bama"))
+        self.refused(a, csv=CSV.replace("Alabama", "Ala" + chr(1) + "bama"))
         self.refused(a, csv="x" * 204801)
         self.refused(a, log=["step " + str(i) for i in range(13)])
         self.refused(a, log=["see https://evil.example"])
         self.refused(a, measured={"rows": 0, "columns": 3})
         self.refused(a, measured={"rows": 5, "columns": 3, "surprise": 1})
-        self.hand(a, measured={"rows": 5, "columns": 3, "shape": "wide", "non_numeric_values": 2})                  # the two keys the connector really sends are allowed
         self.assertEqual(self.staged(), 0)
         self.refused(a, sources={**SOURCES, "urls": ["https://x.example.org/a\"onclick=\"x"]})              # no quote, angle or backtick in an address
+        self.hand(a, measured={"rows": 5, "columns": 3, "shape": "wide", "non_numeric_values": 2})                  # the two keys the connector really sends are allowed
         self.hand(a, csv=CSV + "")                                                                          # control: the good table goes in
 
     def test_at_most_5_wait_and_10_a_day_and_the_words_say_what_to_do(self):
@@ -143,10 +148,10 @@ class PreparedData(core.Base):
             self.hand(a, label=f"Table {i}")
         msg = self.refused(a, code="PT429")
         self.assertIn("5 tables waiting for the person", msg)
-        self.admin("update public.prepared_data set state = 'discarded'")
+        self.exec_sql("update public.prepared_data set state = 'discarded'")
         for i in range(5):
             self.hand(a, label=f"Again {i}")
-        self.admin("update public.prepared_data set state = 'discarded'")
+        self.exec_sql("update public.prepared_data set state = 'discarded'")
         self.assertIn("10 prepared tables in a day", self.refused(a, code="PT429"))
 
     # ---------------------------------------------------------------------------------------------- the person's side
@@ -174,7 +179,7 @@ class PreparedData(core.Base):
     def test_an_expired_table_is_invisible_and_refused_and_the_purge_removes_it(self):
         a = self.alice()
         pid = self.hand(a)["prepared_id"]
-        self.admin("update public.prepared_data set expires_at = now() - interval '1 minute'")
+        self.exec_sql("update public.prepared_data set expires_at = now() - interval '1 minute'")
         self.assertEqual(self.app(ALICE).one("select my_prepared_data()"), [])
         self.app(ALICE)
         self.fails("select my_prepared_data_csv(%s)", pid, code="22023")
@@ -190,7 +195,7 @@ class PreparedData(core.Base):
         self.assertEqual(out, {"accepted": True, "dataset_id": str(ds)})
         log = self.admin("select prep_log from public.datasets where id = %s", ds)
         self.assertEqual((log["declared_by"], log["change_log"], log["sources"]["licence"], log["measured"]["periods_missing"]), ("Claude", LOG, SOURCES["licence"], [2020]))
-        self.assertEqual(self.admin("select prepared_from from public.datasets where id = %s", ds), pid)
+        self.assertEqual(str(self.admin("select prepared_from from public.datasets where id = %s", ds)), str(pid))
         self.assertEqual(self.admin("select csv_text from public.prepared_data where id = %s", pid), "")
         self.assertEqual(self.app(ALICE).one("select my_prepared_data()"), [])
         self.app(ALICE)
@@ -207,7 +212,7 @@ class PreparedData(core.Base):
         self.app(ALICE)
         self.fails("select mark_prepared_accepted(%s, %s)", pid, bobs, code="22023")                        # not her upload
         old = self.upload_of(ALICE)
-        self.admin("update public.datasets set created_at = now() - interval '3 hours' where id = %s", old)
+        self.exec_sql("update public.datasets set created_at = now() - interval '3 hours' where id = %s", old)
         self.app(ALICE)
         self.fails("select mark_prepared_accepted(%s, %s)", pid, old, code="22023")                         # not one she just made
         fresh = self.upload_of(ALICE)
@@ -226,6 +231,14 @@ class PreparedData(core.Base):
         self.assertNotIn(str(theirs).replace("-", "")[:24], json.dumps(listed))
         src = self.admin("select string_agg(prosrc, ' ') from pg_proc where proname in ('connect_list_my_data', 'my_prepared_data')")
         self.assertEqual(src.count("'trust_label', 'unverified_user'"), 2)
+
+    # ---------------------------------------------------------------------------------------------- the live step Ryan runs after applying
+    def test_the_after_check_answers_true_on_every_row_after_the_migration(self):
+        sql = (Path(__file__).resolve().parent.parent / "live-steps" / "34_prepared_data_after_check.sql").read_text(encoding="utf-8")
+        self.db.c.execute("reset role")
+        rows = self.db.c.execute(sql).fetchall()
+        self.assertGreaterEqual(len(rows), 8)
+        self.assertEqual([r[0] for r in rows if r[1] is not True], [], "every row of live step 34 must be true")
 
 
 if __name__ == "__main__":

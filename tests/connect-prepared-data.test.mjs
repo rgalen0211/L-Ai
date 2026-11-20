@@ -113,7 +113,7 @@ test('MUST-FAIL: a connection that was made before the scope existed cannot hand
   const { w, A, OLD, call } = world();
   const r = await call(OLD, 'submit_prepared_data', args());
   assert.equal(r.isError, true); assert.equal(r.code, 'scope'); assert.equal(w.preparedFor('u-old').length, 0);
-  for (const [bad, why] of [[args(censusCsv(YEARS), { sources: { urls: ['http://x.org/a'], licence: 'l', units: 'u' } }), 'a source that is not https'], [args(censusCsv(YEARS), { sources: { urls: ['https://x.org/a'], units: 'u' } }), 'no licence'],
+  for (const [bad, why] of [[args(censusCsv(YEARS), { sources: { urls: ['http://x.org/a'], licence: 'l', units: 'u' } }), 'a source that is not https'], [args(censusCsv(YEARS), { sources: { urls: ['https://93.184.216.34/a'], licence: 'l', units: 'u' } }), 'a source that is a bare IP number'], [args(censusCsv(YEARS), { sources: { urls: ['https://x.org/a'], units: 'u' } }), 'no licence'],
     [args('place,value\nA,1\nB,2\nC,3\n'), 'no year anywhere'], [args('place,year,value\nA,2010,1\nB,2011\nC,2012,3\n'), 'a ragged row'], [args(censusCsv(YEARS), { change_log: Array.from({ length: 13 }, (_, i) => 'step ' + i) }), 'a 13-step change log']]) {
     const x = await call(A, 'submit_prepared_data', bad);
     assert.equal(x.isError, true, why);
