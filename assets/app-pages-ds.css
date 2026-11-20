@@ -102,3 +102,26 @@
 .page-hero{padding:12px 32px 16px;margin-bottom:12px}
 body.ds-page .app-main{padding-top:24px;padding-bottom:32px}
 body.ds-page:has(.mock-bar) .app-main{padding-bottom:96px}
+/* Tutorial (#/build): ready-made films side by side, the dataset wall scrolls inside its own panel (Ryan 11:55) */
+@media(min-width:900px){.builder-ready .builder-list{grid-template-columns:repeat(3,minmax(0,1fr))}.builder-ready{margin-bottom:12px}}
+.dataset-scroll{max-height:min(34vh,300px)}
+.builder-ready h2{margin-bottom:4px}
+/* Tutorial: the title, the step chips and the tip take little room; every step fits in about a screen and a half (Ryan 11:55) */
+.app-main:has(.builder-steps) h1{font-size:clamp(1.6rem,4vw,2.4rem);margin-bottom:8px}
+.app-main:has(.builder-steps) .form-intro{margin:0 0 8px}
+.builder-steps{flex-wrap:nowrap;overflow-x:auto;scrollbar-width:none;margin-bottom:8px;padding-bottom:2px}
+.builder-steps li{flex:0 0 auto;white-space:nowrap}
+@media(max-width:640px){.app-main:has(.builder-steps) .builder-tip,.app-main:has(.builder-steps) .form-intro{display:none}.app-main:has(.builder-steps) h2{font-size:1.25rem;margin:8px 0 4px}}
+.app-main:has(.builder-steps) h2{margin:8px 0 4px;font-size:1.4rem}
+.app-main:has(.builder-steps) .flip-bar{margin-top:4px}
+.app-main:has(.builder-steps) .builder-source{margin:8px 0;padding:8px 14px}
+.app-main:has(.builder-steps) .builder-nav{margin-top:8px}
+.app-main:has(.builder-steps) .builder-tip{margin:4px 0}
+.app-main:has(.builder-steps) .builder-list{margin:8px 0;gap:8px}
+.app-main:has(.builder-steps) .flip-dots{display:none}
+.dataset-scroll{max-height:min(28vh,240px)}
+.dataset-scroll{max-height:min(22vh,190px)}
+.app-main:has(.builder-steps) .builder-source{font-size:.9rem;line-height:1.35}
+.app-main:has(.builder-steps) .builder-source h3{margin:0 0 2px;font-size:1rem}
+.app-main:has(.builder-steps) .builder-source p{margin:2px 0}
+@media(max-width:640px){.builder-start .meta{display:none}.builder-start{min-height:44px;padding:8px 14px}.app-main:has(.builder-steps) .builder-summary{gap:2px 10px;font-size:.92rem}}

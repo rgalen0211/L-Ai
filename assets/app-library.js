@@ -1013,10 +1013,13 @@
           current ? h('p', {}, current) : null,
           h('button', { class: 'button secondary small', type: 'button',
                         onclick: event => go(event.currentTarget, 'Opening…', () => data.openBillingPortal()) }, 'Manage plan')) : null,
+        packs.length && plans.length ? window.ryagramFlip.create({ h, label: 'Credits', address: false, sections: [
+          { id: 'packs', label: 'Credit packs', el: h('div', {}, h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)), h('p', { class: 'form-note' }, 'Pack credits never expire.')) },
+          { id: 'plans', label: 'Monthly plans', el: h('div', {}, h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)), h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')) }] }).el : [
         packs.length ? [h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)),
                         h('p', { class: 'form-note' }, 'Pack credits never expire.')] : null,
         plans.length ? [h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)),
-                        h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null,
+                        h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null],
         offers.length ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
         h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.')

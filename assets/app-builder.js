@@ -209,10 +209,19 @@
             : 'One click and you are at the last step. You can go back and change anything. The first picture is free.'),
           h('div', { class: 'builder-list' }, starts.map(r => { const b = h('button', { type: 'button', class: 'builder-start', 'data-start': r.id }, h('strong', {}, r.label), h('span', { class: 'meta' }, r.blurb)); b.addEventListener('click', () => useStart(r, b)); return b; }))) : null;
         const trySample = sample ? null : h('p', { class: 'form-note builder-sample-link' }, h('a', { href: '#/build/sample' }, 'Try a sample first'), ': it walks every step on bundled sample data and makes nothing.');
-        return [trySample, ready, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, sample
+        const dataEl = h('div', {}, h('h2', { tabindex: '-1' }, 'Which data?'), h('p', { class: 'form-note' }, sample
           ? 'The sample has one dataset. With your own data you choose from the whole list; every dataset shows where it comes from and what its licence allows.'
           : (starts.length ? 'Or choose your own. ' : '') + 'Every dataset shows where it comes from and what its licence allows. Pick one to read more.'),
-          filter, list, sourceHolder, h('div', { class: 'actions-row builder-nav' }, nextBtn)];
+          filter, h('div', { class: 'scroll-panel dataset-scroll' }, list), sourceHolder);
+        const nav = h('div', { class: 'actions-row builder-nav' }, nextBtn);
+        // two sections to flip between (Ryan 11-20: no long pages): the ready-made films, and your own data
+        if (starts.length && window.ryagramFlip) {
+          const flip = window.ryagramFlip.create({ h, label: 'Choose your data', address: false, initial: s.dataset ? 'own' : 'ready', sections: [
+            { id: 'ready', label: 'Ready-made films', el: h('div', {}, trySample, ready) },
+            { id: 'own', label: 'Your own data', el: dataEl }] });
+          return [flip.el, nav];
+        }
+        return [trySample, ready, dataEl, nav];
       }
 
       function stepMeasure() {

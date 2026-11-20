@@ -119,6 +119,61 @@ with sync_playwright() as pw:
         p.screenshot(path=str(OUT / f'flip-{name.lower()}-phone.png'))
         check(not errs, f'{name} phone: no page errors')
         ctx.close()
+
+    # ---- the other pages (Account, Credits, My films, Tutorial): measured to the bottom of the footer, the mock bar (a test artefact) hidden
+    cfg2 = re.sub(r":\s*'account'", ': true', cfg)
+    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.5, 1.7), 'My films': (1.4, 1.5), 'Tutorial': (1.55, 1.7)}
+    ROUTE = {'Account': '#/account', 'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build'}
+
+    def foot(p):
+        return p.evaluate("Math.round(document.querySelector('footer').getBoundingClientRect().bottom + scrollY)")
+
+    def open2(b, w, h, route):
+        ctx = b.new_context(viewport={'width': w, 'height': h}, color_scheme='dark', is_mobile=w < 500, has_touch=w < 500)
+        ctx.route(re.compile(r'https://fonts\.(googleapis|gstatic)\.com/.*'), lambda r, _q: r.abort())
+        ctx.route('**/assets/ryagram-config.js*', lambda r, _q: r.fulfill(status=200, content_type='text/javascript', body=cfg2))
+        p = ctx.new_page(); errs2 = []; p.on('pageerror', lambda e: errs2.append(str(e)))
+        p.goto(f'http://127.0.0.1:{PORT}/app/?mock#/', wait_until='load'); p.wait_for_selector('#np-title', timeout=20000)
+        p.evaluate("document.querySelector('.mock-bar').style.display = 'none'")
+        p.evaluate("(h) => { location.hash = h }", route); p.wait_for_timeout(1800)
+        return ctx, p, errs2
+
+    for name, (lim_d, lim_p) in PAGE_LIMITS.items():
+        for (w, h_, kind, lim) in ((1280, 800, 'desktop', lim_d), (390, 844, 'phone', lim_p)):
+            ctx, p, errs2 = open2(b, w, h_, ROUTE[name])
+            if name == 'My films':
+                check(p.locator('.films-scroll').count() == 1 and p.evaluate("getComputedStyle(document.querySelector('.films-scroll')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the film list scrolls in its own panel')
+            if name == 'Account':
+                check(p.locator('.flip-tab').count() >= 3, f'{name} {kind}: the account sections are tabs ({p.locator(".flip-tab").count()})')
+                if kind == 'desktop':
+                    p.locator('.flip-tab').first.click(); p.keyboard.press('ArrowRight'); p.wait_for_timeout(500)
+                    check(p.locator('.flip-tab[aria-selected=true]').evaluate("e => [...e.parentElement.children].indexOf(e)") >= 1, f'{name}: ArrowRight goes to the next section')
+                    check('section=' not in p.evaluate('location.hash'), f'{name}: the address keeps its own form (no section=)')
+            if name == 'Credits':
+                check(p.locator('.flip-tab').count() in (0, 2), f'{name} {kind}: packs and plans are two tabs when both are on sale ({p.locator(".flip-tab").count()})')
+            if name == 'Tutorial':
+                check(p.locator('.flip-tab').count() == 2, f'{name} {kind}: step 1 flips between ready-made films and your own data')
+                p.locator('.flip-tab').nth(1).click(); p.wait_for_timeout(500)
+                check(p.evaluate("getComputedStyle(document.querySelector('.dataset-scroll')).overflowY") in ('auto', 'scroll'), f'{name} {kind}: the dataset list scrolls in its own panel')
+                p.locator('input[name=bd-dataset]').first.check(force=True); p.wait_for_timeout(800)
+                seen = 0
+                for step in range(1, 8):
+                    r = foot(p) / h_
+                    check(r <= lim, f'{name} {kind}: step {step} is {r:.2f} x the screen (at most {lim})')
+                    if step == 7: break
+                    if p.locator('input[name=bd-type]').count() and not p.locator('input[name=bd-type]:checked').count(): p.locator('input[name=bd-type]').first.check(force=True)
+                    if p.locator('input[name=bd-look]').count() and not p.locator('input[name=bd-look]:checked').count(): p.locator('input[name=bd-look]').first.check(force=True)
+                    nb = p.locator('button:text-is("Next")').first
+                    if not nb.count() or nb.is_disabled(): check(False, f'{name} {kind}: step {step} has a Next button'); break
+                    nb.click(); p.wait_for_timeout(900); seen += 1
+                check(seen == 6, f'{name} {kind}: all 7 steps were reached ({seen + 1})')
+            else:
+                r = foot(p) / h_
+                check(r <= lim, f'{name} {kind}: the page is {r:.2f} x the screen (at most {lim})')
+            check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), f'{name} {kind}: no sideways scroll')
+            p.screenshot(path=str(OUT / f'flip-{name.lower().replace(" ", "")}-{kind}.png'))
+            check(not errs2, f'{name} {kind}: no page errors' + (f': {errs2[:2]}' if errs2 else ''))
+            ctx.close()
     b.close()
 srv.shutdown()
 print('ALL OK' if ok else 'FAILED'); sys.exit(0 if ok else 1)
