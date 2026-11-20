@@ -12,7 +12,7 @@
   const LOOK_ROWS = [                                                         // the rows the worker accepts today, in the order the panel shows them
     ['network.color', 'Line colour'], ['network.base_color', 'Base lines'], ['network.context_color', 'Background lines'], ['state.fill', 'Land colour'], ['page.background', 'Page colour']
   ];
-  const WAITING = ['Theme', 'Marker shape', 'Border width', 'Glow', 'Labels'];   // ENGINE 35 names these keys; shown, not offered, until then
+  const WAITING = ['Theme', 'Border width', 'Glow'];   // the stand-in editor's rows the draft or engine will take later; Marker shape and Labels are NOT here: ENGINE 11-20 says neither exists
   let CARD_LOOK = {};                                                          // the film's own colours from its look card (the chat editor only), over the editor's starting colours
   const DATA_BASE = () => ({ look: { 'network.color': '#6fd1bd', 'network.base_color': '#c9a66b', 'network.context_color': '#5a5a66', 'state.fill': '#23232d', 'page.background': '#0d0d11', ...CARD_LOOK }, clips: [], duration: 0 });
   const CLIPS_BASE = () => ({ look: {}, duration: 12, clips: [
@@ -379,7 +379,7 @@
       const pill = h('span', { class: 'le-pill' });
       const undoBtn = btn('Undo', 'secondary', async () => { stopPlay(); if (draft) { const r = await draft.undo(); say(r.ok ? 'Undone.' : (r.reason || '')); } else { ed.undo(); say('Undone.'); } saved = false; paint(); });
       const revertBtn = btn('Revert', 'secondary', () => { ed.revert(); saved = true; say('Back to the last save.'); paint(); });
-      const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say('Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
+      const saveBtn = btn('Save', 'secondary', () => { ed.base = ed.state; ed.log = []; ed.redo = []; saved = true; say(realFilm ? 'Your changes are already kept in this film’s draft.' : 'Saved as this film’s working version (mock: nothing is stored yet).'); paint(); });
       const aiBtn = btn('Ask my AI', 'secondary', () => { aiBox.hidden = !aiBox.hidden; if (!aiBox.hidden) { paintChips(); note.focus(); } }, { class: 'button secondary le-ai-btn' });
       const finalBtn = btn(isData ? 'Render final film' : 'Build final film', 'primary', () => { stopPlay(); showCommit(); });
       const renderBox = h('div', { class: 'le-render', hidden: true });
@@ -387,7 +387,7 @@
       // What will render, in words (the look values or the clip list), then Start. Starting commits the draft (today's save and checks), then starts the job.
       function committedWords() {
         if (bundleMode) { const rows = DD.rowsFor(RL, bundle).filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l}: ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
-        if (isData) { const rows = LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l} ${ed.state.look[k]}`)] : ['The film\u2019s own look: nothing changed.']; }
+        if (isData) { const rows = LOOK_ROWS.filter(([k]) => ed.state.look[k] !== undefined).concat(realFilm ? [['sequence.theme', 'Theme'], ['state.outline_width', 'Border width'], ['choropleth.low', 'Low colour'], ['choropleth.high', 'High colour']].filter(([k]) => ed.state.look[k] !== undefined) : []); return rows.length ? ['The look you can see:', ...rows.map(([k, l]) => `${l} ${ed.state.look[k]}`)] : ['The film’s own look: nothing changed.']; }
         const vids = ed.state.clips.filter(c => c.track === 'video');
         return [`${vids.length} video clips in this order: ${vids.map(c => c.label).join(', ')}.`, `${ed.state.clips.length - vids.length} pictures, text lines and music tracks, ${mmss(ed.state.duration)} long.`];
       }
@@ -555,22 +555,33 @@
       // The Look rows a person's own film on the website can really change (WEB 11-20, from ENGINE's LOOK-OPTIONS-1120): every row below is a key the shared draft ACCEPTS (edit_look_keys: sequence.theme, state.outline_width,
       // choropleth.low and .high next to the colour rows above) and the engine honours in the final film. Glow, Metal finish, Middle colour, Marker shape and Labels are NOT here: the draft takes no such key yet (or the engine has none), and a row that cannot take effect is not shown.
       function extraLookRows() {
-        const theme = ed.state.look['sequence.theme'] || 'dark', light = theme === 'light';
-        const row = (label, control, note) => h('div', { class: note ? 'le-row le-row-has-note' : 'le-row' }, h('label', { for: control.id }, label), control, note ? h('span', { class: 'meta le-row-note' }, note) : null);
-        const sel = h('select', { id: 'le-look-theme', disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, t]) => h('option', { value: v }, t)));
-        sel.value = theme;
-        sel.addEventListener('change', () => apply({ op: 'set_look', key: 'sequence.theme', value: sel.value }));
+        // Each row says what it is NOT yet: nothing set means the film's OWN value is used (the draft starts empty), so an unset row never reads as the film's own colour or theme (GAMES LOW 2, CC1 MEDIUM 2).
+        const touched = new Set(ed.aiTouched());
+        const theme = ed.state.look['sequence.theme'], light = theme === 'light';
+        const mark = key => (touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null);
+        const row = (label, control, note, key) => h('div', { class: note ? 'le-row le-row-has-note' : 'le-row' }, h('label', { for: control.id }, label, key ? mark(key) : null), control, note ? h('span', { class: 'meta le-row-note' }, note) : null);
+        const back = key => (ed.state.look[key] !== undefined ? btn('Use the film’s own', 'secondary small', () => apply({ op: 'unset_look', key }), { 'aria-label': `Use the film’s own value for ${key}`, disabled: locked }) : null);
+        const sel = h('select', { id: 'le-look-theme', disabled: locked }, [['', 'The film’s own'], ['dark', 'Dark'], ['light', 'Light']].map(([v, t]) => h('option', { value: v }, t)));
+        sel.value = theme || '';
+        sel.addEventListener('change', () => apply(sel.value === '' ? { op: 'unset_look', key: 'sequence.theme' } : { op: 'set_look', key: 'sequence.theme', value: sel.value }));
         const bw = ed.state.look['state.outline_width'];
-        const num = h('input', { type: 'number', id: 'le-look-border', min: '0', max: '4', step: '0.5', value: String(bw !== undefined ? bw : 2), disabled: locked });
-        num.addEventListener('change', () => { const v = Number(num.value); if (String(num.value).trim() !== '' && Number.isFinite(v) && v >= 0 && v <= 4) apply({ op: 'set_look', key: 'state.outline_width', value: v }); });
+        const num = h('input', { type: 'number', id: 'le-look-border', min: '0', max: '4', step: '0.5', placeholder: 'the film’s own', value: bw !== undefined ? String(bw) : '', disabled: locked });
+        num.addEventListener('change', () => {
+          const raw = String(num.value).trim(), v = Number(raw), good = ed.state.look['state.outline_width'];
+          if (raw !== '' && Number.isFinite(v) && v >= 0 && v <= 4) { apply({ op: 'set_look', key: 'state.outline_width', value: v }); return; }
+          num.value = good !== undefined ? String(good) : '';                    // an empty or out-of-range box puts the last good value back and says so (never a '9' left standing over a draft that holds 2)
+          if (raw !== '') say('Border width is from 0 to 4.');
+        });
         const colour = (key, label, dflt) => {
-          const input = h('input', { type: 'color', id: `le-look-${key}`, value: ed.state.look[key] !== undefined ? ed.state.look[key] : dflt, disabled: locked });
+          const input = h('input', { type: 'color', id: `le-look-${key.replace(/\./g, '-')}`, value: ed.state.look[key] !== undefined ? ed.state.look[key] : dflt, disabled: locked });
           input.addEventListener('change', () => apply({ op: 'set_look', key, value: input.value }));
-          return row(label, input);
+          return row(label, input, ed.state.look[key] === undefined ? 'Not set: the film’s own colour is used. This swatch is only a starting point.' : null, key);
         };
-        return [row('Theme', sel, 'Dark or light page and text.'), row('Border width', num, 'From 0 to 4. Shows in the final film.'),
-          colour('choropleth.low', 'Low colour', light ? '#eef1f6' : '#232838'), colour('choropleth.high', 'High colour', light ? '#16233f' : '#e8eefb'),
-          h('p', { class: 'meta le-defaults' }, 'Low and high colour show on a map drawn in flat colour; a map drawn in textures ignores them. These are saved to your film’s draft. The film above changes when the final film is made.')];
+        return [row('Theme', sel, theme ? 'Dark or light page and text.' : 'Not set: the film’s own theme is used.', 'sequence.theme'),
+          row('Border width', num, bw !== undefined ? 'From 0 to 4. Shows in the final film.' : 'From 0 to 4. Not set: the film’s own width is used. Shows in the final film.', 'state.outline_width'),
+          colour('choropleth.low', 'Low colour (flat-colour maps)', light ? '#eef1f6' : '#232838'), colour('choropleth.high', 'High colour (flat-colour maps)', light ? '#16233f' : '#e8eefb'),
+          ...['sequence.theme', 'state.outline_width', 'choropleth.low', 'choropleth.high'].map(back).filter(Boolean).map(b => h('p', { class: 'meta' }, b)),
+          h('p', { class: 'meta le-defaults' }, 'Low and high colour show only on a map drawn in flat colour: a map drawn in textures, a bar race or a living map ignores them, and this page cannot tell which yours is, so a change here may not show in the film. These are saved to your film’s draft. The film above changes when the final film is made.')];
       }
       function paintLook() {
         if (bundleMode) { paintBundleLook(); return; }
