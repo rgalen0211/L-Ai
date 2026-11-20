@@ -161,9 +161,12 @@
         return list.length ? h('ul', { class: 'builder-problems', role: 'alert' }, list.map(p => h('li', {}, plainError(p)))) : null;
       }
       // The source and licence, shown as soon as there is a dataset and before anything is made.
-      function sourceBox() {
+      // fold = true: the Measure and Years steps keep it one tap away (a closed fold) so those steps stay short; the dataset step and the Review show it open (Ryan 11-20: no long pages)
+      function sourceBox(fold = false) {
         if (!s.d) return null;
         const d = s.d;
+        if (fold) return h('aside', { class: 'builder-source builder-source-fold' }, h('details', {}, h('summary', {}, 'Source and licence'), h('p', {}, `Source: ${d.publisher}.`, webLink(d.url) ? [' ', h('a', { href: webLink(d.url), rel: 'noopener noreferrer', target: '_blank' }, 'The data’s page')] : null),
+          h('p', {}, `Licence: ${d.licence_short}.`), h('details', {}, h('summary', {}, 'Read the full licence'), h('p', {}, d.licence))));
         return h('aside', { class: 'builder-source' }, h('h3', {}, 'Source and licence'), h('p', {}, `Source: ${d.publisher}.`, webLink(d.url) ? [' ', h('a', { href: webLink(d.url), rel: 'noopener noreferrer', target: '_blank' }, 'The data’s page')] : null),
           h('p', {}, `Licence: ${d.licence_short}.`), h('details', {}, h('summary', {}, 'Read the full licence'), h('p', {}, d.licence)));
       }
@@ -230,7 +233,7 @@
                          ...d.measures.filter(m => m.selectable).map(m => [m.id, m.label, m.unit ? `Shown in ${m.unit}.` : ''])];
         return [h('h2', { tabindex: '-1' }, 'What do you want to show?'), h('div', { class: 'builder-list', role: 'radiogroup', 'aria-label': 'Measure' }, options.map(([id, label, note]) => h('label', { class: `builder-card${s.measure === id ? ' is-chosen' : ''}` },
           h('input', { type: 'radio', name: 'bd-measure', value: id, ...(s.measure === id ? { checked: true } : {}), onchange: () => { s.measure = id; compiled = null; draw(); } }), h('strong', {}, label), h('span', { class: 'meta' }, note)))),
-          problems('measure'), sourceBox(), nav(() => go(2))];
+          problems('measure'), sourceBox(true), nav(() => go(2))];
       }
 
       function stepYears() {
@@ -244,7 +247,7 @@
           h('ul', {}, d.methodology_breaks.map(b => h('li', {}, `${b.period}: ${b.what} ${b.effect}`)))) : null;
         return [h('h2', { tabindex: '-1' }, 'Which years?'),
           h('p', { class: 'form-note' }, `This data covers ${periodWord(d.period)}. Leave a box empty to use ${d.window[0]} to ${d.window[1]}.`),
-          h('div', { class: 'builder-years' }, h('label', { for: 'bd-start' }, 'From'), start, h('label', { for: 'bd-end' }, 'To'), end), note, problems('years'), crossing, sourceBox(),
+          h('div', { class: 'builder-years' }, h('label', { for: 'bd-start' }, 'From'), start, h('label', { for: 'bd-end' }, 'To'), end), note, problems('years'), crossing, sourceBox(true),
           nav(() => { const p = yearsShape(d, start.value, end.value); if (p) { note.textContent = p; note.hidden = false; return; } s.start = start.value; s.end = end.value; go(3); })];
       }
 
