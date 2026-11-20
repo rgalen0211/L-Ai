@@ -101,7 +101,7 @@
       onStop(() => clearInterval(timer));
       await load();
       return [h('a', { href: '#/', class: 'back' }, '← All projects'), h('h1', { tabindex: '-1' }, 'My films'),
-        h('p', { class: 'form-intro' }, 'Every film you are making, and where it stands. Films that need you come first.'), error, list];
+        h('p', { class: 'form-intro' }, 'Every film you are making, and where it stands. Films that need you come first.'), error, h('div', { class: 'scroll-panel films-scroll' }, list)];
     }
     return { filmsView };
   }

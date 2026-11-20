@@ -12,7 +12,7 @@
   };
   const KIND_LABELS = {
     final_video: 'Final film', preview: 'Preview', contact_sheet: 'Contact sheet', thumbnail: 'Thumbnail',
-    receipt: 'Receipt (JSON)', receipt_text: 'Receipt', metering: 'Metering'
+    receipt: 'Receipt (for computers)', receipt_text: 'Receipt', metering: 'Usage note'
   };
   const UUID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
 
@@ -148,7 +148,7 @@
         // The plain library address goes to the door only for an invited account with no AI connected and no 'Not now' in the last 7 days; any failure shows the library.
         else if ((hash === '' || hash === '#/') && startOn() && await startUi().shouldLandOnDoor()) { if (mine === token) location.replace('#/start'); return; }
         else if ((m = hash.match(new RegExp(`^#/p/${UUID}$`)))) view = await projectView(m[1]);
-        else if ((m = hash.match(new RegExp(`^#/v/${UUID}$`)))) view = await versionView(m[1], onStop);
+        else if ((m = hash.match(new RegExp(`^#/v/${UUID}(?:\\?section=[a-z0-9_-]+)?$`)))) view = await versionView(m[1], onStop);
         else if ((m = hash.match(/^#\/account(?:\?connect=(claude|chatgpt))?$/))) view = await accountView(m[1] || '');
         else if (startOn() && hash === '#/start') view = await startUi().startView(onStop, libraryView);
         else if (liveEditorOn() && (m = hash.match(/^#\/editor\/(data|compilation)(?:\/([0-9a-fA-F-]{36}))?$/))) view = editorUi().editorView(m[1], onStop, m[2] || null);
@@ -195,7 +195,7 @@
       root.replaceChildren(...[notice, view].flat(Infinity).filter(x => x != null && x !== false));   // optional parts may be null
       if (window.ryagramDs) window.ryagramDs.mount(root);                     // the design system's carousels, workbenches and parallax in this view (the previous view's are disposed)
       polishPage(hash);
-      root.querySelector('h1')?.focus();
+      root.querySelector('h1')?.focus({ preventScroll: true });
     }
 
     // A stranger's three small needs on every signed-in page (WEB 11-20 stranger walk): the tab says where you are, an admin page goes back to the Admin page (not to the user's home), and a page with no way back gets one.
@@ -944,7 +944,14 @@
         h('p', {}, 'This deletes your login, every project and version, every film and file, and any public film pages, at once. Renders must have finished first. If you’ve bought or used credits, those records are kept as financial records and your account is closed by hand within 30 days.'),
         delForm));
       if (helpSection) sections.push(helpSection);
-      return sections;
+      // the sections after the title and the 'signed in as' line are flip sections (Ryan 11-20: no long pages)
+      const SHORT = { 'Change password': 'Password', 'Email address': 'Email', 'Download your data': 'Your data', 'Delete your account': 'Delete account', 'Connected AIs': 'Connected AIs', 'Windows app': 'Windows app', 'Your computers': 'Computers' };
+      const rest = sections.slice(3).filter(Boolean);
+      const label = (el, i) => { const t = (el.querySelector && el.querySelector('h2, h3, summary') ? el.querySelector('h2, h3, summary').textContent : '').trim(); return SHORT[t] || t.slice(0, 22) || `Section ${i + 1}`; };
+      const parts = rest.map((el, i) => ({ id: `acct-${i}-${label(el, i).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`, label: label(el, i), el }));
+      const wantOpen = connectApp ? parts.find(p => /connected/i.test(p.label)) : null;
+      const flip = parts.length > 1 ? window.ryagramFlip.create({ h, label: 'Your account', address: false, sections: parts, initial: wantOpen ? wantOpen.id : null }) : null;
+      return flip ? [...sections.slice(0, 3), flip.el] : sections;
     }
 
     // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)
@@ -1013,10 +1020,13 @@
           current ? h('p', {}, current) : null,
           h('button', { class: 'button secondary small', type: 'button',
                         onclick: event => go(event.currentTarget, 'Opening…', () => data.openBillingPortal()) }, 'Manage plan')) : null,
+        packs.length && plans.length ? window.ryagramFlip.create({ h, label: 'Credits', address: false, sections: [
+          { id: 'packs', label: 'Credit packs', el: h('div', {}, h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)), h('p', { class: 'form-note' }, 'Pack credits never expire.')) },
+          { id: 'plans', label: 'Monthly plans', el: h('div', {}, h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)), h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')) }] }).el : [
         packs.length ? [h('h2', {}, 'Credit packs'), h('ul', { class: 'offer-list' }, packs.map(offerItem)),
                         h('p', { class: 'form-note' }, 'Pack credits never expire.')] : null,
         plans.length ? [h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)),
-                        h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null,
+                        h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null],
         offers.length ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
         h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.')
@@ -1080,7 +1090,7 @@
     }
 
     // --- #/v/<id>  one version
-    async function versionView(id, onStop) {
+    async function versionView(id, onStop, sectionFromHash = null) {
       const { version: v, project, parent, artifacts } = await data.getVersion(id);
       const locked = !EDITABLE.includes(v.state);
       const error = errorLine();
@@ -1095,9 +1105,16 @@
       };
 
       const files = filesSection(v, artifacts);
+      const facts = { data: h('p', { class: 'v' }, 'Loading…'), dataSub: h('p', { class: 's' }), credits: h('p', { class: 'v' }, creditsOn() ? '…' : 'Free'), creditsSub: h('p', { class: 's' }), job: h('p', { class: 'v' }, 'No jobs yet'), jobSub: h('p', { class: 's' }) };
+      const onJobs = list => {
+        const j = list[0];                                                   // newest first
+        facts.job.replaceChildren(j ? `${window.ryagramJobs.typeLabel(j.job_type)}: ${STATE_LABELS[j.state] || j.state}` : 'No jobs yet');
+        facts.jobSub.textContent = j ? (window.ryagramJobs.isActive(j) ? 'Working on it. This page updates itself.' : `Updated ${date(j.updated_at || j.created_at)}`) : 'Start with a contact sheet.';
+      };
       const jobs = jobsPanel(v, {
         settled: () => files.refresh(),
-        versionChanged: () => route()
+        versionChanged: () => route(),
+        onJobs
       });
       onStop(jobs.stop);
 
@@ -1134,7 +1151,11 @@
         story, locked ? null : save, savedHere, error);
 
       // What this film is made from: the database follows the story; refreshed whenever the story changes.
-      const sources = sourcesPanel(v, !locked);
+      const sources = sourcesPanel(v, !locked, rows => {
+        const first = rows && rows[0] ? window.ryagramSources.cardView(rows[0]) : null;
+        facts.data.textContent = first ? first.title : 'No data chosen yet';
+        facts.dataSub.textContent = first ? `${first.publisher} · ${first.coverage}` : 'Choose a ready-made film to start.';
+      });
       // Using an upload as this film's data points the story's render clips at it (v1: one uploaded dataset per film).
       const uploads = uploadsOn() ? uploadsPanel(v, !locked, async (ref, ds) => {
         let built = window.ryagramUploads.useInStory(v.story_spec, ref);
@@ -1182,7 +1203,34 @@
         refreshJobs: () => jobs.refresh()
       }) : null;
 
+      // the film's own latest picture behind the title (its thumbnail or contact sheet); a film without one keeps the plain band
+      const heroFrame = h('div', { class: 'hero-frame', 'aria-hidden': 'true' });
+      const framed = (artifacts || []).find(a => a.kind === 'thumbnail') || (artifacts || []).find(a => a.kind === 'contact_sheet');
+      if (framed && typeof data.fileUrl === 'function') data.fileUrl(framed.storage_path).then(u => { if (u) heroFrame.style.backgroundImage = `url("${String(u).replace(/"/g, '%22')}")`; }).catch(() => {});
+      if (creditsOn()) data.creditBalances().then(rows => { facts.credits.replaceChildren(window.ryagramCredits.balanceLine(rows)); facts.creditsSub.textContent = 'The final film uses credits. Contact sheets are free.'; }).catch(() => { facts.credits.textContent = 'Couldn’t load'; });
+      else facts.creditsSub.textContent = 'Nothing here uses credits yet.';
+      const factCards = h('div', { class: 'fact-cards', role: 'group', 'aria-label': 'Key facts' },
+        h('div', { class: 'fact-card' }, h('p', { class: 'k' }, 'Data'), facts.data, facts.dataSub),
+        h('div', { class: 'fact-card' }, h('p', { class: 'k' }, 'Credits'), facts.credits, facts.creditsSub),
+        h('div', { class: 'fact-card' }, h('p', { class: 'k' }, 'Latest job'), facts.job, facts.jobSub));
+      const advancedEl = h('div', { class: 'advanced-panel', id: 'advanced-panel' }, h('h2', {}, 'Advanced: your own data and the story file'),
+        h('p', { class: 'form-note' }, 'Most films start from a ready-made film. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
+        uploads?.el, storyForm);
+      advanced = advancedEl;
+      let flip = null;
+      const makeIt = h('div', { class: 'make-it' }, picker, byodPointer, saved, jobs.el, lookApply, v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null);
+      if (byodPointer) byodPointer.addEventListener('click', () => flip && flip.go('advanced'), true);       // the pointer opens Advanced: that is now a section
+      flip = window.ryagramFlip.create({ h, label: 'This version', initial: sectionFromHash, sections: [
+        { id: 'make', label: 'Make it', el: makeIt },
+        { id: 'jobs', label: 'Jobs', el: jobs.listPanel },
+        { id: 'data', label: 'The data', el: sources.el },
+        { id: 'files', label: 'Files', el: h('div', {}, h('div', { class: 'scroll-panel' }, files.el)) },
+        { id: 'editor', label: 'Editor', el: chat || h('p', { class: 'form-note' }), hidden: !chat },
+        { id: 'advanced', label: 'Advanced', el: advancedEl }
+      ] });
+      onStop(() => flip.destroy());
       return [
+        h('div', { class: 'page-hero' }, heroFrame,
         h('a', { href: `#/p/${project.id}`, class: 'back' }, `← ${project.title}`),
         h('h1', { tabindex: '-1' }, `Version ${v.number} `, badge(v.state)),
         h('p', { class: 'meta' }, parent ? `Made from version ${parent.number} · ` : '', `created ${date(v.created_at)}`),
@@ -1196,27 +1244,16 @@
                   catch (err) { showError(error, err); }
                 });
               } }, 'Archive this version')
-            : null),
-        v.state === 'complete' && filmPagesOn() ? sharePanel(v, project) : null,
-        picker,
-        byodPointer,
-        saved,                                      // "Template applied and saved ...": shown here, not inside the folded story file
-        chat,
-        sources.el,
-        jobs.el,
-        files.el,
-        lookApply,
-        // Everything below is still here, just folded: the story file itself and your own data (a spreadsheet) are for people who want them.
-        advanced = h('details', { class: 'advanced-panel', id: 'advanced-panel' }, h('summary', {}, 'Advanced: your own data and the story file'),
-          h('p', { class: 'form-note' }, 'Most films start from a ready-made film above. Use these if you want to bring your own spreadsheet or edit the story file directly.'),
-          uploads?.el, storyForm)
+            : null)),
+        factCards,
+        flip.el
       ];
     }
 
     // "What this film is made from": one card per source with its publisher, coverage and a short licence
     // that opens the full text. The facts come from the database, not from this page (sync_version_sources).
     // Hidden when that SQL isn't applied yet; a problem (too many sources, data we can't run) shows in place.
-    function sourcesPanel(v, editable) {
+    function sourcesPanel(v, editable, onRows = () => {}) {
       const S = window.ryagramSources;
       const el = h('section', { class: 'app-panel sources-panel', 'aria-labelledby': 'sources-title', hidden: true },
         h('h2', { id: 'sources-title' }, 'What this film is made from'));
@@ -1232,6 +1269,7 @@
         if (mine !== latest) return;
         if (rows === null) { el.hidden = true; return; }              // not available yet
         el.hidden = false;
+        try { onRows(rows); } catch { /* the facts card keeps what it had */ }
         const cards = rows.map(r => {
           const c = S.cardView(r);
           const full = c.licenceFull ? h('div', { class: 'source-licence-full', hidden: true },
@@ -1657,7 +1695,7 @@
     // Realtime pushes changes; every 10 s it also re-reads while anything is
     // in flight (queue positions move with other people's jobs) or whenever
     // Realtime is not connected.
-    function jobsPanel(v, { settled, versionChanged }) {
+    function jobsPanel(v, { settled, versionChanged, onJobs = () => {} }) {
       const J = window.ryagramJobs;
       let jobs = [];
       let positions = {};
@@ -1892,8 +1930,10 @@
           else sightings.delete(j.id);
         }
         syncControls();
-        listEl.replaceChildren(jobs.length
-          ? h('ul', { class: 'job-list' }, jobs.map(jobItem))
+        const shown = jobs.filter(j => j.job_type !== 'film_bundle');           // the editor's own background drawing (film_bundle, 'Film files') is not a job the person asked for: never listed, never shown failing (Q645 live walk 11-20)
+        try { onJobs(shown); } catch { /* the facts card keeps what it had */ }
+        listEl.replaceChildren(shown.length
+          ? h('ul', { class: 'job-list' }, shown.map(jobItem))
           : h('p', { class: 'form-intro' }, 'No jobs yet. Start with a contact sheet.'));
         liveNote.textContent = watch.live() ? '● Live' : 'Updating every 10 seconds';
       }
@@ -1961,13 +2001,22 @@
         h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-title' }, 'Render'), liveNote),
         h('p', { class: 'form-intro' }, 'A contact sheet and a preview of the current story come first; the final film uses both.'),
         h('p', { class: 'form-note' }, 'A contact sheet is a quick grid of still frames to check the look. A preview is a short clip. The final film is the full render.'),
-        nextStrip, controls, orderBox, balanceNote, lockedNote, error, listEl);
+        nextStrip, controls, orderBox, balanceNote, lockedNote, error);
+      // the job list is its OWN section (the Jobs tab) and scrolls inside its own panel; a status stuck on a hidden tab is refreshed the moment the page is visible again
+      const listPanel = h('section', { class: 'jobs-list-panel', 'aria-labelledby': 'jobs-list-title' },
+        h('div', { class: 'jobs-head' }, h('h2', { id: 'jobs-list-title' }, 'Jobs'), h('span', { class: 'meta live-note-copy' }, liveNote.textContent)),
+        h('div', { class: 'scroll-panel jobs-scroll' }, listEl));
+      const mirrorLive = new MutationObserver(() => { const c = listPanel.querySelector('.live-note-copy'); if (c) c.textContent = liveNote.textContent; });
+      mirrorLive.observe(liveNote, { childList: true, characterData: true, subtree: true });
+      const onVisible = () => { if (!document.hidden && !stopped) refresh(); };
+      document.addEventListener('visibilitychange', onVisible);
 
       return {
         el,
+        listPanel,
         refresh,
         storyChanged(sha) { storySha = sha; v.story_sha256 = sha; syncControls(); },
-        stop() { stopped = true; clearInterval(timer); watch.stop(); }
+        stop() { stopped = true; clearInterval(timer); watch.stop(); document.removeEventListener('visibilitychange', onVisible); mirrorLive.disconnect(); }
       };
     }
 
