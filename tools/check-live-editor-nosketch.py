@@ -74,11 +74,12 @@ with sync_playwright() as pw:
         p.select_option('#le-look-theme', 'light'); p.wait_for_timeout(500)
         check('Draft, not saved' in p.inner_text('.le-top') and p.locator('button:has-text("Undo")').first.is_enabled(), f'{width}px: choosing Light is a real change to the draft (not saved, Undo is on)')
         check(p.locator('button:has-text("Use the film’s own")').count() == 1, f'{width}px: once set, a row can be put back to the film’s own')
+        check(p.locator('.le-row:has(#le-look-theme) button[aria-label="Theme: use the film’s own"]').count() == 1, f'{width}px: the button sits inside the Theme row and names it')
         p.fill('#le-look-border', '3'); p.locator('#le-look-border').dispatch_event('change'); p.wait_for_timeout(300)
         p.fill('#le-look-border', '9'); p.locator('#le-look-border').dispatch_event('change'); p.wait_for_timeout(300)
         check(p.input_value('#le-look-border') == '3' and 'Border width is from 0 to 4.' in p.inner_text('.le'), f'{width}px: a border width over 4 puts the last good value (3) back and says 0 to 4, never a 9 left in the box')
         p.locator('button:has-text("Use the film’s own")').first.click(); p.wait_for_timeout(400)
-        check(p.input_value('#le-look-theme') == '' or p.input_value('#le-look-border') == '', f'{width}px: Use the film’s own puts a row back')
+        check(p.input_value('#le-look-theme') == '' and p.input_value('#le-look-border') == '3', f'{width}px: Use the film’s own on the Theme row puts Theme back and leaves Border width at 3')
         p.context.close()
 
     print('a film that has a contact sheet shows its own')

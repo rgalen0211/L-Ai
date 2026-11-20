@@ -559,8 +559,8 @@
         const touched = new Set(ed.aiTouched());
         const theme = ed.state.look['sequence.theme'], light = theme === 'light';
         const mark = key => (touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null);
-        const row = (label, control, note, key) => h('div', { class: note ? 'le-row le-row-has-note' : 'le-row' }, h('label', { for: control.id }, label, key ? mark(key) : null), control, note ? h('span', { class: 'meta le-row-note' }, note) : null);
-        const back = key => (ed.state.look[key] !== undefined ? btn('Use the film’s own', 'secondary small', () => apply({ op: 'unset_look', key }), { 'aria-label': `Use the film’s own value for ${key}`, disabled: locked }) : null);
+        const back = (key, label) => (ed.state.look[key] !== undefined ? btn('Use the film’s own', 'secondary small', () => apply({ op: 'unset_look', key }), { 'aria-label': `${String(label).replace(/ \(.*$/, '')}: use the film’s own`, disabled: locked }) : null);
+        const row = (label, control, note, key) => h('div', { class: note ? 'le-row le-row-has-note' : 'le-row' }, h('label', { for: control.id }, label, key ? mark(key) : null), control, note ? h('span', { class: 'meta le-row-note' }, note) : null, key ? back(key, label) : null);
         const sel = h('select', { id: 'le-look-theme', disabled: locked }, [['', 'The film’s own'], ['dark', 'Dark'], ['light', 'Light']].map(([v, t]) => h('option', { value: v }, t)));
         sel.value = theme || '';
         sel.addEventListener('change', () => apply(sel.value === '' ? { op: 'unset_look', key: 'sequence.theme' } : { op: 'set_look', key: 'sequence.theme', value: sel.value }));
@@ -580,7 +580,6 @@
         return [row('Theme', sel, theme ? 'Dark or light page and text.' : 'Not set: the film’s own theme is used.', 'sequence.theme'),
           row('Border width', num, bw !== undefined ? 'From 0 to 4. Shows in the final film.' : 'From 0 to 4. Not set: the film’s own width is used. Shows in the final film.', 'state.outline_width'),
           colour('choropleth.low', 'Low colour (flat-colour maps)', light ? '#eef1f6' : '#232838'), colour('choropleth.high', 'High colour (flat-colour maps)', light ? '#16233f' : '#e8eefb'),
-          ...['sequence.theme', 'state.outline_width', 'choropleth.low', 'choropleth.high'].map(back).filter(Boolean).map(b => h('p', { class: 'meta' }, b)),
           h('p', { class: 'meta le-defaults' }, 'Low and high colour show only on a map drawn in flat colour: a map drawn in textures, a bar race or a living map ignores them, and this page cannot tell which yours is, so a change here may not show in the film. These are saved to your film’s draft. The film above changes when the final film is made.')];
       }
       function paintLook() {
