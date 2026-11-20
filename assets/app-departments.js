@@ -33,9 +33,9 @@
     },
     games: {
       building: ['Point Ryagram at footage you own or have the right to use, pick a game, and play with friends. Phones are the controllers and a laptop or TV is the shared screen.',
-        'The first idea is Guess the next line: a clip plays and stops, and players guess what is said next. Others we are considering: guessing who someone is from yes or no questions, a voice-only Old Maid, matching a line to a face, trivia with exact counts, bluffing with fake lines, and a speed buzzer.'],
+        'Nine games are working in our tests: Guess the next line, bluffing with fake lines, guessing who someone is from yes or no questions, a voice-only Old Maid, trivia, acting a line out, describing a line, dubbing a clip, and naming who said a line.'],
       rules: ['Only your own clips, or clips you have the right to use. No TV shows or films come with Ryagram.', 'A face is swapped only with that person’s consent, and the result is labelled as AI-altered.', 'Answers are checked against the transcripts, not guessed.', 'The games borrow how classic games work, but not anyone’s names, art or characters.'],
-      notYet: ['No game can be played yet.', 'There is no price and no date.']
+      notYet: ['Games run on our own test computer for now, not on this website.', 'There is no price and no date.']
     }
   };
   // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Opportunity Map Coming soon pages and a Forecasts group on the Data films page,

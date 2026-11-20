@@ -24,7 +24,7 @@ test('every section is filled for both departments, and the not-built-yet part s
     for (const [key] of Dp.SECTIONS) assert.ok(Array.isArray(d[key]) && d[key].length >= 2 || key === 'notYet' && d[key].length >= 2, `${id}.${key}`);
     assert.ok(d.notYet.some(t => /no price and no date/i.test(t)), `${id}: says there is no price and no date`);
   }
-  assert.ok(Dp.DETAILS.games.notYet.some(t => /No game can be played yet/.test(t)));
+  assert.ok(Dp.DETAILS.games.notYet.some(t => /not on this website/.test(t)));   // GAMES 11-20: nine games run on the test computer, none on the site (Ryan's A/B pick)
   assert.ok(Dp.DETAILS.geo_intelligence.notYet.some(t => /not built/.test(t)) && Dp.DETAILS.geo_intelligence.notYet.some(t => /straight-line rings/.test(t)));
 });
 
