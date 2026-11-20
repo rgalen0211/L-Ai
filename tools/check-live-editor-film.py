@@ -83,10 +83,15 @@ with sync_playwright() as pw:
         check(asks >= 2, f'a dropped connection is asked again after a pause, not given up on ({asks} asks)')
         a1 = p.evaluate("document.querySelector('.le-film-view').innerHTML.length")
         check(a1 > 100000, 'then the picture of that moment is drawn')
-        p.wait_for_function('document.querySelectorAll(".le-film-tile img").length >= 1', timeout=20000) if False else p.wait_for_selector('.le-film-tile img', timeout=20000)
+        p.wait_for_selector('.le-film-tile img', timeout=20000)
         p.wait_for_timeout(5000)                                                    # the second window arrives (one fails once and is asked again), the strip fills from it
         n_tiles = p.locator('.le-film-tile:not(.le-film-tile-block)').count(); n_imgs = p.locator('.le-film-tile img').count()
-        check(n_imgs == n_tiles and n_imgs >= 2, f'every tile that is in the film proper shows a frame of the film ({n_imgs} of {n_tiles})')
+        check(1 <= n_imgs <= n_tiles, f'tiles show frames from the windows the playhead brought in ({n_imgs} of {n_tiles})')
+        # WORKER 11-20: the strip NEVER asks the worker for a window by itself (each one is a film_bundle job that jumps the house
+        # queue). With the playhead still, two of the strip's 3 s pump cycles pass and not one new window is asked for.
+        asked_before = p.evaluate("JSON.stringify(window.__asks || {})")
+        p.wait_for_timeout(6500)
+        check(p.evaluate("JSON.stringify(window.__asks || {})") == asked_before, 'with the playhead still, the strip asks the worker for no window')
         check(p.locator('.le-film-tile img').first.get_attribute('src').startswith('data:image/svg+xml'), 'a tile is the engine’s own drawing at thumbnail size')
         last = p.locator('.le-film-tile:not(.le-film-tile-block)').last; before_pos = p.locator('.le-film .le-pos').inner_text(); last.click(); p.wait_for_timeout(300)
         check(p.locator('.le-film .le-pos').inner_text() != before_pos and p.locator('.le-film-tile-on').count() == 1, 'pressing a tile moves the playhead there and marks it')

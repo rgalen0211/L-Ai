@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-fr');
-const SUITES = ['editor-frames.test.mjs'];
+const SUITES = ['editor-frames.test.mjs', 'editor-strip-noask.test.mjs'];
 const FR = 'assets/app-editor-frames.js';
 const mutants = [
   ['the window is rounded, not floored', FR, 'const a = Math.floor(t / WINDOW) * WINDOW;', 'const a = Math.round(t / WINDOW) * WINDOW;'],
@@ -39,6 +39,7 @@ const mutants = [
   ['a stale recoloured copy is reused', FR, 'if (e.rc && e.rc.ver === this.cver) return e.rc.scene;', 'if (e.rc) return e.rc.scene;'],
   ['a colour the window does not use is passed to the drawer', FR, 'if (have.has(from)) pairs[from] = to;', 'pairs[from] = to;'],
   ['the colours are offered before the window is ready', FR, "if (!e || e.state !== 'ready' || typeof this.drawer.palette !== 'function') return [];", "if (!e) return [];"],
+  ['the strip asks the worker for every window (WORKER 11-20)', 'assets/app-editor-film.js', '          // NEVER asks for a window just to fill a tile (WORKER 11-20 review): every uncached window is a film_bundle job on the\n', "          else if (st === 'idle' && store.building() === 0) store.want(t.mid);\n"],
   ['the page does not say the colours are not saved', 'assets/app-editor-film.js', 'nothing here is kept when you leave the page', 'it is saved to your film'],
   ['a bundle for another window is accepted', FR, "if (win.seconds[0] !== a || win.seconds[1] !== b) fail(", "if (false) fail("],
   ['a dropped connection is final', FR, "if (err instanceof FramesError || (window.ryagramZip && err instanceof window.ryagramZip.BundleError) || (err && err.final === true)) e.state = 'failed';", "e.state = 'failed'; if (false) {"],
