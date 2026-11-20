@@ -65,6 +65,26 @@ const mutants = [
   ['the refusal does not say nothing was looked up', [[T, 'Questions about places are not available yet. Nothing was looked up.', 'Questions about places are not available yet.']]],
 ];
 
+// How many copies of each fault's "from" text its target file has today (11-20 audit, CC1 MEDIUM 2). The planted fault replaces the FIRST copy, so a later copy could move it to another tool; a fault whose count is not what is written here (default 1) is refused as BROKEN, in words, and must be looked at.
+const COPIES = {
+  "the switch is ignored (the tool works with nothing wired)": [3],
+  "a switch that says no is ignored": [3],
+  "latitude is not range-checked (schema and run)": [1,2],
+  "the hourly limit is gone": [3],
+  "the engine text is not checked for control characters or folders": [2,1],
+  "the engine sentences are shown unfenced": [2,1],
+  "the answer checks have no limit": [2,1],
+  "an unanswered question says it is answered": [2,1],
+  "a stuck question still tells the AI to keep checking": [2,1],
+  "the machine-may-be-off words are gone": [2,1],
+  "a failed question shows an answer anyway": [2,1],
+  "the workers failure detail is shown unfenced": [2,1],
+  "the ask claims a lookup was made": [3],
+  "the ask does not tell the AI to stop checking": [2],
+  "the refusal does not say nothing was looked up": [3],
+};
+const wantCopies = (name, i) => { const w = COPIES[name]; return Array.isArray(w) ? w[i] : (w ?? 1); };
+const copiesProblem = (src, from, name, i) => { const have = src.split(from).length - 1, want = wantCopies(name, i); return have === want ? null : (have ? `BROKEN MUTANT (${have} copies of the text, expected ${want}): ${name}` : `BROKEN MUTANT (text not found): ${name}`); };
 function run(cwd) {
   return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
@@ -85,10 +105,11 @@ let missed = 0;
 for (const [name, edits] of mutants) {
   cleanup(); fresh();
   let broken = false;
-  for (const [file, from, to] of edits) {
+  for (const [i, [file, from, to]] of edits.entries()) {
     const target = path.join(scratch, file);
     const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
-    if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; broken = true; break; }
+    const problem = copiesProblem(src, from, name, i);
+    if (problem) { console.log(problem); missed++; broken = true; break; }
     fs.writeFileSync(target, src.replace(from, () => to));
   }
   if (broken) continue;
