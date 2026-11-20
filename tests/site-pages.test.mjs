@@ -189,7 +189,7 @@ test('ASK YOUR AI: the button on the Start card is drawn only for an account the
 
 test('WIRING: one Admin link in the header (no menu), the Admin page only for an admin, every admin page listed in groups, the home page built from the card module, the logo goes home and is put back', () => {
   const lib = read('assets/app-library.js');
-  assert.match(lib, /menu = h\('a', \{ class: 'app-nav-link admin-link', href: '#\/admin' \}, 'Admin'\);/);
+  assert.match(lib, /menu = h\('a', \{ class: 'menu-link admin-link', href: '#\/admin', role: 'menuitem' \}, 'Admin'\);/);
   assert.doesNotMatch(lib, /admin-menu-panel|class: 'admin-menu'/);
   assert.match(lib, /hash === '#\/admin' && await data\.isAppAdmin\(\)\) view = window\.ryagramSite\.adminHub\(\{ h, pages: adminPages\(\) \}\)/);
   for (const [href, group] of [['#/admin/ops', 'People'], ['#/admin/waiting', 'People'], ['#/admin/waitlist', 'People'], ['#/admin/visits', 'People'], ['#/admin/funnel', 'People'], ['#/admin/renders', 'Films'], ['#/admin/tester', 'Computers']])
