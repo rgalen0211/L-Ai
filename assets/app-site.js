@@ -13,10 +13,21 @@
   }
 
   // ---- a film card on the home page: a picture (or a plain tile), the title, where it stands, when it changed, Open and Edit.
-  const queue = [], seen = new Map();                                              // version id -> address or null, kept for the page's life
+  // A signed picture address lasts 15 minutes (app-data SIGNED_URL_SECONDS 900): a cached one is used for at most 10, a failed read is not kept for long (a retry on the next visit), so coming back to the home page
+  // after a while never shows a broken picture from an old address. `makeCache` is pure so node can test it.
+  function makeCache(ttlMs, failMs, now = () => Date.now()) {
+    const m = new Map();
+    return {
+      get(k) { const e = m.get(k); if (!e) return undefined; if (now() > e.until) { m.delete(k); return undefined; } return e.v; },
+      set(k, v) { if (m.size > 200) m.delete(m.keys().next().value); m.set(k, { v, until: now() + (v ? ttlMs : failMs) }); },
+      size: () => m.size
+    };
+  }
+  const queue = [], seen = makeCache(10 * 60 * 1000, 30 * 1000);                  // version id -> address or null
   let running = 0;
   async function pictureFor(data, versionId) {
-    if (seen.has(versionId)) return seen.get(versionId);
+    const hit = seen.get(versionId);
+    if (hit !== undefined) return hit;
     let url = null;
     try {
       const arts = ((await data.getVersion(versionId)).artifacts || []);
@@ -24,6 +35,14 @@
       if (a) url = (await data.fileUrl(a.storage_path)) || null;
     } catch { url = null; }
     seen.set(versionId, url); return url;
+  }
+  // ONE observer for every card on the page (a card that is never scrolled to costs nothing and is released when it leaves the page).
+  const waiting = new WeakMap();
+  let shared = null;
+  function observe(li, load) {
+    if (typeof IntersectionObserver !== 'function') { load(); return; }
+    if (!shared) shared = new IntersectionObserver(es => { for (const e of es) if (e.isIntersecting) { const f = waiting.get(e.target); shared.unobserve(e.target); waiting.delete(e.target); if (f) f(); } }, { rootMargin: '150px' });
+    waiting.set(li, load); shared.observe(li);
   }
   function pump() {
     while (running < 2 && queue.length) {
@@ -39,10 +58,10 @@
         h('p', { class: 'film-card-actions' }, h('a', { class: 'button secondary small', href: `#/p/${project.id}` }, 'Open'), edit ? [' ', edit] : null)));
     if (version && data && typeof data.getVersion === 'function' && typeof data.fileUrl === 'function') {
       const load = () => { queue.push(async () => { const url = await pictureFor(data, version); if (url && li.isConnected) { const img = h('img', { src: url, alt: '', loading: 'lazy', draggable: 'false' }); holder.replaceChildren(img); } }); pump(); };
-      if (typeof IntersectionObserver === 'function') { const io = new IntersectionObserver(es => { if (es.some(e => e.isIntersecting)) { io.disconnect(); load(); } }, { rootMargin: '150px' }); io.observe(li); } else load();
+      observe(li, load);
     }
     return li;
   }
 
-  window.ryagramSite = Object.freeze({ adminHub, filmCard, GROUPS });
+  window.ryagramSite = Object.freeze({ adminHub, filmCard, GROUPS, makeCache });
 })();

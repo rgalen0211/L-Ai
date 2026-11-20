@@ -49,7 +49,7 @@
           'Couldn’t load your projects.');
         if (!projects.length) return [];
         const versions = await run(
-          client.from('versions').select('project_id, number, state')
+          client.from('versions').select('id, project_id, number, state')
             .in('project_id', projects.map(p => p.id)),
           'Couldn’t load your versions.');
         return projects.map(p => {
