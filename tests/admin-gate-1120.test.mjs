@@ -40,6 +40,25 @@ test('MUST-FAIL: the route check notices an admin route whose admin check was ta
   }
 });
 
+// CC1's LOW (11-20 07:20): a route written another way (startsWith, a regex, a lookup table) would escape the finder above, so EVERY
+// '#/admin' string in the code (comments left out) must be one of: a gated route line, an Admin page row, or a link (href) to a page
+// whose route is gated. Anything else is unknown and fails.
+function unknownAdminUses(src) {
+  return src.split('\n').map(l => l.replace(/\/\/.*$/, '')).filter(l => /['`"]#\/admin/.test(l)).filter(l =>
+    !(adminRoutes(l + '\n').length && gated(l)) && !/^\s*\['#\/admin\//.test(l) && !/href: ?['`]#\/admin/.test(l)
+  ).map(l => l.trim().slice(0, 120));
+}
+
+test('NOTHING ELSE names an admin page: every #/admin string is a gated route, an Admin page row or a link', () => {
+  assert.deepEqual(unknownAdminUses(LIB), []);
+});
+
+test('MUST-FAIL: an admin route written another way (startsWith) is caught as unknown', () => {
+  const line = adminRoutes(LIB).find(l => l.includes("hash === '#/admin/visits'"));
+  const broken = LIB.replace(line, line + "\n        else if (hash.startsWith('#/admin/x')) view = await visitsAdminView(onStop);");
+  assert.equal(unknownAdminUses(broken).length, 1);
+});
+
 test('THE ADMIN LINK in the top bar is added only after isAppAdmin() answers true for this mount', () => {
   assert.deepEqual(linkGated(LIB), { found: true, asks: true });
 });
