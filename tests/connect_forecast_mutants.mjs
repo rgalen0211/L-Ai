@@ -91,9 +91,9 @@ const mutants = [
 
 // How many copies of each fault's "from" text its target file has today (11-20 audit, CC1 MEDIUM 2). The planted fault replaces the FIRST copy, so a later copy could move it to another tool; a fault whose count is not what is written here (default 1) is refused as BROKEN, in words, and must be looked at.
 const COPIES = {
-  "the shared hourly limit is gone": [3,3,3],
-  "forecasts have their own hourly bucket (not shared with the place questions)": [3,3,3],
-  "the ask claims a lookup was made": [3,3,3],
+  "the shared hourly limit is gone": [3,2,1],
+  "forecasts have their own hourly bucket (not shared with the place questions)": [3,2,1],
+  "the ask claims a lookup was made": [3,2,1],
   "a failed request's detail is shown unfenced": [2],
   "a stuck request still tells the AI to keep checking": [2],
   "the answer checks have no limit": [2],
