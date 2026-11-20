@@ -63,7 +63,7 @@ with sync_playwright() as pw:
         check('No drawing is made up for your film' in p.inner_text('.le') and 'saved to this film' in p.inner_text('.le'), f'{width}px: the page foot says no drawing is made up and that changes go to the draft')
         check(p.locator('.le-panel .le-row input[type=color]').count() >= 1, f'{width}px: the real colour rows are still there')
         link = p.locator('.le-view a'); lb = link.bounding_box()
-        check(link.count() == 1 and 'button' in (link.get_attribute('class') or '') and lb['height'] >= 30 and p.locator('.le-view .meta').first.bounding_box()['y'] < lb['y'], f'{width}px: the link to the film page is its own button under its sentence, not a block that splits a sentence')
+        check(link.count() == 1 and 'button' in (link.get_attribute('class') or '') and lb['height'] >= 30 and p.locator('.le-view p').nth(1).bounding_box()['y'] < lb['y'], f'{width}px: the link to the film page is its own button under its sentence, not a block that splits a sentence')
         note = p.locator('.le-row-note').first.bounding_box(); ctl = p.locator('#le-look-theme').bounding_box()
         check(note['y'] >= ctl['y'] + ctl['height'] - 1 and note['x'] <= ctl['x'], f'{width}px: a Look row’s note sits on its own line under the label and control')
         if width < 500: check(ctl['height'] >= 44 and p.locator('#le-look-border').bounding_box()['height'] >= 44, f'{width}px: the Theme and Border width controls are at least 44 px tall')

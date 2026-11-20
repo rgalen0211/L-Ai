@@ -945,8 +945,8 @@
             kids.push(sheet.kind === 'preview' ? h('video', { class: 'le-sheet', controls: true, preload: 'metadata', src: sheet.src, 'aria-label': 'Your film’s latest preview' }) : h('img', { class: 'le-sheet', src: sheet.src, alt: 'Your film’s latest contact sheet' }));
             kids.push(h('p', { class: 'meta' }, sheet.note));
           } else if (sheet === 'none') kids.push(h('p', { class: 'meta' }, 'This film has no contact sheet or preview yet.'));
-          kids.push(h('p', { class: 'meta' }, 'A contact sheet or a preview of your film is made, and kept, on the film’s own page.'));
-          kids.push(h('p', { class: 'le-nosketch-link' }, h('a', { class: 'button secondary small', href: `#/p/${routeProject}` }, 'Open this film’s page')));
+          kids.push(h('p', { class: 'le-bundle-note' }, 'A contact sheet or a preview of your film is made, and kept, on the film’s own page.'));
+          kids.push(h('p', { class: 'le-nosketch-link le-bundle-note' }, h('a', { class: 'button secondary small', href: `#/p/${routeProject}` }, 'Open this film’s page')));
         }
         view.setAttribute('role', 'group'); view.setAttribute('aria-label', 'Your film’s picture');
         view.replaceChildren(...kids);
