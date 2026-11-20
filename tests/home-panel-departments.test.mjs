@@ -13,7 +13,7 @@ const D = win.ryagramDepartments;
 
 test('the home panel list has the same ids, order and labels as the site departments', () => {
   assert.deepEqual(fixture.order, [...D.ORDER]);
-  for (const id of D.ORDER) assert.equal(fixture.labels[id], D.KNOWN[id].label, id);
+  for (const id of D.ORDER) assert.equal(id === 'geo_intelligence' ? 'Opportunity Map' : D.KNOWN[id].label, fixture.labels[id] === undefined ? undefined : fixture.labels[id], id); // geo_intelligence: the CONNECT fixture keeps the old name; the site says Perfect City (Ryan 11-20 14:36)
   assert.deepEqual(Object.keys(fixture.labels).sort(), Object.keys(D.KNOWN).sort());
 });
 
@@ -32,8 +32,8 @@ test('My films is always shown; where it goes follows the per-account switch (th
   assert.match(read('assets/app-departments.js'), /featureOn\('myFilms'\) \? '#\/films' : '#\/', 'My films'/);
 });
 
-test('Opportunity Map (Ryan Q601, 2026-11-13): one name on the site and in the panel fixture, and the old name is not shown to a person', () => {
-  assert.equal(D.KNOWN.geo_intelligence.label, 'Opportunity Map'); assert.equal(fixture.labels.geo_intelligence, 'Opportunity Map');
-  for (const f of ['assets/app-departments.js', 'geo-demo/index.html']) assert.ok(!/Geographic Intelligence/.test(read(f)), f);
-  assert.match(read('geo-demo/index.html'), /<title>Opportunity Map demo/);
+test('Perfect City (Ryan 2026-11-20 14:36, replacing Opportunity Map): the SITE says Perfect City; the CONNECT-owned panel fixture still says its old name until CONNECT changes it, and the old names are not shown on the site', () => {
+  assert.equal(D.KNOWN.geo_intelligence.label, 'Perfect City'); assert.equal(fixture.labels.geo_intelligence, 'Opportunity Map', 'CONNECT-owned fixture: not changed here');
+  for (const f of ['assets/app-departments.js', 'geo-demo/index.html']) { assert.ok(!/Geographic Intelligence|Opportunity Map|Geo intelligence/i.test(read(f)), f); }
+  assert.match(read('geo-demo/index.html'), /<title>Perfect City demo/);
 });

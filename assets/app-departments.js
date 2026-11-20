@@ -8,7 +8,7 @@
   const KNOWN = {
     data_films: { label: 'Data films', page: true, sentence: 'Questions answered with public data, drawn as a short animated film, with every source shown.' },
     compilations: { label: 'Compilations', line: 'Say a phrase. Ryagram finds every time it is said in your own footage and strings the moments together. Soon it will turn your clips into songs, too.', picture: 'phrase' },
-    geo_intelligence: { label: 'Opportunity Map', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
+    geo_intelligence: { label: 'Perfect City', line: 'Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.' },
     games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' },
     // Studio (Ryan 2026-11-18, Q639 yes, wording as filed; working name): `sections` are the fuller words shown under the line on its page, always (they are approved, unlike DETAILS below).
@@ -35,7 +35,7 @@
       notYet: ['No game can be played yet.', 'There is no price and no date.']
     }
   };
-  // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Opportunity Map Coming soon pages and a Forecasts group on the Data films page,
+  // Picture slots (Ryan's call on the stills themselves is open; CC1 11-05): up to four frames on the Games and Perfect City Coming soon pages and a Forecasts group on the Data films page,
   // shown only when the site switch deptStills is exactly true (OFF). The files are NOT in the repo: each frame asks for /assets/dept-stills/<name>-<n>.svg, then .png, and stays hidden if neither
   // exists, so with no files nothing shows. Alt text is the draft in proposals/DEPT-PAGES-STILLS-1105.md (made-up lines, a made-up county, SAMPLE numbers).
   const STILLS = {
@@ -192,7 +192,7 @@
         h('p', { class: 'meta' }, 'An illustration with public-domain words (Lincoln, 1863) and made-up timestamps, not a screenshot.'));
     }
 
-    // The Opportunity Map picture (CC1 for Claude 15:30 item 3, behind locationPreview, OFF): text only like the phrase picture, and EVERY place and number in it is MADE UP. The real Dayton
+    // The Perfect City picture (CC1 for Claude 15:30 item 3, behind locationPreview, OFF): text only like the phrase picture, and EVERY place and number in it is MADE UP. The real Dayton
     // demo stills are not used here: they are OpenStreetMap data that stays private until attorney row G11. Each line carries the label the real page will use. DRAFT WORDS (proposals\CC1-LOCATION-PAGE-WORDS-DRAFT.md).
     function locationPicture() {
       return h('div', { class: 'soon-picture', role: 'img', 'aria-label': 'An illustration of a site check on a made-up map' },

@@ -43,7 +43,8 @@ with sync_playwright() as pw:
     ctx, p = bar(b, '')
     shown = p.evaluate("""() => { const q = s => [...document.querySelectorAll(s)].map(a => a.textContent.replace(/Coming soon$/, '').trim());
         return { working: q('.dept-list > li:not(.dept-soon) > a'), soon: q('.soon-group ul li > a'), mine: [...document.querySelectorAll('.dept-list a')].filter(a => a.textContent.trim() === 'My films').map(a => a.getAttribute('href')) }; }""")
-    labels = FIX['labels']
+    # Ryan 11-20 14:36: the site calls geo_intelligence PERFECT CITY; the fixture is CONNECT's and still says the old name until CONNECT changes it, so the site's own word is pinned here
+    labels = {**FIX['labels'], 'geo_intelligence': 'Perfect City'}
     expect = [labels[i] for i in FIX['order']]
     got = [x for x in shown['working'] if x in expect] + shown['soon']
     check(sorted(got) == sorted(expect), f'the bar names the fixture departments ({got})')
