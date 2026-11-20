@@ -62,6 +62,12 @@ with sync_playwright() as pw:
         check(p.locator(f'.le-view a[href="#/p/{PROJ}"]').count() == 1, f'{width}px: a link to the film’s own page')
         check('No drawing is made up for your film' in p.inner_text('.le') and 'saved to this film' in p.inner_text('.le'), f'{width}px: the page foot says no drawing is made up and that changes go to the draft')
         check(p.locator('.le-panel .le-row input[type=color]').count() >= 1, f'{width}px: the real colour rows are still there')
+        panel = p.inner_text('.le-panel')
+        check(all(w in panel for w in ('Theme', 'Border width', 'Low colour', 'High colour')) and not any(w in panel for w in ('Glow', 'Metal finish', 'Middle colour', 'Marker shape', 'Labels', 'waiting for')), f'{width}px: the Look rows are the ones the draft accepts and the engine honours (Theme, Border width, Low and High colour); none that cannot take effect')
+        p.select_option('#le-look-theme', 'light'); p.wait_for_timeout(500)
+        check('Draft, not saved' in p.inner_text('.le-top') and p.locator('button:has-text("Undo")').first.is_enabled(), f'{width}px: choosing Light is a real change to the draft (not saved, Undo is on)')
+        p.fill('#le-look-border', '9'); p.locator('#le-look-border').dispatch_event('change'); p.wait_for_timeout(300)
+        check(p.input_value('#le-look-border') in ('9', '2') and 'allowed' not in p.inner_text('.le-top').lower(), f'{width}px: a border width over 4 is not sent as a change')
         p.context.close()
 
     print('a film that has a contact sheet shows its own')

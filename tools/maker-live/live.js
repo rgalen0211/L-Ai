@@ -1292,6 +1292,26 @@
           ...rows, ...DD.WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the worker'))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }
+      // The Look rows a person's own film on the website can really change (WEB 11-20, from ENGINE's LOOK-OPTIONS-1120): every row below is a key the shared draft ACCEPTS (edit_look_keys: sequence.theme, state.outline_width,
+      // choropleth.low and .high next to the colour rows above) and the engine honours in the final film. Glow, Metal finish, Middle colour, Marker shape and Labels are NOT here: the draft takes no such key yet (or the engine has none), and a row that cannot take effect is not shown.
+      function extraLookRows() {
+        const theme = ed.state.look['sequence.theme'] || 'dark', light = theme === 'light';
+        const row = (label, control, note) => h('div', { class: 'le-row' }, h('label', { for: control.id }, label), control, note ? h('span', { class: 'meta le-row-note' }, note) : null);
+        const sel = h('select', { id: 'le-look-theme', disabled: locked }, [['dark', 'Dark'], ['light', 'Light']].map(([v, t]) => h('option', { value: v }, t)));
+        sel.value = theme;
+        sel.addEventListener('change', () => apply({ op: 'set_look', key: 'sequence.theme', value: sel.value }));
+        const bw = ed.state.look['state.outline_width'];
+        const num = h('input', { type: 'number', id: 'le-look-border', min: '0', max: '4', step: '0.5', value: String(bw !== undefined ? bw : 2), disabled: locked });
+        num.addEventListener('change', () => { const v = Number(num.value); if (Number.isFinite(v) && v >= 0 && v <= 4) apply({ op: 'set_look', key: 'state.outline_width', value: v }); });
+        const colour = (key, label, dflt) => {
+          const input = h('input', { type: 'color', id: `le-look-${key}`, value: ed.state.look[key] !== undefined ? ed.state.look[key] : dflt, disabled: locked });
+          input.addEventListener('change', () => apply({ op: 'set_look', key, value: input.value }));
+          return row(label, input);
+        };
+        return [row('Theme', sel, 'Dark or light page and text.'), row('Border width', num, 'From 0 to 4. Shows in the final film.'),
+          colour('choropleth.low', 'Low colour', light ? '#eef1f6' : '#232838'), colour('choropleth.high', 'High colour', light ? '#16233f' : '#e8eefb'),
+          h('p', { class: 'meta le-defaults' }, 'Low and high colour show on a map drawn in flat colour; a map drawn in textures ignores them. These are saved to your film’s draft. The film above changes when the final film is made.')];
+      }
       function paintLook() {
         if (bundleMode) { paintBundleLook(); return; }
         const touched = new Set(ed.aiTouched());
@@ -1303,7 +1323,7 @@
             return h('div', { class: 'le-row' }, h('label', { for: input.id }, label, touched.has('look:' + key) ? h('span', { class: 'le-aimark' }, ' · by your AI') : null), input);
           }),
           ...(LOOK_ROWS.some(([k]) => ed.state.look[k] === undefined) ? [h('p', { class: 'meta le-defaults' }, lookNote("A colour this film has not changed is shown in the editor's own starting colour. The film's own colours are not shown here yet."))] : []),
-          ...(realFilm ? [] : WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the engine')))),
+          ...(realFilm ? extraLookRows() : WAITING.map(w => h('div', { class: 'le-row le-waiting' }, h('span', {}, w), h('span', { class: 'meta' }, 'waiting for the engine')))),
           h('p', { class: 'le-free' }, 'Free. Nothing here uses credits. Only the final button does.'));
       }
 

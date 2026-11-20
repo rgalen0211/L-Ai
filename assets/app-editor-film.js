@@ -46,12 +46,12 @@
       const rows = pal.map(c => {
         const id = 'le-film-col-' + c.colour.slice(1);
         const input = h('input', { type: 'color', id, value: (store.colours[c.colour] || c.colour), 'aria-label': `Colour ${c.colour}, used in ${c.elements} places` });
-        input.addEventListener('input', () => { const next = { ...store.colours, [c.colour]: input.value }; store.setColours(next); draw(); });
+        input.addEventListener('input', () => { const next = { ...store.colours, [c.colour]: input.value }; store.setColours(next); draw(); fillThumbs(); });
         swatches.set(c.colour, input);
         return h('li', {}, input, h('label', { for: id }, `Used in ${c.elements} places${c.fixed ? `, and ${c.fixed} more in patterns` : ''}`));
       });
       const reset = h('button', { type: 'button', class: 'button secondary small' }, 'Put the film’s colours back');
-      reset.addEventListener('click', () => { store.setColours({}); for (const [col, input] of swatches) input.value = col; draw(); });
+      reset.addEventListener('click', () => { store.setColours({}); for (const [col, input] of swatches) input.value = col; draw(); fillThumbs(); });
       colourBox.replaceChildren(h('h2', { id: 'le-film-col-h' }, 'Try colours'), h('p', { class: 'meta' }, 'This is for trying a look: it changes the picture you see here only, and nothing here is kept when you leave the page. To keep a colour, set it in the Look panel (the colour rows) and press Save.'), h('ul', { class: 'le-film-col-list' }, rows), reset);
     }
     function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(0.001, total()))); }
@@ -105,7 +105,7 @@
       if (typeof IntersectionObserver === 'function') { const io = new IntersectionObserver(es => { stripSeen = es.some(e => e.isIntersecting); if (stripSeen) fillThumbs(); }, { rootMargin: '200px' }); io.observe(bar); onStop(() => io.disconnect()); } else stripSeen = true;
       pumpTimer = setInterval(() => { if (!destroyed) fillThumbs(); }, 3000); onStop(() => { clearInterval(pumpTimer); });
     }
-    let stripEl = null, stripBar = null, stripSeen = false, pumpTimer = null, tiles = [];
+    let stripNote = null, stripEl = null, stripBar = null, stripSeen = false, pumpTimer = null, tiles = [];
     const thumbs = new Map();                                                    // tile moment (seconds, 2 decimals) -> data: address, kept once made
     const clipAt = s => (plan.clips || []).find(c => s >= c.start && s < c.start + c.seconds) || null;
     function layoutStrip() {
@@ -125,6 +125,7 @@
         tiles.push({ mid, tile, inR, k }); kids.push(tile);
       }
       stripEl.replaceChildren(...kids); markTiles(); fillThumbs();
+      if (!stripNote) { stripNote = h('p', { class: 'meta le-film-strip-note' }, 'Frames fill in as you play or move through the film.'); stripBar.parentElement.after(stripNote); }
     }
     function markTiles() { const n = tiles.length; if (!n) return; const at = Math.min(n - 1, Math.floor((position / Math.max(0.001, total())) * n)); for (const t of tiles) t.tile.classList.toggle('le-film-tile-on', t.k === at); }
     function setThumb(t, uri) {
@@ -132,11 +133,12 @@
       if (!img) { img = h('img', { alt: '', draggable: 'false' }); t.tile.replaceChildren(img); }
       img.src = uri;
     }
-    let filling = false;
+    let filling = false, thumbVer = -1;
     function fillThumbs() {
       if (filling || destroyed || !store || !tiles.length) return;
       filling = true;
       try {
+        if (store.cver !== thumbVer) { thumbVer = store.cver; thumbs.clear(); }                        // Try colours changed: the tiles are drawn again in the new colours (ENGINE 08:44 LOW 1)
         for (const t of tiles) {
           if (!t.inR) continue;
           const key = t.mid.toFixed(2);
@@ -145,6 +147,7 @@
           if (st === 'ready') { let u = null; try { u = store.thumbUri(t.mid, 200); } catch { u = null; } if (u) { thumbs.set(key, u); setThumb(t, u); setTimeout(fillThumbs, 40); break; } }      // one drawing per turn, so the page never stalls while a strip fills
           // a tile whose window is not ready stays a plain tile: the strip NEVER asks the worker for a window just to fill itself (WORKER 08:08: every window is a film_bundle job on the live worker); it fills from the windows the playhead already asks for
         }
+        if (stripNote) stripNote.hidden = tiles.every(t => !t.inR || t.tile.querySelector('img'));
       } finally { filling = false; }
     }
 
