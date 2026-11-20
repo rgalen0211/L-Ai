@@ -52,14 +52,14 @@
       });
       const reset = h('button', { type: 'button', class: 'button secondary small' }, 'Put the film’s colours back');
       reset.addEventListener('click', () => { store.setColours({}); for (const [col, input] of swatches) input.value = col; draw(); });
-      colourBox.replaceChildren(h('h2', { id: 'le-film-col-h' }, 'Try colours'), h('p', { class: 'meta' }, 'This changes the picture you see here only. It is not saved to your film yet.'), h('ul', { class: 'le-film-col-list' }, rows), reset);
+      colourBox.replaceChildren(h('h2', { id: 'le-film-col-h' }, 'Try colours'), h('p', { class: 'meta' }, 'This is for trying a look: it changes the picture you see here only, and nothing here is kept when you leave the page. To keep a colour, set it in the Look panel (the colour rows) and press Save.'), h('ul', { class: 'le-film-col-list' }, rows), reset);
     }
     function paintHead() { if (rulerPaint) rulerPaint(Math.min(1, position / Math.max(0.001, total()))); }
     function draw() {
       if (!store) return;
       posText.textContent = `${mmss(position)} / ${mmss(total())}`;
       range.setAttribute('aria-valuetext', `${mmss(position)} of ${mmss(total())}`);
-      paintHead();
+      paintHead(); markTiles();
       if (!inRender(position)) { view.replaceChildren(h('p', { class: 'meta le-film-block' }, 'This part of your film is a title or a clip that is drawn when the film is made.')); lastSvg = false; say(''); return; }
       store.want(position);
       const r = store.frameAt(position);
@@ -94,24 +94,71 @@
     function buildTracks() {
       const dur = total(), rl = TL.ruler({ h, duration: dur, seek: s => seekSeconds(s) });
       rulerPaint = rl.paint;
-      const bar = h('div', { class: 'le-bar le-film-bar', 'aria-hidden': 'true' });
-      for (const c of plan.clips) {
-        const b = h('span', { class: `le-film-clip${c.drawn ? ' le-film-drawn' : ''}`, title: c.label || c.kind }, c.label || c.kind);
-        b.style.left = `${(c.start / dur) * 100}%`; b.style.width = `${Math.max(0.5, (c.seconds / dur) * 100)}%`;
-        bar.append(b);
-      }
+      // The Film lane is a strip of the film's own frames (WEB 11-20, Ryan's walk): each tile is the SAME bundle drawn by the SAME drawer at thumbnail size (store.thumbUri), made lazily as the strip comes into view, kept once made;
+      // a tile in a title or a clip that is drawn when the film is made says so instead of showing a picture; pressing a tile moves the playhead there. Nothing is rendered and nothing costs credits.
+      const bar = h('div', { class: 'le-bar le-film-bar le-film-thumbs' });
+      stripEl = h('div', { class: 'le-film-strip', role: 'group', 'aria-label': 'Frames of your film. Press one to move there.' });
+      bar.append(stripEl);
       tracks.replaceChildren(h('div', { class: 'le-ruler-holder' }, rl.lane), h('div', { class: 'le-film-lane' }, h('b', { 'aria-hidden': 'true' }, 'Film'), bar));
+      stripBar = bar; layoutStrip();
+      if (typeof ResizeObserver === 'function') { const ro = new ResizeObserver(() => layoutStrip()); ro.observe(bar); onStop(() => ro.disconnect()); }
+      if (typeof IntersectionObserver === 'function') { const io = new IntersectionObserver(es => { stripSeen = es.some(e => e.isIntersecting); if (stripSeen) fillThumbs(); }, { rootMargin: '200px' }); io.observe(bar); onStop(() => io.disconnect()); } else stripSeen = true;
+      pumpTimer = setInterval(() => { if (!destroyed) fillThumbs(); }, 3000); onStop(() => { clearInterval(pumpTimer); });
+    }
+    let stripEl = null, stripBar = null, stripSeen = false, pumpTimer = null, tiles = [];
+    const thumbs = new Map();                                                    // tile moment (seconds, 2 decimals) -> data: address, kept once made
+    const clipAt = s => (plan.clips || []).find(c => s >= c.start && s < c.start + c.seconds) || null;
+    function layoutStrip() {
+      if (!stripEl || !plan) return;
+      const w = stripBar.clientWidth; if (w < 40) return;
+      const n = Math.max(3, Math.min(14, Math.floor(w / 96)));
+      if (tiles.length === n) return;
+      const dur = total(); tiles = [];
+      const kids = [];
+      for (let k = 0; k < n; k++) {
+        const s0 = (k * dur) / n, mid = s0 + dur / n / 2, c = clipAt(mid), inR = inRender(mid);
+        const tile = h('button', { type: 'button', class: `le-film-tile${inR ? '' : ' le-film-tile-block'}`, 'aria-label': `Move to ${mmss(mid)}${inR ? '' : `: ${c && c.label ? c.label : 'a title or a clip drawn when the film is made'}`}` });
+        tile.style.width = `${100 / n}%`; tile.style.left = `${(k * 100) / n}%`;
+        if (!inR) tile.append(h('span', { class: 'le-film-tile-label' }, (c && c.label) || 'Title'));
+        else tile.append(h('span', { class: 'le-film-tile-wait', 'aria-hidden': 'true' }, ''));
+        tile.addEventListener('click', () => seekSeconds(mid));
+        tiles.push({ mid, tile, inR, k }); kids.push(tile);
+      }
+      stripEl.replaceChildren(...kids); markTiles(); fillThumbs();
+    }
+    function markTiles() { const n = tiles.length; if (!n) return; const at = Math.min(n - 1, Math.floor((position / Math.max(0.001, total())) * n)); for (const t of tiles) t.tile.classList.toggle('le-film-tile-on', t.k === at); }
+    function setThumb(t, uri) {
+      let img = t.tile.querySelector('img');
+      if (!img) { img = h('img', { alt: '', draggable: 'false' }); t.tile.replaceChildren(img); }
+      img.src = uri;
+    }
+    let filling = false;
+    function fillThumbs() {
+      if (filling || destroyed || !store || !tiles.length) return;
+      filling = true;
+      try {
+        let asked = false;
+        for (const t of tiles) {
+          if (!t.inR) continue;
+          const key = t.mid.toFixed(2);
+          if (thumbs.has(key)) { if (!t.tile.querySelector('img')) setThumb(t, thumbs.get(key)); continue; }
+          const st = store.stateOf(t.mid);
+          if (st === 'ready') { let u = null; try { u = store.thumbUri(t.mid, 200); } catch { u = null; } if (u) { thumbs.set(key, u); setThumb(t, u); setTimeout(fillThumbs, 40); break; } }      // one drawing per turn, so the page never stalls while a strip fills
+          else if (stripSeen && !asked && st === 'idle' && store.building() === 0) { asked = true; store.want(t.mid); }      // one window at a time, and never ahead of the picture under the playhead
+        }
+      } finally { filling = false; }
     }
 
     const ready = (async () => {
       try {
         plan = null;
         const raw = await api.plan();
-        store = new F.FrameStore({ plan: raw, drawer: F.drawer, fetchWindow: (text, o) => api.window(text, o),
+        store = new F.FrameStore({ plan: raw, drawer: F.drawer, keep: 10, fetchWindow: (text, o) => api.window(text, o),
           onChange: (text, e) => {
             if (destroyed) return;
             if (e.state === 'ready' && !fontsDone.has(text)) { fontsDone.add(text); loadFonts(e.win.fonts).then(() => { if (!destroyed) draw(); }); }
             draw();
+            if (e.state === 'ready') fillThumbs();
           } });
         plan = store.plan;
         range.max = String(plan.totalFrames - 1); range.disabled = false; playBtn.disabled = false;

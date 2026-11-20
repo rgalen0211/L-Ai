@@ -63,8 +63,8 @@ with sync_playwright() as pw:
         check('stand-in' not in p.inner_text('.le-film').lower(), 'and it is not the stand-in')
         pos = p.locator('.le-film .le-pos').inner_text()
         check(pos.startswith('0:01.0 / 0:05.0'), f'it opens on the render clip\'s first moment ({pos})')
-        check(p.locator('.le-ruler-tick').count() >= 5 and p.locator('.le-film-clip').count() == 2, 'the ruler and the film lane show the whole film with its title block and its film')
-        check(p.locator('.le-film-clip').first.inner_text() == 'Invented title', 'a clip label is shown as text')
+        check(p.locator('.le-ruler-tick').count() >= 5 and p.locator('.le-film-tile').count() >= 3, 'the ruler and the film lane (a strip of tiles) show the whole film')
+        check('Invented title' in p.locator('.le-film-tile-block').first.inner_text(), 'a tile in the title block says what it is, as text')
         check(p.locator('.le-film-status').inner_text() == '' , 'nothing is claimed while the picture is there')
         # a moment in the title block
         p.evaluate("document.getElementById('le-film-range').value = '15'; document.getElementById('le-film-range').dispatchEvent(new Event('input', { bubbles: true }))")
@@ -74,8 +74,8 @@ with sync_playwright() as pw:
         p.evaluate("document.getElementById('le-film-range').value = '120'; document.getElementById('le-film-range').dispatchEvent(new Event('input', { bubbles: true }))")
         p.wait_for_timeout(150)
         line = p.locator('.le-film-status').inner_text()
-        check(line.startswith('Drawing this part of your film'), f'a window on its way says so ({line!r})')
-        check(re.search(r'\d+%', line) is not None or line == 'Drawing this part of your film.', 'and gives the worker\'s own percent or none')
+        check(line.startswith('Drawing this part of your film') or line.endswith('Trying again in a moment.'), f'a window on its way says so, or says it is trying again ({line!r})')      # the strip asks for the second window early, so this may land in the pause after its first failed ask
+        check(re.search(r'\d+%', line) is not None or line == 'Drawing this part of your film.' or line.endswith('Trying again in a moment.'), 'and gives the worker\'s own percent or none')
         for _ in range(80):                                                  # (the page's CSP forbids wait_for_function's eval)
             if p.locator('.le-film-status').inner_text() == '': break
             p.wait_for_timeout(250)
@@ -83,11 +83,19 @@ with sync_playwright() as pw:
         check(asks >= 2, f'a dropped connection is asked again after a pause, not given up on ({asks} asks)')
         a1 = p.evaluate("document.querySelector('.le-film-view').innerHTML.length")
         check(a1 > 100000, 'then the picture of that moment is drawn')
+        p.wait_for_function('document.querySelectorAll(".le-film-tile img").length >= 1', timeout=20000) if False else p.wait_for_selector('.le-film-tile img', timeout=20000)
+        p.wait_for_timeout(5000)                                                    # the second window arrives (one fails once and is asked again), the strip fills from it
+        n_tiles = p.locator('.le-film-tile:not(.le-film-tile-block)').count(); n_imgs = p.locator('.le-film-tile img').count()
+        check(n_imgs == n_tiles and n_imgs >= 2, f'every tile that is in the film proper shows a frame of the film ({n_imgs} of {n_tiles})')
+        check(p.locator('.le-film-tile img').first.get_attribute('src').startswith('data:image/svg+xml'), 'a tile is the engine’s own drawing at thumbnail size')
+        last = p.locator('.le-film-tile:not(.le-film-tile-block)').last; before_pos = p.locator('.le-film .le-pos').inner_text(); last.click(); p.wait_for_timeout(300)
+        check(p.locator('.le-film .le-pos').inner_text() != before_pos and p.locator('.le-film-tile-on').count() == 1, 'pressing a tile moves the playhead there and marks it')
+        p.locator('.le-film-tile:not(.le-film-tile-block)').first.click(); p.wait_for_timeout(300)
         # try colours: preview only, redraws at once, and puts the film's colours back
         p.locator('#le-film-range').focus(); p.keyboard.press('Home')
         for _ in range(3): p.keyboard.press('l')
         p.wait_for_timeout(300)
-        check(p.locator('.le-film-col-list input[type=color]').count() >= 3 and 'not saved to your film yet' in p.inner_text('.le-film-colours'), 'the colours of the picture are offered, and the page says they are not saved')
+        check(p.locator('.le-film-col-list input[type=color]').count() >= 3 and 'nothing here is kept' in p.inner_text('.le-film-colours') and 'press Save' in p.inner_text('.le-film-colours'), 'the colours of the picture are offered, and the page says nothing is kept and how to keep a colour')
         before = p.evaluate("document.querySelector('.le-film-view').innerHTML.length + ':' + document.querySelector('.le-film-view').innerHTML.slice(2000, 2100)")
         p.evaluate("(() => { const i = document.querySelector('.le-film-col-list input[type=color]'); i.value = '#ff00aa'; i.dispatchEvent(new Event('input', { bubbles: true })); })()")
         p.wait_for_timeout(300)

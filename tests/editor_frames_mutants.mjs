@@ -39,7 +39,7 @@ const mutants = [
   ['a stale recoloured copy is reused', FR, 'if (e.rc && e.rc.ver === this.cver) return e.rc.scene;', 'if (e.rc) return e.rc.scene;'],
   ['a colour the window does not use is passed to the drawer', FR, 'if (have.has(from)) pairs[from] = to;', 'pairs[from] = to;'],
   ['the colours are offered before the window is ready', FR, "if (!e || e.state !== 'ready' || typeof this.drawer.palette !== 'function') return [];", "if (!e) return [];"],
-  ['the page does not say the colours are not saved', 'assets/app-editor-film.js', 'It is not saved to your film yet.', 'It is saved.'],
+  ['the page does not say the colours are not saved', 'assets/app-editor-film.js', 'nothing here is kept when you leave the page', 'it is saved to your film'],
   ['a bundle for another window is accepted', FR, "if (win.seconds[0] !== a || win.seconds[1] !== b) fail(", "if (false) fail("],
   ['a dropped connection is final', FR, "if (err instanceof FramesError || (window.ryagramZip && err instanceof window.ryagramZip.BundleError) || (err && err.final === true)) e.state = 'failed';", "e.state = 'failed'; if (false) {"],
   ['a refusal of the bundle is not final', FR, "if (err instanceof FramesError || (window.ryagramZip && err instanceof window.ryagramZip.BundleError) || (err && err.final === true)) e.state = 'failed';\n        else {", "if (err && err.final === true) e.state = 'failed';\n        else {"],

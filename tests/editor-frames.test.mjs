@@ -245,7 +245,7 @@ test('try colours: the palette of a ready window, a preview-only swap that redra
 });
 
 test('the colour panel says plainly that a change is not saved', () => {
-  assert.match(read('assets/app-editor-film.js'), /This changes the picture you see here only\. It is not saved to your film yet\./);
+  assert.match(read('assets/app-editor-film.js'), /it changes the picture you see here only, and nothing here is kept when you leave the page\. To keep a colour, set it in the Look panel/);
 });
 
 test('FrameStore with a plan asks ahead of the playhead too, and never more than maxInFlight at once', async () => {
