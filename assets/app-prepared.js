@@ -86,6 +86,9 @@
         h('p', { class: 'form-note' }, 'Your AI found some data and prepared a table for you. Look it over: you decide.'),
         status,
         h('ul', { class: 'prepared-cards' }, items.map(card))]);
+      // a long source address wraps instead of being cut off on a phone; set through the style object (the page's content policy refuses a style attribute)
+      if (el.querySelectorAll) el.querySelectorAll('.prepared-sources li').forEach(x => { x.style.overflowWrap = 'anywhere'; });
+      if (el.querySelectorAll) el.querySelectorAll('.prepared-preview').forEach(x => { x.style.overflowX = 'auto'; x.style.maxWidth = '100%'; });
     }
 
     async function refresh() {
