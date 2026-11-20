@@ -8,8 +8,9 @@
 // The page makes NO network request, uses textContent only, and is ES5 with no library (like the card page). Pure functions: no dependencies.
 
 import type { DepartmentRow } from "./types.ts";
+import { CHAT_SHARED_CSS, CHAT_UI_CSS } from "./chat_look.ts";
 
-export const HOME_MAX_BYTES = 16 * 1024;
+export const HOME_MAX_BYTES = 24 * 1024;      // was 16 KB: the look now carries the site's shared tokens and components (chat_look.ts, built from WEB's design files)
 
 export interface HomeWords { label: string; line: string; rules?: string[]; notYet?: string[]; starts?: string[]; page?: string }
 /** The site's order. An id this table does not know is not shown. */
@@ -67,24 +68,8 @@ export function homeView(rows: unknown, switches: unknown = []): HomeView {
 }
 
 // ---------------------------------------------------------------------------------------------- the page
-const STYLE = [
-  ":root{color-scheme:dark}", "*{box-sizing:border-box}", "html,body{margin:0;background:transparent}",
-  "body{font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;color:#f2f2ef}",
-  ".home{background:#1b1b23;border:1px solid #3a3a44;border-radius:12px;padding:14px 16px;max-width:640px;min-width:0}",
-  ".top{display:flex;align-items:center;gap:10px;margin:0 0 10px}",
-  ".mark{flex:none;background:#0e0e13;color:#6fd1bd;border:1px solid #3a3a44;border-radius:8px;padding:3px 8px;font-weight:700;letter-spacing:.02em}",
-  "h1{margin:0;font-size:16px;font-weight:650}", "h2{margin:14px 0 4px;font-size:13px;font-weight:650;color:#b6b5ae;text-transform:none}",
-  ".dept{border-top:1px solid #2c2c36;padding:9px 0}", ".dept h3{margin:0 0 2px;font-size:15px;font-weight:650;display:flex;gap:8px;align-items:center}",
-  ".tag{font-size:11px;font-weight:600;color:#b6b5ae;border:1px solid #3a3a44;border-radius:6px;padding:1px 6px}",
-  ".line{margin:2px 0;color:#d8d7d0}", ".rule{margin:2px 0 0;color:#b6b5ae;font-size:13px}", ".hint{margin:8px 0 0;color:#b6b5ae;font-size:13px}", ".openfail{overflow-wrap:anywhere}",
-  ".acts{display:flex;flex-wrap:wrap;gap:8px;margin-top:8px}",
-  "button{min-height:44px;padding:0 14px;border-radius:10px;border:1px solid #6fd1bd;background:#0e0e13;color:#8fe0cf;font:inherit;font-weight:600;cursor:pointer}",
-  "button.quiet{border-color:#3a3a44;color:#d8d7d0}", "button:focus-visible{outline:2px solid #8fe0cf;outline-offset:2px}",
-  ".example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #6fd1bd;color:#d8d7d0;min-width:0}", ".example p{margin:4px 0}",
-  ".example .why{color:#b6b5ae;font-size:13px}", ".example .label{margin-bottom:0;font-size:12px;font-weight:650;letter-spacing:.04em;color:#8fe0cf}",
-  ".example .quote{font-style:italic;font-size:15px;overflow-wrap:anywhere}", ".example .diag,.example .hold{color:#b6b5ae;font-size:12px;overflow-wrap:anywhere}",
-  "@media (max-width:360px){.home{padding:12px}}",
-].join("");
+// The look is the site's own (tokens, button, badge, flip) from chat_look.ts, built by tools/build-chat-look.mjs from WEB's design files, plus the chat layout; nothing is written here.
+const STYLE = [":root{color-scheme:dark}", CHAT_SHARED_CSS, CHAT_UI_CSS].join("");
 
 const SCRIPT = [
   "(function(){",
@@ -96,7 +81,7 @@ const SCRIPT = [
   "function clean(s,n){return String(s==null?'':s).replace(BAD,' ').slice(0,n||200);}",
   "var PAGE=/^#\\/[A-Za-z0-9_\\/-]{0,40}$/;",
   "function el(tag,cls,text){var e=document.createElement(tag);if(cls)e.className=cls;if(text!=null)e.textContent=text;return e;}",
-  "function btn(label,cls,fn){var b=el('button',cls||'',label);b.type='button';b.addEventListener('click',fn);return b;}",
+  "function btn(label,cls,fn){var b=el('button','btn small'+(cls?' '+cls:''),label);b.type='button';b.addEventListener('click',fn);return b;}",
   "var caps=null,Q1=String.fromCharCode(8220),Q2=String.fromCharCode(8221);",
   "function canSend(){return !(caps&&typeof caps==='object'&&!caps.message);}",
   "function refused(r){return !!(r&&(r.error||(r.result&&r.result.isError===true)));}",
@@ -134,33 +119,70 @@ const SCRIPT = [
   "function openFailed(url){var n=root.querySelector('.openfail');if(!n){n=el('p','hint openfail');n.setAttribute('role','alert');root.appendChild(n);}n.textContent='Your chat app did not open it. Open this address in your browser: '+url;size();}",
   "function openPage(page){if(appUrl&&PAGE.test(page||'')){ask('ui/open-link',{url:appUrl+page},function(r){if(refused(r))openFailed(appUrl+page);});}}",
   "function dept(d){",
-  " var box=el('section','dept'),h=el('h3','',clean(d.label,60));",
-  " if(d.status==='soon')h.appendChild(el('span','tag','Coming soon'));",
-  " box.appendChild(h);box.appendChild(el('p','line',clean(d.line,400)));",
+  " var box=el('section','dept rc-card'),h=el('h3','',clean(d.label,60));",
+  " h.appendChild(d.status==='soon'?el('span','badge soon tag','Coming soon'):el('span','badge ok','Works today'));",
+  " box.appendChild(h);box.appendChild(el('p','line rc-line',clean(d.line,400)));",
   " var rs=Array.isArray(d.rules)?d.rules:[],ns=Array.isArray(d.not_yet)?d.not_yet:[];",
-  " for(var i=0;i<rs.length&&i<4;i++)box.appendChild(el('p','rule',clean(rs[i],240)));",
-  " for(var j=0;j<ns.length&&j<2;j++)box.appendChild(el('p','rule',clean(ns[j],240)));",
+  " for(var i=0;i<rs.length&&i<4;i++)box.appendChild(el('p','rule rc-rule',clean(rs[i],240)));",
+  " for(var j=0;j<ns.length&&j<2;j++)box.appendChild(el('p','rule rc-rule',clean(ns[j],240)));",
   " if(d.status==='working'){",
-  "  var acts=el('div','acts'),st=Array.isArray(d.starts)?d.starts:[];",
-  "  if(st.length&&typeof st[0]==='string'){(function(t){acts.appendChild(btn(canSend()?'Start this in the chat':'Show what to say','',function(){startLine(box,t);}));})(clean(st[0],200));}",
-  "  if(typeof d.page==='string'&&appUrl&&PAGE.test(d.page)){(function(p){acts.appendChild(btn('Open on the site','quiet',function(){openPage(p);}));})(d.page);}",
+  "  var acts=el('div','acts rc-actions'),st=Array.isArray(d.starts)?d.starts:[];",
+  "  if(st.length&&typeof st[0]==='string'){(function(t){acts.appendChild(btn(canSend()?'Start this in the chat':'Show what to say','primary',function(){startLine(box,t);}));})(clean(st[0],200));}",
+  "  if(typeof d.page==='string'&&appUrl&&PAGE.test(d.page)){(function(p){acts.appendChild(btn('Open on the site','',function(){openPage(p);}));})(d.page);}",
   "  if(acts.childNodes.length)box.appendChild(acts);",
   " }",
   " return box;",
   "}",
+  // the flip (the site's own carousel, in ES5): one department in view, arrows and tabs and dots and swipe; its window is as tall as the department in view
+  "var fitters=[];",
+  "function flip(items){",
+  " var wrap=el('div','flip'),bar=el('div','flip-bar'),tabs=el('div','flip-tabs'),prev=el('button','flip-arrow'),next=el('button','flip-arrow'),vp=el('div','flip-viewport'),track=el('div','flip-track'),dots=el('div','flip-dots'),T=[],P=[],D=[],cur=0,x0=null;",
+  " tabs.setAttribute('role','tablist');tabs.setAttribute('aria-label','Departments');",
+  " prev.type='button';next.type='button';prev.setAttribute('aria-label','Previous department');next.setAttribute('aria-label','Next department');",
+  " prev.setAttribute('data-glyph',String.fromCharCode(8249));next.setAttribute('data-glyph',String.fromCharCode(8250));",
+  " function fit(){var c=P[cur]&&P[cur].firstChild;if(c&&c.offsetHeight)vp.style.height=(c.offsetHeight+4)+'px';}",
+  " function go(n){",
+  "  cur=Math.max(0,Math.min(P.length-1,n));track.style.transform='translateX('+(-cur*100)+'%)';",
+  "  for(var k=0;k<P.length;k++){",
+  "   T[k].setAttribute('aria-selected',String(k===cur));T[k].tabIndex=k===cur?0:-1;",
+  "   if(k===cur)D[k].setAttribute('aria-current','true');else D[k].removeAttribute('aria-current');",
+  "   P[k].setAttribute('aria-hidden',String(k!==cur));P[k].inert=k!==cur;",
+  "  }",
+  "  prev.disabled=cur===0;next.disabled=cur===P.length-1;",
+  "  try{tabs.scrollLeft=T[cur].offsetLeft-16;}catch(e){}",
+  "  fit();size();",
+  " }",
+  " for(var i=0;i<items.length;i++)(function(n,it){",
+  "  var t=el('button','flip-tab',it.label),p=el('div','flip-panel'),dt=el('button','flip-dot');",
+  "  t.type='button';t.setAttribute('role','tab');t.addEventListener('click',function(){go(n);});",
+  "  dt.type='button';dt.setAttribute('aria-label',it.label);dt.addEventListener('click',function(){go(n);});",
+  "  p.setAttribute('role','tabpanel');p.appendChild(it.node);",
+  "  tabs.appendChild(t);track.appendChild(p);dots.appendChild(dt);T.push(t);P.push(p);D.push(dt);",
+  " })(i,items[i]);",
+  " prev.addEventListener('click',function(){go(cur-1);});next.addEventListener('click',function(){go(cur+1);});",
+  " wrap.addEventListener('keydown',function(e){if(e.key==='ArrowRight'){go(cur+1);e.preventDefault();}else if(e.key==='ArrowLeft'){go(cur-1);e.preventDefault();}});",
+  " vp.addEventListener('touchstart',function(e){x0=e.touches[0].clientX;},{passive:true});",
+  " vp.addEventListener('touchend',function(e){if(x0===null)return;var dx=e.changedTouches[0].clientX-x0;if(Math.abs(dx)>50)go(cur+(dx<0?1:-1));x0=null;},{passive:true});",
+  " bar.appendChild(prev);bar.appendChild(tabs);bar.appendChild(next);vp.appendChild(track);",
+  " wrap.appendChild(bar);wrap.appendChild(vp);wrap.appendChild(dots);",
+  " fitters.push(fit);go(0);",
+  " return wrap;",
+  "}",
   "function paint(sc){",
-  " var top=el('div','top');top.appendChild(el('span','mark',\"L'Ai\"));top.appendChild(el('h1','','Ryagram'));",
+  " fitters=[];",
+  " var top=el('div','rc-brand');top.appendChild(el('b','',\"L'Ai\"));top.appendChild(el('span','','Ryagram'));",
   " var kids=[top],ds=sc&&typeof sc==='object'&&Array.isArray(sc.departments)?sc.departments:null;",
   " if(!ds||!ds.length){kids.push(el('p','hint','Your Ryagram departments are listed in the conversation above.'));}",
   " else{",
+  "  kids.push(el('h1','rc-title','What would you like to make?'));kids.push(el('p','rc-lede','Pick a department. Each one says whether it works today.'));",
   "  var w=[],s=[];for(var i=0;i<ds.length&&i<12;i++){var d=ds[i];if(!d||typeof d!=='object')continue;if(d.status==='working')w.push(d);else if(d.status==='soon')s.push(d);}",
-  "  if(w.length){kids.push(el('h2','','Works today'));for(var a=0;a<w.length;a++)kids.push(dept(w[a]));}",
-  "  if(s.length){kids.push(el('h2','','Coming soon'));for(var b=0;b<s.length;b++)kids.push(dept(s[b]));}",
+  "  var all=w.concat(s),items=[];for(var a=0;a<all.length;a++)items.push({label:clean(all[a].label,60),node:dept(all[a])});",
+  "  if(items.length)kids.push(flip(items));",
   " }",
   " root.textContent='';for(var k=0;k<kids.length;k++)root.appendChild(kids[k]);size();",
   "}",
   "var last=0;",
-  "function size(){var h=Math.ceil(document.documentElement.getBoundingClientRect().height);if(h&&h!==last){last=h;note('ui/notifications/size-changed',{width:Math.ceil(document.documentElement.getBoundingClientRect().width),height:h});}}",
+  "function size(){for(var f=0;f<fitters.length;f++)fitters[f]();var h=Math.ceil(document.documentElement.getBoundingClientRect().height);if(h&&h!==last){last=h;note('ui/notifications/size-changed',{width:Math.ceil(document.documentElement.getBoundingClientRect().width),height:h});}}",
   "window.addEventListener('message',function(ev){",
   " if(ev.source!==host)return;",
   " var m=ev.data;if(!m||typeof m!=='object'||m.jsonrpc!=='2.0')return;",
@@ -184,7 +206,7 @@ export function homeHtml(appUrl?: string): string {
   const link = appUrl && APP_URL.test(appUrl) ? appUrl : "";
   return "<!doctype html><html lang=\"en\"><head><meta charset=\"utf-8\"><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">" +
     "<title>Ryagram home</title><style>" + STYLE + "</style></head><body data-app-url=\"" + link + "\">" +
-    "<main class=\"home\" id=\"home\" aria-live=\"polite\"><div class=\"top\"><span class=\"mark\" aria-hidden=\"true\">L'Ai</span><h1>Ryagram</h1></div><p class=\"hint\">Opening Ryagram...</p></main>" +
+    "<main class=\"home rc rc-hero\" id=\"home\" aria-live=\"polite\"><div class=\"rc-brand\"><b>L'Ai</b><span>Ryagram</span></div><p class=\"hint\">Opening Ryagram...</p></main>" +
     "<script>" + SCRIPT + "</script></body></html>";
 }
 

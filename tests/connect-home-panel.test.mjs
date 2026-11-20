@@ -153,7 +153,7 @@ test('the page is small, makes no request, builds from text nodes only, and open
   assert.ok(html.includes("b=btn('Copy','quiet',function(){copyLine(x,b,text);})"), 'and a Copy button');
   assert.ok(html.includes("Press Ctrl+C (Cmd+C on a Mac) to copy it."), 'and a clipboard that is refused says what to press');
   assert.ok(!/dashed|dotted/.test(html), 'no dashed field look anywhere in the page');
-  assert.ok(html.includes(".example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #6fd1bd"), 'the example is quote style: a left bar, no box');
+  assert.ok(html.includes(".example{margin:var(--s2) 0 0;padding:2px 0 2px var(--s3);border:0;border-left:3px solid var(--accent)"), 'the example is quote style: a left bar in the accent colour of the site, no box');
   assert.match(html, /data-app-url="https:\/\/uselai\.com\/app\/"/);
   assert.match(homeHtml('http://evil.example/'), /data-app-url=""/, 'an address that is not https is never put in the page');
   assert.match(homeHtml('https://x.example/"><script>'), /data-app-url=""/);

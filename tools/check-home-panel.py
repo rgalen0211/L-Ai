@@ -55,6 +55,13 @@ def tx(fr, sel):
     return loc.first.inner_text() if loc.count() else '(missing %s)' % sel
 
 
+def show(fr, label):
+    """Flip to a department by its tab (the panel is a flip now: one department in view, the others are inert and hidden from the accessibility tree)."""
+    fr.get_by_role('tab', name=label, exact=True).click()
+    fr.wait_for_function("(l) => { const t = Array.from(document.querySelectorAll('.flip-tab')).find(x => x.textContent === l); return t && t.getAttribute('aria-selected') === 'true'; }", arg=label, timeout=4000)
+    fr.wait_for_timeout(500)
+
+
 def open_page(b, width, structured, caps=None, reply=None):
     cc = b.new_context(viewport={'width': width, 'height': 900})
     pg = cc.new_page()
@@ -80,8 +87,31 @@ with sync_playwright() as pw:
     b = pw.chromium.launch(channel='chrome')
     print('the Ryagram home panel: departments drawn from the tool result, buttons for what works, nothing to press for what is coming soon')
     cc, pg, fr, reqs, errs = open_page(b, 640, VIEW)
-    heads = fr.eval_on_selector_all('h2', 'els => els.map(e => e.textContent)')
-    check(heads == ['Works today', 'Coming soon'], 'two groups: Works today and Coming soon (%s)' % heads)
+    tabs = fr.eval_on_selector_all('.flip-tab', 'els => els.map(e => e.textContent)')
+    check(tabs == ['Data films', 'My films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio'], 'one flip with a tab for each of the seven departments, what works first (%s)' % tabs)
+    badges = fr.eval_on_selector_all('.dept h3', 'els => els.map(e => e.querySelector(".badge").textContent)')
+    check(badges == ['Works today', 'Works today'] + ['Coming soon'] * 5, 'each department says in its badge whether it works today (%s)' % badges)
+    check(fr.locator('.flip-dot').count() == 7 and fr.locator('.flip-arrow').count() == 2, 'seven dots and two arrows')
+    check(fr.locator('.flip-tab[aria-selected=true]').count() == 1 and fr.locator('.flip-tab[aria-selected=true]').inner_text() == 'Data films', 'Data films is the one in view first')
+    check(fr.locator('.flip-arrow').first.is_disabled() and not fr.locator('.flip-arrow').nth(1).is_disabled(), 'the Previous arrow is off on the first department, Next is on')
+    hero = fr.evaluate("() => ({ h1: document.querySelector('h1').textContent, brand: document.querySelector('.rc-brand').textContent })")
+    check(hero['h1'] == 'What would you like to make?' and 'Ryagram' in hero['brand'], 'a compact hero: the wordmark and one headline (%s)' % hero)
+    vh = fr.evaluate("() => ({ vp: document.querySelector('.flip-viewport').getBoundingClientRect().height, sec: document.querySelectorAll('.dept')[0].getBoundingClientRect().height, page: document.documentElement.getBoundingClientRect().height })")
+    check(abs(vh['vp'] - vh['sec']) <= 8 and vh['page'] < 620, 'the flip window is as tall as the department in view (%s) and the whole panel is under 620 px (%d)' % (round(vh['vp']), vh['page']))
+    # the arrows, the tabs and the keyboard move the flip
+    fr.get_by_role('button', name='Next department').click()
+    fr.wait_for_timeout(600)
+    check(fr.locator('.flip-tab[aria-selected=true]').inner_text() == 'My films', 'the Next arrow moves to My films')
+    fr.get_by_role('tab', name='Studio', exact=True).click()
+    fr.wait_for_timeout(600)
+    check(fr.locator('.flip-arrow').nth(1).is_disabled() and fr.locator('.dept').nth(6).locator('button').count() == 0, 'on the last department Next is off, and Studio has nothing to press')
+    fr.locator('.flip-tab[aria-selected=true]').focus()
+    pg.keyboard.press('ArrowLeft')
+    fr.wait_for_timeout(600)
+    check(fr.locator('.flip-tab[aria-selected=true]').inner_text() == 'Animation Studio', 'the left arrow key moves back one')
+    inert = fr.evaluate("() => Array.from(document.querySelectorAll('.flip-panel')).filter(p => p.inert).length")
+    check(inert == 6, 'six of seven departments are inert (not tabbed to, not read) while one is in view (%s)' % inert)
+    show(fr, 'Data films')
     works = fr.eval_on_selector_all('.dept', 'els => els.map(e => ({ h: e.querySelector("h3").childNodes[0].textContent, tag: !!e.querySelector(".tag"), buttons: Array.from(e.querySelectorAll("button")).map(x => x.textContent) }))')
     names = [w['h'] for w in works]
     check(names == ['Data films', 'My films', 'Compilations', 'Opportunity Map', 'Games', 'Animation Studio', 'Studio'], 'seven entries in order, Studio last (%s)' % names)
@@ -110,7 +140,8 @@ with sync_playwright() as pw:
     Q1, Q2 = chr(0x201c), chr(0x201d)
     LINE = 'Show me my films.'
     cc, pg, fr, reqs, errs = open_page(b, 640, VIEW, reply='refuse')
-    fr.get_by_role('button', name='Start this in the chat').nth(1).click()
+    show(fr, 'My films')
+    fr.get_by_role('button', name='Start this in the chat').first.click()
     fr.locator('.example').wait_for(timeout=4000)
     check(tx(fr, '.example .label') == 'Example:', 'the box carries the label Example: (%r)' % tx(fr, '.example .label'))
     check(tx(fr, '.example .quote') == Q1 + LINE + Q2, 'the sentence is in quotes: %r' % tx(fr, '.example .quote'))
@@ -141,7 +172,8 @@ with sync_playwright() as pw:
     cc.close()
     # the real clipboard path of this Chrome: either it copies or it tells the person what to press, and nothing throws
     cc, pg, fr, reqs, errs = open_page(b, 640, VIEW, reply='refuse')
-    fr.get_by_role('button', name='Start this in the chat').nth(1).click()
+    show(fr, 'My films')
+    fr.get_by_role('button', name='Start this in the chat').first.click()
     fr.locator('.example').wait_for(timeout=4000)
     fr.locator('.example').get_by_role('button', name='Copy').click()
     pg.wait_for_timeout(600)
@@ -175,15 +207,17 @@ with sync_playwright() as pw:
 
     print('a host that does not offer messages at all: no button that pretends to send')
     cc, pg, fr, reqs, errs = open_page(b, 640, VIEW, caps={'openLinks': {}})
-    check(fr.get_by_role('button', name='Start this in the chat').count() == 0 and fr.get_by_role('button', name='Show what to say').count() == 2, 'the two start buttons say Show what to say, none says it will start the chat')
-    fr.get_by_role('button', name='Show what to say').nth(1).click()
+    texts = fr.eval_on_selector_all('.dept .acts button.primary', 'els => els.map(e => e.textContent)')
+    check(texts == ['Show what to say', 'Show what to say'], 'the two start buttons say Show what to say, none says it will start the chat (%s)' % texts)
+    show(fr, 'My films')
+    fr.get_by_role('button', name='Show what to say').first.click()
     fr.locator('.example').wait_for(timeout=4000)
     check('does not let this panel type for you' in tx(fr, '.example .why') and tx(fr, '.example .quote') == Q1 + LINE + Q2, 'it shows the example with the plain sentence: %r' % fr.locator('.example').inner_text())
     check(not any(m.get('method') == 'ui/message' for m in pg.evaluate('window.__in')), 'and sent nothing to the host')
     check(fr.locator('.example .diag').count() == 0, 'there is no host answer to show')
     cc.close()
     cc, pg, fr, reqs, errs = open_page(b, 640, VIEW, caps={'message': {'text': {}}})
-    check(fr.get_by_role('button', name='Start this in the chat').count() == 2, 'a host that offers messages gets the Start this in the chat buttons')
+    check(fr.eval_on_selector_all('.dept .acts button.primary', 'els => els.map(e => e.textContent)') == ['Start this in the chat'] * 2, 'a host that offers messages gets the Start this in the chat buttons')
     cc.close()
 
     print('hostile content stays text, and a hostile page address gets no button')
@@ -194,7 +228,7 @@ with sync_playwright() as pw:
         {'id': 'games', 'label': 'Games', 'status': 'working', 'line': 'ok', 'rules': [], 'not_yet': [], 'starts': [], 'page': '#/d/games'},
         {'id': 'x', 'label': 'Odd status', 'status': 'weird', 'line': 'no'}, 7, None]}
     cc, pg, fr, reqs, errs = open_page(b, 640, EVIL)
-    check(fr.locator('#home img, #home script, #home b').count() == 0, 'no markup from the content became an element')
+    check(fr.locator('#home img, #home script, #home .dept b, #home .flip-tab b').count() == 0, 'no markup from the content became an element')
     check('<img' in fr.locator('.dept').first.inner_text() and pg.evaluate('window.__pwned') is None, 'the hostile label is shown as plain text and nothing ran')
     btns = fr.eval_on_selector_all('.dept', 'els => els.map(e => Array.from(e.querySelectorAll("button")).map(x => x.textContent))')
     check(btns[0] == ['Start this in the chat'] and btns[1] == [] and btns[2] == ['Open on the site'], 'javascript: and a fragment with dots get no open button; a plain fragment does (%s)' % btns)
@@ -213,7 +247,24 @@ with sync_playwright() as pw:
     pg.wait_for_timeout(300)
     over = fr.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
     check(over <= 0 and fr.locator('.dept').count() == 7, 'at 360 px wide nothing scrolls sideways (overflow %s)' % over)
-    check(min(fr.eval_on_selector_all('button', 'els => els.map(e => e.getBoundingClientRect().height)')) >= 44, 'every button is at least 44 px high')
+    check(min(fr.eval_on_selector_all('button:not(.flip-dot)', 'els => els.map(e => e.getBoundingClientRect().height)')) >= 44, 'every button is at least 44 px high (the 10 px dots carry a 44 px target of their own, as on the site)')
+    dot = fr.evaluate("() => { const d = document.querySelector('.flip-dot'), a = getComputedStyle(d, '::after'); return { h: parseFloat(a.height), w: parseFloat(a.width), pos: a.position }; }")
+    check(dot['pos'] == 'absolute' and dot['h'] >= 36, 'a dot has a larger tap area around it (%s)' % dot)
+    cc.close()
+    for w in (460, 390):
+        print('the width of a chat: %d px' % w)
+        cc, pg, fr, reqs, errs = open_page(b, w, VIEW)
+        over = fr.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth')
+        ph = fr.evaluate('document.documentElement.getBoundingClientRect().height')
+        check(over <= 0, 'nothing scrolls sideways at %d px (overflow %s)' % (w, over))
+        check(ph < 640, 'the whole home panel is %d px tall, under 640 (no long scroll)' % ph)
+        show(fr, 'Opportunity Map')
+        ph2 = fr.evaluate('document.documentElement.getBoundingClientRect().height')
+        check(fr.evaluate('document.documentElement.scrollWidth - document.documentElement.clientWidth') <= 0 and ph2 < 760, 'the longest department (Opportunity Map, three rules) still fits: %d px tall' % ph2)
+        check(not reqs and not errs, 'no request and no error (%s %s)' % (reqs[:2], errs[:2]))
+        if w == 460:
+            pg.screenshot(path=str(Path(__import__('os').environ.get('SHOTS', '.')) / 'home-460.png'))
+        cc.close()
     cc.close()
     b.close()
 

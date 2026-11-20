@@ -15,6 +15,7 @@ const SUITES = ['connect-home-panel.test.mjs'];
 const HEAD = 'name: "get_story", title: "Read back a project\'s saved story", scope: "read", readOnly: true';
 const SC = C + 'story_check.ts';
 const F = C + 'fake.ts';
+const CL = C + 'chat_look.ts';       // the generated look (WEB's tokens + the chat layout): the example's CSS lives here since 11-20
 const H = C + 'home_panel.ts', TL = C + 'tools.ts', DI = C + 'dispatch.ts', MC = C + 'mcp.ts', MA = C + 'mcp_app.ts';
 const mutants = [
   ['a working department with no page is shown', H, `if (r.status === "working" && w.page && PAGE.test(w.page))`, `if (r.status === "working")`],
@@ -50,8 +51,8 @@ const mutants = [
   ['the button says it will start the chat on a host that cannot', H, `canSend()?'Start this in the chat':'Show what to say'`, `'Start this in the chat'`, 'browser'],
   ['the host\'s answer is not shown', H, `'The chat app answered: '+said(r));`, `'');`, 'browser'],
   ['the host\'s answer is not written to the console', H, `try{console.warn('ryagram-home: ui/message refused: '+JSON.stringify(r.error||r.result).slice(0,300));}catch(x){}`, ``, 'browser'],
-  ['the example has a dashed box again', H, `.example{margin:8px 0 0;padding:2px 0 2px 12px;border:0;border-left:3px solid #6fd1bd;`, `.example{margin:8px 0 0;padding:2px 0 2px 12px;border:1px dashed #3a3a44;border-left:3px solid #6fd1bd;`, 'browser'],
-  ['the example has no left bar', H, `border:0;border-left:3px solid #6fd1bd;`, `border:0;`, 'browser'],
+  ['the example has a dashed box again', CL, `.example{margin:var(--s2) 0 0;padding:2px 0 2px var(--s3);border:0;border-left:3px solid var(--accent);`, `.example{margin:var(--s2) 0 0;padding:2px 0 2px var(--s3);border:1px dashed var(--line-2);border-left:3px solid var(--accent);`, 'browser'],
+  ['the example has no left bar', CL, `border:0;border-left:3px solid var(--accent);`, `border:0;`, 'browser'],
   ['the example has no label', H, ` x.appendChild(el('p','why',why));x.appendChild(el('p','label','Example:'));`, ` x.appendChild(el('p','why',why));`, 'browser'],
   ['the sentence has no quotes', H, `q.appendChild(document.createTextNode(Q1));`, ``, 'browser'],
   ['the example has no Copy button', H, `b=btn('Copy','quiet',function(){copyLine(x,b,text);});x.appendChild(b);`, `b=btn('Copy','quiet',function(){copyLine(x,b,text);});`, 'browser'],

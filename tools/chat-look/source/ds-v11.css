@@ -1,0 +1,50 @@
+/* DS v1.1 additions (Ryan 11:55): NO LONG PAGES. Load AFTER ds.css.
+   (a) .flip = a section carousel for any page that would scroll far: a label row with dots, arrows, swipe, one section in view at a time; the main action and key facts stay above the fold.
+   (b) .wb = the WORKBENCH: an app that fits ONE screen (the editor): no page scroll, panels that resize and collapse, the timeline scrolls inside itself.
+   (c) .scroll-panel = a long list scrolls inside its own panel. */
+
+/* ---- (a) flip carousel */
+.flip{position:relative}
+.flip-bar{display:flex;align-items:center;gap:var(--s3);margin-bottom:var(--s5)}
+.flip-tabs{display:flex;gap:var(--s2);overflow-x:auto;scrollbar-width:none;flex:1 1 auto;min-width:0;padding:var(--s1) 0}
+.flip-tabs::-webkit-scrollbar{display:none}
+.flip-tab{flex:0 0 auto;min-height:44px;padding:0 var(--s4);border-radius:999px;border:1px solid var(--line);background:transparent;color:var(--ink-2);font:600 var(--t-small)/1 var(--sans);cursor:pointer;display:inline-flex;align-items:center;gap:var(--s2);transition:background .2s var(--ease),color .2s var(--ease),border-color .2s var(--ease)}
+.flip-tab:hover{background:rgba(255,255,255,.06);color:var(--ink)}
+.flip-tab[aria-selected=true]{background:var(--surface-2);border-color:var(--line-2);color:var(--ink);box-shadow:var(--shadow-1)}
+.flip-tab .n{font-size:var(--t-caption);color:var(--faint)}
+.flip-arrow{flex:0 0 auto;width:44px;height:44px;border-radius:50%;border:1px solid var(--line-2);background:var(--surface);color:var(--ink);cursor:pointer;display:grid;place-items:center;font-size:1.1rem}
+.flip-arrow:disabled{opacity:.35;cursor:default}
+.flip-viewport{overflow:hidden;border-radius:var(--radius)}
+.flip-track{display:flex;transition:transform .45s var(--ease);will-change:transform}
+.flip-panel{flex:0 0 100%;min-width:0;padding:2px}
+.flip-dots{display:flex;justify-content:center;gap:var(--s2);margin-top:var(--s5)}
+.flip-dot{width:10px;height:10px;border-radius:50%;background:rgba(255,255,255,.18);border:0;padding:0;cursor:pointer;transition:background .2s,transform .2s;position:relative}
+.flip-dot::after{content:"";position:absolute;inset:-17px -7px}                 /* a 44 px target around a 10 px dot */
+.flip-dot[aria-current=true]{background:var(--accent);transform:scale(1.25)}
+.flip-hint{font-size:var(--t-caption);color:var(--faint);text-align:center;margin-top:var(--s3)}
+@media(prefers-reduced-motion:reduce){.flip-track{transition:none}}
+
+/* ---- (c) a long list scrolls inside its own panel */
+.scroll-panel{max-height:min(52vh,420px);overflow:auto;padding-right:var(--s2);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent;overscroll-behavior:contain}
+
+/* ---- (b) workbench: one screen, no page scroll. [left | stage | right] over [timeline]. */
+body.wb-page{height:100vh;height:100dvh;overflow:hidden;display:flex;flex-direction:column}
+.wb-page .site-header .bar{height:56px}
+.wb{flex:1 1 auto;min-height:0;display:grid;gap:var(--s2);padding:var(--s2);grid-template-columns:var(--wb-left,260px) minmax(0,1fr) var(--wb-right,300px);grid-template-rows:minmax(0,1fr) var(--wb-bottom,260px);grid-template-areas:"left stage right" "timeline timeline timeline"}
+.wb[data-left=collapsed]{--wb-left:44px}.wb[data-right=collapsed]{--wb-right:44px}.wb[data-bottom=collapsed]{--wb-bottom:44px}
+.wb-panel{position:relative;min-width:0;min-height:0;display:flex;flex-direction:column;border-radius:var(--radius-sm);border:1px solid var(--line);background:var(--surface);box-shadow:var(--shadow-1);overflow:hidden}
+.wb-panel>header{flex:0 0 auto;display:flex;align-items:center;justify-content:space-between;gap:var(--s2);padding:var(--s2) var(--s2) var(--s2) var(--s4);min-height:44px;border-bottom:1px solid var(--line)}
+.wb-panel>header h2,.wb-panel>header h3{font:650 var(--t-small)/1 var(--sans);letter-spacing:.02em;margin:0;color:var(--ink-2)}
+.wb-panel .body{flex:1 1 auto;min-height:0;overflow:auto;padding:var(--s4);overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.22) transparent}
+.wb-panel.left{grid-area:left}.wb-panel.stage{grid-area:stage}.wb-panel.right{grid-area:right}.wb-panel.timeline{grid-area:timeline}
+.wb-collapse{width:36px;height:36px;border-radius:8px;border:1px solid var(--line);background:transparent;color:var(--ink-2);cursor:pointer;flex:0 0 auto}
+.wb[data-left=collapsed] .left .body,.wb[data-right=collapsed] .right .body,.wb[data-bottom=collapsed] .timeline .body{display:none}
+.wb[data-left=collapsed] .left>header h2,.wb[data-right=collapsed] .right>header h2,.wb[data-bottom=collapsed] .timeline>header h2{display:none}
+.wb[data-left=collapsed] .left>header,.wb[data-right=collapsed] .right>header{justify-content:center;padding:var(--s2)}
+.wb-resize{position:absolute;z-index:3;background:transparent}
+.wb-resize.v{top:0;bottom:0;width:10px;cursor:col-resize}.wb-resize.h{left:0;right:0;height:10px;cursor:row-resize}
+.wb-resize.left{right:0}.wb-resize.right{left:0}.wb-resize.bottom{top:0}
+.wb-resize:hover,.wb-resize.drag{background:rgba(255,138,61,.35)}
+.wb-stage-picture{flex:1 1 auto;min-height:0;display:grid;place-items:center;background:#07080b;padding:var(--s3)}
+.wb-stage-picture img{max-width:100%;max-height:100%;object-fit:contain;border-radius:var(--radius-xs);box-shadow:0 20px 60px rgba(0,0,0,.6)}
+@media(max-width:900px){body.wb-page{height:auto;overflow:auto}.wb{display:flex;flex-direction:column;padding:var(--s2)}.wb-panel.stage{min-height:46vh}.wb-panel .body{max-height:50vh}.wb-resize{display:none}}

@@ -9,7 +9,9 @@ import { cardHtml } from '../supabase/functions/connect-core/mcp_app.ts';
 
 const APP = 'https://uselai.com/app/';
 class FE {
-  constructor(tag) { this.tag = tag; this.kids = []; this.className = ''; this._t = ''; this.listeners = {}; this.attrs = {}; }
+  constructor(tag) { this.tag = tag; this.kids = []; this.className = ''; this._t = ''; this.listeners = {}; this.attrs = {}; this.style = {}; this.offsetHeight = 100; this.offsetLeft = 0; this.scrollLeft = 0; }
+  get firstChild() { return this.kids[0] || null; }
+  removeAttribute(k) { delete this.attrs[k]; }
   get textContent() { return this.kids.length ? this.kids.map((c) => c.textContent).join('') : this._t; }
   set textContent(v) { this.kids = []; this._t = String(v); }
   get childNodes() { return this.kids; }
