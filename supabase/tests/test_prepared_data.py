@@ -303,6 +303,16 @@ class PreparedData(core.Base):
         self.g1_rollback("delete_revokes_ai")
         self.assertEqual(self.g1_check("delete_revokes_ai"), [False, True, True])
 
+    def test_GEO_g1_undoing_000550_before_000600_stops_in_words_and_changes_nothing(self):
+        f = next((core.ROOT / "rollbacks").glob("*_delete_revokes_ai_rollback.sql"))
+        c = self.db.as_(None).c
+        with self.assertRaises(psycopg.Error) as cm:           # MUST-FAIL: without the guard it stripped 000600's prepared lines
+            c.execute(f.read_text(encoding="utf-8"))
+        c.execute("rollback")
+        self.assertIn("Undo 000600 first", str(cm.exception))
+        self.assertEqual(self.g1_check("prepared_tombstone"), [True] * 4)
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
