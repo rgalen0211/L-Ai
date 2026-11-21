@@ -21,7 +21,7 @@ export const HOME_WORDS: Readonly<Record<string, HomeWords>> = Object.freeze({
   geo_intelligence: { label: "Opportunity Map", line: "Ask about places with free public data: who lives near a spot, what is close by, and how counties have changed. Every number says whether it was counted, calculated or estimated.",
     rules: ["It counts places, jobs, wages, permits and people. It has no sales data, so it does not say where a business would do well.", "No score and no ranking of places."],
     notYet: ["Not part of Ryagram's first release. Testers are trying an early version. No price and no date."] },
-  games: { label: "Games", line: "Play with your own data and footage in small games you can share." },
+  games: { label: "Games", line: "Soon: party games for your TV, played on phones, made from your own videos." },
   animation_studio: { label: "Animation Studio", line: "Simple cartoons you direct: characters you can pose, with mouths that move to your voice." },
   // Studio: the public wording is Ryan's own (Q639, yes 2026-11-17 22:4x), word for word; the one not-built sentence is from his fuller words. Nothing to start, nothing to open: it is not built.
   studio: { label: "Studio", line: "Your podcast’s camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.",
