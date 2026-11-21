@@ -9,7 +9,9 @@ import { makeCompile } from '../supabase/functions/connect-core/ajv_adapter.ts';
 import { callTool } from '../supabase/functions/connect-core/dispatch.ts';
 import { FakeWorld } from '../supabase/functions/connect-core/fake.ts';
 import { TOOLS, TOOL_BY_NAME } from '../supabase/functions/connect-core/tools.ts';
-import { toolList } from '../supabase/functions/connect-core/mcp.ts';
+import { toolList, preparedDataOn, handleMcp } from '../supabase/functions/connect-core/mcp.ts';
+import { authorizationServerMetadata, openIdShapedMetadata, protectedResourceDoc } from '../supabase/functions/connect-core/oauth.ts';
+import { openApi } from '../supabase/functions/connect-core/rest.ts';
 import { parseCsv, measure, describeMeasured } from '../supabase/functions/connect-core/prepared.ts';
 import { TEMPLATES, build } from '../supabase/functions/_shared/templates.ts';
 
@@ -19,7 +21,7 @@ function world() {
   const w = new FakeWorld();
   const mk = (id, scopes) => { w.addUser(id, id + '@example.test', 100); w.invite(id, 'client-' + id, scopes); return { tokenHash: 'h-' + id, userId: id, clientId: 'client-' + id }; };
   const A = mk('u-a', ALL), B = mk('u-b', ALL), OLD = mk('u-old', ['read', 'write', 'render_free', 'edit', 'fetch_data']);
-  const call = (p, tool, args = {}) => callTool(tool, args, p, { data: w.data(p.userId), policy: w.policy(), deps: { compile } });
+  const call = (p, tool, args = {}) => callTool(tool, args, p, { data: w.data(p.userId), policy: w.policy(), deps: { compile }, preparedData: true });      // the connector's own switch (CONNECT_PREPARED_DATA) is ON here; the OFF state is the last tests of this file
   return { w, A, B, OLD, call };
 }
 // the film in Ryan's walk: median age by state, 2010 to 2023, with NO row for 2020 (the Census did not publish standard 2020 one-year estimates)
@@ -62,7 +64,7 @@ test('MUST-FAIL: a ragged row, an unclosed quote, a control character, no header
 
 // ---------------------------------------------------------------------------------------------- the tools
 test('the two tools are listed with honest annotations, in the right scopes, and the words promise nothing the AI cannot do', () => {
-  const list = Object.fromEntries(toolList().map((t) => [t.name, t]));
+  const list = Object.fromEntries(toolList(false, false, false, true).map((t) => [t.name, t]));
   assert.equal(list.submit_prepared_data.annotations.readOnlyHint, false); assert.equal(list.submit_prepared_data.annotations.destructiveHint, false); assert.equal(list.submit_prepared_data.annotations.idempotentHint, false);
   assert.equal(list.list_my_data.annotations.readOnlyHint, true);
   assert.equal(TOOL_BY_NAME.get('submit_prepared_data').scope, 'submit_data'); assert.equal(TOOL_BY_NAME.get('list_my_data').scope, 'read');
@@ -167,4 +169,78 @@ test('MUST-FAIL: a cell a spreadsheet would run as a formula, text after a closi
   assert.match(bad('place,year,value\nA"x,2010,1\nB,2011,2\nC,2012,3\n'), /quote appears inside a cell/);
   assert.ok(parseCsv('place,year,value\nA,2010,-1.5\nB,2011,-\nC,2012,"-1,234"\n').ok, 'a negative number and a lone dash are not formulas');
   assert.ok(parseCsv('place,year,value\n"A, B",2010,1\nC,2011,"2"\nD,2012,3\n').ok, 'quoted cells still work');
+});
+
+// ------------------------------------------------------------------------------------------------ the connector's own switch (GAMES 11-21): the hand-over exists only while CONNECT_PREPARED_DATA is on
+// Why: the Accept card is built only when the site's uploads flag is on. A table handed over before that waits 7 days in a card nobody can see. So until Ryan sets the secret (in the same step as the site push that turns uploads on),
+// the two tools are not in any list, a call is "no such tool", nothing is stored, and the scope is not advertised, so no consent page offers it.
+const NAMES = ['submit_prepared_data', 'list_my_data'];
+test('SWITCH OFF (the default): neither tool is in the MCP list, the REST list or the OpenAPI document, and the connector says so for the same reason everywhere', () => {
+  for (const n of NAMES) {
+    assert.ok(TOOL_BY_NAME.get(n).preparedData === true, n + ' carries the switch');
+    assert.ok(!toolList().some((x) => x.name === n), n + ' is not in the default list');
+    assert.ok(!toolList(true, true, true).some((x) => x.name === n), n + ' stays out whatever the app switches say');
+    assert.ok(toolList(false, false, false, true).some((x) => x.name === n), n + ' is listed once the switch is on');
+  }
+  assert.equal(preparedDataOn(undefined), false); assert.equal(preparedDataOn({ enabled: true }), false); assert.equal(preparedDataOn({ enabled: false, preparedData: true }), true, 'independent of the MCP App face');
+  const doc = JSON.stringify(openApi('https://example.test/connect'));
+  for (const n of NAMES) assert.ok(!doc.includes('/v1/tools/' + n), n + ' is not in the OpenAPI document');
+});
+
+test('SWITCH OFF: a call is "no such tool", stores nothing, and the person is not left with a table nobody can see', async () => {
+  const { w, A } = world();
+  const off = (tool, a) => callTool(tool, a, A, { data: w.data(A.userId), policy: w.policy(), deps: { compile } });      // no preparedData: the default
+  const r = await off('submit_prepared_data', args());
+  assert.equal(r.isError, true); assert.equal(r.code, 'unknown_tool'); assert.match(r.text, /no tool called/i);
+  assert.equal((await off('list_my_data', {})).code, 'unknown_tool');
+  const on = await callTool('list_my_data', {}, A, { data: w.data(A.userId), policy: w.policy(), deps: { compile }, preparedData: true });
+  assert.equal(on.isError, undefined, 'and with the switch on the same call answers');
+  const waiting = await callTool('submit_prepared_data', args(), A, { data: w.data(A.userId), policy: w.policy(), deps: { compile }, preparedData: true });
+  assert.equal(waiting.isError, undefined, waiting.text);
+});
+
+test('SWITCH OFF: the submit_data scope is not advertised in either metadata document (so no consent page offers a tool that is not there); ON: it is, in all three', () => {
+  const BASE = 'https://example.test/connect';
+  for (const doc of [authorizationServerMetadata(BASE), openIdShapedMetadata(BASE), protectedResourceDoc(BASE)]) {
+    assert.ok(!doc.scopes_supported.includes('submit_data'), 'off: not advertised');
+    assert.deepEqual(doc.scopes_supported, ['read', 'write', 'render_free', 'edit', 'fetch_data'], 'the others are unchanged');
+  }
+  for (const doc of [authorizationServerMetadata(BASE, false, true), openIdShapedMetadata(BASE, false, true), protectedResourceDoc(BASE, true)]) assert.ok(doc.scopes_supported.includes('submit_data'), 'on: advertised');
+});
+
+test('the function reads the switch only when CONNECT_PREPARED_DATA is exactly "on", and hands it to BOTH the tool list and the OAuth metadata', () => {
+  const src = fs.readFileSync(new URL('../supabase/functions/connect/index.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.match(src, /const preparedDataOn = \(Deno\.env\.get\("CONNECT_PREPARED_DATA"\) \?\? ""\)\.trim\(\)\.toLowerCase\(\) === "on";/);
+  assert.match(src, /preparedData: preparedDataOn,\n/, 'the OAuth deps (the metadata documents)');
+  assert.match(src, /probe: Deno\.env\.get\("CONNECT_MAP_PROBE"\) === "on", preparedData: preparedDataOn,/, 'and the MCP config (the tool list and the call gate)');
+});
+
+test('over the real MCP face: tools/list and tools/call follow the switch (off: absent and "no tool called"; on: listed and answering), whether or not the MCP App face is on', async () => {
+  const mcp = (mcpApp) => {
+    const { w, A } = world();
+    w.issue('tok-a', A);
+    const deps = { data: null, policy: w.policy(), deps: { compile }, verifyToken: w.verifyToken, dataFor: () => w.data(A.userId), resourceMetadataUrl: 'http://127.0.0.1:1/.well-known/oauth-protected-resource', ...(mcpApp === undefined ? {} : { mcpApp }) };
+    return async (method, params) => JSON.parse(await (await handleMcp(new Request('http://127.0.0.1:1/mcp', { method: 'POST', headers: { 'content-type': 'application/json', accept: 'application/json, text/event-stream', authorization: 'Bearer tok-a' }, body: JSON.stringify({ jsonrpc: '2.0', id: 1, method, params }) }), deps)).text());
+  };
+  for (const off of [undefined, { enabled: true }, { enabled: true, chatEditor: true, homePanel: true }, { enabled: false, preparedData: false }]) {
+    const rpc = mcp(off);
+    const names = (await rpc('tools/list')).result.tools.map((x) => x.name);
+    for (const n of NAMES) assert.ok(!names.includes(n), n + ' is not listed: ' + JSON.stringify(off));
+    const r = (await rpc('tools/call', { name: 'submit_prepared_data', arguments: args() })).result;
+    assert.equal(r.isError, true); assert.match(r.content[0].text, /no tool called/i);
+  }
+  for (const on of [{ enabled: false, preparedData: true }, { enabled: true, preparedData: true }]) {
+    const rpc = mcp(on);
+    const names = (await rpc('tools/list')).result.tools.map((x) => x.name);
+    for (const n of NAMES) assert.ok(names.includes(n), n + ' is listed: ' + JSON.stringify(on));
+    const r = (await rpc('tools/call', { name: 'list_my_data', arguments: {} })).result;
+    assert.equal(r.isError, false, JSON.stringify(r));
+  }
+});
+
+test('the OAuth handler gives the switch to all three metadata documents (source), so a route cannot advertise what the tool list hides', () => {
+  const src = fs.readFileSync(new URL('../supabase/functions/connect-core/oauth.ts', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+  assert.ok(src.includes('authorizationServerMetadata(d.baseUrl, !!d.cimd, !!d.preparedData)'));
+  assert.ok(src.includes('openIdShapedMetadata(d.baseUrl, !!d.cimd, !!d.preparedData)'));
+  assert.ok(src.includes('protectedResourceDoc(d.baseUrl, !!d.preparedData)'));
 });

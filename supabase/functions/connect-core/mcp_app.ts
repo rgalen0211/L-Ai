@@ -29,6 +29,8 @@ export interface McpAppConfig {
   chatEditor?: boolean;
   /** The Ryagram home panel (a third switch, with enabled): serves ui://ryagram/home-<build> and lists its tool. Absent or false = none of it exists. */
   homePanel?: boolean;
+  /** AI-prepared data (Q634; its own switch CONNECT_PREPARED_DATA, independent of the MCP App face): lists the two data tools and advertises the submit_data scope. Absent or false = none of it exists. */
+  preparedData?: boolean;
   /** The Q520 probe panel (its own switch, off by default; probe.ts): serves its throwaway test pages and tools. Absent or false = none of it exists. */
   probe?: boolean;
 }
