@@ -275,3 +275,13 @@ body:has(.home-films) footer{margin-top:8px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .k{font-size:.6875rem;margin:0}
 :is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{padding:2px 16px}
 }
+/* Credits (Ryan 11-20 amendment 2): the title and balance sit close, the packs (or plans) are one row of cards on a wide screen and slim rows on a phone; both tabs within 1.35 screens (desktop) and 1.5 (phone) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .back{min-height:32px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) h1{margin:0 0 12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .credit-balance{margin:0 0 6px;padding:10px 24px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-bar{margin-bottom:4px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel h2,#library .flip-panel:has(.offer-list) h2{margin:0 0 8px;font-size:1.25rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer-list{gap:8px;margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer{padding:8px 16px;flex-wrap:nowrap}
+@media(min-width:901px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel .offer-list{grid-template-columns:repeat(3,minmax(0,1fr))}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel .offer{flex-wrap:wrap;padding:14px 18px}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .flip-panel .offer .button{margin-left:auto}}
+@media(max-width:640px){:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer .meta{flex:1 1 auto}:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.offer-list) .offer .button{margin-left:auto}}
