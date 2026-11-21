@@ -12,6 +12,11 @@
 --                                                            after Ryan had adjusted the partial by hand: a double debit)
 --                            any refund AFTER the credits were taken back
 --                                                         -> ignored (no hand change needed)
+--                            in full, more than 14 days after the pack was bought, or after any of its credits were used
+--                                                         -> needs_review (Ryan 11:30 refund rule, 'unused credits refundable
+--                                                            within 14 days'; it used to take a spent pack into a negative
+--                                                            balance). Only a full refund of an unused pack inside 14 days
+--                                                            is reversed. Plan (subscription) invoices: never reversed here.
 --
 -- stripe_partial_refunds starts EMPTY: partial refunds recorded before this file was run are not in it (their stripe_events rows say
 -- 'Partial refund of ...' but do not name the payment). Before running this on live, check those rows by hand (README).
@@ -33,6 +38,8 @@ create or replace function ryagram_private.stripe_refund(p_event_id text, p_data
 language plpgsql set search_path = '' as $$
 declare
   p public.stripe_payments;
+  pack_credits int;
+  unused int;
 begin
   select * into p from public.stripe_payments where payment_intent = p_data->>'payment_intent';
   if not found then
@@ -59,6 +66,30 @@ begin
     outcome := 'needs_review';
     detail := format('Refund of %s is now in full, after an earlier partial refund that was held for review. Credits unchanged; '
                      'adjust by hand (whatever was done for the partial is not undone).', p.price_code);
+    return;
+  end if;
+  -- Ryan 11:30 (2026-11-21), the Refunds page: 'unused credits refundable within 14 days'. Stripe has already returned the
+  -- money when this arrives, so a refund outside the rule is never reversed here: it is held for Ryan, who decides by hand
+  -- (adjust_credits), instead of silently taking credits that were already spent into a negative balance.
+  if p.created_at < now() - interval '14 days' then
+    outcome := 'needs_review';
+    detail := format('Refund of %s more than 14 days after it was bought (%s). Credits unchanged; Ryan decides by hand.',
+                     p.price_code, to_char(p.created_at at time zone 'UTC', 'YYYY-MM-DD'));
+    return;
+  end if;
+  perform ryagram_private.lock_owner(p.owner_id);          -- the balance below cannot move under us
+  select amount into pack_credits from public.credit_ledger where stripe_event_id = p.purchase_event_id and entry = 'purchase';
+  if not found then
+    outcome := 'needs_review'; detail := format('Refund of %s, but its purchase is not in the ledger. Credits unchanged.', p.price_code); return;
+  end if;
+  -- credits are pooled, so 'unused' means the purchased balance (credits held for a running render already count as used)
+  -- still covers the whole pack
+  unused := ryagram_private.pool_balance(p.owner_id, 'purchased');
+  if unused < pack_credits then
+    outcome := 'needs_review';
+    detail := format('Refund of %s after some of its credits were used: %s of its %s credits are unused. Credits unchanged; '
+                     'Ryan decides by hand (taking the whole pack back would leave a negative balance).',
+                     p.price_code, greatest(unused, 0), pack_credits);
     return;
   end if;
   if public.reverse_purchase(p.purchase_event_id, p_event_id, 'stripe') is null then

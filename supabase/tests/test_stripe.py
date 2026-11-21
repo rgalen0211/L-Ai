@@ -141,17 +141,46 @@ class Stripe(unittest.TestCase):
         self.assertEqual(self.balance(RYAN) + self.balance(OTHER), 0)
 
     def test_a_full_refund_removes_the_pack_and_may_leave_a_negative_balance(self):
+        # GEO 11-21 (Ryan 11:30 refund rule): this pin USED to reverse a spent pack into -20. A pack whose credits were
+        # used is now held for Ryan; the replay and second-event guards below are unchanged.
         self.apply("checkout.session.completed", self.pack(code="pack_maker", cents=3000, pi="pi_M"), event="evt_Maker")
         self.admin("select adjust_credits(%s, 'purchased', -20, 'spent in a test', 'admin:test')", RYAN)
         refund = {"charge": "ch_1", "payment_intent": "pi_M", "amount": 3000, "amount_refunded": 3000, "currency": "usd"}
-        self.assertEqual(self.apply("charge.refunded", refund, event="evt_Refund"), "applied")
-        self.assertEqual(self.balance(), -20)                     # 28 - 20 spent - 28 reversed
+        self.assertEqual(self.apply("charge.refunded", refund, event="evt_Refund"), "needs_review")
+        self.assertEqual(self.balance(), 8)                       # 28 - 20 spent; nothing taken back
         self.assertEqual(self.apply("charge.refunded", refund, event="evt_Refund"), "replay")
-        self.assertEqual(self.apply("charge.refunded", refund), "ignored")      # a second refund event: already reversed
-        self.assertEqual(self.balance(), -20)
-        # A negative balance blocks new holds (the ledger's rule) until credits are added.
-        quote = self.db.as_(RYAN).one("select available from credit_balances")
-        self.assertEqual(quote, -20)
+        self.assertEqual(self.balance(), 8)
+        # A negative balance still blocks new holds (the ledger's rule): Ryan's own correction can make one.
+        self.admin("select adjust_credits(%s, 'purchased', -28, 'Ryan took the pack back by hand', 'admin:test')", RYAN)
+        self.assertEqual(self.db.as_(RYAN).one("select available from credit_balances"), -20)
+
+    # -- GEO 11-21: Ryan 11:30's refund rule, 'unused credits refundable within 14 days'
+    def test_GEO_a_pack_refunded_after_some_credits_were_used_is_held_not_taken_negative(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_U"))
+        self.admin("select adjust_credits(%s, 'purchased', -1, 'one preview', 'admin:test')", RYAN)
+        # MUST-FAIL: before the rule this reversed all 10 credits (balance -1)
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_U", 1200, 1200), event="evt_Used"), "needs_review")
+        self.assertEqual(self.balance(), 9)
+        self.assertIn("9 of its 10 credits are unused", self.detail("evt_Used")[1])
+
+    def test_GEO_a_pack_refunded_more_than_14_days_after_purchase_is_held(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_Old"))
+        self.admin("update stripe_payments set created_at = now() - interval '15 days' where payment_intent = 'pi_Old' returning 1")
+        # MUST-FAIL: before the rule an unspent pack was reversed whenever it was refunded
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_Old", 1200, 1200), event="evt_Late14"), "needs_review")
+        self.assertEqual(self.balance(), 10)
+        self.assertIn("more than 14 days", self.detail("evt_Late14")[1])
+
+    def test_GEO_an_unused_pack_refunded_inside_14_days_is_reversed_even_with_other_credits_spent(self):
+        self.apply("checkout.session.completed", self.pack(pi="pi_A", session="cs_A"))
+        self.apply("checkout.session.completed", self.pack(pi="pi_B", session="cs_B"))
+        self.admin("update stripe_payments set created_at = now() - interval '13 days' where payment_intent = 'pi_A' returning 1")
+        self.admin("select adjust_credits(%s, 'purchased', -10, 'one pack worth used', 'admin:test')", RYAN)
+        # 20 bought, 10 used: 10 unused still cover one whole pack, so one refund is reversed and the next is held
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_A", 1200, 1200)), "applied")
+        self.assertEqual(self.balance(), 0)
+        self.assertEqual(self.apply("charge.refunded", self.refund("pi_B", 1200, 1200), event="evt_B"), "needs_review")
+        self.assertEqual(self.balance(), 0)                       # never below zero by a refund
 
     # -- GEO 11-21 (GEO-SECURITY-PRIVACY-REVIEW-1121): a second refund (L1) and chargebacks (M6)
     @staticmethod
