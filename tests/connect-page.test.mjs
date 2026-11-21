@@ -86,8 +86,18 @@ test('SOURCED FACTS (Claude fact-check 01:50, Q72): two separate Claude paths th
   for (const [, href] of page.matchAll(/<a href="(https?:[^"]+)"/g)) assert.ok(/support\.claude\.com|fonts\./.test(href), `an outside link must be a source we checked: ${href}`);
 });
 
-test('a person who is not invited is told so, and told how to ask: "invite-only for now" (the words the consent page uses) and a way to reach us (the help page)', () => {
-  assert.ok(page.includes('has been invited to try connections. Connecting an AI is invite-only for now; to ask for an invite, <a href="mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request">email us</a>.'), 'a direct email with the subject the site\'s own invite request uses (assets/creator-beta.js)');
-  assert.ok(read('assets/creator-beta.js').includes("encodeURIComponent('Ryagram invite request')") && read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'and that really is the subject and the address the site uses');
-  assert.ok(read('supabase/migrations/20261018000100_connect_ai.sql').includes("why := 'This Ryagram account is not enabled for AI assistants yet (invite-only for now).';"), 'the consent page says exactly this, so the guide and the page agree on the two words');
+test('the guide is TRUE WHETHER OR NOT connecting is open to everyone (Ryan 11-21: it opens at launch): it says who may connect by what the person can SEE, where to look, and how to ask, and never says "invite-only"', () => {
+  assert.ok(page.includes('A Ryagram account that is allowed to connect an AI. If Connected AIs does not show under Account in Ryagram, connecting is not open to your account yet; to ask for it, <a href="mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request">email us</a>.'));
+  assert.doesNotMatch(page, /invite-only|has been invited/i, 'no wording that goes false the day the list opens');
+  const app = fs.readFileSync(path.join(root, 'assets/app-library.js'), 'utf8');
+  assert.ok(app.includes('Connected AIs'), 'and the page the guide points to says exactly that');
+  assert.ok(read('assets/creator-beta.js').includes("encodeURIComponent('Ryagram invite request')") && read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'the subject and the address are the ones the site uses');
+});
+test('the connector\'s no-grant message is also true in both states (it never says invite-only), and tells the person where to look and how to ask', () => {
+  const d = read('supabase/functions/connect-core/dispatch.ts');
+  const m = /const NO_GRANT = "([^"]*)";/.exec(d);
+  assert.ok(m, 'the message');
+  assert.doesNotMatch(m[1], /invite|Ryan/i);
+  assert.match(m[1], /Connected AIs/);
+  assert.match(m[1], /Help page/);
 });

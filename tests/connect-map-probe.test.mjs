@@ -155,7 +155,7 @@ test('a connection that was never invited is refused the probe tool like every o
   const s = server(PROBE_ON, { invite: false });
   const r = (await s.rpc('tools/call', { name: 'map_probe', arguments: {} })).result;
   assert.equal(r.isError, true);
-  assert.match(r.content[0].text, /not enabled for AI connections/);
+  assert.match(r.content[0].text, /cannot use AI connections right now/);
 });
 
 test('the checksum is exact: one changed character, or one missing, is a different checksum', () => {
