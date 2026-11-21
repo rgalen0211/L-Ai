@@ -1,4 +1,4 @@
--- BEFORE and AFTER 20261121000600_connect_open_to_all.sql (Connect-an-AI opens to every signed-up account): ONE read-only SELECT, changes nothing. Every column is named.
+-- BEFORE and AFTER 20261121000700_connect_open_to_all.sql (Connect-an-AI opens to every signed-up account): ONE read-only SELECT, changes nothing. Every column is named.
 -- Right after the migration (flag still OFF): every ok must be true. After step 36 (flag ON) the row "the flag is ..." says on and the rest stay true. Before the migration every row answers false, never an error.
 select 'the flag exists' as check_name,
        coalesce((select count(*) = 1 from information_schema.columns where table_schema = 'public' and table_name = 'connect_flags' and column_name = 'open_to_all'), false) as ok

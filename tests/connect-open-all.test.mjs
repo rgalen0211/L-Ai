@@ -1,4 +1,4 @@
-// Connect-an-AI opens to every signed-up account at launch (CONNECT 2026-11-21, Ryan 11:30; migrations/20261121000600_connect_open_to_all.sql, NOT APPLIED), read from the SQL files: runs nothing and talks to nothing.
+// Connect-an-AI opens to every signed-up account at launch (CONNECT 2026-11-21, Ryan 11:30; migrations/20261121000700_connect_open_to_all.sql, NOT APPLIED), read from the SQL files: runs nothing and talks to nothing.
 // What is pinned: the flag is OFF by default; with it off the person rule is EXACTLY the old one (the rollback restores the old definition byte for byte); with it on an administrator, a worker and an account an administrator disabled are
 // still refused; nothing but the admin function and the live step 36 turns it on; the migration changes nothing else. The local-Postgres proof is supabase/tests/test_connect_open.py (NOT RUN yet). Must-fails: tests/connect_open_all_mutants.mjs.
 import { test } from 'node:test';
@@ -7,8 +7,8 @@ import fs from 'node:fs';
 
 const read = (p) => fs.readFileSync(new URL('../' + p, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const flat = (s) => s.replace(/--[^\n]*/g, '').replace(/\s+/g, ' ').trim();
-const MIG = flat(read('supabase/migrations/20261121000600_connect_open_to_all.sql'));
-const RB = flat(read('supabase/rollbacks/20261121000600_connect_open_to_all_rollback.sql'));
+const MIG = flat(read('supabase/migrations/20261121000700_connect_open_to_all.sql'));
+const RB = flat(read('supabase/rollbacks/20261121000700_connect_open_to_all_rollback.sql'));
 const ORIGINAL = flat(read('supabase/migrations/20261018000100_connect_ai.sql'));
 const fnBody = (sql, name) => { const m = new RegExp('create (?:or replace )?function ' + name.replace('.', '\\.') + '\\([^)]*\\)[\\s\\S]*?\\$\\$;', 'i').exec(sql); assert.ok(m, 'no definition of ' + name); return m[0]; };
 
@@ -57,7 +57,7 @@ test('ONLY live step 36 and the admin function turn it on, and step 37 turns it 
   assert.match(flat(read('supabase/live-steps/37_connect_open_OFF.sql')), /update public\.connect_flags set open_to_all = false where id;/);
   const dirs = ['supabase/migrations', 'supabase/live-steps', 'supabase/rollbacks', 'supabase/connect-live'];
   for (const d of dirs) for (const f of fs.readdirSync(new URL('../' + d + '/', import.meta.url)).filter((x) => x.endsWith('.sql'))) {
-    if (f === '36_connect_open_ON.sql' || f === '20261121000600_connect_open_to_all.sql') continue;
+    if (f === '36_connect_open_ON.sql' || f === '20261121000700_connect_open_to_all.sql') continue;
     assert.ok(!/open_to_all\s*=\s*true/i.test(flat(read(d + '/' + f))), d + '/' + f + ' must not turn the flag on');
   }
   const check = flat(read('supabase/live-steps/35_connect_open_check.sql'));

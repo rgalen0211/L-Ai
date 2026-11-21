@@ -1,4 +1,4 @@
-"""CONNECT-AN-AI OPENS TO EVERYONE (migrations/20261121000600_connect_open_to_all.sql, NOT APPLIED) on a local Postgres. CONNECT, 2026-11-21 (Ryan 11:30).
+"""CONNECT-AN-AI OPENS TO EVERYONE (migrations/20261121000700_connect_open_to_all.sql, NOT APPLIED) on a local Postgres. CONNECT, 2026-11-21 (Ryan 11:30).
 
 STATE: WRITTEN, NOT RUN (its calls to the harness are modelled on test_connect_departments.py and may need a small fix on the first run). The first session that has the disk (D: at or above 55 GB free, the storage rule) runs it once, with TEMP/TMP on D: and RYAGRAM_LAI_REPO set, from the repo root:
     pgvenv/Scripts/python -m unittest supabase/tests/test_connect_open.py -v
@@ -23,7 +23,7 @@ import test_film_card_requests as fc  # noqa: E402
 
 setUpModule = core.setUpModule
 LISTED, UNLISTED, DISABLED, ADMIN, WORKER = (str(uuid.UUID(int=i)) for i in (601, 602, 603, 604, 605))
-RB = core.ROOT / "rollbacks" / "20261121000600_connect_open_to_all_rollback.sql"
+RB = core.ROOT / "rollbacks" / "20261121000700_connect_open_to_all_rollback.sql"
 
 
 class ConnectOpen(core.Base):
