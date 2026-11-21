@@ -258,6 +258,16 @@ class Account(core.Base):
         self.g1_rollback("account_delete_paid")
         self.assertEqual(self.g1_check("account_delete_paid"), [False] * 4)  # both functions gone
 
+    def test_GEO_g1_undoing_000100_before_000400_stops_in_words_and_changes_nothing(self):
+        f = next((core.ROOT / "rollbacks").glob("*_account_delete_paid_rollback.sql"))
+        c = self.db.as_(None).c
+        with self.assertRaises(psycopg.Error) as cm:           # MUST-FAIL: without the guard it dropped 000400's account_redact_contact
+            c.execute(f.read_text(encoding="utf-8"))
+        c.execute("rollback")
+        self.assertIn("Undo 000400 first", str(cm.exception))
+        self.assertEqual(self.g1_check("account_delete_paid"), [True] * 4)
+        self.assertEqual(self.g1_check("retention_outbox_support"), [True] * 4)
+
 
 if __name__ == "__main__":
     unittest.main()
