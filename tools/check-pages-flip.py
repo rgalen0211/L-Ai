@@ -125,7 +125,7 @@ with sync_playwright() as pw:
 
     # ---- the other pages (Account, Credits, My films, Tutorial): measured to the bottom of the footer, the mock bar (a test artefact) hidden
     cfg2 = re.sub(r":\s*'account'", ': true', cfg)
-    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.5, 1.7), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5), 'Home': (1.4, 1.8)}
+    PAGE_LIMITS = {'Account': (1.5, 1.6), 'Credits': (1.35, 1.5), 'My films': (1.4, 1.5), 'Tutorial': (1.4, 1.5), 'Help': (1.3, 1.5), 'Home': (1.4, 1.8)}
     ROUTE = {'Account': '#/account', 'Credits': '#/credits', 'My films': '#/films', 'Tutorial': '#/build', 'Help': '#/help', 'Home': '#/'}
 
     def foot(p):
@@ -154,6 +154,11 @@ with sync_playwright() as pw:
                     check('section=' not in p.evaluate('location.hash'), f'{name}: the address keeps its own form (no section=)')
             if name == 'Credits':
                 check(p.locator('.flip-tab').count() in (0, 2), f'{name} {kind}: packs and plans are two tabs when both are on sale ({p.locator(".flip-tab").count()})')
+                for i in range(p.locator('.flip-tab').count()):
+                    p.locator('.flip-tab').nth(i).click(); p.wait_for_timeout(500)
+                    r = foot(p) / h_
+                    check(r <= lim, f'{name} {kind}: tab {i + 1} is {r:.2f} x the screen (at most {lim})')
+                    check(p.locator('.offer').count() >= 1 and p.locator('.offer .button').count() >= 1, f'{name} {kind}: tab {i + 1} still lists its offers with their buttons')
             if name == 'Help':
                 check(p.locator('.flip-tab').count() == 3, f'{name} {kind}: the help page is three sections ({p.locator(".flip-tab").count()})')
                 if kind == 'desktop':
