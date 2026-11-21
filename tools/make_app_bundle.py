@@ -290,7 +290,7 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
         '"%~dp0python\\python.exe" -I "%~dp0tools\\verify_bundle.py" "%~dp0."',
         "if errorlevel 1 (",
         "  echo.",
-        "  echo Do not go on. Close this window and tell Ryan what is written above.",
+        "  echo Do not go on. Close this window and send what is written above to the person or company that gave you this app.",
         "  pause",
         "  exit /b 1",
         ")",
@@ -306,7 +306,7 @@ def write_start_files(out: Path, has_model: bool, maker_extra: str = "", forge_b
     if forge_bat:
         (out / FORGE_BAT).write_bytes(bat_text(FORGE_EXTRA).encode("ascii"))
     txt = ("RYAGRAM\r\n\r\n1. Double-click  Open Ryagram.bat  in this folder. It checks that every file is as it was built, then opens the app in your browser.\r\n"
-           "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one Ryan read to you. If anyone else ever asks you to press Run anyway, say no.\r\n"
+           "2. If Windows says it protected your PC: press More info, and press Run anyway ONLY if the file name matches the one you were given with this app. If anyone else ever asks you to press Run anyway, say no.\r\n"
            "3. Films are saved in the  films  folder here. Nothing outside this folder is changed, except the sign-in Windows keeps for you.\r\n"
            "   The licences of the software written by others that this folder contains are in docs\\THIRD-PARTY-NOTICES.txt.\r\n"
            + ("" if has_model else "4. The first time, press  Download the listening model  on the page (Balanced, about 464 MB, once). It is the only step that uses the internet, and every file is checked before it is kept.\r\n")
@@ -366,6 +366,18 @@ def write_notices(a, out: Path, ffd: Path) -> dict:
     return {"libraries": len(libs), "public": bool(getattr(a, "public", False)), "problems": problems}
 
 
+SUPPORT_OK = re.compile(r"^[A-Za-z0-9 .,@:/_\-]{1,120}$")      # the maker's own rule (desktop_maker.SUPPORT_OK): nothing a .bat or a page reads specially
+
+
+def check_support(text: str) -> str:
+    """BUILDER 11-21: who a customer contacts when something goes wrong, baked into the start file as --support; '' leaves the maker's default"""
+    if not text:
+        return ""
+    if not SUPPORT_OK.match(text):
+        raise Refused("--support-contact may use letters, digits, spaces and . , @ : / _ - only (it is written into the start file and shown on the page).")
+    return f'--support "{text}"'
+
+
 def build(a) -> dict:
     out, kit, ffd = Path(a.out), Path(a.kit), Path(a.ffmpeg_dir)
     app_repo = Path(a.app_repo)
@@ -375,6 +387,7 @@ def build(a) -> dict:
     if face_model:
         check_face_model(face_model)
     maker_extra = check_maker_extra(getattr(a, "maker_extra", "") or "")
+    support = check_support(getattr(a, "support_contact", "") or "")
     signin = check_signin(getattr(a, "signin_site", "") or "", getattr(a, "signin_approval_host", None) or [], bool(getattr(a, "node_auto", False)), bool(getattr(a, "node_allow_c", False)))
     node_kit = Path(a.node_job_kit) if getattr(a, "node_job_kit", "") else None
     node_add = check_node_job_kit(node_kit, kit) if node_kit else []
@@ -438,6 +451,7 @@ def build(a) -> dict:
         (out / "work").mkdir()
         (out / "films").mkdir()
         word_builder = bool(getattr(a, "word_builder", False))
+        signin = " ".join(x for x in (signin, support) if x)        # the support words ride in the same slot of the start file
         write_start_files(out, has_model=bool(model), maker_extra=maker_extra, forge_bat=bool(getattr(a, "forge_bat", False)), word_builder=word_builder, face_model=bool(face_model), signin=signin)
         if word_builder:
             write_word_builder(out, app_repo)
@@ -502,6 +516,8 @@ def main(argv=None) -> int:
     ap.add_argument("--ffmpeg-readme", default="", help="the ffmpeg build's README (default: README.txt next to its bin folder)")
     ap.add_argument("--forge-bat", action="store_true", help="also write the second start file, which starts the song page WITH --song-forge (words built from the person's own sounds); the normal start file never passes it")
     ap.add_argument("--word-builder", action="store_true", help="put the word-builder add-on INSIDE the folder (one zip): Get word builder.bat at the root, tools\\get_word_builder.py; the 378 MB model is still fetched later, on a YES, by that file")
+    ap.add_argument("--support-contact", default="", help="who a customer contacts when something goes wrong, shown by the app (plain characters; "
+                                                       "default: the person or company that gave you this app)")
     ap.add_argument("--maker-extra", default="", help="page switches the start file turns on unless the tester sets MAKER_EXTRA himself; only --song --song-forge --edit are allowed (for example \"--song --song-forge\")")
     ap.add_argument("--signin-site", default="", help="tester builds: the Ryagram node address (https://<project>.supabase.co/functions/v1/node) the start file passes as --site, so the app shows its Sign in card; off unless given")
     ap.add_argument("--signin-approval-host", action="append", default=[], help="with --signin-site: the host the site sends the person to for approving this computer (repeat for more), for example uselai.com")
