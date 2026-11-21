@@ -26,7 +26,7 @@ STATE = """() => {
   const links = [...main.querySelectorAll('a')].map(a => a.textContent.trim());
   return { text, buy: buttons.filter(t => /^(Buy|Subscribe)$/.test(t)).length, buyLinks: links.filter(t => /buy credits/i.test(t)).length,
            card: /4242/.test(text), testMode: /test mode/i.test(text), closedLine: /Buying credits is not open yet\\./.test(text),
-           free: /Free contact sheets and previews are always free\\./.test(text),
+           free: /Contact sheets are free, and so are your first previews\\./.test(text),
            offers: [...main.querySelectorAll('.offer')].length, filmCost: /A full film costs/.test(text), overflow: document.documentElement.scrollWidth > innerWidth + 1 };
 }"""
 

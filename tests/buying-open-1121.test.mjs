@@ -28,14 +28,14 @@ const OFFERS = [
   { code: 'sub_creator', credits: 30, price_cents: 2400, monthly: true },
   { code: 'sub_pro', credits: 100, price_cents: 6900, monthly: true }];
 
-async function credits({ config = {}, mock = false, search = '', source = lib, prices = null } = {}) {
+async function credits({ config = {}, mock = false, search = '', source = lib, prices = null, plan = null } = {}) {
   const document = { createElement: t => new El(t) };
   const win = { ryagramConfig: { credits: true, payments: true, stripeTestMode: true, ...config } };
   if (mock) win.ryagramMock = {};
   const Cmod = {}; vm.runInNewContext(read('assets/app-credits.js'), { window: Cmod });
   win.ryagramCredits = Cmod.ryagramCredits;
   win.ryagramFlip = { create: ({ sections }) => ({ el: sections.map(s => s.el) }) };
-  const data = { shopOffers: async () => OFFERS, myPlan: async () => null, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async () => '#', openBillingPortal: async () => '#',
+  const data = { shopOffers: async () => OFFERS, myPlan: async () => plan, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async () => '#', openBillingPortal: async () => '#',
                  filmPrices: async () => prices || [] };
   const a = source.indexOf('  const creditsOn ='), b = source.indexOf('  const BUYING_CLOSED_SHORT'), helpers = source.slice(a, source.indexOf('\n', b));
   const body = source.slice(source.indexOf('    async function creditsView('), source.indexOf('    // --- #/p/<id>'));
@@ -57,7 +57,7 @@ const closedViolations = view => {
   if (elements(view).some(e => e.tag === 'button' && /^(Buy|Subscribe)$/.test(e.textContent))) bad.push('a Buy/Subscribe button');
   if (/4242/.test(text)) bad.push('the test card');
   if (/Test mode/i.test(text)) bad.push('Test mode text');
-  if (!/Buying credits is not open yet\. Free contact sheets and previews are always free\./.test(text)) bad.push('the closed line is missing');
+  if (!/Buying credits is not open yet\. Contact sheets are free, and so are your first previews\./.test(text)) bad.push('the closed line is missing');
   if (!/10 credits for \$12/.test(text) || !/30 credits a month, \$24 a month/.test(text) || !/100 credits a month, \$69 a month/.test(text)) bad.push('the packs and plans are not listed');
   if (!/22 credits available/.test(text)) bad.push('the balance is missing');
   return bad;
@@ -142,4 +142,36 @@ test('WHAT A FILM COSTS: the data layer reads the CURRENT price versions final_*
   assert.deepEqual(rows.map(r => [r.code, r.credits]).sort(), [['final_line', 6], ['final_map', 8], ['final_paired', 10]]);
   const sql = read('supabase/phase-2b/credits_ledger.sql');
   for (const [code, n] of [['final_line', 6], ['final_map', 8], ['final_paired', 10]]) assert.match(sql, new RegExp(`'${code}', ${n}, null`), `the ledger's table says ${code} is ${n}`);
+});
+
+// ---- GAMES' 13:05 review (WEB 11-21 bg) ---------------------------------------------------------------------------------------------------------------
+test('M1: no page says previews are always free; both states say contact sheets are free and so are the FIRST previews', async () => {
+  for (const config of [{ buyingOpen: false }, { buyingOpen: true }]) {
+    const text = textOf(await credits({ config, prices: TABLE }));
+    assert.match(text, /Contact sheets are free, and so are your first previews\./);
+    assert.doesNotMatch(text, /always free|previews are free/i);
+  }
+  assert.doesNotMatch(lib, /always free|Contact sheets and previews are free/);
+  assert.match(lib, /Your free previews are used up for now, so this one costs/, 'the paid preview still says it costs credits');
+  const planted = lib.replace("Contact sheets are free, and so are your first previews.';", "Free contact sheets and previews are always free.';");
+  assert.notEqual(planted, lib);
+  assert.match(textOf(await credits({ source: planted })), /always free/, 'the planted untrue sentence is visible to the check');
+});
+
+test('LOW 1: "Cancel any time from Manage plan." is shown only when there is a plan (and so a Manage plan button)', async () => {
+  for (const config of [{ buyingOpen: false }, { buyingOpen: true }]) {
+    assert.doesNotMatch(textOf(await credits({ config })), /Manage plan/);
+    const withPlan = textOf(await credits({ config, plan: { price_code: 'sub_creator', status: 'active', current_period_end: '2099-01-01T00:00:00Z' } }));
+    assert.match(withPlan, /Cancel any time from Manage plan\./);
+    assert.match(withPlan, /Manage plan/);
+  }
+  const planted = lib.replace("${current || plan ? ' Cancel any time from Manage plan.' : ''}", " Cancel any time from Manage plan.");
+  assert.notEqual(planted, lib);
+  assert.match(textOf(await credits({ source: planted })), /Manage plan/, 'the planted always-on sentence is caught');
+});
+
+test('LOW 2: a paid preview with too few credits and buying closed says buying is not open yet, before any confirm or server call', () => {
+  const ok = src => { const g = src.indexOf("&& paymentsOn() && !buyingOn() && (q.available || 0) < q.credits) {"), c = src.indexOf('await askConfirm(previewButton'); return g > 0 && c > g && src.slice(g, c).includes('BUYING_CLOSED_SHORT'); };
+  assert.ok(ok(lib), 'the shortfall line comes before the confirm');
+  assert.ok(!ok(lib.replace('&& paymentsOn() && !buyingOn() && (q.available || 0) < q.credits) {', '&& false) {')), 'the planted removal of the guard is caught');
 });
