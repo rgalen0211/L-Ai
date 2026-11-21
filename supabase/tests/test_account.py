@@ -240,6 +240,24 @@ class Account(core.Base):
                 with self.subTest(who=who, sql=sql), self.assertRaises(psycopg.errors.InsufficientPrivilege):
                     self.db.as_(who).one(sql, RYAN)
 
+    # -- GEO 11-21 (CC1 12:36 G1): the live-steps after-checks and the rollbacks of GEO's migrations
+    def g1_check(self, name):
+        f = next((core.ROOT / "live-steps").glob("*_" + name + "_after_check.sql"))
+        return [bool(r[1]) for r in self.db.as_(None).c.execute(f.read_text(encoding="utf-8")).fetchall()]
+
+    def g1_rollback(self, name):
+        f = next((core.ROOT / "rollbacks").glob("*_" + name + "_rollback.sql"))
+        self.db.as_(None).c.execute(f.read_text(encoding="utf-8"))
+
+    def test_GEO_g1_after_checks_true_then_the_rollbacks_in_order_put_the_old_bodies_back(self):
+        self.assertEqual(self.g1_check("account_delete_paid"), [True] * 4)
+        self.assertEqual(self.g1_check("retention_outbox_support"), [True] * 4)
+        self.g1_rollback("retention_outbox_support")                 # 000400's undo FIRST
+        self.assertEqual(self.g1_check("retention_outbox_support"), [False, True, False, True])
+        self.assertEqual(self.g1_check("account_delete_paid"), [True] * 4)   # 000100's own functions untouched
+        self.g1_rollback("account_delete_paid")
+        self.assertEqual(self.g1_check("account_delete_paid"), [False] * 4)  # both functions gone
+
 
 if __name__ == "__main__":
     unittest.main()
