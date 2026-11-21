@@ -162,7 +162,7 @@ function checkoutDeps(ctx = {}, over = {}) {
       verifyUser: async jwt => (jwt === 'good' ? { id: RYAN } : null),
       context: async (owner, code) => ({ stripe_price_id: code === 'pack_starter' ? 'price_Starter1' : code === 'sub_creator' ? 'price_Creator1' : null,
                                          mode: code.startsWith('pack_') ? 'payment' : code.startsWith('sub_') ? 'subscription' : null,
-                                         customer_id: null, email: 'ryan@example.test', has_plan: false, live_ok: false, ...ctx }),
+                                         customer_id: null, email: 'ryan@example.test', has_plan: false, live_ok: false, buying_open: true, ...ctx }),   // buying open: the tests below; closed: GEO 11-21's test
       setCustomer: async (owner, id) => { customers.push([owner, id]); },
       stripe: s.stripe,
       ...over,
@@ -280,4 +280,18 @@ test('GEO 11-21 M6: chargeback events are read and passed on (a dispute object, 
 test('form encoding follows Stripe\'s bracket style', () => {
   assert.equal(formEncode({ a: 1, b: { c: 'x y', d: [{ e: 2 }] }, skip: undefined, none: null }),
                'a=1&b%5Bc%5D=x%20y&b%5Bd%5D%5B0%5D%5Be%5D=2');
+});
+
+test('buying is a server switch: closed, no checkout opens for an ordinary account; an admin may test; the portal stays open (GEO 11-21)', async () => {
+  let { s, deps } = checkoutDeps({ buying_open: false, is_admin: false });
+  let res = await call(deps, { price_code: 'pack_starter' });
+  assert.equal(res.status, 503);                                             // MUST-FAIL: before the switch a test key opened it for anyone
+  assert.match((await res.json()).error, /Buying is not open yet/);
+  assert.equal(s.calls.length, 0);                                           // Stripe was never called
+  ({ s, deps } = checkoutDeps({ buying_open: undefined, is_admin: undefined }));
+  assert.equal((await call(deps, { price_code: 'pack_starter' })).status, 503);   // a missing key reads as closed
+  ({ s, deps } = checkoutDeps({ buying_open: false, is_admin: true }));
+  assert.equal((await call(deps, { price_code: 'pack_starter' })).status, 200);   // Ryan's own test purchase
+  ({ s, deps } = checkoutDeps({ buying_open: false, is_admin: false, customer_id: 'cus_Ryan' }));
+  assert.equal((await call(deps, { action: 'portal' })).status, 200);         // an existing plan can still be managed
 });

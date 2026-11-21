@@ -44,6 +44,7 @@ def setUpModule():
                   "('sub_creator', 'price_Creator1', 'subscription'), ('sub_pro', 'price_Pro1', 'subscription')")
         c.execute("insert into public.stripe_customers (owner_id, customer_id) values (%s, 'cus_Ryan'), (%s, 'cus_Other')",
                   (RYAN, OTHER))
+        c.execute("update public.stripe_settings set buying_open = true where id")   # the tests below are buying OPEN; GEO 11-21's tests close it
 
 
 class Stripe(unittest.TestCase):
@@ -155,6 +156,29 @@ class Stripe(unittest.TestCase):
         self.assertEqual(self.db.as_(RYAN).one("select available from credit_balances"), -20)
 
     # -- GEO 11-21: Ryan 11:30's refund rule, 'unused credits refundable within 14 days'
+    # -- GEO 11-21: buying is a server switch; while it is off a purchase grants nothing (the second lock)
+    def test_GEO_while_buying_is_closed_a_pack_or_a_plan_month_is_held_and_grants_nothing(self):
+        self.admin("update stripe_settings set buying_open = false where id returning 1")
+        # MUST-FAIL: before the switch this granted the pack's 10 credits
+        self.assertEqual(self.apply("checkout.session.completed", self.pack(pi="pi_Closed"), event="evt_Closed"), "needs_review")
+        self.assertIn("Buying is not open yet", self.detail("evt_Closed")[1])
+        self.assertEqual(self.balance(), 0)
+        self.assertEqual(self.apply("invoice.paid", self.invoice(), event="evt_ClosedInv"), "needs_review")   # a plan month too
+        self.assertEqual(self.balance(), 0)
+        self.assertEqual(str(self.admin("select owner_id from stripe_events where event_id = 'evt_Closed'")), RYAN)
+
+    def test_GEO_while_buying_is_closed_an_admin_s_own_test_purchase_still_goes_through(self):
+        self.admin("update stripe_settings set buying_open = false where id returning 1")
+        self.admin("insert into app_admins (user_id) values (%s) returning 1", RYAN)
+        self.assertEqual(self.apply("checkout.session.completed", self.pack(pi="pi_Admin")), "applied")
+        self.assertEqual(self.balance(), 10)
+
+    def test_GEO_the_checkout_context_names_the_switch_and_the_admin(self):
+        ctx = self.db.as_("service").one("select stripe_checkout_context(%s, 'pack_starter')", RYAN)
+        self.assertEqual((ctx["buying_open"], ctx["is_admin"]), (True, False))
+        self.admin("update stripe_settings set buying_open = false where id returning 1")
+        self.assertFalse(self.db.as_("service").one("select stripe_checkout_context(%s, 'pack_starter')", RYAN)["buying_open"])
+
     def test_GEO_a_pack_refunded_after_some_credits_were_used_is_held_not_taken_negative(self):
         self.apply("checkout.session.completed", self.pack(pi="pi_U"))
         self.admin("select adjust_credits(%s, 'purchased', -1, 'one preview', 'admin:test')", RYAN)

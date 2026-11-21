@@ -172,6 +172,16 @@ begin
 
   if p_livemode and not settings.live_ok then
     select 'refused_live' as outcome, 'Live-mode event while Stripe is in test mode.' as detail, null::uuid as owner into r;
+  elsif p_type in ('checkout.session.completed', 'checkout.session.async_payment_succeeded', 'invoice.paid')
+        and not coalesce(settings.buying_open, false)
+        and not exists (select 1 from public.app_admins a where a.user_id = coalesce(
+              case when coalesce(p_data->>'owner_id', '') ~ '^[0-9a-fA-F-]{36}$' then (p_data->>'owner_id')::uuid end,
+              ryagram_private.stripe_owner(p_data->>'customer'))) then
+    -- GEO 11-21: the second lock. While buying is closed a payment that reaches us anyway (a direct call, an old page) grants NOTHING:
+    -- it is held for Ryan (refund it in Stripe, or grant by hand). An app admin's own test purchase still goes through.
+    select 'needs_review' as outcome, 'Buying is not open yet (stripe_settings.buying_open is false): payment held, no credits granted. Refund it in Stripe, or grant by hand.' as detail,
+           coalesce(case when coalesce(p_data->>'owner_id', '') ~ '^[0-9a-fA-F-]{36}$' then (p_data->>'owner_id')::uuid end,
+                    ryagram_private.stripe_owner(p_data->>'customer')) as owner into r;
   elsif p_type in ('checkout.session.completed', 'checkout.session.async_payment_succeeded') then
     select * into r from ryagram_private.stripe_checkout(p_event_id, p_data, settings.currency);
   elsif p_type = 'invoice.paid' then
@@ -190,6 +200,26 @@ begin
     values (p_event_id, p_type, p_livemode, r.outcome, r.detail, r.owner);
   return r.outcome;
 end $$;
+
+-- GEO 11-21: BUYING IS A SERVER SWITCH. Off by default: no checkout opens for an ordinary account, and a purchase event for one is held
+-- (stripe_apply above). Ryan turns it on with live_ok at the paid launch: update public.stripe_settings set buying_open = true where id;
+alter table public.stripe_settings add column if not exists buying_open boolean not null default false;
+
+create or replace function public.stripe_checkout_context(p_owner uuid, p_price_code text)
+returns jsonb
+language sql stable security definer set search_path = '' as $$
+  select jsonb_build_object(
+    'stripe_price_id', (select stripe_price_id from public.stripe_prices where price_code = p_price_code and active),
+    'mode', (select mode from public.stripe_prices where price_code = p_price_code and active),
+    'customer_id', (select customer_id from public.stripe_customers where owner_id = p_owner),
+    'email', (select email from auth.users where id = p_owner),
+    'has_plan', exists (select 1 from public.stripe_subscriptions where owner_id = p_owner
+                          and status in ('incomplete', 'trialing', 'active', 'past_due', 'unpaid')),
+    'live_ok', (select live_ok from public.stripe_settings where id),
+    -- GEO 11-21: buying is a SERVER switch too (the page's buyingOpen only hides buttons); an app admin may still test it
+    'buying_open', coalesce((select buying_open from public.stripe_settings where id), false),
+    'is_admin', exists (select 1 from public.app_admins a where a.user_id = p_owner))
+$$;
 
 -- The new helper runs only inside stripe_apply (as stripe_test_mode.sql does for the others).
 revoke execute on function ryagram_private.stripe_dispute(text, text, jsonb) from public, anon, authenticated;
