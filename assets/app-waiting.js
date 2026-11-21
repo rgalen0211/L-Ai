@@ -30,7 +30,7 @@
   // chooses a password from that link, as testers do. Supabase's own sign-up stays OFF. {ok, off, message}: off = the switch is not on yet (the page sends people to the waitlist).
   async function signUp(data, email, over18) {
     if (ageProblem(over18)) return { ok: false, off: false, message: AGE_PROBLEM };        // unticked: nothing is sent
-    return data.joinWaiting(String(email || '').trim());
+    return data.joinWaiting(String(email || '').trim(), true);
   }
   // One line for #/admin/ops: how many are waiting, and how many of them have confirmed their address (only a confirmed one can be approved).
   function waitingSummary(list) {

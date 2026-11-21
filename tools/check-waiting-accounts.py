@@ -37,7 +37,7 @@ def page(b, opts, errs):
     p.on('pageerror', lambda e: errs.append(str(e))); p.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
     p.on('dialog', lambda d: d.accept())
     # records the name of every function the page invokes (join, redeem-invite ...): the age check must stop a sign-up BEFORE any request
-    p.add_init_script("""(() => { let f; Object.defineProperty(window, 'createMockApp', { configurable: true, get() { return f && (function () { const c = f.apply(this, arguments); const o = c.functions.invoke; c.functions.invoke = function (n, a) { (window.__fn = window.__fn || []).push(n); return o.call(this, n, a); }; return c; }); }, set(v) { f = v; } }); })();""")
+    p.add_init_script("""(() => { let f; Object.defineProperty(window, 'createMockApp', { configurable: true, get() { return f && (function () { const c = f.apply(this, arguments); const o = c.functions.invoke; c.functions.invoke = function (n, a) { (window.__fn = window.__fn || []).push(n); (window.__fb = window.__fb || []).push([n, JSON.stringify(a && a.body)]); return o.call(this, n, a); }; return c; }); }, set(v) { f = v; } }); })();""")
     return p
 
 
@@ -113,6 +113,7 @@ with sync_playwright() as pw:
         check('join' not in (p.evaluate('window.__fn || []')), 'unticked: no request was sent')
         p.check('#ca-age'); p.click('#create-account-form button'); p.wait_for_timeout(400)
         check(p.evaluate('window.__fn || []').count('join') == 1, 'ticked: exactly one join request')
+        check(p.evaluate("(window.__fb || []).filter(x => x[0] === 'join').map(x => JSON.parse(x[1]))") == [{'email': 'new.person@example.com', 'adult_confirmed': True}], 'ticked: join carries the email and adult_confirmed true, nothing else')
         check('on its way' in p.inner_text('#create-account-note') and p.locator('#create-account-error').is_hidden(), 'join answers with the same "link is on its way" words')
         # the invite-code form has the same box
         go(p, '', '#/')
@@ -124,6 +125,7 @@ with sync_playwright() as pw:
         check('redeem-invite' not in (p.evaluate('window.__fn || []')), 'invite form unticked: no request was sent')
         p.check('#iv-age'); p.click('#invite-form button'); p.wait_for_timeout(400)
         check(p.evaluate('window.__fn || []').count('redeem-invite') == 1, 'invite form ticked: one redeem-invite request')
+        check(p.evaluate("(window.__fb || []).filter(x => x[0] === 'redeem-invite').map(x => Object.keys(JSON.parse(x[1])).sort())") == [['code', 'email']], 'invite form: redeem-invite keeps its two fields (it does not take the age field)')
         go(p, '&joinoff', '#/')
         if p.locator('#account-avatar').is_visible(): p.evaluate("document.querySelector('#sign-out').click()"); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
         p.click('#create-link'); p.wait_for_selector('#create-account:not([hidden])', timeout=5000)
