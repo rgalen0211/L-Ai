@@ -58,9 +58,12 @@ export function makeEditorTools(friendly: Friendly): ToolDef[] {
         return refuse('The person has not shared their track list with their AI. Ask them to tick "Let my AI see my track list" in the Ryagram app, then open the editor again.', "not_shared");
       }
       const title = (await ctx.data.listProjects()).find((p) => p.id === id)?.title ?? "";
+      // Does the website's editor open for THIS person? The site shows its editor only to an account whose own list names liveEditor (while its setting is the word account; a test pins that), and an account that is not on the list gets a plain "isn't on for this account" page. The panel's 'See the real frames on the site' button is offered only when this is true, so it never leads to that page. Not readable = not on.
+      const sw = await ctx.data.switches().catch(() => [] as string[]);
+      const siteEditor = Array.isArray(sw) && sw.includes("liveEditor");
       return ok(`The Ryagram editor is open for ${untrusted("project-title", title)} (${mode === "data" ? "a data film" : "a clip film"}). `
         + "The person can change it there; each change is a draft they save or build in the Ryagram app. Read get_edit_state before you change anything yourself.",
-        { project_id: id, mode, title });
+        { project_id: id, mode, title, site_editor: siteEditor });
     },
   };
 

@@ -55,7 +55,11 @@ const mutants = [
   ['the build button is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-pill{display:none}'],
   ['the pill that talks about the computer is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-top .button.primary{display:none}'],
   // "See the real frames on the site" (route A): what may go into the address, who may open it, and what a refusing host is told
-  ['a clip film is given the site link', H, "if (mode !== 'data' || typeof appUrl", "if (false || typeof appUrl"],
+  ['a clip film is given the site link', H, "if (allowed !== true || mode !== 'data' || typeof appUrl", "if (allowed !== true || false || typeof appUrl"],
+  // the panel's link into the site's editor is offered only when the server said the site's editor is on for this person (11-21)
+  ['the link is offered whatever the server said', H, "if (allowed !== true || mode !== 'data' ||", "if (mode !== 'data' ||"],
+  ['any truthy answer turns the link on (real Chrome)', H, 'sc.site_editor === true), siteNote', '!!sc.site_editor), siteNote', 'browser'],
+  ['the link is offered when the result says nothing (real Chrome)', H, 'sc.site_editor === true), siteNote', 'sc.site_editor !== false), siteNote', 'browser'],
   ['a plain http site address is accepted', H, "const SITE_RE = /^https:\\/\\/", "const SITE_RE = /^https?:\\/\\/"],
   ['a film id of any form is put into the address', H, " || typeof project !== 'string' || !FILM_RE.test(project)) return '';", ") return '';"],
   ['the address leaves out the film', H, "+ '#/editor/data/' + project;", "+ '#/editor/data/';"],

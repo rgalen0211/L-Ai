@@ -183,8 +183,8 @@
   //      the page's root when the page is read, never request data) and is checked again here; the film id must be the site's own form; only a data film has real frames there. The host opens the link, not this page.
   const SITE_RE = /^https:\/\/[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?(\/[A-Za-z0-9._~\/-]*)?$/;
   const FILM_RE = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
-  function siteLink(appUrl, project, mode) {
-    if (mode !== 'data' || typeof appUrl !== 'string' || !SITE_RE.test(appUrl) || typeof project !== 'string' || !FILM_RE.test(project)) return '';
+  function siteLink(appUrl, project, mode, allowed) {
+    if (allowed !== true || mode !== 'data' || typeof appUrl !== 'string' || !SITE_RE.test(appUrl) || typeof project !== 'string' || !FILM_RE.test(project)) return '';
     return appUrl.replace(/\/?$/, '/') + '#/editor/data/' + project;
   }
   function openSite(url, note) {
@@ -271,7 +271,7 @@
     if (!root || !window.ryagramEditorPage) return;
     fullBtn = h('button', { type: 'button', class: 'button secondary', hidden: true, onclick: toggleFull }, 'Full screen');
     const appUrl = root.getAttribute ? root.getAttribute('data-app-url') : '';
-    const siteUrl = siteLink(appUrl, project, window.ryagramLiveHost.mode), siteNote = h('div', { class: 'le-sitenote' });
+    const siteUrl = siteLink(appUrl, project, window.ryagramLiveHost.mode, sc.site_editor === true), siteNote = h('div', { class: 'le-sitenote' });
     const siteBtn = siteUrl ? h('button', { type: 'button', class: 'button secondary', onclick: () => openSite(siteUrl, siteNote) }, 'See the real frames on the site') : null;
     root.replaceChildren(h('div', { class: 'le-chatbar' }, h('span', { class: 'meta' }, 'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'), h('span', { class: 'le-chatbtns' }, siteBtn, fullBtn)), siteNote, window.ryagramEditorPage.create({ h }).editorView(window.ryagramLiveHost.mode, fn => stops.push(fn)));
     paintFull();

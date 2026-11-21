@@ -25,6 +25,11 @@ const mutants = [
   // who may call
   ['a panel call needs only read permission', E, 'name, title, scope: "edit", readOnly, idempotent: readOnly, chatEditor: "app"', 'name, title, scope: "read", readOnly, idempotent: readOnly, chatEditor: "app"'],
   ['open_editor needs only read permission', E, 'name: "open_editor", title: "Open the Ryagram editor", scope: "edit"', 'name: "open_editor", title: "Open the Ryagram editor", scope: "read"'],
+  // the site's editor is on only for some accounts (the panel's link into it, 11-21)
+  ['every account counts as having the site editor', E, 'const siteEditor = Array.isArray(sw) && sw.includes("liveEditor");', 'const siteEditor = true;'],
+  ['any switch at all counts as the site editor', E, 'Array.isArray(sw) && sw.includes("liveEditor");', 'Array.isArray(sw) && sw.length > 0;'],
+  ['a switch list that cannot be read counts as on', E, 'await ctx.data.switches().catch(() => [] as string[]);', 'await ctx.data.switches().catch(() => ["liveEditor"] as string[]);'],
+  ['the answer leaves out whether the site editor is on', E, '{ project_id: id, mode, title, site_editor: siteEditor }', '{ project_id: id, mode, title }'],
   ["another person's film opens", E, 'if (!st) return refuse("That film was not found among your projects.", "not_found");', ''],
   ['a clip film opens without the track list being shared', E, 'if (mode === "compilation" && !st.compilation.shared) {', 'if (false) {'],
   ['a film title goes into the words as written', E, '${untrusted("project-title", title)}', '${title}'],
