@@ -116,6 +116,23 @@ test('only signed-in people, from our pages, with the switch on and under the da
   assert.equal(c.calls.length, 0);                                   // Claude was never called
 });
 
+test('a raw database 42501 never reaches the person; our own sentence still does (GEO 11-21 review L11)', async () => {
+  const c = fakeClaude([]);
+  const worker = await handle(ask('hi'), deps(fakeWorld(), c, { id: 'worker' }));
+  assert.equal(worker.status, 403);
+  assert.match((await worker.json()).error, /worker account can't use the editor/);
+  const w = fakeWorld();
+  w.store.sessionFor = async () => { throw Object.assign(new Error('permission denied for function ai_session_for'), { code: '42501' }); };
+  const quiet = console.error; console.error = () => {};
+  const res = await handle(ask('hi'), deps(w, c));
+  console.error = quiet;
+  assert.equal(res.status, 403);
+  const said = (await res.json()).error;
+  assert.doesNotMatch(said, /permission denied|ai_session_for/);   // MUST-FAIL: before the fix the raw text went back
+  assert.equal(said, "You can't use the editor on this film.");
+  assert.equal(c.calls.length, 0);
+});
+
 test('a routine turn runs on Haiku, uses a tool, caches the stable prefix and records usage per call', async () => {
   const w = fakeWorld();
   const c = fakeClaude([msg([use('inspect_project')], 'tool_use'), msg([text('It is a map of obesity and fast food, 2011 to 2023.')])]);
