@@ -92,3 +92,15 @@ test('ROW 2 AND THE FALLBACK LIST: a non-invited account whose list is empty (th
   const m = await p.ui.load();
   assert.ok(m.soon.includes('compilations'));
 });
+
+// ---------------------------------------------------------------------------------------------- ROW 3: the public help entry
+test('ROW 3 HELP FAQ: "How do I connect Claude or ChatGPT?" is true for everyone: it says in its first words that connecting is for invited accounts for now and what not seeing Connected AIs means, BEFORE the steps', () => {
+  const html = read('help/index.html');
+  const m = /<details[^>]*data-flag="connectAi"[^>]*><summary>How do I connect Claude or ChatGPT to Ryagram\?<\/summary>\s*<p>([^<]*)<\/p>/.exec(html);
+  assert.ok(m, 'the entry is there');
+  const first = m[1];
+  assert.match(first, /^Connecting an AI is for invited accounts for now\./);
+  assert.match(first, /If you do not see Connected AIs under Account, your account is not invited yet/);
+  assert.ok(first.indexOf('invited') < first.indexOf('open Account, then Connected AIs'), 'the caveat comes before the steps');
+  assert.doesNotMatch(first, /^Open Account/);
+});
