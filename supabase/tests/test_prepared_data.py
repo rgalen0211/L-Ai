@@ -187,6 +187,34 @@ class PreparedData(core.Base):
         self.assertEqual(self.admin("select ryagram_private.prepared_purge()"), 1)
         self.assertEqual(self.staged(), 0)
 
+    def test_the_daily_connector_purge_removes_expired_tables_with_their_text_and_decided_rows_a_day_later(self):
+        # migrations/20261120000600_prepared_purge_daily.sql (GEO 11-21, MEDIUM 1): connect_purge calls prepared_purge, so an expired table's full CSV text does not stay in the database for ever.
+        # WRITTEN, NOT RUN (the Postgres lane waits for disk); it needs the harness to apply that migration, which it does with every file in migrations/ in order.
+        a = self.alice()
+        expired = self.hand(a)["prepared_id"]
+        waiting = self.hand(a, label="A second table")["prepared_id"]
+        decided = self.hand(a, label="A third table")["prepared_id"]
+        self.exec_sql("update public.prepared_data set expires_at = now() - interval '1 minute' where id = %s", expired)
+        self.exec_sql("update public.prepared_data set state = 'discarded', csv_text = '', decided_at = now() - interval '2 days' where id = %s", decided)
+        out = self.admin("select public.connect_purge()")
+        self.assertEqual(out["prepared"], 2, out)
+        self.assertEqual(self.admin("select count(*) from public.prepared_data where id = %s", expired), 0, "the expired table and its text are gone")
+        self.assertEqual(self.admin("select count(*) from public.prepared_data where id = %s", decided), 0, "a table decided more than a day ago is gone")
+        self.assertGreater(self.admin("select length(csv_text) from public.prepared_data where id = %s", waiting), 0, "a table still within its 7 days is untouched")
+        for k in ("requests", "codes", "tokens", "calls", "edit"):
+            self.assertIn(k, out, "the original keys stand")
+
+    def test_the_purge_after_check_answers_true_on_every_row(self):
+        rows = self.db.as_(None).c.execute((core.ROOT / "live-steps" / "38_prepared_purge_after_check.sql").read_text(encoding="utf-8")).fetchall()
+        self.assertEqual(len(rows), 4)
+        self.assertTrue(all(r[1] is True for r in rows), rows)
+
+    def test_a_failing_prepared_purge_never_stops_the_connector_purge(self):
+        self.exec_sql("create or replace function ryagram_private.prepared_purge() returns int language plpgsql as $$ begin raise exception 'boom'; end $$")
+        out = self.admin("select public.connect_purge()")
+        self.assertEqual(out["prepared"], {"error": "P0001"}, out)
+        self.assertIn("requests", out)
+
     def test_accepting_records_who_prepared_it_and_what_was_declared_and_drops_the_text_and_works_once(self):
         a = self.alice()
         pid = self.hand(a)["prepared_id"]

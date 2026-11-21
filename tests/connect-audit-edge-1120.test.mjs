@@ -105,7 +105,8 @@ test('20261120000100: connect_purge also runs ryagram_private.edit_purge (nothin
   assert.match(ed, /delete from public\.edit_ops where created_at < now\(\) - interval '7 days'/);
   // no other migration, Edge Function or step ever called it (this is what the audit found): after this file exactly one caller exists
   const callers = migrations.filter((f) => /ryagram_private\.edit_purge\(\)/.test(read('supabase/migrations/' + f)) && !/live_editor\.sql$/.test(f));
-  assert.deepEqual(callers, ['20261120000100_connect_purge_edit.sql']);
+  // (and the prepared-data purge migration 20261120000600, which redefines connect_purge as this function plus ONE more guarded call, so it keeps the editor call: tests/connect-prepared-purge.test.mjs pins that it is this function exactly plus that call)
+  assert.deepEqual(callers, ['20261120000100_connect_purge_edit.sql', '20261120000600_prepared_purge_daily.sql']);
   const rb = lf(read('supabase/rollbacks/20261120000100_connect_purge_edit_rollback.sql'));
   assert.doesNotMatch(rb.replace(/--[^\n]*/g, ''), /edit_purge/);
   assert.ok(!rb.replace(/--[^\n]*/g, '').includes("'edit'"));
