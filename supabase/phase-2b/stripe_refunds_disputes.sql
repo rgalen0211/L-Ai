@@ -141,4 +141,7 @@ end $$;
 -- The new helper runs only inside stripe_apply (as stripe_test_mode.sql does for the others).
 revoke execute on function ryagram_private.stripe_dispute(text, text, jsonb) from public, anon, authenticated;
 
+-- Run by hand after the waiting-list gate exists (it does on live), re-apply its guards as every migration does; skipped where it does not.
+do $g$ begin if to_regprocedure('ryagram_private.gate_apply()') is not null then perform ryagram_private.gate_apply(); end if; end $g$;
+
 commit;

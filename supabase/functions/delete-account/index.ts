@@ -27,6 +27,10 @@ serve((req) => handle(req, {
     const { error } = await service.storage.from(bucket === "uploads" ? "ryagram-uploads" : "ryagram-artifacts").remove(paths);
     if (error) throw new Error(error.message);
   },
+  eraseContent: (owner) => rpc("account_erase_paid_content", { p_owner: owner }),                 // GEO 11-21 M1
+  redactContact: async (owner, email) => {                                                          // GEO 11-21 M5
+    await rpc("account_redact_contact", { p_owner: owner, p_email: email });
+  },
   requestDeletion: async (owner, email, reason) => {
     await rpc("account_request_deletion", { p_owner: owner, p_email: email, p_reason: reason });
   },

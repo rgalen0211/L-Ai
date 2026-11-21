@@ -14,6 +14,8 @@ function world(check = {}, over = {}) {
       check: async () => ({ active_jobs: 0, has_credit_history: false,
                             storage_paths: Array.from({ length: 250 }, (_, i) => `${ME}/p/v/j${i}/film.mp4`), ...check }),
       removeFiles: async (paths, bucket) => { calls.push([bucket === 'uploads' ? 'remove-uploads' : 'remove', paths.length]); },
+      redactContact: async (owner, email) => { calls.push(['redact', owner, email]); },
+      eraseContent: async owner => { calls.push(['erase', owner]); return { uploads_left: 0, films_left: 0 }; },
       requestDeletion: async (owner, email, reason) => { calls.push(['request', owner, reason]); },
       deleteUser: async owner => { calls.push(['deleteUser', owner]); },
       ...over,
@@ -30,7 +32,7 @@ test('typing your email deletes files in batches, then the login', async () => {
   const res = await call(w.deps, { confirm_email: '  ryan@example.COM ' });
   assert.equal(res.status, 200);
   assert.deepEqual(await res.json(), { status: 'deleted', files_removed: 250 });
-  assert.deepEqual(w.calls, [['remove', 100], ['remove', 100], ['remove', 50], ['deleteUser', ME]]);
+  assert.deepEqual(w.calls, [['remove', 100], ['remove', 100], ['remove', 50], ['redact', ME, 'Ryan@Example.com'], ['deleteUser', ME]]);
 });
 
 test('nothing is deleted without the right confirmation, sign-in and page', async () => {
@@ -44,15 +46,42 @@ test('nothing is deleted without the right confirmation, sign-in and page', asyn
   assert.deepEqual(w.calls, []);
 });
 
-test('a running render blocks it; credit history records a request instead', async () => {
+test('a running render blocks it; credit history still deletes files and uploads NOW, then records a request (GEO 11-21 M1)', async () => {
   let w = world({ active_jobs: 1 });
   assert.equal((await call(w.deps, { confirm_email: 'ryan@example.com' })).status, 409);
   assert.deepEqual(w.calls, []);
-  w = world({ has_credit_history: true });
+  w = world({ has_credit_history: true, storage_paths: [`${ME}/p/film.mp4`], upload_paths: [`${ME}/d1/source.csv`] });
   const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
   assert.equal(res.status, 202);
-  assert.equal((await res.json()).status, 'requested');
-  assert.deepEqual(w.calls, [['request', ME, 'credit history']]);           // no files touched, login kept
+  const body = await res.json();
+  assert.equal(body.status, 'requested');
+  assert.equal(body.files_removed, 2);
+  assert.match(body.message, /films and uploaded files are deleted/);
+  // MUST-FAIL: before the fix only the request was recorded and NO file was touched
+  assert.deepEqual(w.calls, [['remove', 1], ['remove-uploads', 1], ['redact', ME, 'Ryan@Example.com'], ['erase', ME], ['request', ME, 'credit history']]);
+  assert.ok(!w.calls.some(c => c[0] === 'deleteUser'));                       // the login and the ledger stay
+});
+
+test('a paid account whose files are not all gone is not recorded as done (GEO 11-21 M1)', async () => {
+  const quiet = console.error; console.error = () => {};
+  const w = world({ has_credit_history: true }, { eraseContent: async owner => { w.calls.push(['erase', owner]); return { uploads_left: 1, films_left: 0 }; } });
+  const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
+  console.error = quiet;
+  assert.equal(res.status, 500);
+  assert.match((await res.json()).error, /files were removed/);
+  assert.ok(!w.calls.some(c => c[0] === 'request'));                         // asked again, it retries
+});
+
+test('the email is removed from support and invite rows before the login goes; a failure there keeps the login (GEO 11-21 M5)', async () => {
+  let w = world({ storage_paths: [] });
+  await call(w.deps, { confirm_email: 'ryan@example.com' });
+  assert.deepEqual(w.calls, [['redact', ME, 'Ryan@Example.com'], ['deleteUser', ME]]);   // MUST-FAIL: before the fix no redaction
+  const quiet = console.error; console.error = () => {};
+  w = world({ storage_paths: [] }, { redactContact: async () => { throw new Error('db down'); } });
+  const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
+  console.error = quiet;
+  assert.equal(res.status, 500);
+  assert.ok(!w.calls.some(c => c[0] === 'deleteUser'));
 });
 
 test('only the person’s own folder is touched, and failures say what state things are in', async () => {
@@ -75,6 +104,6 @@ test('uploaded spreadsheets are removed from their own bucket, only from the per
   const w = world({ storage_paths: [], upload_paths: [`${ME}/d1/source.csv`, `${ME}/d2/source.xlsx`, 'someone-else/d3/source.csv'] });
   const res = await call(w.deps, { confirm_email: 'ryan@example.com' });
   assert.equal(res.status, 200);
-  assert.deepEqual(w.calls, [['remove-uploads', 2], ['deleteUser', ME]]);
+  assert.deepEqual(w.calls, [['remove-uploads', 2], ['redact', ME, 'Ryan@Example.com'], ['deleteUser', ME]]);
   assert.equal((await res.json()).files_removed, 2);
 });

@@ -107,5 +107,69 @@ class Account(core.Base):
                 self.db.as_(who).one("select email from account_deletion_requests")
 
 
+    # -- GEO 11-21 (GEO-SECURITY-PRIVACY-REVIEW-1121): a paid account's files go now (M1); the email leaves support and invite rows (M5)
+    def upload(self, path, who=RYAN, with_file=True):
+        did = self.admin("insert into datasets (owner_id, name, source, storage_path, bytes, status, retention, filename_label, ext, trust_ack_at) "
+                         "values (%s, 'Sales by street.csv', 'upload', %s, 10, 'approved', 'keep', 'Sales by street.csv', 'csv', now()) returning id",
+                         who, path)
+        if with_file:
+            self.admin("insert into storage.objects (bucket_id, name, metadata) values ('ryagram-uploads', %s, '{}') returning 1", path)
+        return did
+
+    def erase(self, who=RYAN):
+        return self.db.as_("service").one("select account_erase_paid_content(%s)", who)
+
+    def test_GEO_a_paid_account_s_uploads_become_tombstones_only_once_their_files_are_gone(self):
+        gone = self.upload(f"{RYAN}/d1/source.csv", with_file=False)          # the function already removed its file
+        kept = self.upload(f"{RYAN}/d2/source.csv")                            # its file is still in storage
+        theirs = self.upload(f"{OTHER}/d3/source.csv", who=OTHER, with_file=False)
+        out = self.erase()
+        self.assertEqual((out["uploads_erased"], out["uploads_left"]), (1, 1))
+        self.assertEqual(self.admin("select name, filename_label, storage_path, deleted_at is not null from datasets where id = %s", gone),
+                         ("Deleted data", None, None, True))                    # MUST-FAIL: before the fix a paid account kept every row
+        self.assertEqual(self.admin("select name, deleted_at is null from datasets where id = %s", kept), ("Sales by street.csv", True))
+        self.assertEqual(self.admin("select deleted_at is null from datasets where id = %s", theirs), True)   # someone else's never
+        self.admin("delete from storage.objects where name = %s returning 1", f"{RYAN}/d2/source.csv")
+        self.assertEqual(self.erase()["uploads_left"], 0)                    # asked again after the file goes: erased
+
+    def test_GEO_a_paid_account_s_films_are_marked_deleted_only_once_their_files_are_gone(self):
+        _, vid = self.project_with_version()
+        job = self.db.as_(RYAN).one("select id from submit_job(%s, 'contact_sheet')", vid)
+        self.claim()
+        self.run_job(job, ["contact_sheet"])
+        out = self.erase()
+        self.assertEqual((out["films_marked_deleted"], out["films_left"]), (0, 1))     # its file is still there
+        self.admin("delete from storage.objects where bucket_id = 'ryagram-artifacts' and name like %s returning 1", f"{RYAN}/%")
+        out = self.erase()
+        self.assertEqual((out["films_marked_deleted"], out["films_left"]), (1, 0))
+        self.assertEqual(self.admin("select count(*) from artifacts where owner_id = %s and deleted_at is null", RYAN), 0)
+
+    def test_GEO_the_email_leaves_support_and_invite_rows_and_only_the_person_s_own(self):
+        add = "insert into support_requests (owner_id, email, topic, message) values (%s, %s, 'credits', 'Please help with my credits.') returning id"
+        mine = self.admin(add, RYAN, "ryan@example.com")
+        by_addr = self.admin(add, None, "Ryan@Example.COM")                    # sent before signing in, the same address in another case
+        other = self.admin(add, OTHER, "other@example.com")
+        self.admin("insert into invite_codes (code_hash, label, max_uses, expires_at) values (%s, 'test', 5, now() + interval '1 day') returning 1",
+                   "a" * 64)
+        r_mine = self.admin("insert into invite_redemptions (code_hash, email, user_id) values (%s, 'ryan@example.com', %s) returning id", "a" * 64, RYAN)
+        r_other = self.admin("insert into invite_redemptions (code_hash, email, user_id) values (%s, 'other@example.com', %s) returning id", "a" * 64, OTHER)
+        out = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "  RYAN@example.com ")
+        self.assertEqual(out, {"support_requests_redacted": 2, "invite_redemptions_redacted": 1})   # MUST-FAIL: before the fix nothing
+        for sid in (mine, by_addr):
+            self.assertEqual(self.admin("select email from support_requests where id = %s", sid), "redacted@deleted.invalid")
+        self.assertEqual(self.admin("select message from support_requests where id = %s", mine), "Please help with my credits.")
+        self.assertEqual(self.admin("select email from support_requests where id = %s", other), "other@example.com")
+        self.assertEqual(self.admin("select email from invite_redemptions where id = %s", r_mine), "redacted")
+        self.assertEqual(self.admin("select email from invite_redemptions where id = %s", r_other), "other@example.com")
+        self.assertEqual(self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com"),
+                         {"support_requests_redacted": 0, "invite_redemptions_redacted": 0})     # safe to run twice
+
+    def test_GEO_only_the_service_role_can_erase_or_redact(self):
+        for who in (RYAN, "anon"):
+            for sql in ("select account_erase_paid_content(%s)", "select account_redact_contact(%s, 'x@y.z')"):
+                with self.subTest(who=who, sql=sql), self.assertRaises(psycopg.errors.InsufficientPrivilege):
+                    self.db.as_(who).one(sql, RYAN)
+
+
 if __name__ == "__main__":
     unittest.main()
