@@ -52,9 +52,14 @@ class ExpiredFilmsGone(unittest.TestCase):
         self.admin("update render_deliveries set expires_at = now() - interval '1 minute' where id = %s returning 1", did)
 
     def marks(self, did):
-        """(delivery marked deleted, artifact marked deleted)"""
+        """(delivery marked REALLY GONE, artifact marked UNREADABLE)"""
         return self.admin("select r.deleted_at is not null, a.deleted_at is not null from render_deliveries r "
                           "join artifacts a on a.id = r.artifact_id where r.id = %s", did)
+
+    def owner_can_read(self, path):
+        """What the customer's own session can see of the film file in Storage (the owner's read policy)."""
+        return self.db.as_(OTHER).one("select count(*) from storage.objects where bucket_id = 'ryagram-artifacts' and name = %s",
+                                      path) == 1
 
     def stored(self, path):
         return self.admin("select count(*) from storage.objects where bucket_id = 'ryagram-artifacts' and name = %s", path) == 1
@@ -76,17 +81,26 @@ class ExpiredFilmsGone(unittest.TestCase):
         self.expire(did)
         out = self.tick()
         self.assertIn(path, out["delete_objects"])
-        self.assertEqual(self.marks(did), (False, False), "an expired film whose file is still stored is NOT marked deleted")
+        self.assertEqual(self.marks(did), (False, True), "unreadable at once, but NOT marked really gone while its file is stored")
         self.assertIn(str(did), out.get("due_deliveries", []), "the tick names the delivery to mark once its file is gone")
         self.assertEqual(self.order_row(oid), ("expired", "delivery_expired"), "the order still ends as expired")
         self.denied("service", "select delivery_object_for(%s, %s)", OTHER, did)    # and the customer can no longer reach it
+
+    def test_the_owner_cannot_read_the_file_after_expiry_even_while_its_remove_fails(self):
+        """CC1 11-27 MEDIUM: the owner's Storage read policy checks artifacts.deleted_at, so it must be set AT expiry."""
+        _, did, path = self.delivered("gone-0008")
+        self.assertTrue(self.owner_can_read(path), "before expiry the owner can read their film")
+        self.expire(did)
+        self.tick()
+        self.assertTrue(self.stored(path), "the remove has not happened (or failed): the file is still stored")
+        self.assertFalse(self.owner_can_read(path), "but the owner can no longer read it")
 
     def test_a_failed_remove_is_retried_until_the_file_is_gone(self):
         oid, did, path = self.delivered("gone-0002")
         self.expire(did)
         self.tick()
-        self.assertEqual(self.mark(did), 0, "the remove failed (the file is still stored): nothing is marked")
-        self.assertEqual(self.marks(did), (False, False))
+        self.assertEqual(self.mark(did), 0, "the remove failed (the file is still stored): nothing is marked gone")
+        self.assertEqual(self.marks(did), (False, True))
         again = self.tick()
         self.assertIn(path, again["delete_objects"], "the next tick lists the same film again (the retry)")
         self.remove_file(path)
@@ -102,7 +116,7 @@ class ExpiredFilmsGone(unittest.TestCase):
         self.tick()
         self.remove_file(gone_path)                              # one remove succeeded, the other failed
         self.assertEqual(self.mark(gone, kept), 1)
-        self.assertEqual((self.marks(gone), self.marks(kept)), ((True, True), (False, False)))
+        self.assertEqual((self.marks(gone), self.marks(kept)), ((True, True), (False, True)))
         self.assertTrue(self.stored(kept_path))
 
     def test_a_film_not_yet_expired_is_never_marked_even_with_its_file_missing(self):

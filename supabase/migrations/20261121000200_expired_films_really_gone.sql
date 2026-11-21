@@ -1,15 +1,21 @@
--- An expired paid film is marked deleted only once its file is really gone (WORKER 2026-11-21, GEO's privacy review M2).
+-- An expired paid film is marked GONE only once its file is really gone (WORKER 2026-11-21, GEO's privacy review M2;
+-- r2 after CC1's 11:27 review and GEO's second review).
 --
 -- Before: render_orders_tick() set render_deliveries.deleted_at and artifacts.deleted_at for every expired delivery, and
 -- only THEN handed the file paths to ops-tick to remove. If that Storage remove failed (one error, a timeout), the rows
 -- already said 'deleted', no later tick looked at them again, and the customer's film stayed in Storage for good while
 -- everything said it was gone.
 --
--- Now: the tick LISTS the expired deliveries (their file paths and ids) and still ends the order as 'expired' (the
--- customer can no longer reach the film: ryagram_private.delivery_object already refuses any delivery past expires_at).
--- ops-tick removes the files, then calls public.mark_deliveries_removed(ids), which marks a delivery and its artifact
--- deleted ONLY when storage.objects no longer holds the file (the same rule as public.mark_uploads_removed). A failed
--- remove leaves the delivery due, so the next tick (every minute) lists it and tries again.
+-- Now, two marks with two meanings:
+--   * artifacts.deleted_at = the customer may no longer READ the film. Set by the tick AT EXPIRY, as before (the owner's
+--     Storage read policy and the artifacts RLS check it), so the film is unreadable at once even while a remove fails.
+--   * render_deliveries.deleted_at = the film is REALLY GONE from Storage. Set only by mark_deliveries_removed, and only
+--     when storage.objects no longer holds the file (the mark_uploads_removed rule).
+-- The tick LISTS the expired deliveries not yet really gone (paths + ids) and ends the order 'expired'; ops-tick removes
+-- the files, then calls mark_deliveries_removed(ids). A failed remove leaves the delivery due, so the next tick (every
+-- minute) lists it and tries again.
+-- One thing this does not change (as on main): a download link signed BEFORE expiry keeps working until its own end
+-- (up to an hour); a new one cannot be made (ryagram_private.delivery_object refuses past expires_at).
 --
 -- Nothing applied is edited: this file replaces the function body and adds one function. Service role only.
 
@@ -32,12 +38,14 @@ begin
     perform ryagram_private.final_close(s.id, 'expired', 'approval_expired', null, null);
     expired := expired + 1;
   end loop;
-  -- expired deliveries: listed, NOT marked deleted here (mark_deliveries_removed does that once the file is gone)
-  for d in select r.id, r.order_id, a.storage_path from public.render_deliveries r
+  -- expired deliveries not yet really gone: unreadable now (artifacts.deleted_at), listed until the file is removed.
+  -- random order (CC1's LOW): a batch of files whose remove keeps failing can never starve the newer ones.
+  for d in select r.id, r.order_id, r.artifact_id, a.storage_path from public.render_deliveries r
            left join public.artifacts a on a.id = r.artifact_id
            where r.deleted_at is null and r.expires_at < now()
-           order by r.expires_at limit 500
+           order by random() limit 500
            for update of r skip locked loop
+    update public.artifacts set deleted_at = now() where id = d.artifact_id and deleted_at is null;
     update public.render_orders set state = 'expired', error_code = 'delivery_expired'
       where id = d.order_id and state <> 'expired';
     if d.storage_path is not null then
@@ -62,7 +70,8 @@ begin
     update public.artifacts set deleted_at = now()
       where id in (select artifact_id from gone where artifact_id is not null) and deleted_at is null
       returning id)
-  update public.render_deliveries set deleted_at = now() where id in (select id from gone);
+  update public.render_deliveries set deleted_at = now()
+    where id in (select id from gone) and deleted_at is null;      -- overlapping calls never count one twice (CC1's LOW)
   get diagnostics n = row_count;
   return n;
 end $$;
