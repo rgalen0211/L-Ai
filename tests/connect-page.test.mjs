@@ -59,8 +59,10 @@ test('LIMITS: free previews only (within a daily limit), no full renders, and th
   assert.match(foot, /<a href="\/terms\/">Terms of Use<\/a><a href="\/privacy-policy\.html">Privacy Policy<\/a><a href="\/ai-content\/">AI content<\/a>/);
 });
 
-test('NO NEW MAIL ADDRESS: the guide names no mail address until Ryan has confirmed ryagram@ receives mail', () => {
-  assert.doesNotMatch(page, /ryagram@uselai|mailto:/);
+test('NO NEW MAIL ADDRESS: the only address on the guide is the one the site already shows the public for contact (Ryan 10-26, Q251: contact by emailing ryagram@uselai.com; it is on /help/ and /ryagram/), once, as the invite request link; no other address or mailto', () => {
+  const INVITE = '<a href="mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request">email us</a>';
+  assert.ok(page.split(INVITE).length - 1 <= 1, 'at most once');
+  assert.doesNotMatch(page.replace(INVITE, ''), /ryagram@uselai|mailto:|@[a-z0-9-]+\.[a-z]/i);
 });
 
 test('SOURCED FACTS (Claude fact-check 01:50, Q72): two separate Claude paths that follow Anthropic\'s page, the identity choice named honestly, one source link, and no unconfirmed OpenAI claims', () => {
@@ -85,8 +87,7 @@ test('SOURCED FACTS (Claude fact-check 01:50, Q72): two separate Claude paths th
 });
 
 test('a person who is not invited is told so, and told how to ask: "invite-only for now" (the words the consent page uses) and a way to reach us (the help page)', () => {
-  assert.match(page, /has been invited to try connections\. Connecting an AI is invite-only for now; to ask for an invite, write to us from the <a href="\/help\/">help page<\/a>\./);
-  const consent = fs.readdirSync(path.join(root, 'supabase/migrations')).map(f => read('supabase/migrations/' + f)).join('\n');
-  assert.ok(consent.includes('invite-only for now'), 'the consent page says the same two words, so the guide and the page agree');
-  assert.ok(read('help/index.html').includes('mailto:ryagram@uselai'), 'and the help page has the address to write to');
+  assert.ok(page.includes('has been invited to try connections. Connecting an AI is invite-only for now; to ask for an invite, <a href="mailto:ryagram@uselai.com?subject=Ryagram%20invite%20request">email us</a>.'), 'a direct email with the subject the site\'s own invite request uses (assets/creator-beta.js)');
+  assert.ok(read('assets/creator-beta.js').includes("encodeURIComponent('Ryagram invite request')") && read('assets/creator-beta.js').includes('ryagram@uselai.com'), 'and that really is the subject and the address the site uses');
+  assert.ok(read('supabase/migrations/20261018000100_connect_ai.sql').includes("why := 'This Ryagram account is not enabled for AI assistants yet (invite-only for now).';"), 'the consent page says exactly this, so the guide and the page agree on the two words');
 });
