@@ -1136,11 +1136,12 @@
       // Which render path is real HERE: the person's own computer (host.render), or nothing yet. startJob() below is a MADE-UP job (2,820 invented frames, then 'Your film is ready'): it runs ONLY in mock mode
       // (the test mock, ?mock on localhost), never for a real account on the website (WEB dead-end sweep row 4, 11-21). With no real path the panel says so in plain words and offers no Start button.
       const renderPath = () => (host && typeof host.render === 'function' ? 'host' : window.ryagramMock ? 'mock' : null);
+      const NOT_IN_FILM = 'Changes made here are not part of the final film yet. The render on the film’s page makes the film without them.';       // DRAFT FOR RYAN (WEB 11-21, CC1 review)
       const RENDER_SOON = 'Rendering the final film from here is coming soon. For now, make it from the film’s page.';       // DRAFT FOR RYAN (WEB 11-21)
       function showCommit() {
         const path = renderPath();
         renderBox.hidden = false;
-        renderBox.replaceChildren(h('h2', {}, path ? 'What will render' : 'What the film will be made from'), h('p', { class: 'meta' }, 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.'),
+        renderBox.replaceChildren(h('h2', {}, path ? 'What will render' : 'What the film will be made from'), h('p', { class: 'meta', id: 'le-render-draft-note' }, path ? 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.' : NOT_IN_FILM),
           h('ul', {}, committedWords().map(t => h('li', {}, t))),
           path ? null : h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON),
           h('div', { class: 'le-actions' }, ...(path === 'host' ? [btn('Start the render', 'primary', startHostBuild)] : path === 'mock' ? [btn('Start the render', 'primary', startJob)] : []), btn(path ? 'Not yet' : 'Close', 'secondary', closeRender)));
@@ -1302,6 +1303,7 @@
       // The Look rows a person's own film on the website can really change (WEB 11-20, from ENGINE's LOOK-OPTIONS-1120): every row below is a key the shared draft ACCEPTS (edit_look_keys: sequence.theme, state.outline_width,
       // choropleth.low and .high next to the colour rows above) and the engine honours in the final film. Glow, Metal finish, Middle colour, Marker shape and Labels are NOT here: the draft takes no such key yet (or the engine has none), and a row that cannot take effect is not shown.
       function extraLookRows() {
+        const SHOWS_IN_FILM = () => (renderPath() ? ' Shows in the final film.' : ' Not part of the final film yet.');
         // Each row says what it is NOT yet: nothing set means the film's OWN value is used (the draft starts empty), so an unset row never reads as the film's own colour or theme (GAMES LOW 2, CC1 MEDIUM 2).
         const touched = new Set(ed.aiTouched());
         const theme = ed.state.look['sequence.theme'], light = theme === 'light';
@@ -1325,9 +1327,9 @@
           return row(label, input, ed.state.look[key] === undefined ? 'Not set: the film’s own colour is used. This swatch is only a starting point.' : null, key);
         };
         return [row('Theme', sel, theme ? 'Dark or light page and text.' : 'Not set: the film’s own theme is used.', 'sequence.theme'),
-          row('Border width', num, bw !== undefined ? 'From 0 to 4. Shows in the final film.' : 'From 0 to 4. Not set: the film’s own width is used. Shows in the final film.', 'state.outline_width'),
+          row('Border width', num, bw !== undefined ? 'From 0 to 4.' + SHOWS_IN_FILM() : 'From 0 to 4. Not set: the film’s own width is used.' + SHOWS_IN_FILM(), 'state.outline_width'),
           colour('choropleth.low', 'Low colour (flat-colour maps)', light ? '#eef1f6' : '#232838'), colour('choropleth.high', 'High colour (flat-colour maps)', light ? '#16233f' : '#e8eefb'),
-          h('p', { class: 'meta le-defaults' }, 'Low and high colour show only on a map drawn in flat colour: a map drawn in textures, a bar race or a living map ignores them, and this page cannot tell which yours is, so a change here may not show in the film. These are saved to your film’s draft. The film above changes when the final film is made.')];
+          h('p', { class: 'meta le-defaults' }, 'Low and high colour show only on a map drawn in flat colour: a map drawn in textures, a bar race or a living map ignores them, and this page cannot tell which yours is, so a change here may not show in the film. These are saved to your film’s draft.' + (renderPath() ? ' The film above changes when the final film is made.' : ' The final film made from the film’s page does not use them yet.'))];
       }
       function paintLook() {
         if (bundleMode) { paintBundleLook(); return; }

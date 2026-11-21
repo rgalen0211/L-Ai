@@ -128,6 +128,8 @@ test('ROW 4 LIVE EDITOR: on the website (no host.render, not mock) there is NO "
   assert.equal(soon.length, 1);
   assert.equal(text(soon[0]), 'Rendering the final film from here is coming soon. For now, make it from the film’s page.');
   assert.ok(textOf([box]).includes('Line colour: blue'), 'what it is made from is still shown');
+  assert.ok(!textOf([box]).includes('This exact draft is what the final film is made from'), 'no promise that the edits are used');
+  assert.ok(textOf([box]).includes('Changes made here are not part of the final film yet. The render on the film’s page makes the film without them.'), 'the plain line');
   assert.ok(all(box, n => n.tag === 'button' && text(n) === 'Close').length === 1, 'a way out');
   assert.deepEqual(started, []);
   const hostWithoutRender = commitPanel({ host: { rpc() {} }, mock: false });          // a host page that has no render function is the same: nothing pretend
@@ -153,4 +155,26 @@ test('ROW 4 THE MADE-UP JOB IS REACHED ONLY THROUGH THE MOCK GATE: startJob is r
   const uses = EDSRC.replace(/^\s*\/\/.*$/gm, '').split('startJob').length - 1;
   assert.equal(uses, 2, 'the definition and the one mock-gated use');
   assert.match(EDSRC, /path === 'mock' \? \[btn\('Start the render', 'primary', startJob\)\]/);
+});
+
+// CC1 review (MEDIUM, 11-21): with no render path the film page's render ignores the editor's draft, so the panel must NOT say the draft is what the final film is made from.
+const DRAFT_PROMISE = 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.';
+const NOT_IN_FILM_LINE = 'Changes made here are not part of the final film yet. The render on the film’s page makes the film without them.';
+test('NO RENDER PATH WORDING: the dropped sentence is absent and the plain line is present; with mock or host.render the draft sentence stays and the plain line is absent', () => {
+  for (const c of [{ host: null, mock: false }, { host: { rpc() {} }, mock: false }]) {
+    const t = textOf([commitPanel(c).box]);
+    assert.ok(!t.includes('what the final film is made from'), 'promise dropped');
+    assert.ok(t.includes(NOT_IN_FILM_LINE), 'plain line present');
+  }
+  for (const c of [{ host: null, mock: true }, { host: { render: () => {} }, mock: false }]) {
+    const t = textOf([commitPanel(c).box]);
+    assert.ok(t.includes(DRAFT_PROMISE), 'true where a path builds from the draft');
+    assert.ok(!t.includes(NOT_IN_FILM_LINE));
+  }
+});
+
+test('NO RENDER PATH WORDING: the Look rows do not say "Shows in the final film" or "changes when the final film is made" unless a render path exists', () => {
+  assert.doesNotMatch(EDSRC, /'From 0 to 4\. Shows in the final film\.'/);
+  assert.match(EDSRC, /const SHOWS_IN_FILM = \(\) => \(renderPath\(\) \?/);
+  assert.match(EDSRC, /\(renderPath\(\) \? ' The film above changes when the final film is made\.'/);
 });

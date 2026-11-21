@@ -24,7 +24,7 @@ const mutants = [
 ];
 
 function run(cwd) {
-  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd });
+  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 120000, killSignal: 'SIGKILL' });          // a hung run is a failure, never a hang (WEB 11-21)
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -37,8 +37,8 @@ function fresh() {
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
-const base = run(scratch).status;
-if (base) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
+const baseRun = run(scratch);
+if (baseRun.error || baseRun.status !== 0) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
 for (const [name, file, from, to] of mutants) {
@@ -47,7 +47,9 @@ for (const [name, file, from, to] of mutants) {
   const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
   if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
-  const caught = run(scratch).status !== 0;
+  const r = run(scratch);
+  if (r.error) { console.log(`TIMED OUT (counts as a failure, not a catch): ${name}`); missed++; continue; }
+  const caught = r.status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
   if (!caught) missed++;
 }
