@@ -96,7 +96,7 @@
 :is(body.ryagram-ds.ryagram-look,body) .ds-page>footer,:is(body.ryagram-ds.ryagram-look,body) .ds-page footer.site-footer{margin-top:24px;padding-block:16px}
 /* long content inside a section scrolls in its own panel, never the page (Ryan 11:55) */
 :is(body.ryagram-ds.ryagram-look,body) .flip-panel .template-picker[open]>form{max-height:46vh;overflow:auto;padding-right:8px}
-:is(body.ryagram-ds.ryagram-look,body) .flip-panel .advanced-panel{max-height:54vh;overflow:auto}
+:is(body.ryagram-ds.ryagram-look,body) .flip-panel .advanced-panel{max-height:44vh;overflow:auto}
 :is(body.ryagram-ds.ryagram-look,body) .flip-panel>.jobs-panel,:is(body.ryagram-ds.ryagram-look,body) .flip-panel>.app-panel{padding:16px 28px}
 :is(body.ryagram-ds.ryagram-look,body) .flip-dots{margin-top:4px}
 :is(body.ryagram-ds.ryagram-look,body) .page-hero{padding:12px 32px 16px;margin-bottom:12px}
@@ -215,3 +215,63 @@ body:has(.home-films) footer{margin-top:8px}
 :is(body.ryagram-ds.ryagram-look,body) .app-main .home-more .home-links{margin:12px 0 0}
 @media(max-width:700px){:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .copy{padding-block:20px 64px}:is(body.ryagram-ds.ryagram-look,body) .app-main .hero .lede{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .card{padding:16px 18px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .inner{gap:14px}:is(body.ryagram-ds.ryagram-look,body) .app-main .ds-start .meta{display:none}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .film-grid{grid-template-columns:1fr}:is(body.ryagram-ds.ryagram-look,body) .app-main .home-films .scroll-panel,:is(body.ryagram-ds.ryagram-look,body) .app-main .home-depts .scroll-panel{max-height:min(24vh,200px)}}
 #library .home-films .site-section-head h2,#library .home-more h2{margin-top:0}
+/* Version page (Ryan 11-20 amendment 2): a short band, slim key facts, the template picker and the own-data pointer on one row, tight step cards; every section within 1.4 screens (desktop) and 1.8 (phone) */
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:8px 28px 12px;margin-bottom:10px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .back{min-height:32px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero h1{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .meta{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{margin-bottom:10px;gap:12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{padding:10px 20px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .k{margin:0 0 2px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .v{margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .flip-bar{margin-bottom:8px}
+#library .jobs-panel h2,#library .flip-panel h2{margin-top:0}
+@media(min-width:901px){:is(body.ryagram-ds.ryagram-look,body) .make-it{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:8px 16px;align-items:center}:is(body.ryagram-ds.ryagram-look,body) .make-it>*{margin-top:0;grid-column:1/-1}:is(body.ryagram-ds.ryagram-look,body) .make-it>.template-picker{grid-column:1}:is(body.ryagram-ds.ryagram-look,body) .make-it>.byod-pointer{grid-column:2;white-space:nowrap}}
+@media(max-width:640px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero{padding:8px 16px 10px;margin-bottom:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row{gap:6px;margin-top:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row .button{min-height:44px;padding:0 14px;font-size:.8125rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{grid-template-columns:1fr;gap:6px;margin-bottom:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{display:grid;grid-template-columns:74px minmax(0,1fr);align-items:baseline;gap:0 10px;padding:8px 14px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .s{display:none}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>h1{display:inline-block;margin-right:10px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.meta{display:inline-block}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-cards{gap:0;border:1px solid var(--ds-line);border-radius:var(--ds-r);background:var(--ds-surface);overflow:hidden}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{border:0;border-radius:0;box-shadow:none;background:none;padding:6px 14px;grid-template-columns:78px minmax(0,1fr)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card+.fact-card{border-top:1px solid var(--ds-line)}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .v{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:1rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel>.form-note:not(.run-timing){font-size:.75rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step{border:0;background:none;padding:2px 0;border-top:1px solid var(--ds-line);border-radius:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel{padding:10px 14px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero .actions-row .button{min-height:48px;line-height:1.2;padding:4px 10px;white-space:normal;text-align:center;font-size:.75rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{font-size:.9375rem;padding:0 12px;min-height:44px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.template-picker{padding:2px 12px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step .inline-row{flex-wrap:nowrap}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step:first-of-type .inline-row .button,:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step .inline-row .button{padding:0 12px;font-size:.8125rem}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .credit-balance{padding:6px 14px;margin:2px 0 0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-timing{margin:2px 0 0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>*+*{margin-top:8px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel,:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .flip-panel>.app-panel{padding:14px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls{gap:8px;margin-top:8px}
+:is(body.ryagram-ds.ryagram-look,body) .jobs-panel .run-controls>.run-step{padding:10px 12px;gap:4px}
+}
+@media(min-width:901px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{padding:8px 16px;min-height:44px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step{padding:10px 14px;gap:4px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.jobs-panel{padding:12px 24px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it>.template-picker{padding:4px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls{margin-top:6px;margin-bottom:0;gap:10px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .credit-balance{margin:4px 0 0;padding:8px 16px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-timing{display:inline-block;margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .jobs-panel .run-controls>.run-step input{min-height:44px}
+}
+@media(min-width:901px){
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>h1{grid-row:2;justify-self:start}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.meta{grid-row:2;justify-self:end;align-self:end;margin:0 0 6px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.back{grid-row:1}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .page-hero>.actions-row{grid-row:1/3}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card{padding:8px 20px}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .fact-card .k{font-size:.6875rem;margin:0}
+:is(body.ryagram-ds.ryagram-look,body) .app-main:has(.make-it) .make-it .template-picker>summary{padding:2px 16px}
+}

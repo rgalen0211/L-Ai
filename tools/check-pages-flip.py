@@ -9,7 +9,8 @@ from playwright.sync_api import sync_playwright
 ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/pages-flip-shots')
 OUT.mkdir(parents=True, exist_ok=True)
-MAX_RATIO = 1.7                      # the whole page, header to footer, at 1280x800 (the first screen itself holds the action and the facts)
+MAX_RATIO = 1.4                      # the whole page, header to footer, at 1280x800 (Ryan 11-20 amendment 2; phone 390x844: MAX_RATIO_PHONE)
+MAX_RATIO_PHONE = 1.8
 
 
 class H(http.server.SimpleHTTPRequestHandler):
@@ -114,6 +115,8 @@ with sync_playwright() as pw:
         for i in range(p.locator('.flip-tab').count()):
             p.locator('.flip-tab').nth(i).click(); p.wait_for_timeout(500)
             check(p.evaluate('document.documentElement.scrollWidth <= document.documentElement.clientWidth'), f'{name} phone: section {i + 1}: no sideways scroll')
+            h_, vh = p.evaluate('[document.documentElement.scrollHeight, innerHeight]')
+            check(h_ <= vh * MAX_RATIO_PHONE, f'{name} phone: section {i + 1}: the whole page is {h_ / vh:.2f} x the screen (at most {MAX_RATIO_PHONE})')
         small = p.evaluate("[...document.querySelectorAll('.flip-tab, .flip-arrow')].filter(e => { const r = e.getBoundingClientRect(); return r.width && (r.height < 44 || r.width < 44) }).length")
         check(small == 0, f'{name} phone: tabs and arrows are at least 44 px')
         p.screenshot(path=str(OUT / f'flip-{name.lower()}-phone.png'))
