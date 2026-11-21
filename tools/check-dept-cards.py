@@ -16,6 +16,9 @@ ROOT = Path(__file__).resolve().parents[1]
 OUT = Path(sys.argv[1]) if len(sys.argv) > 1 else Path('D:/Ryagram-scratch/WEB/dept-cards-shots')
 GRID = '.dept-card-list{grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:16px}'
 FAULT = '.dept-card-list{display:flex;flex-wrap:wrap;gap:16px}.dept-card{flex:0 0 auto}'
+# the design sheet (assets/ryagram-ds.css, loaded after app-site.css) owns the same grid with higher specificity, so the fault is planted there too
+DS_GRID = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:var(--gutter)}'
+DS_FAULT = 'display:flex;flex-wrap:wrap;gap:16px}body.ryagram-ds.ryagram-look .dept-card{flex:0 0 auto}'
 CFG = (ROOT / 'assets/ryagram-config.js').read_text(encoding='utf-8')
 
 MEASURE = """() => {
@@ -38,6 +41,16 @@ def serve(plant):
                 css = (ROOT / 'assets/app-site.css').read_bytes().decode('utf-8')
                 assert GRID in css, 'the card grid rule is not in assets/app-site.css'
                 body = css.replace(GRID, FAULT).encode('utf-8')
+                self.send_response(200)
+                self.send_header('Content-Type', 'text/css; charset=utf-8')
+                self.send_header('Content-Length', str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            if plant and self.path.split('?')[0] == '/assets/ryagram-ds.css':
+                css = (ROOT / 'assets/ryagram-ds.css').read_bytes().decode('utf-8')
+                assert DS_GRID in css, 'the card grid rule is not in assets/ryagram-ds.css'
+                body = css.replace(DS_GRID, DS_FAULT).encode('utf-8')
                 self.send_response(200)
                 self.send_header('Content-Type', 'text/css; charset=utf-8')
                 self.send_header('Content-Length', str(len(body)))
