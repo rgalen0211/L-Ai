@@ -182,6 +182,8 @@
     const eta = c ? etaSeconds(samples.filter(x => x.stage === c.stage && x.total === c.total), nowMs) : null;
     return {
       stage: d && Object.hasOwn(STAGES, d.stage) ? STAGES[d.stage] : UNKNOWN,
+      // Said for the last step only, where a long count gives no time word (a real preview sat at "454 / 454" while the checks ran). Honest and without a number: no promise of a fixed time.
+      note: d && d.stage === 'checks' ? 'This step can take several minutes.' : '',
       countLabel: c && c.unit === 'clips' ? 'Clips' : 'Frames',
       count: c ? `${c.done.toLocaleString('en-US')} / ${c.total.toLocaleString('en-US')}` : UNKNOWN,
       fraction: c ? c.done / c.total : null,

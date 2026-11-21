@@ -14,6 +14,9 @@
     final_video: 'Final film', preview: 'Preview', contact_sheet: 'Contact sheet', thumbnail: 'Thumbnail',
     receipt: 'Receipt (for computers)', receipt_text: 'Receipt', metering: 'Usage note'
   };
+  // Files the render machine keeps for computers and for us, not for the person who made the film: a customer never needs them, so the Files list does not show them (WEB 11-21,
+  // customer step: a free-preview user saw "Metering" and "Receipt" and did not know what to do with them). The film, the preview, the contact sheet and the thumbnail are shown.
+  const HIDDEN_KINDS = ['receipt', 'receipt_text', 'metering'];
   const UUID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
 
   function h(tag, attrs = {}, ...children) {
@@ -1693,7 +1696,8 @@
     function filesSection(v, initial) {
       const list = h('div');
       const el = h('section', { 'aria-labelledby': 'files-title' }, h('h2', { id: 'files-title' }, 'Files'), list);
-      async function draw(artifacts) {
+      async function draw(all) {
+        const artifacts = all.filter(a => !HIDDEN_KINDS.includes(a.kind));
         list.replaceChildren(artifacts.length
           ? h('ul', { class: 'file-list' }, await Promise.all(artifacts.map(async a => {
               let url = null;
@@ -1916,6 +1920,7 @@
             ? h('p', { class: 'working' }, p.elapsed ? `Working\u2026 ${p.elapsed}` : 'Working\u2026')
             : h('dl', { class: 'progress-fields' },
               row('Stage', p.stage), row(p.countLabel, p.count), row('ETA', p.eta), row('Running for', p.running)),
+          p.note ? h('p', { class: 'form-note job-step-note' }, p.note) : null,
           !j.progress_detail && j.progress_note ? h('p', { class: 'form-note' }, j.progress_note) : null);
       }
 
@@ -1973,54 +1978,67 @@
 
       let running = null;
       let again = false;
+      // One read at a time, and a read that never comes back is given up on after STUCK_MS: without this, one request that hangs (a dropped connection) kept `running` set for good, every later
+      // tick only said "again", and a status line such as "Working... 4 min" stood still until a reload (WEB 11-21). A late answer from a read given up on is thrown away (gen), never drawn.
+      const STUCK_MS = 30000;
+      let gen = 0;
       async function refresh() {
         if (stopped) return;
         if (running) { again = true; return running; }
-        running = (async () => {
+        const mine = running = (async () => {
           do {
             again = false;
-            try {
-              const [fresh, currentEngine] = await Promise.all([data.listJobs(v.id), data.currentEngine()]);
-              engine = currentEngine;
-              if (creditsOn()) {
-                const types = ['contact_sheet', 'preview', 'final_render'];
-                const [q, acct, bal] = await Promise.all([
-                  Promise.all(types.map(t => data.creditQuote(v.id, t).catch(err => ({ error: err.message })))),
-                  data.jobAccounting(v.id).catch(() => ({})),
-                  data.creditBalances().catch(() => null)
-                ]);
-                quotes = Object.fromEntries(types.map((t, i) => [t, q[i]]));
-                accounting = acct;
-                balance = bal;
-              }
-              const pos = {};
-              await Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
-                try { pos[j.id] = await data.queuePosition(j.id); } catch { /* position unknown */ }
-              }));
-              if (stopped) return;
-              const before = seen;
-              seen = new Map(fresh.map(j => [j.id, j.state]));
-              jobs = fresh;
-              positions = pos;
-              ownCompute = null;
-              if (fresh.some(j => j.state === 'queued') && data.myLocalCompute) {
-                try { if (await data.myLocalCompute()) ownCompute = { tester: true, computers: (await data.myComputers()).filter(r => !r.revoked_at).length }; } catch { ownCompute = null; }
-              }
-              error.hidden = true;
-              if (before) {
-                const changed = fresh.filter(j => before.get(j.id) !== j.state);
-                // A final render's state is the version's state: redraw the whole page.
-                if (changed.some(j => j.job_type === 'final_render')) { versionChanged(); return; }
-                if (changed.some(j => j.state === 'complete')) settled();
-              }
-            } catch (err) {
-              if (!stopped) showError(error, err);
-            }
-            await loadOrders();
-            if (!stopped) draw();
+            const pass = ++gen;
+            let giveUp;
+            const gaveUp = new Promise(resolve => { giveUp = setTimeout(() => { gen++; resolve(); }, STUCK_MS); });
+            const read = passOnce(pass);
+            read.catch(() => {});                     // a read given up on may still fail later: not an unhandled rejection
+            try { await Promise.race([read, gaveUp]); } finally { clearTimeout(giveUp); }
           } while (again && !stopped);
         })();
-        try { await running; } finally { running = null; }
+        try { await mine; } finally { if (running === mine) running = null; }
+      }
+      async function passOnce(pass) {
+        try {
+          const [fresh, currentEngine] = await Promise.all([data.listJobs(v.id), data.currentEngine()]);
+          engine = currentEngine;
+          if (creditsOn()) {
+            const types = ['contact_sheet', 'preview', 'final_render'];
+            const [q, acct, bal] = await Promise.all([
+              Promise.all(types.map(t => data.creditQuote(v.id, t).catch(err => ({ error: err.message })))),
+              data.jobAccounting(v.id).catch(() => ({})),
+              data.creditBalances().catch(() => null)
+            ]);
+            quotes = Object.fromEntries(types.map((t, i) => [t, q[i]]));
+            accounting = acct;
+            balance = bal;
+          }
+          const pos = {};
+          await Promise.all(fresh.filter(j => j.state === 'queued').map(async j => {
+            try { pos[j.id] = await data.queuePosition(j.id); } catch { /* position unknown */ }
+          }));
+          if (stopped || pass !== gen) return;
+          const before = seen;
+          seen = new Map(fresh.map(j => [j.id, j.state]));
+          jobs = fresh;
+          positions = pos;
+          ownCompute = null;
+          if (fresh.some(j => j.state === 'queued') && data.myLocalCompute) {
+            try { if (await data.myLocalCompute()) ownCompute = { tester: true, computers: (await data.myComputers()).filter(r => !r.revoked_at).length }; } catch { ownCompute = null; }
+          }
+          error.hidden = true;
+          if (before) {
+            const changed = fresh.filter(j => before.get(j.id) !== j.state);
+            // A final render's state is the version's state: redraw the whole page.
+            if (changed.some(j => j.job_type === 'final_render')) { versionChanged(); return; }
+            if (changed.some(j => j.state === 'complete')) settled();
+          }
+        } catch (err) {
+          if (!stopped) showError(error, err);
+        }
+        if (pass !== gen) return;
+        await loadOrders();
+        if (!stopped && pass === gen) draw();
       }
 
       const watch = data.watchJobs(v.id, () => refresh());
