@@ -111,7 +111,7 @@ const EDSRC = read('assets/app-editor.js');
 const SHOW = (() => { const i = EDSRC.indexOf('const renderPath ='), j = EDSRC.indexOf("// On the person's own computer the maker builds", i); assert.ok(i > 0 && j > i, 'markers'); return EDSRC.slice(i, j); })();
 function commitPanel({ host = null, mock = false } = {}) {
   const started = [];
-  const renderBox = { hidden: true, kids: [], replaceChildren(...k) { this.kids = k.flat(Infinity).filter(x => x != null && x !== false); }, querySelector: () => ({ focus() {} }) };
+  const renderBox = { hidden: true, kids: [], replaceChildren(...k) { this.kids = k.flat(Infinity).map(x => (x == null || x === false || x === true ? String(x) : x)); } /* like the real DOM: null becomes the TEXT 'null' */, querySelector: () => ({ focus() {} }) };
   const btn = (label, cls, onclick) => h('button', { type: 'button', class: cls, onclick }, label);
   const f = vm.runInNewContext(`(function (h, btn, host, window, renderBox, committedWords, startJob, startHostBuild, closeRender) { ${SHOW}; return { showCommit, renderPath }; })`, { Array, String });
   const api = f(h, btn, host, { ryagramMock: mock ? {} : undefined }, renderBox, () => ['Line colour: blue'], () => started.push('fake'), () => started.push('host'), () => {});
@@ -177,4 +177,16 @@ test('NO RENDER PATH WORDING: the Look rows do not say "Shows in the final film"
   assert.doesNotMatch(EDSRC, /'From 0 to 4\. Shows in the final film\.'/);
   assert.match(EDSRC, /const SHOWS_IN_FILM = \(\) => \(renderPath\(\) \?/);
   assert.match(EDSRC, /\(renderPath\(\) \? ' The film above changes when the final film is made\.'/);
+});
+
+// GAMES r4 M1/M2 (11-21): no stray 'null' text in the panel in ANY state, and the heading never contradicts the line under it.
+test('PANEL TEXT: never contains "null", "undefined" or "false" in any state (mock, host.render, host without render, no path)', () => {
+  for (const c of [{ host: null, mock: true }, { host: { render: () => {} }, mock: false }, { host: { rpc() {} }, mock: false }, { host: null, mock: false }]) {
+    const t = textOf([commitPanel(c).box]);
+    assert.doesNotMatch(t, /null|undefined|false/, JSON.stringify(Object.keys(c.host || {})) + ' mock=' + c.mock + ': ' + t);
+  }
+});
+test('PANEL HEADING: with no render path it is "Your changes (not in the final film yet)"; where the draft is the film it stays "What will render"; the old heading is gone', () => {
+  for (const c of [{ host: null, mock: false }, { host: { rpc() {} }, mock: false }]) { const t = textOf([commitPanel(c).box]); assert.ok(t.includes('Your changes (not in the final film yet)')); assert.ok(!t.includes('What the film will be made from')); assert.ok(!t.includes('What will render')); }
+  for (const c of [{ host: null, mock: true }, { host: { render: () => {} }, mock: false }]) { const t = textOf([commitPanel(c).box]); assert.ok(t.includes('What will render')); assert.ok(!t.includes('Your changes (not in the final film yet)')); }
 });

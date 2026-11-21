@@ -1137,13 +1137,14 @@
       // (the test mock, ?mock on localhost), never for a real account on the website (WEB dead-end sweep row 4, 11-21). With no real path the panel says so in plain words and offers no Start button.
       const renderPath = () => (host && typeof host.render === 'function' ? 'host' : window.ryagramMock ? 'mock' : null);
       const NOT_IN_FILM = 'Changes made here are not part of the final film yet. The render on the film’s page makes the film without them.';       // DRAFT FOR RYAN (WEB 11-21, CC1 review)
+      const NOT_IN_FILM_HEAD = 'Your changes (not in the final film yet)';       // DRAFT FOR RYAN (WEB 11-21, GAMES M2)
       const RENDER_SOON = 'Rendering the final film from here is coming soon. For now, make it from the film’s page.';       // DRAFT FOR RYAN (WEB 11-21)
       function showCommit() {
         const path = renderPath();
         renderBox.hidden = false;
-        renderBox.replaceChildren(h('h2', {}, path ? 'What will render' : 'What the film will be made from'), h('p', { class: 'meta', id: 'le-render-draft-note' }, path ? 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.' : NOT_IN_FILM),
+        renderBox.replaceChildren(h('h2', {}, path ? 'What will render' : NOT_IN_FILM_HEAD), h('p', { class: 'meta', id: 'le-render-draft-note' }, path ? 'This exact draft is what the final film is made from. Nothing is added and nothing is dropped.' : NOT_IN_FILM),
           h('ul', {}, committedWords().map(t => h('li', {}, t))),
-          path ? null : h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON),
+          ...(path ? [] : [h('p', { class: 'form-note', id: 'le-render-soon', role: 'status' }, RENDER_SOON)]),
           h('div', { class: 'le-actions' }, ...(path === 'host' ? [btn('Start the render', 'primary', startHostBuild)] : path === 'mock' ? [btn('Start the render', 'primary', startJob)] : []), btn(path ? 'Not yet' : 'Close', 'secondary', closeRender)));
         renderBox.querySelector('button').focus();
       }

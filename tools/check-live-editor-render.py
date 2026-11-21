@@ -65,7 +65,7 @@ with sync_playwright() as pw:
     box = p.inner_text('.le-render')
     check(p.locator('button:has-text("Start the render")').count() == 0, 'no Start the render button')
     check(p.locator('#le-render-soon').count() == 1 and 'coming soon' in box and 'film’s page' in box, 'the panel says rendering from here is coming soon and points to the film’s page')
-    check('Line colour' in box or 'What the film will be made from' in box, 'it still says what the film is made from')
+    check('Your changes (not in the final film yet)' in box and 'null' not in box, 'it lists the changes under a heading that says they are not in the film, and no stray text')
     p.wait_for_timeout(2500)
     check(p.locator('.le-prog-head').count() == 0 and 'Your film is ready' not in p.inner_text('.le'), 'no progress, no "Your film is ready": nothing was made up')
     p.click('.le-render button:has-text("Close")')

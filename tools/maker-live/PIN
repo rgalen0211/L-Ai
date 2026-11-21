@@ -10,9 +10,10 @@ REGENERATED 2026-11-06 on L-Ai branch web-editor-sweep-on-train-1106 (WEB): the 
 REGENERATED 2026-11-20 on L-Ai branch web-site-1120 (WEB): the website editor changed (no-sketch for a person's own film, the real-frames strip, Look rows, PRO layer, the audit and review fixes); the PC page has no data mode, so nothing changes for it, but the bytes moved; re-pinned here (CC1 page batch 11:31, A1).
 REGENERATED 2026-11-21 on L-Ai branch web-next2-1120 (WEB, dead-end sweep row 4): the website editor's Start the render button now runs the made-up job only in mock mode and says 'coming soon' otherwise; the PC page has host.render, so its behaviour is unchanged, but the bytes moved.
 REGENERATED 2026-11-21 on L-Ai branch web-next2-1120 (WEB, CC1 review r4): the live editor's render panel no longer says the draft is what the final film is made from when there is no render path (the PC page has no data mode, but the shared file moved).
+REGENERATED 2026-11-21 on L-Ai branch web-next2-1120 (WEB r5): the live editor's Render panel has no stray 'null' text and, with no render path, the heading 'Your changes (not in the final film yet)' (the PC page has no data mode, but the shared file moved).
 live.html from 34376ac: its own title, unchanged), NEXT-WEB 152, contract: docs/maker-live-host-contract.md). They are GENERATED there
 (node tools/build-maker-live.mjs) from the website's own editor files, so the PC's page cannot drift from the site's. Replace them by copying WEB's three files and changing the hashes in this
 file in the same commit; tools/check-maker-live-page.py fails when a hash here is not the file's.
 live.html 637 bytes sha256 6277e70c0c6c453e48562578d94b9cc832489d8aca9da339a91bd1cfff8442e8
 live.css 14582 bytes sha256 ac4f86b6ba44183138dc2fe4448fcd27b253db37896f83c009cdb5303ff848a1
-live.js 158810 bytes sha256 93a28d29cc393f8fe2a1935d55155f76df62e3be7634843d557a7546c8d14285
+live.js 158919 bytes sha256 3e3dac897819dcea45d9cbe48a282f424d7a2b969282a7aed836ceba39cd3b40

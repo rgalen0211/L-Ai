@@ -1,7 +1,7 @@
 // Must-fail proof for tests/departments-mount.test.mjs (WEB 11-20, the departments bar mount and unmount): each mutant breaks ONE thing in a scratch copy and the test must then FAIL. Baseline first. Run: node tests/departments_mount_mutants.mjs
 import fs from 'node:fs';
 import path from 'node:path';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -23,8 +23,21 @@ const mutants = [
   ["the bar mounts without the flag", DP, 'if (!slot || !flagOn()) return false;', 'if (!slot) return false;'],
 ];
 
+// A timed-out child is stopped as a whole tree by ITS OWN pid (taskkill /T /PID, never by name): SIGKILL on Windows ends node --test but not the processes it started.
 function run(cwd) {
-  return spawnSync(process.execPath, ['--test', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 120000, killSignal: 'SIGKILL' });          // a hung run is a failure, never a hang (WEB 11-21)
+  const args = ['--test', ...SUITES.map((s) => path.join('tests', s))];
+  const child = spawn(process.execPath, args, { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
+  return new Promise((resolve) => {
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (process.platform === 'win32') spawnSync('taskkill', ['/T', '/F', '/PID', String(child.pid)], { stdio: 'ignore' });
+      else child.kill('SIGKILL');
+    }, 120000);
+    child.stdout.resume(); child.stderr.resume();
+    child.on('close', (status) => { clearTimeout(timer); resolve(timedOut ? { error: new Error('timeout'), status: null } : { status }); });
+    child.on('error', (error) => { clearTimeout(timer); resolve({ error, status: null }); });
+  });
 }
 function fresh() {
   fs.rmSync(scratch, { recursive: true, force: true });
@@ -37,7 +50,7 @@ function fresh() {
   if (fs.existsSync(path.join(root, 'package.json'))) fs.copyFileSync(path.join(root, 'package.json'), path.join(scratch, 'package.json'));
 }
 fresh();
-const baseRun = run(scratch);
+const baseRun = await run(scratch);
 if (baseRun.error || baseRun.status !== 0) { console.log('BASELINE FAILS (nothing proved)'); fs.rmSync(scratch, { recursive: true, force: true }); process.exit(2); }
 console.log('baseline passes');
 let missed = 0;
@@ -47,7 +60,7 @@ for (const [name, file, from, to] of mutants) {
   const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
   if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; continue; }
   fs.writeFileSync(target, src.replace(from, () => to));
-  const r = run(scratch);
+  const r = await run(scratch);
   if (r.error) { console.log(`TIMED OUT (counts as a failure, not a catch): ${name}`); missed++; continue; }
   const caught = r.status !== 0;
   console.log(`${caught ? 'caught ' : 'MISSED '} ${name}`);
