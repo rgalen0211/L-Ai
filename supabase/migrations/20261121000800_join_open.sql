@@ -11,14 +11,14 @@
 -- ALSO IN THIS FILE (CC1's 13:5x order; Ryan's 11:30 'Age 18+'): the 18+ confirmation is RECORDED WITH THE ACCOUNT. The join function now refuses without adult_confirmed: true and passes it on as the new account's user metadata;
 -- the trigger below copies it into public.account_adult_confirmation (user, time, source) in the same moment the account row is made, so a later change of the metadata cannot change the record. Closed to every API role (the
 -- dashboard reads it); no policy, so the account gate has nothing to cover. If the recording ever failed, the account is still made (a warning is logged): a sign-up never fails because of this record.
--- Only accounts made through join carry it; accounts made by an invite or a code (before this) have no row.
+-- Accounts made through join (source 'join') and through an invite code (redeem-invite, source 'invite') carry it; accounts made before this have no row. The source comes from the server-set metadata adult_source.
 
 begin;
 
 create table public.account_adult_confirmation (
   user_id uuid primary key references auth.users (id) on delete cascade,
   confirmed_at timestamptz not null default now(),
-  source text not null check (source = 'join')
+  source text not null check (source in ('join', 'invite'))
 );
 alter table public.account_adult_confirmation enable row level security;
 revoke all on public.account_adult_confirmation from public, anon, authenticated, service_role;
@@ -28,7 +28,7 @@ language plpgsql security definer set search_path = '' as $$
 begin
   begin
     if new.raw_user_meta_data ->> 'adult_confirmed' = 'true' then
-      insert into public.account_adult_confirmation (user_id, source) values (new.id, 'join') on conflict (user_id) do nothing;
+      insert into public.account_adult_confirmation (user_id, source) values (new.id, case when new.raw_user_meta_data ->> 'adult_source' = 'invite' then 'invite' else 'join' end) on conflict (user_id) do nothing;
     end if;
   exception when others then
     raise warning 'account_adult_confirmation not recorded: %', sqlstate;        -- never stops a sign-up (the whole check is inside: even a missing column cannot)

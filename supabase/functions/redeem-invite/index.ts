@@ -24,8 +24,8 @@ serve((req) => handle(req, {
   reserve: (code, email, ipHash) => rpc("invite_reserve", { p_code: code, p_email: email, p_ip_hash: ipHash }),
   sent: async (redemption, userId) => { await rpc("invite_sent", { p_redemption: redemption, p_user: userId }); },
   release: async (redemption) => { await rpc("invite_release", { p_redemption: redemption }); },
-  async invite(email, redirectTo) {
-    const { data, error } = await service.auth.admin.inviteUserByEmail(email, { redirectTo });
+  async invite(email, redirectTo, meta) {
+    const { data, error } = await service.auth.admin.inviteUserByEmail(email, { redirectTo, data: meta });
     if (error) {
       const exists = error.code === "email_exists" || /already (been )?registered/i.test(error.message);
       throw Object.assign(new Error(error.message), { code: exists ? "email_exists" : error.code });

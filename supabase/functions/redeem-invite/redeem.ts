@@ -12,8 +12,11 @@ export interface Deps {
   sent(redemption: number, userId: string | null): Promise<void>;
   release(redemption: number): Promise<void>;
   // Supabase Auth's admin invite. Throws with .code "email_exists" when the address has an account.
-  invite(email: string, redirectTo: string): Promise<{ userId: string | null }>;
+  // `data` becomes the new account's user metadata: the 18+ confirmation and where it came from (a database trigger copies it into public.account_adult_confirmation when the account is made).
+  invite(email: string, redirectTo: string, data: { adult_confirmed: true; adult_source: "invite" }): Promise<{ userId: string | null }>;
 }
+
+export const ADULT_WORDS = "Confirm that you are 18 or older to make an account.";
 
 export const SENT = "If that email can join, a link to finish joining is on its way. It works once. " +
   "Already have an account? Sign in instead.";
@@ -36,11 +39,13 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
   if (req.method !== "POST") return reply(405, { error: "Use POST." });
   if (!allowed) return reply(403, { error: "Not allowed from this page." });
 
-  let body: { code?: unknown; email?: unknown };
+  let body: { code?: unknown; email?: unknown; adult_confirmed?: unknown };
   try { body = await req.json(); } catch { return reply(400, { error: "Bad request." }); }
   const code = typeof body.code === "string" ? body.code.slice(0, 40) : "";
   const email = typeof body.email === "string" ? body.email.trim().toLowerCase().slice(0, 320) : "";
   if (!code || !email) return reply(400, { error: "Enter your invite code and your email." });
+  // Ryan 11-21: Age 18+. The page's box is sent as adult_confirmed: true; only the boolean true counts. Asked BEFORE the code is used or counted and before any email is sent; says nothing about the code or the address.
+  if (body.adult_confirmed !== true) return reply(400, { error: ADULT_WORDS });
 
   // The caller's address, hashed: only used to slow down guessing, kept a day. NEVER a value the client can write: the platform's own cf-connecting-ip, else the LAST hop
   // of X-Forwarded-For (the one the platform's proxy appended); the first entries are whatever the client sent (CLOUD-SITE 11-02; the same rule as creator-beta and node).
@@ -57,7 +62,7 @@ export async function handle(req: Request, deps: Deps): Promise<Response> {
 
   const redemption = r.redemption!;
   try {
-    const { userId } = await deps.invite(email, `${deps.siteUrl}/app/`);
+    const { userId } = await deps.invite(email, `${deps.siteUrl}/app/`, { adult_confirmed: true, adult_source: "invite" });
     await deps.sent(redemption, userId);
     return reply(200, { message: SENT });
   } catch (e) {

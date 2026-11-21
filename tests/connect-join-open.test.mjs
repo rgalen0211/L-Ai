@@ -65,12 +65,12 @@ test('nothing else in the repo redefines join_reserve after the hardening except
 });
 
 test('the 18+ record: a closed table, one row per account, written only by the trigger when the new account carries adult_confirmed = true, and never able to stop a sign-up', () => {
-  assert.match(MIG, /create table public\.account_adult_confirmation \( user_id uuid primary key references auth\.users \(id\) on delete cascade, confirmed_at timestamptz not null default now\(\), source text not null check \(source = 'join'\) \);/);
+  assert.match(MIG, /create table public\.account_adult_confirmation \( user_id uuid primary key references auth\.users \(id\) on delete cascade, confirmed_at timestamptz not null default now\(\), source text not null check \(source in \('join', 'invite'\)\) \);/);
   assert.match(MIG, /alter table public\.account_adult_confirmation enable row level security; revoke all on public\.account_adult_confirmation from public, anon, authenticated, service_role;/);
   assert.ok(!/create policy/i.test(MIG), 'no policy: nothing for the account gate to cover');
   const t = fn(MIG, 'ryagram_private.account_adult_new');
   assert.match(t, /security definer set search_path = ''/);
-  assert.match(t, /begin begin if new\.raw_user_meta_data ->> 'adult_confirmed' = 'true' then insert into public\.account_adult_confirmation \(user_id, source\) values \(new\.id, 'join'\) on conflict \(user_id\) do nothing; end if; exception when others then raise warning /);
+  assert.match(t, /begin begin if new\.raw_user_meta_data ->> 'adult_confirmed' = 'true' then insert into public\.account_adult_confirmation \(user_id, source\) values \(new\.id, case when new\.raw_user_meta_data ->> 'adult_source' = 'invite' then 'invite' else 'join' end\) on conflict \(user_id\) do nothing; end if; exception when others then raise warning /);
   assert.match(MIG, /create trigger account_adult_new_trg after insert on auth\.users for each row execute function ryagram_private\.account_adult_new\(\);/);
   assert.ok(!/confirmed_at\s*=|update public\.account_adult_confirmation/i.test(MIG), 'the time is the moment of the row, never set from the metadata');
 });

@@ -10,6 +10,7 @@ What it proves, each with the opposite case beside it
   * flag ON, waiting switch ON (the brake, live-step 20): the same join is allowed but the account is recorded WAITING and stays gated
   * the join limits still bite with the flag on: a bad address, the 6th from one caller in an hour, the 4th for one address in a day, the 200th overall
   * only the service role can run join_reserve; a signed-in person, anon and the connector login cannot; nobody but the dashboard can read or write the flag
+  * an account made through the invite-code path (metadata adult_source = invite) is recorded with source invite; any other or missing source is join; a source alone records nothing
   * the check step answers true on every row with the flag off and on; the rollback puts the old function back (join answers 'off' again with the switch off) and drops the flag; the check then answers false, never an error
 """
 import json
@@ -110,6 +111,15 @@ class JoinOpen(core.Base):
             uid = str(uuid.UUID(int=720 + i))
             self.signs_up(uid, f"no{i}@example.com", meta)
             self.assertIsNone(self.adult(uid), "no row without the confirmation: " + str(meta))
+
+    def test_an_account_made_through_an_invite_code_is_recorded_with_source_invite(self):
+        self.signs_up(STRANGER, "code@example.com", {"adult_confirmed": "true", "adult_source": "invite"})
+        self.assertEqual(self.adult(STRANGER), ("invite", True))
+        self.signs_up(STRANGER2, "odd@example.com", {"adult_confirmed": "true", "adult_source": "something-else"})
+        self.assertEqual(self.adult(STRANGER2), ("join", True), "an unknown source falls back to join: the table only ever holds the two")
+        other = str(uuid.UUID(int=730))
+        self.signs_up(other, "nobox@example.com", {"adult_source": "invite"})
+        self.assertIsNone(self.adult(other), "a source without the confirmation records nothing")
 
     def test_a_later_change_of_the_metadata_cannot_change_the_record(self):
         self.signs_up(STRANGER, "yes@example.com", {"adult_confirmed": "true"})

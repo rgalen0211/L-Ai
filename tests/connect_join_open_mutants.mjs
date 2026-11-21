@@ -10,8 +10,8 @@ const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdo
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-joinopen');
 const MG = 'supabase/migrations/20261121000800_join_open.sql', RB = 'supabase/rollbacks/20261121000800_join_open_rollback.sql', ON = 'supabase/live-steps/47_join_open_ON.sql', OFF = 'supabase/live-steps/48_join_open_OFF.sql', CHK = 'supabase/live-steps/46_join_open_check.sql';
-const SUITES = ['connect-join-open.test.mjs', 'connect-join-adult.test.mjs'];
-const JN = 'supabase/functions/join/join.ts', IX = 'supabase/functions/join/index.ts';
+const SUITES = ['connect-join-open.test.mjs', 'connect-join-adult.test.mjs', 'connect-redeem-adult.test.mjs'];
+const JN = 'supabase/functions/join/join.ts', IX = 'supabase/functions/join/index.ts', RD = 'supabase/functions/redeem-invite/redeem.ts', RX = 'supabase/functions/redeem-invite/index.ts';
 const COND = "if not ryagram_private.waiting_on() and not coalesce((select o.join_open from public.ops_settings o limit 1), false) then";
 const mutants = [
   ['the flag is ON by default', MG, 'join_open boolean not null default false;', 'join_open boolean not null default true;'],
@@ -37,9 +37,15 @@ const mutants = [
   ['the trigger records every account, box or not', MG, "if new.raw_user_meta_data ->> 'adult_confirmed' = 'true' then", 'if true then'],
   ['the trigger can stop a sign-up (no guard)', MG, 'exception when others then', 'exception when no_data_found then'],
   ['the record table is open to the signed-in role', MG, 'revoke all on public.account_adult_confirmation from public, anon, authenticated, service_role;', 'revoke all on public.account_adult_confirmation from public, anon, service_role;'],
-  ['the record table accepts any source', MG, "check (source = 'join')", "check (source <> '')"],
+  ['the record table accepts any source', MG, "check (source in ('join', 'invite'))", "check (source <> '')"],
   ['the rollback leaves the 18+ table behind', RB, 'drop table public.account_adult_confirmation;', ''],
   ['the rollback leaves the 18+ trigger behind', RB, 'drop trigger account_adult_new_trg on auth.users;\n', ''],
+  ['redeem-invite no longer asks for the 18+ box', RD, '  if (body.adult_confirmed !== true) return reply(400, { error: ADULT_WORDS });', ''],
+  ['redeem-invite counts any truthy value as the box', RD, 'if (body.adult_confirmed !== true)', 'if (!body.adult_confirmed)'],
+  ['redeem-invite does not say where the account came from', RD, '{ adult_confirmed: true, adult_source: "invite" });', '{ adult_confirmed: true, adult_source: "join" as "invite" });'],
+  ['redeem-invite index.ts drops the data on the way to Supabase Auth', RX, 'inviteUserByEmail(email, { redirectTo, data: meta })', 'inviteUserByEmail(email, { redirectTo })'],
+  ['the trigger ignores where the account came from', MG, "case when new.raw_user_meta_data ->> 'adult_source' = 'invite' then 'invite' else 'join' end", "'join'"],
+  ['the record table refuses the invite source', MG, "check (source in ('join', 'invite'))", "check (source = 'join')"],
   ['the check no longer looks at the 18+ trigger', CHK, "and t.tgname = 'account_adult_new_trg' ", ''],
   ['the check no longer looks at who can run join_reserve', CHK, "         and has_function_privilege('service_role', to_regprocedure('public.join_reserve(text,text)'), 'execute')\n", ''],
 ];

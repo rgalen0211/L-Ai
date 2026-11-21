@@ -21,7 +21,7 @@ function world(reserveResult = { ok: true, redemption: 7 }, over = {}) {
 const post = (deps, body, { origin = 'https://uselai.com', ip = '203.0.113.9', method = 'POST' } = {}) =>
   handle(new Request('https://x.supabase.co/functions/v1/redeem-invite', { method,
     headers: { origin, 'content-type': 'application/json', 'x-forwarded-for': `${ip}, 10.0.0.1` },
-    body: method === 'POST' ? JSON.stringify(body) : undefined }), deps);
+    body: method === 'POST' ? JSON.stringify(body && typeof body === 'object' && !Array.isArray(body) ? { adult_confirmed: true, ...body } : body) : undefined }), deps);   // the page always sends the 18+ box (tests/connect-redeem-adult.test.mjs covers it missing)
 
 test('a good code sends one invite back to /app/ and records it', async () => {
   const w = world();
