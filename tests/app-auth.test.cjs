@@ -30,7 +30,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
   };
   const resetForm = miniForm('reset', { email: { value: '', focus() {} } });
   const setForm = miniForm('setPassword', { password: { value: '' }, again: { value: '' } });
-  const inviteForm = miniForm('invite', { code: { value: '', focus() {} }, email: { value: '' } });
+  const inviteForm = miniForm('invite', { code: { value: '', focus() {} }, email: { value: '' }, over18: { checked: false, focus() { this.focused = true; } } });
   const expiredForm = miniForm('expired', { email: { value: '', focus() {} } });
   const forgot = el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(type, fn) { listeners.forgot = fn; } });
   const appended = [];
@@ -40,7 +40,7 @@ function harness({ config = { supabaseUrl: 'https://p.supabase.co', supabaseKey:
     forgot, 'reset-form': resetForm, 'reset-note': el(), 'set-password': el(), 'set-password-form': setForm,
     'set-password-error': el(), 'set-password-title': el(), 'forgot-row': el(),
     'invite-row': el(), 'have-invite': el({ attrs: {}, setAttribute(k, v) { this.attrs[k] = v; }, addEventListener(t, fn) { listeners.haveInvite = fn; } }),
-    'invite-form': inviteForm, 'invite-note': el(),
+    'invite-form': inviteForm, 'invite-note': el(), 'invite-error': el(),
     'auth-link': el(), 'auth-link-title': el(), 'auth-link-text': el(), 'auth-link-go': el({ addEventListener(t, fn) { listeners.authGo = fn; } }),
     'auth-expired': el(), 'auth-expired-title': el(), 'auth-expired-form': expiredForm, 'auth-expired-note': el(),
     'auth-expired-back': el({ addEventListener(t, fn) { listeners.back = fn; } })
@@ -241,13 +241,18 @@ test('invite codes: hidden until the invite email is set up; a code and email go
   assert.equal(h.inviteForm.hidden, false);
   h.inviteForm.elements.code.value = 'RYA-K7M2-9QPX';
   h.inviteForm.elements.email.value = ' new@example.com ';
+  await h.redeem();                                   // the age box is unticked: nothing is sent, the error line says why, focus goes to the box
+  assert.equal(h.calls.invoked.length, 0);
+  assert.equal(h.els['invite-error'].hidden, false); assert.match(h.els['invite-error'].textContent, /18 or older/); assert.equal(h.inviteForm.elements.over18.focused, true);
+  h.inviteForm.elements.over18.checked = true;
   await h.redeem();
+  assert.equal(h.els['invite-error'].hidden, true);
   assert.deepEqual(JSON.parse(JSON.stringify(h.calls.invoked)), [{ name: 'redeem-invite', body: { code: 'RYA-K7M2-9QPX', email: 'new@example.com' } }]);
   assert.equal(h.els['invite-note'].textContent, 'sent');
   assert.equal(h.inviteForm.elements.code.value, '');
   const bad = harness({ config: { supabaseUrl: 'https://p.supabase.co', supabaseKey: 'k', inviteSignup: true },
                         invoke: () => ({ data: null, error: { context: { json: async () => ({ error: 'That code isn’t valid.' }) } } }) });
-  bad.inviteForm.elements.code.value = 'x'; bad.inviteForm.elements.email.value = 'a@b.co';
+  bad.inviteForm.elements.over18.checked = true; bad.inviteForm.elements.code.value = 'x'; bad.inviteForm.elements.email.value = 'a@b.co';
   await bad.redeem();
   assert.equal(bad.els['invite-note'].textContent, 'That code isn’t valid.');
 });

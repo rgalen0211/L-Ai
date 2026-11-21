@@ -419,11 +419,13 @@
         caError.hidden = true; caNote.textContent = '';
         const f = caForm.elements, problem = window.ryagramWaiting.signUpProblem(f.email.value);
         if (problem) { caError.textContent = problem; caError.hidden = false; return; }
+        const ageBad = window.ryagramWaiting.ageProblem(f.over18.checked);
+        if (ageBad) { caError.textContent = ageBad; caError.hidden = false; f.over18.focus(); return; }          // unticked: no request is sent
         window.ryagramFunnel?.signupStarted?.();
         const btn = caForm.querySelector('button'); btn.disabled = true;
         try {
           // Q378 A: email only, through CONNECT's join function; the emailed link confirms the address and lets the person choose a password.
-          const r = await window.ryagramWaiting.signUp(window.ryagramData(client), f.email.value);
+          const r = await window.ryagramWaiting.signUp(window.ryagramData(client), f.email.value, f.over18.checked);
           if (r.ok) { caNote.textContent = r.message || 'If that email can join, a link to finish joining is on its way.'; }
           else if (r.off) { caError.textContent = r.message || 'Making an account is not open yet. Join the waitlist instead.'; caError.hidden = false; }
           else { caError.textContent = r.message || 'Couldn’t create the account just now. Try again in a minute.'; caError.hidden = false; }
@@ -454,6 +456,9 @@
       inviteForm.addEventListener('submit', async event => {
         event.preventDefault();
         if (!inviteForm.reportValidity()) return;
+        const ivError = $('invite-error'); ivError.hidden = true;
+        const ivAge = window.ryagramWaiting ? window.ryagramWaiting.ageProblem(inviteForm.elements.over18.checked) : (inviteForm.elements.over18.checked === true ? null : 'Tick the box to say you are 18 or older.');
+        if (ivAge) { ivError.textContent = ivAge; ivError.hidden = false; inviteForm.elements.over18.focus(); return; }          // unticked: no request is sent
         window.ryagramFunnel?.signupStarted?.();
         const join = inviteForm.querySelector('button');
         join.disabled = true;

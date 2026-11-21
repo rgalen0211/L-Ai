@@ -34,9 +34,9 @@ test('sign-up checks (Q378 A): an email address only, the problem in plain words
 test('sign-up (Q378 A) goes ONLY through the join function with the trimmed address, relays its answers, and never sets a status or touches Auth itself', async () => {
   const W = load({ waitingAccounts: true }); const calls = [];
   const data = answer => ({ joinWaiting: async e => { calls.push(e); return answer; } });
-  assert.deepEqual(await W.signUp(data({ ok: true, off: false, message: 'sent' }), ' a@b.co '), { ok: true, off: false, message: 'sent' });
+  assert.deepEqual(await W.signUp(data({ ok: true, off: false, message: 'sent' }), ' a@b.co ', true), { ok: true, off: false, message: 'sent' });
   assert.equal(calls[0], 'a@b.co');
-  assert.deepEqual(await W.signUp(data({ ok: false, off: true, message: 'not open yet' }), 'a@b.co'), { ok: false, off: true, message: 'not open yet' });
+  assert.deepEqual(await W.signUp(data({ ok: false, off: true, message: 'not open yet' }), 'a@b.co', true), { ok: false, off: true, message: 'not open yet' });
   const body = read('assets/app-waiting.js').match(/async function signUp[\s\S]*?\n  }/)[0].replace(/\/\/.*$/gm, '');
   assert.ok(!/status|waiting|active|credit|auth\.|signUp\(\{/.test(body.replace('async function signUp', '')), 'sign-up sets no status, grants no credit and never calls Auth sign-up');
   assert.ok(!/auth\.signUp/.test(read('assets/app-auth.js')), 'the page no longer calls Supabase sign-up (Auth sign-up stays OFF)');

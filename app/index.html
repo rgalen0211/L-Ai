@@ -12,7 +12,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Serif+Display:wght@100&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="/assets/workflow-audit.css?v=20261023a">
-<link rel="stylesheet" href="/assets/app.css?v=20261120o">
+<link rel="stylesheet" href="/assets/app.css?v=20261121bk">
 <link rel="stylesheet" href="/assets/app-editor.css?v=20261120c">
 <link rel="stylesheet" href="/assets/app-editor-pro.css?v=20261120m">
 <link rel="stylesheet" href="/assets/app-site.css?v=20261120zc">
@@ -50,8 +50,10 @@
       <input id="iv-code" name="code" autocomplete="off" autocapitalize="characters" spellcheck="false" maxlength="40" placeholder="RYA-XXXX-XXXX" required>
       <label for="iv-email">Your email</label>
       <input id="iv-email" name="email" type="email" autocomplete="email" required>
+      <label class="choice age-choice" for="iv-age"><input id="iv-age" name="over18" type="checkbox" aria-describedby="invite-error" aria-required="true"><span>I am 18 or older.</span></label>
       <button class="button primary" type="submit">Join</button>
       <p id="invite-note" class="form-note" role="status"></p>
+      <p id="invite-error" class="form-note app-error" role="alert" hidden></p>
     </form>
     <p class="form-note sign-in-help"><span class="help-line">No invite yet? <a href="/ryagram/#waitlist">Join the waitlist</a> to ask for an invite.</span> <span class="help-line">Trouble signing in? <a href="/help/">Get help</a>.</span></p>
     <p id="create-row" class="form-note" hidden>First time here? <a href="#/create-account" id="create-link">Create an account</a></p>
@@ -71,6 +73,7 @@
       <label for="ca-email">Email</label>
       <input id="ca-email" name="email" type="email" autocomplete="email" required>
       <p class="form-note">We email you a link. Open it to confirm your address and choose your password.</p>
+      <label class="choice age-choice" for="ca-age"><input id="ca-age" name="over18" type="checkbox" aria-describedby="create-account-error" aria-required="true"><span>I am 18 or older.</span></label>
       <button class="button primary" type="submit">Create account</button>
       <p id="create-account-note" class="form-note" role="status"></p>
       <p id="create-account-error" class="form-note app-error" role="alert" hidden></p>
@@ -158,12 +161,12 @@
 <script src="/assets/app-editor-film.js?v=20261120k"></script>
 <script src="/assets/app-editor.js?v=20261121f"></script>
 <script src="/assets/app-editor-pro.js?v=20261120o"></script>
-<script src="/assets/app-waiting.js?v=20261104c"></script>
+<script src="/assets/app-waiting.js?v=20261121bi"></script>
 <script src="/assets/app-switches.js?v=20261110a"></script>
 <script src="/assets/ryagram-ds.js?v=20261121p"></script>
 <script src="/assets/app-site.js?v=20261120j"></script>
 <script src="/assets/app-flip.js?v=20261121p"></script>
-<script src="/assets/app-library.js?v=20261121v"></script>
-<script src="/assets/app-auth.js?v=20261121p"></script>
+<script src="/assets/app-library.js?v=20261121w"></script>
+<script src="/assets/app-auth.js?v=20261121bj"></script>
 </body>
 </html>

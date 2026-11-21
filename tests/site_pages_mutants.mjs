@@ -28,7 +28,7 @@ const mutants = [
   ["a failed read is kept as long as an address", SP, "(v ? ttlMs : failMs)", "ttlMs"],
   ["the cache grows without end", SP, "if (m.size > 200) m.delete(m.keys().next().value);", ""],
   ["an expired address is still used", SP, "if (now() > e.until) { m.delete(k); return undefined; }", ""],
-  ["the Admin link is a menu again", LB, "menu = h('a', { class: 'app-nav-link admin-link', href: '#/admin' }, 'Admin');", "menu = h('details', { class: 'admin-menu' }, h('summary', {}, 'Admin'));"],
+  ["the Admin link is a menu again", LB, "menu = h('a', { class: 'menu-link admin-link', href: '#/admin', role: 'menuitem' }, 'Admin');", "menu = h('details', { class: 'admin-menu' }, h('summary', {}, 'Admin'));"],
   ["the Admin page opens for anyone", LB, "hash === '#/admin' && await data.isAppAdmin()", "hash === '#/admin'"],
   ["an admin page is missing from the Admin page", LB, "['#/admin/visits', 'Visits and signups',", "['#/admin/visitz', 'Visits and signups',"],
   ["the logo does not go home", LB, "brand.setAttribute('href', '#/');", ""],

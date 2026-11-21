@@ -17,7 +17,7 @@ const mutants = [
   ["every page gets a second way back", LB, "if (!first && !isHome && h1 && !root.querySelector('a[href=\"#/\"]'))", "if (!first && !isHome && h1)"],
   ["the home page gets a way back to itself", LB, "const isHome = hash === '' || hash === '#/' || hash === '#';", "const isHome = false;"],
   ["a page with its own back link gets another", LB, "if (!first && !isHome", "if (!isHome"],
-  ["sign-out leaves the page title", LB, "stopAdminNav(); document.title = titleWas;", "stopAdminNav();"],
+  ["sign-out leaves the page title", LB, "if (window.ryagramDs) window.ryagramDs.unmount(); document.title = titleWas;", "if (window.ryagramDs) window.ryagramDs.unmount();"],
   ["the polish never runs", LB, "polishPage(hash);\n      root.querySelector", "root.querySelector"],
 ];
 
