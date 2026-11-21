@@ -400,6 +400,20 @@ class Uploads(core.Base):
         self.job(vid, ds, "contact_sheet", "queued")
         self.assertGreater(self.admin("select last_activity_at from datasets where id = %s", ds), before)
 
+    # -- GEO 11-21 (CC1 12:36 G1): the live-steps after-checks and the rollbacks of GEO's migrations
+    def g1_check(self, name):
+        f = next((core.ROOT / "live-steps").glob("*_" + name + "_after_check.sql"))
+        return [bool(r[1]) for r in self.db.as_(None).c.execute(f.read_text(encoding="utf-8")).fetchall()]
+
+    def g1_rollback(self, name):
+        f = next((core.ROOT / "rollbacks").glob("*_" + name + "_rollback.sql"))
+        self.db.as_(None).c.execute(f.read_text(encoding="utf-8"))
+
+    def test_GEO_g1_after_check_true_then_the_rollback_puts_the_old_body_back(self):
+        self.assertEqual(self.g1_check("unfinished_uploads_purged"), [True] * 3)
+        self.g1_rollback("unfinished_uploads_purged")
+        self.assertEqual(self.g1_check("unfinished_uploads_purged"), [False, True, True])
+
 
 if __name__ == "__main__":
     unittest.main()
