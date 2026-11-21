@@ -70,4 +70,6 @@ end $$;
 revoke execute on function public.mark_deliveries_removed(uuid[]) from public, anon, authenticated;
 grant execute on function public.mark_deliveries_removed(uuid[]) to service_role;
 
+select ryagram_private.gate_apply();                       -- like every migration after the waiting list
+-- Check after running: supabase/live-steps/30_expired_films_gone_after_check.sql (every ok true).
 commit;
