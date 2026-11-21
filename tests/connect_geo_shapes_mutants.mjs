@@ -82,6 +82,16 @@ const mutants = [
   ['the database call carries the wrong argument types', [[D, '["text", "text", "float8", "float8", "float8", "float8", "text", "text"]', '["text", "text", "float8", "float8", "float8", "text", "text"]']]],
 ];
 
+// How many copies of each fault's "from" text its target file has today (11-20 audit, CC1 MEDIUM 2). The planted fault replaces the FIRST copy, so a later copy could move it to another tool; a fault whose count is not what is written here (default 1) is refused as BROKEN, in words, and must be looked at.
+const COPIES = {
+  "the shared hourly limit is gone": [3,2],
+  "place questions have their own hourly bucket (not shared with what_is_within)": [3,2],
+  "the ask claims a lookup was made": [3,2],
+  "the ask does not tell the AI to stop checking": [2,1],
+  "the assumptions are shown unfenced": [2],
+};
+const wantCopies = (name, i) => { const w = COPIES[name]; return Array.isArray(w) ? w[i] : (w ?? 1); };
+const copiesProblem = (src, from, name, i) => { const have = src.split(from).length - 1, want = wantCopies(name, i); return have === want ? null : (have ? `BROKEN MUTANT (${have} copies of the text, expected ${want}): ${name}` : `BROKEN MUTANT (text not found): ${name}`); };
 function run(cwd) {
   return noHang(spawnSync(process.execPath, ['--test', '--test-timeout=120000', ...SUITES.map((s) => path.join('tests', s))], { encoding: 'utf8', cwd, timeout: 300000, killSignal: 'SIGKILL' }));
 }
@@ -102,10 +112,11 @@ let missed = 0;
 for (const [name, edits] of mutants) {
   cleanup(); fresh();
   let broken = false;
-  for (const [file, from, to] of edits) {
+  for (const [i, [file, from, to]] of edits.entries()) {
     const target = path.join(scratch, file);
     const src = fs.readFileSync(target, 'utf8').replace(/\r\n/g, '\n');
-    if (!src.includes(from)) { console.log(`BROKEN MUTANT (text not found): ${name}`); missed++; broken = true; break; }
+    const problem = copiesProblem(src, from, name, i);
+    if (problem) { console.log(problem); missed++; broken = true; break; }
     fs.writeFileSync(target, src.replace(from, () => to));
   }
   if (broken) continue;

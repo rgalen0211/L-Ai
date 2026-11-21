@@ -12,6 +12,9 @@
     games: { label: 'Games', line: 'Play with your own data and footage in small games you can share.', placeholder: true },
     animation_studio: { label: 'Animation Studio', line: 'Simple cartoons you direct: characters you can pose, with mouths that move to your voice.' },
     // Studio (Ryan 2026-11-18, Q639 yes, wording as filed; working name): `sections` are the fuller words shown under the line on its page, always (they are approved, unlike DETAILS below).
+    // Forecasts (Ryan 2026-11-20 11:01: 'the prediction / future visualizer'; DRAFT WORDS FOR RYAN, working name). A page-owned Coming soon page: it shows even when the server's list does not name it (PAGE_ONLY below),
+    // and says plainly that a forecast is never shown as a fact. It has no sign-up button until the server announces the id (a database row, CONNECT's: the same one-line migration Studio had).
+    forecasts: { label: 'Forecasts', line: 'See where a trend could go next, drawn as a short film. Every forecast says how it was made and is never shown as a fact.' },
     studio: { label: 'Studio', line: 'Your podcast’s camera crew and editor in one: Ryagram works with your cameras, cuts to the right camera as people talk, and finds the moments worth sharing.',
       sections: [['What is coming', ['Ryagram works with the cameras you already have in your multi-camera setup and switches between them for you.',
         'It cuts on what is said, not only on who is talking: a reaction shot after the joke, a wide shot when it gets heated, a push-in on the serious line.',
@@ -20,8 +23,10 @@
   };
   // What the bar shows when the server's list is missing, empty or fails, and for an account the connector does not count as invited (an administrator account never is): the page's own default, so EVERY
   // signed-in account can steer to every department by hand (Ryan 06:24, the standing rule since 11-07: anything the AI can do, the website can also do). Data films works for everyone; the rest are Coming soon.
-  const FALLBACK = [{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }, { id: 'geo_intelligence', status: 'soon' }, { id: 'games', status: 'soon' }, { id: 'animation_studio', status: 'soon' }, { id: 'studio', status: 'soon' }];
-  const ORDER = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio'];
+  const FALLBACK = [{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }, { id: 'geo_intelligence', status: 'soon' }, { id: 'games', status: 'soon' }, { id: 'animation_studio', status: 'soon' }, { id: 'studio', status: 'soon' }, { id: 'forecasts', status: 'soon' }];
+  const ORDER = ['data_films', 'compilations', 'geo_intelligence', 'games', 'animation_studio', 'studio', 'forecasts'];
+  // Ids this page shows as Coming soon for EVERY account even when the server's list does not name them (so a new department's page is reachable before its database row exists): a page with words and no promise.
+  const PAGE_ONLY = ['forecasts'];
   // More words on two Coming soon pages (NEXT-WEB 200, from proposals/DEPARTMENTS-BRIEF-1102.md), shown only when the site switch departmentDetails is exactly true (OFF). DRAFT WORDS FOR RYAN: what is coming,
   // how numbers and people will be treated, and what is not built yet, said without a price or a date. Nothing here promises a feature the brief does not list.
   const DETAILS = {
@@ -99,7 +104,10 @@
       let rows = null;
       try { rows = await data.myDepartments(); } catch { rows = null; }
       model = normalize(rows);
+      const announced = new Set(Array.isArray(rows) ? rows.filter(r => r && typeof r.id === 'string').map(r => r.id) : []);       // what the server itself named (the sign-up button needs it)
       if (!hasAny(model)) { model = normalize(FALLBACK); }       // the server did not answer or listed nothing this page knows: the page's own default, never an empty bar
+      for (const id of PAGE_ONLY) if (!model.working.includes(id) && !model.soon.includes(id)) model.soon = ORDER.filter(x => model.soon.includes(x) || x === id);
+      model.announced = announced;
       return model;
     }
     // The cards on Your projects: the same list as the bar, one card each, working ones marked Open, the rest Coming soon. Null when the departments switch conditions are not met.
@@ -231,7 +239,9 @@
       try { noted = (await data.myDepartmentInterests()).includes(id); } catch { noted = false; }
       const area = h('div', { class: 'soon-action' });
       const msg = h('p', { class: 'form-note', role: 'status', 'aria-live': 'polite' });
+      const offered = !PAGE_ONLY.includes(id) || !!(model && model.announced && model.announced.has(id));        // a page-owned id the server has not named cannot take a sign-up: say so instead of a button that would fail
       const draw = () => {
+        if (!offered) { area.replaceChildren(h('p', { class: 'meta', id: 'soon-none' }, 'Nothing to sign up for yet. We will say here when it is ready.')); return; }
         if (noted) {
           const back = h('button', { class: 'link-button', type: 'button', id: 'soon-takeback', onclick: async () => {
             try { await data.withdrawDepartmentInterest(id); noted = false; msg.textContent = ''; draw(); } catch { msg.textContent = WORDS.saveError; }
@@ -263,5 +273,5 @@
     return { mountBar, unmountBar, pageView, load, cardsRow };
   }
 
-  window.ryagramDepartments = { KNOWN, ORDER, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, FALLBACK, hasAny, pathOf, idFromHash, flagOn, create };
+  window.ryagramDepartments = { KNOWN, ORDER, PAGE_ONLY, WORDS, DETAILS, SECTIONS, detailsOn, detailsFor, STILLS, stillsOn, stillsFor, normalize, FALLBACK, hasAny, pathOf, idFromHash, flagOn, create };
 })();

@@ -66,4 +66,6 @@ body.ryagram-look .film-card-body h3 a{color:var(--ink);text-decoration:none}   
 /* stranger walk 11-20: a phone's small targets get a 44 px row (the admin card link, a radio's whole row, the tutorial's sample link).
    NOT the film builder's cards: each is a grid (title above its note), which a flex row squeezed into narrow columns (GAMES 11-20).
    A .choice keeps the row: its words sit in ONE span, so the row is just the box and that span */
-@media (max-width:520px){.site-card-link{display:flex;align-items:center;min-height:44px}label:has(>input[type=radio]):not(.builder-card),label:has(>input[type=checkbox]):not(.builder-card){display:flex;align-items:center;gap:10px;min-height:44px}.builder-sample-link a{display:inline-flex;align-items:center;min-height:44px}}
+@media (max-width:520px){.site-card-link{display:flex;align-items:center;min-height:44px}label:has(>input[type=radio]):not(.builder-card):not(.le *),label:has(>input[type=checkbox]):not(.builder-card):not(.le *){display:flex;align-items:center;gap:10px;min-height:44px}.builder-sample-link a{display:inline-flex;align-items:center;min-height:44px}}
+/* at 701 to 980 px app.css hides every header link of an admin's bar (.has-departments .nav.has-admin .app-account a.app-nav-link, 0,5,1): the Admin link must stay (FACES 11-20) */
+.has-departments .nav.has-admin .app-account a.app-nav-link.admin-link{display:inline-flex}

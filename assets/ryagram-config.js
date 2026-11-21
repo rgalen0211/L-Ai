@@ -104,7 +104,7 @@ window.ryagramConfig = Object.freeze({
   // The lyric card choice (three designs) in the live editor's Look panel (NEXT-WEB 189). Needs liveEditor and SQL 20261031000200_lyric_card_look.sql. OFF until Ryan has seen it; the song film does not draw the cards yet.
   lyricCards: false,
   // Departments in the top bar, with 'Coming soon' pages (NEXT-WEB 147; Ryan 2026-10-26 17:52; proposals/WEB-DEPARTMENTS.md). Needs connectAi and aiFirst; the server's my_departments() says which show.
-  // ON (Ryan's typed yes 2026-10-28 10:59, Q303), with the words as drafted (Q244 answered): shown to invited accounts only, the server's my_departments() says which.
+  // ON (Ryan's typed yes 2026-10-28 10:59, Q303), with the words as drafted (Q244 answered). WEB 2026-11-20 (Ryan's 06:25 order: the departments bar and cards on EVERY signed-in page for EVERY account, admin included; his 11:01 goal: a new user reaches every department page): the bar, the cards and the Coming soon pages now show to every signed-in account; the Start door stays for invited accounts only; the server's my_departments() still says which ones open.
   departments: true,
   // The TV screen page for Guess the next line (/game-tv/; NEXT-WEB 203): replays a RECORDED sample game made by FACES' engine over a made-up transcript. Draft words for Ryan. OFF until he has seen it.
   gameTv: false,

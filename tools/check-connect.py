@@ -107,7 +107,15 @@ def main():
                 text = p.inner_text('.connected-list')
                 check('Claude' in text and 'See your projects' in text and 'last used never' in text, f'the list shows Claude with what it may do ({text[:60]!r})')
                 p.screenshot(path=str(OUT / f'connected-{name}.png'), full_page=True)
-                p.get_by_role('button', name='Disconnect').click()
+                # Disconnect asks IN the page since 11-20 (no window.confirm): No keeps the AI connected, Yes removes it.
+                p.get_by_role('button', name='Disconnect', exact=True).click()
+                p.wait_for_selector('[role=alertdialog]', timeout=10000)
+                check('Disconnect Claude?' in p.inner_text('[role=alertdialog]'), 'Disconnect asks in the page and names the AI')
+                p.get_by_role('button', name='No, go back').click()
+                p.wait_for_selector('[role=alertdialog]', state='detached', timeout=10000)
+                check('Claude' in p.inner_text('.connected-list') and 'is disconnected' not in p.inner_text('main'), 'answering No leaves the AI connected')
+                p.get_by_role('button', name='Disconnect', exact=True).click()
+                p.get_by_role('button', name='Yes, disconnect').click()
                 p.wait_for_selector('text=Claude is disconnected.', timeout=10000)
                 check('No AI is connected to your account.' in p.inner_text('main'), 'Disconnect removes it and says so')
                 # Deny
