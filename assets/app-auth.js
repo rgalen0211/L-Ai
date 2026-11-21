@@ -465,7 +465,7 @@
         inviteNote.textContent = '';
         try {
           const { data, error: fnError } = await client.functions.invoke('redeem-invite', {
-            body: { code: inviteForm.elements.code.value, email: inviteForm.elements.email.value.trim() }
+            body: { code: inviteForm.elements.code.value, email: inviteForm.elements.email.value.trim(), adult_confirmed: true }          // the box is ticked here (checked above); CONNECT's redeem-invite 16b0bde5 refuses without the boolean
           });
           if (fnError) {
             let text = 'Couldn\u2019t check the code just now. Try again in a minute.';
