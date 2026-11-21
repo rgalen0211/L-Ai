@@ -40,9 +40,10 @@ class UploadFilmsGone(up.core.Base):
         self.db.as_(RYAN).one("select attach_upload_to_version(%s, %s)", vid, ds)
         return ds, path, vid
 
-    def film(self, vid, ds, kind, art_kind, n):
-        """A finished job made from the upload, with one stored artifact (its file in storage.objects)."""
-        jid = self.job(vid, ds, kind, "complete")
+    def film(self, vid, ds, kind, art_kind, n, state="complete", jid=None):
+        """A job made from the upload (finished unless said), with one stored artifact (its file in storage.objects).
+        jid: add the artifact to an existing job (a final's thumbnail beside its film)."""
+        jid = jid or self.job(vid, ds, kind, state)
         pid = self.admin("select project_id from versions where id = %s", vid)
         path = f"{RYAN}/{pid}/{vid}/{jid}/{art_kind}-{n}.bin"
         aid = self.admin("insert into artifacts (owner_id, project_id, version_id, job_id, kind, storage_path, mime, bytes, sha256) "
@@ -50,6 +51,19 @@ class UploadFilmsGone(up.core.Base):
                          RYAN, pid, vid, jid, art_kind, path, "b" * 64)
         self.admin("insert into storage.objects (bucket_id, name, metadata) values ('ryagram-artifacts', %s, '{}'::jsonb) returning 1", path)
         return aid, path
+
+    def job_of(self, aid):
+        return self.admin("select job_id from artifacts where id = %s", aid)
+
+    def deliver(self, aid, vid, live=True):
+        """The final film's delivery, as the order machinery writes it (a 30-day link), on an order of its own."""
+        pid = self.admin("select project_id from versions where id = %s", vid)
+        oid = self.admin("insert into render_orders (owner_id, idempotency_key, source, want, project_id, version_id, story_sha256, "
+                         "state) values (%s, %s, 'app', 'final', %s, %s, %s, 'delivered') returning id",
+                         RYAN, "gone-" + str(aid).replace("-", "")[:20], pid, vid, "f" * 64)
+        return self.admin("insert into render_deliveries (order_id, owner_id, artifact_id, expires_at, deleted_at) "
+                          "values (%s, %s, %s, now() + interval '30 days', %s) returning id",
+                          oid, RYAN, aid, None if live else "2026-11-20")
 
     def sweep_the_upload(self, ds):
         """What purge-uploads does for the spreadsheet itself: remove the file, then mark it."""
@@ -95,15 +109,44 @@ class UploadFilmsGone(up.core.Base):
         self.sweep_the_upload(ds)
         self.assertIn(str(final), self.due())
 
-    def test_dont_keep_removes_the_drafts_but_keeps_the_paid_final_film(self):
+    def test_dont_keep_removes_the_drafts_but_keeps_the_delivered_final_film(self):
         ds, _, vid = self.ready_upload(retention="dont_keep")
         prev, _ = self.film(vid, ds, "preview", "preview", 4)
         final, _ = self.film(vid, ds, "final_render", "final_video", 5)
+        thumb, _ = self.film(vid, ds, "final_render", "thumbnail", 5, jid=self.job_of(final))
+        self.deliver(final, vid)
         self.assertIn(str(ds), [str(r[0]) for r in self.db.as_("service").all("select dataset_id from uploads_due_for_deletion()")])
         self.sweep_the_upload(ds)
         due = self.due()
         self.assertIn(str(prev), due, "the preview made from it goes")
-        self.assertNotIn(str(final), due, "the final film the person paid for stays until its own 30 days")
+        self.assertNotIn(str(final), due, "the final film the person paid for stays while its delivery lives")
+        self.assertNotIn(str(thumb), due, "and so does its thumbnail (My films would show a broken picture)")
+
+    def test_dont_keep_a_final_never_delivered_goes_like_a_draft(self):
+        """GEO's second review: a final whose approval ran out or was declined has no delivery and would stay for good."""
+        ds, _, vid = self.ready_upload(retention="dont_keep")
+        final, _ = self.film(vid, ds, "final_render", "final_video", 9)
+        self.sweep_the_upload(ds)
+        self.assertIn(str(final), self.due())
+
+    def test_dont_keep_a_delivered_finals_leftovers_go_once_its_delivery_is_really_gone(self):
+        ds, _, vid = self.ready_upload(retention="dont_keep")
+        final, _ = self.film(vid, ds, "final_render", "final_video", 10)
+        thumb, _ = self.film(vid, ds, "final_render", "thumbnail", 10, jid=self.job_of(final))
+        self.deliver(final, vid, live=False)                     # M2 already removed the film itself
+        self.sweep_the_upload(ds)
+        self.assertIn(str(thumb), self.due())
+
+    def test_a_job_still_uploading_is_never_listed_or_marked(self):
+        """CC1's MEDIUM: a draft still uploading cannot have its file marked before it lands."""
+        ds, _, vid = self.ready_upload()
+        busy, path = self.film(vid, ds, "preview", "preview", 11, state="uploading")
+        # the upload already purged (Delete): set as the sweep leaves it, since a busy job blocks request_dataset_deletion
+        self.admin("update datasets set delete_requested_at = now(), deleted_at = now(), storage_path = null where id = %s returning 1", ds)
+        self.assertNotIn(str(busy), self.due())
+        self.remove_file(path)
+        self.assertEqual(self.mark(busy), 0)
+        self.assertFalse(self.gone(busy))
 
     def test_nothing_goes_while_the_upload_is_only_in_recently_deleted(self):
         ds, _, vid = self.ready_upload()
