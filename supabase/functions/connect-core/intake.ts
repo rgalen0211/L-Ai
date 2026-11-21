@@ -42,6 +42,11 @@ const SCALE_PICTURES: Record<string, Picture[]> = {
 };
 const NOT_DRAWN_SCALE = "Ryagram draws state and county pictures today. A city picture and a whole-country or world picture are not drawn yet.";
 const GLOBE = "The 3D interactive globe is coming soon. It is not available yet, so do not promise it.";
+// Ryan walked a real ChatGPT chat on 11-20 (median age by state) and met the CATALOG-ONLY GAP: the subject was not one of the datasets Ryagram draws, and nothing told the AI what to say. These words are that answer.
+// They are true whether or not the connector offers submit_prepared_data (Q634): they name it only as "if it is among your tools". tests/connect-catalog-gap.test.mjs pins them to the real catalog.
+export const CATALOG_SAYS = "Ryagram draws only the datasets in the catalog that get_story_schema lists: today obesity and fast food by state, residential building permits by county, state unemployment, and the share of jobs in each industry by state.";
+export const NO_MATCH = "If none of them fits the subject the person named, or the years they asked for, tell them so plainly and name the closest catalog subjects; never swap in a different dataset without saying so, never invent a dataset id, and do not build a film that is not the one they asked for. "
+  + "If submit_prepared_data is among your tools, a table of their own subject can be handed over with it for them to look at and accept in the Ryagram app; if it is not, say that this subject cannot be made through this connection yet.";
 
 export function inferKind(k: Known): Kind | null {
   if (k.kind) return k.kind;
@@ -107,8 +112,8 @@ export function nextStep(input: Known): Step {
       then: "Pass place, then continue with suggest_next_step." });
   }
   if (k.dataset === undefined) {
-    return mk({ step: "dataset", asking: "dataset", ask: "What do you want to measure (for example rent, building permits, unemployment, obesity)?", options: [], say: null,
-      then: "Use get_story_schema to see the catalog and pick the dataset that matches; pass dataset as a short name of the topic, then continue with suggest_next_step." });
+    return mk({ step: "dataset", asking: "dataset", ask: "What do you want to measure (for example building permits, unemployment, obesity, or the jobs in one industry)?", options: [], say: CATALOG_SAYS,
+      then: `Use get_story_schema to see the catalog and pick the dataset that matches; pass dataset as a short name of the topic, then continue with suggest_next_step. ${NO_MATCH}` });
   }
   if (k.years === undefined) {
     return mk({ step: "years", asking: "years", ask: "Which years do you want to cover?", options: [], say: "Only the years the chosen dataset covers can be used; get_story_schema lists them.",
@@ -128,7 +133,7 @@ export function nextStep(input: Known): Step {
       say: `That picture does not fit a ${k.scale}-level film. These do.`, then: "Pass picture as one of the options, then continue with suggest_next_step." });
   }
   return mk({ step: "confirm_and_build", asking: null, ask: null, options: [], say: null,
-    then: "Do NOT ask the person anything else they already told you. Call get_story_schema, choose the catalog dataset that matches the topic and the years it covers, and tell the person which one you chose (ask only if it is a poor match). Then create_project, set_story (it checks every rule), and make_contact_sheet; show the result with get_film_link when it is ready." });
+    then: `Do NOT ask the person anything else they already told you. Call get_story_schema, choose the catalog dataset that matches the topic and the years it covers, and tell the person which one you chose. ${NO_MATCH} Then create_project, set_story (it checks every rule), and make_contact_sheet; show the result with get_film_link when it is ready.` });
 }
 
 export function stepText(s: Step): string {
