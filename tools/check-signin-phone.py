@@ -23,7 +23,8 @@ PROBE = """() => {
   }
   for (const e of document.querySelectorAll('main button, main a.button, main input:not([type=hidden]), main select, main textarea, #sign-in button, #create-account button, #sign-in input, #create-account input, #sign-in a.button, #create-account a')) {
     if (!vis(e)) continue;
-    const r = e.getBoundingClientRect(), inline = e.tagName === 'A' && getComputedStyle(e).display === 'inline';
+    const lab = e.matches('input[type=checkbox]') && e.closest('label');                    // a tick box's tap target is its whole label row (the words toggle it)
+    const r = (lab || e).getBoundingClientRect(), inline = e.tagName === 'A' && getComputedStyle(e).display === 'inline';
     if (!inline && (r.height < 43.5 || r.width < 43.5)) out.small.push((e.id || e.textContent.trim().slice(0, 30)) + ' ' + Math.round(r.width) + 'x' + Math.round(r.height));
     if ((e.tagName === 'BUTTON' || e.matches('a.button')) && r.height > 2 * parseFloat(getComputedStyle(e).lineHeight || 20) + 40) out.wrapped.push((e.id || e.textContent.trim().slice(0, 30)) + ' h=' + Math.round(r.height));
   }

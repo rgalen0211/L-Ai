@@ -22,9 +22,14 @@
     if (!e || e.length > 254 || !EMAIL.test(e)) return 'Type your email address.';
     return null;
   }
+  // The age confirmation (Ryan 11-21: 18 or over). Only a real tick (the value true) lets a sign-up go on. The words are DRAFT FOR RYAN. It is a block on the page only: the join function takes the
+  // email alone, so the tick is NOT stored with the account (CONNECT/GEO would have to add it; see proposals/WEB-AGE-CONFIRM-1121.md).
+  const AGE_PROBLEM = 'Tick the box to say you are 18 or older.';
+  function ageProblem(over18) { return over18 === true ? null : AGE_PROBLEM; }
   // The one place a new account is asked for. Q378 = A (Ryan 11-04 15:47): CONNECT's join function, email only. It sends the invite-style email; the person confirms the address and
   // chooses a password from that link, as testers do. Supabase's own sign-up stays OFF. {ok, off, message}: off = the switch is not on yet (the page sends people to the waitlist).
-  async function signUp(data, email) {
+  async function signUp(data, email, over18) {
+    if (ageProblem(over18)) return { ok: false, off: false, message: AGE_PROBLEM };        // unticked: nothing is sent
     return data.joinWaiting(String(email || '').trim());
   }
   // One line for #/admin/ops: how many are waiting, and how many of them have confirmed their address (only a confirmed one can be approved).
@@ -150,5 +155,5 @@
     return { waitingView, adminView };
   }
 
-  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, signUp, waitingSummary, create, WORDS });
+  window.ryagramWaiting = Object.freeze({ on, accessOf, pageFor, signUpProblem, ageProblem, signUp, waitingSummary, create, WORDS });
 })();

@@ -36,6 +36,8 @@ def page(b, opts, errs):
     p = ctx.new_page()
     p.on('pageerror', lambda e: errs.append(str(e))); p.on('console', lambda m: errs.append(m.text) if m.type == 'error' and 'Failed to load resource' not in m.text else None)
     p.on('dialog', lambda d: d.accept())
+    # records the name of every function the page invokes (join, redeem-invite ...): the age check must stop a sign-up BEFORE any request
+    p.add_init_script("""(() => { let f; Object.defineProperty(window, 'createMockApp', { configurable: true, get() { return f && (function () { const c = f.apply(this, arguments); const o = c.functions.invoke; c.functions.invoke = function (n, a) { (window.__fn = window.__fn || []).push(n); return o.call(this, n, a); }; return c; }); }, set(v) { f = v; } }); })();""")
     return p
 
 
@@ -102,12 +104,30 @@ with sync_playwright() as pw:
         p.evaluate("document.getElementById('create-account-form').noValidate = true")
         p.fill('#ca-email', 'nope'); p.click('#create-account-form button'); p.wait_for_timeout(200)
         check('email address' in p.inner_text('#create-account-error'), 'a bad address is refused in words')
+        # age 18+: a good address with the box unticked is refused in words, focus goes to the box, and no request is sent
+        check(p.locator('label[for=ca-age]').inner_text().strip() == 'I am 18 or older.' and not p.is_checked('#ca-age'), 'the box is there with its words, unticked')
+        check(p.evaluate("document.getElementById('ca-age').closest('label').getBoundingClientRect().height") >= 43.5, 'the age row is a 44 px tap target')
         p.fill('#ca-email', 'new.person@example.com'); p.click('#create-account-form button'); p.wait_for_timeout(400)
+        check('18 or older' in p.inner_text('#create-account-error') and p.locator('#create-account-error').is_visible(), 'unticked: the error line says to tick the box')
+        check(p.evaluate("document.activeElement.id") == 'ca-age', 'unticked: focus goes to the box')
+        check('join' not in (p.evaluate('window.__fn || []')), 'unticked: no request was sent')
+        p.check('#ca-age'); p.click('#create-account-form button'); p.wait_for_timeout(400)
+        check(p.evaluate('window.__fn || []').count('join') == 1, 'ticked: exactly one join request')
         check('on its way' in p.inner_text('#create-account-note') and p.locator('#create-account-error').is_hidden(), 'join answers with the same "link is on its way" words')
+        # the invite-code form has the same box
+        go(p, '', '#/')
+        if p.locator('#account-avatar').is_visible(): p.evaluate("document.querySelector('#sign-out').click()"); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
+        p.click('#have-invite'); p.wait_for_selector('#invite-form:not([hidden])', timeout=4000)
+        check(p.locator('label[for=iv-age]').inner_text().strip() == 'I am 18 or older.' and p.evaluate("document.getElementById('iv-age').closest('label').getBoundingClientRect().height") >= 43.5, 'invite form: the box with its words, 44 px row')
+        p.fill('#iv-code', 'RYA-AAAA-BBBB'); p.fill('#iv-email', 'invited.person@example.com'); p.click('#invite-form button'); p.wait_for_timeout(300)
+        check('18 or older' in p.inner_text('#invite-error') and p.evaluate("document.activeElement.id") == 'iv-age', 'invite form unticked: error line and focus on the box')
+        check('redeem-invite' not in (p.evaluate('window.__fn || []')), 'invite form unticked: no request was sent')
+        p.check('#iv-age'); p.click('#invite-form button'); p.wait_for_timeout(400)
+        check(p.evaluate('window.__fn || []').count('redeem-invite') == 1, 'invite form ticked: one redeem-invite request')
         go(p, '&joinoff', '#/')
         if p.locator('#account-avatar').is_visible(): p.evaluate("document.querySelector('#sign-out').click()"); p.wait_for_selector('#sign-in:not([hidden])', timeout=8000)
         p.click('#create-link'); p.wait_for_selector('#create-account:not([hidden])', timeout=5000)
-        p.fill('#ca-email', 'later.person@example.com'); p.click('#create-account-form button'); p.wait_for_timeout(400)
+        p.fill('#ca-email', 'later.person@example.com'); p.check('#ca-age'); p.click('#create-account-form button'); p.wait_for_timeout(400)
         check('not open yet' in p.inner_text('#create-account-error'), 'while the switch is off, join says "not open yet" and points to the waitlist')
         check(not errs, f'no console errors {errs[:2]}')
         p.context.close()
