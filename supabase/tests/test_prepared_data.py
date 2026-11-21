@@ -263,6 +263,8 @@ class PreparedData(core.Base):
         self.db.as_("service").one("select account_request_deletion(%s, %s, 'credit history') is null", ALICE, "alice@x")
         mine = self.admin("select csv_text, state from public.prepared_data where owner_id = %s", ALICE)
         self.assertEqual(mine, ("", "discarded"))             # MUST-FAIL: before 000600 the text waited until Ryan's hand close
+        self.assertEqual(self.admin("select label, sources::text, change_log::text, measured::text, ai_name from public.prepared_data where owner_id = %s", ALICE),
+                         ("Deleted", "{}", "[]", "{}", None))   # GAMES 12:12 LOW: none of the AI's declarations stay either
         self.assertEqual(self.admin("select state from public.prepared_data where owner_id = %s", BOB), "waiting")   # never another person's
         with self.assertRaises(psycopg.Error) as cm:          # MUST-FAIL: before 000600 the AI kept acting on a deleted account
             self.runner().one("select connect_list_my_data(%s)", h(a))

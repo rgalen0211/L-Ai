@@ -35,7 +35,8 @@ begin
     on conflict (owner_id) do nothing;
   -- GEO 11-21 (train 3 review LOW 3): a paying customer's login stays (blocked) until Ryan's hand close, so nothing
   -- cascades yet. Their waiting AI-prepared tables lose their text now (the rows go with the login later) ...
-  update public.prepared_data set csv_text = '', state = 'discarded', decided_at = now()
+  update public.prepared_data set csv_text = '', state = 'discarded', decided_at = now(),
+         label = 'Deleted', sources = '{}'::jsonb, change_log = '[]'::jsonb, measured = '{}'::jsonb, ai_name = null   -- none of the AI's declarations (GAMES 12:12 LOW)
     where owner_id = p_owner and state = 'waiting';
   -- ... and their AI connections are revoked now: the auth ban stops a sign-in, but connect_actor reads only the
   -- connector's own tokens and grants, so without this their AI could keep acting on the account (GEO 11-21).
