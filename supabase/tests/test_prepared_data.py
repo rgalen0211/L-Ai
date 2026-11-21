@@ -245,5 +245,31 @@ class PreparedData(core.Base):
         self.assertEqual([r[0] for r in rows if r[1] is not True], [], "every row of live step 34 must be true")
 
 
+    # ---------------------------------------------------------------------------------------------- GEO 11-21 (20261121000600, train 3 review MEDIUM 2 and LOW 3)
+    def test_GEO_a_deleted_ai_prepared_upload_keeps_none_of_what_the_ai_declared(self):
+        ds = self.upload_of(ALICE)
+        self.exec_sql("update public.datasets set storage_path = %s, deleted_at = null, prepared_from = gen_random_uuid(), "
+                      "prep_log = %s::jsonb where id = %s", f"{ALICE}/{ds}/source.csv",
+                      json.dumps({"declared_by": "Claude", "sources": SOURCES, "change_log": LOG}), ds)
+        self.assertEqual(self.db.as_("service").one("select mark_uploads_removed(%s::uuid[])", [ds]), 1)   # no file in Storage: marked
+        row = self.admin("select name, prep_log is null, prepared_from is null from public.datasets where id = %s", ds)
+        self.assertEqual(row, ("Deleted data", True, True))   # MUST-FAIL: before 000600 the tombstone kept prep_log and prepared_from
+
+    def test_GEO_a_paying_customer_s_delete_request_clears_their_waiting_tables_and_ends_their_ai_connection(self):
+        a = self.alice()
+        self.hand(a)
+        _, b, _ = self.connect(BOB, scopes=SCOPES)
+        self.hand(b)
+        self.db.as_("service").one("select account_request_deletion(%s, %s, 'credit history') is null", ALICE, "alice@x")
+        mine = self.admin("select csv_text, state from public.prepared_data where owner_id = %s", ALICE)
+        self.assertEqual(mine, ("", "discarded"))             # MUST-FAIL: before 000600 the text waited until Ryan's hand close
+        self.assertEqual(self.admin("select state from public.prepared_data where owner_id = %s", BOB), "waiting")   # never another person's
+        with self.assertRaises(psycopg.Error) as cm:          # MUST-FAIL: before 000600 the AI kept acting on a deleted account
+            self.runner().one("select connect_list_my_data(%s)", h(a))
+        self.assertIn(cm.exception.sqlstate, ("PT401", "PT403"))
+        self.assertIsNotNone(self.runner().one("select connect_list_my_data(%s)", h(b)))                        # Bob's AI still works
+        self.db.as_("service").one("select account_request_deletion(%s, %s, 'credit history') is null", ALICE, "alice@x")   # safe twice
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
