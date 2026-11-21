@@ -12,6 +12,7 @@ const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdo
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-chated');
 const AE = 'assets/app-editor.js', H = 'tools/chat-editor/live-host.js', CSS = 'tools/chat-editor/chat-extra.css', B = 'tools/build-chat-editor.mjs', DR = 'assets/app-editor-draft.js';
+const LK = 'tools/chat-editor/chat-look-editor.css';
 const SUITES = ['connect-chat-editor.test.mjs', 'live-editor-draft.test.mjs'];
 const mutants = [
   ['a further name is allowed', H, "'my_edit_ops_since', 'editor_heartbeat', 'editor_film_card'];", "'my_edit_ops_since', 'editor_heartbeat', 'editor_film_card', 'set_look'];"],
@@ -71,6 +72,13 @@ const mutants = [
   ['the site address is taken from a message the host sends', H, "root.getAttribute ? root.getAttribute('data-app-url') : ''", "(ctx && ctx.appUrl) || ''"],
   ['the page is read with any address on its root', 'supabase/functions/connect-core/mcp_app.ts', "const link = appUrl && APP_URL.test(appUrl) ? appUrl : \"\";\n  const root = '<main id=\"live-root\"';", "const link = appUrl || \"\";\n  const root = '<main id=\"live-root\"';"],
   ['the page is read without its address', 'supabase/functions/connect-core/mcp_app.ts', "text: editor ? editorHtml(cfg.appUrl) : home ?", "text: editor ? EDITOR_HTML : home ?"],
+  // the editor's look (step 3a): the shared tokens, the order, the one bounded screen, nothing hidden
+  ['the look carries a token that is not the site\'s', LK, ':root{--bg:#0b0c11;', ':root{--bg:#0b0c12;'],
+  ['the look file is read before the site\'s editor stylesheet', B, "'assets/app-editor.css', 'tools/chat-editor/chat-look-editor.css'];", "'tools/chat-editor/chat-look-editor.css', 'assets/app-editor.css'];"],
+  ['the look file is dropped from the page', B, "'assets/app-editor.css', 'tools/chat-editor/chat-look-editor.css'];", "'assets/app-editor.css'];"],
+  ['the clip list grows the page again', LK, '.le-list{max-height:min(38vh,280px);overflow:auto;', '.le-list{overflow:auto;'],
+  ['the clip list is bounded so loosely the page is long again (real Chrome)', LK, 'max-height:min(38vh,280px)', 'max-height:min(380vh,2800px)', 'browser'],
+  ['the look hides the slider keys hint', LK, '.le-keys{margin:0 0 var(--s2)}', '.le-keys{margin:0 0 var(--s2);display:none}'],
   ['the panel does not say drafts are kept by Ryagram', H, "'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'", "''"],
 ];
 

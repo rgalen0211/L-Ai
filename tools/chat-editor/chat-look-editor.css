@@ -1,0 +1,59 @@
+/* The in-chat editor in the site's design language (CONNECT 11-20, step 3a of the chat look). Read LAST by tools/build-chat-editor.mjs, so it wins over the site's own editor stylesheet without a single change to a site file.
+   The first rule after this comment is the site's :root (the same block the home panel and the account card carry; tests/connect-chat-editor.test.mjs pins it equal to the generated shared look). Everything below is colours, radii, buttons and ONE bounded screen:
+   the clip list scrolls inside itself instead of lengthening the page. No layout of the editor's script changes, and no rule here hides a control. */
+:root{--bg:#0b0c11;--bg-2:#10121a;--ink:#f4f3ef;--ink-2:#c9c8c2;--muted:#9a99a3;--faint:#85858f;--line:rgba(255,255,255,.09);--line-2:rgba(255,255,255,.16);--accent:#ff8a3d;--accent-2:#ffb27a;--accent-ink:#1a1008;--link:#9cc0f2;--ok:#8fe3cf;--warn:#f0c05a;--bad:#ffb4a8;--glow:rgba(255,138,61,.28);--s1:4px;--s2:8px;--s3:12px;--s4:16px;--s5:24px;--s6:32px;--s7:48px;--s8:64px;--s9:96px;--s10:128px;--content:1120px;--gutter:24px;--margin:clamp(20px,5vw,48px);--serif:"Iowan Old Style","Palatino Linotype",Palatino,Georgia,serif;--sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;--t-display:clamp(2.75rem,6.4vw,4.5rem);--t-h1:clamp(2rem,4.2vw,3rem);--t-h2:clamp(1.5rem,2.6vw,2rem);--t-h3:1.25rem;--t-body:1rem;--t-small:.875rem;--t-caption:.75rem;--radius:20px;--radius-sm:12px;--radius-xs:8px;--shadow-1:0 1px 0 rgba(255,255,255,.05) inset,0 8px 24px rgba(0,0,0,.35);--shadow-2:0 1px 0 rgba(255,255,255,.08) inset,0 24px 64px rgba(0,0,0,.5);--surface:linear-gradient(180deg,rgba(255,255,255,.06),rgba(255,255,255,.02));--surface-2:linear-gradient(180deg,rgba(255,255,255,.09),rgba(255,255,255,.03));--ease:cubic-bezier(.2,.7,.2,1)}:focus-visible{outline:3px solid var(--accent);outline-offset:3px;border-radius:6px}
+html,body{background:transparent}
+body{margin:0;padding:var(--s1);font:400 var(--t-small)/1.5 var(--sans);color:var(--ink)}
+a{color:var(--link)}
+.container{max-width:none;padding:var(--s3);border-radius:var(--radius);border:1px solid var(--line-2);background:radial-gradient(120% 80% at 0% 0%,color-mix(in srgb,var(--accent) 14%,transparent),transparent 60%),radial-gradient(90% 70% at 100% 0%,color-mix(in srgb,var(--link) 10%,transparent),transparent 60%),var(--bg-2);box-shadow:var(--shadow-2)}
+.meta{color:var(--muted);font-size:var(--t-caption)}
+
+/* buttons: the site's pill, orange for the one main action */
+.button{min-height:44px;padding:0 var(--s4);border-radius:999px;border:1px solid var(--line-2);background:var(--surface-2);color:var(--ink);box-shadow:var(--shadow-1);font:600 var(--t-small)/1 var(--sans)}
+.button.primary{background:linear-gradient(180deg,#ffa05c,#ff7a26);border-color:rgba(255,200,150,.55);color:var(--accent-ink)}
+.button:disabled{opacity:.45;box-shadow:none}
+
+/* the header: one short line of words, then the title and the two buttons */
+.le-chatbar{margin:0 0 var(--s2);gap:var(--s2)}
+.le-chatbar .meta{flex:1 1 240px}
+.le-top{margin:0 0 var(--s2);gap:var(--s2)}
+.le-top h1{flex:1 1 auto;font:600 1.0625rem/1.2 var(--serif);letter-spacing:-.01em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;overflow-wrap:normal}
+
+/* the picture and its slider */
+.le-view{border-radius:var(--radius-sm);border-color:var(--line);background:var(--bg)}
+.le-scrub{margin:var(--s2) 0;gap:var(--s2)}
+.le-range{accent-color:var(--accent)}
+.le-pos{color:var(--ink-2);font-size:var(--t-caption);font-variant-numeric:tabular-nums}
+.le-keys{margin:0 0 var(--s2)}
+.le-ticks{font-size:var(--t-caption);color:var(--muted)}
+
+/* the clips: the list is one bounded box that scrolls inside itself (the same scroll box the home panel uses), so the page ends where the Clip card ends */
+.le-list{max-height:min(38vh,280px);overflow:auto;padding-right:var(--s2);scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.25) transparent;overscroll-behavior:contain}
+.le-item{gap:var(--s2);padding:var(--s2) 0;border-top-color:var(--line)}
+.le-itemtext{font-size:var(--t-small)}
+.le-mv{gap:var(--s1)}
+.le-mv .button{padding:0 var(--s3)}
+.le-lanes{border-color:var(--line);border-radius:var(--radius-sm);background:var(--bg)}
+.le-bar{background:var(--bg-2);border-radius:var(--radius-xs)}
+.le-lane b,.le-film-lane b{color:var(--muted)}
+.le-c-video.le-clip,.le-c-video .le-dot{background:var(--ok)}
+.le-c-pictures.le-clip,.le-c-pictures .le-dot{background:var(--accent-2)}
+.le-c-text.le-clip,.le-c-text .le-dot{background:var(--link)}
+.le-sel.le-clip{outline-color:var(--ink)}
+.le-head,.le-ruler-head,.le-tl-head{background:var(--accent)}
+.le-tl-on{outline-color:var(--accent)}
+.le-meter{background:var(--bg);border-color:var(--line)}
+.le-meter i{background:var(--accent)}
+
+/* the cards: Clip, Look, Rules, the film's own look, the AI box, the notices */
+.le-panel,.le-ai,.le-render,.le-card,.le-nopic{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm)}
+.le-panel h2,.le-card h2,.le-render h2{font:600 var(--t-caption)/1.2 var(--sans);letter-spacing:.14em;text-transform:uppercase;color:var(--accent-2)}
+.le-row{border-top-color:var(--line)}
+.le-row-note,.le-waiting{color:var(--muted)}
+.le-rule-form{border-top-color:var(--line)}
+.le-cardpic{background:var(--bg);border-radius:var(--radius-xs)}
+input[type=text],input[type=number],textarea,.le select{background:var(--bg);color:var(--ink);border:1px solid var(--line-2);border-radius:var(--radius-xs)}
+.le-banner{background:color-mix(in srgb,var(--link) 12%,var(--bg-2));border-color:color-mix(in srgb,var(--link) 35%,transparent);border-radius:var(--radius-sm)}
+.le-warn{background:color-mix(in srgb,var(--warn) 12%,var(--bg-2));border-color:color-mix(in srgb,var(--warn) 35%,transparent);color:var(--ink);border-radius:var(--radius-sm)}
+.le-aimark{color:var(--link)}
+.le-free{color:var(--ok)}

@@ -124,7 +124,7 @@ function panelSteps(ctx) {
       need(/^ui:\/\/ryagram\//.test(r.uri) && /text\/html/.test(r.mimeType ?? ''), `${r.uri}: not an app page address or type`);
       const g = await c.rpc('resources/read', { uri: r.uri });
       const x = g?.result?.contents?.[0];
-      need(x && typeof x.text === 'string' && x.text.length > 500 && x.text.length < 200000, `${r.uri}: the page did not come back, or has an odd size`);
+      need(x && typeof x.text === 'string' && x.text.length > 500 && x.text.length < 300 * 1024, `${r.uri}: the page did not come back, or has an odd size`);
       need(!/<script[^>]+src=|<link[^>]+href=|https?:\/\/[^"' ]+\.(js|css)\b/i.test(x.text), `${r.uri}: the page loads a script or a style from outside`);
     }
     if (listed('open_ryagram_home')) need(rs.some((r) => /^ui:\/\/ryagram\/home-/.test(r.uri)), 'the home panel is not among the pages');

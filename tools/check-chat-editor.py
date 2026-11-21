@@ -87,7 +87,7 @@ def main():
         b = pw.chromium.launch(channel='chrome')
         try:
             for name, opts, fullscreen in (('desktop', dict(viewport={'width': 1280, 'height': 900}), True),
-                                           ('phone', dict(viewport={'width': 390, 'height': 844}, device_scale_factor=2, is_mobile=True, has_touch=True), False)):
+                                           ('phone', dict(viewport={'width': 390, 'height': 1200}, device_scale_factor=2, is_mobile=True, has_touch=True), False)):
                 print(name)
                 phone = name == 'phone'
                 ctx = b.new_context(**opts)
@@ -116,6 +116,9 @@ def main():
                 order = lambda: fr.eval_on_selector_all('.le-lane:first-child .le-clip', 'els => els.map(e => e.dataset.id)')
                 if phone:
                     check(fr.locator('.le-lanes').is_hidden() and fr.locator('.le-list').is_visible(), 'a phone shows the list and no lanes')
+                    lh = fr.evaluate("(function(){var l=document.querySelector('.le-list');return [l.clientHeight,l.scrollHeight,document.documentElement.scrollHeight]})()")
+                    check(lh[0] <= 281 and lh[1] > lh[0], 'the clip list is a bounded box that scrolls inside itself (shows %s px of %s)' % (lh[0], lh[1]))
+                    check(lh[2] <= 1300, 'the whole phone panel is about one screen and a half, not a 2,666 px scroll (%s px)' % lh[2])
                 else:
                     check(order() == ['v1', 'v2', 'v3'], 'the clips come from the draft the host forwarded')
                     n0 = len(calls())

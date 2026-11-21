@@ -4,8 +4,9 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import { build, html, JS, OUT, POLICY } from '../tools/build-chat-editor.mjs';
+import { build, html, JS, CSS, OUT, POLICY } from '../tools/build-chat-editor.mjs';
 import { EDITOR_HTML } from '../supabase/functions/connect-core/editor_page.ts';
+import { CHAT_CSS } from '../supabase/functions/connect-core/chat_look.ts';
 import { EDITOR_URI, editorHtml, readResource, resourceList } from '../supabase/functions/connect-core/mcp_app.ts';
 
 const NAMES = ['editor_apply_ops', 'editor_undo', 'editor_undo_all_ai', 'my_edit_ops_since', 'editor_heartbeat'];
@@ -331,4 +332,26 @@ test('the seam never calls a tool by any name but the five, and never sends a ch
   assert.equal((HOST_SRC.match(/request\('ui\/open-link'/g) || []).length, 1, 'one place opens a link');
   assert.ok(/onclick: \(\) => openSite\(siteUrl, siteNote\)/.test(HOST_SRC) && /const siteUrl = siteLink\(appUrl, project, window\.ryagramLiveHost\.mode\)/.test(HOST_SRC), 'and it is opened only with the address siteLink built, from the button\'s press, never from a message the host sends');
   assert.equal((HOST_SRC.match(/request\('tools\/call'/g) || []).length, 1, 'one place makes a tool call, and it is guarded by the name list');
+});
+
+// ------------------------------------------------------------------------------------------------ the editor's look (step 3a of the chat look, CONNECT 11-20)
+const LOOK_FILE = 'tools/chat-editor/chat-look-editor.css';
+const lookCss = () => fs.readFileSync(new URL('../' + LOOK_FILE, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+test('the editor wears the site\'s tokens: its look file carries the shared :root, byte for byte, and is read after the site\'s own editor stylesheet', () => {
+  assert.equal(CSS.at(-1), LOOK_FILE, 'last, so it wins over the site\'s rules without a change to any site file');
+  assert.ok(lookCss().includes(CHAT_CSS.tokens), 'the :root block of the shared look is in the file unchanged');
+  assert.ok(EDITOR_HTML.includes(CHAT_CSS.tokens), 'and in the page');
+  assert.ok(EDITOR_HTML.indexOf('/* ---- assets/app-editor.css ----') < EDITOR_HTML.indexOf('/* ---- ' + LOOK_FILE + ' ----'), 'the page holds it after the site\'s editor stylesheet');
+});
+
+test('the live smoke script (tools/connect-e2e.mjs) holds an app page to the same 300 KB budget as the page test', () => {
+  assert.ok(fs.readFileSync(new URL('../tools/connect-e2e.mjs', import.meta.url), 'utf8').includes('x.text.length < 300 * 1024'));
+});
+
+test('the clip list is ONE bounded box that scrolls inside itself, and no rule of the look file hides a control', () => {
+  const css = lookCss();
+  assert.ok(css.includes('.le-list{max-height:min(38vh,280px);overflow:auto;'), 'a bounded scroll box (the page no longer lengthens with every clip)');
+  assert.ok(!/\.le-list\{[^}]*display\s*:/.test(css), 'the list\'s own show and hide (phone only) stays the site\'s');
+  assert.ok(!/display\s*:\s*none/.test(css.replace(/\/\*[\s\S]*?\*\//g, '')), 'nothing is hidden by the look');
+  assert.ok(!/url\(|@import|<\/style/i.test(css), 'it loads nothing');
 });

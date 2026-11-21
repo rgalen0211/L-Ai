@@ -1,7 +1,7 @@
 // Builds the live editor's page for the AI chat (an MCP App resource) from the website's own editor files, so the chat's copy can not drift from the site's:
 //   one HTML file, script and style inline (a chat host gives an app no other address), written as supabase/functions/connect-core/editor_page.ts (EDITOR_HTML).
 //   JS  = the website's assets/app-editor-core.js, app-editor-progress.js, app-editor-draft.js, preview/text-layout.js, app-editor.js, then tools/chat-editor/live-host.js (the same list as the maker's page, host seam swapped)
-//   CSS = tools/maker-live/live-base.css, tools/chat-editor/chat-extra.css, assets/app-editor.css
+//   CSS = tools/maker-live/live-base.css, tools/chat-editor/chat-extra.css, assets/app-editor.css, then tools/chat-editor/chat-look-editor.css (the site's design tokens and the one-screen look; read LAST so it wins without a change to any site file)
 //   node tools/build-chat-editor.mjs           writes it        node tools/build-chat-editor.mjs --check     exits 1 if the committed file differs
 // Plan: Ryagram-logs/proposals/CONNECT-MCP-APP-PLAN-1105.md section 5.2.
 import fs from 'node:fs';
@@ -12,7 +12,7 @@ import crypto from 'node:crypto';
 const root = path.join(path.dirname(fileURLToPath(import.meta.url)), '..');
 const read = p => fs.readFileSync(path.join(root, p), 'utf8').replace(/\r\n/g, '\n');
 export const JS = ['assets/app-editor-core.js', 'assets/app-editor-progress.js', 'assets/app-editor-draft.js', 'assets/preview/text-layout.js', 'assets/app-editor-timeline.js', 'assets/app-editor.js', 'tools/chat-editor/live-host.js'];
-export const CSS = ['tools/maker-live/live-base.css', 'tools/chat-editor/chat-extra.css', 'assets/app-editor.css'];
+export const CSS = ['tools/maker-live/live-base.css', 'tools/chat-editor/chat-extra.css', 'assets/app-editor.css', 'tools/chat-editor/chat-look-editor.css'];
 export const OUT = 'supabase/functions/connect-core/editor_page.ts';
 export const POLICY = "default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data:; media-src data:; connect-src 'none'; base-uri 'none'; form-action 'none'";
 
