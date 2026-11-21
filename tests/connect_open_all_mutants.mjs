@@ -9,7 +9,7 @@ const noHang = (r) => { if (r.error || /test timed out after/.test(String(r.stdo
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const scratch = path.join(root, '.mut-openall');
-const MG = 'supabase/migrations/20261121000700_connect_open_to_all.sql', RB = 'supabase/rollbacks/20261121000700_connect_open_to_all_rollback.sql', ON = 'supabase/live-steps/36_connect_open_ON.sql', OFF = 'supabase/live-steps/37_connect_open_OFF.sql', CHK = 'supabase/live-steps/35_connect_open_check.sql';
+const MG = 'supabase/migrations/20261121000700_connect_ai_open_to_all.sql', RB = 'supabase/rollbacks/20261121000700_connect_ai_open_to_all_rollback.sql', ON = 'supabase/live-steps/36_connect_open_ON.sql', OFF = 'supabase/live-steps/37_connect_open_OFF.sql', CHK = 'supabase/live-steps/35_connect_open_check.sql';
 const SUITES = ['connect-open-all.test.mjs'];
 const mutants = [
   ['the flag is ON by default', MG, 'open_to_all boolean not null default false;', 'open_to_all boolean not null default true;'],
