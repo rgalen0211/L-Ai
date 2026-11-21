@@ -204,6 +204,11 @@ class PreparedData(core.Base):
         for k in ("requests", "codes", "tokens", "calls", "edit"):
             self.assertIn(k, out, "the original keys stand")
 
+    def test_the_purge_after_check_answers_true_on_every_row(self):
+        rows = self.db.as_(None).c.execute((core.ROOT / "live-steps" / "38_prepared_purge_after_check.sql").read_text(encoding="utf-8")).fetchall()
+        self.assertEqual(len(rows), 4)
+        self.assertTrue(all(r[1] is True for r in rows), rows)
+
     def test_a_failing_prepared_purge_never_stops_the_connector_purge(self):
         self.exec_sql("create or replace function ryagram_private.prepared_purge() returns int language plpgsql as $$ begin raise exception 'boom'; end $$")
         out = self.admin("select public.connect_purge()")
