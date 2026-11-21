@@ -230,6 +230,14 @@
         return inEffect.filter(p => p.price_version === current && sale.has(p.code) && p.price_cents != null)
           .sort((a, b) => a.price_cents - b.price_cents);
       },
+      // What a full film costs, from the same price table the ledger charges from (credit_prices: final_line / final_map / final_paired, current price version). Signed-in people can read it.
+      async filmPrices() {
+        const prices = await run(client.from('credit_prices').select('price_version, code, credits, effective_from'), 'Couldn’t load prices.');
+        const now = new Date().toISOString();
+        const inEffect = prices.filter(p => p.effective_from <= now);
+        const current = inEffect.reduce((a, p) => (!a || p.effective_from > a.effective_from ? p : a), null)?.price_version;
+        return inEffect.filter(p => p.price_version === current && /^final_(line|map|paired)$/.test(p.code));
+      },
       async myPlan() {
         const rows = await run(client.from('stripe_subscriptions')
           .select('subscription_id, price_code, status, current_period_end, cancel_at_period_end'), 'Couldn’t load your plan.');

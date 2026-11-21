@@ -50,6 +50,14 @@
   const offerLine = p => (p.monthly ? `${plural(p.credits)} a month, ${money(p.price_cents)} a month`
                                     : `${plural(p.credits)} for ${money(p.price_cents)}`);
 
+  // What a full film costs, from the price table's final_* rows (data.filmPrices): one number, or a range when it depends on the film type. DRAFT FOR RYAN: the words.
+  function filmCostLine(rows) {
+    const n = (rows || []).map(r => r.credits).filter(c => typeof c === 'number' && c > 0);
+    if (!n.length) return '';
+    const lo = Math.min(...n), hi = Math.max(...n);
+    return lo === hi ? `A full film costs ${plural(lo)}.` : `A full film costs between ${lo} and ${hi} credits, depending on the film type.`;
+  }
+
   // A person's plan, from stripe_subscriptions; null when there's nothing to show.
   function planLine(plan, when = iso => new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })) {
     if (!plan) return null;
@@ -70,5 +78,5 @@
   }
   const hasPlan = plan => !!plan && ['incomplete', 'trialing', 'active', 'past_due', 'unpaid'].includes(plan.status);
 
-  window.ryagramCredits = { returnedNote, priceLabel, affordable, jobCredits, balanceLine, plural, offerName, money, offerLine, planLine, hasPlan };
+  window.ryagramCredits = { returnedNote, priceLabel, affordable, jobCredits, balanceLine, filmCostLine, plural, offerName, money, offerLine, planLine, hasPlan };
 })();
