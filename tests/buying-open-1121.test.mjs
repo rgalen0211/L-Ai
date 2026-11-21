@@ -111,7 +111,7 @@ test('EVERY Buy site is tied to the one switch: no Buy/Subscribe label or #/cred
   assert.match(lib, /DRAFT FOR RYAN/);
   const cfg = read('assets/ryagram-config.js');
   assert.match(cfg, /\n  buyingOpen: false,/);
-  assert.match(cfg, /OWNER DECISION: Ryan's yes flips this/);
+  assert.match(cfg, /OWNER DECISION: the open sign-up flip does NOT touch this switch[\s\S]*flips to true only when live payments are on/);
   for (const f of fs.readdirSync(new URL('../assets/', import.meta.url)).filter(f => /^app-.*\.js$/.test(f) && f !== 'app-library.js' && f !== 'app-data.js')) {
     assert.doesNotMatch(read(`assets/${f}`), /startCheckout\(|'Buy credits'|'Subscribe'/, `${f} has no Buy site of its own`);
   }

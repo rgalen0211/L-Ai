@@ -24,8 +24,9 @@ window.ryagramConfig = Object.freeze({
   stripeTestMode: true,
   // BUYING OPEN: whether the app offers any Buy / Subscribe button (the Credits page's buttons, the home "Buy credits" link, the "Buy credits" link under a render that needs more credits).
   // Off (false) while live payments are off: a stranger at the free preview is never shown a test-card checkout; Credits shows the balance, what credits are for and the packs and plans
-  // WITHOUT buttons, and says buying is not open yet. OWNER DECISION: Ryan's yes flips this to true together with the open sign-up at launch (his 11:30 decisions, 2026-11-21: sign-up OPEN at launch,
-  // live payments stay OFF until Ohio answers the tax question). Mock mode and tests turn it on themselves (tests/fake-supabase.js seeds, ?buyingclosed shows the closed page in mock).
+  // WITHOUT buttons, and says buying is not open yet. OWNER DECISION: the open sign-up flip does NOT touch this switch (Ryan's 11:30 decisions, 2026-11-21: sign-up OPEN at launch,
+  // live payments stay OFF until Ohio answers the tax question; proposals/WEB-SIGNUP-FLIP-1121.md item 9). It stays false at the sign-up launch and flips to true only when live payments are on
+  // (live_ok / live Stripe) and Ryan says so, a separate decision after Ohio. Mock mode and tests turn it on themselves (tests/fake-supabase.js seeds, ?buyingclosed shows the closed page in mock).
   buyingOpen: false,
   // Show "Public page" on finished films in /app/. Turn on only once the film-page function is
   // deployed and its SQL applied (supabase/README.md, "Public film pages").
