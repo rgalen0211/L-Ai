@@ -285,5 +285,24 @@ class PreparedData(core.Base):
         missing = [x for x in older if not any(x == y for y in it)]        # every line of 000550, in the same order
         self.assertEqual(missing, [], "000600's account_request_deletion lost lines of 000550's")
 
+    # -- GEO 11-21 (CC1 12:36 G1): the live-steps after-checks and the rollbacks of GEO's migrations
+    def g1_check(self, name):
+        f = next((core.ROOT / "live-steps").glob("*_" + name + "_after_check.sql"))
+        return [bool(r[1]) for r in self.db.as_(None).c.execute(f.read_text(encoding="utf-8")).fetchall()]
+
+    def g1_rollback(self, name):
+        f = next((core.ROOT / "rollbacks").glob("*_" + name + "_rollback.sql"))
+        self.db.as_(None).c.execute(f.read_text(encoding="utf-8"))
+
+    def test_GEO_g1_after_checks_true_then_the_rollbacks_in_order_put_the_old_bodies_back(self):
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)
+        self.assertEqual(self.g1_check("prepared_tombstone"), [True] * 4)
+        self.g1_rollback("prepared_tombstone")                       # 000600's undo FIRST
+        self.assertEqual(self.g1_check("prepared_tombstone"), [False, True, False, True])
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [True] * 3)     # the AI revoke (000550) is still in place
+        self.g1_rollback("delete_revokes_ai")
+        self.assertEqual(self.g1_check("delete_revokes_ai"), [False, True, True])
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
