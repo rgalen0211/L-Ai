@@ -1,0 +1,118 @@
+// BUYING OPEN (WEB 11-21, Ryan's 11:30 decisions): one switch, ryagramConfig.buyingOpen (default false while live payments are off), ties every Buy / Subscribe button and "Buy credits" link.
+// Closed: Credits shows the balance, what credits are for and the packs and plans WITHOUT any button and WITHOUT the test-card text; a render short of credits says buying is not open yet.
+// Open: today's page exactly (Buy/Subscribe buttons, the test-card text while stripeTestMode is true). The Credits page's real code runs here against a tiny fake DOM.
+import { test } from 'node:test';
+import assert from 'node:assert/strict';
+import fs from 'node:fs';
+import vm from 'node:vm';
+
+const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+const lib = read('assets/app-library.js');
+
+class El {
+  constructor(tag) { this.tag = tag; this.attrs = {}; this.kids = []; this.className = ''; this.listeners = {}; this._text = null; }
+  setAttribute(k, v) { this.attrs[k] = String(v); }
+  getAttribute(k) { return this.attrs[k] ?? null; }
+  addEventListener(k, f) { this.listeners[k] = f; }
+  append(...k) { for (const x of k) this.kids.push(x); }
+  set textContent(v) { this._text = String(v); this.kids = []; }
+  get textContent() { return this._text ?? this.kids.map(k => (typeof k === 'string' ? k : k.textContent)).join(''); }
+}
+const all = (n, out = []) => { if (typeof n === 'string') return out; out.push(n); n.kids.forEach(k => all(k, out)); return out; };
+const flat = view => view.flat(Infinity).filter(Boolean);
+const elements = view => flat(view).flatMap(n => (typeof n === 'string' ? [] : all(n)));
+const textOf = view => flat(view).map(n => (typeof n === 'string' ? n : n.textContent)).join(' | ');
+
+const OFFERS = [
+  { code: 'pack_starter', credits: 10, price_cents: 1200, monthly: false },
+  { code: 'sub_creator', credits: 30, price_cents: 2400, monthly: true },
+  { code: 'sub_pro', credits: 100, price_cents: 6900, monthly: true }];
+
+async function credits({ config = {}, mock = false, search = '', source = lib, prices = null } = {}) {
+  const document = { createElement: t => new El(t) };
+  const win = { ryagramConfig: { credits: true, payments: true, stripeTestMode: true, ...config } };
+  if (mock) win.ryagramMock = {};
+  const Cmod = {}; vm.runInNewContext(read('assets/app-credits.js'), { window: Cmod });
+  win.ryagramCredits = Cmod.ryagramCredits;
+  win.ryagramFlip = { create: ({ sections }) => ({ el: sections.map(s => s.el) }) };
+  const data = { shopOffers: async () => OFFERS, myPlan: async () => null, creditBalances: async () => [{ available: 22, held: 0 }], startCheckout: async () => '#', openBillingPortal: async () => '#',
+                 filmPrices: async () => prices || [] };
+  const a = source.indexOf('  const creditsOn ='), b = source.indexOf('  const BUYING_CLOSED_SHORT'), helpers = source.slice(a, source.indexOf('\n', b));
+  const body = source.slice(source.indexOf('    async function creditsView('), source.indexOf('    // --- #/p/<id>'));
+  const h0 = source.indexOf('  function h(tag'), hSrc = source.slice(h0, source.indexOf('\n  }\n', h0) + 5);
+  const code = `(function (window, document, location, history, setInterval, clearInterval, data) { ${hSrc}
+    const errorLine = () => h('p', { class: 'form-note app-error', hidden: true });
+    const showError = () => {}; const busy = async () => {};
+    ${helpers}
+    ${body}
+    return creditsView(undefined, () => {}); })`;
+  const fn = vm.runInNewContext(code, { document });
+  const view = await fn(win, document, { search, hash: '#/credits', pathname: '/app/' }, { replaceState() {} }, () => 0, () => {}, data);
+  await new Promise(r => setTimeout(r, 5));
+  return view;
+}
+// What must be true of the closed state; the planted-fault test runs the closed state with open markup and expects violations.
+const closedViolations = view => {
+  const text = textOf(view), bad = [];
+  if (elements(view).some(e => e.tag === 'button' && /^(Buy|Subscribe)$/.test(e.textContent))) bad.push('a Buy/Subscribe button');
+  if (/4242/.test(text)) bad.push('the test card');
+  if (/Test mode/i.test(text)) bad.push('Test mode text');
+  if (!/Buying credits is not open yet\. Free contact sheets and previews are always free\./.test(text)) bad.push('the closed line is missing');
+  if (!/10 credits for \$12/.test(text) || !/30 credits a month, \$24 a month/.test(text) || !/100 credits a month, \$69 a month/.test(text)) bad.push('the packs and plans are not listed');
+  if (!/22 credits available/.test(text)) bad.push('the balance is missing');
+  return bad;
+};
+
+test('CLOSED (the default config): Credits has no Buy or Subscribe button, no test card, no Test mode text, and says buying is not open yet; packs, plans and balance still show', async () => {
+  assert.equal(vm.runInNewContext(`${read('assets/ryagram-config.js')}; window.ryagramConfig.buyingOpen`, { window: {} }), false, 'the committed config has buyingOpen false');
+  assert.deepEqual(closedViolations(await credits({ config: { buyingOpen: false } })), []);
+  assert.deepEqual(closedViolations(await credits({})), [], 'a missing switch is closed');
+});
+
+test('OPEN (buyingOpen true): today\'s page, Buy and Subscribe buttons, the test card and the Test mode label while stripeTestMode is true', async () => {
+  const view = await credits({ config: { buyingOpen: true } });
+  const labels = elements(view).filter(e => e.tag === 'button').map(e => e.textContent);
+  assert.equal(labels.filter(l => l === 'Buy').length, 1);
+  assert.equal(labels.filter(l => l === 'Subscribe').length, 2);
+  const text = textOf(view);
+  assert.match(text, /Use the card 4242 4242 4242 4242/);
+  assert.match(text, /Test mode — prices are placeholders, no real charge\./);
+  assert.match(text, /Payments are handled by Stripe/);
+  assert.doesNotMatch(text, /Buying credits is not open yet/);
+});
+
+test('MOCK mode is open (so the checkout checks keep their meaning) and ?buyingclosed shows the closed page there', async () => {
+  const open = await credits({ config: { buyingOpen: false }, mock: true });
+  assert.match(textOf(open), /Mock mode: nothing goes to Stripe/);
+  assert.ok(elements(open).some(e => e.tag === 'button' && e.textContent === 'Buy'));
+  assert.deepEqual(closedViolations(await credits({ mock: true, search: '?mock&buyingclosed' })), []);
+});
+
+test('PLANTED FAULT: the open-state markup in the closed state is caught', async () => {
+  const faulty = lib.replace('const open = buyingOn();', 'const open = true;');
+  assert.notEqual(faulty, lib);
+  assert.ok(closedViolations(await credits({ config: { buyingOpen: false }, source: faulty })).length >= 2);
+  const faulty2 = lib.replace('const buyingOn = () => paymentsOn() && (window.ryagramConfig?.buyingOpen === true', 'const buyingOn = () => paymentsOn() && (true');
+  assert.notEqual(faulty2, lib);
+  assert.ok(closedViolations(await credits({ config: { buyingOpen: false }, source: faulty2 })).length >= 2);
+});
+
+test('EVERY Buy site is tied to the one switch: no Buy/Subscribe label or #/credits Buy link in app-library.js outside buyingOn()', () => {
+  const lines = lib.split('\n');
+  const links = lines.filter(l => /'Buy credits'/.test(l));
+  assert.equal(links.length, 2, 'the home chip and the render strip are the two Buy credits links');
+  for (const l of links) assert.match(l, /buyingOn\(\)/);
+  const at = lib.indexOf('startCheckout(');
+  assert.ok(lib.lastIndexOf("!open ? null : h('button'", at) > lib.lastIndexOf('const offerItem', at), 'the checkout button is inside the open-only branch');
+  assert.equal(lib.split('startCheckout(').length, 2, 'one checkout call in the whole library');
+  assert.equal((lib.match(/paymentsOn\(\) \? \[/g) || []).length, 0, 'no Buy link is gated by paymentsOn alone any more');
+  assert.match(lib, /if \(!can\.ok && paymentsOn\(\) && !buyingOn\(\)\) can\.reason \+= ` \$\{BUYING_CLOSED_SHORT\}`/, 'a render short of credits says buying is not open yet');
+  assert.match(lib, /: paymentsOn\(\) && \(q\.available \|\| 0\) < q\.credits \? \[' ', BUYING_CLOSED_SHORT\]/, 'the next-step strip says so too');
+  assert.match(lib, /DRAFT FOR RYAN/);
+  const cfg = read('assets/ryagram-config.js');
+  assert.match(cfg, /\n  buyingOpen: false,/);
+  assert.match(cfg, /OWNER DECISION: Ryan's yes flips this/);
+  for (const f of fs.readdirSync(new URL('../assets/', import.meta.url)).filter(f => /^app-.*\.js$/.test(f) && f !== 'app-library.js' && f !== 'app-data.js')) {
+    assert.doesNotMatch(read(`assets/${f}`), /startCheckout\(|'Buy credits'|'Subscribe'/, `${f} has no Buy site of its own`);
+  }
+});

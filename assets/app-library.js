@@ -86,6 +86,12 @@
   const funnelOn = () => window.ryagramConfig?.funnelTracking === true || !!window.ryagramMock;
   const opsOn = () => window.ryagramConfig?.opsTools === true || !!window.ryagramMock;
   const paymentsOn = () => creditsOn() && (window.ryagramConfig?.payments === true || !!window.ryagramMock);
+  // BUYING OPEN (ryagram-config.js buyingOpen; Ryan's yes flips it with sign-up at launch): every Buy / Subscribe button and "Buy credits" link is tied to THIS one switch. Mock mode is open (so the
+  // checkout checks keep their meaning) unless the address has ?buyingclosed, which shows the closed page there.
+  const buyingOn = () => paymentsOn() && (window.ryagramConfig?.buyingOpen === true || (!!window.ryagramMock && !/[?&]buyingclosed/.test(location.search || '')));
+  // DRAFT FOR RYAN: the words shown wherever buying would be, while buyingOn() is false.
+  const BUYING_CLOSED = 'Buying credits is not open yet. Free contact sheets and previews are always free.';
+  const BUYING_CLOSED_SHORT = 'Buying credits is not open yet.';
 
   // Every admin page that is switched on, in plain words and in groups (the Admin page #/admin, WEB 11-20: the admin tools live on ONE page, not in a menu and not scattered over the user pages).
   const adminPages = () => [
@@ -368,7 +374,7 @@
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
         credits.replaceChildren(window.ryagramCredits.balanceLine(rows),
-                                ...(paymentsOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
+                                ...(buyingOn() ? [' · ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
       }).catch(() => { credits.textContent = 'Couldn’t load your credits.'; });
       const help = opsOn() ? h('a', { href: '#/help' }, 'Get help') : null;
       // A newcomer's main control (NEXT-WEB 132 G2): with no projects yet, the guided builder is the big button; once they have projects it is the quiet link it always was.
@@ -1011,17 +1017,18 @@
         });
       };
       const current = C.planLine(plan);
+      const open = buyingOn();
       const offerItem = p => {
         const blocked = p.monthly && C.hasPlan(plan);
         return h('li', { class: 'offer' },
           h('strong', {}, C.offerName(p.code)), h('span', { class: 'meta' }, C.offerLine(p)),
-          h('button', { class: 'button secondary small', type: 'button', disabled: blocked,
+          !open ? null : h('button', { class: 'button secondary small', type: 'button', disabled: blocked,
                         title: blocked ? 'You already have a plan. Use Manage plan to change it.' : null,
                         onclick: event => go(event.currentTarget, 'Opening Stripe…', () => data.startCheckout(p.code)) },
             p.monthly ? 'Subscribe' : 'Buy'));
       };
       const packs = offers.filter(p => !p.monthly), plans = offers.filter(p => p.monthly);
-      const testMode = window.ryagramMock
+      const testMode = !open ? null : window.ryagramMock
         ? 'Mock mode: nothing goes to Stripe, and buying adds the credits at once.'
         : window.ryagramConfig?.stripeTestMode !== false
           ? 'Test mode: no real money moves. Use the card 4242 4242 4242 4242 with any future date and any CVC.' : null;
@@ -1029,6 +1036,7 @@
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, 'Credits'),
         balance, thanks,
+        open ? null : h('p', { class: 'form-note credit-closed' }, BUYING_CLOSED),
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
         testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,
         current || plan ? h('div', { class: 'plan-now' },
@@ -1042,9 +1050,9 @@
                         h('p', { class: 'form-note' }, 'Pack credits never expire.')] : null,
         plans.length ? [h('h2', {}, 'Monthly plans'), h('ul', { class: 'offer-list' }, plans.map(offerItem)),
                         h('p', { class: 'form-note' }, 'Unused plan credits carry over, up to two months’ worth. Cancel any time from Manage plan.')] : null],
-        offers.length ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
+        offers.length || !open ? null : h('p', { class: 'form-intro' }, 'Nothing is on sale yet.'),
         error,
-        h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.')
+        open ? h('p', { class: 'form-note' }, 'Payments are handled by Stripe. Ryagram never sees your card.') : null
       ];
     }
 
@@ -1847,7 +1855,7 @@
           const anySheet = jobs.some(j => j.job_type === 'contact_sheet' && j.state === 'complete' && j.story_sha256 === storySha);
           if (creditsOn() && anySheet && !jobs.some(j => j.job_type === 'final_render') && q && !q.error && typeof q.credits === 'number') {
             nextStrip.replaceChildren(h('strong', {}, 'That first picture was free.'), ' ', ladder.preview ? 'You have a preview too, so the full film is next.' : 'Next make a short preview, then the full film.',
-              ` The full film uses ${C.plural(q.credits)}; you have ${C.plural(Math.max(0, q.available || 0))}.`, ...(paymentsOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : []));
+              ` The full film uses ${C.plural(q.credits)}; you have ${C.plural(Math.max(0, q.available || 0))}.`, ...(buyingOn() ? [' ', h('a', { href: '#/credits' }, 'Buy credits')] : paymentsOn() && (q.available || 0) < q.credits ? [' ', BUYING_CLOSED_SHORT] : []));
             nextStrip.hidden = false;
           } else nextStrip.hidden = true;
         }
@@ -1864,6 +1872,7 @@
             const q = quotes[type];
             button.textContent = q && !q.error ? `${base} · ${C.priceLabel(q)}` : base;
             const can = q && !q.error ? C.affordable(q) : { ok: true };
+            if (!can.ok && paymentsOn() && !buyingOn()) can.reason += ` ${BUYING_CLOSED_SHORT}`;      // short of credits and nothing to link to: say plainly buying is not open yet
             if (!can.ok) { button.disabled = true; whyKey(button, q?.error ? q.error : can.reason); }
             return q?.error ? q.error : can.ok ? '' : can.reason;
           };

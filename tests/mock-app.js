@@ -13,7 +13,7 @@
       window.sessionStorage.setItem('ryagram.mock.doorinit', '1');
     } catch { /* blocked storage: the door simply shows */ }
     // Mock mode starts with 30 beta credits so the credit screens can be tried.
-    const client = window.createFakeClient({ credits: 30 }, { user: { id: 'mock-user', email: 'mock@localhost' } });
+    const client = window.createFakeClient({ credits: (/[?&]credits=(\d+)/.exec(location.search || '') || [0, 30])[1] * 1 }, { user: { id: 'mock-user', email: 'mock@localhost' } });
     const db = client.db;
     const project = { id: client.newId(), owner_id: 'mock-user', title: 'Obesity and fast food (mock)',
                       created_at: client.now(), updated_at: client.now(), archived_at: null };
