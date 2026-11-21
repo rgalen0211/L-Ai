@@ -14,6 +14,9 @@
     final_video: 'Final film', preview: 'Preview', contact_sheet: 'Contact sheet', thumbnail: 'Thumbnail',
     receipt: 'Receipt (for computers)', receipt_text: 'Receipt', metering: 'Usage note'
   };
+  // Files the render machine keeps for computers and for us, not for the person who made the film: a customer never needs them, so the Files list does not show them (WEB 11-21,
+  // customer step: a free-preview user saw "Metering" and "Receipt" and did not know what to do with them). The film, the preview, the contact sheet and the thumbnail are shown.
+  const HIDDEN_KINDS = ['receipt', 'receipt_text', 'metering'];
   const UUID = '([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})';
 
   function h(tag, attrs = {}, ...children) {
@@ -1690,7 +1693,8 @@
     function filesSection(v, initial) {
       const list = h('div');
       const el = h('section', { 'aria-labelledby': 'files-title' }, h('h2', { id: 'files-title' }, 'Files'), list);
-      async function draw(artifacts) {
+      async function draw(all) {
+        const artifacts = all.filter(a => !HIDDEN_KINDS.includes(a.kind));
         list.replaceChildren(artifacts.length
           ? h('ul', { class: 'file-list' }, await Promise.all(artifacts.map(async a => {
               let url = null;
