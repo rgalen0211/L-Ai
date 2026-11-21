@@ -978,7 +978,7 @@
     // --- #/credits  packs and plans (Stripe Checkout; credits arrive through the webhook)
     async function creditsView(paidCode, onStop) {
       const C = window.ryagramCredits;
-      const [offers, plan] = await Promise.all([data.shopOffers(), data.myPlan()]);
+      const [offers, plan, filmRows] = await Promise.all([data.shopOffers(), data.myPlan(), Promise.resolve().then(() => data.filmPrices()).catch(() => [])]);   // (the film price is a nicety: no answer, no sentence)
       const error = errorLine();
       const balance = h('p', { class: 'credit-balance' }, 'Loading credits…');
       let before = null;
@@ -1036,6 +1036,8 @@
         h('a', { href: '#/', class: 'back' }, '← All projects'),
         h('h1', { tabindex: '-1' }, 'Credits'),
         balance, thanks,
+        // DRAFT FOR RYAN: what credits are for and what a full film costs (the cost is read from the ledger's price table, the same numbers the Render step quotes).
+        h('p', { class: 'form-note credit-about' }, 'Credits pay for full films. ', C.filmCostLine(filmRows), open ? ' Contact sheets and previews are free.' : null),
         open ? null : h('p', { class: 'form-note credit-closed' }, BUYING_CLOSED),
         testMode ? h('p', { class: 'form-note credit-test-mode' }, testMode) : null,
         testMode && !window.ryagramMock ? h('p', { class: 'form-note credit-test-label' }, 'Test mode — prices are placeholders, no real charge.') : null,

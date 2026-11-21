@@ -116,3 +116,30 @@ test('EVERY Buy site is tied to the one switch: no Buy/Subscribe label or #/cred
     assert.doesNotMatch(read(`assets/${f}`), /startCheckout\(|'Buy credits'|'Subscribe'/, `${f} has no Buy site of its own`);
   }
 });
+
+// ---- what a credit buys (WEB 11-21, task 2): the sentence reads the price table's final_* rows --------------------------------------------------------
+const TABLE = [{ code: 'final_line', credits: 6 }, { code: 'final_map', credits: 8 }, { code: 'final_paired', credits: 10 }];
+test('WHAT A FILM COSTS: Credits says it from the price table, closed and open; one number when every type costs the same; nothing invented when the table is unreadable', async () => {
+  for (const config of [{ buyingOpen: false }, { buyingOpen: true }]) {
+    assert.match(textOf(await credits({ config, prices: TABLE })), /Credits pay for full films\. A full film costs between 6 and 10 credits, depending on the film type\./);
+  }
+  assert.match(textOf(await credits({ prices: [{ code: 'final_map', credits: 8 }, { code: 'final_line', credits: 8 }] })), /A full film costs 8 credits\./);
+  assert.doesNotMatch(textOf(await credits({ prices: [] })), /A full film costs/);
+  assert.doesNotMatch(textOf(await credits({ prices: [{ code: 'final_map', credits: 0 }] })), /A full film costs/);
+  // the numbers are the table's, not a constant in the page: change the table, the sentence follows
+  assert.match(textOf(await credits({ prices: [{ code: 'final_map', credits: 12 }, { code: 'final_paired', credits: 15 }] })), /between 12 and 15 credits/);
+  assert.doesNotMatch(read('assets/app-credits.js'), /A full film costs[^`'\n]*\d/, 'no number is typed into the sentence');
+});
+
+test('WHAT A FILM COSTS: the data layer reads the CURRENT price versions final_* rows (the same table the ledger charges from)', async () => {
+  const { createRequire } = await import('node:module');
+  const req = createRequire(import.meta.url);
+  const { createFakeClient } = req('./fake-supabase.js');
+  const win = {}; vm.runInNewContext(read('assets/app-data.js'), { window: win });
+  const client = createFakeClient({ credits: 0 });
+  client.db.credit_prices.push({ price_version: '2099-01', code: 'final_map', credits: 99, price_cents: null, monthly: false, effective_from: '2099-01-01T00:00:00Z' });   // not in effect yet
+  const rows = await win.ryagramData(client).filmPrices();
+  assert.deepEqual(rows.map(r => [r.code, r.credits]).sort(), [['final_line', 6], ['final_map', 8], ['final_paired', 10]]);
+  const sql = read('supabase/phase-2b/credits_ledger.sql');
+  for (const [code, n] of [['final_line', 6], ['final_map', 8], ['final_paired', 10]]) assert.match(sql, new RegExp(`'${code}', ${n}, null`), `the ledger's table says ${code} is ${n}`);
+});

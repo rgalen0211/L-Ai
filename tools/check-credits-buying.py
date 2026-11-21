@@ -89,8 +89,10 @@ def main():
                 page.screenshot(path=str(OUT / f'bc-credits-closed-{width}.png'), full_page=True)
                 check(closed_faults(s) == [], f'[{width}] CLOSED Credits: no Buy/Subscribe, no test card, no Test mode text, closed line, offers listed ({closed_faults(s)})')
                 check(not s['overflow'], f'[{width}] CLOSED Credits: no sideways scroll')
+                check(s['filmCost'] and 'between 6 and 10 credits' in s['text'], f'[{width}] CLOSED Credits says what a full film costs (read from the price table)')
                 s = credits('')
                 page.screenshot(path=str(OUT / f'bc-credits-open-{width}.png'), full_page=True)
+                check(s['filmCost'] and 'between 6 and 10 credits' in s['text'], f'[{width}] OPEN Credits says what a full film costs')
                 check(s['buy'] == 5 and not s['closedLine'], f'[{width}] OPEN Credits: Buy and Subscribe buttons, no closed line ({s["buy"]} buttons)')
                 # planted fault: open markup in the closed page is caught by the same measurement
                 s = credits('')

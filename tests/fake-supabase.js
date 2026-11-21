@@ -41,7 +41,7 @@
     if (ledger) {
       const at = '2026-09-01T00:00:00Z';
       db.credit_prices = db.credit_prices || [['pack_starter', 10, 1200, false], ['pack_maker', 28, 3000, false], ['pack_studio', 60, 6000, false],
-        ['sub_creator', 30, 2400, true], ['sub_pro', 100, 6900, true], ['final_map', 8, null, false]]
+        ['sub_creator', 30, 2400, true], ['sub_pro', 100, 6900, true], ['final_line', 6, null, false], ['final_map', 8, null, false], ['final_paired', 10, null, false]]
         .map(([code, credits, price_cents, monthly]) => ({ price_version: '2026-09', code, credits, price_cents, monthly, effective_from: at }));
       db.stripe_prices = db.stripe_prices || ['pack_starter', 'pack_maker', 'pack_studio', 'sub_creator', 'sub_pro']
         .map(price_code => ({ price_code, mode: price_code.startsWith('sub_') ? 'subscription' : 'payment', active: true }));
