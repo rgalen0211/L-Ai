@@ -82,3 +82,5 @@ body.ryagram-look .dept-card a{color:var(--ink);text-decoration:none;font-size:1
 @media (max-width:520px){.site-card-link{display:flex;align-items:center;min-height:44px}label:has(>input[type=radio]):not(.builder-card):not(.le *),label:has(>input[type=checkbox]):not(.builder-card):not(.le *){display:flex;align-items:center;gap:10px;min-height:44px}.builder-sample-link a{display:inline-flex;align-items:center;min-height:44px}}
 /* at 701 to 980 px app.css hides every header link of an admin's bar (.has-departments .nav.has-admin .app-account a.app-nav-link, 0,5,1): the Admin link must stay (FACES 11-20) */
 .has-departments .nav.has-admin .app-account a.app-nav-link.admin-link{display:inline-flex}
+/* "Request a film" in the project page's note is a 44 px tap target on a phone (WEB 11-20: it measured 17 px) */
+@media (max-width:520px){.request-pointer a{display:inline-flex;align-items:center;min-height:44px}}

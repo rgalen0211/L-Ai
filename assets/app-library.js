@@ -69,9 +69,9 @@
   const startOn = () => window.ryagramConfig?.aiFirst === true && connectOn();
   // The live editor (#/editor/data, #/editor/compilation; app-editor.js). Flag only: it does not follow mock mode, so with the flag off nothing about any page changes.
   const liveEditorOn = () => window.ryagramSwitches?.featureOn('liveEditor') === true;
-  // The Edit button shows wherever the editor is released at all (true for everyone, or 'account'); an account without it gets a plain page saying so, never the library (Ryan 11-17).
-  const liveEditorShown = () => window.ryagramConfig?.liveEditor === true || window.ryagramConfig?.liveEditor === 'account';
-  const editLink = (id, cls) => liveEditorShown() ? h('a', { class: cls, href: `#/editor/data/${id}`, 'data-edit-project': id }, 'Edit') : null;
+  // The Edit link shows only to an account the editor is ON for (the same test the editor route uses): config 'account' with this account off the list shows nothing, so no one lands on the 'isn't on' page by a link (CC1 11-20).
+  // An account without it who types the address still gets a plain page saying so, never the library (Ryan 11-17).
+  const editLink = (id, cls) => liveEditorOn() ? h('a', { class: cls, href: `#/editor/data/${id}`, 'data-edit-project': id }, 'Edit') : null;
   const editorOffView = () => [h('h1', { tabindex: '-1' }, 'The live editor isn’t on for this account'),
     h('p', { class: 'form-intro', role: 'status' }, 'Your films and projects are all still here. The live editor is being switched on one account at a time, and this one is not on the list yet.'),
     h('a', { class: 'button primary', id: 'editor-off-home', href: '#/' }, 'Back to your projects')];
@@ -346,7 +346,7 @@
       const S = window.ryagramSite;
       const list = projects.length
         ? h('ul', { class: 'film-grid' }, projects.map(p => S.filmCard({ h, project: p, data, version: p.latest && p.latest.id,
-            statusEl: p.latest ? [`Version ${p.latest.number} · `, badge(p.latest.state)] : 'No versions yet', updated: `· updated ${date(p.updated_at)}`, edit: editLink(p.id, 'button secondary small') })))
+            parts: [p.latest ? `Version ${p.latest.number}` : 'No versions yet', p.latest && p.latest.state ? badge(p.latest.state) : null, p.updated_at && !isNaN(new Date(p.updated_at)) ? `updated ${date(p.updated_at)}` : null], edit: editLink(p.id, 'button secondary small') })))
         : h('p', { class: 'form-intro' }, builderOn() ? 'No films yet. The quickest way to start is the big card above: pick a ready-made film and the first picture is free.' : 'No films yet. Name your first film above, then pick a ready-made film to start from.');
       const credits = creditsOn() ? h('p', { class: 'credit-balance' }, 'Loading credits…') : null;
       if (credits) data.creditBalances().then(rows => {
