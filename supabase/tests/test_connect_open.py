@@ -1,0 +1,80 @@
+"""CONNECT-AN-AI OPENS TO EVERYONE (migrations/20261121000100_connect_open_to_all.sql, NOT APPLIED) on a local Postgres. CONNECT, 2026-11-21 (Ryan 11:30).
+
+STATE: WRITTEN, NOT RUN (its calls to the harness are modelled on test_connect_departments.py and may need a small fix on the first run). The first session that has the disk (D: at or above 55 GB free, the storage rule) runs it once, with TEMP/TMP on D: and RYAGRAM_LAI_REPO set, from the repo root:
+    pgvenv/Scripts/python -m unittest supabase/tests/test_connect_open.py -v
+and kills the pgserver it leaves by PID (the pgserver data dirs are about 1 GB a run). Until it has passed, the node tests (tests/connect-open-all.test.mjs and its 17 planted faults) are the only proof, and they read the SQL, they do not run it.
+
+What it proves, each with the opposite case beside it
+  * the flag is OFF after the migration and the person rule answers exactly as before: an enabled list row is allowed; an unlisted account, a disabled row, an administrator and a worker are not
+  * with the flag ON an unlisted signed-up account is allowed; an administrator, a worker and an account whose list row is DISABLED are still refused
+  * an administrator's own session can flip the flag with admin_connect_set_open; a signed-in non-administrator is refused; anon cannot run it; the connector login cannot run it
+  * the rollback puts the old rule back and removes the flag, the helper and the function
+"""
+import sys
+import unittest
+import uuid
+from pathlib import Path
+
+import psycopg
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import test_2a_core as core  # noqa: E402
+import test_film_card_requests as fc  # noqa: E402
+
+setUpModule = core.setUpModule
+LISTED, UNLISTED, DISABLED, ADMIN, WORKER = (str(uuid.UUID(int=i)) for i in (601, 602, 603, 604, 605))
+RB = core.ROOT / "rollbacks" / "20261121000100_connect_open_to_all_rollback.sql"
+
+
+class ConnectOpen(core.Base):
+    app = fc.FilmCards.app
+
+    def setUp(self):
+        super().setUp()
+        d = self.db.as_(None).c
+        d.execute("insert into auth.users (id, email) values (%s,'l@x'),(%s,'u@x'),(%s,'d@x'),(%s,'a@x'),(%s,'w@x')", (LISTED, UNLISTED, DISABLED, ADMIN, WORKER))
+        d.execute("insert into public.connect_access (user_id, enabled) values (%s, true), (%s, false)", (LISTED, DISABLED))
+        d.execute("insert into public.app_admins (user_id) values (%s)", (ADMIN,))
+        d.execute("insert into public.workers (user_id) values (%s)", (WORKER,))
+
+    def ok(self, who):
+        return self.db.as_(None).c.execute("select ryagram_private.connect_person_ok(%s)", (who,)).fetchone()[0]
+
+    def flag(self, on):
+        self.db.as_(None).c.execute("update public.connect_flags set open_to_all = %s where id", (on,))
+
+    def test_the_flag_is_off_after_the_migration_and_the_old_rule_holds(self):
+        self.assertFalse(self.db.as_(None).c.execute("select open_to_all from public.connect_flags where id").fetchone()[0])
+        self.assertEqual([self.ok(x) for x in (LISTED, UNLISTED, DISABLED, ADMIN, WORKER)], [True, False, False, False, False])
+
+    def test_with_the_flag_on_only_the_unlisted_signed_up_account_is_added(self):
+        self.flag(True)
+        self.assertEqual([self.ok(x) for x in (LISTED, UNLISTED, DISABLED, ADMIN, WORKER)], [True, True, False, False, False])
+        self.flag(False)
+        self.assertFalse(self.ok(UNLISTED), "turning it off again refuses the account at once")
+
+    def test_who_may_flip_it(self):
+        self.app(ADMIN).execute("select public.admin_connect_set_open(true)")
+        self.assertTrue(self.db.as_(None).c.execute("select open_to_all from public.connect_flags where id").fetchone()[0])
+        self.app(ADMIN).execute("select public.admin_connect_set_open(false)")
+        with self.assertRaises(psycopg.errors.Error):
+            self.app(UNLISTED).execute("select public.admin_connect_set_open(true)")
+        with self.assertRaises(psycopg.errors.Error):
+            self.db.as_("anon").c.execute("select public.admin_connect_set_open(true)")
+        with self.assertRaises(psycopg.errors.Error):
+            self.db.as_("connect_runner").c.execute("select public.admin_connect_set_open(true)")
+        self.assertFalse(self.db.as_(None).c.execute("select open_to_all from public.connect_flags where id").fetchone()[0])
+
+    def test_the_rollback_puts_the_old_rule_back_and_removes_what_was_added(self):
+        self.flag(True)
+        self.db.as_(None).c.execute(RB.read_text(encoding="utf-8"))
+        self.assertFalse(self.ok(UNLISTED))
+        self.assertTrue(self.ok(LISTED))
+        d = self.db.as_(None).c
+        self.assertIsNone(d.execute("select to_regprocedure('public.admin_connect_set_open(boolean)')").fetchone()[0])
+        self.assertIsNone(d.execute("select to_regprocedure('ryagram_private.connect_open()')").fetchone()[0])
+        self.assertEqual(d.execute("select count(*) from information_schema.columns where table_name = 'connect_flags' and column_name = 'open_to_all'").fetchone()[0], 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
