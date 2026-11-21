@@ -167,7 +167,7 @@ const datasetInfoTool: ToolDef = {
     const d = DATASET_RECORDS.get(id);
     if (!d) {
       const near = [...DATASET_RECORDS.keys()].filter((k) => k.includes(id) || id.includes(k)).slice(0, 8);
-      return refuse(`There is no dataset "${id}" in the engine's records.${near.length ? ` Close ids: ${near.join(", ")}.` : ""} get_story_schema lists the datasets you can draw today.`, "not_found");
+      return refuse(`There is no dataset "${id}" in the engine's records.${near.length ? ` Close ids: ${near.join(", ")}.` : ""} get_story_schema lists the datasets you can draw today. If the person asked for a subject that is not among them, tell them so plainly; do not swap in another dataset without saying so.`, "not_found");
     }
     const usable = Object.prototype.hasOwnProperty.call(DATASETS, id);
     const { text, problems } = datasetInfoText(d, usable);
@@ -178,7 +178,7 @@ const datasetInfoTool: ToolDef = {
 const RULES = [
   "A story is JSON: {\"schema\": 1, \"engine\": \"sequence\", \"sequence\": {\"clips\": [...]}} with 1 to 40 clips. Each clip is either a title card (kind \"title\") or a data view (kind \"render\").",
   "A title card needs a headline or a subhead, runs 0.5 to 12 seconds, headline up to 160 characters, subhead up to 320, credit line up to 160. No control or invisible characters.",
-  "A data view names a catalog dataset, a view, and a start and end period (like 2016 or 2016-03). Start must not be after end. Only datasets in the catalog below can be used; you cannot upload data.",
+  "A data view names a catalog dataset, a view, and a start and end period (like 2016 or 2016-03). Start must not be after end. Only datasets in the catalog below can be used (or, if submit_prepared_data is among your tools, a table of the person's own that they have accepted in the Ryagram app); you cannot add data yourself, and if the person's subject is not in the catalog you say so plainly instead of swapping in another dataset.",
   "Clip ids must be unique within a story. The whole story is at most 256 KB.",
   "A paired or panel view needs \"keyframes_per_year\" in the clip's settings (how many pictures a year it draws, 2 to 24), which is measured for each film and cannot be measured here: use a map, bars or line view unless the person gives you that number.",
   "The ladder: a contact sheet (still frames; runs Ryagram's correctness checks), then a preview of at most 10 seconds, then the full render. A preview waits until the contact sheet of the same saved story is finished. A full render needs a contact sheet AND a preview of this exact story, made by the same engine version. Changing the story invalidates earlier sheets and previews.",
@@ -720,13 +720,13 @@ const undoMine: ToolDef = {
 const suggestNextStep: ToolDef = {
   name: "suggest_next_step", title: "What to ask the person next", scope: "read", readOnly: true, idempotent: true,
   description: "Tells you the ONE next question to put to a person who wants to make something, or the next thing to do, from what they have already told you. Pass every detail they have already given, "
-    + "even in their first message (a county map of rent in Ohio since 2010 answers the kind, the scale, the place, the topic, the years and the picture): it never asks again for a detail you pass. "
-    + "It offers only what Ryagram can draw today and says plainly when something is coming soon. It changes nothing and reads nothing of the person's.",
+    + "even in their first message (a county map of building permits in Ohio since 2010 answers the kind, the scale, the place, the topic, the years and the picture): it never asks again for a detail you pass. "
+    + "It offers only what Ryagram can draw today and says plainly when something is coming soon, and what to tell the person when their subject is not in the catalog. It changes nothing and reads nothing of the person's.",
   inputSchema: obj({
     kind: { type: "string", enum: [...KINDS], description: "data_film (numbers as a map or chart over time), compilation (clips from the person's own videos), or department (a part of Ryagram that is coming soon)." },
     scale: { type: "string", enum: [...SCALES], description: "How big a place: city, county, state, country or world." },
     place: { type: "string", maxLength: 100, description: "The place the person named, in their words." },
-    dataset: { type: "string", maxLength: 100, description: "What they want to measure, in their words (for example rent)." },
+    dataset: { type: "string", maxLength: 100, description: "What they want to measure, in their words (for example building permits)." },
     years: { type: "string", maxLength: 40, description: "The years they want, in their words." },
     picture: { type: "string", enum: [...PICTURES], description: "The picture they asked for. globe is accepted only so you can be told it is coming soon." },
     have_app: { type: "boolean", description: "Compilation: whether they have the Ryagram desktop app for Windows." },
