@@ -199,10 +199,6 @@ body.ryagram-ds.ryagram-look .dept-card a:hover{text-decoration:underline}
 body.ryagram-ds.ryagram-look .dept-card p{grid-column:1/-1;margin:0;color:var(--ink-2);font-size:var(--t-small)}
 body.ryagram-ds.ryagram-look .dept-card .soon-tag{margin:0;justify-self:end}
 body.ryagram-ds.ryagram-look .dept-card-open{color:var(--ok)}
-body.ryagram-ds.ryagram-look .dept-card:first-child{grid-column:1/-1;align-content:center;min-height:260px;padding:var(--s7);background:linear-gradient(90deg,rgba(11,12,17,.96) 0,rgba(11,12,17,.82) 45%,rgba(11,12,17,.35) 100%),url(/assets/ryagram-hero-interstate.jpg) right center/cover no-repeat}
-body.ryagram-ds.ryagram-look .dept-card:first-child a{font:600 var(--t-h2)/1.2 var(--serif)}
-body.ryagram-ds.ryagram-look .dept-card:first-child p{max-width:34em;font-size:1rem}
-@media (max-width:700px){ body.ryagram-ds.ryagram-look .dept-card:first-child{padding:var(--s6);min-height:0} }
 body.ryagram-ds.ryagram-look .home-links{display:flex;flex-wrap:wrap;gap:var(--s2) var(--s6);margin:var(--s6) 0 0;padding:0;list-style:none}
 body.ryagram-ds.ryagram-look .home-links a{display:inline-flex;align-items:center;min-height:44px;color:var(--ink-2);text-decoration:none;font-size:var(--t-small)}
 body.ryagram-ds.ryagram-look .home-links a:hover{color:var(--ink);text-decoration:underline}
