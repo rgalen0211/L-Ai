@@ -58,7 +58,7 @@ const mutants = [
   ['the build button is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-pill{display:none}'],
   ['the pill that talks about the computer is offered in the chat', CSS, '.le-pill,.le-top .button.primary{display:none}', '.le-top .button.primary{display:none}'],
   // "See the real frames on the site" (route A): what may go into the address, who may open it, and what a refusing host is told
-  ['a clip film is given the site link', H, "if (mode !== 'data' || typeof appUrl", "if (false || typeof appUrl"],
+  ['a clip film is given the site link', H, "if (allowed !== true || mode !== 'data' || typeof appUrl", "if (allowed !== true || false || typeof appUrl"],
   ['a plain http site address is accepted', H, "const SITE_RE = /^https:\\/\\/", "const SITE_RE = /^https?:\\/\\/"],
   ['a film id of any form is put into the address', H, " || typeof project !== 'string' || !FILM_RE.test(project)) return '';", ") return '';"],
   ['the address leaves out the film', H, "+ '#/editor/data/' + project;", "+ '#/editor/data/';"],
@@ -83,6 +83,10 @@ const mutants = [
   ['the list loses its scroll shadow', LK, 'background-attachment:local,scroll', 'background-attachment:scroll'],
   ['the list traps a swipe again', LK, 'scrollbar-color:rgba(255,255,255,.25) transparent;background:', 'scrollbar-color:rgba(255,255,255,.25) transparent;overscroll-behavior:contain;background:'],
   ['a long title is cut again', LK, '.le-top h1{flex:1 1 auto;', '.le-top h1{white-space:nowrap;text-overflow:ellipsis;overflow:hidden;flex:1 1 auto;'],
+  // the panel's link into the site's editor is offered only when the server said the site's editor is on for this person (11-21)
+  ['the link is offered whatever the server said', H, "if (allowed !== true || mode !== 'data' ||", "if (mode !== 'data' ||"],
+  ['any truthy answer turns the link on (real Chrome)', H, 'sc.site_editor === true), siteNote', '!!sc.site_editor), siteNote', 'browser'],
+  ['the link is offered when the result says nothing (real Chrome)', H, 'sc.site_editor === true), siteNote', 'sc.site_editor !== false), siteNote', 'browser'],
   ['the look hides the slider keys hint', LK, '.le-keys{margin:0 0 var(--s2)}', '.le-keys{margin:0 0 var(--s2);display:none}'],
   ['the panel does not say drafts are kept by Ryagram', H, "'Changes here are drafts that Ryagram keeps. Save or build the film in the Ryagram app.'", "''"],
 ];

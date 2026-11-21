@@ -109,8 +109,11 @@ function seam() {
   return win.ryagramLiveHost;
 }
 test('the address the button opens is the site\'s editor on THIS film: a data film, a plain https site address, a film id of the site\'s own form, and nothing else goes into it', () => {
-  const link = seam().siteLink;
-  assert.equal(typeof link, 'function');
+  const siteLink = seam().siteLink;
+  assert.equal(typeof siteLink, 'function');
+  const link = (a, p, m) => siteLink(a, p, m, true);
+  // the site's own editor is on only for some accounts: the address is given ONLY when the server said this person's account has it (site_editor true), strictly
+  for (const off of [false, undefined, null, 'true', 1, 'yes', {}]) assert.equal(siteLink(APP, PROJECT, 'data', off), '', `not offered when the server said ${JSON.stringify(off)}`);
   assert.equal(link(APP, PROJECT, 'data'), `${APP}#/editor/data/${PROJECT}`);
   assert.equal(link('https://uselai.com/app', PROJECT, 'data'), `${APP}#/editor/data/${PROJECT}`, 'a missing closing slash is added');
   assert.equal(link(APP, PROJECT, 'compilation'), '', 'a clip film has no real frames on the site');
@@ -330,7 +333,7 @@ test('the seam never calls a tool by any name but the five, and never sends a ch
   assert.deepEqual([...methods].sort(), ['tools/call', 'ui/initialize', 'ui/notifications/initialized', 'ui/notifications/size-changed', 'ui/open-link', 'ui/request-display-mode', 'ui/update-model-context']);
   assert.ok(!/ui\/message/.test(HOST_SRC));
   assert.equal((HOST_SRC.match(/request\('ui\/open-link'/g) || []).length, 1, 'one place opens a link');
-  assert.ok(/onclick: \(\) => openSite\(siteUrl, siteNote\)/.test(HOST_SRC) && /const siteUrl = siteLink\(appUrl, project, window\.ryagramLiveHost\.mode\)/.test(HOST_SRC), 'and it is opened only with the address siteLink built, from the button\'s press, never from a message the host sends');
+  assert.ok(/onclick: \(\) => openSite\(siteUrl, siteNote\)/.test(HOST_SRC) && /const siteUrl = siteLink\(appUrl, project, window\.ryagramLiveHost\.mode, sc\.site_editor === true\)/.test(HOST_SRC), 'and it is opened only with the address siteLink built, from the button\'s press, never from a message the host sends');
   assert.equal((HOST_SRC.match(/request\('tools\/call'/g) || []).length, 1, 'one place makes a tool call, and it is guarded by the name list');
 });
 
