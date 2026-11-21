@@ -41,6 +41,9 @@ def judge(p, tag, did, label, how):
     check(here == f'#/d/{did}' and label.lower() in h1.lower() and 'Your projects' not in h1 and 'isn’t available' not in body, f'{tag}: {label} from the {how} opens its own page ({h1!r}, {here})')
     if did == 'data_films':
         check('your data films' in body.lower(), f'{tag}: {label} is the working page')
+        notinv = '&noinvite' in p.url                                  # dead-end sweep row 1 (11-21): the AI heading and its #/start link only for an account #/start works for
+        starts = p.locator('main a[href="#/start"]').count()
+        check((starts == 0 and 'start one in your ai' not in body.lower()) if notinv else ('start one in your ai' in body.lower()), f'{tag}: {label} shows the way into #/start only to an invited account ({starts} link(s))')
     else:
         want = ('tell me when it’s ready' in body.lower()) if did != 'forecasts' or '&deptforecasts' in p.url else ('nothing to sign up for yet' in body.lower())
         check('coming soon' in body.lower() and want, f'{tag}: {label} is a Coming soon page with {"its sign-up button" if did != "forecasts" or "&deptforecasts" in p.url else "the plain no-sign-up line"}')

@@ -70,6 +70,9 @@
   };
 
   // ---------------------------------------------------------------- the page
+  // THE one gate for "may this account start films by talking to an AI" (#/start, the strip, the Data films page's own link, the Coming soon sign-up): the server's connectAccess() is exactly true.
+  // A failing check is "no" (fail closed). Every page that shows a way into #/start asks THIS, so no link is shown to an account for whom #/start only reloads Your projects (WEB dead-end sweep row 1, 11-21).
+  async function canStart(data) { try { return !!data && (await data.connectAccess()) === true; } catch { return false; } }
   function create({ h, data, refresh }) {
     // Copy always works where the browser allows it; where it does not, the line is shown selected so the person can copy it by hand.
     async function copyLine(text, note) {
@@ -132,7 +135,7 @@
     // #/start. Any failure of either check shows the library, never a blank door.
     async function startView(onStop, libraryView) {
       let allowed = false, rows = null;
-      try { allowed = await data.connectAccess(); rows = allowed === true ? await data.myConnectedAis() : null; } catch { allowed = false; rows = null; }
+      try { allowed = await canStart(data); rows = allowed === true ? await data.myConnectedAis() : null; } catch { allowed = false; rows = null; }
       const screen = screenFor({ allowed, rows });
       if (screen === 'library') return libraryView();
       if (screen === 'connect') { const s = connectScreen(); onStop(s.stop); return s.view; }
@@ -143,7 +146,7 @@
     // The strip on top of the library: pills for the first lines when an AI is connected, or one line asking to connect when not. Never blocks the library: any failure shows nothing.
     async function strip() {
       try {
-        if (await data.connectAccess() !== true) return null;
+        if (!(await canStart(data))) return null;
         const rows = await data.myConnectedAis();
         if (!Array.isArray(rows)) return null;
         if (rows.length === 0) return h('p', { class: 'start-bar' }, h('a', { href: '#/start' }, 'Connect your AI to start films by talking'));
@@ -169,5 +172,5 @@
     return { startView, strip, shouldLandOnDoor };
   }
 
-  window.ryagramStart = { TAIL, LINES, CATALOG_LINES, STRIP, APPS, SNOOZE_MS, SNOOZE_KEY, lineWithTail, chatUrl, appOf, connectedName, screenFor, snoozed, landsOnDoor, flagOn, create };
+  window.ryagramStart = { canStart, TAIL, LINES, CATALOG_LINES, STRIP, APPS, SNOOZE_MS, SNOOZE_KEY, lineWithTail, chatUrl, appOf, connectedName, screenFor, snoozed, landsOnDoor, flagOn, create };
 })();

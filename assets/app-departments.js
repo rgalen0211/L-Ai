@@ -99,6 +99,9 @@
   // ---------------------------------------------------------------- the bar and the pages
   function create({ h, data, startUi }) {
     let model = null, cleanup = () => {}, mountToken = 0;
+    // May this account start films by talking to an AI? The SAME gate #/start itself uses (app-start.js canStart: connectAccess() exactly true; a failing check is no). Every way into #/start on these pages asks this,
+    // and the Coming soon sign-up asks it too (the server's register_department_interest answers only an invited account). Without app-start.js loaded the answer is no.
+    const mayStart = async () => (window.ryagramStart && window.ryagramStart.canStart ? window.ryagramStart.canStart(data) : false);
 
     async function load() {
       let rows = null;
@@ -159,8 +162,7 @@
       cleanup();
       cleanup = () => { document.body.classList.remove('has-departments'); if (slot) { slot.replaceChildren(); slot.hidden = true; } };
       if (!slot || !flagOn()) return false;
-      let invited = false;
-      try { invited = (await data.connectAccess()) === true; } catch { invited = false; }       // not invited (an administrator account never is) is no reason to hide the way to the departments
+      const invited = await mayStart();       // not invited (an administrator account never is) is no reason to hide the way to the departments
       if (mine !== mountToken) return false;
       const m = await load();
       if (mine !== mountToken || !hasAny(m)) return false;
@@ -201,14 +203,17 @@
 
     // A department that works: heading and sentence, the AI strip, your films, and the no-AI way.
     async function workingPage(id) {
-      const strip = startUi ? await startUi().strip() : null;
+      const invited = await mayStart();
+      const strip = invited && startUi ? await startUi().strip() : null;
       let projects = [];
       try { projects = await data.listProjects(); } catch { projects = []; }
       const list = projects.length
         ? h('ul', { class: 'project-list' }, projects.map(p => h('li', {}, h('a', { href: `#/p/${p.id}` }, p.title), h('span', { class: 'meta' }, p.latest ? ` Version ${p.latest.number}` : ''))))
-        : h('p', { class: 'form-intro' }, 'No data films yet. Start one in your AI, or build one step by step.');
+        : h('p', { class: 'form-intro' }, invited ? 'No data films yet. Start one in your AI, or build one step by step.' : 'No data films yet. Build one step by step.');
+      // "Start one in your AI" and its link only for an account #/start works for; anyone else would land on Your projects with no word why (WEB dead-end sweep row 1).
+      const aiBlock = invited ? [h('h2', {}, WORDS.fewLines), strip || h('p', { class: 'meta' }, h('a', { href: '#/start' }, 'Connect your AI to start films by talking'))] : [];
       return [h('h1', { tabindex: '-1' }, KNOWN[id].label), h('p', { class: 'form-intro' }, KNOWN[id].sentence), stillsBlock(id),
-              h('h2', {}, WORDS.fewLines), strip || h('p', { class: 'meta' }, h('a', { href: '#/start' }, 'Connect your AI to start films by talking')),
+              ...aiBlock,
               h('h2', {}, WORDS.yourFilms), list, h('p', { class: 'meta' }, h('a', { href: '#/build' }, WORDS.noAi))];
     }
 

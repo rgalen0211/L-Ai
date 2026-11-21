@@ -10,7 +10,7 @@ const require = createRequire(import.meta.url);
 const { createFakeClient } = require('./fake-supabase.js');
 const read = p => fs.readFileSync(new URL(`../${p}`, import.meta.url), 'utf8').replace(/\r\n/g, '\n');
 const win = {};
-for (const f of ['app-departments.js', 'app-data.js']) vm.runInNewContext(read(`assets/${f}`), { window: win, setTimeout, clearTimeout });
+for (const f of ['app-start.js', 'app-departments.js', 'app-data.js']) vm.runInNewContext(read(`assets/${f}`), { window: win, setTimeout, clearTimeout });
 const Dp = win.ryagramDepartments;
 const plain = x => JSON.parse(JSON.stringify(x));
 
@@ -60,10 +60,11 @@ test('APPROVED WORDING (Ryan 2026-10-28 10:59, Q244): the draft note is gone fro
   assert.equal(Dp.WORDS.noted, 'Noted. We’ll let you know here when it is ready.');
 });
 
-async function pageOf(id, { rows, interests = [], fail = false } = {}) {
+async function pageOf(id, { rows, interests = [], fail = false, invited = true } = {}) {
   const calls = [];
   const interestSet = new Set(interests);
   const data = {
+    connectAccess: async () => invited,
     myDepartments: async () => { if (fail) throw new Error('down'); return rows || [{ id: 'data_films', status: 'working' }, { id: 'compilations', status: 'soon' }, { id: 'games', status: 'soon' }]; },
     myDepartmentInterests: async () => [...interestSet],
     registerDepartmentInterest: async d => { calls.push(['register', d]); if (data.failSave) throw new Error('x'); interestSet.add(d); },
@@ -156,7 +157,8 @@ test('THE BAR: Start, the working departments, ONE Coming soon group of marked i
   assert.match(src, /h\('details', \{ class: 'soon-group' \}, h\('summary', \{\}, WORDS\.soonGroup\)/);
   assert.match(src, /window\.ryagramConfig\?\.credits === true\) items\.push\(h\('li', \{\}, link\('#\/credits', 'Credits'\)\)\)/);
   assert.match(src, /if \(!slot \|\| !flagOn\(\)\) return false;/);
-  assert.match(src, /invited = \(await data\.connectAccess\(\)\) === true/);
+  assert.match(src, /const invited = await mayStart\(\);/);
+  assert.match(src, /window\.ryagramStart\.canStart\(data\)/);
   assert.match(src, /const items = invited \?/);
   assert.doesNotMatch(src, /connectAccess\(\)\) !== true\) return false/);
   assert.match(src, /if \(mine !== mountToken \|\| !hasAny\(m\)\) return false;/);
@@ -175,7 +177,7 @@ test('WIRING: the script loads before the library, the route and the mount are b
   assert.match(lib, /if \(departmentsOn\(\)\) deptUi\(\)\.mountBar\(document\.getElementById\('dept-slot'\)\);/);
   const dat = read('assets/app-data.js');
   for (const rpc of ['my_departments', 'my_department_interests', 'register_department_interest', 'withdraw_department_interest']) assert.ok(dat.includes(`'${rpc}'`), rpc);
-  assert.match(html, /app-departments\.js\?v=20261120r/);
+  assert.match(html, /app-departments\.js\?v=20261121a/);
   assert.match(html, /app-data\.js\?v=20261120h/);
   assert.match(html, /app-library\.js\?v=20261120y/);        // main's 20261030a + the tutorial sample route (NEXT-BUILDER 38), merged
 });

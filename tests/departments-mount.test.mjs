@@ -37,6 +37,7 @@ function world({ invited = true, rows = null, listFails = false } = {}) {
     addEventListener: t => add(log.win, t), removeEventListener: t => del(log.win, t),
     matchMedia: () => ({ matches: false, addEventListener: t => add(log.media, t), removeEventListener: t => del(log.media, t) }) };
   const ctx = { window: win, document: { body, addEventListener: t => add(log.doc, t), removeEventListener: t => del(log.doc, t) }, location: { hash: '#/' }, console, Promise, Object, Array, Set, Map, String, setTimeout, clearTimeout };
+  vm.runInNewContext(read('assets/app-start.js'), ctx);
   vm.runInNewContext(read('assets/app-departments.js'), ctx);
   const gates = { access: [], list: [] }, asks = { list: 0 };
   const data = { connectAccess: () => { const g = gate(); gates.access.push(g); return g.p.then(() => invited); }, myDepartments: () => { asks.list++; const g = gate(); gates.list.push(g); return g.p.then(() => { if (listFails) throw new Error('down'); return rows || [{ id: 'data_films', status: 'working' }, { id: 'games', status: 'soon' }]; }); } };
