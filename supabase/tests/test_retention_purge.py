@@ -61,7 +61,32 @@ class Purge(core.Base):
                        "case when %s::text is null then null else now() - %s::interval end, now() - interval '5 years') returning 1", f"h{n}@x.co", answered, answered)
         r = self.svc().one("select retention_purge()")
         self.assertEqual(r["help_requests"], 1)
-        self.assertEqual(sorted(x[0] for x in self.db.as_(None).all("select email from public.support_requests")), ["h2@x.co", "h3@x.co"])   # 2 years: kept; unanswered: kept
+        # GEO 11-21 (review M5): the 5-year-old UNANSWERED request now goes too (unanswered: 12 months after it was sent)
+        self.assertEqual(sorted(x[0] for x in self.db.as_(None).all("select email from public.support_requests")), ["h2@x.co"])   # 2 years answered: kept
+        self.assertEqual(r.get("help_requests_unanswered"), 1)
+
+    # -- GEO 11-21 (GEO-SECURITY-PRIVACY-REVIEW-1121 M4, M5): unanswered help requests and the mail we sent
+    def test_GEO_an_unanswered_help_request_goes_12_months_after_it_was_sent(self):
+        for n, age in ((1, "13 months"), (2, "11 months")):
+            self.admin("insert into public.support_requests (email, topic, message, created_at) values (%s, 'other', 'hello there friend', now() - %s::interval) returning 1",
+                       f"u{n}@x.co", age)
+        r = self.svc().one("select retention_purge()")
+        # MUST-FAIL: before the fix an unanswered request was kept forever (the rows first, so the old code fails on what it kept)
+        self.assertEqual([x[0] for x in self.db.as_(None).all("select email from public.support_requests")], ["u2@x.co"])
+        self.assertEqual(r.get("help_requests_unanswered"), 1)
+
+    def test_GEO_the_mail_we_sent_goes_after_12_months_but_urgent_mail_is_kept(self):
+        rows = [("invite", "13 months", "a@x.co"), ("invite", "11 months", "b@x.co"), ("alert", "13 months", "ops@x.co"),
+                ("digest", "13 months", "ops@x.co"), ("ack", "13 months", "c@x.co"), ("alert", "11 months", "ops@x.co"),
+                ("urgent", "5 years", "ops@x.co")]
+        for kind, age, to in rows:
+            self.admin("insert into public.ops_outbox (kind, mode, to_addr, subject, body, created_at) values (%s, 'dry_run', %s, 's', 'b', now() - %s::interval) returning 1",
+                       kind, to, age)
+        r = self.svc().one("select retention_purge()")
+        left = sorted((k, to) for k, to in self.db.as_(None).all("select kind, to_addr from public.ops_outbox"))
+        # MUST-FAIL: before the fix the outbox was never purged; urgent mail is kept, however old
+        self.assertEqual(left, [("alert", "ops@x.co"), ("invite", "b@x.co"), ("urgent", "ops@x.co")])
+        self.assertEqual((r.get("outbox_invites"), r.get("outbox_ops_mail")), (1, 3))
 
     def test_reports_go_3_years_after_review_but_child_safety_reports_and_unreviewed_ones_are_never_touched(self):
         rows = [("harassment", "4 years"), ("copyright", "2 years"), ("other", None), ("child_safety", "5 years"), ("child_safety", None)]

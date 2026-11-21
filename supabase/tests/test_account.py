@@ -169,6 +169,21 @@ class Account(core.Base):
         again = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "ryan@example.com")
         self.assertEqual(sum(v for v in again.values()), 0)                                                  # safe to run twice
 
+    def test_GEO_on_delete_mail_we_sent_the_person_is_erased_and_their_address_leaves_other_messages(self):
+        add = "insert into ops_outbox (kind, mode, to_addr, subject, body) values (%s, 'dry_run', %s, 's', %s) returning id"
+        invite = self.admin(add, "invite", "Ryan@Example.com", "Join with this link: https://uselai.com/join?e=ryan@example.com")
+        urgent = self.admin(add, "urgent", "ryan@example.com", "kept as the law requires")
+        alert = self.admin(add, "alert", "ops@uselai.com", "New application from Ryan@Example.com (also ryan@example.com).")
+        other = self.admin(add, "invite", "other@example.com", "Join with this link")
+        out = self.db.as_("service").one("select account_redact_contact(%s, %s)", RYAN, "Ryan@Example.com")
+        self.assertIsNone(self.admin("select id from ops_outbox where id = %s", invite))       # MUST-FAIL: before the fix the outbox kept it all
+        self.assertEqual(self.admin("select to_addr from ops_outbox where id = %s", urgent), "ryan@example.com")
+        body = self.admin("select body from ops_outbox where id = %s", alert)
+        self.assertNotIn("ryan@example.com", body.lower())
+        self.assertEqual(body.count("[deleted address]"), 2)
+        self.assertEqual(self.admin("select to_addr from ops_outbox where id = %s", other), "other@example.com")
+        self.assertEqual((out.get("outbox_rows_erased"), out.get("outbox_rows_redacted")), (1, 1))
+
     def test_GEO_only_the_service_role_can_erase_or_redact(self):
         for who in (RYAN, "anon"):
             for sql in ("select account_erase_paid_content(%s)", "select account_redact_contact(%s, 'x@y.z')"):
