@@ -57,6 +57,8 @@ with sync_playwright() as pw:
                 p.screenshot(path=str(OUT / f'{dev}-{who.split()[0]}-projects.png'), full_page=True)
             for i in IDS:                                                                   # reach each department by clicking its card
                 p.goto(f'http://127.0.0.1:{PORT}/app/{q}#/', wait_until='load'); p.wait_for_selector('.dept-card', timeout=20000)
+                _t = p.locator('.flip-tab:has-text("Departments")')
+                if _t.count(): _t.click(); p.wait_for_timeout(600)          # the department cards are the Departments section of the home page
                 p.locator(f'.dept-card a[href="#/d/{i}"]').click(); p.wait_for_selector('h1:visible', timeout=15000); p.wait_for_timeout(500)
                 h1 = p.locator('h1:visible').first.inner_text(); body = p.inner_text('#app, main, body')
                 good = LABELS[i].lower() in h1.lower() and (('coming soon' in body.lower()) if i != 'data_films' else ('your data films' in body.lower()))
