@@ -273,5 +273,17 @@ class PreparedData(core.Base):
         self.db.as_("service").one("select account_request_deletion(%s, %s, 'credit history') is null", ALICE, "alice@x")   # safe twice
 
 
+    def test_GEO_000600_carries_every_line_of_000550_s_account_request_deletion_in_order(self):
+        # CC1 12:1x: Ryan applies in version order, 000550 then 000600; 000600 redefines the function, so it must carry
+        # every line of 000550's body (the AI revoke) or applying it would quietly undo the revoke. Edit one, edit both.
+        def fn(name):
+            t = (core.ROOT / "migrations" / name).read_text(encoding="utf-8").replace("\r\n", "\n")
+            a = t.index("function public.account_request_deletion(")
+            return [x.rstrip() for x in t[a:t.index("end $$;", a)].split("\n") if x.strip()]
+        older, newer = fn("20261121000550_delete_revokes_ai.sql"), fn("20261121000600_prepared_tombstone.sql")
+        it = iter(newer)
+        missing = [x for x in older if not any(x == y for y in it)]        # every line of 000550, in the same order
+        self.assertEqual(missing, [], "000600's account_request_deletion lost lines of 000550's")
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
