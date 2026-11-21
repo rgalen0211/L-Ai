@@ -83,3 +83,10 @@ test('SOURCED FACTS (Claude fact-check 01:50, Q72): two separate Claude paths th
   assert.doesNotMatch(page, /Free, Pro, Max|Plus|retir|December 2026|11 December/, 'nothing about OpenAI plans or retirement, which no one has confirmed from OpenAI');
   for (const [, href] of page.matchAll(/<a href="(https?:[^"]+)"/g)) assert.ok(/support\.claude\.com|fonts\./.test(href), `an outside link must be a source we checked: ${href}`);
 });
+
+test('a person who is not invited is told so, and told how to ask: "invite-only for now" (the words the consent page uses) and a way to reach us (the help page)', () => {
+  assert.match(page, /has been invited to try connections\. Connecting an AI is invite-only for now; to ask for an invite, write to us from the <a href="\/help\/">help page<\/a>\./);
+  const consent = fs.readdirSync(path.join(root, 'supabase/migrations')).map(f => read('supabase/migrations/' + f)).join('\n');
+  assert.ok(consent.includes('invite-only for now'), 'the consent page says the same two words, so the guide and the page agree');
+  assert.ok(read('help/index.html').includes('mailto:ryagram@uselai'), 'and the help page has the address to write to');
+});
